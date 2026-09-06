@@ -1,0 +1,2505 @@
+---
+title: Oracle Fusion Subscription Management
+description: Manage customer subscriptions, products, coverage, charges, billing information, and lifecycle actions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_subscription_management"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Manage Oracle Fusion customer subscriptions through CRM REST 11.13.18.05. Author subscription products, coverage, asset associations, charges, and discounts. Inspect billing and validation results, and invoke documented lifecycle actions. Oracle enforces business-unit access, privileges, and lifecycle restrictions. Some actions run asynchronously: inspect their result and subsequently read the subscription to confirm completion. Product visibility can depend on Oracle status-filter profiles. Customer master maintenance, Receivables invoice writes, CPQ, OCI subscriptions, and ESS job management are not included.
+
+
+
+## Actions
+
+### Oracle Fusion Subscription Management Activate subscription
+
+Activate subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `ignoreWarnings` | string | No | ignoreWarnings; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Amend product
+
+Amend product using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `copyCustomChildObjects` | string | No | copyCustomChildObjects; explicit null is passed to Oracle |
+| `amendCreditMethod` | string | No | amendCreditMethod; explicit null is passed to Oracle |
+| `defaultRevenueAction` | string | No | defaultRevenueAction; explicit null is passed to Oracle |
+| `copyCharges` | string | No | copyCharges; explicit null is passed to Oracle |
+| `copyAdjustments` | string | No | copyAdjustments; explicit null is passed to Oracle |
+| `creditType` | string | No | creditType; explicit null is passed to Oracle |
+| `amendDescription` | string | No | amendDescription; explicit null is passed to Oracle |
+| `amendReason` | string | No | amendReason; explicit null is passed to Oracle |
+| `overrideCreditAmount` | number | No | overrideCreditAmount; explicit null is passed to Oracle |
+| `copyOneTimeCharges` | string | No | copyOneTimeCharges; explicit null is passed to Oracle |
+| `revenueOption` | string | No | revenueOption; explicit null is passed to Oracle |
+| `balanceTermLineTerminatedPartialPeriodOption` | string | No | balanceTermLineTerminatedPartialPeriodOption; explicit null is passed to Oracle |
+| `lineNumber` | string | No | lineNumber; explicit null is passed to Oracle |
+| `amendEffectiveDate` | string | No | amendEffectiveDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `balanceNewLineFirstPartialPeriodOption` | string | No | balanceNewLineFirstPartialPeriodOption; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Calculate product credit
+
+Calculate product credit using the documented Oracle calculation action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `closedDate` | string | No | closedDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `closeCreditMethod` | string | No | closeCreditMethod; explicit null is passed to Oracle |
+| `coveredLevelPuid` | string | No | coveredLevelPuid; explicit null is passed to Oracle |
+| `externalAssetKey` | string | No | externalAssetKey; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Calculate product termination fee
+
+Calculate product termination fee using the documented Oracle calculation action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `closedDate` | string | No | closedDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Calculated fee as a number or exact decimal string |
+
+### Oracle Fusion Subscription Management Cancel product
+
+Cancel product using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `canceledDate` | string | No | canceledDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `cancelDescription` | string | No | cancelDescription; explicit null is passed to Oracle |
+| `cancelReason` | string | No | cancelReason; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Cancel subscription
+
+Cancel subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `canceledDate` | string | No | canceledDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `cancelDescription` | string | No | cancelDescription; explicit null is passed to Oracle |
+| `cancelReason` | string | No | cancelReason; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Close product
+
+Close product using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `closeDescription` | string | No | closeDescription; explicit null is passed to Oracle |
+| `closedDate` | string | No | closedDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `overrideCreditAmount` | number | No | overrideCreditAmount; explicit null is passed to Oracle |
+| `closeCreditMethod` | string | No | closeCreditMethod; explicit null is passed to Oracle |
+| `revenueOption` | string | No | revenueOption; explicit null is passed to Oracle |
+| `balanceTerminatedPartialPeriodOption` | string | No | balanceTerminatedPartialPeriodOption; explicit null is passed to Oracle |
+| `earlyTerminationFee` | number | No | earlyTerminationFee; explicit null is passed to Oracle |
+| `closeReason` | string | No | closeReason; explicit null is passed to Oracle |
+| `creditType` | string | No | creditType; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Close subscription
+
+Close subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `closeDescription` | string | No | closeDescription; explicit null is passed to Oracle |
+| `closedDate` | string | No | closedDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `overrideCreditAmount` | number | No | overrideCreditAmount; explicit null is passed to Oracle |
+| `closeCreditMethod` | string | No | closeCreditMethod; explicit null is passed to Oracle |
+| `revenueOption` | string | No | revenueOption; explicit null is passed to Oracle |
+| `balanceTerminatedPartialPeriodOption` | string | No | balanceTerminatedPartialPeriodOption; explicit null is passed to Oracle |
+| `closeReason` | string | No | closeReason; explicit null is passed to Oracle |
+| `creditType` | string | No | creditType; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Create associated asset
+
+Create associated asset in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `associatedAssetPuid` | string | No | AssociatedAssetPuid |
+| `assetId` | string | No | AssetId as an exact decimal string; explicit null is passed to Oracle |
+| `assetName` | string | No | AssetName; explicit null is passed to Oracle |
+| `assetSerialNumber` | string | No | AssetSerialNumber; explicit null is passed to Oracle |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string; explicit null is passed to Oracle |
+| `productName` | string | No | ProductName; explicit null is passed to Oracle |
+| `quantity` | number | No | Quantity; explicit null is passed to Oracle |
+| `unitOfMeasureCode` | string | No | UnitOfMeasureCode; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceLineKey` | string | No | SourceLineKey; explicit null is passed to Oracle |
+| `sourceLineNumber` | string | No | SourceLineNumber; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `AssociatedAssetId` | string | AssociatedAssetId as an exact decimal string |
+|   ↳ `AssociatedAssetPuid` | string | AssociatedAssetPuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetDescription` | string | AssetDescription |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitOfMeasureCode` | string | UnitOfMeasureCode |
+|   ↳ `SourceSystem` | string | SourceSystem |
+|   ↳ `SourceKey` | string | SourceKey |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Create charge
+
+Create charge in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `chargePuid` | string | No | ChargePuid; explicit null is passed to Oracle |
+| `chargeName` | string | No | ChargeName; explicit null is passed to Oracle |
+| `chargeDefinition` | string | No | ChargeDefinition; explicit null is passed to Oracle |
+| `priceType` | string | Yes | PriceType |
+| `unitListPrice` | number | No | UnitListPrice; explicit null is passed to Oracle |
+| `pricePeriodicity` | string | No | PricePeriodicity; explicit null is passed to Oracle |
+| `billingFreq` | string | No | BillingFreq; explicit null is passed to Oracle |
+| `invoicingRuleId` | string | No | InvoicingRuleId as an exact decimal string; explicit null is passed to Oracle |
+| `sequenceNumber` | number | No | SequenceNumber; explicit null is passed to Oracle |
+| `usageUnitOfMeasure` | string | No | UsageUnitOfMeasure; explicit null is passed to Oracle |
+| `minimumAmount` | number | No | MinimumAmount; explicit null is passed to Oracle |
+| `minimumQuantity` | number | No | MinimumQuantity; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `ChargePuid` | string | ChargePuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `ChargeName` | string | ChargeName |
+|   ↳ `ChargeDefinition` | string | ChargeDefinition |
+|   ↳ `ChargeDefinitionName` | string | ChargeDefinitionName |
+|   ↳ `PriceType` | string | PriceType |
+|   ↳ `UnitListPrice` | json | UnitListPrice as a number or exact decimal string |
+|   ↳ `PricePeriodicity` | string | PricePeriodicity |
+|   ↳ `BillingFreq` | string | BillingFreq |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `UsageUnitOfMeasure` | string | UsageUnitOfMeasure |
+|   ↳ `MinimumAmount` | json | MinimumAmount as a number or exact decimal string |
+|   ↳ `MinimumQuantity` | json | MinimumQuantity as a number or exact decimal string |
+|   ↳ `AllowAdhocBillAdjustmentFlag` | boolean | AllowAdhocBillAdjustmentFlag |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Create charge adjustment
+
+Create charge adjustment in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `chargeAdjustmentPuid` | string | No | ChargeAdjustmentPuid; explicit null is passed to Oracle |
+| `adjustmentName` | string | No | AdjustmentName; explicit null is passed to Oracle |
+| `adjustmentType` | string | No | AdjustmentType; explicit null is passed to Oracle |
+| `adjustmentValue` | number | No | AdjustmentValue; explicit null is passed to Oracle |
+| `adjustmentBasis` | string | No | AdjustmentBasis; explicit null is passed to Oracle |
+| `adjustmentReasonCode` | string | No | AdjustmentReasonCode; explicit null is passed to Oracle |
+| `effectivity` | string | No | Effectivity; explicit null is passed to Oracle |
+| `periodFrom` | number | No | PeriodFrom; explicit null is passed to Oracle |
+| `periodUntil` | number | No | PeriodUntil; explicit null is passed to Oracle |
+| `numberOfPeriods` | number | No | NumberOfPeriods; explicit null is passed to Oracle |
+| `validFrom` | string | No | ValidFrom \(ISO 8601 date-time with timezone\); explicit null is passed to Oracle |
+| `validUntil` | string | No | ValidUntil \(ISO 8601 date-time with timezone\); explicit null is passed to Oracle |
+| `revenueOptionChargeAdjustment` | string | No | RevenueOptionChargeAdjustment; explicit null is passed to Oracle |
+| `revenuePeriodChargeAdjustment` | string | No | RevenuePeriodChargeAdjustment; explicit null is passed to Oracle |
+| `reason` | string | No | Reason; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `ChargeAdjustmentId` | string | ChargeAdjustmentId as an exact decimal string |
+|   ↳ `ChargeAdjustmentPuid` | string | ChargeAdjustmentPuid |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AdjustmentName` | string | AdjustmentName |
+|   ↳ `AdjustmentType` | string | AdjustmentType |
+|   ↳ `AdjustmentValue` | json | AdjustmentValue as a number or exact decimal string |
+|   ↳ `AdjustmentBasis` | string | AdjustmentBasis |
+|   ↳ `AdjustmentReasonCode` | string | AdjustmentReasonCode |
+|   ↳ `AdjustmentReasonMeaning` | string | AdjustmentReasonMeaning |
+|   ↳ `Effectivity` | string | Effectivity |
+|   ↳ `PeriodFrom` | json | PeriodFrom as a number or exact decimal string |
+|   ↳ `PeriodUntil` | json | PeriodUntil as a number or exact decimal string |
+|   ↳ `NumberOfPeriods` | json | NumberOfPeriods as a number or exact decimal string |
+|   ↳ `ValidFrom` | string | ValidFrom |
+|   ↳ `ValidUntil` | string | ValidUntil |
+|   ↳ `RevenueOptionChargeAdjustment` | string | RevenueOptionChargeAdjustment |
+|   ↳ `RevenuePeriodChargeAdjustment` | string | RevenuePeriodChargeAdjustment |
+|   ↳ `IsEditableFlag` | boolean | IsEditableFlag |
+|   ↳ `IsStatusNotDraft` | string | IsStatusNotDraft |
+|   ↳ `IsUserCreated` | string | IsUserCreated |
+|   ↳ `ObjectVersionNumber` | number | ObjectVersionNumber |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Create covered level
+
+Create covered level in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `newCoveredLevelPuid` | string | Yes | CoveredLevelPuid |
+| `type` | string | Yes | Type |
+| `startDate` | string | Yes | StartDate \(YYYY-MM-DD\) |
+| `endDate` | string | No | EndDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `description` | string | No | Description; explicit null is passed to Oracle |
+| `assetId` | string | No | AssetId as an exact decimal string; explicit null is passed to Oracle |
+| `partyId` | string | No | PartyId as an exact decimal string; explicit null is passed to Oracle |
+| `customerAccountId` | string | No | CustomerAccountId as an exact decimal string; explicit null is passed to Oracle |
+| `productGroupId` | string | No | ProductGroupId as an exact decimal string; explicit null is passed to Oracle |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string; explicit null is passed to Oracle |
+| `quantity` | number | No | Quantity |
+| `unitPrice` | number | No | UnitPrice; explicit null is passed to Oracle |
+| `itemUnitOfMeasure` | string | No | ItemUnitOfMeasure; explicit null is passed to Oracle |
+| `invoiceText` | string | No | InvoiceText; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceLineKey` | string | No | SourceLineKey; explicit null is passed to Oracle |
+| `sourceLineNumber` | string | No | SourceLineNumber; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `CoveredLevelPuid` | string | CoveredLevelPuid |
+|   ↳ `CoveredLevelParentPuid` | string | CoveredLevelParentPuid |
+|   ↳ `ParentCoveredLevelId` | string | ParentCoveredLevelId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `Type` | string | Type |
+|   ↳ `TypeName` | string | TypeName |
+|   ↳ `CoveredLevelName` | string | CoveredLevelName |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `CustomerAccountId` | string | CustomerAccountId as an exact decimal string |
+|   ↳ `ProductGroupId` | string | ProductGroupId as an exact decimal string |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Create product
+
+Create product in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `newSubscriptionProductPuid` | string | Yes | SubscriptionProductPuid |
+| `lineNumber` | string | Yes | LineNumber |
+| `inventoryItemId` | string | Yes | InventoryItemId as an exact decimal string |
+| `definitionOrganizationId` | string | Yes | DefinitionOrganizationId as an exact decimal string |
+| `accountingRuleId` | string | Yes | AccountingRuleId as an exact decimal string |
+| `invoicingRuleId` | string | Yes | InvoicingRuleId as an exact decimal string |
+| `billToAccountId` | string | Yes | BillToAccountId as an exact decimal string |
+| `billToSiteUseId` | string | Yes | BillToSiteUseId as an exact decimal string |
+| `billToContactId` | string | No | BillToContactId as an exact decimal string; explicit null is passed to Oracle |
+| `billingFrequency` | string | Yes | BillingFrequency |
+| `currency` | string | Yes | Currency |
+| `transactionTypeName` | string | Yes | TransactionTypeName |
+| `startDate` | string | Yes | StartDate \(YYYY-MM-DD\) |
+| `endDate` | string | No | EndDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `quantity` | number | No | Quantity; explicit null is passed to Oracle |
+| `unitPrice` | number | No | UnitPrice; explicit null is passed to Oracle |
+| `description` | string | No | Description; explicit null is passed to Oracle |
+| `paymentTermsId` | string | No | PaymentTermsId as an exact decimal string; explicit null is passed to Oracle |
+| `paymentMethod` | string | No | PaymentMethod; explicit null is passed to Oracle |
+| `pONumber` | string | No | PONumber; explicit null is passed to Oracle |
+| `itemUnitOfMeasure` | string | No | ItemUnitOfMeasure; explicit null is passed to Oracle |
+| `invoiceText` | string | No | InvoiceText; explicit null is passed to Oracle |
+| `externalAssetKey` | string | No | ExternalAssetKey; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceLineKey` | string | No | SourceLineKey; explicit null is passed to Oracle |
+| `sourceLineNumber` | string | No | SourceLineNumber; explicit null is passed to Oracle |
+| `renewalType` | string | No | RenewalType; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `SubscriptionProductPuid` | string | SubscriptionProductPuid |
+|   ↳ `LineNumber` | string | LineNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `SalesProductType` | string | SalesProductType |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `Description` | string | Description |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusMeaning` | string | StatusMeaning |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `MonthlyRecurringRevenue` | json | MonthlyRecurringRevenue as a number or exact decimal string |
+|   ↳ `ExternalAssetKey` | string | ExternalAssetKey |
+|   ↳ `AmendSourceProductPuid` | string | AmendSourceProductPuid |
+|   ↳ `OriginalSubscriptionProductPuid` | string | OriginalSubscriptionProductPuid |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `PendingActivationFlag` | boolean | PendingActivationFlag |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Create subscription
+
+Create subscription in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `newSubscriptionNumber` | string | Yes | SubscriptionNumber |
+| `description` | string | No | Description; explicit null is passed to Oracle |
+| `shortDescription` | string | No | ShortDescription; explicit null is passed to Oracle |
+| `primaryPartyId` | string | Yes | PrimaryPartyId as an exact decimal string |
+| `billToAccountId` | string | Yes | BillToAccountId as an exact decimal string |
+| `billToSiteUseId` | string | Yes | BillToSiteUseId as an exact decimal string |
+| `billToContactId` | string | No | BillToContactId as an exact decimal string; explicit null is passed to Oracle |
+| `businessUnitId` | string | Yes | BusinessUnitId as an exact decimal string |
+| `legalEntityId` | string | Yes | LegalEntityId as an exact decimal string |
+| `subscriptionProfileId` | string | Yes | SubscriptionProfileId as an exact decimal string |
+| `definitionOrganizationId` | string | Yes | DefinitionOrganizationId as an exact decimal string |
+| `accountingRuleId` | string | Yes | AccountingRuleId as an exact decimal string |
+| `invoicingRuleId` | string | No | InvoicingRuleId as an exact decimal string; explicit null is passed to Oracle |
+| `transactionTypeName` | string | Yes | TransactionTypeName |
+| `currency` | string | Yes | Currency |
+| `startDate` | string | No | StartDate \(YYYY-MM-DD\) |
+| `endDate` | string | No | EndDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `duration` | number | No | Duration; explicit null is passed to Oracle |
+| `period` | string | No | Period; explicit null is passed to Oracle |
+| `partialPeriodStart` | string | Yes | PartialPeriodStart |
+| `partialPeriodType` | string | Yes | PartialPeriodType |
+| `billingFrequency` | string | No | BillingFrequency; explicit null is passed to Oracle |
+| `paymentTermsId` | string | No | PaymentTermsId as an exact decimal string; explicit null is passed to Oracle |
+| `paymentMethod` | string | No | PaymentMethod; explicit null is passed to Oracle |
+| `pONumber` | string | No | PONumber; explicit null is passed to Oracle |
+| `renewalType` | string | No | RenewalType; explicit null is passed to Oracle |
+| `renewalProcess` | string | No | RenewalProcess; explicit null is passed to Oracle |
+| `renewalDuration` | number | No | RenewalDuration; explicit null is passed to Oracle |
+| `renewalDurationPeriod` | string | No | RenewalDurationPeriod; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceNumber` | string | No | SourceNumber; explicit null is passed to Oracle |
+| `subscriptionInvoiceText` | string | No | SubscriptionInvoiceText; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `Description` | string | Description |
+|   ↳ `ShortDescription` | string | ShortDescription |
+|   ↳ `PrimaryPartyId` | string | PrimaryPartyId as an exact decimal string |
+|   ↳ `PrimaryPartyName` | string | PrimaryPartyName |
+|   ↳ `PrimaryPartyNumber` | string | PrimaryPartyNumber |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToAccountNumber` | string | BillToAccountNumber |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillToContactId` | string | BillToContactId as an exact decimal string |
+|   ↳ `BusinessUnitId` | string | BusinessUnitId as an exact decimal string |
+|   ↳ `BusinessUnitName` | string | BusinessUnitName |
+|   ↳ `LegalEntityId` | string | LegalEntityId as an exact decimal string |
+|   ↳ `SubscriptionProfileId` | string | SubscriptionProfileId as an exact decimal string |
+|   ↳ `SubscriptionProfileName` | string | SubscriptionProfileName |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusName` | string | StatusName |
+|   ↳ `UserStatus` | string | UserStatus |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `RenewalType` | string | RenewalType |
+|   ↳ `RenewalProcess` | string | RenewalProcess |
+|   ↳ `RenewalDuration` | number | RenewalDuration |
+|   ↳ `RenewalDurationPeriod` | string | RenewalDurationPeriod |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `LockedFlagReadOnly` | string | LockedFlagReadOnly |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `SystemAction` | string | SystemAction |
+|   ↳ `SystemActionStatus` | string | SystemActionStatus |
+|   ↳ `SystemActionRequestId` | string | SystemActionRequestId as an exact decimal string |
+|   ↳ `SystemActionDate` | string | SystemActionDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Delete associated asset
+
+Delete associated asset in Oracle Fusion. Oracle enforces lifecycle and access restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `associatedAssetPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the deletion |
+
+### Oracle Fusion Subscription Management Delete charge
+
+Delete charge in Oracle Fusion. Oracle enforces lifecycle and access restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the deletion |
+
+### Oracle Fusion Subscription Management Delete charge adjustment
+
+Delete charge adjustment in Oracle Fusion. Oracle enforces lifecycle and access restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargeAdjustmentPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the deletion |
+
+### Oracle Fusion Subscription Management Delete covered level
+
+Delete covered level in Oracle Fusion. Oracle enforces lifecycle and access restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `coveredLevelPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the deletion |
+
+### Oracle Fusion Subscription Management Delete product
+
+Delete product in Oracle Fusion. Oracle enforces lifecycle and access restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the deletion |
+
+### Oracle Fusion Subscription Management Delete subscription
+
+Delete subscription in Oracle Fusion. Oracle enforces lifecycle and access restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the deletion |
+
+### Oracle Fusion Subscription Management Get associated asset
+
+Get associated asset in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `associatedAssetPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `AssociatedAssetId` | string | AssociatedAssetId as an exact decimal string |
+|   ↳ `AssociatedAssetPuid` | string | AssociatedAssetPuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetDescription` | string | AssetDescription |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitOfMeasureCode` | string | UnitOfMeasureCode |
+|   ↳ `SourceSystem` | string | SourceSystem |
+|   ↳ `SourceKey` | string | SourceKey |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get bill adjustment
+
+Get bill adjustment in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billLinePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billAdjustmentPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `BillAdjustmentId` | string | BillAdjustmentId as an exact decimal string |
+|   ↳ `BillAdjustmentPuid` | string | BillAdjustmentPuid |
+|   ↳ `BillLineId` | string | BillLineId as an exact decimal string |
+|   ↳ `ChargeAdjustmentId` | string | ChargeAdjustmentId as an exact decimal string |
+|   ↳ `ChargeAdjustmentPuid` | string | ChargeAdjustmentPuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AdjustmentType` | string | AdjustmentType |
+|   ↳ `AdjustmentValue` | json | AdjustmentValue as a number or exact decimal string |
+|   ↳ `AdjustmentBasis` | string | AdjustmentBasis |
+|   ↳ `AdjustmentReasonCode` | string | AdjustmentReasonCode |
+|   ↳ `Effectivity` | string | Effectivity |
+|   ↳ `PeriodFrom` | json | PeriodFrom as a number or exact decimal string |
+|   ↳ `PeriodUntil` | json | PeriodUntil as a number or exact decimal string |
+|   ↳ `NumberOfPeriods` | json | NumberOfPeriods as a number or exact decimal string |
+|   ↳ `RevenueOption` | string | RevenueOption |
+|   ↳ `RevenuePeriod` | string | RevenuePeriod |
+|   ↳ `RevenueAdjustmentFromDate` | string | RevenueAdjustmentFromDate |
+|   ↳ `RevenueAdjustmentToDate` | string | RevenueAdjustmentToDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get bill line
+
+Get bill line in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billLinePuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `BillLineId` | string | BillLineId as an exact decimal string |
+|   ↳ `BillLinePuid` | string | BillLinePuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `ChargePuid` | string | ChargePuid |
+|   ↳ `ChargeName` | string | ChargeName |
+|   ↳ `Amount` | json | Amount as a number or exact decimal string |
+|   ↳ `DateBilledFrom` | string | DateBilledFrom |
+|   ↳ `DateBilledTo` | string | DateBilledTo |
+|   ↳ `DateToInterface` | string | DateToInterface |
+|   ↳ `InterfacedFlag` | boolean | InterfacedFlag |
+|   ↳ `InvoiceDate` | string | InvoiceDate |
+|   ↳ `InvoiceText` | string | InvoiceText |
+|   ↳ `TransactionNumber` | string | TransactionNumber |
+|   ↳ `TrxId` | string | TrxId as an exact decimal string |
+|   ↳ `TrxLineId` | string | TrxLineId as an exact decimal string |
+|   ↳ `TransactionAmount` | json | TransactionAmount as a number or exact decimal string |
+|   ↳ `TransactionTax` | json | TransactionTax as a number or exact decimal string |
+|   ↳ `TransactionClass` | string | TransactionClass |
+|   ↳ `CreditMemoAmount` | json | CreditMemoAmount as a number or exact decimal string |
+|   ↳ `CreditMemoFlag` | string | CreditMemoFlag |
+|   ↳ `CreditMemoReasonCode` | string | CreditMemoReasonCode |
+|   ↳ `UsageQuantity` | json | UsageQuantity as a number or exact decimal string |
+|   ↳ `UsageFlag` | boolean | UsageFlag |
+|   ↳ `UsageAcquiredFlag` | boolean | UsageAcquiredFlag |
+|   ↳ `UsagePricedFlag` | boolean | UsagePricedFlag |
+|   ↳ `UsageCaptureDate` | string | UsageCaptureDate |
+|   ↳ `UsageRatingProcess` | string | UsageRatingProcess |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get charge
+
+Get charge in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `ChargePuid` | string | ChargePuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `ChargeName` | string | ChargeName |
+|   ↳ `ChargeDefinition` | string | ChargeDefinition |
+|   ↳ `ChargeDefinitionName` | string | ChargeDefinitionName |
+|   ↳ `PriceType` | string | PriceType |
+|   ↳ `UnitListPrice` | json | UnitListPrice as a number or exact decimal string |
+|   ↳ `PricePeriodicity` | string | PricePeriodicity |
+|   ↳ `BillingFreq` | string | BillingFreq |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `UsageUnitOfMeasure` | string | UsageUnitOfMeasure |
+|   ↳ `MinimumAmount` | json | MinimumAmount as a number or exact decimal string |
+|   ↳ `MinimumQuantity` | json | MinimumQuantity as a number or exact decimal string |
+|   ↳ `AllowAdhocBillAdjustmentFlag` | boolean | AllowAdhocBillAdjustmentFlag |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get charge adjustment
+
+Get charge adjustment in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargeAdjustmentPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `ChargeAdjustmentId` | string | ChargeAdjustmentId as an exact decimal string |
+|   ↳ `ChargeAdjustmentPuid` | string | ChargeAdjustmentPuid |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AdjustmentName` | string | AdjustmentName |
+|   ↳ `AdjustmentType` | string | AdjustmentType |
+|   ↳ `AdjustmentValue` | json | AdjustmentValue as a number or exact decimal string |
+|   ↳ `AdjustmentBasis` | string | AdjustmentBasis |
+|   ↳ `AdjustmentReasonCode` | string | AdjustmentReasonCode |
+|   ↳ `AdjustmentReasonMeaning` | string | AdjustmentReasonMeaning |
+|   ↳ `Effectivity` | string | Effectivity |
+|   ↳ `PeriodFrom` | json | PeriodFrom as a number or exact decimal string |
+|   ↳ `PeriodUntil` | json | PeriodUntil as a number or exact decimal string |
+|   ↳ `NumberOfPeriods` | json | NumberOfPeriods as a number or exact decimal string |
+|   ↳ `ValidFrom` | string | ValidFrom |
+|   ↳ `ValidUntil` | string | ValidUntil |
+|   ↳ `RevenueOptionChargeAdjustment` | string | RevenueOptionChargeAdjustment |
+|   ↳ `RevenuePeriodChargeAdjustment` | string | RevenuePeriodChargeAdjustment |
+|   ↳ `IsEditableFlag` | boolean | IsEditableFlag |
+|   ↳ `IsStatusNotDraft` | string | IsStatusNotDraft |
+|   ↳ `IsUserCreated` | string | IsUserCreated |
+|   ↳ `ObjectVersionNumber` | number | ObjectVersionNumber |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get child covered level
+
+Get child covered level in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `coveredLevelPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `childCoveredLevelPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `CoveredLevelPuid` | string | CoveredLevelPuid |
+|   ↳ `CoveredLevelParentPuid` | string | CoveredLevelParentPuid |
+|   ↳ `ParentCoveredLevelId` | string | ParentCoveredLevelId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `Type` | string | Type |
+|   ↳ `TypeName` | string | TypeName |
+|   ↳ `CoveredLevelName` | string | CoveredLevelName |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `CustomerAccountId` | string | CustomerAccountId as an exact decimal string |
+|   ↳ `ProductGroupId` | string | ProductGroupId as an exact decimal string |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get covered level
+
+Get covered level in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `coveredLevelPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `CoveredLevelPuid` | string | CoveredLevelPuid |
+|   ↳ `CoveredLevelParentPuid` | string | CoveredLevelParentPuid |
+|   ↳ `ParentCoveredLevelId` | string | ParentCoveredLevelId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `Type` | string | Type |
+|   ↳ `TypeName` | string | TypeName |
+|   ↳ `CoveredLevelName` | string | CoveredLevelName |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `CustomerAccountId` | string | CustomerAccountId as an exact decimal string |
+|   ↳ `ProductGroupId` | string | ProductGroupId as an exact decimal string |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get product
+
+Get product in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `SubscriptionProductPuid` | string | SubscriptionProductPuid |
+|   ↳ `LineNumber` | string | LineNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `SalesProductType` | string | SalesProductType |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `Description` | string | Description |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusMeaning` | string | StatusMeaning |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `MonthlyRecurringRevenue` | json | MonthlyRecurringRevenue as a number or exact decimal string |
+|   ↳ `ExternalAssetKey` | string | ExternalAssetKey |
+|   ↳ `AmendSourceProductPuid` | string | AmendSourceProductPuid |
+|   ↳ `OriginalSubscriptionProductPuid` | string | OriginalSubscriptionProductPuid |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `PendingActivationFlag` | boolean | PendingActivationFlag |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get subscription
+
+Get subscription in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `Description` | string | Description |
+|   ↳ `ShortDescription` | string | ShortDescription |
+|   ↳ `PrimaryPartyId` | string | PrimaryPartyId as an exact decimal string |
+|   ↳ `PrimaryPartyName` | string | PrimaryPartyName |
+|   ↳ `PrimaryPartyNumber` | string | PrimaryPartyNumber |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToAccountNumber` | string | BillToAccountNumber |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillToContactId` | string | BillToContactId as an exact decimal string |
+|   ↳ `BusinessUnitId` | string | BusinessUnitId as an exact decimal string |
+|   ↳ `BusinessUnitName` | string | BusinessUnitName |
+|   ↳ `LegalEntityId` | string | LegalEntityId as an exact decimal string |
+|   ↳ `SubscriptionProfileId` | string | SubscriptionProfileId as an exact decimal string |
+|   ↳ `SubscriptionProfileName` | string | SubscriptionProfileName |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusName` | string | StatusName |
+|   ↳ `UserStatus` | string | UserStatus |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `RenewalType` | string | RenewalType |
+|   ↳ `RenewalProcess` | string | RenewalProcess |
+|   ↳ `RenewalDuration` | number | RenewalDuration |
+|   ↳ `RenewalDurationPeriod` | string | RenewalDurationPeriod |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `LockedFlagReadOnly` | string | LockedFlagReadOnly |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `SystemAction` | string | SystemAction |
+|   ↳ `SystemActionStatus` | string | SystemActionStatus |
+|   ↳ `SystemActionRequestId` | string | SystemActionRequestId as an exact decimal string |
+|   ↳ `SystemActionDate` | string | SystemActionDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get subscription asset
+
+Get subscription asset in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionAssetKey` | string | Yes | Opaque resourceKey from the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetNumber` | string | AssetNumber |
+|   ↳ `Description` | string | Description |
+|   ↳ `SerialNumber` | string | SerialNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ItemNumber` | string | ItemNumber |
+|   ↳ `OrganizationId` | string | OrganizationId as an exact decimal string |
+|   ↳ `OrganizationCode` | string | OrganizationCode |
+|   ↳ `CustomerId` | string | CustomerId as an exact decimal string |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `PartyName` | string | PartyName |
+|   ↳ `BuId` | string | BuId as an exact decimal string |
+|   ↳ `BuName` | string | BuName |
+|   ↳ `ActiveEndDate` | string | ActiveEndDate |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UomCode` | string | UomCode |
+|   ↳ `ServiceableProductFlag` | boolean | ServiceableProductFlag |
+
+### Oracle Fusion Subscription Management Get subscription item
+
+Get subscription item in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionItemKey` | string | Yes | Opaque resourceKey from the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ItemNumber` | string | ItemNumber |
+|   ↳ `OrganizationId` | string | OrganizationId as an exact decimal string |
+|   ↳ `OrganizationCode` | string | OrganizationCode |
+
+### Oracle Fusion Subscription Management Get subscription profile
+
+Get subscription profile in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionProfileKey` | string | Yes | Opaque resourceKey from the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `SubscriptionProfileId` | string | SubscriptionProfileId as an exact decimal string |
+|   ↳ `SubscriptionProfilePuid` | string | SubscriptionProfilePuid |
+|   ↳ `SubscriptionProfileName` | string | SubscriptionProfileName |
+|   ↳ `SubscriptionProfileDescription` | string | SubscriptionProfileDescription |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `AccountingRuleName` | string | AccountingRuleName |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `PartialPeriodStart` | string | PartialPeriodStart |
+|   ↳ `PartialPeriodType` | string | PartialPeriodType |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentTermsName` | string | PaymentTermsName |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `BillGenerationMethodCode` | string | BillGenerationMethodCode |
+|   ↳ `CloseCreditMethod` | string | CloseCreditMethod |
+|   ↳ `CreditType` | string | CreditType |
+|   ↳ `RevenueOptionAmend` | string | RevenueOptionAmend |
+|   ↳ `RevenueOptionRenew` | string | RevenueOptionRenew |
+|   ↳ `RevenueOptionClose` | string | RevenueOptionClose |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Get validation result
+
+Get validation result in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `validationResultKey` | string | Yes | Opaque resourceKey from the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `ErrorSeverity` | string | ErrorSeverity |
+|   ↳ `MessageText` | string | MessageText |
+|   ↳ `ObjectId` | string | ObjectId as an exact decimal string |
+|   ↳ `ObjectName` | string | ObjectName |
+|   ↳ `ObjectType` | string | ObjectType |
+|   ↳ `RelatedObjectId` | string | RelatedObjectId as an exact decimal string |
+|   ↳ `RelatedObjectName` | string | RelatedObjectName |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `CreationDate` | string | CreationDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Hold product
+
+Hold product using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Hold subscription
+
+Hold subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management List associated assets
+
+List associated assets in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `AssociatedAssetId` | string | AssociatedAssetId as an exact decimal string |
+|   ↳ `AssociatedAssetPuid` | string | AssociatedAssetPuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetDescription` | string | AssetDescription |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitOfMeasureCode` | string | UnitOfMeasureCode |
+|   ↳ `SourceSystem` | string | SourceSystem |
+|   ↳ `SourceKey` | string | SourceKey |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List bill adjustments
+
+List bill adjustments in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billLinePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `BillAdjustmentId` | string | BillAdjustmentId as an exact decimal string |
+|   ↳ `BillAdjustmentPuid` | string | BillAdjustmentPuid |
+|   ↳ `BillLineId` | string | BillLineId as an exact decimal string |
+|   ↳ `ChargeAdjustmentId` | string | ChargeAdjustmentId as an exact decimal string |
+|   ↳ `ChargeAdjustmentPuid` | string | ChargeAdjustmentPuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AdjustmentType` | string | AdjustmentType |
+|   ↳ `AdjustmentValue` | json | AdjustmentValue as a number or exact decimal string |
+|   ↳ `AdjustmentBasis` | string | AdjustmentBasis |
+|   ↳ `AdjustmentReasonCode` | string | AdjustmentReasonCode |
+|   ↳ `Effectivity` | string | Effectivity |
+|   ↳ `PeriodFrom` | json | PeriodFrom as a number or exact decimal string |
+|   ↳ `PeriodUntil` | json | PeriodUntil as a number or exact decimal string |
+|   ↳ `NumberOfPeriods` | json | NumberOfPeriods as a number or exact decimal string |
+|   ↳ `RevenueOption` | string | RevenueOption |
+|   ↳ `RevenuePeriod` | string | RevenuePeriod |
+|   ↳ `RevenueAdjustmentFromDate` | string | RevenueAdjustmentFromDate |
+|   ↳ `RevenueAdjustmentToDate` | string | RevenueAdjustmentToDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List bill lines
+
+List bill lines in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `BillLineId` | string | BillLineId as an exact decimal string |
+|   ↳ `BillLinePuid` | string | BillLinePuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `ChargePuid` | string | ChargePuid |
+|   ↳ `ChargeName` | string | ChargeName |
+|   ↳ `Amount` | json | Amount as a number or exact decimal string |
+|   ↳ `DateBilledFrom` | string | DateBilledFrom |
+|   ↳ `DateBilledTo` | string | DateBilledTo |
+|   ↳ `DateToInterface` | string | DateToInterface |
+|   ↳ `InterfacedFlag` | boolean | InterfacedFlag |
+|   ↳ `InvoiceDate` | string | InvoiceDate |
+|   ↳ `InvoiceText` | string | InvoiceText |
+|   ↳ `TransactionNumber` | string | TransactionNumber |
+|   ↳ `TrxId` | string | TrxId as an exact decimal string |
+|   ↳ `TrxLineId` | string | TrxLineId as an exact decimal string |
+|   ↳ `TransactionAmount` | json | TransactionAmount as a number or exact decimal string |
+|   ↳ `TransactionTax` | json | TransactionTax as a number or exact decimal string |
+|   ↳ `TransactionClass` | string | TransactionClass |
+|   ↳ `CreditMemoAmount` | json | CreditMemoAmount as a number or exact decimal string |
+|   ↳ `CreditMemoFlag` | string | CreditMemoFlag |
+|   ↳ `CreditMemoReasonCode` | string | CreditMemoReasonCode |
+|   ↳ `UsageQuantity` | json | UsageQuantity as a number or exact decimal string |
+|   ↳ `UsageFlag` | boolean | UsageFlag |
+|   ↳ `UsageAcquiredFlag` | boolean | UsageAcquiredFlag |
+|   ↳ `UsagePricedFlag` | boolean | UsagePricedFlag |
+|   ↳ `UsageCaptureDate` | string | UsageCaptureDate |
+|   ↳ `UsageRatingProcess` | string | UsageRatingProcess |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List charge adjustments
+
+List charge adjustments in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `ChargeAdjustmentId` | string | ChargeAdjustmentId as an exact decimal string |
+|   ↳ `ChargeAdjustmentPuid` | string | ChargeAdjustmentPuid |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AdjustmentName` | string | AdjustmentName |
+|   ↳ `AdjustmentType` | string | AdjustmentType |
+|   ↳ `AdjustmentValue` | json | AdjustmentValue as a number or exact decimal string |
+|   ↳ `AdjustmentBasis` | string | AdjustmentBasis |
+|   ↳ `AdjustmentReasonCode` | string | AdjustmentReasonCode |
+|   ↳ `AdjustmentReasonMeaning` | string | AdjustmentReasonMeaning |
+|   ↳ `Effectivity` | string | Effectivity |
+|   ↳ `PeriodFrom` | json | PeriodFrom as a number or exact decimal string |
+|   ↳ `PeriodUntil` | json | PeriodUntil as a number or exact decimal string |
+|   ↳ `NumberOfPeriods` | json | NumberOfPeriods as a number or exact decimal string |
+|   ↳ `ValidFrom` | string | ValidFrom |
+|   ↳ `ValidUntil` | string | ValidUntil |
+|   ↳ `RevenueOptionChargeAdjustment` | string | RevenueOptionChargeAdjustment |
+|   ↳ `RevenuePeriodChargeAdjustment` | string | RevenuePeriodChargeAdjustment |
+|   ↳ `IsEditableFlag` | boolean | IsEditableFlag |
+|   ↳ `IsStatusNotDraft` | string | IsStatusNotDraft |
+|   ↳ `IsUserCreated` | string | IsUserCreated |
+|   ↳ `ObjectVersionNumber` | number | ObjectVersionNumber |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List charges
+
+List charges in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `ChargePuid` | string | ChargePuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `ChargeName` | string | ChargeName |
+|   ↳ `ChargeDefinition` | string | ChargeDefinition |
+|   ↳ `ChargeDefinitionName` | string | ChargeDefinitionName |
+|   ↳ `PriceType` | string | PriceType |
+|   ↳ `UnitListPrice` | json | UnitListPrice as a number or exact decimal string |
+|   ↳ `PricePeriodicity` | string | PricePeriodicity |
+|   ↳ `BillingFreq` | string | BillingFreq |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `UsageUnitOfMeasure` | string | UsageUnitOfMeasure |
+|   ↳ `MinimumAmount` | json | MinimumAmount as a number or exact decimal string |
+|   ↳ `MinimumQuantity` | json | MinimumQuantity as a number or exact decimal string |
+|   ↳ `AllowAdhocBillAdjustmentFlag` | boolean | AllowAdhocBillAdjustmentFlag |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List child covered levels
+
+List child covered levels in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `coveredLevelPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `CoveredLevelPuid` | string | CoveredLevelPuid |
+|   ↳ `CoveredLevelParentPuid` | string | CoveredLevelParentPuid |
+|   ↳ `ParentCoveredLevelId` | string | ParentCoveredLevelId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `Type` | string | Type |
+|   ↳ `TypeName` | string | TypeName |
+|   ↳ `CoveredLevelName` | string | CoveredLevelName |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `CustomerAccountId` | string | CustomerAccountId as an exact decimal string |
+|   ↳ `ProductGroupId` | string | ProductGroupId as an exact decimal string |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List covered levels
+
+List covered levels in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `CoveredLevelPuid` | string | CoveredLevelPuid |
+|   ↳ `CoveredLevelParentPuid` | string | CoveredLevelParentPuid |
+|   ↳ `ParentCoveredLevelId` | string | ParentCoveredLevelId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `Type` | string | Type |
+|   ↳ `TypeName` | string | TypeName |
+|   ↳ `CoveredLevelName` | string | CoveredLevelName |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `CustomerAccountId` | string | CustomerAccountId as an exact decimal string |
+|   ↳ `ProductGroupId` | string | ProductGroupId as an exact decimal string |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List products
+
+List products in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `SubscriptionProductPuid` | string | SubscriptionProductPuid |
+|   ↳ `LineNumber` | string | LineNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `SalesProductType` | string | SalesProductType |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `Description` | string | Description |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusMeaning` | string | StatusMeaning |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `MonthlyRecurringRevenue` | json | MonthlyRecurringRevenue as a number or exact decimal string |
+|   ↳ `ExternalAssetKey` | string | ExternalAssetKey |
+|   ↳ `AmendSourceProductPuid` | string | AmendSourceProductPuid |
+|   ↳ `OriginalSubscriptionProductPuid` | string | OriginalSubscriptionProductPuid |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `PendingActivationFlag` | boolean | PendingActivationFlag |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List subscription assets
+
+List subscription assets in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetNumber` | string | AssetNumber |
+|   ↳ `Description` | string | Description |
+|   ↳ `SerialNumber` | string | SerialNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ItemNumber` | string | ItemNumber |
+|   ↳ `OrganizationId` | string | OrganizationId as an exact decimal string |
+|   ↳ `OrganizationCode` | string | OrganizationCode |
+|   ↳ `CustomerId` | string | CustomerId as an exact decimal string |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `PartyName` | string | PartyName |
+|   ↳ `BuId` | string | BuId as an exact decimal string |
+|   ↳ `BuName` | string | BuName |
+|   ↳ `ActiveEndDate` | string | ActiveEndDate |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UomCode` | string | UomCode |
+|   ↳ `ServiceableProductFlag` | boolean | ServiceableProductFlag |
+
+### Oracle Fusion Subscription Management List subscription items
+
+List subscription items in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ItemNumber` | string | ItemNumber |
+|   ↳ `OrganizationId` | string | OrganizationId as an exact decimal string |
+|   ↳ `OrganizationCode` | string | OrganizationCode |
+
+### Oracle Fusion Subscription Management List subscription profiles
+
+List subscription profiles in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `SubscriptionProfileId` | string | SubscriptionProfileId as an exact decimal string |
+|   ↳ `SubscriptionProfilePuid` | string | SubscriptionProfilePuid |
+|   ↳ `SubscriptionProfileName` | string | SubscriptionProfileName |
+|   ↳ `SubscriptionProfileDescription` | string | SubscriptionProfileDescription |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `AccountingRuleName` | string | AccountingRuleName |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `PartialPeriodStart` | string | PartialPeriodStart |
+|   ↳ `PartialPeriodType` | string | PartialPeriodType |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentTermsName` | string | PaymentTermsName |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `BillGenerationMethodCode` | string | BillGenerationMethodCode |
+|   ↳ `CloseCreditMethod` | string | CloseCreditMethod |
+|   ↳ `CreditType` | string | CreditType |
+|   ↳ `RevenueOptionAmend` | string | RevenueOptionAmend |
+|   ↳ `RevenueOptionRenew` | string | RevenueOptionRenew |
+|   ↳ `RevenueOptionClose` | string | RevenueOptionClose |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List subscriptions
+
+List subscriptions in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `Description` | string | Description |
+|   ↳ `ShortDescription` | string | ShortDescription |
+|   ↳ `PrimaryPartyId` | string | PrimaryPartyId as an exact decimal string |
+|   ↳ `PrimaryPartyName` | string | PrimaryPartyName |
+|   ↳ `PrimaryPartyNumber` | string | PrimaryPartyNumber |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToAccountNumber` | string | BillToAccountNumber |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillToContactId` | string | BillToContactId as an exact decimal string |
+|   ↳ `BusinessUnitId` | string | BusinessUnitId as an exact decimal string |
+|   ↳ `BusinessUnitName` | string | BusinessUnitName |
+|   ↳ `LegalEntityId` | string | LegalEntityId as an exact decimal string |
+|   ↳ `SubscriptionProfileId` | string | SubscriptionProfileId as an exact decimal string |
+|   ↳ `SubscriptionProfileName` | string | SubscriptionProfileName |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusName` | string | StatusName |
+|   ↳ `UserStatus` | string | UserStatus |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `RenewalType` | string | RenewalType |
+|   ↳ `RenewalProcess` | string | RenewalProcess |
+|   ↳ `RenewalDuration` | number | RenewalDuration |
+|   ↳ `RenewalDurationPeriod` | string | RenewalDurationPeriod |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `LockedFlagReadOnly` | string | LockedFlagReadOnly |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `SystemAction` | string | SystemAction |
+|   ↳ `SystemActionStatus` | string | SystemActionStatus |
+|   ↳ `SystemActionRequestId` | string | SystemActionRequestId as an exact decimal string |
+|   ↳ `SystemActionDate` | string | SystemActionDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management List validation results
+
+List validation results in one bounded Oracle Fusion page. Use documented filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attributes with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Next request offset, present only when hasMore is true |
+| `items` | array | One bounded page of subscription records |
+|   ↳ `resourceKey` | string | Opaque key from the validated self link; use for detail requests |
+|   ↳ `ErrorSeverity` | string | ErrorSeverity |
+|   ↳ `MessageText` | string | MessageText |
+|   ↳ `ObjectId` | string | ObjectId as an exact decimal string |
+|   ↳ `ObjectName` | string | ObjectName |
+|   ↳ `ObjectType` | string | ObjectType |
+|   ↳ `RelatedObjectId` | string | RelatedObjectId as an exact decimal string |
+|   ↳ `RelatedObjectName` | string | RelatedObjectName |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `CreationDate` | string | CreationDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Remove product hold
+
+Remove product hold using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Remove subscription hold
+
+Remove subscription hold using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Renew subscription
+
+Renew subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `duration` | number | No | duration; explicit null is passed to Oracle |
+| `period` | string | No | period; explicit null is passed to Oracle |
+| `newSubscriptionNumber` | string | No | subscriptionNumber; explicit null is passed to Oracle; number for the renewed subscription |
+| `revenueOption` | string | No | revenueOption; explicit null is passed to Oracle |
+| `ignoreWarning` | string | No | ignoreWarning; explicit null is passed to Oracle |
+| `revenueAction` | string | No | revenueAction; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented renewal result; a successful synchronous result is the new subscription number |
+
+### Oracle Fusion Subscription Management Resume product
+
+Resume product using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `resumePeriod` | string | No | resumePeriod; explicit null is passed to Oracle |
+| `resumeDuration` | number | No | resumeDuration; explicit null is passed to Oracle |
+| `autoExtendFlag` | boolean | No | autoExtendFlag; explicit null is passed to Oracle |
+| `resumeDate` | string | No | resumeDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Suspend product
+
+Suspend product using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `suspendReason` | string | No | suspendReason; explicit null is passed to Oracle |
+| `resumePeriod` | string | No | resumePeriod; explicit null is passed to Oracle |
+| `resumeDuration` | number | No | resumeDuration; explicit null is passed to Oracle |
+| `suspendedDate` | string | No | suspendedDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `autoExtendFlag` | boolean | No | autoExtendFlag; explicit null is passed to Oracle |
+| `resumeDate` | string | No | resumeDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Update associated asset
+
+Update associated asset in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `associatedAssetPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `assetName` | string | No | AssetName; explicit null is passed to Oracle |
+| `assetSerialNumber` | string | No | AssetSerialNumber; explicit null is passed to Oracle |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string; explicit null is passed to Oracle |
+| `productName` | string | No | ProductName; explicit null is passed to Oracle |
+| `quantity` | number | No | Quantity; explicit null is passed to Oracle |
+| `unitOfMeasureCode` | string | No | UnitOfMeasureCode; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceLineKey` | string | No | SourceLineKey; explicit null is passed to Oracle |
+| `sourceLineNumber` | string | No | SourceLineNumber; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `AssociatedAssetId` | string | AssociatedAssetId as an exact decimal string |
+|   ↳ `AssociatedAssetPuid` | string | AssociatedAssetPuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetDescription` | string | AssetDescription |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitOfMeasureCode` | string | UnitOfMeasureCode |
+|   ↳ `SourceSystem` | string | SourceSystem |
+|   ↳ `SourceKey` | string | SourceKey |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Update charge
+
+Update charge in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `chargeName` | string | No | ChargeName; explicit null is passed to Oracle |
+| `chargeDefinition` | string | No | ChargeDefinition; explicit null is passed to Oracle |
+| `priceType` | string | No | PriceType |
+| `unitListPrice` | number | No | UnitListPrice; explicit null is passed to Oracle |
+| `pricePeriodicity` | string | No | PricePeriodicity; explicit null is passed to Oracle |
+| `billingFreq` | string | No | BillingFreq; explicit null is passed to Oracle |
+| `invoicingRuleId` | string | No | InvoicingRuleId as an exact decimal string; explicit null is passed to Oracle |
+| `sequenceNumber` | number | No | SequenceNumber; explicit null is passed to Oracle |
+| `usageUnitOfMeasure` | string | No | UsageUnitOfMeasure; explicit null is passed to Oracle |
+| `minimumAmount` | number | No | MinimumAmount; explicit null is passed to Oracle |
+| `minimumQuantity` | number | No | MinimumQuantity; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `ChargePuid` | string | ChargePuid |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `ChargeName` | string | ChargeName |
+|   ↳ `ChargeDefinition` | string | ChargeDefinition |
+|   ↳ `ChargeDefinitionName` | string | ChargeDefinitionName |
+|   ↳ `PriceType` | string | PriceType |
+|   ↳ `UnitListPrice` | json | UnitListPrice as a number or exact decimal string |
+|   ↳ `PricePeriodicity` | string | PricePeriodicity |
+|   ↳ `BillingFreq` | string | BillingFreq |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `UsageUnitOfMeasure` | string | UsageUnitOfMeasure |
+|   ↳ `MinimumAmount` | json | MinimumAmount as a number or exact decimal string |
+|   ↳ `MinimumQuantity` | json | MinimumQuantity as a number or exact decimal string |
+|   ↳ `AllowAdhocBillAdjustmentFlag` | boolean | AllowAdhocBillAdjustmentFlag |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Update charge adjustment
+
+Update charge adjustment in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargePuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `chargeAdjustmentPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `billingScope` | string | No | Choose product or covered_level; default product |
+| `coveredLevelPuid` | string | No | Required only for covered_level billing scope |
+| `adjustmentName` | string | No | AdjustmentName; explicit null is passed to Oracle |
+| `adjustmentType` | string | No | AdjustmentType; explicit null is passed to Oracle |
+| `adjustmentValue` | number | No | AdjustmentValue; explicit null is passed to Oracle |
+| `adjustmentBasis` | string | No | AdjustmentBasis; explicit null is passed to Oracle |
+| `adjustmentReasonCode` | string | No | AdjustmentReasonCode; explicit null is passed to Oracle |
+| `effectivity` | string | No | Effectivity; explicit null is passed to Oracle |
+| `periodFrom` | number | No | PeriodFrom; explicit null is passed to Oracle |
+| `periodUntil` | number | No | PeriodUntil; explicit null is passed to Oracle |
+| `numberOfPeriods` | number | No | NumberOfPeriods; explicit null is passed to Oracle |
+| `validFrom` | string | No | ValidFrom \(ISO 8601 date-time with timezone\); explicit null is passed to Oracle |
+| `validUntil` | string | No | ValidUntil \(ISO 8601 date-time with timezone\); explicit null is passed to Oracle |
+| `revenueOptionChargeAdjustment` | string | No | RevenueOptionChargeAdjustment; explicit null is passed to Oracle |
+| `revenuePeriodChargeAdjustment` | string | No | RevenuePeriodChargeAdjustment; explicit null is passed to Oracle |
+| `reason` | string | No | Reason; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `ChargeAdjustmentId` | string | ChargeAdjustmentId as an exact decimal string |
+|   ↳ `ChargeAdjustmentPuid` | string | ChargeAdjustmentPuid |
+|   ↳ `ChargeId` | string | ChargeId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `AdjustmentName` | string | AdjustmentName |
+|   ↳ `AdjustmentType` | string | AdjustmentType |
+|   ↳ `AdjustmentValue` | json | AdjustmentValue as a number or exact decimal string |
+|   ↳ `AdjustmentBasis` | string | AdjustmentBasis |
+|   ↳ `AdjustmentReasonCode` | string | AdjustmentReasonCode |
+|   ↳ `AdjustmentReasonMeaning` | string | AdjustmentReasonMeaning |
+|   ↳ `Effectivity` | string | Effectivity |
+|   ↳ `PeriodFrom` | json | PeriodFrom as a number or exact decimal string |
+|   ↳ `PeriodUntil` | json | PeriodUntil as a number or exact decimal string |
+|   ↳ `NumberOfPeriods` | json | NumberOfPeriods as a number or exact decimal string |
+|   ↳ `ValidFrom` | string | ValidFrom |
+|   ↳ `ValidUntil` | string | ValidUntil |
+|   ↳ `RevenueOptionChargeAdjustment` | string | RevenueOptionChargeAdjustment |
+|   ↳ `RevenuePeriodChargeAdjustment` | string | RevenuePeriodChargeAdjustment |
+|   ↳ `IsEditableFlag` | boolean | IsEditableFlag |
+|   ↳ `IsStatusNotDraft` | string | IsStatusNotDraft |
+|   ↳ `IsUserCreated` | string | IsUserCreated |
+|   ↳ `ObjectVersionNumber` | number | ObjectVersionNumber |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Update covered level
+
+Update covered level in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `coveredLevelPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `startDate` | string | No | StartDate \(YYYY-MM-DD\) |
+| `endDate` | string | No | EndDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `description` | string | No | Description; explicit null is passed to Oracle |
+| `assetId` | string | No | AssetId as an exact decimal string; explicit null is passed to Oracle |
+| `partyId` | string | No | PartyId as an exact decimal string; explicit null is passed to Oracle |
+| `customerAccountId` | string | No | CustomerAccountId as an exact decimal string; explicit null is passed to Oracle |
+| `productGroupId` | string | No | ProductGroupId as an exact decimal string; explicit null is passed to Oracle |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string; explicit null is passed to Oracle |
+| `quantity` | number | No | Quantity |
+| `unitPrice` | number | No | UnitPrice; explicit null is passed to Oracle |
+| `itemUnitOfMeasure` | string | No | ItemUnitOfMeasure; explicit null is passed to Oracle |
+| `invoiceText` | string | No | InvoiceText; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceLineKey` | string | No | SourceLineKey; explicit null is passed to Oracle |
+| `sourceLineNumber` | string | No | SourceLineNumber; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `CoveredLevelId` | string | CoveredLevelId as an exact decimal string |
+|   ↳ `CoveredLevelPuid` | string | CoveredLevelPuid |
+|   ↳ `CoveredLevelParentPuid` | string | CoveredLevelParentPuid |
+|   ↳ `ParentCoveredLevelId` | string | ParentCoveredLevelId as an exact decimal string |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `Type` | string | Type |
+|   ↳ `TypeName` | string | TypeName |
+|   ↳ `CoveredLevelName` | string | CoveredLevelName |
+|   ↳ `AssetId` | string | AssetId as an exact decimal string |
+|   ↳ `AssetName` | string | AssetName |
+|   ↳ `AssetSerialNumber` | string | AssetSerialNumber |
+|   ↳ `PartyId` | string | PartyId as an exact decimal string |
+|   ↳ `CustomerAccountId` | string | CustomerAccountId as an exact decimal string |
+|   ↳ `ProductGroupId` | string | ProductGroupId as an exact decimal string |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Update product
+
+Update product in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Parent public number or PUID, not a numeric database ID |
+| `subscriptionProductPuid` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string |
+| `accountingRuleId` | string | No | AccountingRuleId as an exact decimal string |
+| `invoicingRuleId` | string | No | InvoicingRuleId as an exact decimal string |
+| `billToAccountId` | string | No | BillToAccountId as an exact decimal string |
+| `billToSiteUseId` | string | No | BillToSiteUseId as an exact decimal string |
+| `billToContactId` | string | No | BillToContactId as an exact decimal string; explicit null is passed to Oracle |
+| `billingFrequency` | string | No | BillingFrequency |
+| `transactionTypeName` | string | No | TransactionTypeName |
+| `startDate` | string | No | StartDate \(YYYY-MM-DD\) |
+| `endDate` | string | No | EndDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `quantity` | number | No | Quantity; explicit null is passed to Oracle |
+| `unitPrice` | number | No | UnitPrice; explicit null is passed to Oracle |
+| `description` | string | No | Description; explicit null is passed to Oracle |
+| `paymentTermsId` | string | No | PaymentTermsId as an exact decimal string; explicit null is passed to Oracle |
+| `paymentMethod` | string | No | PaymentMethod; explicit null is passed to Oracle |
+| `pONumber` | string | No | PONumber; explicit null is passed to Oracle |
+| `itemUnitOfMeasure` | string | No | ItemUnitOfMeasure; explicit null is passed to Oracle |
+| `invoiceText` | string | No | InvoiceText; explicit null is passed to Oracle |
+| `externalAssetKey` | string | No | ExternalAssetKey; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceLineKey` | string | No | SourceLineKey; explicit null is passed to Oracle |
+| `sourceLineNumber` | string | No | SourceLineNumber; explicit null is passed to Oracle |
+| `renewalType` | string | No | RenewalType; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `SubscriptionProductId` | string | SubscriptionProductId as an exact decimal string |
+|   ↳ `SubscriptionProductPuid` | string | SubscriptionProductPuid |
+|   ↳ `LineNumber` | string | LineNumber |
+|   ↳ `InventoryItemId` | string | InventoryItemId as an exact decimal string |
+|   ↳ `ProductName` | string | ProductName |
+|   ↳ `SalesProductType` | string | SalesProductType |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Quantity` | json | Quantity as a number or exact decimal string |
+|   ↳ `UnitPrice` | json | UnitPrice as a number or exact decimal string |
+|   ↳ `Description` | string | Description |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `ItemUnitOfMeasure` | string | ItemUnitOfMeasure |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusMeaning` | string | StatusMeaning |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `MonthlyRecurringRevenue` | json | MonthlyRecurringRevenue as a number or exact decimal string |
+|   ↳ `ExternalAssetKey` | string | ExternalAssetKey |
+|   ↳ `AmendSourceProductPuid` | string | AmendSourceProductPuid |
+|   ↳ `OriginalSubscriptionProductPuid` | string | OriginalSubscriptionProductPuid |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `PendingActivationFlag` | boolean | PendingActivationFlag |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Update subscription
+
+Update subscription in Oracle Fusion using documented subscription fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `description` | string | No | Description; explicit null is passed to Oracle |
+| `shortDescription` | string | No | ShortDescription; explicit null is passed to Oracle |
+| `billToAccountId` | string | No | BillToAccountId as an exact decimal string |
+| `billToSiteUseId` | string | No | BillToSiteUseId as an exact decimal string |
+| `billToContactId` | string | No | BillToContactId as an exact decimal string; explicit null is passed to Oracle |
+| `accountingRuleId` | string | No | AccountingRuleId as an exact decimal string |
+| `invoicingRuleId` | string | No | InvoicingRuleId as an exact decimal string; explicit null is passed to Oracle |
+| `transactionTypeName` | string | No | TransactionTypeName |
+| `currency` | string | No | Currency |
+| `startDate` | string | No | StartDate \(YYYY-MM-DD\) |
+| `endDate` | string | No | EndDate \(YYYY-MM-DD\); explicit null is passed to Oracle |
+| `duration` | number | No | Duration; explicit null is passed to Oracle |
+| `period` | string | No | Period; explicit null is passed to Oracle |
+| `billingFrequency` | string | No | BillingFrequency; explicit null is passed to Oracle |
+| `paymentTermsId` | string | No | PaymentTermsId as an exact decimal string; explicit null is passed to Oracle |
+| `paymentMethod` | string | No | PaymentMethod; explicit null is passed to Oracle |
+| `pONumber` | string | No | PONumber; explicit null is passed to Oracle |
+| `renewalType` | string | No | RenewalType; explicit null is passed to Oracle |
+| `renewalProcess` | string | No | RenewalProcess; explicit null is passed to Oracle |
+| `renewalDuration` | number | No | RenewalDuration; explicit null is passed to Oracle |
+| `renewalDurationPeriod` | string | No | RenewalDurationPeriod; explicit null is passed to Oracle |
+| `sourceSystem` | string | No | SourceSystem; explicit null is passed to Oracle |
+| `sourceKey` | string | No | SourceKey; explicit null is passed to Oracle |
+| `sourceNumber` | string | No | SourceNumber; explicit null is passed to Oracle |
+| `subscriptionInvoiceText` | string | No | SubscriptionInvoiceText; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented subscription record fields |
+|   ↳ `SubscriptionId` | string | SubscriptionId as an exact decimal string |
+|   ↳ `SubscriptionNumber` | string | SubscriptionNumber |
+|   ↳ `Description` | string | Description |
+|   ↳ `ShortDescription` | string | ShortDescription |
+|   ↳ `PrimaryPartyId` | string | PrimaryPartyId as an exact decimal string |
+|   ↳ `PrimaryPartyName` | string | PrimaryPartyName |
+|   ↳ `PrimaryPartyNumber` | string | PrimaryPartyNumber |
+|   ↳ `BillToAccountId` | string | BillToAccountId as an exact decimal string |
+|   ↳ `BillToAccountNumber` | string | BillToAccountNumber |
+|   ↳ `BillToSiteUseId` | string | BillToSiteUseId as an exact decimal string |
+|   ↳ `BillToContactId` | string | BillToContactId as an exact decimal string |
+|   ↳ `BusinessUnitId` | string | BusinessUnitId as an exact decimal string |
+|   ↳ `BusinessUnitName` | string | BusinessUnitName |
+|   ↳ `LegalEntityId` | string | LegalEntityId as an exact decimal string |
+|   ↳ `SubscriptionProfileId` | string | SubscriptionProfileId as an exact decimal string |
+|   ↳ `SubscriptionProfileName` | string | SubscriptionProfileName |
+|   ↳ `DefinitionOrganizationId` | string | DefinitionOrganizationId as an exact decimal string |
+|   ↳ `AccountingRuleId` | string | AccountingRuleId as an exact decimal string |
+|   ↳ `InvoicingRuleId` | string | InvoicingRuleId as an exact decimal string |
+|   ↳ `TransactionTypeName` | string | TransactionTypeName |
+|   ↳ `Currency` | string | Currency |
+|   ↳ `StartDate` | string | StartDate |
+|   ↳ `EndDate` | string | EndDate |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusName` | string | StatusName |
+|   ↳ `UserStatus` | string | UserStatus |
+|   ↳ `BillingFrequency` | string | BillingFrequency |
+|   ↳ `PaymentTermsId` | string | PaymentTermsId as an exact decimal string |
+|   ↳ `PaymentMethod` | string | PaymentMethod |
+|   ↳ `TotalContractValue` | json | TotalContractValue as a number or exact decimal string |
+|   ↳ `InvoicedAmount` | json | InvoicedAmount as a number or exact decimal string |
+|   ↳ `CreditedAmount` | json | CreditedAmount as a number or exact decimal string |
+|   ↳ `RenewalType` | string | RenewalType |
+|   ↳ `RenewalProcess` | string | RenewalProcess |
+|   ↳ `RenewalDuration` | number | RenewalDuration |
+|   ↳ `RenewalDurationPeriod` | string | RenewalDurationPeriod |
+|   ↳ `AsyncFlag` | boolean | AsyncFlag |
+|   ↳ `LockedFlagReadOnly` | string | LockedFlagReadOnly |
+|   ↳ `ValidationStatus` | string | ValidationStatus |
+|   ↳ `SystemAction` | string | SystemAction |
+|   ↳ `SystemActionStatus` | string | SystemActionStatus |
+|   ↳ `SystemActionRequestId` | string | SystemActionRequestId as an exact decimal string |
+|   ↳ `SystemActionDate` | string | SystemActionDate |
+|   ↳ `LastUpdateDate` | string | LastUpdateDate |
+
+### Oracle Fusion Subscription Management Validate subscription
+
+Validate subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+| `ignoreWarnings` | string | No | ignoreWarnings; explicit null is passed to Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+### Oracle Fusion Subscription Management Withdraw subscription
+
+Withdraw subscription using the documented Oracle action. Read the record to verify completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subscriptionNumber` | string | Yes | Exact Oracle public number or PUID returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; a submission message does not mean completion |
+
+

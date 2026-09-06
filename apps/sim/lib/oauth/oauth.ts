@@ -960,6 +960,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  oracle_fusion_subscription_management: {
+    name: 'Oracle Fusion Subscription Management',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_subscription_management: {
+        name: 'Oracle Fusion Subscription Management',
+        description:
+          'Manage customer subscriptions, products, coverage, billing, and lifecycle actions.',
+        providerId: 'oracle_fusion_subscription_management',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_subscription_management',
+  },
   netsuite: {
     name: 'Oracle NetSuite',
     icon: NetSuiteIcon,

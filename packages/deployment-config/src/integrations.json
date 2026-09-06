@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,269 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_subscription_management",
+      "slug": "oracle-fusion-subscription-management",
+      "name": "Oracle Fusion Subscription Management",
+      "description": "Manage customer subscriptions, products, coverage, charges, billing information, and lifecycle actions",
+      "longDescription": "Manage Oracle Fusion customer subscriptions through CRM REST 11.13.18.05. Author subscription products, coverage, asset associations, charges, and discounts. Inspect billing and validation results, and invoke documented lifecycle actions. Oracle enforces business-unit access, privileges, and lifecycle restrictions. Some actions run asynchronously: inspect their result and subsequently read the subscription to confirm completion. Product visibility can depend on Oracle status-filter profiles. Customer master maintenance, Receivables invoice writes, CPQ, OCI subscriptions, and ESS job management are not included.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_subscription_management",
+      "operations": [
+        {
+          "name": "List subscriptions",
+          "description": "List subscriptions in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "Activate subscription",
+          "description": "Activate subscription using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Amend product",
+          "description": "Amend product using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Calculate product credit",
+          "description": "Calculate product credit using the documented Oracle calculation action."
+        },
+        {
+          "name": "Calculate product termination fee",
+          "description": "Calculate product termination fee using the documented Oracle calculation action."
+        },
+        {
+          "name": "Cancel product",
+          "description": "Cancel product using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Cancel subscription",
+          "description": "Cancel subscription using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Close product",
+          "description": "Close product using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Close subscription",
+          "description": "Close subscription using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Create associated asset",
+          "description": "Create associated asset in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Create charge",
+          "description": "Create charge in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Create charge adjustment",
+          "description": "Create charge adjustment in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Create covered level",
+          "description": "Create covered level in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Create product",
+          "description": "Create product in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Create subscription",
+          "description": "Create subscription in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Delete associated asset",
+          "description": "Delete associated asset in Oracle Fusion. Oracle enforces lifecycle and access restrictions."
+        },
+        {
+          "name": "Delete charge",
+          "description": "Delete charge in Oracle Fusion. Oracle enforces lifecycle and access restrictions."
+        },
+        {
+          "name": "Delete charge adjustment",
+          "description": "Delete charge adjustment in Oracle Fusion. Oracle enforces lifecycle and access restrictions."
+        },
+        {
+          "name": "Delete covered level",
+          "description": "Delete covered level in Oracle Fusion. Oracle enforces lifecycle and access restrictions."
+        },
+        {
+          "name": "Delete product",
+          "description": "Delete product in Oracle Fusion. Oracle enforces lifecycle and access restrictions."
+        },
+        {
+          "name": "Delete subscription",
+          "description": "Delete subscription in Oracle Fusion. Oracle enforces lifecycle and access restrictions."
+        },
+        {
+          "name": "Get associated asset",
+          "description": "Get associated asset in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get bill adjustment",
+          "description": "Get bill adjustment in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get bill line",
+          "description": "Get bill line in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get charge",
+          "description": "Get charge in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get charge adjustment",
+          "description": "Get charge adjustment in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get child covered level",
+          "description": "Get child covered level in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get covered level",
+          "description": "Get covered level in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get product",
+          "description": "Get product in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get subscription",
+          "description": "Get subscription in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get subscription asset",
+          "description": "Get subscription asset in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get subscription item",
+          "description": "Get subscription item in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get subscription profile",
+          "description": "Get subscription profile in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Get validation result",
+          "description": "Get validation result in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Hold product",
+          "description": "Hold product using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Hold subscription",
+          "description": "Hold subscription using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "List associated assets",
+          "description": "List associated assets in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List bill adjustments",
+          "description": "List bill adjustments in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List bill lines",
+          "description": "List bill lines in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List charge adjustments",
+          "description": "List charge adjustments in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List charges",
+          "description": "List charges in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List child covered levels",
+          "description": "List child covered levels in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List covered levels",
+          "description": "List covered levels in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List products",
+          "description": "List products in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List subscription assets",
+          "description": "List subscription assets in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List subscription items",
+          "description": "List subscription items in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List subscription profiles",
+          "description": "List subscription profiles in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "List validation results",
+          "description": "List validation results in one bounded Oracle Fusion page. Use documented filters and pagination."
+        },
+        {
+          "name": "Remove product hold",
+          "description": "Remove product hold using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Remove subscription hold",
+          "description": "Remove subscription hold using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Renew subscription",
+          "description": "Renew subscription using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Resume product",
+          "description": "Resume product using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Suspend product",
+          "description": "Suspend product using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Update associated asset",
+          "description": "Update associated asset in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Update charge",
+          "description": "Update charge in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Update charge adjustment",
+          "description": "Update charge adjustment in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Update covered level",
+          "description": "Update covered level in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Update product",
+          "description": "Update product in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Update subscription",
+          "description": "Update subscription in Oracle Fusion using documented subscription fields."
+        },
+        {
+          "name": "Validate subscription",
+          "description": "Validate subscription using the documented Oracle action. Read the record to verify completion."
+        },
+        {
+          "name": "Withdraw subscription",
+          "description": "Withdraw subscription using the documented Oracle action. Read the record to verify completion."
+        }
+      ],
+      "operationCount": 61,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["subscriptions", "payments", "automation"]
     },
     {
       "type": "netsuite",
