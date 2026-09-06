@@ -65,12 +65,6 @@ const platformCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 60 *
  */
 const inflight = new Map<string, Promise<Materialized[]>>()
 
-/** A file's text keyed by id and version, so a repeat grep re-reads only files that changed. */
-const fileTextCache = new LRUCache<string, { text: string | null }>({
-  max: 5_000,
-  ttl: 60 * 60_000,
-})
-
 /**
  * The requests behind a grep run in-process on the same server that answers the chat, so
  * the fan-out is bounded for the whole process, not per world: ten worlds at eight-way
@@ -292,25 +286,17 @@ const FETCHERS: Record<
     return render('tables', item.id, item.label, detail.data)
   },
   files: async (runtime, item) => {
-    // File contents, through the v2 read-text endpoint (binary/degraded files are
-    // honestly skipped there); the label is the path the model sees in `files ls`.
-    const raw = isRecordLike(item.raw) ? (item.raw as Record<string, unknown>) : {}
-    const version = `${item.id}:${str(raw.updatedAt) ?? ''}:${String(raw.size ?? '')}`
-    let cached = fileTextCache.get(version)
-    if (cached === undefined) {
-      try {
-        const response = await runtime.client.request<ReadFileTextResponse>(
-          `/api/v2/files/${encodeURIComponent(item.id)}/text`,
-          { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
-        )
-        cached = { text: response.data.degraded ? null : response.data.text }
-      } catch {
-        cached = { text: null }
-      }
-      fileTextCache.set(version, cached)
+    /** Each invocation must authorize the current read and receive its private provenance. */
+    try {
+      const response = await runtime.client.request<ReadFileTextResponse>(
+        `/api/v2/files/${encodeURIComponent(item.id)}/text`,
+        { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
+      )
+      if (response.data.degraded) return null
+      return { scope: 'files', id: item.id, label: item.label, text: response.data.text }
+    } catch {
+      return null
     }
-    if (cached.text === null) return null
-    return { scope: 'files', id: item.id, label: item.label, text: cached.text }
   },
   integrations: async (_runtime, item) => render('integrations', item.id, item.label, item.raw),
   skills: async (runtime, item) => {
@@ -347,6 +333,8 @@ async function fetchAll(
 
 /** A whole world, for a search with no `--in`: every resource the index lists. */
 async function materializeScope(runtime: AgentCliRuntime, scope: Scope): Promise<Materialized[]> {
+  /** A shared file build would import provenance only into the first caller's registry. */
+  if (scope === 'files') return fetchAll(runtime, scope, await INDEXERS[scope](runtime))
   const key = `${scope}:${runtime.workspaceId}`
   const platform = PLATFORM_SCOPES.has(scope)
   if (platform) {
