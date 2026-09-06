@@ -282,82 +282,293 @@ export const ociComputeSchemas = {
     capacityReservationId: id.optional(),
   }),
   get_instance: common.extend(instance),
-  launch_instance: common.extend({
-    compartmentId: id, availabilityDomain: name, shape: name, ...source, ...resourceTags, ...token,
-    shapeConfig: json(shapeConfig).optional(), createVnicDetails: json(vnic.extend({ subnetId: id })),
-    faultDomain: name.optional(), metadata: json(metadata).optional(), extendedMetadata: json(z.record(z.string(), jsonValue)).optional(),
-    agentConfig: json(agentConfig).optional(), availabilityConfig: json(availabilityConfig).optional(), instanceOptions: json(instanceOptions).optional(),
-    capacityReservationId: z.string().trim().max(255).optional(), dedicatedVmHostId: id.optional(),
-  }).superRefine((value, context) => {
-    const sourceKey = value.sourceMode === 'image' ? 'imageId' : value.sourceMode === 'imageFilter' ? 'imageFilter' : 'bootVolumeId'
-    if (!value[sourceKey]) context.addIssue({ code: 'custom', path: [sourceKey], message: `${sourceKey} is required for this launch source` })
-    for (const key of ['imageId', 'imageFilter', 'bootVolumeId'] as const) {
-      if (key !== sourceKey && value[key] !== undefined) context.addIssue({ code: 'custom', path: [key], message: `${key} does not belong to this launch source` })
-    }
-    if (value.sourceMode === 'bootVolume' && [value.bootVolumeSizeInGBs, value.bootVolumeVpusPerGB, value.kmsKeyId].some((v) => v !== undefined)) {
-      context.addIssue({ code: 'custom', path: ['sourceMode'], message: 'Boot-volume sources cannot use image boot-volume creation options' })
-    }
-    if (value.capacityReservationId && value.dedicatedVmHostId) context.addIssue({ code: 'custom', path: ['capacityReservationId'], message: 'Choose capacity reservation or dedicated host placement' })
-  }),
-  update_instance: common.extend({ ...token,
-    ...instance, ...resourceTags, ...match,
-    shape: name.optional(), shapeConfig: json(shapeConfig).optional(), faultDomain: name.optional(),
-    metadata: json(metadata).optional(), extendedMetadata: json(z.record(z.string(), jsonValue)).optional(),
-    agentConfig: json(agentConfig).optional(), availabilityConfig: json(availabilityConfig).optional(), instanceOptions: json(instanceOptions).optional(),
-    capacityReservationId: z.string().trim().max(255).optional(), dedicatedVmHostId: id.optional(),
+  launch_instance: common
+    .extend({
+      compartmentId: id,
+      availabilityDomain: name,
+      shape: name,
+      ...source,
+      ...resourceTags,
+      ...token,
+      shapeConfig: json(shapeConfig).optional(),
+      createVnicDetails: json(vnic.extend({ subnetId: id })),
+      faultDomain: name.optional(),
+      metadata: json(metadata).optional(),
+      extendedMetadata: json(z.record(z.string(), jsonValue)).optional(),
+      agentConfig: json(agentConfig).optional(),
+      availabilityConfig: json(availabilityConfig).optional(),
+      instanceOptions: json(instanceOptions).optional(),
+      capacityReservationId: z.string().trim().max(255).optional(),
+      dedicatedVmHostId: id.optional(),
+    })
+    .superRefine((value, context) => {
+      const sourceKey =
+        value.sourceMode === 'image'
+          ? 'imageId'
+          : value.sourceMode === 'imageFilter'
+            ? 'imageFilter'
+            : 'bootVolumeId'
+      if (!value[sourceKey])
+        context.addIssue({
+          code: 'custom',
+          path: [sourceKey],
+          message: `${sourceKey} is required for this launch source`,
+        })
+      for (const key of ['imageId', 'imageFilter', 'bootVolumeId'] as const) {
+        if (key !== sourceKey && value[key] !== undefined)
+          context.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} does not belong to this launch source`,
+          })
+      }
+      if (
+        value.sourceMode === 'bootVolume' &&
+        [value.bootVolumeSizeInGBs, value.bootVolumeVpusPerGB, value.kmsKeyId].some(
+          (v) => v !== undefined
+        )
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['sourceMode'],
+          message: 'Boot-volume sources cannot use image boot-volume creation options',
+        })
+      }
+      if (value.capacityReservationId && value.dedicatedVmHostId)
+        context.addIssue({
+          code: 'custom',
+          path: ['capacityReservationId'],
+          message: 'Choose capacity reservation or dedicated host placement',
+        })
+    }),
+  update_instance: common.extend({
+    ...token,
+    ...instance,
+    ...resourceTags,
+    ...match,
+    shape: name.optional(),
+    shapeConfig: json(shapeConfig).optional(),
+    faultDomain: name.optional(),
+    metadata: json(metadata).optional(),
+    extendedMetadata: json(z.record(z.string(), jsonValue)).optional(),
+    agentConfig: json(agentConfig).optional(),
+    availabilityConfig: json(availabilityConfig).optional(),
+    instanceOptions: json(instanceOptions).optional(),
+    capacityReservationId: z.string().trim().max(255).optional(),
+    dedicatedVmHostId: id.optional(),
     timeMaintenanceRebootDue: z.string().datetime({ offset: true }).optional(),
-    updateOperationConstraint: z.enum(['ALLOW_DOWNTIME', 'AVOID_DOWNTIME']).default('AVOID_DOWNTIME'),
+    updateOperationConstraint: z
+      .enum(['ALLOW_DOWNTIME', 'AVOID_DOWNTIME'])
+      .default('AVOID_DOWNTIME'),
   }),
-  instance_action: common.extend({ ...token,
-    ...instance, ...match, action: z.enum(['START', 'STOP', 'SOFTSTOP', 'RESET', 'SOFTRESET', 'REBOOTMIGRATE']),
-    allowDenseRebootMigration: z.boolean().optional(), deleteLocalStorage: z.boolean().optional(), timeScheduled: z.string().datetime({ offset: true }).optional(),
-  }).superRefine((value, context) => {
-    if (value.allowDenseRebootMigration !== undefined && !['RESET', 'SOFTRESET'].includes(value.action)) context.addIssue({ code: 'custom', path: ['allowDenseRebootMigration'], message: 'Dense reboot migration is only supported for RESET and SOFTRESET' })
-    if ((value.deleteLocalStorage !== undefined || value.timeScheduled !== undefined) && value.action !== 'REBOOTMIGRATE') context.addIssue({ code: 'custom', path: ['action'], message: 'Local-storage deletion and scheduling require REBOOTMIGRATE' })
+  instance_action: common
+    .extend({
+      ...token,
+      ...instance,
+      ...match,
+      action: z.enum(['START', 'STOP', 'SOFTSTOP', 'RESET', 'SOFTRESET', 'REBOOTMIGRATE']),
+      allowDenseRebootMigration: z.boolean().optional(),
+      deleteLocalStorage: z.boolean().optional(),
+      timeScheduled: z.string().datetime({ offset: true }).optional(),
+    })
+    .superRefine((value, context) => {
+      if (
+        value.allowDenseRebootMigration !== undefined &&
+        !['RESET', 'SOFTRESET'].includes(value.action)
+      )
+        context.addIssue({
+          code: 'custom',
+          path: ['allowDenseRebootMigration'],
+          message: 'Dense reboot migration is only supported for RESET and SOFTRESET',
+        })
+      if (
+        (value.deleteLocalStorage !== undefined || value.timeScheduled !== undefined) &&
+        value.action !== 'REBOOTMIGRATE'
+      )
+        context.addIssue({
+          code: 'custom',
+          path: ['action'],
+          message: 'Local-storage deletion and scheduling require REBOOTMIGRATE',
+        })
+    }),
+  terminate_instance: common.extend({
+    ...instance,
+    ...match,
+    preserveBootVolume: z.boolean().default(true),
+    preserveDataVolumesCreatedAtLaunch: z.boolean().default(true),
   }),
-  terminate_instance: common.extend({ ...instance, ...match, preserveBootVolume: z.boolean().default(true), preserveDataVolumesCreatedAtLaunch: z.boolean().default(true) }),
-  change_instance_compartment: common.extend({ ...token, ...instance, ...match, compartmentId: id }),
+  change_instance_compartment: common.extend({
+    ...token,
+    ...instance,
+    ...match,
+    compartmentId: id,
+  }),
   get_instance_maintenance_reboot: common.extend(instance),
-  list_images: common.extend({ ...namedListing, operatingSystem: name.optional(), operatingSystemVersion: name.optional(), shape: name.optional(), lifecycleState: name.optional() }),
+  list_images: common.extend({
+    ...namedListing,
+    operatingSystem: name.optional(),
+    operatingSystemVersion: name.optional(),
+    shape: name.optional(),
+    lifecycleState: name.optional(),
+  }),
   get_image: common.extend(image),
   create_image: common.extend({ ...instance, compartmentId: id, ...resourceTags, ...token }),
   update_image: common.extend({ ...token, ...image, ...resourceTags, ...match }),
   delete_image: common.extend({ ...image, ...match }),
   change_image_compartment: common.extend({ ...token, ...image, ...match, compartmentId: id }),
-  list_shapes: common.extend({ ...listing, availabilityDomain: name.optional(), imageId: id.optional(), shape: name.optional() }),
+  list_shapes: common.extend({
+    ...listing,
+    availabilityDomain: name.optional(),
+    imageId: id.optional(),
+    shape: name.optional(),
+  }),
   list_image_shape_compatibility_entries: common.extend({ ...image, ...paging }),
   get_image_shape_compatibility_entry: common.extend({ ...image, shape: name }),
-  create_compute_capacity_report: common.extend({ compartmentId: id, availabilityDomain: name, ...token, shapeAvailabilities: json(z.array(z.object({ instanceShape: name, instanceShapeConfig: z.object({ ocpus: z.number().positive().optional(), memoryInGBs: z.number().positive().optional() }).strict().optional(), faultDomain: name.optional() }).strict()).min(1).max(100)) }),
+  create_compute_capacity_report: common.extend({
+    compartmentId: id,
+    availabilityDomain: name,
+    ...token,
+    shapeAvailabilities: json(
+      z
+        .array(
+          z
+            .object({
+              instanceShape: name,
+              instanceShapeConfig: z
+                .object({
+                  ocpus: z.number().positive().optional(),
+                  memoryInGBs: z.number().positive().optional(),
+                })
+                .strict()
+                .optional(),
+              faultDomain: name.optional(),
+            })
+            .strict()
+        )
+        .min(1)
+        .max(100)
+    ),
+  }),
   list_instance_configurations: common.extend({ ...listing, ...sorting }),
   get_instance_configuration: common.extend(configuration),
-  create_instance_configuration: common.extend({ compartmentId: id, ...resourceTags, ...token, configurationSource: z.enum(['NONE', 'INSTANCE']), instanceId: id.optional(), instanceDetails: json(configurationDetailsSchema).optional() }).superRefine((value, context) => {
-    if (value.configurationSource === 'INSTANCE' ? !value.instanceId || value.instanceDetails !== undefined : !value.instanceDetails || value.instanceId !== undefined) context.addIssue({ code: 'custom', path: ['configurationSource'], message: 'INSTANCE requires only instanceId; NONE requires only instanceDetails' })
+  create_instance_configuration: common
+    .extend({
+      compartmentId: id,
+      ...resourceTags,
+      ...token,
+      configurationSource: z.enum(['NONE', 'INSTANCE']),
+      instanceId: id.optional(),
+      instanceDetails: json(configurationDetailsSchema).optional(),
+    })
+    .superRefine((value, context) => {
+      if (
+        value.configurationSource === 'INSTANCE'
+          ? !value.instanceId || value.instanceDetails !== undefined
+          : !value.instanceDetails || value.instanceId !== undefined
+      )
+        context.addIssue({
+          code: 'custom',
+          path: ['configurationSource'],
+          message: 'INSTANCE requires only instanceId; NONE requires only instanceDetails',
+        })
+    }),
+  update_instance_configuration: common.extend({
+    ...token,
+    ...configuration,
+    ...resourceTags,
+    ...match,
   }),
-  update_instance_configuration: common.extend({ ...token, ...configuration, ...resourceTags, ...match }),
   delete_instance_configuration: common.extend({ ...configuration, ...match }),
-  launch_instance_configuration: common.extend({ ...configuration, ...token, instanceDetails: json(configurationDetailsSchema).default({ instanceType: 'compute' }) }),
-  change_instance_configuration_compartment: common.extend({ ...token, ...configuration, ...match, compartmentId: id }),
+  launch_instance_configuration: common.extend({
+    ...configuration,
+    ...token,
+    instanceDetails: json(configurationDetailsSchema).default({ instanceType: 'compute' }),
+  }),
+  change_instance_configuration_compartment: common.extend({
+    ...token,
+    ...configuration,
+    ...match,
+    compartmentId: id,
+  }),
   list_instance_pools: common.extend({ ...namedListing, lifecycleState: name.optional() }),
   get_instance_pool: common.extend(pool),
-  create_instance_pool: common.extend({ ...configuration, compartmentId: id, ...resourceTags, ...token, size: z.number().int().min(0), placementConfigurations: json(z.array(placement).min(1).max(20)), instanceDisplayNameFormatter: name.optional(), instanceHostnameFormatter: name.optional() }),
-  update_instance_pool: common.extend({ ...token, ...pool, ...resourceTags, ...match, instanceConfigurationId: id.optional(), size: z.number().int().min(0).optional(), placementConfigurations: json(z.array(placement).min(1).max(20)).optional(), instanceDisplayNameFormatter: z.string().max(255).optional(), instanceHostnameFormatter: z.string().max(255).optional() }),
-  instance_pool_action: common.extend({ ...token, ...pool, ...match, action: z.enum(['START', 'STOP', 'SOFTSTOP', 'RESET', 'SOFTRESET']) }),
+  create_instance_pool: common.extend({
+    ...configuration,
+    compartmentId: id,
+    ...resourceTags,
+    ...token,
+    size: z.number().int().min(0),
+    placementConfigurations: json(z.array(placement).min(1).max(20)),
+    instanceDisplayNameFormatter: name.optional(),
+    instanceHostnameFormatter: name.optional(),
+  }),
+  update_instance_pool: common.extend({
+    ...token,
+    ...pool,
+    ...resourceTags,
+    ...match,
+    instanceConfigurationId: id.optional(),
+    size: z.number().int().min(0).optional(),
+    placementConfigurations: json(z.array(placement).min(1).max(20)).optional(),
+    instanceDisplayNameFormatter: z.string().max(255).optional(),
+    instanceHostnameFormatter: z.string().max(255).optional(),
+  }),
+  instance_pool_action: common.extend({
+    ...token,
+    ...pool,
+    ...match,
+    action: z.enum(['START', 'STOP', 'SOFTSTOP', 'RESET', 'SOFTRESET']),
+  }),
   terminate_instance_pool: common.extend({ ...pool, ...match }),
-  change_instance_pool_compartment: common.extend({ ...token, ...pool, ...match, compartmentId: id }),
+  change_instance_pool_compartment: common.extend({
+    ...token,
+    ...pool,
+    ...match,
+    compartmentId: id,
+  }),
   list_instance_pool_instances: common.extend({ ...pool, ...namedListing }),
   get_instance_pool_instance: common.extend({ ...pool, ...instance }),
   attach_instance_pool_instance: common.extend({ ...token, ...pool, ...instance }),
-  detach_instance_pool_instance: common.extend({ ...token, ...pool, ...instance, isAutoTerminate: z.boolean().default(false), isDecrementSize: z.boolean().default(true) }),
+  detach_instance_pool_instance: common.extend({
+    ...token,
+    ...pool,
+    ...instance,
+    isAutoTerminate: z.boolean().default(false),
+    isDecrementSize: z.boolean().default(true),
+  }),
   list_availability_domains: common.extend({ compartmentId: id }),
   list_fault_domains: common.extend({ compartmentId: id, availabilityDomain: name }),
-  list_compartments: common.extend({ ...paging, compartmentId: id, name: name.optional(), lifecycleState: z.enum(['ACTIVE', 'DELETED']).optional(), accessLevel: z.enum(['ACCESSIBLE', 'ANY']).default('ACCESSIBLE'), compartmentIdInSubtree: z.boolean().default(false) }),
+  list_compartments: common.extend({
+    ...paging,
+    compartmentId: id,
+    name: name.optional(),
+    lifecycleState: z.enum(['ACTIVE', 'DELETED']).optional(),
+    accessLevel: z.enum(['ACCESSIBLE', 'ANY']).default('ACCESSIBLE'),
+    compartmentIdInSubtree: z.boolean().default(false),
+  }),
   get_compartment: common.extend({ compartmentId: id }),
-  list_subnets: common.extend({ ...namedListing, vcnId: id.optional(), lifecycleState: name.optional() }),
+  list_subnets: common.extend({
+    ...namedListing,
+    vcnId: id.optional(),
+    lifecycleState: name.optional(),
+  }),
   get_subnet: common.extend({ subnetId: id }),
-  list_vnic_attachments: common.extend({ ...listing, ...instance, availabilityDomain: name.optional() }),
+  list_vnic_attachments: common.extend({
+    ...listing,
+    ...instance,
+    availabilityDomain: name.optional(),
+  }),
   get_vnic: common.extend({ vnicId: id }),
-  list_boot_volume_attachments: common.extend({ ...listing, ...instance, availabilityDomain: name }),
-  list_volume_attachments: common.extend({ ...listing, ...instance, availabilityDomain: name.optional() }),
+  list_boot_volume_attachments: common.extend({
+    ...listing,
+    ...instance,
+    availabilityDomain: name,
+  }),
+  list_volume_attachments: common.extend({
+    ...listing,
+    ...instance,
+    availabilityDomain: name.optional(),
+  }),
   list_work_requests: common.extend({ ...listing, resourceId: id.optional() }),
   get_work_request: common.extend(workRequest),
   list_work_request_errors: common.extend({ ...workRequest, ...paging }),
@@ -369,11 +580,21 @@ export type OciComputeInput = z.output<(typeof ociComputeSchemas)[OciComputeOper
 
 /** Enforces OCI's combined metadata limit for direct launches, updates and nested templates. */
 export function validateOciComputeMetadata(input: Record<string, unknown>): void {
-  if (Buffer.byteLength(JSON.stringify(input.metadata ?? {})) + Buffer.byteLength(JSON.stringify(input.extendedMetadata ?? {})) > 32_000) {
+  if (
+    Buffer.byteLength(JSON.stringify(input.metadata ?? {})) +
+      Buffer.byteLength(JSON.stringify(input.extendedMetadata ?? {})) >
+    32_000
+  ) {
     throw new Error('Combined metadata and extendedMetadata must not exceed 32,000 bytes')
   }
   const details = input.instanceDetails
-  if (details && typeof details === 'object' && 'launchDetails' in details && details.launchDetails && typeof details.launchDetails === 'object') {
+  if (
+    details &&
+    typeof details === 'object' &&
+    'launchDetails' in details &&
+    details.launchDetails &&
+    typeof details.launchDetails === 'object'
+  ) {
     validateOciComputeMetadata(details.launchDetails as Record<string, unknown>)
   }
 }

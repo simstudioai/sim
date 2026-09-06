@@ -245,7 +245,8 @@ export interface OciComputeLaunchInstanceConfigurationParams extends OciComputeC
   instanceDetails?: unknown
 }
 
-export interface OciComputeChangeInstanceConfigurationCompartmentParams extends OciComputeCredentials {
+export interface OciComputeChangeInstanceConfigurationCompartmentParams
+  extends OciComputeCredentials {
   retryToken?: string
   instanceConfigurationId: string
   ifMatch?: string
@@ -472,15 +473,31 @@ export const INSTANCE_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
   availabilityDomain: { type: 'string', description: 'availability Domain', nullable: true },
   faultDomain: { type: 'string', description: 'fault Domain', nullable: true },
   region: { type: 'string', description: 'region', nullable: true },
   shape: { type: 'string', description: 'shape', nullable: true },
-  capacityReservationId: { type: 'string', description: 'capacity Reservation Id', nullable: true },
+  capacityReservationId: {
+    type: 'string',
+    description: 'capacity Reservation Id',
+    nullable: true,
+  },
   dedicatedVmHostId: { type: 'string', description: 'dedicated Vm Host Id', nullable: true },
-  instanceConfigurationId: { type: 'string', description: 'instance Configuration Id', nullable: true },
-  timeMaintenanceRebootDue: { type: 'string', description: 'time Maintenance Reboot Due', nullable: true },
+  instanceConfigurationId: {
+    type: 'string',
+    description: 'instance Configuration Id',
+    nullable: true,
+  },
+  timeMaintenanceRebootDue: {
+    type: 'string',
+    description: 'time Maintenance Reboot Due',
+    nullable: true,
+  },
   shapeConfig: {
     type: 'json',
     description: 'Allocated shape resources',
@@ -488,8 +505,16 @@ export const INSTANCE_OUTPUT_PROPERTIES = {
       ocpus: { type: 'number', description: 'Allocated OCPUs', nullable: true },
       memoryInGBs: { type: 'number', description: 'Allocated memory in GB', nullable: true },
       vcpus: { type: 'number', description: 'Allocated vCPUs', nullable: true },
-      networkingBandwidthInGbps: { type: 'number', description: 'Networking bandwidth in Gbps', nullable: true },
-      maxVnicAttachments: { type: 'number', description: 'Maximum attached VNICs', nullable: true },
+      networkingBandwidthInGbps: {
+        type: 'number',
+        description: 'Networking bandwidth in Gbps',
+        nullable: true,
+      },
+      maxVnicAttachments: {
+        type: 'number',
+        description: 'Maximum attached VNICs',
+        nullable: true,
+      },
     },
     nullable: true,
   },
@@ -500,7 +525,11 @@ export const INSTANCE_OUTPUT_PROPERTIES = {
       sourceType: { type: 'string', description: 'image or bootVolume', nullable: true },
       imageId: { type: 'string', description: 'Source image OCID', nullable: true },
       bootVolumeId: { type: 'string', description: 'Source boot volume OCID', nullable: true },
-      bootVolumeSizeInGBs: { type: 'number', description: 'Boot volume size in GB', nullable: true },
+      bootVolumeSizeInGBs: {
+        type: 'number',
+        description: 'Boot volume size in GB',
+        nullable: true,
+      },
     },
     nullable: true,
   },
@@ -534,13 +563,25 @@ export const IMAGE_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
   operatingSystem: { type: 'string', description: 'operating System', nullable: true },
-  operatingSystemVersion: { type: 'string', description: 'operating System Version', nullable: true },
+  operatingSystemVersion: {
+    type: 'string',
+    description: 'operating System Version',
+    nullable: true,
+  },
   baseImageId: { type: 'string', description: 'base Image Id', nullable: true },
   launchMode: { type: 'string', description: 'launch Mode', nullable: true },
   sizeInMBs: { type: 'number', description: 'Image size in MB', nullable: true },
-  billableSizeInGBs: { type: 'number', description: 'Billable image storage in GB', nullable: true },
+  billableSizeInGBs: {
+    type: 'number',
+    description: 'Billable image storage in GB',
+    nullable: true,
+  },
   createImageAllowed: {
     type: 'boolean',
     description: 'Whether new images can be captured from instances using this image',
@@ -578,16 +619,36 @@ export interface OciComputeShape {
 export const SHAPE_OUTPUT_PROPERTIES = {
   shape: { type: 'string', description: 'shape', nullable: true },
   availabilityDomain: { type: 'string', description: 'availability Domain', nullable: true },
-  processorDescription: { type: 'string', description: 'processor Description', nullable: true },
+  processorDescription: {
+    type: 'string',
+    description: 'processor Description',
+    nullable: true,
+  },
   billingType: { type: 'string', description: 'billing Type', nullable: true },
   ocpus: { type: 'number', description: 'Default OCPUs', nullable: true },
   memoryInGBs: { type: 'number', description: 'Default memory in GB', nullable: true },
   gpus: { type: 'number', description: 'GPUs', nullable: true },
   localDisks: { type: 'number', description: 'Local disks', nullable: true },
-  localDisksTotalSizeInGBs: { type: 'number', description: 'Local storage in GB', nullable: true },
-  networkingBandwidthInGbps: { type: 'number', description: 'Network bandwidth in Gbps', nullable: true },
-  maxVnicAttachments: { type: 'number', description: 'Maximum VNIC attachments', nullable: true },
-  isFlexible: { type: 'boolean', description: 'Supports flexible resource sizing', nullable: true },
+  localDisksTotalSizeInGBs: {
+    type: 'number',
+    description: 'Local storage in GB',
+    nullable: true,
+  },
+  networkingBandwidthInGbps: {
+    type: 'number',
+    description: 'Network bandwidth in Gbps',
+    nullable: true,
+  },
+  maxVnicAttachments: {
+    type: 'number',
+    description: 'Maximum VNIC attachments',
+    nullable: true,
+  },
+  isFlexible: {
+    type: 'boolean',
+    description: 'Supports flexible resource sizing',
+    nullable: true,
+  },
   isBilledForStoppedInstance: {
     type: 'boolean',
     description: 'Compute charges continue while stopped',
@@ -608,9 +669,21 @@ export const SHAPE_OUTPUT_PROPERTIES = {
     properties: {
       minInGBs: { type: 'number', description: 'Minimum memory', nullable: true },
       maxInGBs: { type: 'number', description: 'Maximum memory', nullable: true },
-      minPerOcpuInGBs: { type: 'number', description: 'Minimum memory per OCPU', nullable: true },
-      maxPerOcpuInGBs: { type: 'number', description: 'Maximum memory per OCPU', nullable: true },
-      defaultPerOcpuInGBs: { type: 'number', description: 'Default memory per OCPU', nullable: true },
+      minPerOcpuInGBs: {
+        type: 'number',
+        description: 'Minimum memory per OCPU',
+        nullable: true,
+      },
+      maxPerOcpuInGBs: {
+        type: 'number',
+        description: 'Maximum memory per OCPU',
+        nullable: true,
+      },
+      defaultPerOcpuInGBs: {
+        type: 'number',
+        description: 'Default memory per OCPU',
+        nullable: true,
+      },
     },
     nullable: true,
   },
@@ -739,27 +812,51 @@ export const INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES = {
     type: 'json',
     description: 'Selected configuration settings',
     properties: {
-      instanceType: { type: 'string', description: 'Instance configuration type', nullable: true },
+      instanceType: {
+        type: 'string',
+        description: 'Instance configuration type',
+        nullable: true,
+      },
       launchDetails: {
         type: 'json',
         description: 'Launch settings; omitted values can be deferred',
         properties: {
           compartmentId: { type: 'string', description: 'compartment Id', nullable: true },
-          availabilityDomain: { type: 'string', description: 'availability Domain', nullable: true },
+          availabilityDomain: {
+            type: 'string',
+            description: 'availability Domain',
+            nullable: true,
+          },
           displayName: { type: 'string', description: 'display Name', nullable: true },
           shape: { type: 'string', description: 'shape', nullable: true },
           faultDomain: { type: 'string', description: 'fault Domain', nullable: true },
-          capacityReservationId: { type: 'string', description: 'capacity Reservation Id', nullable: true },
-          dedicatedVmHostId: { type: 'string', description: 'dedicated Vm Host Id', nullable: true },
+          capacityReservationId: {
+            type: 'string',
+            description: 'capacity Reservation Id',
+            nullable: true,
+          },
+          dedicatedVmHostId: {
+            type: 'string',
+            description: 'dedicated Vm Host Id',
+            nullable: true,
+          },
           shapeConfig: {
             type: 'json',
             description: 'Configured shape resources',
             properties: {
               ocpus: { type: 'number', description: 'Allocated OCPUs', nullable: true },
-              memoryInGBs: { type: 'number', description: 'Allocated memory in GB', nullable: true },
+              memoryInGBs: {
+                type: 'number',
+                description: 'Allocated memory in GB',
+                nullable: true,
+              },
               vcpus: { type: 'number', description: 'Allocated vCPUs', nullable: true },
               nvmes: { type: 'number', description: 'Configured NVMe count', nullable: true },
-              baselineOcpuUtilization: { type: 'string', description: 'Burstable OCPU baseline', nullable: true },
+              baselineOcpuUtilization: {
+                type: 'string',
+                description: 'Burstable OCPU baseline',
+                nullable: true,
+              },
             },
             nullable: true,
           },
@@ -767,10 +864,22 @@ export const INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES = {
             type: 'json',
             description: 'Configured launch source',
             properties: {
-              sourceType: { type: 'string', description: 'image or bootVolume', nullable: true },
+              sourceType: {
+                type: 'string',
+                description: 'image or bootVolume',
+                nullable: true,
+              },
               imageId: { type: 'string', description: 'Source image OCID', nullable: true },
-              bootVolumeId: { type: 'string', description: 'Source boot volume OCID', nullable: true },
-              bootVolumeSizeInGBs: { type: 'number', description: 'Boot volume size in GB', nullable: true },
+              bootVolumeId: {
+                type: 'string',
+                description: 'Source boot volume OCID',
+                nullable: true,
+              },
+              bootVolumeSizeInGBs: {
+                type: 'number',
+                description: 'Boot volume size in GB',
+                nullable: true,
+              },
             },
             nullable: true,
           },
@@ -784,7 +893,11 @@ export const INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES = {
               privateIp: { type: 'string', description: 'private Ip', nullable: true },
               privateIpId: { type: 'string', description: 'private Ip Id', nullable: true },
               subnetCidr: { type: 'string', description: 'subnet Cidr', nullable: true },
-              assignPublicIp: { type: 'boolean', description: 'Assign a public IP', nullable: true },
+              assignPublicIp: {
+                type: 'boolean',
+                description: 'Assign a public IP',
+                nullable: true,
+              },
               nsgIds: {
                 type: 'array',
                 description: 'Network security group OCIDs',
@@ -812,8 +925,16 @@ export const INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES = {
                   description: 'iscsi or paravirtualized',
                   nullable: true,
                 },
-                isReadOnly: { type: 'boolean', description: 'Read-only attachment', nullable: true },
-                isShareable: { type: 'boolean', description: 'Shareable attachment', nullable: true },
+                isReadOnly: {
+                  type: 'boolean',
+                  description: 'Read-only attachment',
+                  nullable: true,
+                },
+                isShareable: {
+                  type: 'boolean',
+                  description: 'Shareable attachment',
+                  nullable: true,
+                },
               },
               nullable: true,
             },
@@ -834,11 +955,19 @@ export const INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES = {
               properties: {
                 subnetId: { type: 'string', description: 'subnet Id', nullable: true },
                 displayName: { type: 'string', description: 'display Name', nullable: true },
-                hostnameLabel: { type: 'string', description: 'hostname Label', nullable: true },
+                hostnameLabel: {
+                  type: 'string',
+                  description: 'hostname Label',
+                  nullable: true,
+                },
                 privateIp: { type: 'string', description: 'private Ip', nullable: true },
                 privateIpId: { type: 'string', description: 'private Ip Id', nullable: true },
                 subnetCidr: { type: 'string', description: 'subnet Cidr', nullable: true },
-                assignPublicIp: { type: 'boolean', description: 'Assign a public IP', nullable: true },
+                assignPublicIp: {
+                  type: 'boolean',
+                  description: 'Assign a public IP',
+                  nullable: true,
+                },
                 nsgIds: {
                   type: 'array',
                   description: 'Network security group OCIDs',
@@ -911,7 +1040,11 @@ export const INSTANCE_POOL_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
   instanceConfigurationId: {
     type: 'string',
     description: 'Configuration used for future pool instances',
@@ -923,20 +1056,32 @@ export const INSTANCE_POOL_OUTPUT_PROPERTIES = {
     description: 'Future instance display-name formatter',
     nullable: true,
   },
-  instanceHostnameFormatter: { type: 'string', description: 'Future instance hostname formatter', nullable: true },
+  instanceHostnameFormatter: {
+    type: 'string',
+    description: 'Future instance hostname formatter',
+    nullable: true,
+  },
   placementConfigurations: {
     type: 'array',
     description: 'Pool placement configuration',
     items: {
       type: 'object',
       properties: {
-        availabilityDomain: { type: 'string', description: 'Placement availability domain', nullable: true },
+        availabilityDomain: {
+          type: 'string',
+          description: 'Placement availability domain',
+          nullable: true,
+        },
         faultDomains: {
           type: 'array',
           description: 'Placement fault domains',
           items: { type: 'string' },
         },
-        primarySubnetId: { type: 'string', description: 'Legacy primary subnet OCID', nullable: true },
+        primarySubnetId: {
+          type: 'string',
+          description: 'Legacy primary subnet OCID',
+          nullable: true,
+        },
         primaryVnicSubnets: {
           type: 'json',
           description: 'Primary VNIC subnet placement',
@@ -975,8 +1120,16 @@ export const INSTANCE_POOL_SUMMARY_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
-  instanceConfigurationId: { type: 'string', description: 'Configuration OCID', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
+  instanceConfigurationId: {
+    type: 'string',
+    description: 'Configuration OCID',
+    nullable: true,
+  },
   size: { type: 'number', description: 'Desired pool size', nullable: true },
   availabilityDomains: { type: 'array', description: 'Pool availability domains', items: { type: 'string' } },
 } as const satisfies Record<string, ToolOutputProperty>
@@ -1006,9 +1159,17 @@ export const POOL_INSTANCE_OUTPUT_PROPERTIES = {
   region: { type: 'string', description: 'region', nullable: true },
   shape: { type: 'string', description: 'shape', nullable: true },
   state: { type: 'string', description: 'state', nullable: true },
-  instanceConfigurationId: { type: 'string', description: 'instance Configuration Id', nullable: true },
+  instanceConfigurationId: {
+    type: 'string',
+    description: 'instance Configuration Id',
+    nullable: true,
+  },
   instancePoolId: { type: 'string', description: 'Pool OCID', nullable: true },
-  lifecycleState: { type: 'string', description: 'Pool membership lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Pool membership lifecycle state',
+    nullable: true,
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export interface OciComputePoolInstanceSummary {
@@ -1034,7 +1195,11 @@ export const POOL_INSTANCE_SUMMARY_OUTPUT_PROPERTIES = {
   region: { type: 'string', description: 'region', nullable: true },
   shape: { type: 'string', description: 'shape', nullable: true },
   state: { type: 'string', description: 'state', nullable: true },
-  instanceConfigurationId: { type: 'string', description: 'instance Configuration Id', nullable: true },
+  instanceConfigurationId: {
+    type: 'string',
+    description: 'instance Configuration Id',
+    nullable: true,
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export interface OciComputeCompartment {
@@ -1059,7 +1224,11 @@ export const COMPARTMENT_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
   name: { type: 'string', description: 'name', nullable: true },
   description: { type: 'string', description: 'description', nullable: true },
   isAccessible: {
@@ -1125,14 +1294,22 @@ export const SUBNET_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
   availabilityDomain: { type: 'string', description: 'availability Domain', nullable: true },
   vcnId: { type: 'string', description: 'vcn Id', nullable: true },
   cidrBlock: { type: 'string', description: 'cidr Block', nullable: true },
   dnsLabel: { type: 'string', description: 'dns Label', nullable: true },
   routeTableId: { type: 'string', description: 'route Table Id', nullable: true },
   dhcpOptionsId: { type: 'string', description: 'dhcp Options Id', nullable: true },
-  prohibitPublicIpOnVnic: { type: 'boolean', description: 'Public IP assignment is prohibited', nullable: true },
+  prohibitPublicIpOnVnic: {
+    type: 'boolean',
+    description: 'Public IP assignment is prohibited',
+    nullable: true,
+  },
   securityListIds: { type: 'array', description: 'Security list OCIDs', items: { type: 'string' } },
   ipv6CidrBlocks: { type: 'array', description: 'IPv6 CIDRs', items: { type: 'string' } },
 } as const satisfies Record<string, ToolOutputProperty>
@@ -1167,7 +1344,11 @@ export const VNIC_OUTPUT_PROPERTIES = {
     description: 'Resource defined tags grouped by namespace',
     nullable: true,
   },
-  lifecycleState: { type: 'string', description: 'Current resource lifecycle state', nullable: true },
+  lifecycleState: {
+    type: 'string',
+    description: 'Current resource lifecycle state',
+    nullable: true,
+  },
   availabilityDomain: { type: 'string', description: 'availability Domain', nullable: true },
   subnetId: { type: 'string', description: 'subnet Id', nullable: true },
   hostnameLabel: { type: 'string', description: 'hostname Label', nullable: true },
@@ -1230,7 +1411,11 @@ export const BOOT_VOLUME_ATTACHMENT_OUTPUT_PROPERTIES = {
   instanceId: { type: 'string', description: 'instance Id', nullable: true },
   lifecycleState: { type: 'string', description: 'lifecycle State', nullable: true },
   bootVolumeId: { type: 'string', description: 'boot Volume Id', nullable: true },
-  isPvEncryptionInTransitEnabled: { type: 'boolean', description: 'Encryption in transit is enabled', nullable: true },
+  isPvEncryptionInTransitEnabled: {
+    type: 'boolean',
+    description: 'Encryption in transit is enabled',
+    nullable: true,
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export interface OciComputeVolumeAttachment {
@@ -1262,7 +1447,11 @@ export const VOLUME_ATTACHMENT_OUTPUT_PROPERTIES = {
   device: { type: 'string', description: 'device', nullable: true },
   isReadOnly: { type: 'boolean', description: 'Read-only attachment', nullable: true },
   isShareable: { type: 'boolean', description: 'Shareable attachment', nullable: true },
-  isVolumeCreatedDuringLaunch: { type: 'boolean', description: 'Volume was created during launch', nullable: true },
+  isVolumeCreatedDuringLaunch: {
+    type: 'boolean',
+    description: 'Volume was created during launch',
+    nullable: true,
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export interface OciComputeWorkRequest {
@@ -1290,7 +1479,11 @@ export const WORK_REQUEST_OUTPUT_PROPERTIES = {
   timeAccepted: { type: 'string', description: 'time Accepted', nullable: true },
   timeStarted: { type: 'string', description: 'time Started', nullable: true },
   timeFinished: { type: 'string', description: 'time Finished', nullable: true },
-  percentComplete: { type: 'number', description: 'Operation progress percentage', nullable: true },
+  percentComplete: {
+    type: 'number',
+    description: 'Operation progress percentage',
+    nullable: true,
+  },
   resources: {
     type: 'array',
     description: 'Resources affected by the operation',
@@ -1381,8 +1574,16 @@ export const CAPACITY_REPORT_OUTPUT_PROPERTIES = {
       properties: {
         instanceShape: { type: 'string', description: 'instance Shape', nullable: true },
         faultDomain: { type: 'string', description: 'fault Domain', nullable: true },
-        availabilityStatus: { type: 'string', description: 'availability Status', nullable: true },
-        availableCount: { type: 'number', description: 'Available instance count', nullable: true },
+        availabilityStatus: {
+          type: 'string',
+          description: 'availability Status',
+          nullable: true,
+        },
+        availableCount: {
+          type: 'number',
+          description: 'Available instance count',
+          nullable: true,
+        },
         instanceShapeConfig: {
           type: 'json',
           description: 'Requested shape resources',
