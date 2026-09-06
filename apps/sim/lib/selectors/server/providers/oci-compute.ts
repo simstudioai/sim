@@ -198,7 +198,10 @@ async function executeCompute(args: ExecuteServerSelectorArgs, prepared: Prepare
   if (direct) {
     const resource = output[selector.singular]
     if (!isPlainRecord(resource)) throw new SelectorOptionsUnavailableError()
-    if (resource.compartmentId !== compartmentId) return detailSelectorResult(null)
+    // Platform images are visible across compartments; GetImage authorizes their IDs.
+    if (key !== 'oci_compute.images' && resource.compartmentId !== compartmentId) {
+      return detailSelectorResult(null)
+    }
     return detailSelectorResult(option(resource, key))
   }
   const resources = output[selector.output]

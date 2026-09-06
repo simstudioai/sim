@@ -5,13 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(), createClient: vi.fn(), execute: vi.fn(),
+  authorize: vi.fn(),
+  createClient: vi.fn(),
+  execute: vi.fn(),
 }))
 vi.mock('@/lib/auth/credential-access', () => ({ authorizeCredentialUseForAuth: mocks.authorize }))
 vi.mock('@/lib/auth/hybrid', () => ({ AuthType: { INTERNAL_JWT: 'internal_jwt' } }))
 vi.mock('@/lib/api/server', () => ({ getValidationErrorMessage: () => 'Invalid input' }))
 vi.mock('@/lib/internal/oci/client.server', () => ({ createOciClient: mocks.createClient }))
-vi.mock('@/lib/internal/oci-compute/operations', () => ({ executeOciComputeOperation: mocks.execute }))
+vi.mock('@/lib/internal/oci-compute/operations', () => ({
+  executeOciComputeOperation: mocks.execute,
+}))
 
 import { executeOciComputeTool } from '@/lib/internal/oci-compute/execute-tool'
 
@@ -28,7 +32,10 @@ function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolO
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.authorize.mockResolvedValue({
-    ok: true, resolvedCredentialId: 'authoritative', credentialType: 'service_account', workspaceId: 'workspace',
+    ok: true,
+    resolvedCredentialId: 'authoritative',
+    credentialType: 'service_account',
+    workspaceId: 'workspace',
   })
   mocks.createClient.mockResolvedValue({ bound: true })
   mocks.execute.mockResolvedValue({ success: true, output: { status: 200, requestId: 'request' } })
@@ -39,10 +46,16 @@ describe('OCI Compute trusted execution wiring', () => {
     const signal = new AbortController().signal
     expect((await executeOciComputeTool(call({ signal }))).status).toBe(200)
     expect(mocks.createClient).toHaveBeenCalledWith({
-      credentialId: 'authoritative', workspaceId: 'workspace', serviceId: 'oci_compute', region: 'us-ashburn-1',
+      credentialId: 'authoritative',
+      workspaceId: 'workspace',
+      serviceId: 'oci_compute',
+      region: 'us-ashburn-1',
     })
     expect(mocks.execute).toHaveBeenCalledWith(
-      { bound: true }, 'get_instance', expect.objectContaining({ instanceId: 'instance' }), signal
+      { bound: true },
+      'get_instance',
+      expect.objectContaining({ instanceId: 'instance' }),
+      signal
     )
   })
 

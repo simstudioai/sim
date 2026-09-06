@@ -18,7 +18,7 @@ Manage Compute instances, custom images, shapes, capacity reports, instance conf
 
 ## Actions
 
-### OCI Compute List instances
+### OCI Compute List Instances
 
 List instances in OCI
 
@@ -46,7 +46,7 @@ List instances in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `instances` | array | Instances in this page |
+| `instances` | array | Instances information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -74,7 +74,7 @@ List instances in OCI
 |     ↳ `bootVolumeId` | string | Source boot volume OCID |
 |     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
 
-### OCI Compute Get instance
+### OCI Compute Get Instance
 
 Get instance in OCI
 
@@ -121,7 +121,7 @@ Get instance in OCI
 |     ↳ `bootVolumeId` | string | Source boot volume OCID |
 |     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
 
-### OCI Compute Launch instance
+### OCI Compute Launch Instance
 
 Launch a billable Compute instance from an image or existing boot volume and return its provisioning state
 
@@ -144,7 +144,7 @@ Launch a billable Compute instance from an image or existing boot volume and ret
 | `displayName` | string | No | Display name; on list operations this is an exact provider filter |
 | `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
 | `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
-| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 | `shapeConfig` | json | No | Shape resources: ocpus OR vcpus, memoryInGBs, baselineOcpuUtilization, nvmes; use List Shapes for valid ranges |
 | `createVnicDetails` | json | Yes | Primary VNIC settings: subnetId \(required\), displayName, assignPublicIp, assignPrivateDnsRecord, hostnameLabel, privateIp/privateIpId/subnetCidr, nsgIds, skipSourceDestCheck, assignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails |
 | `faultDomain` | string | No | Fault domain within the selected availability domain |
@@ -164,7 +164,7 @@ Launch a billable Compute instance from an image or existing boot volume and ret
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
-| `retryToken` | string | Retry token used for this creation request |
+| `retryToken` | string | Retry token used for this request |
 | `instance` | json | Instance information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -193,7 +193,7 @@ Launch a billable Compute instance from an image or existing boot volume and ret
 |     ↳ `bootVolumeId` | string | Source boot volume OCID |
 |     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
 
-### OCI Compute Update instance
+### OCI Compute Update Instance
 
 Update instance settings with optimistic concurrency and explicit downtime control
 
@@ -220,6 +220,7 @@ Update instance settings with optimistic concurrency and explicit downtime contr
 | `dedicatedVmHostId` | string | No | Existing dedicated VM host OCID; placement restrictions and capacity are enforced by OCI |
 | `timeMaintenanceRebootDue` | string | No | RFC3339 VM maintenance reboot schedule within the maximum returned by Get Instance Maintenance Reboot |
 | `updateOperationConstraint` | string | No | AVOID_DOWNTIME \(default\) rejects updates requiring a reboot; ALLOW_DOWNTIME permits downtime |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -229,6 +230,7 @@ Update instance settings with optimistic concurrency and explicit downtime contr
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
+| `retryToken` | string | Retry token used for this request |
 | `instance` | json | Instance information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -257,7 +259,7 @@ Update instance settings with optimistic concurrency and explicit downtime contr
 |     ↳ `bootVolumeId` | string | Source boot volume OCID |
 |     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
 
-### OCI Compute Instance action
+### OCI Compute Instance Action
 
 Start, stop, reset, or reboot-migrate an instance; actions may interrupt workloads or incur charges
 
@@ -273,6 +275,7 @@ Start, stop, reset, or reboot-migrate an instance; actions may interrupt workloa
 | `allowDenseRebootMigration` | boolean | No | For RESET/SOFTRESET only: enabling DenseIO reboot migration permanently deletes local SSD data |
 | `deleteLocalStorage` | boolean | No | For REBOOTMIGRATE only: explicitly permit deletion of local storage on applicable bare metal instances |
 | `timeScheduled` | string | No | RFC3339 REBOOTMIGRATE timestamp; omit for immediate migration |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -281,6 +284,7 @@ Start, stop, reset, or reboot-migrate an instance; actions may interrupt workloa
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 | `instance` | json | Instance information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -309,7 +313,7 @@ Start, stop, reset, or reboot-migrate an instance; actions may interrupt workloa
 |     ↳ `bootVolumeId` | string | Source boot volume OCID |
 |     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
 
-### OCI Compute Terminate instance
+### OCI Compute Terminate Instance
 
 Terminate an instance with explicit boot/data-volume preservation; returns before termination completes
 
@@ -333,7 +337,7 @@ Terminate an instance with explicit boot/data-volume preservation; returns befor
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
 
-### OCI Compute Change instance compartment
+### OCI Compute Change Instance Compartment
 
 Change instance compartment in OCI
 
@@ -346,6 +350,7 @@ Change instance compartment in OCI
 | `instanceId` | string | Yes | Compute instance OCID |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
 | `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -355,8 +360,9 @@ Change instance compartment in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
+| `retryToken` | string | Retry token used for this request |
 
-### OCI Compute Get instance maintenance reboot
+### OCI Compute Get Instance Maintenance Reboot
 
 Get instance maintenance reboot in OCI
 
@@ -378,7 +384,7 @@ Get instance maintenance reboot in OCI
 | `maintenanceReboot` | json | Maintenance Reboot information returned by OCI |
 |   ↳ `timeMaintenanceRebootDueMax` | string | Latest permitted maintenance reboot timestamp |
 
-### OCI Compute List images
+### OCI Compute List Images
 
 List images in OCI
 
@@ -407,7 +413,7 @@ List images in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `images` | array | Images in this page |
+| `images` | array | Images information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -423,7 +429,7 @@ List images in OCI
 |   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
 |   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
 
-### OCI Compute Get image
+### OCI Compute Get Image
 
 Get image in OCI
 
@@ -458,7 +464,7 @@ Get image in OCI
 |   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
 |   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
 
-### OCI Compute Create image
+### OCI Compute Create Image
 
 Capture a custom image from an instance; may interrupt the instance and creates billable image storage
 
@@ -473,7 +479,7 @@ Capture a custom image from an instance; may interrupt the instance and creates 
 | `displayName` | string | No | Display name; on list operations this is an exact provider filter |
 | `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
 | `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
-| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -483,7 +489,7 @@ Capture a custom image from an instance; may interrupt the instance and creates 
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
-| `retryToken` | string | Retry token used for this creation request |
+| `retryToken` | string | Retry token used for this request |
 | `image` | json | Image information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -500,7 +506,7 @@ Capture a custom image from an instance; may interrupt the instance and creates 
 |   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
 |   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
 
-### OCI Compute Update image
+### OCI Compute Update Image
 
 Update image in OCI
 
@@ -515,6 +521,7 @@ Update image in OCI
 | `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
 | `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -523,6 +530,7 @@ Update image in OCI
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 | `image` | json | Image information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -539,7 +547,7 @@ Update image in OCI
 |   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
 |   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
 
-### OCI Compute Delete image
+### OCI Compute Delete Image
 
 Delete image in OCI
 
@@ -560,7 +568,7 @@ Delete image in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 
-### OCI Compute Change image compartment
+### OCI Compute Change Image Compartment
 
 Change image compartment in OCI
 
@@ -573,6 +581,7 @@ Change image compartment in OCI
 | `imageId` | string | Yes | Image OCID; required for image-ID launches |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
 | `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -581,8 +590,9 @@ Change image compartment in OCI
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 
-### OCI Compute List shapes
+### OCI Compute List Shapes
 
 List shapes in OCI
 
@@ -607,7 +617,7 @@ List shapes in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `shapes` | array | Shapes in this page |
+| `shapes` | array | Shapes information returned by OCI |
 |   ↳ `shape` | string | shape |
 |   ↳ `availabilityDomain` | string | availability Domain |
 |   ↳ `processorDescription` | string | processor Description |
@@ -631,7 +641,7 @@ List shapes in OCI
 |     ↳ `maxPerOcpuInGBs` | number | Maximum memory per OCPU |
 |     ↳ `defaultPerOcpuInGBs` | number | Default memory per OCPU |
 
-### OCI Compute List image shape compatibility entries
+### OCI Compute List Image Shape Compatibility Entries
 
 List image shape compatibility entries in OCI
 
@@ -653,7 +663,7 @@ List image shape compatibility entries in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `compatibilityEntries` | array | Compatibility Entries in this page |
+| `compatibilityEntries` | array | Compatibility Entries information returned by OCI |
 |   ↳ `imageId` | string | image Id |
 |   ↳ `shape` | string | shape |
 |   ↳ `memoryConstraints` | json | Compatible memory range |
@@ -663,7 +673,7 @@ List image shape compatibility entries in OCI
 |     ↳ `min` | number | Minimum OCPUs |
 |     ↳ `max` | number | Maximum OCPUs |
 
-### OCI Compute Get image shape compatibility entry
+### OCI Compute Get Image Shape Compatibility Entry
 
 Get image shape compatibility entry in OCI
 
@@ -693,7 +703,7 @@ Get image shape compatibility entry in OCI
 |     ↳ `min` | number | Minimum OCPUs |
 |     ↳ `max` | number | Maximum OCPUs |
 
-### OCI Compute Create compute capacity report
+### OCI Compute Create Compute Capacity Report
 
 Inspect available capacity for requested shapes without reserving or launching resources
 
@@ -705,7 +715,7 @@ Inspect available capacity for requested shapes without reserving or launching r
 | `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
 | `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
 | `availabilityDomain` | string | Yes | Exact availability-domain name returned by OCI discovery |
-| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 | `shapeAvailabilities` | json | Yes | Capacity queries \[\{instanceShape, instanceShapeConfig: \{ocpus, memoryInGBs\}, faultDomain\}\]; reports do not reserve capacity |
 
 #### Output
@@ -715,7 +725,7 @@ Inspect available capacity for requested shapes without reserving or launching r
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
-| `retryToken` | string | Retry token used for this creation request |
+| `retryToken` | string | Retry token used for this request |
 | `capacityReport` | json | Capacity Report information returned by OCI |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `availabilityDomain` | string | availability Domain |
@@ -729,7 +739,7 @@ Inspect available capacity for requested shapes without reserving or launching r
 |       ↳ `ocpus` | number | OCPUs |
 |       ↳ `memoryInGBs` | number | Memory in GB |
 
-### OCI Compute List instance configurations
+### OCI Compute List Instance Configurations
 
 List instance configurations in OCI
 
@@ -753,7 +763,7 @@ List instance configurations in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `instanceConfigurations` | array | Instance Configurations in this page |
+| `instanceConfigurations` | array | Instance Configurations information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -761,7 +771,7 @@ List instance configurations in OCI
 |   ↳ `freeformTags` | json | Resource free-form string tags |
 |   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
 
-### OCI Compute Get instance configuration
+### OCI Compute Get Instance Configuration
 
 Get instance configuration in OCI
 
@@ -802,8 +812,8 @@ Get instance configuration in OCI
 |         ↳ `ocpus` | number | Allocated OCPUs |
 |         ↳ `memoryInGBs` | number | Allocated memory in GB |
 |         ↳ `vcpus` | number | Allocated vCPUs |
-|         ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
-|         ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|         ↳ `nvmes` | number | Configured NVMe count |
+|         ↳ `baselineOcpuUtilization` | string | Burstable OCPU baseline |
 |       ↳ `sourceDetails` | json | Configured launch source |
 |         ↳ `sourceType` | string | image or bootVolume |
 |         ↳ `imageId` | string | Source image OCID |
@@ -837,7 +847,7 @@ Get instance configuration in OCI
 |         ↳ `assignPublicIp` | boolean | Assign a public IP |
 |         ↳ `nsgIds` | array | Network security group OCIDs |
 
-### OCI Compute Create instance configuration
+### OCI Compute Create Instance Configuration
 
 Create a reusable typed instance configuration or copy an existing instance’s settings, excluding disk contents
 
@@ -851,10 +861,10 @@ Create a reusable typed instance configuration or copy an existing instance’s 
 | `displayName` | string | No | Display name; on list operations this is an exact provider filter |
 | `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
 | `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
-| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 | `configurationSource` | string | Yes | NONE creates a typed template using instanceDetails; INSTANCE copies settings using instanceId, not disk contents |
 | `instanceId` | string | No | Compute instance OCID |
-| `instanceDetails` | json | No | Typed compute configuration: \{instanceType: "compute", launchDetails: \{...\}, blockVolumes: \[\{volumeId, attachDetails: \{type: "iscsi" or "paravirtualized", ...\}\}\], secondaryVnics: \[\{createVnicDetails, displayName, nicIndex\}\]\}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted |
+| `instanceDetails` | json | No | Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig \(ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization\), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails \(type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable\). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields |
 
 #### Output
 
@@ -863,7 +873,7 @@ Create a reusable typed instance configuration or copy an existing instance’s 
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
-| `retryToken` | string | Retry token used for this creation request |
+| `retryToken` | string | Retry token used for this request |
 | `instanceConfiguration` | json | Instance Configuration information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -886,8 +896,8 @@ Create a reusable typed instance configuration or copy an existing instance’s 
 |         ↳ `ocpus` | number | Allocated OCPUs |
 |         ↳ `memoryInGBs` | number | Allocated memory in GB |
 |         ↳ `vcpus` | number | Allocated vCPUs |
-|         ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
-|         ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|         ↳ `nvmes` | number | Configured NVMe count |
+|         ↳ `baselineOcpuUtilization` | string | Burstable OCPU baseline |
 |       ↳ `sourceDetails` | json | Configured launch source |
 |         ↳ `sourceType` | string | image or bootVolume |
 |         ↳ `imageId` | string | Source image OCID |
@@ -921,7 +931,7 @@ Create a reusable typed instance configuration or copy an existing instance’s 
 |         ↳ `assignPublicIp` | boolean | Assign a public IP |
 |         ↳ `nsgIds` | array | Network security group OCIDs |
 
-### OCI Compute Update instance configuration
+### OCI Compute Update Instance Configuration
 
 Update configuration name and tags; launch settings require a new configuration
 
@@ -936,6 +946,7 @@ Update configuration name and tags; launch settings require a new configuration
 | `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
 | `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -944,6 +955,7 @@ Update configuration name and tags; launch settings require a new configuration
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 | `instanceConfiguration` | json | Instance Configuration information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -966,8 +978,8 @@ Update configuration name and tags; launch settings require a new configuration
 |         ↳ `ocpus` | number | Allocated OCPUs |
 |         ↳ `memoryInGBs` | number | Allocated memory in GB |
 |         ↳ `vcpus` | number | Allocated vCPUs |
-|         ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
-|         ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|         ↳ `nvmes` | number | Configured NVMe count |
+|         ↳ `baselineOcpuUtilization` | string | Burstable OCPU baseline |
 |       ↳ `sourceDetails` | json | Configured launch source |
 |         ↳ `sourceType` | string | image or bootVolume |
 |         ↳ `imageId` | string | Source image OCID |
@@ -1001,7 +1013,7 @@ Update configuration name and tags; launch settings require a new configuration
 |         ↳ `assignPublicIp` | boolean | Assign a public IP |
 |         ↳ `nsgIds` | array | Network security group OCIDs |
 
-### OCI Compute Delete instance configuration
+### OCI Compute Delete Instance Configuration
 
 Delete instance configuration in OCI
 
@@ -1022,7 +1034,7 @@ Delete instance configuration in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 
-### OCI Compute Launch instance configuration
+### OCI Compute Launch Instance Configuration
 
 Launch an instance from a configuration with typed deferred-field overrides; may create billable resources
 
@@ -1033,8 +1045,8 @@ Launch an instance from a configuration with typed deferred-field overrides; may
 | `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
 | `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
 | `instanceConfigurationId` | string | Yes | Instance configuration OCID |
-| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
-| `instanceDetails` | json | No | Typed compute configuration: \{instanceType: "compute", launchDetails: \{...\}, blockVolumes: \[\{volumeId, attachDetails: \{type: "iscsi" or "paravirtualized", ...\}\}\], secondaryVnics: \[\{createVnicDetails, displayName, nicIndex\}\]\}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
+| `instanceDetails` | json | No | Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig \(ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization\), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails \(type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable\). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields |
 
 #### Output
 
@@ -1044,7 +1056,7 @@ Launch an instance from a configuration with typed deferred-field overrides; may
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
-| `retryToken` | string | Retry token used for this creation request |
+| `retryToken` | string | Retry token used for this request |
 | `instance` | json | Instance information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -1073,7 +1085,7 @@ Launch an instance from a configuration with typed deferred-field overrides; may
 |     ↳ `bootVolumeId` | string | Source boot volume OCID |
 |     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
 
-### OCI Compute Change instance configuration compartment
+### OCI Compute Change Instance Configuration Compartment
 
 Change instance configuration compartment in OCI
 
@@ -1086,6 +1098,7 @@ Change instance configuration compartment in OCI
 | `instanceConfigurationId` | string | Yes | Instance configuration OCID |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
 | `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -1094,8 +1107,9 @@ Change instance configuration compartment in OCI
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 
-### OCI Compute List instance pools
+### OCI Compute List Instance Pools
 
 List instance pools in OCI
 
@@ -1121,7 +1135,7 @@ List instance pools in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `instancePools` | array | Instance Pools in this page |
+| `instancePools` | array | Instance Pools information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -1133,7 +1147,7 @@ List instance pools in OCI
 |   ↳ `size` | number | Desired pool size |
 |   ↳ `availabilityDomains` | array | Pool availability domains |
 
-### OCI Compute Get instance pool
+### OCI Compute Get Instance Pool
 
 Get instance pool in OCI
 
@@ -1172,7 +1186,7 @@ Get instance pool in OCI
 |       ↳ `subnetId` | string | Subnet OCID |
 |       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
 
-### OCI Compute Create instance pool
+### OCI Compute Create Instance Pool
 
 Create a pool from an instance configuration and placement settings; provisions billable instances
 
@@ -1187,7 +1201,7 @@ Create a pool from an instance configuration and placement settings; provisions 
 | `displayName` | string | No | Display name; on list operations this is an exact provider filter |
 | `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
 | `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
-| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 | `size` | number | Yes | Desired pool size; increasing creates billable resources and decreasing terminates members |
 | `placementConfigurations` | json | Yes | Placements \[\{availabilityDomain, faultDomains, primaryVnicSubnets: \{subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails\}, secondaryVnicSubnets: \[\{subnetId, displayName, ...\}\]\}\]; one placement per AD |
 | `instanceDisplayNameFormatter` | string | No | Display-name formatter for future pool instances; empty string clears it on update |
@@ -1200,7 +1214,7 @@ Create a pool from an instance configuration and placement settings; provisions 
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
-| `retryToken` | string | Retry token used for this creation request |
+| `retryToken` | string | Retry token used for this request |
 | `instancePool` | json | Instance Pool information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -1221,7 +1235,7 @@ Create a pool from an instance configuration and placement settings; provisions 
 |       ↳ `subnetId` | string | Subnet OCID |
 |       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
 
-### OCI Compute Update instance pool
+### OCI Compute Update Instance Pool
 
 Update pool size and settings; scale-down terminates members and configuration changes affect future instances
 
@@ -1241,6 +1255,7 @@ Update pool size and settings; scale-down terminates members and configuration c
 | `placementConfigurations` | json | No | Placements \[\{availabilityDomain, faultDomains, primaryVnicSubnets: \{subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails\}, secondaryVnicSubnets: \[\{subnetId, displayName, ...\}\]\}\]; one placement per AD |
 | `instanceDisplayNameFormatter` | string | No | Display-name formatter for future pool instances; empty string clears it on update |
 | `instanceHostnameFormatter` | string | No | Hostname formatter for future pool instances; empty string clears it on update |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -1249,6 +1264,7 @@ Update pool size and settings; scale-down terminates members and configuration c
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 | `instancePool` | json | Instance Pool information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -1269,7 +1285,7 @@ Update pool size and settings; scale-down terminates members and configuration c
 |       ↳ `subnetId` | string | Subnet OCID |
 |       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
 
-### OCI Compute Instance pool action
+### OCI Compute Instance Pool Action
 
 Start, stop, or reset a pool’s instances; may interrupt workloads and affect charges
 
@@ -1282,6 +1298,7 @@ Start, stop, or reset a pool’s instances; may interrupt workloads and affect c
 | `instancePoolId` | string | Yes | Instance pool OCID |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
 | `action` | string | Yes | Instance action: START, STOP, SOFTSTOP, RESET, SOFTRESET, or REBOOTMIGRATE. Pools support the first five |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -1290,6 +1307,7 @@ Start, stop, or reset a pool’s instances; may interrupt workloads and affect c
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 | `instancePool` | json | Instance Pool information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -1310,7 +1328,7 @@ Start, stop, or reset a pool’s instances; may interrupt workloads and affect c
 |       ↳ `subnetId` | string | Subnet OCID |
 |       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
 
-### OCI Compute Terminate instance pool
+### OCI Compute Terminate Instance Pool
 
 Terminate a pool and its created resources, including volumes; no preservation flags are supported
 
@@ -1331,7 +1349,7 @@ Terminate a pool and its created resources, including volumes; no preservation f
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 
-### OCI Compute Change instance pool compartment
+### OCI Compute Change Instance Pool Compartment
 
 Change instance pool compartment in OCI
 
@@ -1344,6 +1362,7 @@ Change instance pool compartment in OCI
 | `instancePoolId` | string | Yes | Instance pool OCID |
 | `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
 | `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -1352,8 +1371,9 @@ Change instance pool compartment in OCI
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this request |
 
-### OCI Compute List instance pool instances
+### OCI Compute List Instance Pool Instances
 
 List instance pool instances in OCI
 
@@ -1379,7 +1399,7 @@ List instance pool instances in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `poolInstances` | array | Pool Instances in this page |
+| `poolInstances` | array | Pool Instances information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -1391,7 +1411,7 @@ List instance pool instances in OCI
 |   ↳ `state` | string | state |
 |   ↳ `instanceConfigurationId` | string | instance Configuration Id |
 
-### OCI Compute Get instance pool instance
+### OCI Compute Get Instance Pool Instance
 
 Get instance pool instance in OCI
 
@@ -1425,7 +1445,7 @@ Get instance pool instance in OCI
 |   ↳ `instancePoolId` | string | Pool OCID |
 |   ↳ `lifecycleState` | string | Pool membership lifecycle state |
 
-### OCI Compute Attach instance pool instance
+### OCI Compute Attach Instance Pool Instance
 
 Attach an eligible existing instance to a pool and return membership status
 
@@ -1437,6 +1457,7 @@ Attach an eligible existing instance to a pool and return membership status
 | `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
 | `instancePoolId` | string | Yes | Instance pool OCID |
 | `instanceId` | string | Yes | Compute instance OCID |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -1446,7 +1467,8 @@ Attach an eligible existing instance to a pool and return membership status
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
-| `location` | string | Provider resource location; not followed automatically |
+| `retryToken` | string | Retry token used for this request |
+| `location` | string | Pool member resource location |
 | `poolInstance` | json | Pool Instance information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
@@ -1461,7 +1483,7 @@ Attach an eligible existing instance to a pool and return membership status
 |   ↳ `instancePoolId` | string | Pool OCID |
 |   ↳ `lifecycleState` | string | Pool membership lifecycle state |
 
-### OCI Compute Detach instance pool instance
+### OCI Compute Detach Instance Pool Instance
 
 Detach a pool member with explicit termination and replacement-size choices
 
@@ -1475,6 +1497,7 @@ Detach a pool member with explicit termination and replacement-size choices
 | `instanceId` | string | Yes | Compute instance OCID |
 | `isAutoTerminate` | boolean | No | Terminate the detached instance \(default false\) |
 | `isDecrementSize` | boolean | No | Reduce desired pool size when detaching \(default true\); false can create a billable replacement |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call |
 
 #### Output
 
@@ -1484,8 +1507,9 @@ Detach a pool member with explicit termination and replacement-size choices
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `workRequestId` | string | Work request OCID when returned; use status tools |
+| `retryToken` | string | Retry token used for this request |
 
-### OCI Compute List availability domains
+### OCI Compute List Availability Domains
 
 List availability domains in OCI
 
@@ -1504,13 +1528,12 @@ List availability domains in OCI
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
-| `nextPage` | string | Continuation token, including on empty pages |
-| `availabilityDomains` | array | Availability Domains in this page |
+| `availabilityDomains` | array | Availability Domains information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `name` | string | name |
 
-### OCI Compute List fault domains
+### OCI Compute List Fault Domains
 
 List fault domains in OCI
 
@@ -1530,14 +1553,13 @@ List fault domains in OCI
 | `status` | number | OCI HTTP response status |
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
-| `nextPage` | string | Continuation token, including on empty pages |
-| `faultDomains` | array | Fault Domains in this page |
+| `faultDomains` | array | Fault Domains information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `name` | string | name |
 |   ↳ `availabilityDomain` | string | availability Domain |
 
-### OCI Compute List compartments
+### OCI Compute List Compartments
 
 List compartments in OCI
 
@@ -1563,10 +1585,9 @@ List compartments in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `compartments` | array | Compartments in this page |
+| `compartments` | array | Compartments information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
-|   ↳ `displayName` | string | display Name |
 |   ↳ `timeCreated` | string | time Created |
 |   ↳ `freeformTags` | json | Resource free-form string tags |
 |   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
@@ -1575,7 +1596,7 @@ List compartments in OCI
 |   ↳ `description` | string | description |
 |   ↳ `isAccessible` | boolean | Whether the compartment is accessible |
 
-### OCI Compute Get compartment
+### OCI Compute Get Compartment
 
 Get compartment in OCI
 
@@ -1597,7 +1618,6 @@ Get compartment in OCI
 | `compartment` | json | Compartment information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
-|   ↳ `displayName` | string | display Name |
 |   ↳ `timeCreated` | string | time Created |
 |   ↳ `freeformTags` | json | Resource free-form string tags |
 |   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
@@ -1606,7 +1626,7 @@ Get compartment in OCI
 |   ↳ `description` | string | description |
 |   ↳ `isAccessible` | boolean | Whether the compartment is accessible |
 
-### OCI Compute List subnets
+### OCI Compute List Subnets
 
 List subnets in OCI
 
@@ -1633,7 +1653,7 @@ List subnets in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `subnets` | array | Subnets in this page |
+| `subnets` | array | Subnets information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -1651,7 +1671,7 @@ List subnets in OCI
 |   ↳ `securityListIds` | array | Security list OCIDs |
 |   ↳ `ipv6CidrBlocks` | array | IPv6 CIDRs |
 
-### OCI Compute Get subnet
+### OCI Compute Get Subnet
 
 Get subnet in OCI
 
@@ -1688,7 +1708,7 @@ Get subnet in OCI
 |   ↳ `securityListIds` | array | Security list OCIDs |
 |   ↳ `ipv6CidrBlocks` | array | IPv6 CIDRs |
 
-### OCI Compute List vnic attachments
+### OCI Compute List Vnic Attachments
 
 List vnic attachments in OCI
 
@@ -1712,7 +1732,7 @@ List vnic attachments in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `vnicAttachments` | array | Vnic Attachments in this page |
+| `vnicAttachments` | array | Vnic Attachments information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -1724,7 +1744,7 @@ List vnic attachments in OCI
 |   ↳ `vnicId` | string | vnic Id |
 |   ↳ `nicIndex` | number | Physical NIC index |
 
-### OCI Compute Get vnic
+### OCI Compute Get Vnic
 
 Get vnic in OCI
 
@@ -1761,7 +1781,7 @@ Get vnic in OCI
 |   ↳ `nsgIds` | array | Network security group OCIDs |
 |   ↳ `ipv6Addresses` | array | Assigned IPv6 addresses |
 
-### OCI Compute List boot volume attachments
+### OCI Compute List Boot Volume Attachments
 
 List boot volume attachments in OCI
 
@@ -1785,7 +1805,7 @@ List boot volume attachments in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `bootVolumeAttachments` | array | Boot Volume Attachments in this page |
+| `bootVolumeAttachments` | array | Boot Volume Attachments information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -1796,7 +1816,7 @@ List boot volume attachments in OCI
 |   ↳ `bootVolumeId` | string | boot Volume Id |
 |   ↳ `isPvEncryptionInTransitEnabled` | boolean | Encryption in transit is enabled |
 
-### OCI Compute List volume attachments
+### OCI Compute List Volume Attachments
 
 List volume attachments in OCI
 
@@ -1820,7 +1840,7 @@ List volume attachments in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `volumeAttachments` | array | Volume Attachments in this page |
+| `volumeAttachments` | array | Volume Attachments information returned by OCI |
 |   ↳ `id` | string | id |
 |   ↳ `compartmentId` | string | compartment Id |
 |   ↳ `displayName` | string | display Name |
@@ -1835,7 +1855,7 @@ List volume attachments in OCI
 |   ↳ `isShareable` | boolean | Shareable attachment |
 |   ↳ `isVolumeCreatedDuringLaunch` | boolean | Volume was created during launch |
 
-### OCI Compute List work requests
+### OCI Compute List Work Requests
 
 List work requests in OCI
 
@@ -1858,22 +1878,17 @@ List work requests in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `workRequests` | array | Work Requests in this page |
-|   ↳ `id` | string | id |
-|   ↳ `compartmentId` | string | compartment Id |
-|   ↳ `operationType` | string | operation Type |
-|   ↳ `status` | string | status |
-|   ↳ `timeAccepted` | string | time Accepted |
-|   ↳ `timeStarted` | string | time Started |
-|   ↳ `timeFinished` | string | time Finished |
-|   ↳ `percentComplete` | number | Operation progress percentage |
-|   ↳ `resources` | array | Resources affected by the operation |
-|     ↳ `actionType` | string | action Type |
-|     ↳ `entityType` | string | entity Type |
-|     ↳ `identifier` | string | identifier |
-|     ↳ `entityUri` | string | entity Uri |
+| `workRequests` | array | Work Requests information returned by OCI |
+|   ↳ `id` | string | Work request OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `operationType` | string | Operation type |
+|   ↳ `status` | string | Current work request status |
+|   ↳ `timeAccepted` | string | Acceptance time |
+|   ↳ `timeStarted` | string | Start time |
+|   ↳ `timeFinished` | string | Completion time |
+|   ↳ `percentComplete` | number | Progress percentage |
 
-### OCI Compute Get work request
+### OCI Compute Get Work Request
 
 Get work request in OCI
 
@@ -1907,7 +1922,7 @@ Get work request in OCI
 |     ↳ `identifier` | string | identifier |
 |     ↳ `entityUri` | string | entity Uri |
 
-### OCI Compute List work request errors
+### OCI Compute List Work Request Errors
 
 List work request errors in OCI
 
@@ -1929,12 +1944,12 @@ List work request errors in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `workRequestErrors` | array | Work Request Errors in this page |
+| `workRequestErrors` | array | Work Request Errors information returned by OCI |
 |   ↳ `code` | string | code |
 |   ↳ `message` | string | message |
 |   ↳ `timestamp` | string | timestamp |
 
-### OCI Compute List work request logs
+### OCI Compute List Work Request Logs
 
 List work request logs in OCI
 
@@ -1956,7 +1971,7 @@ List work request logs in OCI
 | `requestId` | string | Oracle request ID for correlation |
 | `etag` | string | Resource ETag when returned |
 | `nextPage` | string | Continuation token, including on empty pages |
-| `workRequestLogs` | array | Work Request Logs in this page |
+| `workRequestLogs` | array | Work Request Logs information returned by OCI |
 |   ↳ `message` | string | message |
 |   ↳ `timestamp` | string | timestamp |
 

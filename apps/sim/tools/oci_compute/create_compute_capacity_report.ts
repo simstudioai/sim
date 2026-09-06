@@ -1,8 +1,8 @@
 import {
   CAPACITY_REPORT_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeCreateComputeCapacityReportParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const ociComputeCreateComputeCapacityReportTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_create_compute_capacity_report',
-  name: 'OCI Compute Create compute capacity report',
+  name: 'OCI Compute Create Compute Capacity Report',
   description:
     'Inspect available capacity for requested shapes without reserving or launching resources',
   version: '1.0.0',
@@ -21,22 +21,19 @@ export const ociComputeCreateComputeCapacityReportTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,15 +46,14 @@ export const ociComputeCreateComputeCapacityReportTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Exact availability-domain name returned by OCI discovery',
+      description: 'Exact availability-domain name returned by OCI discovery',
     },
     retryToken: {
       type: 'string',
       required: false,
       visibility: 'user-only',
       description:
-        'Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key',
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
     },
     shapeAvailabilities: {
       type: 'json',
@@ -68,18 +64,19 @@ export const ociComputeCreateComputeCapacityReportTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'availabilityDomain',
-      'retryToken',
-      'shapeAvailabilities',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'availabilityDomain',
+        'retryToken',
+        'shapeAvailabilities',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    retryToken: { type: 'string', description: 'Retry token used for this creation request' },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
     capacityReport: {
       type: 'json',
       description: 'Capacity Report information returned by OCI',
@@ -87,4 +84,3 @@ export const ociComputeCreateComputeCapacityReportTool: InternalToolConfig<
     },
   },
 }
-

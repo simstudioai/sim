@@ -1,8 +1,8 @@
 import {
-  POOL_INSTANCE_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeGetInstancePoolInstanceParams,
   type OciComputeResponse,
+  POOL_INSTANCE_OUTPUT_PROPERTIES,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,9 +11,8 @@ export const ociComputeGetInstancePoolInstanceTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_get_instance_pool_instance',
-  name: 'OCI Compute Get instance pool instance',
-  description:
-    'Get instance pool instance in OCI',
+  name: 'OCI Compute Get Instance Pool Instance',
+  description: 'Get instance pool instance in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -21,43 +20,35 @@ export const ociComputeGetInstancePoolInstanceTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     instancePoolId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Instance pool OCID',
+      description: 'Instance pool OCID',
     },
     instanceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Compute instance OCID',
+      description: 'Compute instance OCID',
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'instancePoolId',
-      'instanceId',
-    ]),
+    input: (params) => ociComputeOperationInput(params, ['instancePoolId', 'instanceId']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
@@ -70,4 +61,3 @@ export const ociComputeGetInstancePoolInstanceTool: InternalToolConfig<
     },
   },
 }
-

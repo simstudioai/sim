@@ -1,8 +1,8 @@
 import {
   COMPARTMENT_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeListCompartmentsParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,9 +11,8 @@ export const ociComputeListCompartmentsTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_list_compartments',
-  name: 'OCI Compute List compartments',
-  description:
-    'List compartments in OCI',
+  name: 'OCI Compute List Compartments',
+  description: 'List compartments in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -21,22 +20,19 @@ export const ociComputeListCompartmentsTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,8 +45,7 @@ export const ociComputeListCompartmentsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Maximum results in this page, 1–100; default 50',
+      description: 'Maximum results in this page, 1–100; default 50',
     },
     page: {
       type: 'string',
@@ -63,15 +58,13 @@ export const ociComputeListCompartmentsTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Exact compartment name filter',
+      description: 'Exact compartment name filter',
     },
     lifecycleState: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Exact lifecycle-state filter supported by this resource',
+      description: 'Exact lifecycle-state filter supported by this resource',
     },
     accessLevel: {
       type: 'string',
@@ -89,26 +82,30 @@ export const ociComputeListCompartmentsTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'limit',
-      'page',
-      'name',
-      'lifecycleState',
-      'accessLevel',
-      'compartmentIdInSubtree',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'limit',
+        'page',
+        'name',
+        'lifecycleState',
+        'accessLevel',
+        'compartmentIdInSubtree',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    nextPage: { type: 'string', description: 'Continuation token, including on empty pages', nullable: true },
+    nextPage: {
+      type: 'string',
+      description: 'Continuation token, including on empty pages',
+      nullable: true,
+    },
     compartments: {
       type: 'array',
-      description: 'Compartments in this page',
+      description: 'Compartments information returned by OCI',
       items: { type: 'object', properties: COMPARTMENT_OUTPUT_PROPERTIES },
     },
   },
 }
-

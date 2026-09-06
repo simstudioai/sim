@@ -29,28 +29,6 @@ const COMPARTMENT_ID_OPERATIONS = [
   'oci_compute_list_boot_volume_attachments',
   'oci_compute_list_volume_attachments',
   'oci_compute_list_work_requests',
-  'oci_compute_get_instance',
-  'oci_compute_update_instance',
-  'oci_compute_instance_action',
-  'oci_compute_terminate_instance',
-  'oci_compute_get_instance_maintenance_reboot',
-  'oci_compute_get_image',
-  'oci_compute_update_image',
-  'oci_compute_delete_image',
-  'oci_compute_list_image_shape_compatibility_entries',
-  'oci_compute_get_image_shape_compatibility_entry',
-  'oci_compute_get_instance_configuration',
-  'oci_compute_update_instance_configuration',
-  'oci_compute_delete_instance_configuration',
-  'oci_compute_launch_instance_configuration',
-  'oci_compute_get_instance_pool',
-  'oci_compute_update_instance_pool',
-  'oci_compute_instance_pool_action',
-  'oci_compute_terminate_instance_pool',
-  'oci_compute_get_instance_pool_instance',
-  'oci_compute_attach_instance_pool_instance',
-  'oci_compute_detach_instance_pool_instance',
-  'oci_compute_get_subnet',
 ]
 
 const LIMIT_OPERATIONS = [
@@ -124,6 +102,7 @@ const DISPLAY_NAME_OPERATIONS = [
 ]
 
 const AVAILABILITY_DOMAIN_OPERATIONS = [
+  'oci_compute_update_instance',
   'oci_compute_list_instances',
   'oci_compute_launch_instance',
   'oci_compute_list_shapes',
@@ -173,9 +152,7 @@ const SHAPE_OPERATIONS = [
   'oci_compute_get_image_shape_compatibility_entry',
 ]
 
-const SOURCE_MODE_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const SOURCE_MODE_OPERATIONS = ['oci_compute_launch_instance']
 
 const IMAGE_ID_OPERATIONS = [
   'oci_compute_launch_instance',
@@ -188,25 +165,15 @@ const IMAGE_ID_OPERATIONS = [
   'oci_compute_get_image_shape_compatibility_entry',
 ]
 
-const IMAGE_FILTER_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const IMAGE_FILTER_OPERATIONS = ['oci_compute_launch_instance']
 
-const BOOT_VOLUME_ID_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const BOOT_VOLUME_ID_OPERATIONS = ['oci_compute_launch_instance']
 
-const BOOT_VOLUME_SIZE_IN_GBS_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const BOOT_VOLUME_SIZE_IN_GBS_OPERATIONS = ['oci_compute_launch_instance']
 
-const BOOT_VOLUME_VPUS_PER_GB_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const BOOT_VOLUME_VPUS_PER_GB_OPERATIONS = ['oci_compute_launch_instance']
 
-const KMS_KEY_ID_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const KMS_KEY_ID_OPERATIONS = ['oci_compute_launch_instance']
 
 const FREEFORM_TAGS_OPERATIONS = [
   'oci_compute_launch_instance',
@@ -232,51 +199,43 @@ const DEFINED_TAGS_OPERATIONS = [
 
 const RETRY_TOKEN_OPERATIONS = [
   'oci_compute_launch_instance',
+  'oci_compute_update_instance',
+  'oci_compute_instance_action',
+  'oci_compute_change_instance_compartment',
   'oci_compute_create_image',
+  'oci_compute_update_image',
+  'oci_compute_change_image_compartment',
   'oci_compute_create_compute_capacity_report',
   'oci_compute_create_instance_configuration',
+  'oci_compute_update_instance_configuration',
   'oci_compute_launch_instance_configuration',
+  'oci_compute_change_instance_configuration_compartment',
   'oci_compute_create_instance_pool',
+  'oci_compute_update_instance_pool',
+  'oci_compute_instance_pool_action',
+  'oci_compute_change_instance_pool_compartment',
+  'oci_compute_attach_instance_pool_instance',
+  'oci_compute_detach_instance_pool_instance',
 ]
 
-const SHAPE_CONFIG_OPERATIONS = [
-  'oci_compute_launch_instance',
-  'oci_compute_update_instance',
-]
+const SHAPE_CONFIG_OPERATIONS = ['oci_compute_launch_instance', 'oci_compute_update_instance']
 
-const CREATE_VNIC_DETAILS_OPERATIONS = [
-  'oci_compute_launch_instance',
-]
+const CREATE_VNIC_DETAILS_OPERATIONS = ['oci_compute_launch_instance']
 
-const FAULT_DOMAIN_OPERATIONS = [
-  'oci_compute_launch_instance',
-  'oci_compute_update_instance',
-]
+const FAULT_DOMAIN_OPERATIONS = ['oci_compute_launch_instance', 'oci_compute_update_instance']
 
-const METADATA_OPERATIONS = [
-  'oci_compute_launch_instance',
-  'oci_compute_update_instance',
-]
+const METADATA_OPERATIONS = ['oci_compute_launch_instance', 'oci_compute_update_instance']
 
-const EXTENDED_METADATA_OPERATIONS = [
-  'oci_compute_launch_instance',
-  'oci_compute_update_instance',
-]
+const EXTENDED_METADATA_OPERATIONS = ['oci_compute_launch_instance', 'oci_compute_update_instance']
 
-const AGENT_CONFIG_OPERATIONS = [
-  'oci_compute_launch_instance',
-  'oci_compute_update_instance',
-]
+const AGENT_CONFIG_OPERATIONS = ['oci_compute_launch_instance', 'oci_compute_update_instance']
 
 const AVAILABILITY_CONFIG_OPERATIONS = [
   'oci_compute_launch_instance',
   'oci_compute_update_instance',
 ]
 
-const INSTANCE_OPTIONS_OPERATIONS = [
-  'oci_compute_launch_instance',
-  'oci_compute_update_instance',
-]
+const INSTANCE_OPTIONS_OPERATIONS = ['oci_compute_launch_instance', 'oci_compute_update_instance']
 
 const DEDICATED_VM_HOST_ID_OPERATIONS = [
   'oci_compute_launch_instance',
@@ -300,50 +259,27 @@ const IF_MATCH_OPERATIONS = [
   'oci_compute_change_instance_pool_compartment',
 ]
 
-const TIME_MAINTENANCE_REBOOT_DUE_OPERATIONS = [
-  'oci_compute_update_instance',
-]
+const TIME_MAINTENANCE_REBOOT_DUE_OPERATIONS = ['oci_compute_update_instance']
 
-const UPDATE_OPERATION_CONSTRAINT_OPERATIONS = [
-  'oci_compute_update_instance',
-]
+const UPDATE_OPERATION_CONSTRAINT_OPERATIONS = ['oci_compute_update_instance']
 
-const ACTION_OPERATIONS = [
-  'oci_compute_instance_action',
-  'oci_compute_instance_pool_action',
-]
+const ACTION_OPERATIONS = ['oci_compute_instance_action', 'oci_compute_instance_pool_action']
 
-const ALLOW_DENSE_REBOOT_MIGRATION_OPERATIONS = [
-  'oci_compute_instance_action',
-]
+const ALLOW_DENSE_REBOOT_MIGRATION_OPERATIONS = ['oci_compute_instance_action']
 
-const DELETE_LOCAL_STORAGE_OPERATIONS = [
-  'oci_compute_instance_action',
-]
+const DELETE_LOCAL_STORAGE_OPERATIONS = ['oci_compute_instance_action']
 
-const TIME_SCHEDULED_OPERATIONS = [
-  'oci_compute_instance_action',
-]
+const TIME_SCHEDULED_OPERATIONS = ['oci_compute_instance_action']
 
-const PRESERVE_BOOT_VOLUME_OPERATIONS = [
-  'oci_compute_terminate_instance',
-]
+const PRESERVE_BOOT_VOLUME_OPERATIONS = ['oci_compute_terminate_instance']
 
-const PRESERVE_DATA_VOLUMES_CREATED_AT_LAUNCH_OPERATIONS = [
-  'oci_compute_terminate_instance',
-]
+const PRESERVE_DATA_VOLUMES_CREATED_AT_LAUNCH_OPERATIONS = ['oci_compute_terminate_instance']
 
-const OPERATING_SYSTEM_OPERATIONS = [
-  'oci_compute_list_images',
-]
+const OPERATING_SYSTEM_OPERATIONS = ['oci_compute_list_images']
 
-const OPERATING_SYSTEM_VERSION_OPERATIONS = [
-  'oci_compute_list_images',
-]
+const OPERATING_SYSTEM_VERSION_OPERATIONS = ['oci_compute_list_images']
 
-const SHAPE_AVAILABILITIES_OPERATIONS = [
-  'oci_compute_create_compute_capacity_report',
-]
+const SHAPE_AVAILABILITIES_OPERATIONS = ['oci_compute_create_compute_capacity_report']
 
 const INSTANCE_CONFIGURATION_ID_OPERATIONS = [
   'oci_compute_get_instance_configuration',
@@ -355,9 +291,7 @@ const INSTANCE_CONFIGURATION_ID_OPERATIONS = [
   'oci_compute_update_instance_pool',
 ]
 
-const CONFIGURATION_SOURCE_OPERATIONS = [
-  'oci_compute_create_instance_configuration',
-]
+const CONFIGURATION_SOURCE_OPERATIONS = ['oci_compute_create_instance_configuration']
 
 const INSTANCE_DETAILS_OPERATIONS = [
   'oci_compute_create_instance_configuration',
@@ -462,56 +396,56 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     defaultTitle: 'OCI Compute',
     sentences: {
       byOperation: {
-        oci_compute_list_instances: ['List Instances'],
-        oci_compute_get_instance: ['Get Instance'],
-        oci_compute_launch_instance: ['Launch Instance'],
-        oci_compute_update_instance: ['Update Instance'],
-        oci_compute_instance_action: ['Instance Action'],
-        oci_compute_terminate_instance: ['Terminate Instance'],
-        oci_compute_change_instance_compartment: ['Change Instance Compartment'],
-        oci_compute_get_instance_maintenance_reboot: ['Get Instance Maintenance Reboot'],
-        oci_compute_list_images: ['List Images'],
-        oci_compute_get_image: ['Get Image'],
-        oci_compute_create_image: ['Create Image'],
-        oci_compute_update_image: ['Update Image'],
-        oci_compute_delete_image: ['Delete Image'],
-        oci_compute_change_image_compartment: ['Change Image Compartment'],
-        oci_compute_list_shapes: ['List Shapes'],
-        oci_compute_list_image_shape_compatibility_entries: ['List Image Shape Compatibility Entries'],
-        oci_compute_get_image_shape_compatibility_entry: ['Get Image Shape Compatibility Entry'],
-        oci_compute_create_compute_capacity_report: ['Create Compute Capacity Report'],
-        oci_compute_list_instance_configurations: ['List Instance Configurations'],
-        oci_compute_get_instance_configuration: ['Get Instance Configuration'],
-        oci_compute_create_instance_configuration: ['Create Instance Configuration'],
-        oci_compute_update_instance_configuration: ['Update Instance Configuration'],
-        oci_compute_delete_instance_configuration: ['Delete Instance Configuration'],
-        oci_compute_launch_instance_configuration: ['Launch Instance Configuration'],
-        oci_compute_change_instance_configuration_compartment: ['Change Instance Configuration Compartment'],
-        oci_compute_list_instance_pools: ['List Instance Pools'],
-        oci_compute_get_instance_pool: ['Get Instance Pool'],
-        oci_compute_create_instance_pool: ['Create Instance Pool'],
-        oci_compute_update_instance_pool: ['Update Instance Pool'],
-        oci_compute_instance_pool_action: ['Instance Pool Action'],
-        oci_compute_terminate_instance_pool: ['Terminate Instance Pool'],
-        oci_compute_change_instance_pool_compartment: ['Change Instance Pool Compartment'],
-        oci_compute_list_instance_pool_instances: ['List Instance Pool Instances'],
-        oci_compute_get_instance_pool_instance: ['Get Instance Pool Instance'],
-        oci_compute_attach_instance_pool_instance: ['Attach Instance Pool Instance'],
-        oci_compute_detach_instance_pool_instance: ['Detach Instance Pool Instance'],
-        oci_compute_list_availability_domains: ['List Availability Domains'],
-        oci_compute_list_fault_domains: ['List Fault Domains'],
-        oci_compute_list_compartments: ['List Compartments'],
-        oci_compute_get_compartment: ['Get Compartment'],
-        oci_compute_list_subnets: ['List Subnets'],
-        oci_compute_get_subnet: ['Get Subnet'],
-        oci_compute_list_vnic_attachments: ['List Vnic Attachments'],
-        oci_compute_get_vnic: ['Get Vnic'],
-        oci_compute_list_boot_volume_attachments: ['List Boot Volume Attachments'],
-        oci_compute_list_volume_attachments: ['List Volume Attachments'],
-        oci_compute_list_work_requests: ['List Work Requests'],
-        oci_compute_get_work_request: ['Get Work Request'],
-        oci_compute_list_work_request_errors: ['List Work Request Errors'],
-        oci_compute_list_work_request_logs: ['List Work Request Logs'],
+        oci_compute_list_instances: ['List instances'],
+        oci_compute_get_instance: ['Get instance'],
+        oci_compute_launch_instance: ['Launch instance'],
+        oci_compute_update_instance: ['Update instance'],
+        oci_compute_instance_action: ['Apply instance action'],
+        oci_compute_terminate_instance: ['Terminate instance'],
+        oci_compute_change_instance_compartment: ['Change instance compartment'],
+        oci_compute_get_instance_maintenance_reboot: ['Get instance maintenance reboot'],
+        oci_compute_list_images: ['List images'],
+        oci_compute_get_image: ['Get image'],
+        oci_compute_create_image: ['Create image'],
+        oci_compute_update_image: ['Update image'],
+        oci_compute_delete_image: ['Delete image'],
+        oci_compute_change_image_compartment: ['Change image compartment'],
+        oci_compute_list_shapes: ['List shapes'],
+        oci_compute_list_image_shape_compatibility_entries: ['List image shape compatibility entries'],
+        oci_compute_get_image_shape_compatibility_entry: ['Get image shape compatibility entry'],
+        oci_compute_create_compute_capacity_report: ['Create compute capacity report'],
+        oci_compute_list_instance_configurations: ['List instance configurations'],
+        oci_compute_get_instance_configuration: ['Get instance configuration'],
+        oci_compute_create_instance_configuration: ['Create instance configuration'],
+        oci_compute_update_instance_configuration: ['Update instance configuration'],
+        oci_compute_delete_instance_configuration: ['Delete instance configuration'],
+        oci_compute_launch_instance_configuration: ['Launch instance configuration'],
+        oci_compute_change_instance_configuration_compartment: ['Change instance configuration compartment'],
+        oci_compute_list_instance_pools: ['List instance pools'],
+        oci_compute_get_instance_pool: ['Get instance pool'],
+        oci_compute_create_instance_pool: ['Create instance pool'],
+        oci_compute_update_instance_pool: ['Update instance pool'],
+        oci_compute_instance_pool_action: ['Apply pool action'],
+        oci_compute_terminate_instance_pool: ['Terminate instance pool'],
+        oci_compute_change_instance_pool_compartment: ['Change instance pool compartment'],
+        oci_compute_list_instance_pool_instances: ['List instance pool instances'],
+        oci_compute_get_instance_pool_instance: ['Get instance pool instance'],
+        oci_compute_attach_instance_pool_instance: ['Attach instance pool instance'],
+        oci_compute_detach_instance_pool_instance: ['Detach instance pool instance'],
+        oci_compute_list_availability_domains: ['List availability domains'],
+        oci_compute_list_fault_domains: ['List fault domains'],
+        oci_compute_list_compartments: ['List compartments'],
+        oci_compute_get_compartment: ['Get compartment'],
+        oci_compute_list_subnets: ['List subnets'],
+        oci_compute_get_subnet: ['Get subnet'],
+        oci_compute_list_vnic_attachments: ['List vnic attachments'],
+        oci_compute_get_vnic: ['Get vnic'],
+        oci_compute_list_boot_volume_attachments: ['List boot volume attachments'],
+        oci_compute_list_volume_attachments: ['List volume attachments'],
+        oci_compute_list_work_requests: ['List work requests'],
+        oci_compute_get_work_request: ['Get work request'],
+        oci_compute_list_work_request_errors: ['List work request errors'],
+        oci_compute_list_work_request_logs: ['List work request logs'],
       },
     },
   },
@@ -603,6 +537,12 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       required: true,
     },
     {
+      id: 'resourceCompartmentId',
+      title: 'Resource Compartment for Discovery',
+      type: 'short-input',
+      placeholder: 'Source resource compartment OCID; separate from the operation destination',
+    },
+    {
       id: 'parentCompartmentId',
       title: 'Parent Compartment for Discovery',
       type: 'short-input',
@@ -617,7 +557,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       selectorKey: 'oci_compute.compartments',
       dependsOn: ['credential', 'region', 'parentCompartmentId'],
       mode: 'basic',
-      placeholder: 'Select Compartment Id',
+      placeholder: 'Select compartment; use manual mode for tenancy-root capacity reports',
       condition: { field: 'operation', value: COMPARTMENT_ID_OPERATIONS },
       required: { field: 'operation', value: ['oci_compute_list_instances','oci_compute_launch_instance','oci_compute_change_instance_compartment','oci_compute_list_images','oci_compute_create_image','oci_compute_change_image_compartment','oci_compute_list_shapes','oci_compute_create_compute_capacity_report','oci_compute_list_instance_configurations','oci_compute_create_instance_configuration','oci_compute_change_instance_configuration_compartment','oci_compute_list_instance_pools','oci_compute_create_instance_pool','oci_compute_change_instance_pool_compartment','oci_compute_list_instance_pool_instances','oci_compute_list_availability_domains','oci_compute_list_fault_domains','oci_compute_list_compartments','oci_compute_get_compartment','oci_compute_list_subnets','oci_compute_list_vnic_attachments','oci_compute_list_boot_volume_attachments','oci_compute_list_volume_attachments','oci_compute_list_work_requests'] },
     },
@@ -683,7 +623,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'availabilityDomain',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.availabilityDomains',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId'],
       mode: 'basic',
       placeholder: 'Select Availability Domain',
       condition: { field: 'operation', value: AVAILABILITY_DOMAIN_OPERATIONS },
@@ -724,11 +664,13 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'instanceId',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.instances',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId'],
       mode: 'basic',
       placeholder: 'Select Instance Id',
       condition: { field: 'operation', value: INSTANCE_ID_OPERATIONS },
-      required: { field: 'operation', value: ['oci_compute_get_instance','oci_compute_update_instance','oci_compute_instance_action','oci_compute_terminate_instance','oci_compute_change_instance_compartment','oci_compute_get_instance_maintenance_reboot','oci_compute_create_image','oci_compute_get_instance_pool_instance','oci_compute_attach_instance_pool_instance','oci_compute_detach_instance_pool_instance','oci_compute_list_vnic_attachments','oci_compute_list_boot_volume_attachments','oci_compute_list_volume_attachments'] },
+      required: (values) => values?.operation === 'oci_compute_create_instance_configuration'
+        ? { field: 'configurationSource', value: 'INSTANCE' }
+        : { field: 'operation', value: ['oci_compute_get_instance','oci_compute_update_instance','oci_compute_instance_action','oci_compute_terminate_instance','oci_compute_change_instance_compartment','oci_compute_get_instance_maintenance_reboot','oci_compute_create_image','oci_compute_get_instance_pool_instance','oci_compute_attach_instance_pool_instance','oci_compute_detach_instance_pool_instance','oci_compute_list_vnic_attachments','oci_compute_list_boot_volume_attachments','oci_compute_list_volume_attachments'] },
     },
     {
       id: 'instanceIdManual',
@@ -738,7 +680,9 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       mode: 'advanced',
       placeholder: 'Compute instance OCID',
       condition: { field: 'operation', value: INSTANCE_ID_OPERATIONS },
-      required: { field: 'operation', value: ['oci_compute_get_instance','oci_compute_update_instance','oci_compute_instance_action','oci_compute_terminate_instance','oci_compute_change_instance_compartment','oci_compute_get_instance_maintenance_reboot','oci_compute_create_image','oci_compute_get_instance_pool_instance','oci_compute_attach_instance_pool_instance','oci_compute_detach_instance_pool_instance','oci_compute_list_vnic_attachments','oci_compute_list_boot_volume_attachments','oci_compute_list_volume_attachments'] },
+      required: (values) => values?.operation === 'oci_compute_create_instance_configuration'
+        ? { field: 'configurationSource', value: 'INSTANCE' }
+        : { field: 'operation', value: ['oci_compute_get_instance','oci_compute_update_instance','oci_compute_instance_action','oci_compute_terminate_instance','oci_compute_change_instance_compartment','oci_compute_get_instance_maintenance_reboot','oci_compute_create_image','oci_compute_get_instance_pool_instance','oci_compute_attach_instance_pool_instance','oci_compute_detach_instance_pool_instance','oci_compute_list_vnic_attachments','oci_compute_list_boot_volume_attachments','oci_compute_list_volume_attachments'] },
     },
     {
       id: 'shapeSelector',
@@ -747,7 +691,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'shape',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.shapes',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId', 'availabilityDomainSelector'],
       mode: 'basic',
       placeholder: 'Select Shape',
       condition: { field: 'operation', value: SHAPE_OPERATIONS },
@@ -780,11 +724,13 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'imageId',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.images',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId'],
       mode: 'basic',
       placeholder: 'Select Image Id',
       condition: { field: 'operation', value: IMAGE_ID_OPERATIONS },
-      required: { field: 'operation', value: ['oci_compute_get_image','oci_compute_update_image','oci_compute_delete_image','oci_compute_change_image_compartment','oci_compute_list_image_shape_compatibility_entries','oci_compute_get_image_shape_compatibility_entry'] },
+      required: (values) => values?.operation === 'oci_compute_launch_instance'
+        ? { field: 'sourceMode', value: 'image' }
+        : { field: 'operation', value: ['oci_compute_get_image','oci_compute_update_image','oci_compute_delete_image','oci_compute_change_image_compartment','oci_compute_list_image_shape_compatibility_entries','oci_compute_get_image_shape_compatibility_entry'] },
     },
     {
       id: 'imageIdManual',
@@ -794,15 +740,22 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       mode: 'advanced',
       placeholder: 'Image OCID; required for image-ID launches',
       condition: { field: 'operation', value: IMAGE_ID_OPERATIONS },
-      required: { field: 'operation', value: ['oci_compute_get_image','oci_compute_update_image','oci_compute_delete_image','oci_compute_change_image_compartment','oci_compute_list_image_shape_compatibility_entries','oci_compute_get_image_shape_compatibility_entry'] },
+      required: (values) => values?.operation === 'oci_compute_launch_instance'
+        ? { field: 'sourceMode', value: 'image' }
+        : { field: 'operation', value: ['oci_compute_get_image','oci_compute_update_image','oci_compute_delete_image','oci_compute_change_image_compartment','oci_compute_list_image_shape_compatibility_entries','oci_compute_get_image_shape_compatibility_entry'] },
     },
     {
       id: 'imageFilter',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI imageFilter JSON. Image selection criteria: compartmentId, operatingSystem, operatingSystemVersion, definedTagsFilter. Example: {"compartmentId":"ocid1.compartment.example","operatingSystem":"Oracle Linux"}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Image Filter',
       type: 'long-input',
       placeholder: 'Image selection criteria: compartmentId, operatingSystem, operatingSystemVersion, definedTagsFilter',
       condition: { field: 'operation', value: IMAGE_FILTER_OPERATIONS },
-      required: false,
+      required: { field: 'operation', value: 'oci_compute_launch_instance', and: { field: 'sourceMode', value: 'imageFilter' } },
     },
     {
       id: 'bootVolumeId',
@@ -810,7 +763,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       type: 'short-input',
       placeholder: 'Existing boot volume OCID in the instance availability domain; only for bootVolume launches',
       condition: { field: 'operation', value: BOOT_VOLUME_ID_OPERATIONS },
-      required: false,
+      required: { field: 'operation', value: 'oci_compute_launch_instance', and: { field: 'sourceMode', value: 'bootVolume' } },
     },
     {
       id: 'bootVolumeSizeInGBs',
@@ -841,6 +794,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'freeformTags',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI freeformTags JSON. Free-form tags as a string-to-string JSON map. Example: {"environment":"development"}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Freeform Tags',
       type: 'long-input',
       placeholder: 'Free-form tags as a string-to-string JSON map',
@@ -850,6 +808,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'definedTags',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI definedTags JSON. Defined string tags grouped by namespace, for example {Operations: {CostCenter: "42"}}. Example: {"Operations":{"CostCenter":"42"}}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Defined Tags',
       type: 'long-input',
       placeholder: 'Defined string tags grouped by namespace, for example {Operations: {CostCenter: "42"}}',
@@ -868,6 +831,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'shapeConfig',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI shapeConfig JSON. Shape resources: ocpus OR vcpus, memoryInGBs, baselineOcpuUtilization, nvmes; use List Shapes for valid ranges. Example: {"ocpus":2,"memoryInGBs":16}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Shape Config',
       type: 'long-input',
       placeholder: 'Shape resources: ocpus OR vcpus, memoryInGBs, baselineOcpuUtilization, nvmes; use List Shapes for valid ranges',
@@ -877,6 +845,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'createVnicDetails',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI createVnicDetails JSON. Primary VNIC settings: subnetId (required), displayName, assignPublicIp, assignPrivateDnsRecord, hostnameLabel, privateIp/privateIpId/subnetCidr, nsgIds, skipSourceDestCheck, assignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails. Example: {"assignPublicIp":false,"nsgIds":[]}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Create Vnic Details',
       type: 'long-input',
       placeholder: 'Primary VNIC settings: subnetId (required), displayName, assignPublicIp, assignPrivateDnsRecord, hostnameLabel, privateIp/privateIpId/subnetCidr, nsgIds, skipSourceDestCheck, assignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails',
@@ -890,7 +863,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'faultDomain',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.faultDomains',
-      dependsOn: ['credential', 'region', 'compartmentSelector', 'availabilityDomainSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId', 'availabilityDomainSelector'],
       mode: 'basic',
       placeholder: 'Select Fault Domain',
       condition: { field: 'operation', value: FAULT_DOMAIN_OPERATIONS },
@@ -908,6 +881,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'metadata',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI metadata JSON. String-to-string metadata map; user_data is base64 and ssh_authorized_keys contains SSH public keys. Updates replace the map and must retain immutable launch keys unchanged. Example: {"ssh_authorized_keys":"ssh-ed25519 PUBLIC_KEY"}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Metadata',
       type: 'long-input',
       placeholder: 'String-to-string metadata map; user_data is base64 and ssh_authorized_keys contains SSH public keys. Updates replace the map and must retain immutable launch keys unchanged',
@@ -917,6 +895,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'extendedMetadata',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI extendedMetadata JSON. Nested metadata map; combined with metadata, at most 32000 bytes. Updates must preserve immutable launch keys. Example: {"environment":{"purpose":"development"}}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Extended Metadata',
       type: 'long-input',
       placeholder: 'Nested metadata map; combined with metadata, at most 32000 bytes. Updates must preserve immutable launch keys',
@@ -926,6 +909,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'agentConfig',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI agentConfig JSON. Oracle Cloud Agent settings: isMonitoringDisabled, isManagementDisabled, areAllPluginsDisabled, pluginsConfig [{name, desiredState: ENABLED or DISABLED}]. Example: {"isMonitoringDisabled":false}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Agent Config',
       type: 'long-input',
       placeholder: 'Oracle Cloud Agent settings: isMonitoringDisabled, isManagementDisabled, areAllPluginsDisabled, pluginsConfig [{name, desiredState: ENABLED or DISABLED}]',
@@ -935,6 +923,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'availabilityConfig',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI availabilityConfig JSON. Availability settings: recoveryAction (RESTORE_INSTANCE or STOP_INSTANCE), isLiveMigrationPreferred. Example: {"recoveryAction":"RESTORE_INSTANCE"}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Availability Config',
       type: 'long-input',
       placeholder: 'Availability settings: recoveryAction (RESTORE_INSTANCE or STOP_INSTANCE), isLiveMigrationPreferred',
@@ -944,6 +937,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'instanceOptions',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI instanceOptions JSON. Instance options: areLegacyImdsEndpointsDisabled. Example: {"areLegacyImdsEndpointsDisabled":true}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Instance Options',
       type: 'long-input',
       placeholder: 'Instance options: areLegacyImdsEndpointsDisabled',
@@ -971,6 +969,12 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'timeMaintenanceRebootDue',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: 'Generate an RFC 3339 timestamp with a timezone. Return ONLY the timestamp.',
+        placeholder: 'Describe the date and time',
+      },
       title: 'Time Maintenance Reboot Due',
       type: 'short-input',
       placeholder: 'RFC3339 VM maintenance reboot schedule within the maximum returned by Get Instance Maintenance Reboot',
@@ -994,7 +998,16 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       title: 'Action',
       type: 'dropdown',
       placeholder: 'Instance action: START, STOP, SOFTSTOP, RESET, SOFTRESET, or REBOOTMIGRATE. Pools support the first five',
-      options: [{ label: 'START', id: 'START' }, { label: 'STOP', id: 'STOP' }, { label: 'SOFTSTOP', id: 'SOFTSTOP' }, { label: 'RESET', id: 'RESET' }, { label: 'SOFTRESET', id: 'SOFTRESET' }, { label: 'REBOOTMIGRATE', id: 'REBOOTMIGRATE' }],
+      options: (params) => [
+        { label: 'Start', id: 'START' },
+        { label: 'Stop', id: 'STOP' },
+        { label: 'Soft stop', id: 'SOFTSTOP' },
+        { label: 'Reset', id: 'RESET' },
+        { label: 'Soft reset', id: 'SOFTRESET' },
+        ...(params?.values.operation === 'oci_compute_instance_action'
+          ? [{ label: 'Reboot migrate', id: 'REBOOTMIGRATE' }]
+          : []),
+      ],
       condition: { field: 'operation', value: ACTION_OPERATIONS },
       required: { field: 'operation', value: ['oci_compute_instance_action','oci_compute_instance_pool_action'] },
     },
@@ -1020,6 +1033,12 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'timeScheduled',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: 'Generate an RFC 3339 timestamp with a timezone. Return ONLY the timestamp.',
+        placeholder: 'Describe the date and time',
+      },
       title: 'Time Scheduled',
       type: 'short-input',
       placeholder: 'RFC3339 REBOOTMIGRATE timestamp; omit for immediate migration',
@@ -1069,6 +1088,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'shapeAvailabilities',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI shapeAvailabilities JSON. Capacity queries [{instanceShape, instanceShapeConfig: {ocpus, memoryInGBs}, faultDomain}]; reports do not reserve capacity. Example: [{"instanceShape":"VM.Standard.E4.Flex","instanceShapeConfig":{"ocpus":2,"memoryInGBs":16}}]. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Shape Availabilities',
       type: 'long-input',
       placeholder: 'Capacity queries [{instanceShape, instanceShapeConfig: {ocpus, memoryInGBs}, faultDomain}]; reports do not reserve capacity',
@@ -1082,7 +1106,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'instanceConfigurationId',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.instanceConfigurations',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId'],
       mode: 'basic',
       placeholder: 'Select Instance Configuration Id',
       condition: { field: 'operation', value: INSTANCE_CONFIGURATION_ID_OPERATIONS },
@@ -1110,12 +1134,16 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'instanceDetails',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI instanceDetails JSON. Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig (ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails (type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields. Example: {"instanceType":"compute","launchDetails":{"shape":"VM.Standard.E4.Flex","shapeConfig":{"ocpus":2,"memoryInGBs":16},"sourceDetails":{"sourceType":"image","imageId":"ocid1.image.example"}}}. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Instance Details',
       type: 'long-input',
-      placeholder: 'Typed compute configuration: {instanceType: "compute", launchDetails: {...}, blockVolumes: [{volumeId, attachDetails: {type: "iscsi" or "paravirtualized", ...}}], secondaryVnics: [{createVnicDetails, displayName, nicIndex}]}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted',
-      mode: 'advanced',
+      placeholder: 'Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig (ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails (type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields',
       condition: { field: 'operation', value: INSTANCE_DETAILS_OPERATIONS },
-      required: false,
+      required: { field: 'operation', value: 'oci_compute_create_instance_configuration', and: { field: 'configurationSource', value: 'NONE' } },
     },
     {
       id: 'instancePoolIdSelector',
@@ -1124,7 +1152,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'instancePoolId',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.instancePools',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId'],
       mode: 'basic',
       placeholder: 'Select Instance Pool Id',
       condition: { field: 'operation', value: INSTANCE_POOL_ID_OPERATIONS },
@@ -1150,6 +1178,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     {
       id: 'placementConfigurations',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate OCI placementConfigurations JSON. Placements [{availabilityDomain, faultDomains, primaryVnicSubnets: {subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails}, secondaryVnicSubnets: [{subnetId, displayName, ...}]}]; one placement per AD. Example: [{"availabilityDomain":"AD_NAME","primaryVnicSubnets":{"subnetId":"ocid1.subnet.example"}}]. Return ONLY valid JSON, without markdown or explanations. Do not invent OCIDs.',
+        placeholder: 'Describe the requested settings',
+      },
       title: 'Placement Configurations',
       type: 'long-input',
       placeholder: 'Placements [{availabilityDomain, faultDomains, primaryVnicSubnets: {subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails}, secondaryVnicSubnets: [{subnetId, displayName, ...}]}]; one placement per AD',
@@ -1241,7 +1274,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       canonicalParamId: 'subnetId',
       serviceId: 'oci_compute',
       selectorKey: 'oci_compute.subnets',
-      dependsOn: ['credential', 'region', 'compartmentSelector'],
+      dependsOn: ['credential', 'region', 'resourceCompartmentId', 'availabilityDomainSelector'],
       mode: 'basic',
       placeholder: 'Select Subnet Id',
       condition: { field: 'operation', value: SUBNET_ID_OPERATIONS },
@@ -1379,6 +1412,8 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
   },
   inputs: {
+    parentCompartmentId: { type: 'string', description: 'Parent for compartment discovery' },
+    resourceCompartmentId: { type: 'string', description: 'Source compartment for resource discovery' },
     oauthCredential: { type: 'string', description: 'Authorized OCI credential ID' },
     region: { type: 'string', description: 'OCI region' },
     compartmentId: { type: 'string', description: 'Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports' },
@@ -1425,7 +1460,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     shapeAvailabilities: { type: 'json', description: 'Capacity queries [{instanceShape, instanceShapeConfig: {ocpus, memoryInGBs}, faultDomain}]; reports do not reserve capacity' },
     instanceConfigurationId: { type: 'string', description: 'Instance configuration OCID' },
     configurationSource: { type: 'string', description: 'NONE creates a typed template using instanceDetails; INSTANCE copies settings using instanceId, not disk contents' },
-    instanceDetails: { type: 'json', description: 'Typed compute configuration: {instanceType: "compute", launchDetails: {...}, blockVolumes: [{volumeId, attachDetails: {type: "iscsi" or "paravirtualized", ...}}], secondaryVnics: [{createVnicDetails, displayName, nicIndex}]}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted' },
+    instanceDetails: { type: 'json', description: 'Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig (ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails (type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields' },
     instancePoolId: { type: 'string', description: 'Instance pool OCID' },
     size: { type: 'number', description: 'Desired pool size; increasing creates billable resources and decreasing terminates members' },
     placementConfigurations: { type: 'json', description: 'Placements [{availabilityDomain, faultDomains, primaryVnicSubnets: {subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails}, secondaryVnicSubnets: [{subnetId, displayName, ...}]}]; one placement per AD' },
@@ -1448,37 +1483,37 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     etag: { type: 'string', description: 'Resource ETag, when returned' },
     nextPage: { type: 'string', description: 'Continuation token, including on empty pages' },
     workRequestId: { type: 'string', description: 'Work request OCID, when returned' },
-    retryToken: { type: 'string', description: 'Token used for a supported creation request' },
+    retryToken: { type: 'string', description: 'Token used for a supported mutation' },
     location: { type: 'string', description: 'Pool member location, when returned' },
-    instances: { type: 'json', description: 'Instances returned by OCI' },
-    instance: { type: 'json', description: 'Instance returned by OCI' },
-    maintenanceReboot: { type: 'json', description: 'Maintenance Reboot returned by OCI' },
-    images: { type: 'json', description: 'Images returned by OCI' },
-    image: { type: 'json', description: 'Image returned by OCI' },
-    shapes: { type: 'json', description: 'Shapes returned by OCI' },
-    compatibilityEntries: { type: 'json', description: 'Compatibility Entries returned by OCI' },
-    compatibilityEntry: { type: 'json', description: 'Compatibility Entry returned by OCI' },
-    capacityReport: { type: 'json', description: 'Capacity Report returned by OCI' },
-    instanceConfigurations: { type: 'json', description: 'Instance Configurations returned by OCI' },
-    instanceConfiguration: { type: 'json', description: 'Instance Configuration returned by OCI' },
-    instancePools: { type: 'json', description: 'Instance Pools returned by OCI' },
-    instancePool: { type: 'json', description: 'Instance Pool returned by OCI' },
-    poolInstances: { type: 'json', description: 'Pool Instances returned by OCI' },
-    poolInstance: { type: 'json', description: 'Pool Instance returned by OCI' },
-    availabilityDomains: { type: 'json', description: 'Availability Domains returned by OCI' },
-    faultDomains: { type: 'json', description: 'Fault Domains returned by OCI' },
-    compartments: { type: 'json', description: 'Compartments returned by OCI' },
-    compartment: { type: 'json', description: 'Compartment returned by OCI' },
-    subnets: { type: 'json', description: 'Subnets returned by OCI' },
-    subnet: { type: 'json', description: 'Subnet returned by OCI' },
-    vnicAttachments: { type: 'json', description: 'Vnic Attachments returned by OCI' },
-    vnic: { type: 'json', description: 'Vnic returned by OCI' },
-    bootVolumeAttachments: { type: 'json', description: 'Boot Volume Attachments returned by OCI' },
-    volumeAttachments: { type: 'json', description: 'Volume Attachments returned by OCI' },
-    workRequests: { type: 'json', description: 'Work Requests returned by OCI' },
-    workRequest: { type: 'json', description: 'Work Request returned by OCI' },
-    workRequestErrors: { type: 'json', description: 'Work Request Errors returned by OCI' },
-    workRequestLogs: { type: 'json', description: 'Work Request Logs returned by OCI' },
+    instances: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, availabilityDomain' },
+    instance: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, availabilityDomain' },
+    maintenanceReboot: { type: 'json', description: 'OCI fields: timeMaintenanceRebootDueMax' },
+    images: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, operatingSystem' },
+    image: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, operatingSystem' },
+    shapes: { type: 'json', description: 'OCI fields: shape, availabilityDomain, processorDescription, billingType, ocpus, memoryInGBs, gpus, localDisks' },
+    compatibilityEntries: { type: 'json', description: 'OCI fields: imageId, shape, memoryConstraints, ocpuConstraints' },
+    compatibilityEntry: { type: 'json', description: 'OCI fields: imageId, shape, memoryConstraints, ocpuConstraints' },
+    capacityReport: { type: 'json', description: 'OCI fields: compartmentId, availabilityDomain, timeCreated, shapeAvailabilities' },
+    instanceConfigurations: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags' },
+    instanceConfiguration: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, deferredFields, instanceDetails' },
+    instancePools: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, instanceConfigurationId' },
+    instancePool: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, instanceConfigurationId' },
+    poolInstances: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, availabilityDomain, faultDomain, region, shape' },
+    poolInstance: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, availabilityDomain, faultDomain, region, shape' },
+    availabilityDomains: { type: 'json', description: 'OCI fields: id, compartmentId, name' },
+    faultDomains: { type: 'json', description: 'OCI fields: id, compartmentId, name, availabilityDomain' },
+    compartments: { type: 'json', description: 'OCI fields: id, compartmentId, name, description, lifecycleState, isAccessible, timeCreated, freeformTags' },
+    compartment: { type: 'json', description: 'OCI fields: id, compartmentId, name, description, lifecycleState, isAccessible, timeCreated, freeformTags' },
+    subnets: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, availabilityDomain' },
+    subnet: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, availabilityDomain' },
+    vnicAttachments: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, availabilityDomain, instanceId, lifecycleState, subnetId' },
+    vnic: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, freeformTags, definedTags, lifecycleState, availabilityDomain' },
+    bootVolumeAttachments: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, availabilityDomain, instanceId, lifecycleState, bootVolumeId' },
+    volumeAttachments: { type: 'json', description: 'OCI fields: id, compartmentId, displayName, timeCreated, availabilityDomain, instanceId, lifecycleState, volumeId' },
+    workRequests: { type: 'json', description: 'OCI fields: id, compartmentId, operationType, status, timeAccepted, timeStarted, timeFinished, percentComplete' },
+    workRequest: { type: 'json', description: 'OCI fields: id, compartmentId, operationType, status, timeAccepted, timeStarted, timeFinished, percentComplete' },
+    workRequestErrors: { type: 'json', description: 'OCI fields: code, message, timestamp' },
+    workRequestLogs: { type: 'json', description: 'OCI fields: message, timestamp' },
   },
 }
 
@@ -1547,7 +1582,7 @@ export const OciComputeBlockMeta = {
     {
       name: 'inventory-oci-instances',
       description: 'Inventory a compartment without unbounded discovery',
-      content: '# Inventory a compartment without unbounded discovery\n\n## Steps\n\n1. List Instances in the chosen region and compartment with limit 50.\n2. Return nextPage even if no instances are returned.\n3. Get Instance only for selected IDs.\n\n## Output\n\nReport IDs, shapes, lifecycle states, and the continuation token.\n\nSource: https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/listinginstances.htm',
+      content: '# Inventory a compartment without unbounded discovery\n\n## Steps\n\n1. List Instances in the chosen region and compartment with limit 50.\n2. Return nextPage even if no instances are returned.\n3. Get Instance only for selected IDs.\n\n## Output\n\nReport IDs, shapes, lifecycle states, and the continuation token.\n\nSource: https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/list-instances.htm',
     },
     {
       name: 'launch-oci-instances',
@@ -1562,7 +1597,7 @@ export const OciComputeBlockMeta = {
     {
       name: 'resize-oci-pools',
       description: 'Apply approved instance-pool capacity changes',
-      content: '# Apply approved instance-pool capacity changes\n\n## Steps\n\n1. Get Instance Pool and its ETag.\n2. Confirm desired size and that reducing size terminates instances.\n3. Update Instance Pool with ifMatch.\n4. List members and report progress without automatic resubmission.\n\n## Output\n\nReturn size, lifecycle state, and member discovery cursor.\n\nSource: https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/resizinginstancepools.htm',
+      content: '# Apply approved instance-pool capacity changes\n\n## Steps\n\n1. Get Instance Pool and its ETag.\n2. Confirm desired size and that reducing size terminates instances.\n3. Update Instance Pool with ifMatch.\n4. List members and report progress without automatic resubmission.\n\n## Output\n\nReturn size, lifecycle state, and member discovery cursor.\n\nSource: https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/updatinginstancepool_topic-update-instance-pool-size.htm',
     },
     {
       name: 'launch-oci-configurations',

@@ -1,8 +1,8 @@
 import {
   INSTANCE_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeLaunchInstanceParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_launch_instance',
-  name: 'OCI Compute Launch instance',
+  name: 'OCI Compute Launch Instance',
   description:
     'Launch a billable Compute instance from an image or existing boot volume and return its provisioning state',
   version: '1.0.0',
@@ -21,22 +21,19 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,8 +46,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Exact availability-domain name returned by OCI discovery',
+      description: 'Exact availability-domain name returned by OCI discovery',
     },
     shape: {
       type: 'string',
@@ -70,8 +66,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Image OCID; required for image-ID launches',
+      description: 'Image OCID; required for image-ID launches',
     },
     imageFilter: {
       type: 'json',
@@ -91,8 +86,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Image-source boot volume size in GB, 50–32768; increases storage charges',
+      description: 'Image-source boot volume size in GB, 50–32768; increases storage charges',
     },
     bootVolumeVpusPerGB: {
       type: 'number',
@@ -105,22 +99,19 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Existing Vault key OCID for a newly created image-source boot volume',
+      description: 'Existing Vault key OCID for a newly created image-source boot volume',
     },
     displayName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Display name; on list operations this is an exact provider filter',
+      description: 'Display name; on list operations this is an exact provider filter',
     },
     freeformTags: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Free-form tags as a string-to-string JSON map',
+      description: 'Free-form tags as a string-to-string JSON map',
     },
     definedTags: {
       type: 'json',
@@ -134,7 +125,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       required: false,
       visibility: 'user-only',
       description:
-        'Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key',
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
     },
     shapeConfig: {
       type: 'json',
@@ -154,8 +145,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Fault domain within the selected availability domain',
+      description: 'Fault domain within the selected availability domain',
     },
     metadata: {
       type: 'json',
@@ -189,8 +179,7 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Instance options: areLegacyImdsEndpointsDisabled',
+      description: 'Instance options: areLegacyImdsEndpointsDisabled',
     },
     capacityReservationId: {
       type: 'string',
@@ -208,39 +197,44 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'availabilityDomain',
-      'shape',
-      'sourceMode',
-      'imageId',
-      'imageFilter',
-      'bootVolumeId',
-      'bootVolumeSizeInGBs',
-      'bootVolumeVpusPerGB',
-      'kmsKeyId',
-      'displayName',
-      'freeformTags',
-      'definedTags',
-      'retryToken',
-      'shapeConfig',
-      'createVnicDetails',
-      'faultDomain',
-      'metadata',
-      'extendedMetadata',
-      'agentConfig',
-      'availabilityConfig',
-      'instanceOptions',
-      'capacityReservationId',
-      'dedicatedVmHostId',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'availabilityDomain',
+        'shape',
+        'sourceMode',
+        'imageId',
+        'imageFilter',
+        'bootVolumeId',
+        'bootVolumeSizeInGBs',
+        'bootVolumeVpusPerGB',
+        'kmsKeyId',
+        'displayName',
+        'freeformTags',
+        'definedTags',
+        'retryToken',
+        'shapeConfig',
+        'createVnicDetails',
+        'faultDomain',
+        'metadata',
+        'extendedMetadata',
+        'agentConfig',
+        'availabilityConfig',
+        'instanceOptions',
+        'capacityReservationId',
+        'dedicatedVmHostId',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    workRequestId: { type: 'string', description: 'Work request OCID when returned; use status tools', nullable: true },
-    retryToken: { type: 'string', description: 'Retry token used for this creation request' },
+    workRequestId: {
+      type: 'string',
+      description: 'Work request OCID when returned; use status tools',
+      nullable: true,
+    },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
     instance: {
       type: 'json',
       description: 'Instance information returned by OCI',
@@ -248,4 +242,3 @@ export const ociComputeLaunchInstanceTool: InternalToolConfig<
     },
   },
 }
-

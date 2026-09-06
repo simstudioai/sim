@@ -1,8 +1,8 @@
 import {
-  SHAPE_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeListShapesParams,
   type OciComputeResponse,
+  SHAPE_OUTPUT_PROPERTIES,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,9 +11,8 @@ export const ociComputeListShapesTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_list_shapes',
-  name: 'OCI Compute List shapes',
-  description:
-    'List shapes in OCI',
+  name: 'OCI Compute List Shapes',
+  description: 'List shapes in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -21,22 +20,19 @@ export const ociComputeListShapesTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,8 +45,7 @@ export const ociComputeListShapesTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Maximum results in this page, 1–100; default 50',
+      description: 'Maximum results in this page, 1–100; default 50',
     },
     page: {
       type: 'string',
@@ -63,15 +58,13 @@ export const ociComputeListShapesTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Exact availability-domain name returned by OCI discovery',
+      description: 'Exact availability-domain name returned by OCI discovery',
     },
     imageId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Image OCID; required for image-ID launches',
+      description: 'Image OCID; required for image-ID launches',
     },
     shape: {
       type: 'string',
@@ -82,25 +75,29 @@ export const ociComputeListShapesTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'limit',
-      'page',
-      'availabilityDomain',
-      'imageId',
-      'shape',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'limit',
+        'page',
+        'availabilityDomain',
+        'imageId',
+        'shape',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    nextPage: { type: 'string', description: 'Continuation token, including on empty pages', nullable: true },
+    nextPage: {
+      type: 'string',
+      description: 'Continuation token, including on empty pages',
+      nullable: true,
+    },
     shapes: {
       type: 'array',
-      description: 'Shapes in this page',
+      description: 'Shapes information returned by OCI',
       items: { type: 'object', properties: SHAPE_OUTPUT_PROPERTIES },
     },
   },
 }
-

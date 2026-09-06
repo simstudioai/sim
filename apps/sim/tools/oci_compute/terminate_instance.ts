@@ -1,7 +1,7 @@
 import {
-  ociComputeOperationInput,
-  type OciComputeTerminateInstanceParams,
   type OciComputeResponse,
+  type OciComputeTerminateInstanceParams,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -10,7 +10,7 @@ export const ociComputeTerminateInstanceTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_terminate_instance',
-  name: 'OCI Compute Terminate instance',
+  name: 'OCI Compute Terminate Instance',
   description:
     'Terminate an instance with explicit boot/data-volume preservation; returns before termination completes',
   version: '1.0.0',
@@ -20,29 +20,25 @@ export const ociComputeTerminateInstanceTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     instanceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Compute instance OCID',
+      description: 'Compute instance OCID',
     },
     ifMatch: {
       type: 'string',
@@ -67,18 +63,22 @@ export const ociComputeTerminateInstanceTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'instanceId',
-      'ifMatch',
-      'preserveBootVolume',
-      'preserveDataVolumesCreatedAtLaunch',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'instanceId',
+        'ifMatch',
+        'preserveBootVolume',
+        'preserveDataVolumesCreatedAtLaunch',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    workRequestId: { type: 'string', description: 'Work request OCID when returned; use status tools', nullable: true },
+    workRequestId: {
+      type: 'string',
+      description: 'Work request OCID when returned; use status tools',
+      nullable: true,
+    },
   },
 }
-

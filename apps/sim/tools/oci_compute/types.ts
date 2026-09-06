@@ -80,6 +80,7 @@ export interface OciComputeLaunchInstanceParams extends OciComputeCredentials {
 }
 
 export interface OciComputeUpdateInstanceParams extends OciComputeCredentials {
+  retryToken?: string
   instanceId: string
   displayName?: string
   freeformTags?: unknown
@@ -100,6 +101,7 @@ export interface OciComputeUpdateInstanceParams extends OciComputeCredentials {
 }
 
 export interface OciComputeInstanceActionParams extends OciComputeCredentials {
+  retryToken?: string
   instanceId: string
   ifMatch?: string
   action: string
@@ -116,6 +118,7 @@ export interface OciComputeTerminateInstanceParams extends OciComputeCredentials
 }
 
 export interface OciComputeChangeInstanceCompartmentParams extends OciComputeCredentials {
+  retryToken?: string
   instanceId: string
   ifMatch?: string
   compartmentId: string
@@ -152,6 +155,7 @@ export interface OciComputeCreateImageParams extends OciComputeCredentials {
 }
 
 export interface OciComputeUpdateImageParams extends OciComputeCredentials {
+  retryToken?: string
   imageId: string
   displayName?: string
   freeformTags?: unknown
@@ -165,6 +169,7 @@ export interface OciComputeDeleteImageParams extends OciComputeCredentials {
 }
 
 export interface OciComputeChangeImageCompartmentParams extends OciComputeCredentials {
+  retryToken?: string
   imageId: string
   ifMatch?: string
   compartmentId: string
@@ -221,6 +226,7 @@ export interface OciComputeCreateInstanceConfigurationParams extends OciComputeC
 }
 
 export interface OciComputeUpdateInstanceConfigurationParams extends OciComputeCredentials {
+  retryToken?: string
   instanceConfigurationId: string
   displayName?: string
   freeformTags?: unknown
@@ -240,6 +246,7 @@ export interface OciComputeLaunchInstanceConfigurationParams extends OciComputeC
 }
 
 export interface OciComputeChangeInstanceConfigurationCompartmentParams extends OciComputeCredentials {
+  retryToken?: string
   instanceConfigurationId: string
   ifMatch?: string
   compartmentId: string
@@ -273,6 +280,7 @@ export interface OciComputeCreateInstancePoolParams extends OciComputeCredential
 }
 
 export interface OciComputeUpdateInstancePoolParams extends OciComputeCredentials {
+  retryToken?: string
   instancePoolId: string
   displayName?: string
   freeformTags?: unknown
@@ -286,6 +294,7 @@ export interface OciComputeUpdateInstancePoolParams extends OciComputeCredential
 }
 
 export interface OciComputeInstancePoolActionParams extends OciComputeCredentials {
+  retryToken?: string
   instancePoolId: string
   ifMatch?: string
   action: string
@@ -297,6 +306,7 @@ export interface OciComputeTerminateInstancePoolParams extends OciComputeCredent
 }
 
 export interface OciComputeChangeInstancePoolCompartmentParams extends OciComputeCredentials {
+  retryToken?: string
   instancePoolId: string
   ifMatch?: string
   compartmentId: string
@@ -318,11 +328,13 @@ export interface OciComputeGetInstancePoolInstanceParams extends OciComputeCrede
 }
 
 export interface OciComputeAttachInstancePoolInstanceParams extends OciComputeCredentials {
+  retryToken?: string
   instancePoolId: string
   instanceId: string
 }
 
 export interface OciComputeDetachInstancePoolInstanceParams extends OciComputeCredentials {
+  retryToken?: string
   instancePoolId: string
   instanceId: string
   isAutoTerminate?: boolean
@@ -662,8 +674,8 @@ export interface OciComputeInstanceConfiguration {
         ocpus: number | null
         memoryInGBs: number | null
         vcpus: number | null
-        networkingBandwidthInGbps: number | null
-        maxVnicAttachments: number | null
+        nvmes: number | null
+        baselineOcpuUtilization: string | null
       } | null
       sourceDetails: {
         sourceType: string | null
@@ -746,12 +758,8 @@ export const INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES = {
               ocpus: { type: 'number', description: 'Allocated OCPUs', nullable: true },
               memoryInGBs: { type: 'number', description: 'Allocated memory in GB', nullable: true },
               vcpus: { type: 'number', description: 'Allocated vCPUs', nullable: true },
-              networkingBandwidthInGbps: {
-                type: 'number',
-                description: 'Networking bandwidth in Gbps',
-                nullable: true,
-              },
-              maxVnicAttachments: { type: 'number', description: 'Maximum attached VNICs', nullable: true },
+              nvmes: { type: 'number', description: 'Configured NVMe count', nullable: true },
+              baselineOcpuUtilization: { type: 'string', description: 'Burstable OCPU baseline', nullable: true },
             },
             nullable: true,
           },
@@ -1032,7 +1040,6 @@ export const POOL_INSTANCE_SUMMARY_OUTPUT_PROPERTIES = {
 export interface OciComputeCompartment {
   id: string | null
   compartmentId: string | null
-  displayName: string | null
   timeCreated: string | null
   freeformTags: Record<string, unknown> | null
   definedTags: Record<string, unknown> | null
@@ -1045,7 +1052,6 @@ export interface OciComputeCompartment {
 export const COMPARTMENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'id', nullable: true },
   compartmentId: { type: 'string', description: 'compartment Id', nullable: true },
-  displayName: { type: 'string', description: 'display Name', nullable: true },
   timeCreated: { type: 'string', description: 'time Created', nullable: true },
   freeformTags: { type: 'json', description: 'Resource free-form string tags', nullable: true },
   definedTags: {
@@ -1306,6 +1312,19 @@ export interface OciComputeWorkRequestError {
   timestamp: string | null
 }
 
+export type OciComputeWorkRequestSummary = Omit<OciComputeWorkRequest, 'resources'>
+
+export const WORK_REQUEST_SUMMARY_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Work request OCID', nullable: true },
+  compartmentId: { type: 'string', description: 'Compartment OCID', nullable: true },
+  operationType: { type: 'string', description: 'Operation type', nullable: true },
+  status: { type: 'string', description: 'Current work request status', nullable: true },
+  timeAccepted: { type: 'string', description: 'Acceptance time', nullable: true },
+  timeStarted: { type: 'string', description: 'Start time', nullable: true },
+  timeFinished: { type: 'string', description: 'Completion time', nullable: true },
+  percentComplete: { type: 'number', description: 'Progress percentage', nullable: true },
+} as const satisfies Record<string, ToolOutputProperty>
+
 export const WORK_REQUEST_ERROR_OUTPUT_PROPERTIES = {
   code: { type: 'string', description: 'code', nullable: true },
   message: { type: 'string', description: 'message', nullable: true },
@@ -1402,7 +1421,7 @@ export interface OciComputeResponse extends ToolResponse {
     vnicAttachments?: OciComputeVnicAttachment[]
     bootVolumeAttachments?: OciComputeBootVolumeAttachment[]
     volumeAttachments?: OciComputeVolumeAttachment[]
-    workRequests?: OciComputeWorkRequest[]
+    workRequests?: OciComputeWorkRequestSummary[]
     workRequestErrors?: OciComputeWorkRequestError[]
     workRequestLogs?: OciComputeWorkRequestLog[]
     instance?: OciComputeInstance

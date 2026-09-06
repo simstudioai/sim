@@ -1,8 +1,8 @@
 import {
   INSTANCE_POOL_SUMMARY_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeListInstancePoolsParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,9 +11,8 @@ export const ociComputeListInstancePoolsTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_list_instance_pools',
-  name: 'OCI Compute List instance pools',
-  description:
-    'List instance pools in OCI',
+  name: 'OCI Compute List Instance Pools',
+  description: 'List instance pools in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -21,22 +20,19 @@ export const ociComputeListInstancePoolsTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,8 +45,7 @@ export const ociComputeListInstancePoolsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Maximum results in this page, 1–100; default 50',
+      description: 'Maximum results in this page, 1–100; default 50',
     },
     page: {
       type: 'string',
@@ -63,52 +58,52 @@ export const ociComputeListInstancePoolsTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Sort by TIMECREATED or DISPLAYNAME',
+      description: 'Sort by TIMECREATED or DISPLAYNAME',
     },
     sortOrder: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Sort direction: ASC or DESC',
+      description: 'Sort direction: ASC or DESC',
     },
     displayName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Display name; on list operations this is an exact provider filter',
+      description: 'Display name; on list operations this is an exact provider filter',
     },
     lifecycleState: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Exact lifecycle-state filter supported by this resource',
+      description: 'Exact lifecycle-state filter supported by this resource',
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'limit',
-      'page',
-      'sortBy',
-      'sortOrder',
-      'displayName',
-      'lifecycleState',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'limit',
+        'page',
+        'sortBy',
+        'sortOrder',
+        'displayName',
+        'lifecycleState',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    nextPage: { type: 'string', description: 'Continuation token, including on empty pages', nullable: true },
+    nextPage: {
+      type: 'string',
+      description: 'Continuation token, including on empty pages',
+      nullable: true,
+    },
     instancePools: {
       type: 'array',
-      description: 'Instance Pools in this page',
+      description: 'Instance Pools information returned by OCI',
       items: { type: 'object', properties: INSTANCE_POOL_SUMMARY_OUTPUT_PROPERTIES },
     },
   },
 }
-
