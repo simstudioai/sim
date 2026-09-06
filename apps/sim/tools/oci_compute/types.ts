@@ -1131,7 +1131,11 @@ export const INSTANCE_POOL_SUMMARY_OUTPUT_PROPERTIES = {
     nullable: true,
   },
   size: { type: 'number', description: 'Desired pool size', nullable: true },
-  availabilityDomains: { type: 'array', description: 'Pool availability domains', items: { type: 'string' } },
+  availabilityDomains: {
+    type: 'array',
+    description: 'Pool availability domains',
+    items: { type: 'string' },
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export interface OciComputePoolInstance {
@@ -1361,7 +1365,11 @@ export const VNIC_OUTPUT_PROPERTIES = {
     description: 'Network security group OCIDs',
     items: { type: 'string' },
   },
-  ipv6Addresses: { type: 'array', description: 'Assigned IPv6 addresses', items: { type: 'string' } },
+  ipv6Addresses: {
+    type: 'array',
+    description: 'Assigned IPv6 addresses',
+    items: { type: 'string' },
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export interface OciComputeVnicAttachment {
