@@ -1276,6 +1276,163 @@ describe('scrollPage', () => {
     return { scroller, child }
   }
 
+  function makeHorizontalScroller(
+    scrollLeft = 0,
+    rtl = false
+  ): {
+    scroller: HTMLDivElement
+    child: HTMLDivElement
+  } {
+    const { scroller, child } = makeScroller(300)
+    scroller.style.overflowX = 'auto'
+    scroller.style.direction = rtl ? 'rtl' : 'ltr'
+    Object.defineProperties(scroller, {
+      clientWidth: { configurable: true, value: 200 },
+      scrollWidth: { configurable: true, value: 1_000 },
+      scrollLeft: { configurable: true, writable: true, value: scrollLeft },
+    })
+    Object.defineProperty(scroller, 'scrollBy', {
+      configurable: true,
+      value: ({ left, top }: ScrollToOptions) => {
+        const extent = scroller.scrollWidth - scroller.clientWidth
+        const min = rtl ? -extent : 0
+        const max = rtl ? 0 : extent
+        scroller.scrollLeft = Math.max(min, Math.min(max, scroller.scrollLeft + (left || 0)))
+        scroller.scrollTop += top || 0
+      },
+    })
+    return { scroller, child }
+  }
+
+  it('scrolls a referenced horizontal region without changing its vertical position', () => {
+    const { scroller, child } = makeHorizontalScroller(100)
+    register(child)
+
+    expect(runSerialized(scrollPage, ['right', 125, 0])).toMatchObject({
+      target: 'Message history',
+      targetSource: 'element',
+      scrollLeft: 225,
+      scrollWidth: 1_000,
+      clientWidth: 200,
+      movedBy: 125,
+      atLeft: false,
+      atRight: false,
+      scrollTop: 300,
+      atTop: false,
+      atBottom: false,
+    })
+    expect(scroller.scrollTop).toBe(300)
+  })
+
+  it('uses viewport width for the default horizontal distance', () => {
+    const { scroller, child } = makeHorizontalScroller()
+    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 10_000 })
+    register(child)
+
+    expect(scrollPage('right', undefined, 0)).toMatchObject({
+      movedBy: Math.round(window.innerWidth * 0.85),
+    })
+  })
+
+  it('skips a vertical-only descendant when targeting a horizontal ancestor', () => {
+    const { scroller, child } = makeHorizontalScroller(200)
+    child.style.overflowY = 'auto'
+    Object.defineProperties(child, {
+      clientHeight: { configurable: true, value: 50 },
+      scrollHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, writable: true, value: 100 },
+    })
+    register(child)
+
+    expect(scrollPage('left', 75, 0)).toMatchObject({
+      target: 'Message history',
+      targetSource: 'element',
+      movedBy: -75,
+      scrollLeft: 125,
+    })
+    expect(scroller.scrollTop).toBe(300)
+    expect(child.scrollTop).toBe(100)
+  })
+
+  it('keeps a centered horizontal pane at its boundary instead of scrolling another pane', () => {
+    const { scroller, child } = makeHorizontalScroller(800)
+    const other = visible(document.createElement('div'))
+    other.style.overflowX = 'auto'
+    other.setAttribute('aria-label', 'Unrelated pane')
+    Object.defineProperties(other, {
+      clientWidth: { configurable: true, value: 200 },
+      scrollWidth: { configurable: true, value: 1_000 },
+    })
+    document.body.prepend(other)
+    Object.defineProperty(document, 'elementsFromPoint', {
+      configurable: true,
+      value: () => [child, scroller],
+    })
+
+    expect(scrollPage('right', 100)).toMatchObject({
+      target: 'Message history',
+      targetSource: 'viewport-center-boundary',
+      movedBy: 0,
+      atRight: true,
+    })
+    expect(other.scrollLeft).toBe(0)
+  })
+
+  it.each([
+    { direction: 'left', before: 0, after: -100, movedBy: -100, atLeft: false, atRight: false },
+    { direction: 'left', before: -750, after: -800, movedBy: -50, atLeft: true, atRight: false },
+    { direction: 'left', before: -800, after: -800, movedBy: 0, atLeft: true, atRight: false },
+    { direction: 'right', before: -50, after: 0, movedBy: 50, atLeft: false, atRight: true },
+    { direction: 'right', before: 0, after: 0, movedBy: 0, atLeft: false, atRight: true },
+  ])('scrolls RTL $direction from $before with physical boundaries', (test) => {
+    const { child } = makeHorizontalScroller(test.before, true)
+    register(child)
+
+    expect(scrollPage(test.direction, 100, 0)).toMatchObject({
+      scrollLeft: test.after,
+      movedBy: test.movedBy,
+      atLeft: test.atLeft,
+      atRight: test.atRight,
+    })
+  })
+
+  it('scrolls the document root containing an explicit same-origin iframe ref', () => {
+    document.body.innerHTML = '<iframe></iframe>'
+    const frame = visible(document.querySelector('iframe') as HTMLIFrameElement)
+    const frameDocument = frame.contentDocument as Document
+    const frameWindow = frame.contentWindow as Window
+    frameDocument.body.innerHTML = '<div>wide table</div>'
+    const child = visible(frameDocument.body.firstElementChild as HTMLDivElement)
+    const root = visible(frameDocument.documentElement)
+    Object.defineProperties(root, {
+      clientWidth: { configurable: true, value: 200 },
+      scrollWidth: { configurable: true, value: 1_000 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    })
+    Object.defineProperty(frameWindow, 'scrollX', { configurable: true, writable: true, value: 0 })
+    Object.defineProperty(frameWindow, 'scrollBy', {
+      configurable: true,
+      value: ({ left }: ScrollToOptions) => {
+        root.scrollLeft = Math.max(0, Math.min(800, root.scrollLeft + (left || 0)))
+        Object.defineProperty(frameWindow, 'scrollX', {
+          configurable: true,
+          value: root.scrollLeft,
+        })
+      },
+    })
+    register(child)
+
+    expect(scrollPage('right', 100, 0)).toMatchObject({
+      target: 'html',
+      targetSource: 'element',
+      scrollLeft: 100,
+      movedBy: 100,
+      atLeft: false,
+      atRight: false,
+      windowScrollX: 0,
+    })
+  })
+
   it('scrolls the movable internal container under the viewport center', () => {
     const { scroller, child } = makeScroller(600)
     Object.defineProperty(document, 'elementsFromPoint', {

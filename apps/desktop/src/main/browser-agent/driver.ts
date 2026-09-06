@@ -60,6 +60,7 @@ import {
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
+  readFormFieldState,
   readPageActionState,
   readPageText,
   readSelectElementState,
@@ -83,6 +84,9 @@ const TAKEOVER_POLL_MS = 1_500
  * legitimate tool (browser_wait_for caps at 120s).
  */
 const DEFAULT_TOOL_WATCHDOG_MS = 20_000
+const MAX_FORM_FIELDS = 8
+const MAX_FORM_FIELD_TEXT = 4_096
+const MAX_FORM_TEXT = 16_384
 const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
 /** Retained native tool calls: generous for normal serial use, finite under a wedged caller. */
 export const BROWSER_TOOL_ADMISSION_LIMITS = Object.freeze({
@@ -116,6 +120,73 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 }
 
 type PageExecutionTarget = WebContents | WebFrameMain
+
+type FormField =
+  | { elementId: number; kind: 'text'; text: string }
+  | { elementId: number; kind: 'select'; value: string }
+  | { elementId: number; kind: 'checked'; checked: boolean }
+
+function parseFormFields(params: Record<string, unknown>): FormField[] {
+  if (Object.keys(params).some((key) => key !== 'fields')) {
+    throw new ToolError('Form filling accepts only fields; submitting is not supported.')
+  }
+  if (
+    !Array.isArray(params.fields) ||
+    params.fields.length === 0 ||
+    params.fields.length > MAX_FORM_FIELDS
+  ) {
+    throw new ToolError(`Form filling requires between 1 and ${MAX_FORM_FIELDS} fields.`)
+  }
+  const ids = new Set<number>()
+  let totalText = 0
+  return params.fields.map((field): FormField => {
+    if (
+      !isRecordLike(field) ||
+      typeof field.elementId !== 'number' ||
+      !Number.isSafeInteger(field.elementId) ||
+      field.elementId < 0 ||
+      ids.has(field.elementId)
+    ) {
+      throw new ToolError('Every form field requires a unique nonnegative integer elementId.')
+    }
+    ids.add(field.elementId)
+    const valueKey =
+      field.kind === 'text'
+        ? 'text'
+        : field.kind === 'select'
+          ? 'value'
+          : field.kind === 'checked'
+            ? 'checked'
+            : null
+    if (
+      !valueKey ||
+      Object.keys(field).some((key) => !['elementId', 'kind', valueKey].includes(key))
+    ) {
+      throw new ToolError(
+        'Each form field must specify text, select, or checked and only its matching value parameter.'
+      )
+    }
+    if (field.kind === 'checked' && typeof field.checked === 'boolean') {
+      return { elementId: field.elementId, kind: 'checked', checked: field.checked }
+    }
+    const value = field[valueKey]
+    if (
+      typeof value !== 'string' ||
+      value.length > MAX_FORM_FIELD_TEXT ||
+      field.kind === 'checked'
+    ) {
+      throw new ToolError(
+        `Text and selection values must be strings of at most ${MAX_FORM_FIELD_TEXT} characters; checked must be boolean.`
+      )
+    }
+    totalText += value.length
+    if (totalText > MAX_FORM_TEXT)
+      throw new ToolError(`Form field text cannot exceed ${MAX_FORM_TEXT} characters in total.`)
+    return field.kind === 'text'
+      ? { elementId: field.elementId, kind: 'text', text: value }
+      : { elementId: field.elementId, kind: 'select', value }
+  })
+}
 
 export type BrowserSessionPersistence = session.BrowserSessionPersistence
 
@@ -1303,8 +1374,10 @@ async function loadAgentCheckedUrlAndGetResult(
     throw new ToolError('The tab was closed before navigation could start.')
   }
   const beforeUrl = contents.getURL()
+  let loadCompleted = false
   try {
     await contents.loadURL(url)
+    loadCompleted = true
   } catch (error) {
     const candidate = error as { code?: unknown; errno?: unknown }
     const routineAbort =
@@ -1322,7 +1395,10 @@ async function loadAgentCheckedUrlAndGetResult(
       throw new ToolError(`The navigation was aborted (${getErrorMessage(error)}).`)
     }
   }
-  return await navigationResult(contents)
+  return await navigationResult(
+    contents,
+    loadCompleted && !contents.isLoading() ? Promise.resolve() : undefined
+  )
 }
 
 /**
@@ -3057,9 +3133,185 @@ async function executeToolInner(
       }
     }
 
+    case 'browser_fill_form': {
+      const fields = parseFormFields(params)
+      const contents = session.requireAutomationTab().view.webContents
+      const epoch = navigationEpoch(contents)
+      const url = contents.getURL()
+      const state = driverScopeState()
+      const tabIds = session
+        .getTabsState()
+        .tabs.map((tab) => tab.tabId)
+        .join(',')
+      const downloadIds = session
+        .getBrowserDownloadsState(session.getBrowserScopeId())
+        .downloads.map((download) => download.id)
+        .join(',')
+      const noticeCount = state.pendingNotices.length
+      const deadline = Math.min(executionDeadline ?? Number.POSITIVE_INFINITY, Date.now() + 18_000)
+      const results: Record<string, unknown>[] = []
+      let stoppedIndex = 0
+      let dispatchStarted = false
+      const readField = async (field: FormField) => {
+        const target = pageTargetForElement(contents, field.elementId)
+        if (target !== contents)
+          throw new ToolError(
+            'Form batches require top-page fields; use individual tools for framed fields.'
+          )
+        const readback = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              contents,
+              readFormFieldState,
+              [
+                field.elementId,
+                field.kind,
+                field.kind === 'text'
+                  ? field.text
+                  : field.kind === 'select'
+                    ? field.value
+                    : field.checked,
+              ],
+              false,
+              deadline
+            )
+          )
+        )
+        if (typeof readback.error === 'string') throw new ToolError(readback.error)
+        if (typeof readback.matchesRequested !== 'boolean')
+          throw new ToolError('The form field could not be verified.')
+        return readback
+      }
+      const readBoundary = async () => {
+        const boundary = toRecord(
+          await execInPage(contents, readPageActionState, [], false, deadline)
+        )
+        if (
+          !Array.isArray(boundary.dialogs) ||
+          !Array.isArray(boundary.popups) ||
+          boundary.observationTruncated === true
+        ) {
+          throw new ToolError(
+            'The page state could not be fully verified for form filling. Use individual field tools.'
+          )
+        }
+        return JSON.stringify([boundary.url, boundary.dialogs, boundary.popups])
+      }
+      const assertBoundary = () => {
+        assertCurrentExecution()
+        if (Date.now() >= deadline) throw new ToolError('Form filling reached its time limit.')
+        assertActiveContents(contents, epoch)
+        if (
+          contents.getURL() !== url ||
+          session
+            .getTabsState()
+            .tabs.map((tab) => tab.tabId)
+            .join(',') !== tabIds ||
+          state.pendingNotices.length !== noticeCount ||
+          session
+            .getBrowserDownloadsState(session.getBrowserScopeId())
+            .downloads.map((download) => download.id)
+            .join(',') !== downloadIds
+        ) {
+          throw new ToolError(
+            'The page, tabs, dialogs, or downloads changed during form filling. Inspect the page before continuing.'
+          )
+        }
+      }
+      try {
+        assertBoundary()
+        const initialBoundary = await readBoundary()
+        for (const [index, field] of fields.entries()) {
+          stoppedIndex = index
+          await readField(field)
+          assertBoundary()
+        }
+        for (const [index, field] of fields.entries()) {
+          stoppedIndex = index
+          assertBoundary()
+          if ((await readBoundary()) !== initialBoundary)
+            throw new ToolError('A dialog, popup, or page transition interrupted form filling.')
+          const before = await readField(field)
+          assertBoundary()
+          if (before.matchesRequested !== true) {
+            dispatchStarted = true
+            await executeToolInner(
+              field.kind === 'text'
+                ? 'browser_type'
+                : field.kind === 'select'
+                  ? 'browser_select_option'
+                  : 'browser_set_checked',
+              field.kind === 'text'
+                ? { elementId: field.elementId, text: field.text }
+                : field.kind === 'select'
+                  ? { elementId: field.elementId, value: field.value }
+                  : { elementId: field.elementId, checked: field.checked },
+              assertBoundary,
+              deadline,
+              invocationEpoch
+            )
+          }
+          assertBoundary()
+          const readback = await readField(field)
+          results.push({
+            index,
+            elementId: field.elementId,
+            kind: field.kind,
+            verified: readback.matchesRequested === true,
+            ...omit(readback, ['matchesRequested', 'focused']),
+          })
+          if (readback.matchesRequested !== true)
+            throw new ToolError(
+              'The field did not retain the requested value. Inspect its readback before continuing.'
+            )
+          if (
+            field.kind === 'text' &&
+            before.matchesRequested !== true &&
+            readback.focused !== true
+          )
+            throw new ToolError(
+              'Focus moved away from the typed field. Inspect the page before continuing.'
+            )
+          if ((await readBoundary()) !== initialBoundary)
+            throw new ToolError('A dialog, popup, or page transition interrupted form filling.')
+          assertBoundary()
+        }
+        for (const [index, field] of fields.entries()) {
+          stoppedIndex = index
+          const readback = await readField(field)
+          results[index] = {
+            ...results[index],
+            verified: readback.matchesRequested === true,
+            ...omit(readback, ['matchesRequested', 'focused']),
+          }
+          assertBoundary()
+          if (readback.matchesRequested !== true)
+            throw new ToolError(
+              'A previously filled field changed. Inspect the partial result before continuing.'
+            )
+        }
+        if ((await readBoundary()) !== initialBoundary)
+          throw new ToolError('A dialog, popup, or page transition interrupted form filling.')
+        assertBoundary()
+        return { completed: true, completedCount: fields.length, results }
+      } catch (error) {
+        assertCurrentExecution()
+        return {
+          completed: false,
+          completedCount: results.filter((result) => result.verified === true).length,
+          stoppedIndex,
+          results,
+          error: getErrorMessage(error),
+          doNotRetry: dispatchStarted,
+          note: 'Earlier fields may already have taken effect. Inspect the readbacks and take a fresh snapshot before deciding which remaining fields to fill. Form filling is not atomic.',
+        }
+      }
+    }
+
     case 'browser_type': {
       const elementId = requireNum(params, 'elementId')
-      const text = requireStr(params, 'text')
+      const text = params.text
+      if (typeof text !== 'string') throw new ToolError('Missing required parameter "text"')
       const submit = params.submit === true
       const contents = session.requireAutomationTab().view.webContents
       const target = pageTargetForElement(contents, elementId)
@@ -3558,8 +3810,8 @@ async function executeToolInner(
 
     case 'browser_scroll': {
       const direction = requireStr(params, 'direction')
-      if (direction !== 'up' && direction !== 'down') {
-        throw new ToolError('Scroll direction must be "up" or "down".')
+      if (!['up', 'down', 'left', 'right'].includes(direction)) {
+        throw new ToolError('Scroll direction must be "up", "down", "left", or "right".')
       }
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
