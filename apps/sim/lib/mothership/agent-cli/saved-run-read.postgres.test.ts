@@ -69,6 +69,10 @@ import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { resolveCopilotWorkspaceFileReference } from '@/lib/mothership/application/execute-file-use-case'
+import {
+  claimWorkflowToolExecution,
+  closeStreamToolAdmission,
+} from '@/lib/mothership/async-runs/repository'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
@@ -96,6 +100,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const fixture = vi.hoisted(() => ({
+  schemaName: `saved_run_${process.pid}_${Date.now()}`,
   close: async () => {},
   workerUrl: '',
   permission: 'read' as PermissionType | null,
@@ -153,7 +158,11 @@ vi.mock('@sim/db', async () => {
   }
   const { default: postgres } = await import('postgres')
   const { drizzle } = await import('drizzle-orm/postgres-js')
-  const client = postgres(url, { max: 1, onnotice: () => {} })
+  const client = postgres(url, {
+    max: 4,
+    connection: { search_path: fixture.schemaName },
+    onnotice: () => {},
+  })
   const database = drizzle(client)
   fixture.close = () => client.end()
   return {
@@ -502,7 +511,7 @@ async function readRun(runId: string, ...flags: string[]) {
 }
 
 const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
-const schemaName = `saved_run_${generateId().replaceAll('-', '')}`
+const schemaName = fixture.schemaName
 const tables = [
   copilotChats,
   copilotMessages,
@@ -536,7 +545,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
     beforeAll(async () => {
       fixture.directory = await mkdtemp(join(tmpdir(), 'mship-run-logs-'))
       await db.execute(sql`CREATE SCHEMA ${sql.identifier(schemaName)}`)
-      await db.execute(sql`SET search_path TO ${sql.identifier(schemaName)}`)
       for (const table of tables) {
         const config = getTableConfig(table)
         const columns = config.columns.map((column) => {
@@ -618,6 +626,141 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.errors.length = 0
       fixture.storageReads.length = 0
       vi.clearAllMocks()
+    })
+
+    it.each(['active', 'complete', 'cancelled', 'error'] as const)(
+      'refuses a late workflow pickup after the parent run closes: %s',
+      async (status) => {
+        const runId = generateId()
+        const streamId = generateId()
+        const toolCallId = generateId()
+        await db.insert(copilotRuns).values({
+          id: runId,
+          streamId,
+          chatId: generateId(),
+          workspaceId,
+          userId: 'run-reader',
+          executionId: generateId(),
+          status,
+          toolExecutionVersion: 2,
+        })
+        await db.insert(copilotAsyncToolCalls).values({
+          runId,
+          toolCallId,
+          toolName: 'run_workflow',
+          status: 'running',
+          args: { workflowId },
+        })
+        if (status === 'active') {
+          expect(await closeStreamToolAdmission(streamId, 'run-reader')).toBe(true)
+        }
+        expect(await claimWorkflowToolExecution(toolCallId, generateId())).toBeNull()
+        const [tool] = await db
+          .select()
+          .from(copilotAsyncToolCalls)
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        expect(tool.claimedBy).toBeNull()
+      }
+    )
+
+    it('serializes workflow pickup with Stop on another physical database connection', async () => {
+      const runId = generateId()
+      const toolCallId = generateId()
+      await db.insert(copilotRuns).values({
+        id: runId,
+        streamId: generateId(),
+        chatId: generateId(),
+        workspaceId,
+        userId: 'run-reader',
+        executionId: generateId(),
+        status: 'active',
+        toolExecutionVersion: 2,
+      })
+      await db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId,
+        toolName: 'run_workflow',
+        status: 'running',
+        args: { workflowId },
+      })
+      let resolveHeld: (pid: number) => void = () => {}
+      let rejectHeld: (error: unknown) => void = () => {}
+      const held = new Promise<number>((resolve, reject) => {
+        resolveHeld = resolve
+        rejectHeld = reject
+      })
+      let release: () => void = () => {}
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const closing = db.transaction(async (tx) => {
+        await tx
+          .update(copilotRuns)
+          .set({ toolAdmissionClosedAt: new Date() })
+          .where(eq(copilotRuns.id, runId))
+        const [connection] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`)
+        if (typeof connection.pid !== 'number')
+          throw new Error('Missing database connection identity')
+        resolveHeld(connection.pid)
+        await released
+      })
+      closing.catch(rejectHeld)
+      const pid = await held
+      const pickup = claimWorkflowToolExecution(toolCallId, generateId())
+      try {
+        await vi.waitFor(
+          async () => {
+            const [observation] = await db.execute(sql`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity
+              WHERE datname = current_database()
+                AND ${pid} = ANY(pg_blocking_pids(pid))
+            ) AS blocked`)
+            expect(observation.blocked).toBe(true)
+          },
+          { timeout: 3000, interval: 10 }
+        )
+        release()
+        await closing
+        expect(await pickup).toBeNull()
+      } finally {
+        release()
+        await closing
+        await pickup
+      }
+    })
+
+    it('admits one eligible workflow pickup and preserves its winning execution identity', async () => {
+      const runId = generateId()
+      const toolCallId = generateId()
+      await db.insert(copilotRuns).values({
+        id: runId,
+        streamId: generateId(),
+        chatId: generateId(),
+        workspaceId,
+        userId: 'run-reader',
+        executionId: generateId(),
+        status: 'active',
+        toolExecutionVersion: 2,
+      })
+      await db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId,
+        toolName: 'run_workflow',
+        status: 'running',
+        args: { workflowId },
+      })
+      const claims = await Promise.all(
+        Array.from({ length: 4 }, () => claimWorkflowToolExecution(toolCallId, generateId()))
+      )
+      const winners = claims.filter((claim) => claim !== null)
+      expect(winners).toHaveLength(1)
+      const [tool] = await db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      expect(tool.claimedBy).toBe(winners[0]?.claimedBy)
+      expect(tool.claimedBy).toMatch(/^workflow:/)
     })
 
     it('reads actual inbox attachment bytes after chat binding', async () => {
