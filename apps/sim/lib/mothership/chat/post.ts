@@ -1,11 +1,8 @@
-import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
+import { context as otelContextApi } from '@opentelemetry/api'
 import type { SessionPrincipal } from '@sim/auth/principal'
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -19,6 +16,7 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { chatOperations } from '@/lib/mothership/application/operations'
+import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import {
   type AssistantImageContent,
   prepareAssistantImages,
@@ -29,10 +27,8 @@ import {
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
-import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   processContextsServer,
   resolveActiveResourceContext,
@@ -43,14 +39,10 @@ import {
   MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
 } from '@/lib/mothership/chat/selection-context'
-import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { type ChatRequest, PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
-import {
-  CopilotChatPersistOutcome,
-  CopilotTransport,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
@@ -71,7 +63,10 @@ import {
 } from '@/lib/mothership/resources/types'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
@@ -567,103 +562,6 @@ async function resolveAgentContexts(params: {
   return agentContexts
 }
 
-async function persistUserMessage(params: {
-  chatId?: string
-  userMessageId: string
-  message: string
-  fileAttachments?: UnifiedChatRequest['fileAttachments']
-  contexts?: UnifiedChatRequest['contexts']
-  workspaceId?: string
-  notifyChatStatus: boolean
-  organizationId?: string
-  userId?: string
-  requestMode?: 'assistant' | 'agent'
-  /**
-   * Root context for the mothership request. When present the persist
-   * span is created explicitly under it, which avoids relying on
-   * AsyncLocalStorage propagation — some upstream awaits (Next.js
-   * framework frames, Turbopack-instrumented I/O) can swap the active
-   * store out from under us in dev, which would otherwise leave this
-   * span parented to the about-to-be-dropped Next.js HTTP span.
-   */
-  parentOtelContext?: OtelContext
-}): Promise<void> {
-  const {
-    chatId,
-    userMessageId,
-    message,
-    fileAttachments,
-    contexts,
-    workspaceId,
-    organizationId,
-    userId,
-    notifyChatStatus,
-    parentOtelContext,
-  } = params
-  if (!chatId) return
-
-  return withCopilotSpan(
-    TraceSpan.CopilotChatPersistUserMessage,
-    {
-      [TraceAttr.DbSystem]: 'postgresql',
-      [TraceAttr.DbSqlTable]: 'copilot_chats',
-      [TraceAttr.ChatId]: chatId,
-      [TraceAttr.ChatUserMessageId]: userMessageId,
-      [TraceAttr.ChatMessageBytes]: message.length,
-      [TraceAttr.ChatFileAttachmentCount]: fileAttachments?.length ?? 0,
-      [TraceAttr.ChatContextCount]: contexts?.length ?? 0,
-      ...(workspaceId ? { [TraceAttr.WorkspaceId]: workspaceId } : {}),
-    },
-    async (span) => {
-      const userMsg = buildPersistedUserMessage({
-        id: userMessageId,
-        content: message,
-        requestMode: params.requestMode,
-        fileAttachments,
-        contexts,
-      })
-
-      const updated = await db.transaction(async (tx) => {
-        const [row] = await tx
-          .update(copilotChats)
-          .set({
-            conversationId: userMessageId,
-            updatedAt: new Date(),
-          })
-          .where(eq(copilotChats.id, chatId))
-          .returning({ model: copilotChats.model })
-
-        if (!row) return null
-
-        await appendCopilotChatMessages(
-          chatId,
-          [userMsg],
-          { streamId: userMessageId, chatModel: row.model ?? null },
-          tx
-        )
-        return row
-      })
-
-      span.setAttribute(
-        TraceAttr.ChatPersistOutcome,
-        updated ? CopilotChatPersistOutcome.Appended : CopilotChatPersistOutcome.ChatNotFound
-      )
-
-      if (notifyChatStatus && updated) {
-        publishChatStatusChanged(
-          { workspaceId, organizationId, userId },
-          {
-            chatId,
-            type: 'started',
-            streamId: userMessageId,
-          }
-        )
-      }
-    },
-    parentOtelContext
-  )
-}
-
 async function buildInitialExecutionContext(params: {
   userId: string
   workflowId?: string
@@ -929,23 +827,10 @@ const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'user-message'
  * The key is scoped to the caller — `userMessageId` is client-supplied, so an
  * unscoped one would let a user probe another's sends for their chat id.
  */
-async function claimChatSend(
-  userMessageId: string,
-  userId: string
-): Promise<AtomicClaimResult | undefined> {
-  try {
-    return await chatSendIdempotency.atomicallyClaim(
-      CHAT_SEND_IDEMPOTENCY_PROVIDER,
-      userMessageId,
-      { userId }
-    )
-  } catch (error) {
-    logger.warn('Could not claim chat send; proceeding without deduplication', {
-      userMessageId,
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return undefined
-  }
+async function claimChatSend(userMessageId: string, userId: string): Promise<AtomicClaimResult> {
+  return chatSendIdempotency.atomicallyClaim(CHAT_SEND_IDEMPOTENCY_PROVIDER, userMessageId, {
+    userId,
+  })
 }
 
 /**
@@ -1194,35 +1079,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         }
       }
 
-      /* Record the chat as soon as it is known — the earliest a retry can be
-         answered with somewhere to go. This does not make the claim permanent:
-         several exits below still return without starting a turn, and a retry
-         of those must be free to start one. Failing to record only costs a
-         retry the chat-id shortcut, so it must not fail the send. */
-      if (sendClaim?.claimToken && actualChatId) {
-        await chatSendIdempotency
-          .storeResult(
-            sendClaim.normalizedKey,
-            { success: true, status: 'completed', result: { chatId: actualChatId } },
-            sendClaim.storageMethod,
-            sendClaim.claimToken
-          )
-          .catch((error) => {
-            logger.warn(`[${requestId}] Could not record the chat for this send`, {
-              userMessageId,
-              error: getErrorMessage(error, 'Unknown error'),
-            })
-          })
-      }
-
       if (
         body.mode !== 'assistant' &&
         chatIsNew &&
         actualChatId &&
         body.resourceAttachments?.length
       ) {
-        // Canonicalizes here, not just inside `persistChatResources`, so the
-        // singleton terminal panel is stored once however it was attached.
         const persistable = sanitizeChatResources(
           body.resourceAttachments.filter(isPersistableAttachment).map((resource) => ({
             type: resource.type,
@@ -1312,12 +1174,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // opens". Previously these ran bare under the root and inflated the
       // apparent "gap" before the model call. Each promise is its own
       // span; they run concurrently under Promise.all below.
-      /**
-       * Mothership revamp (worker backend): the VFS/workspace snapshot build is gone —
-       * the worker discovers workspace state on demand through the CLI (was ~11 primary-db
-       * queries and ~900ms p95 per message). Its prep slot now mints the run-scoped
-       * delegation credential the worker presents on v2 calls (revamp D23).
-       */
+      // Resolve environment and billing context before preparing the durable start intent.
       const executionContextPromise = withCopilotSpan(
         TraceSpan.CopilotChatBuildExecutionContext,
         { [TraceAttr.CopilotBranchKind]: branch.kind },
@@ -1352,29 +1209,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.context
         )
       })
-      const persistUserMessagePromise = persistUserMessage({
-        chatId: actualChatId,
-        userMessageId,
-        message: body.message,
-        fileAttachments,
-        contexts: normalizedContexts,
-        workspaceId,
-        notifyChatStatus: branch.notifyChatStatus,
-        organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
-        userId: authenticatedUserId,
-        requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
-        parentOtelContext: activeOtelRoot.context,
-      })
-      const [
-        agentContexts,
-        userPermission,
-        ,
-        executionContext,
-        personalCredentials,
-      ] = await Promise.all([
+      const [agentContexts, userPermission, executionContext, personalCredentials] = await Promise.all([
         agentContextsPromise,
         userPermissionPromise,
-        persistUserMessagePromise,
         executionContextPromise,
         personalCredentialsPromise,
       ])
@@ -1396,8 +1233,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
       executionContext.userPermission = userPermission ?? undefined
 
-      /** Trace catalog preparation and attachment tracking before the Sim → Go request. */
-      const requestPayload = await withCopilotSpan(
+      /** Trace catalog preparation and attachment tracking before durable admission. */
+      const preparedPayload = await withCopilotSpan(
         TraceSpan.CopilotChatBuildPayload,
         {
           [TraceAttr.CopilotBranchKind]: branch.kind,
@@ -1463,15 +1300,54 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.span.setAttribute(TraceAttr.WorkspaceId, workspaceId)
       }
 
-      const controllerToken = actualChatId
-        ? getLocalChatStreamLease(actualChatId, userMessageId)?.value
-        : undefined
-      const runController = controllerToken ? { id: runId, token: controllerToken } : undefined
+      const clientToolPickupExpected = body.clientCapabilities
+        ? body.clientCapabilities.includes('workflow-tool-pickup')
+        : true
+      const requestPayload = { ...preparedPayload, protocolVersion: PROTOCOL_VERSION }
+      const lease = actualChatId ? getLocalChatStreamLease(actualChatId, userMessageId) : undefined
+      const runController = lease ? { id: runId, token: lease.value } : undefined
+      let admittedRun: Awaited<ReturnType<typeof admitChatTurn.execute>> | undefined
+      if (actualChatId) {
+        if (!lease || !sendClaim?.claimToken || sendClaim.storageMethod !== 'database') {
+          throw new Error('Chat admission requires its controller and durable send claim')
+        }
+        admittedRun = await admitChatTurn.execute({
+          principal: {
+            kind: 'session',
+            userId: authenticatedUserId,
+            sessionId: session.session.id,
+          },
+          input: {
+            chatId: actualChatId,
+            runId,
+            executionId,
+            requestId,
+            lease,
+            sendClaim: { normalizedKey: sendClaim.normalizedKey, claimToken: sendClaim.claimToken },
+            message: {
+              id: userMessageId,
+              content: body.message,
+              fileAttachments,
+              contexts: normalizedContexts,
+              requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
+            },
+            recovery: {
+              kind: 'interactive_stream',
+              request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
+              goRoute: branch.goRoute,
+              clientToolPickupExpected,
+              userTimezone: executionContext.userTimezone,
+              requestMode: executionContext.requestMode,
+            },
+            notifyWorkspaceStatus: branch.notifyChatStatus,
+          },
+        })
+        // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.
+        sendClaim = undefined
+      }
       const stream = createSSEStream({
-        requestPayload: {
-          ...requestPayload,
-          protocolVersion: PROTOCOL_VERSION,
-        },
+        requestPayload,
+        admittedRun,
         userId: authenticatedUserId,
         streamId: userMessageId,
         executionId,
@@ -1499,9 +1375,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           interactive: true,
           // Executor routing is decided HERE, once per turn, from the caller's declared
           // capabilities — dispatch never discovers client absence by burning a grace timer.
-          clientToolPickupExpected: body.clientCapabilities
-            ? body.clientCapabilities.includes('workflow-tool-pickup')
-            : true,
+          clientToolPickupExpected,
           executionContext,
           billingAttribution: executionContext.billingAttribution,
           onComplete: buildOnComplete({
@@ -1553,10 +1427,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const rootTraceparent = `00-${rootCtx.traceId}-${rootCtx.spanId}-${
         (rootCtx.traceFlags & 0x1) === 0x1 ? '01' : '00'
       }`
-      /* A turn is running. Only now is the claim permanent, so the `finally`
-         below leaves it in place and a retry of this send resolves to this
-         chat instead of opening another. Every earlier exit returns without a
-         turn, and releases. */
+      // A stateless send also keeps its claim once streaming starts.
       sendClaim = undefined
       return new Response(stream, {
         headers: {
@@ -1587,10 +1458,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (applicationError?.code === 'forbidden' || applicationError?.code === 'not_found') {
       return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
     }
-    if (applicationError?.code === 'validation' || applicationError?.code === 'payload_too_large') {
+    if (applicationError) {
       return NextResponse.json(
         { error: applicationError.message },
-        { status: applicationError.code === 'validation' ? 400 : 413 }
+        { status: statusForOrchestrationError(applicationError.code) }
       )
     }
     if (isWorkspaceAccessDeniedError(error)) {
