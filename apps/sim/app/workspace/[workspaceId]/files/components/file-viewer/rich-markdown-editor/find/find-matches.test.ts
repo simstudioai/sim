@@ -3,8 +3,11 @@
  */
 import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createMarkdownContentExtensions } from '../extensions'
-import { FIND_MATCH_LIMIT, findMatches } from './find-matches'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  FIND_MATCH_LIMIT,
+  findMatches,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-matches'
 
 let editor: Editor | null = null
 afterEach(() => {
@@ -57,6 +60,24 @@ describe('findMatches', () => {
 
   it('never matches across a block boundary', () => {
     expect(matchedText('ab\n\ncd', 'abcd')).toEqual([])
+  })
+
+  it.each(['\uFFFF', 'a\uFFFFb'])('never matches an inline atom using %j', (query) => {
+    const doc = docFor('a<br>b')
+    expect(() => doc.check()).not.toThrow()
+    expect(findMatches(doc, query)).toEqual({ matches: [], truncated: false })
+  })
+
+  it('does not count atom placeholders toward the match limit', () => {
+    const doc = docFor('a<br>b\uFFFF')
+    expect(() => doc.check()).not.toThrow()
+    const { matches, truncated } = findMatches(doc, '\uFFFF', 1)
+    expect(matches.map(({ from, to }) => doc.textBetween(from, to))).toEqual(['\uFFFF'])
+    expect(truncated).toBe(false)
+  })
+
+  it('keeps real non-character text searchable across a formatting boundary', () => {
+    expect(matchedText('a**\uFFFF**b', 'a\uFFFFb')).toEqual(['a\uFFFFb'])
   })
 
   it('never matches across an inline atom', () => {

@@ -1,8 +1,8 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Chip, cn, toast } from '@sim/emcn'
-import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import type { Extensions, JSONContent, Range } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
@@ -446,6 +446,7 @@ export function LoadedRichMarkdownEditor({
   const isEditable = canEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   const collaboration = useFileDocCollaboration({
+    workspaceId,
     fileId: file.id,
     userId,
     userName,
@@ -811,12 +812,6 @@ export function LoadedRichMarkdownEditor({
     []
   )
 
-  /**
-   * The loaded markdown to seed the shared doc from, held by pointer so the parse
-   * runs once at seed time rather than every render.
-   */
-  const seedContentRef = useRef(content)
-
   /** The lifetime-stable editor and its async work consume only committed React inputs. */
   useLayoutEffect(() => {
     onChangeRef.current = onChange
@@ -831,7 +826,6 @@ export function LoadedRichMarkdownEditor({
     insertImagesRef.current = insertImages
     cloneHostedImageRef.current = cloneHostedImage
     editorInstanceRef.current = editor
-    seedContentRef.current = content
   })
 
   /**
@@ -842,11 +836,9 @@ export function LoadedRichMarkdownEditor({
    *   synced AND seeded — it never imports content itself on the happy path;
    * - **gate** the parent's autosave until the doc is synced AND seeded, so an
    *   empty/still-syncing doc can never overwrite the real file's markdown mirror;
-   * - **fall back** on a fatal join: seed the loaded content so it is SHOWN, but
-   *   leave the editor read-only + gated. Every non-retryable failure (auth, access
-   *   denied, not found, client-id conflict) either can't save or is moot, so the
-   *   safe fallback is a read-only view of the content rather than editable-but-
-   *   unsavable — which would silently drop the user's edits.
+   * - **preview** stored content in a separate read-only editor until authoritative content arrives.
+   *   A retryable timeout never seeds the shared Y.Doc, so late server content cannot duplicate it.
+   *   Terminal failures keep any existing live content visible but never editable.
    *
    * `ready` (synced+seeded) gates BOTH the editor's editability (a user must never
    * type into an empty/unsynced doc) and the parent's autosave. Non-collaborative
@@ -864,11 +856,12 @@ export function LoadedRichMarkdownEditor({
      * document that was already correct, and it opens mid-flight anyway whenever the updates arrive
      * more than a frame apart (which is what a remote Redis and a long room history produce).
      */
-    const setReady = (ready: boolean, fatal = false) => {
+    const setReady = (ready: boolean, fatal = false, retrying = false) => {
       // Child-local: gates editability (a user must never type into an unsynced/unseeded doc).
       setCollabStatus((previous) => {
         if (fatal) return 'fatal'
         if (ready) return 'ready'
+        if (retrying) return 'reconnecting'
         return previous === 'ready' || previous === 'reconnecting' ? 'reconnecting' : 'connecting'
       })
       // Parent: gates CLIENT autosave. In a collaborative session the relay persists the doc to
@@ -888,20 +881,6 @@ export function LoadedRichMarkdownEditor({
     }
     const config = doc.getMap(FILE_DOC_SEED.configMap)
 
-    let offlineSeed = false
-
-    const seedFromLoaded = () => {
-      if (config.get(FILE_DOC_SEED.flag) === true) return
-      offlineSeed = true
-      doc.transact(() => {
-        editor.commands.setContent(
-          parseMarkdownToDoc(splitFrontmatter(seedContentRef.current).body),
-          { contentType: 'json', emitUpdate: false }
-        )
-        config.set(FILE_DOC_SEED.flag, true)
-      })
-    }
-
     if (!provider) {
       setReady(false)
       return
@@ -910,26 +889,20 @@ export function LoadedRichMarkdownEditor({
     const report = () => {
       const synced = provider.synced
       const seeded = config.get(FILE_DOC_SEED.flag) === true
-      // `joinError` is latched ONLY on the provider's fatal paths (non-retryable rejection, access
-      // revocation, readiness deadline), so it is exactly "this document is abandoned".
-      const fatal = provider.joinError !== null
-      setReady(isCollabReady({ synced, seeded, offlineSeed, fatal }), fatal)
+      const fatal = provider.joinError?.retryable === false
+      setReady(
+        isCollabReady({ synced, seeded, fatal }),
+        fatal,
+        provider.joinError?.retryable === true
+      )
     }
-    /**
-     * Re-report unconditionally, not just when the fallback seeds. A fatal that arrives on an ALREADY
-     * seeded doc (access revoked mid-session) leaves `seedFromLoaded` a no-op, so nothing else would
-     * fire an observer and the editor would stay editable on a document the provider has abandoned.
-     */
-    const onJoinError = (error: JoinFileDocError) => {
-      if (error.retryable === false) seedFromLoaded()
-      report()
-    }
+    /** Rejections must close the editing gate even if the document was already seeded. */
+    const onJoinError = () => report()
 
     provider.on('synced', report)
     provider.on('join-error', onJoinError)
     config.observe(report)
     report()
-    if (provider.joinError) onJoinError(provider.joinError)
 
     return () => {
       provider.off('synced', report)
@@ -1311,9 +1284,15 @@ export function LoadedRichMarkdownEditor({
 
   useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
 
-  /** Use the stored-content placeholder only while the live document is bootstrapping. */
-  const showPlaceholder = collaborationEnabled && collabStatus === 'connecting'
+  /** Stored content belongs to a separate preview, never to an unseeded collaborative document. */
+  const showPlaceholder =
+    collaborationEnabled &&
+    (collabStatus === 'connecting' ||
+      (collabStatus !== 'ready' &&
+        collaboration?.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) !== true))
   const showReconnecting = collaborationEnabled && collabStatus === 'reconnecting'
+  const collabFailure = collaboration?.provider?.joinError ?? null
+  const showCollabFailure = collaborationEnabled && collabStatus === 'fatal' ? collabFailure : null
 
   /**
    * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
@@ -1322,6 +1301,28 @@ export function LoadedRichMarkdownEditor({
    * native find reads the rendered placeholder correctly; it becomes ours once the seed lands.
    */
   const find = useMarkdownFind({ editor, enabled: enableFind && !showPlaceholder })
+  const replaceControls = useMemo(
+    () =>
+      isEditable
+        ? {
+            value: find.replacement,
+            onChange: find.setReplacement,
+            onReplace: find.replaceCurrent,
+            onReplaceAll: find.replaceAll,
+            canReplace: find.count > 0,
+            canReplaceAll: find.count > 0 && !find.truncated,
+          }
+        : undefined,
+    [
+      find.count,
+      find.replaceAll,
+      find.replaceCurrent,
+      find.replacement,
+      find.setReplacement,
+      find.truncated,
+      isEditable,
+    ]
+  )
 
   return (
     // The find bar is a sibling of the scroller, not a child: pinned inside `containerRef` it would
@@ -1347,6 +1348,17 @@ export function LoadedRichMarkdownEditor({
           Reconnecting…
         </div>
       )}
+      {showCollabFailure && (
+        <div
+          role='status'
+          aria-live='polite'
+          className='border-[var(--border)] border-b px-4 py-2 text-[var(--text-muted)] text-small'
+        >
+          {showCollabFailure.code === 'ACCESS_REVOKED' || showCollabFailure.code === 'ACCESS_DENIED'
+            ? 'You no longer have edit access to this document.'
+            : 'Live editing is unavailable.'}
+        </div>
+      )}
       {find.isOpen && (
         <FindBar
           ariaLabel='Find in document'
@@ -1360,6 +1372,7 @@ export function LoadedRichMarkdownEditor({
           truncated={find.truncated}
           isLoading={false}
           inputRef={find.inputRef}
+          replace={replaceControls}
         />
       )}
       <div

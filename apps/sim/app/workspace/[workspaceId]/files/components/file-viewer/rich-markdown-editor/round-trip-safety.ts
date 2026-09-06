@@ -1,6 +1,6 @@
 import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { decodeHtmlEntities } from '@tiptap/core'
-import { Marked, type Token } from 'marked'
+import { Lexer, Marked, type Token, Tokenizer } from 'marked'
 import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { serializeMarkdownDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
@@ -42,6 +42,35 @@ function stripCode(content: string): string {
 }
 
 const fidelityLexer = new Marked({ gfm: true })
+const SUPPORTED_IMAGE_ATTRIBUTES = new Set(['src', 'alt', 'title', 'width', 'height'])
+
+/**
+ * Count tags that image parsing would lose attributes from, including duplicates. Raw snippets
+ * may preserve these verbatim, so compare the counts before and after the first serialization.
+ */
+function unsupportedHtmlImages(content: string): Map<string, number> {
+  const images = new Map<string, number>()
+  const tokenizer = new Tokenizer()
+  new Lexer({ gfm: true, tokenizer })
+  const imagePattern = /<img(?=[\s/>])/gi
+  for (let image = imagePattern.exec(content); image; image = imagePattern.exec(content)) {
+    const tag = tokenizer.tag(content.slice(image.index))
+    if (!tag) continue
+    imagePattern.lastIndex = image.index + tag.raw.length
+    const attributes = tag.raw.slice(4, -1)
+    const seen = new Set<string>()
+    const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
+    for (const attribute of attributes.matchAll(pattern)) {
+      const name = attribute[1].toLowerCase()
+      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(name) || seen.has(name)) {
+        images.set(tag.raw, (images.get(tag.raw) ?? 0) + 1)
+        break
+      }
+      seen.add(name)
+    }
+  }
+  return images
+}
 
 function imageSources(token: Token): string[] {
   if (token.type === 'image') return [token.href]
@@ -60,11 +89,13 @@ function imageSources(token: Token): string[] {
 function inspectMarkdownFidelity(content: string) {
   const targets = new Map<string, number>()
   let hasTaskReference = false
+  let hasTableHtmlImage = false
   const add = (kind: 'image' | 'linkedImage', ...destinations: string[]) => {
     const target = JSON.stringify([kind, ...destinations.map(decodeHtmlEntities)])
     targets.set(target, (targets.get(target) ?? 0) + 1)
   }
   fidelityLexer.walkTokens(fidelityLexer.lexer(splitFrontmatter(content).body), (token) => {
+    if (token.type === 'table' && /<img\b/i.test(stripCode(token.raw))) hasTableHtmlImage = true
     for (const src of imageSources(token)) add('image', src)
     if (token.type === 'link') {
       fidelityLexer.walkTokens(token.tokens ?? [], (child) => {
@@ -83,7 +114,7 @@ function inspectMarkdownFidelity(content: string) {
       }
     }
   })
-  return { targets, hasTaskReference }
+  return { targets, hasTaskReference, hasTableHtmlImage }
 }
 
 /**
@@ -143,8 +174,12 @@ export function isRoundTripSafe(content: string): boolean {
   if (hasOrphanReferenceDefinition(stripped)) return false
   try {
     const source = inspectMarkdownFidelity(content)
-    if (source.hasTaskReference) return false
+    if (source.hasTaskReference || source.hasTableHtmlImage) return false
     const once = serializeMarkdownDocument(content)
+    const preservedImages = unsupportedHtmlImages(stripCode(once))
+    for (const [tag, count] of unsupportedHtmlImages(stripped)) {
+      if ((preservedImages.get(tag) ?? 0) < count) return false
+    }
     const serialized = inspectMarkdownFidelity(once)
     for (const [target, count] of source.targets) {
       if ((serialized.targets.get(target) ?? 0) < count) return false

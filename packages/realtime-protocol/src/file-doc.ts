@@ -26,6 +26,13 @@ export const FILE_DOC_EVENTS = {
   /** Both directions: a framed Yjs message (binary), tagged by {@link FILE_DOC_MESSAGE_TYPE}. */
   MESSAGE: 'file-doc-message',
   /**
+   * Client → server: one idempotent batch of user-authored Yjs updates. Unlike the handshake and
+   * awareness channel, this event is acknowledged only after the shared stream accepts the batch.
+   */
+  UPDATE: 'file-doc-update',
+  /** Server → client: the durable file was replaced outside this live document's generation. */
+  INVALIDATED: 'file-doc-invalidated',
+  /**
    * Server → client: the roster of collaborators currently in the document
    * ({@link FileDocPresence}), for the avatar stack. Identity is server-authenticated (from
    * each socket's session), so — unlike the client-set awareness `user` field — a peer
@@ -33,6 +40,11 @@ export const FILE_DOC_EVENTS = {
    */
   PRESENCE: 'file-doc-presence',
 } as const
+
+/** Schema assumed for peers from before schema negotiation was added. */
+export const FILE_DOC_LEGACY_SCHEMA_VERSION = 1
+
+export const FILE_DOC_SCHEMA_VERSION = 1
 
 /**
  * The tag carried in the first varUint of a {@link FILE_DOC_EVENTS.MESSAGE}
@@ -67,8 +79,8 @@ export const FILE_DOC_MESSAGE_TYPE = {
  * 1. **Never overwrite content with an unseeded doc.** The markdown-mirror autosave MUST be gated on
  *    the document being both synced AND seeded — otherwise an empty/still-syncing doc could be saved
  *    over the real file (the one true data-loss path).
- * 2. **One provider per socket.** Destroy the previous provider before creating the next (document
- *    switch), so a stale provider's binary-frame listener can't apply another document's updates.
+ * 2. **One active file per shared socket.** Multiple providers may show the same file, but opening a
+ *    different file must make older providers terminal before its unscoped binary frames can arrive.
  * 3. **Treat a fatal (`retryable: false`) join error as terminal.** Latch it and fall back to a
  *    read-only view of the file's stored content — do not keep rejoining. The server auto-reclaims a
  *    same-user client-id collision silently (the reconnecting socket succeeds), so `CLIENT_ID_IN_USE`
@@ -121,8 +133,15 @@ export const FILE_DOC_TIMEOUTS = {
   seedRequestMs: 8_000,
   mergeRequestMs: 3_000,
   applyEditMs: 6_000,
+  joinAckMs: 10_000,
+  updateAckMs: 6_000,
   readinessDeadlineMs: 12_000,
   persistRequestMs: 8_000,
+} as const
+
+export const FILE_DOC_LIMITS = {
+  /** Leaves framing and acknowledgement headroom under Socket.IO's 8 MiB event ceiling. */
+  updateBytes: 6 * 1024 * 1024,
 } as const
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */
@@ -134,6 +153,8 @@ export interface JoinFileDocPayload {
    * client — an authenticated peer cannot forge or clear another's presence.
    */
   clientId: number
+  /** Optional during rolling deploys; absent peers use the original version-1 schema. */
+  schemaVersion?: number
 }
 
 /** Server → client acceptance of a {@link FILE_DOC_EVENTS.JOIN}. */
@@ -141,6 +162,10 @@ export interface JoinFileDocSuccess {
   fileId: string
   /** The provider whose join was accepted. Optional while older relays are still deployed. */
   clientId?: number
+  /** Whether this relay durably acknowledges client updates. Absent on older relays. */
+  acknowledgedUpdates?: true
+  /** Durable version incorporated by the admitted generation; absent on older relays. */
+  version?: number
   /**
    * The identity of the document this room holds ({@link FILE_DOC_SEED.docIdKey}), so a client can tell
    * "the room I left" from "a document built in its place" BEFORE it syncs. Absent for a room whose doc
@@ -148,6 +173,8 @@ export interface JoinFileDocSuccess {
    * exactly the case where there is nothing to compare and the client proceeds.
    */
   docId?: string
+  /** Optional while older relays are still deployed. */
+  schemaVersion?: number
 }
 
 /** Server → client rejection of a {@link FILE_DOC_EVENTS.JOIN}. */
@@ -164,6 +191,38 @@ export interface JoinFileDocError {
 export interface LeaveFileDocPayload {
   fileId: string
 }
+
+/** Server → client invalidation after a durable replacement that cannot merge into the rich editor. */
+export interface FileDocInvalidated {
+  fileId: string
+  message: string
+  /** Generation atomically removed by this invalidation, when one existed. */
+  docId?: string
+  /** Durable replacement version; absent only on older relays. */
+  version?: number
+}
+
+/** A bounded, retry-safe batch of user-authored changes. */
+export interface FileDocUpdatePayload {
+  fileId: string
+  docId: string
+  updateId: string
+  update: Uint8Array
+}
+
+export type FileDocUpdateAck =
+  | { status: 'accepted'; updateId: string }
+  | {
+      status: 'rejected'
+      updateId?: string
+      code:
+        | 'ACCESS_REVOKED'
+        | 'DOCUMENT_REPLACED'
+        | 'INVALID_UPDATE'
+        | 'NOT_JOINED'
+        | 'TEMPORARY_FAILURE'
+      retryable: boolean
+    }
 
 /** One collaborator session in a {@link FileDocPresence} roster — server-authenticated identity.
  * Keyed per socket (session), not per user: the client excludes its OWN `socketId` and then

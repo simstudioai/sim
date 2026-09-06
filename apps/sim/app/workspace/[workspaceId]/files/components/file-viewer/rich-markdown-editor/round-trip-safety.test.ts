@@ -6,6 +6,21 @@ import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/co
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 
 describe('isRoundTripSafe', () => {
+  it.each([
+    '<div align="center">\n<img src="/logo.svg" class="logo" width="200">\n</div>',
+    '<!-- example: <img src="/x" class="hero"> -->',
+    '<img src="a>b" class="hero">',
+    '---\nexample: \'<img src="/x" class="hero">\'\n---\n# Heading',
+  ])('allows image attributes preserved verbatim in raw content: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(true)
+    expect(normalizeMarkdownContent(source).trim()).toBe(source)
+  })
+
+  it('does not let a preserved raw tag hide an identical image tag that loses attributes', () => {
+    const tag = '<img src="/logo.svg" class="logo" width="200">'
+    expect(isRoundTripSafe(`<div>\n${tag}\n</div>\n\n${tag}`)).toBe(false)
+  })
+
   it('passes ordinary markdown and lossless normalizations', () => {
     expect(isRoundTripSafe('# Title\n\nA **bold** word and a [link](https://sim.ai).')).toBe(true)
     expect(isRoundTripSafe('- one\n- two\n\n```js\nconst x = 1\n```')).toBe(true)
@@ -24,6 +39,11 @@ describe('isRoundTripSafe', () => {
       isRoundTripSafe('[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)')
     ).toBe(true)
     expect(isRoundTripSafe('[![alt](https://e.com/i.png "t")](https://e.com "h")')).toBe(true)
+    expect(
+      isRoundTripSafe(
+        '[<img src="https://e.com/i.png" alt="" width="320" height="180">](https://e.com)'
+      )
+    ).toBe(true)
   })
 
   it('passes inline code without an interior backtick', () => {
@@ -144,6 +164,42 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('<img src="/image?a=1&amp;b=2">')).toBe(true)
     expect(isRoundTripSafe("<img src='/image' width='40'>")).toBe(true)
     expect(isRoundTripSafe('<img src=/image>')).toBe(true)
+  })
+
+  it('keeps HTML images with unsupported attributes in source mode', () => {
+    expect(isRoundTripSafe('<img src="/image" class="hero">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" height="20" data-x="y">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" style="width: 20px">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" alt="a" title="t" width="40" height="20">')).toBe(
+      true
+    )
+  })
+
+  it.each([
+    '[<img src="a>b" class="hero">](/link)',
+    '[<img src="/image" title="a>b" class="hero" width="30">](/link)',
+    "[<img src='/image' title='a>b' data-credit='Alice' width='30'>](/link)",
+  ])('checks attributes after quoted angle brackets without losing source: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it.each([
+    '<img src="/image" alt="first" alt="second">',
+    '[<img src="/image" alt="first" alt="second" width="30">](/link)',
+    '[<img src="/image" alt="first" ALT="second" width="30">](/link)',
+    '[<img src="/image" width="30" WIDTH="60">](/link)',
+  ])('keeps duplicate image attributes in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it('allows supported image attributes containing quoted angle brackets', () => {
+    expect(isRoundTripSafe('<img src="/image" title="a>b" width="30">')).toBe(true)
+    expect(isRoundTripSafe('[<img src="/image" alt="a>b" width="30">](/link)')).toBe(true)
+    expect(
+      isRoundTripSafe('[<img src="/image" title="example <img class=hero>" width="30">](/link)')
+    ).toBe(true)
   })
 
   it.each([

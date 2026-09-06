@@ -98,7 +98,7 @@ export const v2FileSchema = z
       'Canonical containing-folder path. `/` is the workspace root.'
     ),
     uploadedByEmail: z
-      .email()
+      .email({ pattern: z.regexes.html5Email })
       .describe('Current email address of the uploader.')
       .meta({ examples: ['jane@example.com'] }),
     /** ISO-8601 timestamp. */
