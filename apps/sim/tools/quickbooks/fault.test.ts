@@ -68,6 +68,39 @@ describe('QuickBooks fault handling', () => {
     expect(formatQuickBooksFaultDetail(elementOnly!)).toBe('element: SyncToken')
   })
 
+  it.each([
+    ['ValidationFault', 'ValidationFault'],
+    ['Validation', 'ValidationFault'],
+    ['AuthenticationFault', 'AuthenticationFault'],
+    ['Authentication', 'AuthenticationFault'],
+    ['AuthorizationFault', 'AuthorizationFault'],
+    ['SystemFault', 'SystemFault'],
+  ])('reports the documented fault classification for type %s', (type, expected) => {
+    const fault = sanitizeQuickBooksFaultData({
+      Fault: { type, Error: [{ code: '6240', Message: 'Duplicate Name Exists Error' }] },
+    })
+
+    expect(fault?.Fault.type).toBe(expected)
+    expect(formatQuickBooksFaultDetail(fault!)).toBe(
+      `${expected}: 6240: Duplicate Name Exists Error`
+    )
+  })
+
+  it('preserves the classification across repeated sanitization', () => {
+    const first = sanitizeQuickBooksFaultData({
+      Fault: { type: 'AuthenticationFault', Error: [{ Message: 'message' }] },
+    })
+
+    expect(sanitizeQuickBooksFaultData(first)?.Fault.type).toBe('AuthenticationFault')
+  })
+
+  it('omits the classification when Intuit does not send one', () => {
+    const fault = sanitizeQuickBooksFaultData({ Fault: { Error: [{ Message: 'message' }] } })
+
+    expect(fault?.Fault).not.toHaveProperty('type')
+    expect(formatQuickBooksFaultDetail(fault!)).toBe('message')
+  })
+
   it.each([null, [], {}, { Fault: {} }, { Fault: { Error: [] } }])(
     'does not claim malformed fault payloads: %j',
     (payload) => {

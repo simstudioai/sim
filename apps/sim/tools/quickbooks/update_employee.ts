@@ -54,7 +54,8 @@ export const quickbooksUpdateEmployeeTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement employee display name',
+      description:
+        'Replacement employee display name. Read-only when QuickBooks Payroll is enabled, where QuickBooks derives it from the name components',
     },
     givenName: {
       type: 'string',
