@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -18282,7 +18282,7 @@
         },
         {
           "name": "Update Item",
-          "description": "Read, merge, and full-update an item without changing its type"
+          "description": "Read, merge, and full-update a Service or Non-inventory item without changing its type"
         },
         {
           "name": "Read Sales Transactions",
@@ -18315,6 +18315,10 @@
         {
           "name": "Update Sales Receipt",
           "description": "Sparse-update a sales receipt using its current sync token"
+        },
+        {
+          "name": "Void Sales Receipt",
+          "description": "Void a sales receipt after explicit confirmation"
         },
         {
           "name": "Create Customer Payment",
@@ -18371,6 +18375,10 @@
         {
           "name": "Update Bill Payment",
           "description": "Read, merge, and full-update a BillPayment without changing allocations"
+        },
+        {
+          "name": "Void Bill Payment",
+          "description": "Void a bill payment after explicit confirmation"
         },
         {
           "name": "Create Vendor Credit",
@@ -18433,7 +18441,7 @@
           "description": "Download a QuickBooks file attachment as a stored Sim file"
         }
       ],
-      "operationCount": 47,
+      "operationCount": 49,
       "triggers": [
         {
           "id": "quickbooks_invoice_events",

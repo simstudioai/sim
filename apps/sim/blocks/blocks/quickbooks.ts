@@ -5,13 +5,10 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import {
   getQuickBooksReportTypesSupporting,
-  QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES,
-  QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES,
-  QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES,
-  QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES,
   type QuickBooksReportControl,
 } from '@/tools/quickbooks/report-metadata'
 import type { QuickBooksReportType, QuickBooksResponse } from '@/tools/quickbooks/types'
+import { QUICKBOOKS_MAX_RESULTS } from '@/tools/quickbooks/values'
 import { getTrigger } from '@/triggers'
 
 const MASTER_DATA_OPERATION = 'quickbooks_read_master_data'
@@ -60,6 +57,17 @@ const SALES_CREATE_OPERATIONS = [
   ...SALES_DOCUMENT_CREATE_OPERATIONS,
   'quickbooks_create_customer_payment',
 ] as const
+/**
+ * Intuit lists `CustomerRef` in `invoicerequest`, `estimaterequest`, `creditmemorequest`, and
+ * `paymentrequest`, but not in `salesreceiptrequest` or `refundreceiptrequest`, so those two
+ * creates leave the customer optional.
+ */
+const SALES_CUSTOMER_REQUIRED_CREATE_OPERATIONS = [
+  'quickbooks_create_estimate',
+  'quickbooks_create_invoice',
+  'quickbooks_create_credit_memo',
+  'quickbooks_create_customer_payment',
+] as const
 const PURCHASING_CREATE_OPERATIONS = [
   'quickbooks_create_purchase_order',
   'quickbooks_create_bill',
@@ -84,7 +92,10 @@ const SALES_UPDATE_OPERATIONS = [
 const SALES_VOID_OPERATIONS = [
   'quickbooks_void_invoice',
   'quickbooks_void_customer_payment',
+  'quickbooks_void_sales_receipt',
 ] as const
+const PURCHASING_VOID_OPERATIONS = ['quickbooks_void_bill_payment'] as const
+const VOID_OPERATIONS = [...SALES_VOID_OPERATIONS, ...PURCHASING_VOID_OPERATIONS] as const
 const MASTER_DATA_UPDATE_OPERATIONS = [
   'quickbooks_update_customer',
   'quickbooks_update_employee',
@@ -120,6 +131,7 @@ const UPDATE_OPERATIONS = [
   ...SALES_UPDATE_OPERATIONS,
   ...SALES_VOID_OPERATIONS,
   ...PURCHASING_UPDATE_OPERATIONS,
+  ...PURCHASING_VOID_OPERATIONS,
   ...ACCOUNTING_UPDATE_OPERATIONS,
 ] as const
 const MUTATION_OPERATIONS = [
@@ -129,7 +141,33 @@ const MUTATION_OPERATIONS = [
   ...VENDOR_OPERATIONS,
   ...SALES_MUTATION_OPERATIONS,
   ...PURCHASING_MUTATION_OPERATIONS,
+  ...PURCHASING_VOID_OPERATIONS,
   ...ACCOUNTING_MUTATION_OPERATIONS,
+] as const
+/**
+ * `CurrencyRef` is conditionally required on every one of these request models once multicurrency
+ * is enabled for the company, so each create must be able to send it.
+ */
+const CURRENCY_CODE_OPERATIONS = [
+  'quickbooks_create_purchase_order',
+  'quickbooks_create_bill',
+  'quickbooks_create_bill_payment',
+  'quickbooks_create_vendor_credit',
+  'quickbooks_create_purchase',
+  'quickbooks_create_journal_entry',
+  'quickbooks_create_deposit',
+] as const
+/**
+ * `GlobalTaxCalculation` is documented on the same entities except BillPayment, whose
+ * `billpaymentresponse` model does not carry it.
+ */
+const GLOBAL_TAX_CALCULATION_OPERATIONS = [
+  'quickbooks_create_purchase_order',
+  'quickbooks_create_bill',
+  'quickbooks_create_vendor_credit',
+  'quickbooks_create_purchase',
+  'quickbooks_create_journal_entry',
+  'quickbooks_create_deposit',
 ] as const
 const PAGINATED_OPERATIONS = [
   MASTER_DATA_OPERATION,
@@ -222,7 +260,7 @@ function getQuickBooksTriggerSubBlocks(): SubBlockConfig[] {
   )
 }
 
-const REPORT_TIME_SUMMARY_OPTIONS = [
+const REPORT_SUMMARY_OPTIONS = [
   { label: 'QuickBooks Default', id: 'default' },
   { label: 'Total', id: 'total' },
   { label: 'Day', id: 'day' },
@@ -230,6 +268,56 @@ const REPORT_TIME_SUMMARY_OPTIONS = [
   { label: 'Month', id: 'month' },
   { label: 'Quarter', id: 'quarter' },
   { label: 'Year', id: 'year' },
+  { label: 'Customer', id: 'customer' },
+  { label: 'Vendor', id: 'vendor' },
+  { label: 'Employee', id: 'employee' },
+  { label: 'Product/Service', id: 'item' },
+  { label: 'Class', id: 'class' },
+  { label: 'Department', id: 'department' },
+] as const
+
+const REPORT_DATE_MACRO_OPTIONS = [
+  { label: 'QuickBooks Default', id: 'default' },
+  { label: 'Today', id: 'today' },
+  { label: 'Yesterday', id: 'yesterday' },
+  { label: 'This Week', id: 'this_week' },
+  { label: 'Last Week', id: 'last_week' },
+  { label: 'This Week-to-date', id: 'this_week_to_date' },
+  { label: 'Last Week-to-date', id: 'last_week_to_date' },
+  { label: 'Next Week', id: 'next_week' },
+  { label: 'Next 4 Weeks', id: 'next_4_weeks' },
+  { label: 'This Month', id: 'this_month' },
+  { label: 'Last Month', id: 'last_month' },
+  { label: 'This Month-to-date', id: 'this_month_to_date' },
+  { label: 'Last Month-to-date', id: 'last_month_to_date' },
+  { label: 'Next Month', id: 'next_month' },
+  { label: 'This Fiscal Quarter', id: 'this_fiscal_quarter' },
+  { label: 'Last Fiscal Quarter', id: 'last_fiscal_quarter' },
+  { label: 'This Fiscal Quarter-to-date', id: 'this_fiscal_quarter_to_date' },
+  { label: 'Last Fiscal Quarter-to-date', id: 'last_fiscal_quarter_to_date' },
+  { label: 'Next Fiscal Quarter', id: 'next_fiscal_quarter' },
+  { label: 'This Fiscal Year', id: 'this_fiscal_year' },
+  { label: 'Last Fiscal Year', id: 'last_fiscal_year' },
+  { label: 'This Fiscal Year-to-date', id: 'this_fiscal_year_to_date' },
+  { label: 'Last Fiscal Year-to-date', id: 'last_fiscal_year_to_date' },
+  { label: 'Next Fiscal Year', id: 'next_fiscal_year' },
+] as const
+
+/**
+ * Intuit documents `TaxExcluded`, `TaxInclusive`, and `NotApplicable` on every entity carrying
+ * `GlobalTaxCalculation` except JournalEntry, whose model documents only the first two.
+ */
+const GLOBAL_TAX_CALCULATION_OPTIONS = [
+  { label: 'QuickBooks Default', id: 'default' },
+  { label: 'Tax Excluded', id: 'TaxExcluded' },
+  { label: 'Tax Inclusive', id: 'TaxInclusive' },
+  { label: 'Not Applicable', id: 'NotApplicable' },
+] as const
+
+const JOURNAL_ENTRY_GLOBAL_TAX_OPTIONS = [
+  { label: 'QuickBooks Default', id: 'default' },
+  { label: 'Tax Excluded', id: 'TaxExcluded' },
+  { label: 'Tax Inclusive', id: 'TaxInclusive' },
 ] as const
 
 function parseJsonInput(value: unknown, fieldName: string): unknown {
@@ -289,38 +377,6 @@ function reportSupports(reportType: unknown, control: QuickBooksReportControl): 
   return getQuickBooksReportTypesSupporting(control).includes(reportType as QuickBooksReportType)
 }
 
-function reportSummarizeValue(params: Record<string, unknown>, reportType: unknown): unknown {
-  if (
-    QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES.includes(
-      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES)[number]
-    )
-  ) {
-    return params.reportSummarizeBy ?? 'default'
-  }
-  if (
-    QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES.includes(
-      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES)[number]
-    )
-  ) {
-    return params.reportCustomerSalesSummarizeBy ?? 'default'
-  }
-  if (
-    QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES.includes(
-      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES)[number]
-    )
-  ) {
-    return params.reportVendorExpenseSummarizeBy ?? 'default'
-  }
-  if (
-    QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES.includes(
-      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES)[number]
-    )
-  ) {
-    return params.reportTimeSummarizeBy ?? 'default'
-  }
-  return undefined
-}
-
 function parseOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
   if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -341,8 +397,8 @@ function parsePaginationInteger(
   if (fieldName === 'startPosition' && parsed < 1) {
     throw new Error('startPosition must be a positive integer')
   }
-  if (fieldName === 'maxResults' && (parsed < 1 || parsed > 100)) {
-    throw new Error('maxResults must be an integer from 1 through 100')
+  if (fieldName === 'maxResults' && (parsed < 1 || parsed > QUICKBOOKS_MAX_RESULTS)) {
+    throw new Error(`maxResults must be an integer from 1 through ${QUICKBOOKS_MAX_RESULTS}`)
   }
   return parsed
 }
@@ -354,11 +410,28 @@ function parseOptionalNumber(value: unknown, fieldName: string): number | undefi
   return parsed
 }
 
+/**
+ * Coerces a switch value to the boolean `applyQuickBooksReportParams` demands. Lives here in
+ * `tools.config.params`, which runs after variable resolution, so a `<Block.output>` reference
+ * survives serialization.
+ */
+function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value == null || value === '') return undefined
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  throw new Error(`${fieldName} must be true or false`)
+}
+
 function parseTriStateBoolean(value: unknown, fieldName: string): boolean | undefined {
   if (value == null || value === '' || value === 'not_specified') return undefined
   if (value === true || value === 'yes') return true
   if (value === false || value === 'no') return false
   throw new Error(`${fieldName} must be not specified, yes, or no`)
+}
+
+/** Drops the QuickBooks-default sentinel so the create omits `GlobalTaxCalculation` entirely. */
+function selectedGlobalTaxCalculation(value: unknown): unknown {
+  return value == null || value === '' || value === 'default' ? undefined : value
 }
 
 function optionalValue(value: unknown): unknown {
@@ -414,6 +487,7 @@ function salesTransactionIdCondition(values?: Record<string, unknown>) {
         ...SALES_UPDATE_OPERATIONS,
         ...SALES_VOID_OPERATIONS,
         ...PURCHASING_UPDATE_OPERATIONS,
+        ...PURCHASING_VOID_OPERATIONS,
         ...ACCOUNTING_UPDATE_OPERATIONS,
       ],
     }
@@ -431,15 +505,26 @@ function salesTransactionIdCondition(values?: Record<string, unknown>) {
       ...SALES_UPDATE_OPERATIONS,
       ...SALES_VOID_OPERATIONS,
       ...PURCHASING_UPDATE_OPERATIONS,
+      ...PURCHASING_VOID_OPERATIONS,
       ...ACCOUNTING_UPDATE_OPERATIONS,
     ],
   }
 }
 
 function parseConfirmation(value: unknown, fieldName: string): boolean {
-  if (value === true || value === 'yes') return true
-  if (value === false || value === 'no' || value == null || value === '') return false
-  throw new Error(`${fieldName} must be yes or no`)
+  switch (value) {
+    case true:
+    case 'yes':
+      return true
+    case false:
+    case 'no':
+    case null:
+    case undefined:
+    case '':
+      return false
+    default:
+      throw new Error(`${fieldName} must be yes or no`)
+  }
 }
 
 function attachmentTargetCondition(values?: Record<string, unknown>) {
@@ -552,6 +637,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         quickbooks_update_sales_receipt: [
           { text: 'Update sales receipt', field: 'transactionId', core: true },
         ],
+        quickbooks_void_sales_receipt: [
+          { text: 'Void sales receipt', field: 'transactionId', core: true },
+        ],
         quickbooks_create_customer_payment: [
           {
             text: 'Record payment from customer',
@@ -619,6 +707,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         ],
         quickbooks_update_bill_payment: [
           { text: 'Update bill payment', field: 'transactionId', core: true },
+        ],
+        quickbooks_void_bill_payment: [
+          { text: 'Void bill payment', field: 'transactionId', core: true },
         ],
         quickbooks_create_vendor_credit: [
           { text: 'Create a credit for vendor', field: 'vendorId', core: true },
@@ -719,6 +810,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           id: 'quickbooks_update_sales_receipt',
         },
         {
+          label: 'Void Sales Receipt',
+          id: 'quickbooks_void_sales_receipt',
+        },
+        {
           label: 'Create Customer Payment',
           id: 'quickbooks_create_customer_payment',
         },
@@ -756,6 +851,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Update Bill', id: 'quickbooks_update_bill' },
         { label: 'Create Bill Payment', id: 'quickbooks_create_bill_payment' },
         { label: 'Update Bill Payment', id: 'quickbooks_update_bill_payment' },
+        { label: 'Void Bill Payment', id: 'quickbooks_void_bill_payment' },
         {
           label: 'Create Vendor Credit',
           id: 'quickbooks_create_vendor_credit',
@@ -1004,10 +1100,22 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       id: 'attachmentFileName',
       title: 'File Name',
       type: 'short-input',
-      placeholder: 'Optional safe filename override',
+      placeholder: 'Optional uploaded filename override',
       condition: {
         field: 'operation',
-        value: [ADD_ATTACHMENT_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'downloadAttachmentFileName',
+      title: 'File Name',
+      type: 'short-input',
+      placeholder: 'Optional saved filename override',
+      condition: {
+        field: 'operation',
+        value: DOWNLOAD_ATTACHMENT_OPERATION,
       },
       mode: 'advanced',
     },
@@ -1231,20 +1339,31 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'Report Type',
       type: 'dropdown',
       options: [
+        { label: 'Account List Detail', id: 'account_list_detail' },
         { label: 'Balance Sheet', id: 'balance_sheet' },
         { label: 'Profit and Loss', id: 'profit_and_loss' },
         { label: 'Profit and Loss Detail', id: 'profit_and_loss_detail' },
         { label: 'Trial Balance', id: 'trial_balance' },
+        { label: 'Trial Balance (France locale)', id: 'trial_balance_fr' },
         { label: 'Statement of Cash Flows', id: 'cash_flow' },
+        { label: 'General Ledger Detail', id: 'general_ledger_detail' },
         { label: 'A/P Aging Summary', id: 'ap_aging_summary' },
         { label: 'A/P Aging Detail', id: 'ap_aging_detail' },
         { label: 'A/R Aging Summary', id: 'ar_aging_summary' },
         { label: 'A/R Aging Detail', id: 'ar_aging_detail' },
         { label: 'Vendor Balance Summary', id: 'vendor_balance' },
+        { label: 'Vendor Balance Detail', id: 'vendor_balance_detail' },
         { label: 'Customer Balance Summary', id: 'customer_balance' },
+        { label: 'Customer Balance Detail', id: 'customer_balance_detail' },
+        { label: 'Income by Customer Summary', id: 'customer_income' },
         { label: 'Sales by Customer Summary', id: 'sales_by_customer' },
         { label: 'Sales by Product/Service Summary', id: 'sales_by_item' },
+        { label: 'Sales by Class Summary', id: 'sales_by_class' },
+        { label: 'Sales by Department Summary', id: 'sales_by_department' },
         { label: 'Expenses by Vendor', id: 'expenses_by_vendor' },
+        { label: 'Inventory Valuation Summary', id: 'inventory_valuation_summary' },
+        { label: 'Inventory Valuation Detail', id: 'inventory_valuation_detail' },
+        { label: 'Tax Summary (non-US locale)', id: 'tax_summary' },
         { label: 'Transaction List', id: 'transaction_list' },
       ],
       condition: { field: 'operation', value: REPORT_OPERATION },
@@ -1286,87 +1405,32 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       value: () => 'default',
     },
     {
+      id: 'reportDateMacro',
+      title: 'Date Range',
+      type: 'dropdown',
+      options: [...REPORT_DATE_MACRO_OPTIONS],
+      description:
+        'Predefined report range. Cannot be combined with an explicit start or end date.',
+      mode: 'advanced',
+      condition: reportControlCondition('dateMacro'),
+      value: () => 'default',
+    },
+    {
       id: 'reportSummarizeBy',
       title: 'Summarize Columns By',
       type: 'dropdown',
-      options: [
-        ...REPORT_TIME_SUMMARY_OPTIONS,
-        { label: 'Customer', id: 'customer' },
-        { label: 'Vendor', id: 'vendor' },
-        { label: 'Product/Service', id: 'item' },
-        { label: 'Class', id: 'class' },
-        { label: 'Department', id: 'department' },
-      ],
+      options: [...REPORT_SUMMARY_OPTIONS],
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: {
-          field: 'reportType',
-          value: [...QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES],
-        },
-      },
+      condition: reportControlCondition('summarizeBy'),
       value: () => 'default',
     },
     {
-      id: 'reportCustomerSalesSummarizeBy',
-      title: 'Summarize Columns By',
-      type: 'dropdown',
-      options: [
-        ...REPORT_TIME_SUMMARY_OPTIONS,
-        { label: 'Customer', id: 'customer' },
-        { label: 'Product/Service', id: 'item' },
-        { label: 'Class', id: 'class' },
-        { label: 'Department', id: 'department' },
-      ],
+      id: 'reportQuickZoomUrl',
+      title: 'Include Quick Zoom Links',
+      type: 'switch',
+      description: 'Adds the QuickBooks drill-down href to each report row that supports one.',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: {
-          field: 'reportType',
-          value: [...QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES],
-        },
-      },
-      value: () => 'default',
-    },
-    {
-      id: 'reportVendorExpenseSummarizeBy',
-      title: 'Summarize Columns By',
-      type: 'dropdown',
-      options: [
-        ...REPORT_TIME_SUMMARY_OPTIONS,
-        { label: 'Customer', id: 'customer' },
-        { label: 'Vendor', id: 'vendor' },
-        { label: 'Class', id: 'class' },
-        { label: 'Department', id: 'department' },
-      ],
-      mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: {
-          field: 'reportType',
-          value: [...QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES],
-        },
-      },
-      value: () => 'default',
-    },
-    {
-      id: 'reportTimeSummarizeBy',
-      title: 'Summarize Columns By',
-      type: 'dropdown',
-      options: [...REPORT_TIME_SUMMARY_OPTIONS],
-      mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: {
-          field: 'reportType',
-          value: [...QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES],
-        },
-      },
-      value: () => 'default',
+      condition: reportControlCondition('quickZoomUrl'),
     },
     {
       id: 'reportCustomerId',
@@ -1399,6 +1463,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Use Read Master Data to find an item ID',
       mode: 'advanced',
       condition: reportControlCondition('itemId'),
+    },
+    {
+      id: 'reportEmployeeId',
+      title: 'Employee ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find an employee ID',
+      mode: 'advanced',
+      condition: reportControlCondition('employeeId'),
     },
     {
       id: 'reportClassId',
@@ -1491,11 +1563,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Year', id: 'year' },
       ],
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: { field: 'reportType', value: 'transaction_list' },
-      },
+      condition: reportControlCondition('groupBy'),
       value: () => 'default',
     },
     {
@@ -1509,11 +1577,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Unpaid', id: 'unpaid' },
       ],
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: { field: 'reportType', value: 'transaction_list' },
-      },
+      condition: reportControlCondition('accountsPayablePaid'),
       value: () => 'default',
     },
     {
@@ -1527,11 +1591,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Unpaid', id: 'unpaid' },
       ],
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: REPORT_OPERATION,
-        and: { field: 'reportType', value: 'transaction_list' },
-      },
+      condition: reportControlCondition('accountsReceivablePaid'),
       value: () => 'default',
     },
     {
@@ -1625,7 +1685,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
       required: {
         field: 'operation',
-        value: ['quickbooks_update_customer', ...SALES_CREATE_OPERATIONS],
+        value: ['quickbooks_update_customer', ...SALES_CUSTOMER_REQUIRED_CREATE_OPERATIONS],
       },
     },
     {
@@ -1877,7 +1937,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       id: 'incomeAccountId',
       title: 'Income Account ID',
       type: 'short-input',
-      placeholder: 'QuickBooks income account ID',
+      placeholder: 'Required for Service items outside France locales',
+      description:
+        'QuickBooks requires an income account for Service items, except for companies on a France locale.',
       condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
     },
     {
@@ -1900,7 +1962,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'long-input',
       placeholder: 'Item purchase description',
       condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
-      mode: 'advanced',
     },
     {
       id: 'purchaseCost',
@@ -1908,13 +1969,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: '0.00',
       condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
-      mode: 'advanced',
     },
     {
       id: 'expenseAccountId',
       title: 'Expense Account ID',
       type: 'short-input',
-      placeholder: 'QuickBooks expense account ID',
+      placeholder: 'Required for Service and Non-inventory items outside France locales',
+      description:
+        'QuickBooks requires an expense account for Service and Non-inventory items, except for companies on a France locale.',
       condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
     },
     {
@@ -1942,6 +2004,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Active', id: 'active' },
         { label: 'Inactive', id: 'inactive' },
       ],
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [...MASTER_DATA_UPDATE_OPERATIONS],
@@ -2060,6 +2123,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_update_purchase_order',
           'quickbooks_create_bill',
           'quickbooks_update_bill',
+          'quickbooks_create_bill_payment',
           'quickbooks_create_vendor_credit',
           'quickbooks_update_vendor_credit',
         ],
@@ -2157,6 +2221,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_update_invoice',
           'quickbooks_create_bill',
           'quickbooks_update_bill',
+          'quickbooks_create_purchase_order',
+          'quickbooks_update_purchase_order',
         ],
       },
       mode: 'advanced',
@@ -2187,6 +2253,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_update_purchase_order',
           'quickbooks_create_bill',
           'quickbooks_update_bill',
+          'quickbooks_create_bill_payment',
           'quickbooks_create_vendor_credit',
           'quickbooks_update_vendor_credit',
           'quickbooks_create_journal_entry',
@@ -2194,6 +2261,30 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         ],
       },
       mode: 'advanced',
+    },
+    {
+      id: 'currencyCode',
+      title: 'Currency Code',
+      type: 'short-input',
+      placeholder: 'USD',
+      description:
+        'Three-letter ISO 4217 code. QuickBooks requires it once multicurrency is enabled for the company.',
+      condition: { field: 'operation', value: [...CURRENCY_CODE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'globalTaxCalculation',
+      title: 'Tax Treatment',
+      type: 'dropdown',
+      options: ({ values } = { values: {} }) =>
+        values?.operation === 'quickbooks_create_journal_entry'
+          ? [...JOURNAL_ENTRY_GLOBAL_TAX_OPTIONS]
+          : [...GLOBAL_TAX_CALCULATION_OPTIONS],
+      description:
+        'How QuickBooks applies tax. Not applicable to US companies; required for non-US companies.',
+      condition: { field: 'operation', value: [...GLOBAL_TAX_CALCULATION_OPERATIONS] },
+      mode: 'advanced',
+      value: () => 'default',
     },
     {
       id: 'privateNote',
@@ -2286,7 +2377,6 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       language: 'json',
       placeholder: '[{"invoiceId":"42","amount":75}]',
       condition: { field: 'operation', value: [...PAYMENT_OPERATIONS] },
-      mode: 'advanced',
       wandConfig: {
         enabled: true,
         placeholder: 'Describe how the payment should be allocated across invoices',
@@ -2338,8 +2428,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'No', id: 'no' },
         { label: 'Yes', id: 'yes' },
       ],
-      condition: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
-      required: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
+      condition: { field: 'operation', value: [...VOID_OPERATIONS] },
+      required: { field: 'operation', value: [...VOID_OPERATIONS] },
       value: () => 'no',
     },
     {
@@ -2386,6 +2476,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_void_invoice',
       'quickbooks_create_sales_receipt',
       'quickbooks_update_sales_receipt',
+      'quickbooks_void_sales_receipt',
       'quickbooks_create_customer_payment',
       'quickbooks_update_customer_payment',
       'quickbooks_void_customer_payment',
@@ -2400,6 +2491,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_update_bill',
       'quickbooks_create_bill_payment',
       'quickbooks_update_bill_payment',
+      'quickbooks_void_bill_payment',
       'quickbooks_create_vendor_credit',
       'quickbooks_update_vendor_credit',
       'quickbooks_create_purchase',
@@ -2486,7 +2578,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           return {
             credential: oauthCredentialValue,
             attachmentId: optionalValue(params.attachmentId),
-            fileName: optionalValue(params.attachmentFileName),
+            fileName: optionalValue(params.downloadAttachmentFileName),
           }
         }
 
@@ -2579,11 +2671,17 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
               ? optionalValue(params.reportStartDate)
               : undefined,
             endDate: optionalValue(params.reportEndDate),
+            dateMacro: reportSupports(reportType, 'dateMacro')
+              ? (params.reportDateMacro ?? 'default')
+              : undefined,
             accountingMethod: reportSupports(reportType, 'accountingMethod')
               ? (params.reportAccountingMethod ?? 'default')
               : undefined,
             summarizeBy: reportSupports(reportType, 'summarizeBy')
-              ? reportSummarizeValue(params, reportType)
+              ? (params.reportSummarizeBy ?? 'default')
+              : undefined,
+            quickZoomUrl: reportSupports(reportType, 'quickZoomUrl')
+              ? parseOptionalBoolean(params.reportQuickZoomUrl, 'quickZoomUrl')
               : undefined,
             customerId: reportSupports(reportType, 'customerId')
               ? optionalValue(params.reportCustomerId)
@@ -2593,6 +2691,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
               : undefined,
             accountId: reportSupports(reportType, 'accountId')
               ? optionalValue(params.reportAccountId)
+              : undefined,
+            employeeId: reportSupports(reportType, 'employeeId')
+              ? optionalValue(params.reportEmployeeId)
               : undefined,
             itemId: reportSupports(reportType, 'itemId')
               ? optionalValue(params.reportItemId)
@@ -2614,15 +2715,17 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
                 ? params.reportTransactionType
                 : undefined,
             groupBy:
-              reportType === 'transaction_list' && params.reportGroupBy !== 'default'
+              reportSupports(reportType, 'groupBy') && params.reportGroupBy !== 'default'
                 ? params.reportGroupBy
                 : undefined,
             accountsPayablePaid:
-              reportType === 'transaction_list' && params.reportAccountsPayablePaid !== 'default'
+              reportSupports(reportType, 'accountsPayablePaid') &&
+              params.reportAccountsPayablePaid !== 'default'
                 ? params.reportAccountsPayablePaid
                 : undefined,
             accountsReceivablePaid:
-              reportType === 'transaction_list' && params.reportAccountsReceivablePaid !== 'default'
+              reportSupports(reportType, 'accountsReceivablePaid') &&
+              params.reportAccountsReceivablePaid !== 'default'
                 ? params.reportAccountsReceivablePaid
                 : undefined,
             clearedStatus:
@@ -2639,7 +2742,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
                 : undefined,
           }
         }
-        if (SALES_VOID_OPERATIONS.includes(operation as (typeof SALES_VOID_OPERATIONS)[number])) {
+        if (VOID_OPERATIONS.includes(operation as (typeof VOID_OPERATIONS)[number])) {
           return {
             credential: oauthCredentialValue,
             transactionId: optionalValue(params.transactionId),
@@ -2741,7 +2844,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             vendorId: optionalValue(params.vendorId),
             apAccountId:
-              isPurchaseOrder || isBill || isVendorCredit
+              isPurchaseOrder || isBill || isVendorCredit || (isCreate && isBillPayment)
                 ? optionalValue(params.apAccountId)
                 : undefined,
             lines:
@@ -2767,10 +2870,15 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
                 ? parseJsonArrayInput(params.billAllocations, 'billAllocations')
                 : undefined,
             transactionDate: optionalValue(params.transactionDate),
-            dueDate: isBill ? optionalValue(params.dueDate) : undefined,
+            dueDate: isBill || isPurchaseOrder ? optionalValue(params.dueDate) : undefined,
             documentNumber:
-              isPurchaseOrder || isBill || isVendorCredit
+              isPurchaseOrder || isBill || isVendorCredit || (isCreate && isBillPayment)
                 ? optionalValue(params.documentNumber)
+                : undefined,
+            currencyCode: isCreate ? optionalValue(params.currencyCode) : undefined,
+            globalTaxCalculation:
+              isCreate && !isBillPayment
+                ? selectedGlobalTaxCalculation(params.globalTaxCalculation)
                 : undefined,
             paymentReference: isPurchase ? optionalValue(params.paymentReference) : undefined,
             privateNote: optionalValue(params.privateNote),
@@ -2807,6 +2915,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             depositAccountId: !isJournalEntry ? optionalValue(params.depositAccountId) : undefined,
             transactionDate: optionalValue(params.transactionDate),
             documentNumber: isJournalEntry ? optionalValue(params.documentNumber) : undefined,
+            currencyCode: isCreate ? optionalValue(params.currencyCode) : undefined,
+            globalTaxCalculation: isCreate
+              ? selectedGlobalTaxCalculation(params.globalTaxCalculation)
+              : undefined,
             privateNote: optionalValue(params.privateNote),
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
@@ -2928,21 +3040,17 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'string',
       description: 'Cash or accrual report basis',
     },
+    reportDateMacro: {
+      type: 'string',
+      description: 'Predefined report date range',
+    },
     reportSummarizeBy: {
       type: 'string',
       description: 'Report column summarization',
     },
-    reportCustomerSalesSummarizeBy: {
-      type: 'string',
-      description: 'Sales report column summarization',
-    },
-    reportVendorExpenseSummarizeBy: {
-      type: 'string',
-      description: 'Vendor expense report column summarization',
-    },
-    reportTimeSummarizeBy: {
-      type: 'string',
-      description: 'Time-based report column summarization',
+    reportQuickZoomUrl: {
+      type: 'boolean',
+      description: 'Whether to request quick-zoom drill-down links',
     },
     reportCustomerId: {
       type: 'string',
@@ -2952,6 +3060,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     reportAccountId: {
       type: 'string',
       description: 'Account report filter ID',
+    },
+    reportEmployeeId: {
+      type: 'string',
+      description: 'Employee report filter ID',
     },
     reportItemId: {
       type: 'string',
@@ -2974,14 +3086,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'string',
       description: 'Transaction List type filter',
     },
-    reportGroupBy: { type: 'string', description: 'Transaction List grouping' },
+    reportGroupBy: { type: 'string', description: 'Report row grouping' },
     reportAccountsPayablePaid: {
       type: 'string',
-      description: 'Transaction List A/P status',
+      description: 'Report payables paid status',
     },
     reportAccountsReceivablePaid: {
       type: 'string',
-      description: 'Transaction List A/R status',
+      description: 'Report receivables paid status',
     },
     reportClearedStatus: {
       type: 'string',
@@ -3019,7 +3131,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     maxResults: {
       type: 'number',
-      description: 'Number of list items to request, from 1 through 100',
+      description: `Number of list items to request, from 1 through ${QUICKBOOKS_MAX_RESULTS}`,
     },
     customerId: { type: 'string', description: 'QuickBooks customer ID' },
     vendorId: { type: 'string', description: 'QuickBooks vendor ID' },
@@ -3135,7 +3247,15 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     dueDate: {
       type: 'string',
-      description: 'Invoice due date in YYYY-MM-DD format',
+      description: 'Invoice, bill, or purchase-order due date in YYYY-MM-DD format',
+    },
+    currencyCode: {
+      type: 'string',
+      description: 'Three-letter ISO 4217 transaction currency code',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      description: 'Tax treatment applied to the transaction',
     },
     expirationDate: {
       type: 'string',
@@ -3230,7 +3350,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     attachmentFileName: {
       type: 'string',
-      description: 'Optional attachment filename override',
+      description: 'Optional uploaded attachment filename override',
+    },
+    downloadAttachmentFileName: {
+      type: 'string',
+      description: 'Optional downloaded attachment filename override',
     },
     attachmentContentType: {
       type: 'string',
@@ -3373,7 +3497,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     voided: {
       type: 'boolean',
       description: 'True when QuickBooks successfully voided the transaction',
-      condition: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
+      condition: { field: 'operation', value: [...VOID_OPERATIONS] },
     },
     linkingRequested: {
       type: 'boolean',

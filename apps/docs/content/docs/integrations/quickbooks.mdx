@@ -1121,6 +1121,60 @@ Sparse-update a sales receipt using its current sync token
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 
+### quickbooks_void_sales_receipt
+
+Void a sales receipt after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Sales receipt ID to void |
+| `syncToken` | string | Yes | Current sales receipt sync token |
+| `confirmVoid` | boolean | Yes | Explicit confirmation that the sales receipt should be voided |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `voided` | boolean | Whether QuickBooks voided the transaction |
+| `record` | json | Voided native QuickBooks SalesReceipt |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
 ### QuickBooks Create Customer Payment
 
 Record a customer payment with optional bounded invoice allocations
@@ -1558,7 +1612,8 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1607,7 +1662,8 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1687,7 +1743,8 @@ Create a purchase order with bounded expense lines
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1761,7 +1818,8 @@ Read, merge, and full-update purchase-order header fields
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1846,7 +1904,8 @@ Create a vendor bill with optional Purchase Order line links without paying it
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1921,7 +1980,8 @@ Read, merge, and full-update bill header fields using its current sync token
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1996,7 +2056,8 @@ Record a check or credit-card payment allocated to one or more bills
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2068,7 +2129,80 @@ Read, merge, and full-update a BillPayment without changing allocations
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### quickbooks_void_bill_payment
+
+Void a bill payment after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | BillPayment ID to void |
+| `syncToken` | string | Yes | Current BillPayment sync token |
+| `confirmVoid` | boolean | Yes | Explicit confirmation that the bill payment should be voided |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `voided` | boolean | Whether QuickBooks voided the transaction |
+| `record` | json | Voided native QuickBooks BillPayment |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2142,7 +2276,8 @@ Create a vendor credit without applying it to a bill
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2216,7 +2351,8 @@ Read, merge, and full-update vendor-credit header fields
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2291,7 +2427,8 @@ Record a cash, check, or credit-card purchase with bounded expense lines
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2364,7 +2501,8 @@ Read, merge, and full-update purchase header fields without changing lines
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2709,6 +2847,7 @@ Run a fixed QuickBooks financial report with verified accountant-focused filters
 |   ↳ `Customer` | string | Applied customer filter |
 |   ↳ `Vendor` | string | Applied vendor filter |
 |   ↳ `Account` | string | Applied account filter |
+|   ↳ `Employee` | string | Applied employee filter |
 |   ↳ `Item` | string | Applied item filter |
 |   ↳ `Class` | string | Applied class filter |
 |   ↳ `Department` | string | Applied department filter |
@@ -2796,6 +2935,7 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `POStatus` | string | Purchase order status |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2813,7 +2953,6 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `PayType` | string | Bill-payment type |
 |   ↳ `CheckPayment` | json | Check payment account details |
 |   ↳ `CreditCardPayment` | json | Credit-card payment account details |
-|   ↳ `POStatus` | string | Purchase order status |
 | `time` | string | QuickBooks response timestamp |
 
 ### QuickBooks Download Transaction PDF

@@ -442,6 +442,10 @@ export type QuickBooksReportDateMacro =
   | 'last_fiscal_year_to_date'
   | 'next_fiscal_year'
 
+/**
+ * Intuit documents the same twelve `summarize_column_by` values on every report model that
+ * advertises the control, `Employees` included.
+ */
 export type QuickBooksReportSummarizeBy =
   | 'default'
   | 'total'
@@ -452,6 +456,7 @@ export type QuickBooksReportSummarizeBy =
   | 'year'
   | 'customer'
   | 'vendor'
+  | 'employee'
   | 'item'
   | 'class'
   | 'department'
@@ -1903,7 +1908,12 @@ export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, Output
   SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
   DocNumber: { type: 'string', description: 'Transaction document number', optional: true },
   TxnDate: { type: 'string', description: 'Transaction date', optional: true },
-  DueDate: { type: 'string', description: 'Bill due date', optional: true },
+  DueDate: { type: 'string', description: 'Bill or purchase-order due date', optional: true },
+  POStatus: {
+    type: 'string',
+    description: 'Purchase order status: Open or Closed',
+    optional: true,
+  },
   VendorRef: {
     type: 'json',
     description: 'Vendor reference',

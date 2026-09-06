@@ -24,6 +24,7 @@ const QUICKBOOKS_REPORT_SUMMARIZE_VALUES: Record<
   year: 'Year',
   customer: 'Customers',
   vendor: 'Vendors',
+  employee: 'Employees',
   item: 'ProductsAndServices',
   class: 'Classes',
   department: 'Departments',
@@ -197,28 +198,41 @@ function addQuickBooksTransactionListFilters(
     QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType,
     'sourceAccountType'
   )
-  const controls = {
+  const definition = QUICKBOOKS_REPORTS[params.reportType]
+  const documentNumber = optionalQuickBooksString(params.documentNumber)
+
+  /**
+   * `group_by`, `appaid`, and `arpaid` are documented beyond Transaction List — by
+   * `inventoryvaluationdetailquery` and by the customer and vendor balance models respectively —
+   * so each is gated on the requesting report's own definition. The remaining four controls are
+   * documented only by `transactionlistquery`.
+   */
+  const perReportControls: Array<[string, string | undefined, boolean]> = [
+    ['group_by', groupBy, definition.groupBy],
+    ['appaid', accountsPayablePaid, definition.accountsPayablePaid],
+    ['arpaid', accountsReceivablePaid, definition.accountsReceivablePaid],
+  ]
+  for (const [param, value, supported] of perReportControls) {
+    if (value === undefined) continue
+    if (!supported) throw new Error(`${params.reportType} does not support ${param}`)
+    url.searchParams.set(param, value)
+  }
+
+  const transactionListControls = {
     transaction_type: transactionType,
-    group_by: groupBy,
-    appaid: accountsPayablePaid,
-    arpaid: accountsReceivablePaid,
     cleared: clearedStatus,
-    docnum: optionalQuickBooksString(params.documentNumber),
+    docnum: documentNumber,
     source_account_type: sourceAccountType,
   }
-  const supplied = Object.entries(controls).find(([, value]) => value !== undefined)
+  const supplied = Object.entries(transactionListControls).find(([, value]) => value !== undefined)
   if (params.reportType !== 'transaction_list') {
     if (supplied) throw new Error(`${params.reportType} does not support ${supplied[0]}`)
     return
   }
 
-  if (transactionType) url.searchParams.set('transaction_type', transactionType)
-  if (groupBy) url.searchParams.set('group_by', groupBy)
-  if (accountsPayablePaid) url.searchParams.set('appaid', accountsPayablePaid)
-  if (accountsReceivablePaid) url.searchParams.set('arpaid', accountsReceivablePaid)
-  if (clearedStatus) url.searchParams.set('cleared', clearedStatus)
-  if (controls.docnum) url.searchParams.set('docnum', controls.docnum)
-  if (sourceAccountType) url.searchParams.set('source_account_type', sourceAccountType)
+  for (const [param, value] of Object.entries(transactionListControls)) {
+    if (value) url.searchParams.set(param, value)
+  }
 }
 
 /**

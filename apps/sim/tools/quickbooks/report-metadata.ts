@@ -34,58 +34,32 @@ export interface QuickBooksReportDefinition {
   dateMacro: boolean
   /** Report model documents `qzurl`, which populates the quick-zoom `href` links on report rows. */
   quickZoomUrl: boolean
+  /** Report model documents `group_by`, the field the rows are grouped on. */
+  groupBy: boolean
+  /** Report model documents `appaid`, the payables paid-status filter. */
+  accountsPayablePaid: boolean
+  /** Report model documents `arpaid`, the receivables paid-status filter. */
+  accountsReceivablePaid: boolean
 }
 
-const TIME_SUMMARIES = ['total', 'day', 'week', 'month', 'quarter', 'year'] as const
+/**
+ * Intuit documents `summarize_column_by` on fourteen report query models, and every one of them
+ * lists the identical twelve values, so one list serves every report that advertises the control.
+ */
 const ALL_SUMMARIES = [
-  ...TIME_SUMMARIES,
+  'total',
+  'day',
+  'week',
+  'month',
+  'quarter',
+  'year',
   'customer',
   'vendor',
+  'employee',
   'item',
   'class',
   'department',
 ] as const
-const CUSTOMER_SALES_SUMMARIES = [
-  ...TIME_SUMMARIES,
-  'customer',
-  'item',
-  'class',
-  'department',
-] as const
-const VENDOR_EXPENSE_SUMMARIES = [
-  ...TIME_SUMMARIES,
-  'customer',
-  'vendor',
-  'class',
-  'department',
-] as const
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES = [
-  'balance_sheet',
-  'cash_flow',
-  'customer_balance',
-  'customer_income',
-  'general_ledger_detail',
-  'inventory_valuation_summary',
-  'profit_and_loss',
-  'sales_by_class',
-  'sales_by_department',
-  'vendor_balance',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES = [
-  'sales_by_customer',
-  'sales_by_item',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES = [
-  'expenses_by_vendor',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES = [
-  'trial_balance',
-  'trial_balance_fr',
-] as const satisfies readonly QuickBooksReportType[]
 
 export const QUICKBOOKS_REPORTS = {
   /** `accountlistquery` carries only account and date-window controls — no macro, filter, or basis. */
@@ -99,6 +73,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: false,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** `agedpayabledetailquery` is the one aging report whose model documents `accounting_method`. */
   ap_aging_detail: {
@@ -111,6 +88,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: true,
     dateMacro: false,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** `agedpayablesquery` documents `customer` alongside `vendor`, unlike its detail sibling. */
   ap_aging_summary: {
@@ -123,6 +103,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   ar_aging_detail: {
     endpoint: 'AgedReceivableDetail',
@@ -134,6 +117,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: true,
     dateMacro: false,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   ar_aging_summary: {
     endpoint: 'AgedReceivables',
@@ -145,6 +131,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   balance_sheet: {
     endpoint: 'BalanceSheet',
@@ -156,6 +145,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** `cashflowquery` is the only statement report documenting neither `accounting_method` nor `qzurl`. */
   cash_flow: {
@@ -168,6 +160,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   customer_balance: {
     endpoint: 'CustomerBalance',
@@ -179,8 +174,11 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: true,
   },
-  /** `customerbalancedetailquery` documents `aging_method` but neither a basis nor `date_macro`. */
+  /** `customerbalancedetailquery` documents `aging_method` and `arpaid` but neither a basis nor `date_macro`. */
   customer_balance_detail: {
     endpoint: 'CustomerBalanceDetail',
     dateMode: 'as_of',
@@ -191,6 +189,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: false,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: true,
   },
   /** `customerincomequery` filters by vendor but, unlike the sales reports, not by item. */
   customer_income: {
@@ -203,17 +204,23 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   expenses_by_vendor: {
     endpoint: 'VendorExpenses',
     dateMode: 'range',
     accountingMethod: true,
-    summarizeBy: VENDOR_EXPENSE_SUMMARIES,
+    summarizeBy: ALL_SUMMARIES,
     filters: ['customerId', 'vendorId', 'classId', 'departmentId'],
     agingMethod: false,
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** Intuit titles the `GeneralLedger` endpoint the "General Ledger Detail" report. */
   general_ledger_detail: {
@@ -226,8 +233,11 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
-  /** `inventoryvaluationdetailquery` documents no entity filters and no basis. */
+  /** `inventoryvaluationdetailquery` documents `group_by` but no entity filters and no basis. */
   inventory_valuation_detail: {
     endpoint: 'InventoryValuationDetail',
     dateMode: 'range',
@@ -238,6 +248,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: true,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** The summary endpoint is backed by `inventoryvaluationquery`, which filters only by item. */
   inventory_valuation_summary: {
@@ -250,6 +263,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   profit_and_loss: {
     endpoint: 'ProfitAndLoss',
@@ -261,6 +277,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** `profitandlossdetailquery` is the only report model documenting an `employee` filter. */
   profit_and_loss_detail: {
@@ -273,6 +292,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   sales_by_class: {
     endpoint: 'ClassSales',
@@ -284,17 +306,23 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   sales_by_customer: {
     endpoint: 'CustomerSales',
     dateMode: 'range',
     accountingMethod: true,
-    summarizeBy: CUSTOMER_SALES_SUMMARIES,
+    summarizeBy: ALL_SUMMARIES,
     filters: ['customerId', 'itemId', 'classId', 'departmentId'],
     agingMethod: false,
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   sales_by_department: {
     endpoint: 'DepartmentSales',
@@ -306,18 +334,24 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** `itemsalesquery` documents no `qzurl`, unlike its `customersalesquery` sibling. */
   sales_by_item: {
     endpoint: 'ItemSales',
     dateMode: 'range',
     accountingMethod: true,
-    summarizeBy: CUSTOMER_SALES_SUMMARIES,
+    summarizeBy: ALL_SUMMARIES,
     filters: ['customerId', 'itemId', 'classId', 'departmentId'],
     agingMethod: false,
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /** Intuit documents Tax Summary as applicable to non-US locale companies only. */
   tax_summary: {
@@ -330,17 +364,23 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   trial_balance: {
     endpoint: 'TrialBalance',
     dateMode: 'range',
     accountingMethod: true,
-    summarizeBy: TIME_SUMMARIES,
+    summarizeBy: ALL_SUMMARIES,
     filters: [],
     agingMethod: false,
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /**
    * France-locale Trial Balance. Intuit documents one report backed by `trialbalancequery` with
@@ -351,12 +391,15 @@ export const QUICKBOOKS_REPORTS = {
     endpoint: 'TrialBalanceFR',
     dateMode: 'range',
     accountingMethod: true,
-    summarizeBy: TIME_SUMMARIES,
+    summarizeBy: ALL_SUMMARIES,
     filters: [],
     agingMethod: false,
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: false,
+    accountsReceivablePaid: false,
   },
   /**
    * Transaction List is a catalog-confirmed operation
@@ -364,6 +407,9 @@ export const QUICKBOOKS_REPORTS = {
    * documents every control Sim exposes here — `appaid`, `arpaid`, `cleared`, `docnum`,
    * `source_account_type`, `transaction_type`, and `group_by` — and documents neither
    * `accounting_method` nor `summarize_column_by`, which is why both are absent below.
+   * `appaid`, `arpaid`, and `group_by` are not exclusive to it: the customer and vendor balance
+   * models document the paid-status filters, and `inventoryvaluationdetailquery` documents
+   * `group_by`.
    */
   transaction_list: {
     endpoint: 'TransactionList',
@@ -375,6 +421,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: true,
+    accountsPayablePaid: true,
+    accountsReceivablePaid: true,
   },
   vendor_balance: {
     endpoint: 'VendorBalance',
@@ -386,8 +435,11 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: true,
+    groupBy: false,
+    accountsPayablePaid: true,
+    accountsReceivablePaid: false,
   },
-  /** `vendorbalancedetailquery` documents a basis but, unlike the AR detail report, no aging. */
+  /** `vendorbalancedetailquery` documents a basis and `appaid` but, unlike the AR detail report, no aging. */
   vendor_balance_detail: {
     endpoint: 'VendorBalanceDetail',
     dateMode: 'as_of',
@@ -398,6 +450,9 @@ export const QUICKBOOKS_REPORTS = {
     agingPeriod: false,
     dateMacro: true,
     quickZoomUrl: false,
+    groupBy: false,
+    accountsPayablePaid: true,
+    accountsReceivablePaid: false,
   },
 } as const satisfies Record<QuickBooksReportType, QuickBooksReportDefinition>
 
@@ -408,6 +463,9 @@ export type QuickBooksReportControl =
   | 'accountingMethod'
   | 'summarizeBy'
   | 'quickZoomUrl'
+  | 'groupBy'
+  | 'accountsPayablePaid'
+  | 'accountsReceivablePaid'
   | QuickBooksReportFilter
   | 'agingMethod'
   | 'agingPeriod'
@@ -425,6 +483,9 @@ export function getQuickBooksReportTypesSupporting(
       if (control === 'accountingMethod') return definition.accountingMethod
       if (control === 'summarizeBy') return definition.summarizeBy.length > 0
       if (control === 'quickZoomUrl') return definition.quickZoomUrl
+      if (control === 'groupBy') return definition.groupBy
+      if (control === 'accountsPayablePaid') return definition.accountsPayablePaid
+      if (control === 'accountsReceivablePaid') return definition.accountsReceivablePaid
       if (control === 'agingMethod') return definition.agingMethod
       if (control === 'agingPeriod') return definition.agingPeriod
       return definition.filters.includes(control)
