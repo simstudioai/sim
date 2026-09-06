@@ -259,7 +259,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(mothershipTools.length > 0
         ? [
             [
-              'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
+              'The following MCP operations are enabled. Find their input schemas with search_integration_tools using the exact toolId shown, then invoke them through call_integration_tool.',
               'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
               ...mothershipTools.map((tool) => `- ${tool.name}: ${tool.description || tool.name}`),
             ].join('\n'),

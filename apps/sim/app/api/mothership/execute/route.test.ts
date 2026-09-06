@@ -172,7 +172,8 @@ describe('mothership private trace provenance transport', () => {
         requestBody,
         { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -199,7 +200,8 @@ describe('mothership private trace provenance transport', () => {
         requestBody,
         { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
@@ -221,7 +223,8 @@ describe('mothership private trace provenance transport', () => {
         },
         { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
@@ -269,7 +272,8 @@ describe('mothership private trace provenance transport', () => {
         },
         { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
@@ -319,7 +323,8 @@ describe('mothership private trace provenance transport', () => {
         },
         { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
@@ -355,7 +360,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -397,7 +403,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -432,7 +439,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -468,6 +476,9 @@ describe('mothership private trace provenance transport', () => {
         expect(payload.mothershipTools).toEqual([
           { name: 'mcp-docs', description: 'Uses secret-value' },
         ])
+        expect(JSON.stringify(payload.messages)).toContain('search_integration_tools')
+        expect(JSON.stringify(payload.messages)).toContain('call_integration_tool')
+        expect(JSON.stringify(payload.messages)).not.toContain('callable directly')
         return successResult()
       }
     )
@@ -485,7 +496,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -524,7 +536,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -555,7 +568,8 @@ describe('mothership private trace provenance transport', () => {
           'x-mothership-execute-stream': 'ndjson',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const events = (await response.text())
       .trim()
