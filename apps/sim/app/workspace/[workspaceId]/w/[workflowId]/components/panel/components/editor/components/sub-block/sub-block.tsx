@@ -1,17 +1,11 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
-import {
-  ArrowLeftRight,
-  ArrowUp,
-  Check,
-  Clipboard,
-  SquareArrowUpRight,
-  TriangleAlert,
-} from '@sim/emcn/icons'
+import { ArrowUp, Check, Clipboard, SquareArrowUpRight, TriangleAlert } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
+  CanonicalModeToggle,
   CheckboxList,
   Code,
   ComboBox,
@@ -374,37 +368,11 @@ const renderLabel = (
           </Tooltip.Root>
         )}
         {showCanonicalToggle && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                onClick={canonicalToggle?.onToggle}
-                disabled={canonicalToggleDisabledResolved}
-                aria-label={
-                  canonicalToggle?.mode === 'advanced'
-                    ? 'Switch to selector'
-                    : 'Switch to manual ID'
-                }
-              >
-                <ArrowLeftRight
-                  className={cn(
-                    'h-[12px]! w-[12px]!',
-                    canonicalToggle?.mode === 'advanced'
-                      ? 'text-[var(--text-primary)]'
-                      : 'text-[var(--text-secondary)]'
-                  )}
-                />
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>
-                {canonicalToggle?.mode === 'advanced'
-                  ? 'Switch to selector'
-                  : 'Switch to manual ID'}
-              </p>
-            </Tooltip.Content>
-          </Tooltip.Root>
+          <CanonicalModeToggle
+            mode={canonicalToggle?.mode ?? 'basic'}
+            onToggle={canonicalToggle?.onToggle}
+            disabled={canonicalToggleDisabledResolved}
+          />
         )}
       </div>
     </div>

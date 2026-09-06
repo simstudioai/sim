@@ -12,12 +12,12 @@ import {
   getCodeEditorProps,
   handleKeyboardActivation,
   highlight,
+  IconSwitch,
   Input,
   Label,
   languages,
-  Tooltip,
 } from '@sim/emcn'
-import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
+import { Plus, Trash, TypeJson, Upload } from '@sim/emcn/icons'
 import Editor from 'react-simple-code-editor'
 import {
   createDefaultInputFormatField,
@@ -83,6 +83,11 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
   { label: 'true', value: 'true' },
   { label: 'false', value: 'false' },
 ]
+
+const FILE_MODE_OPTIONS = [
+  { value: 'upload', label: 'File uploader', icon: Upload },
+  { value: 'json', label: 'JSON', icon: TypeJson },
+] as const
 
 /**
  * Validates and sanitizes field names by removing control characters and quotes
@@ -158,41 +163,24 @@ export function FieldFormat({
   }
 
   /**
-   * Renders the ⇄ toggle that switches a file field between the uploader and the
-   * raw JSON editor. Matches the canonical sub-block mode toggle. Hidden when the
-   * value can't be safely represented by the uploader.
+   * Switches a file field between the uploader and raw JSON editor, only when
+   * the value can be safely represented by the uploader.
    */
   const renderFileModeToggle = (field: Field) => {
     const { mode, canUseUploader } = getFileFieldMode(field)
     if (!canUseUploader) return null
-    const label = mode === 'upload' ? 'Switch to JSON' : 'Switch to file uploader'
     return (
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type='button'
-            className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-            onClick={() =>
-              setFileFieldModes((prev) => ({
-                ...prev,
-                [field.id]: mode === 'upload' ? 'json' : 'upload',
-              }))
-            }
-            disabled={isReadOnly}
-            aria-label={label}
-          >
-            <ArrowLeftRight
-              className={cn(
-                'h-[12px]! w-[12px]!',
-                mode === 'json' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-              )}
-            />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='top'>
-          <p>{label}</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      <IconSwitch
+        options={FILE_MODE_OPTIONS}
+        value={mode}
+        onValueChange={(nextMode) =>
+          setFileFieldModes((prev) => ({ ...prev, [field.id]: nextMode }))
+        }
+        disabled={isReadOnly}
+        showTooltips
+        aria-label='File input mode'
+        className='-my-1'
+      />
     )
   }
 
