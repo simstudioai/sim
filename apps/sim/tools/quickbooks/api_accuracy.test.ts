@@ -21,6 +21,17 @@ import { quickbooksReadMasterDataTool } from '@/tools/quickbooks/read_master_dat
 import { quickbooksReadPurchasingTransactionsTool } from '@/tools/quickbooks/read_purchasing_transactions'
 import { quickbooksReadSalesTransactionsTool } from '@/tools/quickbooks/read_sales_transactions'
 import type { QuickBooksAttachmentTargetType } from '@/tools/quickbooks/types'
+import {
+  buildQuickBooksMasterDataQueryUrl,
+  buildQuickBooksQueryUrl,
+  buildQuickBooksSalesQueryUrl,
+} from '@/tools/quickbooks/utils'
+import {
+  parseQuickBooksAddress,
+  quickBooksDisplayName,
+  quickBooksEmailAddress,
+  quickBooksItemName,
+} from '@/tools/quickbooks/values'
 
 describe('QuickBooks credential authority', () => {
   it('declares both credential-derived routing parameters on every tool', () => {
@@ -330,5 +341,117 @@ describe('QuickBooks locale-dependent item accounts', () => {
         itemType: 'service',
       })
     ).toEqual({ Name: 'Conseil', Type: 'Service' })
+  })
+})
+
+describe('QuickBooks documented query language', () => {
+  const auth = {
+    accessToken: 'token',
+    realmId: '123',
+    quickBooksEnvironment: 'sandbox',
+  } as const
+
+  function getQueryStatement(url: URL): string {
+    return url.searchParams.get('query') ?? ''
+  }
+
+  it('percent-encodes spaces rather than using the form-encoded plus', () => {
+    const url = buildQuickBooksQueryUrl(auth, 'Customer', 1, 25)
+
+    expect(url.search).not.toContain('+')
+    expect(url.search).toContain(
+      'query=SELECT%20*%20FROM%20Customer%20STARTPOSITION%201%20MAXRESULTS%2025'
+    )
+  })
+
+  it('emits one-based STARTPOSITION and MAXRESULTS in the documented order', () => {
+    expect(getQueryStatement(buildQuickBooksQueryUrl(auth, 'Invoice', 26, 25))).toBe(
+      'SELECT * FROM Invoice STARTPOSITION 26 MAXRESULTS 25'
+    )
+  })
+
+  it('renders a boolean Active filter unquoted', () => {
+    expect(
+      getQueryStatement(
+        buildQuickBooksMasterDataQueryUrl({
+          ...auth,
+          recordType: 'vendor',
+          readMode: 'list',
+          activeStatus: 'inactive',
+        })
+      )
+    ).toBe('SELECT * FROM Vendor WHERE Active = false STARTPOSITION 1 MAXRESULTS 25')
+  })
+
+  it('omits the WHERE clause when no filter is requested', () => {
+    expect(
+      getQueryStatement(
+        buildQuickBooksMasterDataQueryUrl({ ...auth, recordType: 'item', readMode: 'list' })
+      )
+    ).toBe('SELECT * FROM Item STARTPOSITION 1 MAXRESULTS 25')
+  })
+
+  it('escapes backslashes before apostrophes in a filter value', () => {
+    expect(
+      getQueryStatement(
+        buildQuickBooksSalesQueryUrl({
+          ...auth,
+          transactionType: 'invoice',
+          readMode: 'list',
+          customerId: "a\\b'c",
+        })
+      )
+    ).toBe("SELECT * FROM Invoice WHERE CustomerRef = 'a\\\\b\\'c' STARTPOSITION 1 MAXRESULTS 25")
+  })
+
+  it('accepts the documented maximum page size of 1000', () => {
+    expect(getQueryStatement(buildQuickBooksQueryUrl(auth, 'Customer', 1, 1000))).toBe(
+      'SELECT * FROM Customer STARTPOSITION 1 MAXRESULTS 1000'
+    )
+    expect(() => buildQuickBooksQueryUrl(auth, 'Customer', 1, 1001)).toThrow(
+      'maxResults must be an integer from 1 through 1000'
+    )
+  })
+})
+
+describe('QuickBooks documented field constraints', () => {
+  it('writes back every address line QuickBooks returns', () => {
+    expect(
+      parseQuickBooksAddress(
+        { Line1: '1', Line2: '2', Line3: '3', Line4: '4', Line5: '5' },
+        'billingAddress'
+      )
+    ).toEqual({ Line1: '1', Line2: '2', Line3: '3', Line4: '4', Line5: '5' })
+    expect(parseQuickBooksAddress({ line3: '3' }, 'billingAddress')).toEqual({ Line3: '3' })
+  })
+
+  it('rejects an item name QuickBooks documents as invalid', () => {
+    expect(() => quickBooksItemName('Parent:Child')).toThrow(
+      'name cannot include tabs, new lines, or colons'
+    )
+    expect(() => quickBooksItemName('a'.repeat(101))).toThrow('name cannot exceed 100 characters')
+    expect(quickBooksItemName('Consulting')).toBe('Consulting')
+  })
+
+  it('rejects a display name past the documented 500-character maximum', () => {
+    expect(() => quickBooksDisplayName('a'.repeat(501), 'displayName')).toThrow(
+      'displayName cannot exceed 500 characters'
+    )
+    expect(quickBooksDisplayName('a'.repeat(500), 'displayName')).toHaveLength(500)
+  })
+
+  it('rejects an email address QuickBooks cannot store', () => {
+    expect(() => quickBooksEmailAddress('not-an-email')).toThrow(
+      'Email address must be a valid address such as name@example.com'
+    )
+    expect(() => quickBooksEmailAddress('a@b@c.com')).toThrow(
+      'Email address must be a valid address such as name@example.com'
+    )
+    expect(() => quickBooksEmailAddress(`${'a'.repeat(95)}@example.com`)).toThrow(
+      'Email address cannot exceed 100 characters'
+    )
+    expect(quickBooksEmailAddress('billing@example.com')).toEqual({
+      Address: 'billing@example.com',
+    })
   })
 })
