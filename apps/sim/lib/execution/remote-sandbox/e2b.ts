@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Sandbox as E2BSandbox, Template as E2BTemplate } from '@e2b/code-interpreter'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import {
   IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
@@ -29,6 +29,11 @@ import {
   sandboxCliVerificationCommand,
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import {
+  recordSandboxProcess,
+  reportUnsettledSandboxProcess,
+  settleSandboxProcess,
+} from '@/lib/execution/remote-sandbox/execution-observer'
+import {
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MATERIALIZER_REVISION,
   FUNCTION_SANDBOX_MEMORY_MB,
@@ -51,6 +56,12 @@ import {
   SIM_NODE_MODULES_DIR,
   systemPackageInstallCommand,
 } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
+import {
+  type SessionProcessIdentity,
+  sessionProcessCommand,
+  sessionProcessStopCommand,
+} from '@/lib/execution/remote-sandbox/session-process'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,
@@ -308,6 +319,62 @@ function templateFor(kind: SandboxKind, imageRef?: string): string {
 
 /** Metadata key that tags a sandbox with its owning session for reconnection. */
 const E2B_SESSION_METADATA_KEY = 'simSessionKey'
+const E2B_SESSION_OWNERSHIP_KEY = 'simSessionOwnership'
+const E2B_SESSION_OWNERSHIP_VERSION = 'tracked-v1'
+
+async function stopSessionCommand(
+  sandbox: E2BSandbox,
+  processId: string,
+  signal = AbortSignal.timeout(10_000)
+): Promise<void> {
+  signal.throwIfAborted()
+  const result = await sandbox.commands.run(sessionProcessStopCommand(processId), {
+    user: 'root',
+    background: false,
+    timeoutMs: 5_000,
+    signal,
+  })
+  const receipt: unknown = JSON.parse(result.stdout)
+  if (result.exitCode !== 0 || !isRecordLike(receipt) || receipt.settled !== true) {
+    throw new Error('Sandbox command namespace exit is unconfirmed')
+  }
+}
+
+/** Recovers the exact recorded workbench; expiry is absence, while lookup failure stays unresolved. */
+export async function stopE2BSessionProcess(
+  process: SessionProcessIdentity,
+  signal: AbortSignal
+): Promise<void> {
+  const apiKey = env.E2B_API_KEY
+  if (!apiKey) throw new Error('E2B_API_KEY is required for sandbox command recovery')
+  const { Sandbox, NotFoundError } = await import('@e2b/code-interpreter')
+  const sandbox = await withSandboxSessionLock(process.sessionKey, signal, async (leaseSignal) => {
+    const info = await Sandbox.getInfo(process.sandboxId, {
+      apiKey,
+      requestTimeoutMs: 5_000,
+      signal: leaseSignal,
+    }).catch((error: unknown) => {
+      if (error instanceof NotFoundError) return null
+      throw error
+    })
+    if (!info) return null
+    leaseSignal.throwIfAborted()
+    if (info.metadata[E2B_SESSION_METADATA_KEY] !== process.sessionKey) {
+      throw new Error('Sandbox command recovery scope does not match its recorded workbench')
+    }
+    return await Sandbox.connect(process.sandboxId, {
+      apiKey,
+      timeoutMs: Math.max(30_000, info.endAt.getTime() - Date.now()),
+      requestTimeoutMs: 5_000,
+      signal: leaseSignal,
+    }).catch((error: unknown) => {
+      if (error instanceof NotFoundError) return null
+      throw error
+    })
+  })
+  /** Only reconnect/lease extension needs serialization; parallel commands stop independently. */
+  if (sandbox) await stopSessionCommand(sandbox, process.id, signal)
+}
 
 class E2BSandboxHandle implements SandboxHandle {
   private killed = false
@@ -316,7 +383,8 @@ class E2BSandboxHandle implements SandboxHandle {
   constructor(
     private readonly sandbox: E2BSandbox,
     private readonly language: CodeLanguage,
-    private readonly providerLimitAtMs?: number
+    private readonly providerLimitAtMs?: number,
+    private readonly sessionKey?: string
   ) {}
 
   get sandboxId(): string {
@@ -324,7 +392,13 @@ class E2BSandboxHandle implements SandboxHandle {
   }
 
   async extendLifetime(lifetimeMs: number): Promise<void> {
-    await this.sandbox.setTimeout(e2bTimeoutMs(lifetimeMs))
+    const timeoutMs = e2bTimeoutMs(lifetimeMs)
+    if (this.sessionKey !== undefined) {
+      /** Session callers serialize updates so a short job cannot shorten another job's lease. */
+      const info = await this.sandbox.getInfo()
+      if (info.endAt.getTime() >= Date.now() + timeoutMs) return
+    }
+    await this.sandbox.setTimeout(timeoutMs)
   }
 
   async runCode(
@@ -405,24 +479,51 @@ class E2BSandboxHandle implements SandboxHandle {
     return this.runCommandInternal(command, options, 'command')
   }
 
+  async removeFile(path: string): Promise<void> {
+    await this.sandbox.files.remove(path, { requestTimeoutMs: 5_000 })
+  }
+
   private async runCommandInternal(
     command: string,
     options: RunCommandOptions,
     operation: 'code' | 'command'
   ): Promise<SandboxCommandResult> {
+    if (this.sessionKey !== undefined) options.signal?.throwIfAborted()
     const outputBudget = new SandboxProcessOutputBudget(
       options.maxOutputBytes ?? MAX_SANDBOX_PROCESS_OUTPUT_BYTES
     )
     /**
      * E2B's SDK accumulates every callback-delivered chunk in its own result strings, so all streams
      * must share the process budget even when Sim's caller consumes them incrementally. The callback
-     * still receives each chunk that fits; the sandbox is stopped before later chunks can make the
-     * SDK's retained copy grow without bound.
+     * still receives each chunk that fits. Session workbenches stop only the offending process;
+     * execution-owned sandboxes retain their whole-sandbox teardown policy.
      */
     const retainStdout = options.onStdout === undefined
     const retainStderr = options.onStderr === undefined
     let observedStdout = ''
     let observedStderr = ''
+    const processId = this.sessionKey !== undefined ? generateId() : undefined
+    let processRecorded = false
+    let stopping: Promise<void> | undefined
+    const stopCommand = (): Promise<void> => {
+      if (!processId || !processRecorded) return Promise.resolve()
+      stopping ??= stopSessionCommand(this.sandbox, processId).catch((error: unknown) => {
+        logger.warn('Failed to stop sandbox process', {
+          sandboxId: this.sandboxId,
+          processId,
+          error: getErrorMessage(error),
+        })
+        throw error
+      })
+      return stopping
+    }
+    const onAbort = () => {
+      /** The operation's finally joins this request and propagates failure. */
+      void stopCommand().catch(() => {})
+    }
+    if (this.sessionKey !== undefined) {
+      options.signal?.addEventListener('abort', onAbort, { once: true })
+    }
     const guardOutput = (
       value: string,
       append: (chunk: string) => void,
@@ -431,42 +532,57 @@ class E2BSandboxHandle implements SandboxHandle {
       try {
         outputBudget.add(value)
       } catch (error) {
-        void this.kill().catch(() => {})
+        if (this.sessionKey !== undefined) void stopCommand().catch(() => {})
+        else void this.kill().catch(() => {})
         throw error
       }
       append(value)
       callback?.(value)
     }
     try {
+      if (processId && this.sessionKey !== undefined) {
+        await recordSandboxProcess({
+          id: processId,
+          sandboxId: this.sandboxId,
+          sessionKey: this.sessionKey,
+        })
+        processRecorded = true
+        options.signal?.throwIfAborted()
+      }
       const prepared = prepareE2BCommand(command, options.envs)
       const processOptions = {
         ...(prepared.envs ? { envs: prepared.envs } : {}),
         timeoutMs: e2bTimeoutMs(options.timeoutMs),
         ...(options.signal ? { signal: options.signal } : {}),
-        ...(options.rootUser ? { user: 'root' as const } : {}),
+        ...(processId || options.rootUser ? { user: 'root' as const } : {}),
       }
       let started: Awaited<ReturnType<E2BSandbox['commands']['run']>>
       try {
-        started = await this.sandbox.commands.run(prepared.command, {
-          ...processOptions,
-          background: true,
-          onStdout: (chunk: string) =>
-            guardOutput(
-              chunk,
-              (value) => {
-                observedStdout += value
-              },
-              options.onStdout
-            ),
-          onStderr: (chunk: string) =>
-            guardOutput(
-              chunk,
-              (value) => {
-                observedStderr += value
-              },
-              options.onStderr
-            ),
-        })
+        started = await this.sandbox.commands.run(
+          processId
+            ? sessionProcessCommand(processId, prepared.command, options.rootUser)
+            : prepared.command,
+          {
+            ...processOptions,
+            background: true,
+            onStdout: (chunk: string) =>
+              guardOutput(
+                chunk,
+                (value) => {
+                  observedStdout += value
+                },
+                options.onStdout
+              ),
+            onStderr: (chunk: string) =>
+              guardOutput(
+                chunk,
+                (value) => {
+                  observedStderr += value
+                },
+                options.onStderr
+              ),
+          }
+        )
       } catch (error) {
         if (options.signal?.aborted || isE2BExecutionTimeout(error)) throw error
         const failure = error as { stdout?: string; stderr?: string; exitCode?: number }
@@ -483,6 +599,10 @@ class E2BSandboxHandle implements SandboxHandle {
         throw error
       }
 
+      if (this.sessionKey !== undefined) {
+        options.signal?.throwIfAborted()
+        if (outputBudget.error) throw outputBudget.error
+      }
       let result
       if ('wait' in started && typeof started.wait === 'function') {
         try {
@@ -495,7 +615,7 @@ class E2BSandboxHandle implements SandboxHandle {
             failure.exitCode !== undefined ||
             isE2BExecutionTimeout(error)
           if (options.signal?.aborted || outputBudget.error || isTerminalFailure) throw error
-          if (options.atMostOnce) {
+          if (options.atMostOnce && this.sessionKey === undefined) {
             throw new SandboxLaunchIndeterminateError('E2B', { cause: error })
           }
 
@@ -592,6 +712,16 @@ class E2BSandboxHandle implements SandboxHandle {
         stdout: failureStdout ?? '',
         stderr: failureStderr ?? failure.message ?? getErrorMessage(error),
         exitCode: failure.exitCode ?? 1,
+      }
+    } finally {
+      options.signal?.removeEventListener('abort', onAbort)
+      /** The named SDK process can exit before its namespace; only the kernel receipt settles it. */
+      if (processId && processRecorded) {
+        await stopCommand().catch((error: unknown) => {
+          reportUnsettledSandboxProcess(processId)
+          throw error
+        })
+        await settleSandboxProcess(processId)
       }
     }
   }
@@ -907,7 +1037,12 @@ export const e2bProvider: SandboxProvider = {
       apiKey,
       ...(effectiveLifetimeMs !== undefined ? { timeoutMs: effectiveLifetimeMs } : {}),
       ...(options?.sessionKey
-        ? { metadata: { [E2B_SESSION_METADATA_KEY]: options.sessionKey } }
+        ? {
+            metadata: {
+              [E2B_SESSION_METADATA_KEY]: options.sessionKey,
+              [E2B_SESSION_OWNERSHIP_KEY]: E2B_SESSION_OWNERSHIP_VERSION,
+            },
+          }
         : {}),
     }
 
@@ -921,7 +1056,8 @@ export const e2bProvider: SandboxProvider = {
       options?.language ?? CodeLanguage.Python,
       effectiveLifetimeMs === E2B_MAX_SANDBOX_LIFETIME_MS
         ? lifetimeStartedAtMs + E2B_MAX_SANDBOX_LIFETIME_MS
-        : undefined
+        : undefined,
+      options?.sessionKey
     )
   },
 
@@ -930,25 +1066,25 @@ export const e2bProvider: SandboxProvider = {
     options: { language?: CodeLanguage }
   ): Promise<SandboxHandle | null> {
     const apiKey = env.E2B_API_KEY
-    if (!apiKey) return null
+    if (!apiKey) throw new Error('E2B_API_KEY is required when E2B is enabled')
     const { Sandbox } = await import('@e2b/code-interpreter')
-    try {
-      const paginator = Sandbox.list({
-        apiKey,
-        query: { metadata: { [E2B_SESSION_METADATA_KEY]: key }, state: ['running'] },
-      })
-      const candidates = await paginator.nextItems()
-      if (candidates.length === 0) return null
-      // Oldest first: when a race created two sandboxes for one session, every
-      // later execution adopts the same one and the stragglers idle out.
-      candidates.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
-      const sandbox = await Sandbox.connect(candidates[0].sandboxId, { apiKey })
-      return new E2BSandboxHandle(sandbox, options.language ?? CodeLanguage.Python)
-    } catch (error) {
-      // A sandbox reaped between list and connect is an ordinary miss, and any
-      // other lookup failure degrades to a fresh create rather than an error.
-      logger.info('E2B session sandbox lookup missed', { key, error: getErrorMessage(error) })
-      return null
+    const paginator = Sandbox.list({
+      apiKey,
+      query: { metadata: { [E2B_SESSION_METADATA_KEY]: key }, state: ['running', 'paused'] },
+    })
+    const candidates = await paginator.nextItems()
+    while (paginator.hasNext) candidates.push(...(await paginator.nextItems()))
+    if (candidates.length === 0) return null
+    candidates.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
+    const candidate = candidates[0]
+    if (candidate.metadata[E2B_SESSION_OWNERSHIP_KEY] !== E2B_SESSION_OWNERSHIP_VERSION) {
+      throw new Error(
+        'This workbench predates durable execution ownership and requires recovery before reuse'
+      )
     }
+    // Connect also sets a timeout, including for running sandboxes. Preserve the active deadline.
+    const timeoutMs = Math.max(5 * 60_000, candidate.endAt.getTime() - Date.now())
+    const sandbox = await Sandbox.connect(candidate.sandboxId, { apiKey, timeoutMs })
+    return new E2BSandboxHandle(sandbox, options.language ?? CodeLanguage.Python, undefined, key)
   },
 }

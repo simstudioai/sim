@@ -81,20 +81,14 @@ export interface SandboxExecutionRequest {
 /**
  * Opts an execution into a reusable session sandbox: the first execution
  * creates and tags the sandbox, later ones reconnect to it, and each one
- * refreshes its idle deadline instead of killing it. Never combined with
- * metered usage — session sandboxes are server-owned (Mothership), not billed
- * to workspace compute.
+ * refreshes its idle deadline instead of killing it. Mothership owns the session;
+ * metered calls still report execution cost to its normal usage settlement.
  */
 export interface SandboxSessionRequest {
   /** Stable identity of the session (e.g. one per Mothership chat). */
   key: string
-  /**
-   * Shell command run once after a fresh session sandbox is created, before
-   * the first execution — the seam that installs tooling the image does not
-   * bake in yet. Best-effort: a failed bootstrap logs and the execution
-   * proceeds.
-   */
-  bootstrapCommand?: string
+  /** Deployment-owned CLI artifact. Its versioned directory is prepended to this execution's PATH. */
+  cli?: { path: string; content: string }
   /** Extra environment variables present on every execution in the session. */
   envs?: Record<string, string>
 }
@@ -250,7 +244,8 @@ export interface SandboxHandle {
    * Language is bound at creation rather than per call because Daytona applies it
    * as a sandbox label (`code-toolbox-language`) and silently ignores a per-call
    * override — passing `javascript` to its `codeRun` executes the source through
-   * Python instead. We create one sandbox per execution, so binding costs nothing.
+   * Python instead. Reconnecting a session returns a handle bound to the requested
+   * language; the underlying filesystem remains shared.
    */
   runCode(
     code: string,
@@ -290,6 +285,8 @@ export interface SandboxHandle {
    * delivered without any shell parsing.
    */
   writeFile(path: string, content: string | ArrayBuffer): Promise<void>
+  /** Removes a caller-owned temporary file through the provider filesystem API. */
+  removeFile(path: string): Promise<void>
   /**
    * Lists regular files under a directory, recursively to `depth`.
    *
@@ -450,7 +447,8 @@ export interface SandboxProvider {
   /**
    * Reconnects to a live sandbox previously created with
    * {@link CreateSandboxOptions.sessionKey}, or resolves null when none is
-   * running. Providers without session support omit this method; callers then
+   * available. Lookup failures must throw rather than masquerade as absence.
+   * Providers without session support omit this method; callers then
    * run every execution in a fresh sandbox.
    */
   findSessionSandbox?(
