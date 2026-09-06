@@ -43,6 +43,15 @@ export const selectorContextKeys = [
   'secure',
   'username',
   'password',
+  'personId',
+  'personNumber',
+  'effectiveDate',
+  'payrollRelationshipId',
+  'legislativeDataGroupId',
+  'assignmentId',
+  'reviewPeriodId',
+  'dataSourceUsageId',
+  'timeAttributeUsageId',
 ] as const
 
 export type SelectorContextKey = (typeof selectorContextKeys)[number]

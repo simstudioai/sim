@@ -1,0 +1,2813 @@
+---
+title: Oracle Fusion Cloud HCM
+description: Workforce, payroll records, compensation, talent, and time
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_hcm"
+  color="#F80000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The Oracle Fusion Cloud HCM integration provides **76 tools: 67 reads and nine administrative writes**. It uses the shared Oracle Fusion foundation, versioned `11.13.18.05` HCM REST resources, and REST Framework version 9. The original 18 workforce/absence tools and four selectors retain their contracts; payroll, compensation, talent, and Time and Labor add 58 tools and 12 selectors in this same block.
+
+## Connection and access
+
+Select a reusable Oracle Fusion integration-user credential. The stored application origin is authoritative; callers cannot replace the tenant, authentication headers, or REST resource family. Assign only the function/data privileges and security profiles needed for each workflow. A workforce reader is not automatically a payroll, compensation, talent, or time administrator.
+
+Oracle must provision the relevant modules and REST capabilities. Payroll access depends on the legislative data group, country legislation, payroll setup, employment level, and secured person population. Compensation depends on salary bases, element setup, and assignment eligibility. Talent sections and performance documents are secured separately; some capabilities depend on enabled profile content and feature availability. Time intake requires Time and Labor configuration, valid time attributes, reporter/assignment eligibility, and applicable entry/audit rules. These tools do not bypass tenant permissions or lifecycle validations, and do not imply that every resource is available in every edition, country, or tenant release. Confirm the exact privileges with the tenant security administrator before enabling writes.
+
+Oracle references: [API index](https://docs.oracle.com/en/cloud/saas/human-resources/farws/index.html), [authorization](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Authorize.html), [collection queries](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Query_a_Collection.html), and [pagination](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Navigate_a_Collection.html).
+
+## Coverage and boundaries
+
+| Area | Reads | Writes |
+| --- | ---: | ---: |
+| Workers, assignments, reporting, absences, workforce structures | 18 | 0 |
+| Payroll relationships, assignments, definitions, elements, results, balances | 17 | 4 |
+| Salaries, bases, components, grade-rate values | 5 | 2 |
+| Goal plans, goals, performance participation/tasks, secured talent profiles | 16 | 0 |
+| Time records/cards, configuration, intake events and messages | 11 | 3 |
+
+Recruiting, Learning, payroll-flow orchestration, tax/payment administration, approval-sensitive talent writes, device ingestion, third-party payroll transfer acknowledgements, and triggers are excluded. Managing payroll-related records does **not** execute an end-to-end payroll process.
+
+List tools return one page: default `limit=20`, maximum 100, default `offset=0`. Continue deliberately using `hasMore` and `nextOffset`. Each child collection has its own pagination. Search is bounded to 200 characters. Tools expose only documented filters; arbitrary URLs, headers, Oracle query expressions, finders, expansion, and action bodies are not accepted.
+
+The public-worker tools remain a current-directory surface, not a historical termination feed or bulk extract. New payroll relationship and salary history reads do not require a successful current-public-worker lookup. Use manual IDs when records cannot be discovered through the directory selector. Absence date filtering still requires an absence type and a complete date pair.
+
+## Payroll records and compensation
+
+Payroll assignment `payrollAssignmentId` is Oracle's `RelationshipGroupId`, **not** the HR `AssignmentId`. Opaque/date-effective resource keys are resolved under their actual parent using validated self-links. Supply identifiers as positive decimal strings; server-side serialization preserves integer request fields exactly, including nested element input IDs.
+
+Assigned-payroll creation requires payroll identity and both effective and assignment date ranges. Its update tool supports only the documented record fields, not payroll transfers. Effective-dated updates require an explicit `CORRECTION` or `UPDATE` mode and effective date. Correction can change historical data; update begins an effective-dated change. Element input values remain text or explicit null, so decimal strings are not rounded.
+
+Salary creation and correction support **user-entered salary bases only**. Creation requires HR assignment, salary basis, amount, and effective date range; it uses `MultipleComponents=N`. Correction changes the amount on the selected historical salary record rather than creating a new salary interval. Neither tool submits an approval request. Standard, simple, and rate component reads are separate choices within List Salary Components; only the selected family is populated and paginated.
+
+Payroll run-result values, balance slots, and goal completion percentages remain their documented strings. Balance `value1`–`value10`, definition IDs, and context/dimension labels are preserved without inventing net-pay or year-to-date meanings.
+
+When updating an element input value, supply its text value or explicitly enable `clearScreenEntryValue`. Clearing writes Oracle's documented null value; a missing value alone never clears it. Direct execution also accepts an explicit null. The clear flag follows the established integration pattern for model interfaces that cannot express nullable scalar parameters.
+
+Operation contracts: [assigned payroll creation](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollrelationships-payrollrelationshipsuniqid-child-payrollassignments-payrollassignmentsuniqid-child-assignedpayrolls-post.html), [element entry creation](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-elemententries-post.html), [salary creation](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salaries-post.html), [salary correction](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salaries-salaryid-patch.html), and [salary bases](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salarybasislov-get.html). Required fields follow the formal operation schemas even where abbreviated examples omit them.
+
+## Talent and performance
+
+Read goal plans, performance/development goals, performance documents, roles, participants, and participant tasks. Read secured skill/certification sections and their items through the talent person profile hierarchy. There are no goal, rating, review-submission, approval, or profile mutation tools. The separately controlled `publicSkills` capability is not used.
+
+References: [performance goals](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-performancegoals-get.html), [development goals](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-searchdevgoals-get.html), [performance documents](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-performanceevaluations-get.html), and [secured talent profiles](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-talentpersonprofiles-get.html).
+
+## Time and Labor
+
+Time-record reads select the `TimeCardEntry` layer; time-card reads select `ProcessedTimecard`. Provide a person number and ordered ISO 8601 timestamps with explicit offsets. Configuration discovery uses the documented `ORA_HWM_TIME_RECORDS_REST` context. Discover attribute field/usage IDs, data-source usage IDs, and criteria binds before requesting values. The payroll-time-type selector binds `pAssignmentId` and `pEffectiveDate`; tenants with different attribute bindings can use the typed value-list tool.
+
+Create, update, and delete time-entry tools all **POST intake requests** to `timeRecordEventRequests`, with fixed `ADD`, `UPDATE`, or `DELETE` operations. They never directly PATCH or DELETE `timeRecords`. Reporter IDs are person numbers, including leading zeros. Update/delete require the existing record ID and current version. Create accepts a complete start/stop range or a positive measure, including documented combinations of both. Update can change individual time or attribute fields, including only the stop time. Optional `referenceDate` controls processing for entries spanning multiple days; it is not a substitute for a quantity-entry date. Oracle validates entries against the worker's time configuration. Qualifiers are bounded typed name/value pairs from time configuration discovery.
+
+Intake always uses asynchronous `processInline=N`. Choose `TIME_ENTER` (default), `TIME_SAVE`, or `TIME_SUBMIT` explicitly. A returned request ID is only a receipt—not completed processing, approval, or payroll transfer. Read request events for processing status, then event messages for validation identifiers/fields. Request headers do not contain a fabricated aggregate processing status, and message results do not invent undocumented message text. Nested POST children use Oracle's documented parent-create semantics: the service establishes generated request/event parent identifiers.
+
+References: [time records](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecords-get.html), [time attribute values](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timeattributevalues-get.html), [time intake](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecordeventrequests-post.html), and [processing events](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecordeventrequests-timerecordeventrequestid-child-timerecordevent-get.html).
+
+## Sensitive data and failures
+
+Existing workforce projections are unchanged and are not enriched with compensation, payroll, or talent data. Those sensitive fields are confined to their dedicated tools. Selector options omit salary amounts and payroll results. Outputs omit raw self-links, flexfields, attachments, certificate numbers/URLs, private talent narratives, medical data, tax/payment administration, and unrelated child records. Location catalog locality fields remain available.
+
+The foundation pins the credential-bound origin, validates public DNS, prohibits redirects, preserves large integer identifiers, caps responses at 5 MiB, and propagates cancellation. Authentication, authorization, missing-resource, rate-limit, malformed-response, and timeout failures retain safe status semantics without raw Oracle errors. GET retries remain bounded by the shared client. Mutations are never automatically replayed by this integration; ambiguous failures are non-retryable. Inspect Oracle state before a deliberate retry. No live-tenant writes are used for automated validation.
+
+Before production use, verify module availability, least-privilege data access, date-effective behavior, salary-basis restrictions, configured time attributes/audit reasons, and asynchronous processing in an authorized non-production tenant. CI uses mocked documented contracts, not a tenant connection.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Oracle Fusion Cloud HCM using a reusable integration-user credential. Preserve workforce and absence reads while accessing dedicated payroll, compensation, secured talent, and Time and Labor tools. Administrative salary and payroll-record writes require separate privileges. Time-entry intake is asynchronous: inspect events and messages before treating it as complete. No payroll orchestration, Recruiting, Learning, tax, or payment administration.
+
+
+
+## Actions
+
+### List Payroll Relationships in Oracle Fusion HCM
+
+Read one page of payroll relationships from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personNumber` | string | No | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollRelationships` | array | Payroll Relationship records |
+|   ↳ `payrollRelationshipId` | string | PayrollRelationshipId |
+|   ↳ `payrollRelationshipNumber` | string | PayrollRelationshipNumber |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `country` | string | Country |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+
+### Get Payroll Relationship in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM payroll relationship by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payrollRelationship` | object | Payroll Relationship |
+|   ↳ `payrollRelationshipId` | string | PayrollRelationshipId |
+|   ↳ `payrollRelationshipNumber` | string | PayrollRelationshipNumber |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `country` | string | Country |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+
+### List Payroll Assignments in Oracle Fusion HCM
+
+Read one page of payroll assignments from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollAssignments` | array | Payroll Assignment records |
+|   ↳ `payrollAssignmentId` | string | RelationshipGroupId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+|   ↳ `timeCardRequired` | string | TimeCardRequired |
+
+### Get Payroll Assignment in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM payroll assignment by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `payrollAssignmentId` | string | Yes | Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payrollAssignment` | object | Payroll Assignment |
+|   ↳ `payrollAssignmentId` | string | RelationshipGroupId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+|   ↳ `timeCardRequired` | string | TimeCardRequired |
+
+### List Assigned Payrolls in Oracle Fusion HCM
+
+Read one page of assigned payrolls from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `payrollAssignmentId` | string | Yes | Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `assignedPayrolls` | array | Assigned Payroll records |
+|   ↳ `assignedPayrollId` | string | AssignedPayrollId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payrollName` | string | PayrollName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `lsed` | string | Lsed |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+|   ↳ `timeCardRequired` | string | TimeCardRequired |
+
+### Get Assigned Payroll in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM assigned payroll by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `payrollAssignmentId` | string | Yes | Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string |
+| `assignedPayrollId` | string | Yes | Assigned payroll ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignedPayroll` | object | Assigned Payroll |
+|   ↳ `assignedPayrollId` | string | AssignedPayrollId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payrollName` | string | PayrollName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `lsed` | string | Lsed |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+|   ↳ `timeCardRequired` | string | TimeCardRequired |
+
+### Create Assigned Payroll in Oracle Fusion HCM
+
+Create Assigned Payroll using documented Oracle fields. Requires administrative privileges and valid tenant configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `payrollAssignmentId` | string | Yes | Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string |
+| `payrollId` | string | Yes | Payroll ID, as a positive decimal string |
+| `effectiveStartDate` | string | Yes | Effective start date in YYYY-MM-DD format |
+| `effectiveEndDate` | string | Yes | Effective end date in YYYY-MM-DD format |
+| `startDate` | string | Yes | Start date in YYYY-MM-DD format |
+| `endDate` | string | Yes | End date in YYYY-MM-DD format |
+| `lsed` | string | No | Lsed in YYYY-MM-DD format |
+| `overridingPeriodId` | string | No | Overriding period ID, as a positive decimal string |
+| `timeCardRequired` | string | No | Oracle time-card requirement code, such as Y or N |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignedPayroll` | object | Assigned Payroll |
+|   ↳ `assignedPayrollId` | string | AssignedPayrollId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payrollName` | string | PayrollName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `lsed` | string | Lsed |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+|   ↳ `timeCardRequired` | string | TimeCardRequired |
+
+### Update Assigned Payroll in Oracle Fusion HCM
+
+Correct or effectively update an assigned-payroll record. Does not transfer the worker to another payroll or execute a payroll process.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `payrollRelationshipId` | string | Yes | Payroll relationship ID, as a positive decimal string |
+| `payrollAssignmentId` | string | Yes | Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string |
+| `assignedPayrollId` | string | Yes | Assigned payroll ID, as a positive decimal string |
+| `effectiveDate` | string | Yes | Effective date in YYYY-MM-DD format |
+| `rangeMode` | string | Yes | CORRECTION changes the historical row; UPDATE starts an effective-dated change |
+| `effectiveEndDate` | string | No | Effective end date in YYYY-MM-DD format |
+| `lsed` | string | No | Lsed in YYYY-MM-DD format |
+| `overridingPeriodId` | string | No | Overriding period ID, as a positive decimal string |
+| `timeCardRequired` | string | No | Oracle time-card requirement code, such as Y or N |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignedPayroll` | object | Assigned Payroll |
+|   ↳ `assignedPayrollId` | string | AssignedPayrollId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payrollName` | string | PayrollName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `lsed` | string | Lsed |
+|   ↳ `overridingPeriodId` | string | OverridingPeriodId |
+|   ↳ `timeCardRequired` | string | TimeCardRequired |
+
+### List Payroll Definitions in Oracle Fusion HCM
+
+Read one page of payroll definitions from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `legislativeDataGroupId` | string | No | Legislative data group ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollDefinitions` | array | Payroll Definition records |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payrollName` | string | PayrollName |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+|   ↳ `legislativeDataGroupName` | string | LegislativeDataGroupName |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `periodType` | string | PeriodType |
+|   ↳ `consolidationSetId` | string | ConsolidationSetId |
+|   ↳ `consolidationSetName` | string | ConsolidationSetName |
+|   ↳ `reportingName` | string | ReportingName |
+
+### List Payroll Time Periods in Oracle Fusion HCM
+
+Read one page of payroll time periods from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `payrollId` | string | Yes | Payroll ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollTimePeriods` | array | Payroll Time Period records |
+|   ↳ `timePeriodId` | string | TimePeriodId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payrollName` | string | PayrollName |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+|   ↳ `periodName` | string | PeriodName |
+|   ↳ `periodNumber` | number | PeriodNumber |
+|   ↳ `periodType` | string | PeriodType |
+|   ↳ `periodCategory` | string | PeriodCategory |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `regularEarnDate` | string | RegularEarnDate |
+|   ↳ `regularProcessDate` | string | RegularProcessDate |
+|   ↳ `defaultPaydate` | string | DefaultPaydate |
+|   ↳ `payslipViewDate` | string | PayslipViewDate |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+
+### List Payroll Element Definitions in Oracle Fusion HCM
+
+Read one page of payroll element definitions from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | No | Person ID, as a positive decimal string |
+| `legislativeDataGroupId` | string | No | Legislative data group ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollElementDefinitions` | array | Payroll Element Definition records |
+|   ↳ `elementTypeId` | string | ElementTypeId |
+|   ↳ `elementName` | string | ElementName |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+|   ↳ `legislationCode` | string | LegislationCode |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `processingType` | string | ProcessingType |
+|   ↳ `useAtAssignmentLevel` | string | UseAtAssignmentLevel |
+|   ↳ `useAtRelationshipLevel` | string | UseAtRelationshipLevel |
+|   ↳ `inputCurrencyCode` | string | InputCurrencyCode |
+|   ↳ `outputCurrencyCode` | string | OutputCurrencyCode |
+
+### List Payroll Input Values in Oracle Fusion HCM
+
+Read one page of payroll input values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `elementTypeId` | string | Yes | Element type ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollInputValues` | array | Payroll Input Value records |
+|   ↳ `inputValueId` | string | InputValueId |
+|   ↳ `inputValueName` | string | InputValueName |
+|   ↳ `elementTypeId` | string | ElementTypeId |
+|   ↳ `elementName` | string | ElementName |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `uom` | string | UOM |
+|   ↳ `reservedInputValue` | string | ReservedInputValue |
+|   ↳ `displaySequence` | number | DisplaySequence |
+
+### List Element Entries in Oracle Fusion HCM
+
+Read one page of element entries from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personNumber` | string | No | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `personId` | string | No | Person ID, as a positive decimal string |
+| `assignmentNumber` | string | No | HR assignment number |
+| `elementTypeId` | string | No | Element type ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `elementEntries` | array | Element Entry records |
+|   ↳ `elementEntryId` | string | ElementEntryId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `elementTypeId` | string | ElementTypeId |
+|   ↳ `elementName` | string | ElementName |
+|   ↳ `entryType` | string | EntryType |
+|   ↳ `creatorType` | string | CreatorType |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `usageLevel` | string | UsageLevel |
+|   ↳ `processingType` | string | ProcessingType |
+|   ↳ `inputCurrencyCode` | string | InputCurrencyCode |
+|   ↳ `legCode` | string | LegCode |
+|   ↳ `legDataGroupId` | string | LegDataGroupId |
+|   ↳ `payrollRelationshipNumber` | string | PayrollRelationshipNumber |
+
+### Get Element Entry in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM element entry by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `elementEntryId` | string | Yes | Element entry ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `elementEntry` | object | Element Entry |
+|   ↳ `elementEntryId` | string | ElementEntryId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `elementTypeId` | string | ElementTypeId |
+|   ↳ `elementName` | string | ElementName |
+|   ↳ `entryType` | string | EntryType |
+|   ↳ `creatorType` | string | CreatorType |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `usageLevel` | string | UsageLevel |
+|   ↳ `processingType` | string | ProcessingType |
+|   ↳ `inputCurrencyCode` | string | InputCurrencyCode |
+|   ↳ `legCode` | string | LegCode |
+|   ↳ `legDataGroupId` | string | LegDataGroupId |
+|   ↳ `payrollRelationshipNumber` | string | PayrollRelationshipNumber |
+
+### List Element Entry Values in Oracle Fusion HCM
+
+Read one page of element entry values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `elementEntryId` | string | Yes | Element entry ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `elementEntryValues` | array | Element Entry Value records |
+|   ↳ `elementEntryValueId` | string | ElementEntryValueId |
+|   ↳ `inputValueId` | string | InputValueId |
+|   ↳ `inputValueName` | string | InputValueName |
+|   ↳ `screenEntryValue` | string | ScreenEntryValue |
+|   ↳ `uom` | string | UOM |
+|   ↳ `mandatoryFlag` | boolean | MandatoryFlag |
+|   ↳ `userEnterableFlag` | boolean | UserEnterableFlag |
+|   ↳ `displaySequence` | number | DisplaySequence |
+
+### Create Element Entry in Oracle Fusion HCM
+
+Create Element Entry using documented Oracle fields. Requires administrative privileges and valid tenant configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person ID, as a positive decimal string |
+| `assignmentId` | string | No | HR assignment ID \(not payroll assignment ID\), as a positive decimal string |
+| `elementTypeId` | string | Yes | Element type ID, as a positive decimal string |
+| `elementName` | string | Yes | Name of the element matching elementTypeId |
+| `creatorType` | string | Yes | Oracle element-entry creator code supported by the tenant |
+| `entryType` | string | Yes | Oracle element-entry type code supported by the tenant |
+| `effectiveStartDate` | string | Yes | Effective start date in YYYY-MM-DD format |
+| `effectiveEndDate` | string | Yes | Effective end date in YYYY-MM-DD format |
+| `entryValues` | array | Yes | Up to 100 typed objects: inputValueId \(positive decimal string\) and screenEntryValue \(string up to 60 characters or null\). Input IDs serialize exactly as JSON integers |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `elementEntry` | object | Element Entry |
+|   ↳ `elementEntryId` | string | ElementEntryId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `elementTypeId` | string | ElementTypeId |
+|   ↳ `elementName` | string | ElementName |
+|   ↳ `entryType` | string | EntryType |
+|   ↳ `creatorType` | string | CreatorType |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `usageLevel` | string | UsageLevel |
+|   ↳ `processingType` | string | ProcessingType |
+|   ↳ `inputCurrencyCode` | string | InputCurrencyCode |
+|   ↳ `legCode` | string | LegCode |
+|   ↳ `legDataGroupId` | string | LegDataGroupId |
+|   ↳ `payrollRelationshipNumber` | string | PayrollRelationshipNumber |
+
+### Update Element Entry Value in Oracle Fusion HCM
+
+Update Element Entry Value using documented Oracle fields. Requires administrative privileges and valid tenant configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `elementEntryId` | string | Yes | Element entry ID, as a positive decimal string |
+| `elementEntryValueId` | string | Yes | Element entry value ID, as a positive decimal string |
+| `effectiveDate` | string | Yes | Effective date in YYYY-MM-DD format |
+| `rangeMode` | string | Yes | CORRECTION changes the historical row; UPDATE starts an effective-dated change |
+| `screenEntryValue` | string | No | Element input value as text, preserving decimal precision. To clear it, use clearScreenEntryValue. Direct execution also accepts explicit null. |
+| `clearScreenEntryValue` | boolean | No | Explicitly clear the element input value; omit screenEntryValue when true |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `elementEntryValue` | object | Element Entry Value |
+|   ↳ `elementEntryValueId` | string | ElementEntryValueId |
+|   ↳ `inputValueId` | string | InputValueId |
+|   ↳ `inputValueName` | string | InputValueName |
+|   ↳ `screenEntryValue` | string | ScreenEntryValue |
+|   ↳ `uom` | string | UOM |
+|   ↳ `mandatoryFlag` | boolean | MandatoryFlag |
+|   ↳ `userEnterableFlag` | boolean | UserEnterableFlag |
+|   ↳ `displaySequence` | number | DisplaySequence |
+
+### List Person Process Results in Oracle Fusion HCM
+
+Read one page of person process results from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personNumber` | string | No | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `personId` | string | No | Person ID, as a positive decimal string |
+| `payrollRelationshipId` | string | No | Payroll relationship ID, as a positive decimal string |
+| `payrollId` | string | No | Payroll ID, as a positive decimal string |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `endDate` | string | No | End date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `personProcessResults` | array | Person Process Result records |
+|   ↳ `objectActionId` | string | ObjectActionId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `payrollRelationshipId` | string | PayrollRelationshipId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payroll` | string | Payroll |
+|   ↳ `actionTypeCode` | string | ActionTypeCode |
+|   ↳ `actionStatusCode` | string | ActionStatusCode |
+|   ↳ `status` | string | Status |
+|   ↳ `processDate` | string | ProcessDate |
+|   ↳ `processStartDate` | string | ProcessStartDate |
+|   ↳ `processEndDate` | string | ProcessEndDate |
+|   ↳ `flowInstanceId` | string | FlowInstanceId |
+|   ↳ `flowName` | string | FlowName |
+|   ↳ `payrollPeriodName` | string | PayrollPeriodName |
+|   ↳ `legislationCode` | string | LegislationCode |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+
+### Get Person Process Result in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM person process result by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `objectActionId` | string | Yes | Object action ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personProcessResult` | object | Person Process Result |
+|   ↳ `objectActionId` | string | ObjectActionId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `payrollRelationshipId` | string | PayrollRelationshipId |
+|   ↳ `payrollId` | string | PayrollId |
+|   ↳ `payroll` | string | Payroll |
+|   ↳ `actionTypeCode` | string | ActionTypeCode |
+|   ↳ `actionStatusCode` | string | ActionStatusCode |
+|   ↳ `status` | string | Status |
+|   ↳ `processDate` | string | ProcessDate |
+|   ↳ `processStartDate` | string | ProcessStartDate |
+|   ↳ `processEndDate` | string | ProcessEndDate |
+|   ↳ `flowInstanceId` | string | FlowInstanceId |
+|   ↳ `flowName` | string | FlowName |
+|   ↳ `payrollPeriodName` | string | PayrollPeriodName |
+|   ↳ `legislationCode` | string | LegislationCode |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+
+### List Payroll Run Results in Oracle Fusion HCM
+
+Read one page of payroll run results from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `objectActionId` | string | Yes | Object action ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollRunResults` | array | Payroll Run Result records |
+|   ↳ `runResultId` | string | RunResultId |
+|   ↳ `inputValueId` | string | InputValueId |
+|   ↳ `inputValueName` | string | InputValueName |
+|   ↳ `elementEntryId` | string | ElementEntryId |
+|   ↳ `elementTypeId` | string | ElementTypeId |
+|   ↳ `elementName` | string | ElementName |
+|   ↳ `resultValue` | string | ResultValue |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `payrollRelationshipId` | string | PayrollRelationshipId |
+|   ↳ `dateEarned` | string | DateEarned |
+|   ↳ `outputCurrencyCode` | string | OutputCurrencyCode |
+|   ↳ `inputCurrencyCode` | string | Inputcurrencycode |
+|   ↳ `uom` | string | Uom |
+|   ↳ `prorationStartDate` | string | ProrationStartDate |
+|   ↳ `prorationEndDate` | string | ProrationEndDate |
+
+### List Payroll Balances in Oracle Fusion HCM
+
+Read one page of payroll balances from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `objectActionId` | string | Yes | Object action ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `payrollBalances` | array | Payroll Balance records |
+|   ↳ `balanceTypeId` | string | BalanceTypeId |
+|   ↳ `balanceName` | string | BalanceName |
+|   ↳ `dimensionName` | string | DimensionName |
+|   ↳ `payrollRelActionId` | string | PayrollRelActionId |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+|   ↳ `legislationCode` | string | LegislationCode |
+|   ↳ `uom` | string | Uom |
+|   ↳ `uomCode` | string | UomCode |
+|   ↳ `ctxString` | string | CtxString |
+|   ↳ `ctxUserString` | string | CtxUserString |
+|   ↳ `value1` | string | Value1 |
+|   ↳ `defbalId1` | string | DefbalId1 |
+|   ↳ `value2` | string | Value2 |
+|   ↳ `defbalId2` | string | DefbalId2 |
+|   ↳ `value3` | string | Value3 |
+|   ↳ `defbalId3` | string | DefbalId3 |
+|   ↳ `value4` | string | Value4 |
+|   ↳ `defbalId4` | string | DefbalId4 |
+|   ↳ `value5` | string | Value5 |
+|   ↳ `defbalId5` | string | DefbalId5 |
+|   ↳ `value6` | string | Value6 |
+|   ↳ `defbalId6` | string | DefbalId6 |
+|   ↳ `value7` | string | Value7 |
+|   ↳ `defbalId7` | string | DefbalId7 |
+|   ↳ `value8` | string | Value8 |
+|   ↳ `defbalId8` | string | DefbalId8 |
+|   ↳ `value9` | string | Value9 |
+|   ↳ `defbalId9` | string | DefbalId9 |
+|   ↳ `value10` | string | Value10 |
+|   ↳ `defbalId10` | string | DefbalId10 |
+|   ↳ `totalValue1` | string | TotalValue1 |
+|   ↳ `totalValue2` | string | TotalValue2 |
+
+### List Salaries in Oracle Fusion HCM
+
+Read one page of salaries from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `assignmentId` | string | Yes | HR assignment ID \(not payroll assignment ID\), as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `salaries` | array | Salary records |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `salaryBasisId` | string | SalaryBasisId |
+|   ↳ `salaryBasisName` | string | SalaryBasisName |
+|   ↳ `salaryBasisType` | string | SalaryBasisType |
+|   ↳ `salaryAmount` | number | SalaryAmount |
+|   ↳ `currencyCode` | string | CurrencyCode |
+|   ↳ `salaryFrequencyCode` | string | SalaryFrequencyCode |
+|   ↳ `dateFrom` | string | DateFrom |
+|   ↳ `dateTo` | string | DateTo |
+|   ↳ `annualSalary` | number | AnnualSalary |
+|   ↳ `annualFullTimeSalary` | number | AnnualFullTimeSalary |
+|   ↳ `multipleComponents` | string | MultipleComponents |
+|   ↳ `pendingTransactionExists` | string | PendingTransactionExists |
+|   ↳ `salaryTransactionStatus` | string | SalaryTransactionStatus |
+|   ↳ `salaryAmountScale` | number | SalaryAmountScale |
+
+### Get Salary in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM salary by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `salaryId` | string | Yes | Salary ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salary` | object | Salary |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `salaryBasisId` | string | SalaryBasisId |
+|   ↳ `salaryBasisName` | string | SalaryBasisName |
+|   ↳ `salaryBasisType` | string | SalaryBasisType |
+|   ↳ `salaryAmount` | number | SalaryAmount |
+|   ↳ `currencyCode` | string | CurrencyCode |
+|   ↳ `salaryFrequencyCode` | string | SalaryFrequencyCode |
+|   ↳ `dateFrom` | string | DateFrom |
+|   ↳ `dateTo` | string | DateTo |
+|   ↳ `annualSalary` | number | AnnualSalary |
+|   ↳ `annualFullTimeSalary` | number | AnnualFullTimeSalary |
+|   ↳ `multipleComponents` | string | MultipleComponents |
+|   ↳ `pendingTransactionExists` | string | PendingTransactionExists |
+|   ↳ `salaryTransactionStatus` | string | SalaryTransactionStatus |
+|   ↳ `salaryAmountScale` | number | SalaryAmountScale |
+
+### Create Salary in Oracle Fusion HCM
+
+Administratively create an effective-dated salary for a user-entered salary basis. Does not submit an approval request or support component-calculated salary bases.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `assignmentId` | string | Yes | HR assignment ID \(not payroll assignment ID\), as a positive decimal string |
+| `salaryBasisId` | string | Yes | Salary basis ID, as a positive decimal string |
+| `salaryAmount` | number | Yes | Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request |
+| `dateFrom` | string | Yes | Date from in YYYY-MM-DD format |
+| `dateTo` | string | Yes | Date to in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salary` | object | Salary |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `salaryBasisId` | string | SalaryBasisId |
+|   ↳ `salaryBasisName` | string | SalaryBasisName |
+|   ↳ `salaryBasisType` | string | SalaryBasisType |
+|   ↳ `salaryAmount` | number | SalaryAmount |
+|   ↳ `currencyCode` | string | CurrencyCode |
+|   ↳ `salaryFrequencyCode` | string | SalaryFrequencyCode |
+|   ↳ `dateFrom` | string | DateFrom |
+|   ↳ `dateTo` | string | DateTo |
+|   ↳ `annualSalary` | number | AnnualSalary |
+|   ↳ `annualFullTimeSalary` | number | AnnualFullTimeSalary |
+|   ↳ `multipleComponents` | string | MultipleComponents |
+|   ↳ `pendingTransactionExists` | string | PendingTransactionExists |
+|   ↳ `salaryTransactionStatus` | string | SalaryTransactionStatus |
+|   ↳ `salaryAmountScale` | number | SalaryAmountScale |
+
+### Correct Salary in Oracle Fusion HCM
+
+Correct the amount on an existing user-entered salary record. This changes that historical row; it does not create an effective-dated salary or submit an approval request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `salaryId` | string | Yes | Salary ID, as a positive decimal string |
+| `salaryAmount` | number | Yes | Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salary` | object | Salary |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `salaryBasisId` | string | SalaryBasisId |
+|   ↳ `salaryBasisName` | string | SalaryBasisName |
+|   ↳ `salaryBasisType` | string | SalaryBasisType |
+|   ↳ `salaryAmount` | number | SalaryAmount |
+|   ↳ `currencyCode` | string | CurrencyCode |
+|   ↳ `salaryFrequencyCode` | string | SalaryFrequencyCode |
+|   ↳ `dateFrom` | string | DateFrom |
+|   ↳ `dateTo` | string | DateTo |
+|   ↳ `annualSalary` | number | AnnualSalary |
+|   ↳ `annualFullTimeSalary` | number | AnnualFullTimeSalary |
+|   ↳ `multipleComponents` | string | MultipleComponents |
+|   ↳ `pendingTransactionExists` | string | PendingTransactionExists |
+|   ↳ `salaryTransactionStatus` | string | SalaryTransactionStatus |
+|   ↳ `salaryAmountScale` | number | SalaryAmountScale |
+
+### List Salary Bases in Oracle Fusion HCM
+
+Read one page of salary bases from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `legislativeDataGroupId` | string | No | Legislative data group ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `salaryBases` | array | Salary Basis records |
+|   ↳ `salaryBasisId` | string | SalaryBasisId |
+|   ↳ `salaryBasisName` | string | SalaryBasisName |
+|   ↳ `salaryBasisType` | string | SalaryBasisType |
+|   ↳ `code` | string | Code |
+|   ↳ `frequencyCode` | string | FrequencyCode |
+|   ↳ `frequencyName` | string | FrequencyName |
+|   ↳ `inputCurrencyCode` | string | InputCurrencyCode |
+|   ↳ `legislativeDataGroupId` | string | LegislativeDataGroupId |
+|   ↳ `gradeRateId` | string | GradeRateId |
+|   ↳ `componentUsage` | string | ComponentUsage |
+|   ↳ `salaryAmountScale` | number | SalaryAmountScale |
+|   ↳ `status` | string | Status |
+|   ↳ `useAtAssignmentLevel` | string | UseAtAssignmentLevel |
+|   ↳ `useAtRelationshipLevel` | string | UseAtRelationshipLevel |
+|   ↳ `useAtTermsLevel` | string | UseAtTermsLevel |
+
+### List Salary Components in Oracle Fusion HCM
+
+Read one page of salary components from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `salaryId` | string | Yes | Salary ID, as a positive decimal string |
+| `componentKind` | string | No | Component family: standard, simple, or rate; each is independently paginated |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `componentKind` | string | Selected component family |
+| `standardComponents` | array | StandardSalaryComponent records; empty when another component family is selected |
+|   ↳ `salaryComponentId` | string | SalaryComponentId |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `componentName` | string | ComponentName |
+|   ↳ `componentReasonCode` | string | ComponentReasonCode |
+|   ↳ `adjustmentAmount` | number | AdjustmentAmount |
+|   ↳ `adjustmentPercentage` | number | AdjustmentPercentage |
+|   ↳ `displaySequence` | number | DisplaySequence |
+|   ↳ `changeAmountScale` | number | ChangeAmountScale |
+| `simpleComponents` | array | SimpleSalaryComponent records; empty when another component family is selected |
+|   ↳ `simpleSalaryCompntId` | string | SimpleSalaryCompntId |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `basisSimpleComponentId` | string | BasisSimpleComponentId |
+|   ↳ `componentName` | string | ComponentName |
+|   ↳ `componentCode` | string | ComponentCode |
+|   ↳ `componentType` | string | ComponentType |
+|   ↳ `currencyCode` | string | CurrencyCode |
+|   ↳ `amount` | number | Amount |
+|   ↳ `annualAmount` | number | AnnualAmount |
+|   ↳ `annualFtAmount` | number | AnnualFtAmount |
+|   ↳ `adjustmentAmount` | number | AdjustmentAmount |
+|   ↳ `adjustmentPercent` | number | AdjustmentPercent |
+|   ↳ `percentage` | number | Percentage |
+|   ↳ `scale` | number | Scale |
+|   ↳ `userSelectedComponent` | string | UserSelectedComponent |
+|   ↳ `overallSalaryAffect` | string | OverallSalaryAffect |
+| `rateComponents` | array | RateSalaryComponent records; empty when another component family is selected |
+|   ↳ `salaryPayComponentId` | string | SalaryPayComponentId |
+|   ↳ `salaryId` | string | SalaryId |
+|   ↳ `payRateDefinitionId` | string | PayRateDefinitionId |
+|   ↳ `name` | string | Name |
+|   ↳ `shortName` | string | ShortName |
+|   ↳ `rateAmount` | number | RateAmount |
+|   ↳ `rateAnnualAmount` | number | RateAnnualAmount |
+|   ↳ `rateAnnualFtAmount` | number | RateAnnualFtAmount |
+|   ↳ `rateCurrencyCode` | string | RateCurrencyCode |
+|   ↳ `ratePeriodicityCode` | string | RatePeriodicityCode |
+|   ↳ `rateMinimumAmount` | number | RateMinimumAmount |
+|   ↳ `rateMaximumAmount` | number | RateMaximumAmount |
+|   ↳ `rateAdjustmentAmount` | number | RateAdjustmentAmount |
+|   ↳ `rateAdjustmentPercent` | number | RateAdjustmentPercent |
+|   ↳ `rateFactor` | number | RateFactor |
+|   ↳ `rateOverallSalaryFlag` | boolean | RateOverallSalaryFlag |
+
+### List Grade Rate Values in Oracle Fusion HCM
+
+Read one page of grade rate values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `gradeRateId` | string | Yes | Grade rate ID, as a positive decimal string |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `gradeRateValues` | array | Grade Rate Value records |
+|   ↳ `rateValueId` | string | RateValueId |
+|   ↳ `gradeId` | string | GradeId |
+|   ↳ `effectiveStartDate` | string | EffectiveStartDate |
+|   ↳ `effectiveEndDate` | string | EffectiveEndDate |
+|   ↳ `minimumAmount` | number | MinimumAmount |
+|   ↳ `midValueAmount` | number | MidValueAmount |
+|   ↳ `maximumAmount` | number | MaximumAmount |
+|   ↳ `valueAmount` | number | ValueAmount |
+
+### List Goal Plans in Oracle Fusion HCM
+
+Read one page of goal plans from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `reviewPeriodId` | string | No | Review period ID, as a positive decimal string |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `goalPlans` | array | Goal Plan records |
+|   ↳ `goalPlanId` | string | GoalPlanId |
+|   ↳ `goalPlanName` | string | GoalPlanName |
+|   ↳ `reviewPeriodId` | string | ReviewPeriodId |
+|   ↳ `reviewPeriodName` | string | ReviewPeriodName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `goalSettingStartDate` | string | GoalSettingStartDate |
+|   ↳ `goalSettingEndDate` | string | GoalSettingEndDate |
+|   ↳ `goalPlanActiveCode` | string | GoalPlanActiveCode |
+|   ↳ `restrictGoalCreationFlag` | boolean | RestrictGoalCreationFlag |
+|   ↳ `restrictGoalUpdateFlag` | boolean | RestrictGoalUpdateFlag |
+|   ↳ `enableWeightingFlag` | boolean | EnableWeightingFlag |
+
+### Get Goal Plan in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM goal plan by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `goalPlanId` | string | Yes | Goal plan ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `goalPlan` | object | Goal Plan |
+|   ↳ `goalPlanId` | string | GoalPlanId |
+|   ↳ `goalPlanName` | string | GoalPlanName |
+|   ↳ `reviewPeriodId` | string | ReviewPeriodId |
+|   ↳ `reviewPeriodName` | string | ReviewPeriodName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `goalSettingStartDate` | string | GoalSettingStartDate |
+|   ↳ `goalSettingEndDate` | string | GoalSettingEndDate |
+|   ↳ `goalPlanActiveCode` | string | GoalPlanActiveCode |
+|   ↳ `restrictGoalCreationFlag` | boolean | RestrictGoalCreationFlag |
+|   ↳ `restrictGoalUpdateFlag` | boolean | RestrictGoalUpdateFlag |
+|   ↳ `enableWeightingFlag` | boolean | EnableWeightingFlag |
+
+### List Performance Goals in Oracle Fusion HCM
+
+Read one page of performance goals from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | No | Person ID, as a positive decimal string |
+| `reviewPeriodId` | string | No | Review period ID, as a positive decimal string |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `performanceGoals` | array | Performance Goal records |
+|   ↳ `goalId` | string | GoalId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `goalName` | string | GoalName |
+|   ↳ `description` | string | Description |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `targetCompletionDate` | string | TargetCompletionDate |
+|   ↳ `status` | string | Status |
+|   ↳ `statusMeaning` | string | StatusMeaning |
+|   ↳ `percentComplete` | string | PercentComplete |
+|   ↳ `reviewPeriodId` | string | ReviewPeriodId |
+
+### Get Performance Goal in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM performance goal by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `goalId` | string | Yes | Goal ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `performanceGoal` | object | Performance Goal |
+|   ↳ `goalId` | string | GoalId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `goalName` | string | GoalName |
+|   ↳ `description` | string | Description |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `targetCompletionDate` | string | TargetCompletionDate |
+|   ↳ `status` | string | Status |
+|   ↳ `statusMeaning` | string | StatusMeaning |
+|   ↳ `percentComplete` | string | PercentComplete |
+|   ↳ `reviewPeriodId` | string | ReviewPeriodId |
+
+### List Development Goals in Oracle Fusion HCM
+
+Read one page of development goals from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Person ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `developmentGoals` | array | Development Goal records |
+|   ↳ `goalId` | string | GoalId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `goalName` | string | GoalName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `targetCompletionDate` | string | TargetCompletionDate |
+|   ↳ `actualCompletionDate` | string | ActualCompletionDate |
+|   ↳ `status` | string | Status |
+|   ↳ `statusMeaning` | string | StatusMeaning |
+|   ↳ `percentComplete` | string | PercentComplete |
+|   ↳ `privateFlag` | boolean | PrivateFlag |
+|   ↳ `requiresApprovalStatus` | string | RequiresApprovalStatus |
+|   ↳ `goalApprovalState` | string | GoalApprovalState |
+
+### Get Development Goal in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM development goal by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `goalId` | string | Yes | Goal ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `developmentGoal` | object | Development Goal |
+|   ↳ `goalId` | string | GoalId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `assignmentNumber` | string | AssignmentNumber |
+|   ↳ `goalName` | string | GoalName |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `targetCompletionDate` | string | TargetCompletionDate |
+|   ↳ `actualCompletionDate` | string | ActualCompletionDate |
+|   ↳ `status` | string | Status |
+|   ↳ `statusMeaning` | string | StatusMeaning |
+|   ↳ `percentComplete` | string | PercentComplete |
+|   ↳ `privateFlag` | boolean | PrivateFlag |
+|   ↳ `requiresApprovalStatus` | string | RequiresApprovalStatus |
+|   ↳ `goalApprovalState` | string | GoalApprovalState |
+
+### List Performance Documents in Oracle Fusion HCM
+
+Read one page of performance documents from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | No | Person ID, as a positive decimal string |
+| `reviewPeriodId` | string | No | Review period ID, as a positive decimal string |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `performanceDocuments` | array | Performance Document records |
+|   ↳ `evaluationId` | string | EvaluationId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `performanceDocumentName` | string | PerformanceDocumentName |
+|   ↳ `evalStatus` | string | EvalStatus |
+|   ↳ `statusCode` | string | StatusCode |
+|   ↳ `reviewPeriodId` | string | ReviewPeriodId |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `managerId` | string | ManagerId |
+|   ↳ `managerAssignmentId` | string | ManagerAssignmentId |
+
+### Get Performance Document in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM performance document by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `evaluationId` | string | Yes | Evaluation ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `performanceDocument` | object | Performance Document |
+|   ↳ `evaluationId` | string | EvaluationId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `assignmentId` | string | AssignmentId |
+|   ↳ `performanceDocumentName` | string | PerformanceDocumentName |
+|   ↳ `evalStatus` | string | EvalStatus |
+|   ↳ `statusCode` | string | StatusCode |
+|   ↳ `reviewPeriodId` | string | ReviewPeriodId |
+|   ↳ `startDate` | string | StartDate |
+|   ↳ `endDate` | string | EndDate |
+|   ↳ `managerId` | string | ManagerId |
+|   ↳ `managerAssignmentId` | string | ManagerAssignmentId |
+
+### List Performance Document Roles in Oracle Fusion HCM
+
+Read one page of performance document roles from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `evaluationId` | string | Yes | Evaluation ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `performanceDocumentRoles` | array | Performance Document Role records |
+|   ↳ `evalRoleId` | string | EvalRoleId |
+|   ↳ `roleTypeCode` | string | RoleTypeCode |
+|   ↳ `minimumNumberPcpns` | number | MinimumNumberPcpns |
+|   ↳ `matrixParticipantFlag` | boolean | MatrixParticipantFlag |
+
+### List Performance Document Participants in Oracle Fusion HCM
+
+Read one page of performance document participants from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `evaluationId` | string | Yes | Evaluation ID, as a positive decimal string |
+| `evalRoleId` | string | Yes | Eval role ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `performanceDocumentParticipants` | array | Performance Document Participant records |
+|   ↳ `evalParticipantId` | string | EvalParticipantId |
+|   ↳ `evalRoleId` | string | EvalRoleId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `participationStatusCode` | string | ParticipationStatusCode |
+|   ↳ `dueDate` | string | DueDate |
+|   ↳ `fdbackCompletionDate` | string | FdbackCompletionDate |
+|   ↳ `matrixParticipantFlag` | boolean | MatrixParticipantFlag |
+|   ↳ `roleTypeCode` | string | RoleTypeCode |
+
+### List Performance Document Tasks in Oracle Fusion HCM
+
+Read one page of performance document tasks from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `evaluationId` | string | Yes | Evaluation ID, as a positive decimal string |
+| `evalRoleId` | string | Yes | Eval role ID, as a positive decimal string |
+| `evalParticipantId` | string | Yes | Eval participant ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `performanceDocumentTasks` | array | Performance Document Task records |
+|   ↳ `evalStepId` | string | EvalStepId |
+|   ↳ `stepCode` | string | StepCode |
+|   ↳ `stepStatus` | string | StepStatus |
+|   ↳ `taskName` | string | TaskName |
+|   ↳ `taskStatus` | string | TaskStatus |
+|   ↳ `dueDate` | string | DueDate |
+
+### List Talent Profiles in Oracle Fusion HCM
+
+Read one page of talent profiles from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | No | Person ID, as a positive decimal string |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `talentProfiles` | array | Talent Profile records |
+|   ↳ `profileId` | string | ProfileId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `profileCode` | string | ProfileCode |
+|   ↳ `displayName` | string | DisplayName |
+|   ↳ `statusCode` | string | StatusCode |
+
+### Get Talent Profile in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM talent profile by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `talentProfile` | object | Talent Profile |
+|   ↳ `profileId` | string | ProfileId |
+|   ↳ `personId` | string | PersonId |
+|   ↳ `personNumber` | string | PersonNumber |
+|   ↳ `profileCode` | string | ProfileCode |
+|   ↳ `displayName` | string | DisplayName |
+|   ↳ `statusCode` | string | StatusCode |
+
+### List Talent Profile Sections in Oracle Fusion HCM
+
+Read one page of talent profile sections from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `profileId` | string | Yes | Profile ID, as a positive decimal string |
+| `sectionKind` | string | No | Secured profile section family: skill or certification |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `talentProfileSections` | array | Talent Profile Section records |
+|   ↳ `profileSectionId` | string | ProfileSectionId |
+|   ↳ `sectionId` | string | SectionId |
+|   ↳ `sectionName` | string | SectionName |
+|   ↳ `sectionContext` | string | SectionContext |
+
+### List Talent Profile Skills in Oracle Fusion HCM
+
+Read one page of talent profile skills from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `profileId` | string | Yes | Profile ID, as a positive decimal string |
+| `profileSectionId` | string | Yes | Profile section ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `talentProfileSkills` | array | Talent Profile Skill records |
+|   ↳ `skillId` | string | SkillId |
+|   ↳ `profileId` | string | ProfileId |
+|   ↳ `sectionId` | string | SectionId |
+|   ↳ `skill` | string | Skill |
+|   ↳ `skillType` | string | SkillType |
+|   ↳ `skillTypeMeaning` | string | SkillTypeMeaning |
+|   ↳ `dateAchieved` | string | DateAchieved |
+|   ↳ `yearsOfExperience` | number | YearsOfExperience |
+|   ↳ `projectOrActivity` | string | ProjectOrActivity |
+|   ↳ `source` | string | Source |
+|   ↳ `sourceType` | string | SourceType |
+
+### List Talent Profile Certifications in Oracle Fusion HCM
+
+Read one page of talent profile certifications from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `profileId` | string | Yes | Profile ID, as a positive decimal string |
+| `profileSectionId` | string | Yes | Profile section ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `talentProfileCertifications` | array | Talent Profile Certification records |
+|   ↳ `certificationId` | string | CertificationId |
+|   ↳ `profileId` | string | ProfileId |
+|   ↳ `sectionId` | string | SectionId |
+|   ↳ `licenseOrCertificate` | string | LicenseOrCertificate |
+|   ↳ `title` | string | Title |
+|   ↳ `issueDate` | string | IssueDate |
+|   ↳ `expirationDate` | string | ExpirationDate |
+|   ↳ `renewalDate` | string | RenewalDate |
+|   ↳ `status` | string | Status |
+|   ↳ `statusMeaning` | string | StatusMeaning |
+|   ↳ `issuedBy` | string | IssuedBy |
+|   ↳ `verified` | string | Verified |
+|   ↳ `verifiedMeaning` | string | VerifiedMeaning |
+
+### List Time Records in Oracle Fusion HCM
+
+Read one page of time records from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personNumber` | string | Yes | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `startTime` | string | Yes | Start timestamp in ISO 8601 with explicit time-zone offset |
+| `stopTime` | string | Yes | Stop timestamp in ISO 8601 with explicit time-zone offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeRecords` | array | Time Record records |
+|   ↳ `timeRecordId` | string | timeRecordId |
+|   ↳ `timeRecordVersion` | number | timeRecordVersion |
+|   ↳ `timeRecordGroupId` | string | timeRecordGroupId |
+|   ↳ `timeRecordGroupVersion` | number | timeRecordGroupVersion |
+|   ↳ `personId` | string | personId |
+|   ↳ `personNumber` | string | personNumber |
+|   ↳ `assignmentNumber` | string | assignmentNumber |
+|   ↳ `recordType` | string | recordType |
+|   ↳ `groupType` | string | groupType |
+|   ↳ `startTime` | string | startTime |
+|   ↳ `stopTime` | string | stopTime |
+|   ↳ `measure` | number | measure |
+|   ↳ `unitOfMeasure` | string | unitOfMeasure |
+|   ↳ `earnedDate` | string | earnedDate |
+|   ↳ `overtimeDate` | string | overtimeDate |
+
+### Get Time Record in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM time record by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `timeRecordId` | string | Yes | Time record ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeRecord` | object | Time Record |
+|   ↳ `timeRecordId` | string | timeRecordId |
+|   ↳ `timeRecordVersion` | number | timeRecordVersion |
+|   ↳ `timeRecordGroupId` | string | timeRecordGroupId |
+|   ↳ `timeRecordGroupVersion` | number | timeRecordGroupVersion |
+|   ↳ `personId` | string | personId |
+|   ↳ `personNumber` | string | personNumber |
+|   ↳ `assignmentNumber` | string | assignmentNumber |
+|   ↳ `recordType` | string | recordType |
+|   ↳ `groupType` | string | groupType |
+|   ↳ `startTime` | string | startTime |
+|   ↳ `stopTime` | string | stopTime |
+|   ↳ `measure` | number | measure |
+|   ↳ `unitOfMeasure` | string | unitOfMeasure |
+|   ↳ `earnedDate` | string | earnedDate |
+|   ↳ `overtimeDate` | string | overtimeDate |
+
+### List Time Cards in Oracle Fusion HCM
+
+Read one page of time cards from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personNumber` | string | Yes | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `startTime` | string | Yes | Start timestamp in ISO 8601 with explicit time-zone offset |
+| `stopTime` | string | Yes | Stop timestamp in ISO 8601 with explicit time-zone offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeCards` | array | Time Card records |
+|   ↳ `timeRecordGroupId` | string | timeRecordGroupId |
+|   ↳ `timeRecordGroupVersion` | number | timeRecordGroupVersion |
+|   ↳ `personId` | string | personId |
+|   ↳ `personNumber` | string | personNumber |
+|   ↳ `assignmentNumber` | string | assignmentNumber |
+|   ↳ `startTime` | string | startTime |
+|   ↳ `stopTime` | string | stopTime |
+|   ↳ `totalHours` | number | totalHours |
+|   ↳ `groupType` | string | groupType |
+|   ↳ `parentTimeRecordGroupId` | string | parentTimeRecordGroupId |
+|   ↳ `parentTimeRecordGroupVersion` | number | parentTimeRecordGroupVersion |
+
+### Get Time Card in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM time card by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `timeRecordGroupId` | string | Yes | Time record group ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeCard` | object | Time Card |
+|   ↳ `timeRecordGroupId` | string | timeRecordGroupId |
+|   ↳ `timeRecordGroupVersion` | number | timeRecordGroupVersion |
+|   ↳ `personId` | string | personId |
+|   ↳ `personNumber` | string | personNumber |
+|   ↳ `assignmentNumber` | string | assignmentNumber |
+|   ↳ `startTime` | string | startTime |
+|   ↳ `stopTime` | string | stopTime |
+|   ↳ `totalHours` | number | totalHours |
+|   ↳ `groupType` | string | groupType |
+|   ↳ `parentTimeRecordGroupId` | string | parentTimeRecordGroupId |
+|   ↳ `parentTimeRecordGroupVersion` | number | parentTimeRecordGroupVersion |
+
+### List Time Attributes in Oracle Fusion HCM
+
+Read one page of time attributes from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text \(maximum 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeAttributes` | array | Time Attribute records |
+|   ↳ `tmAtrbFldId` | string | tmAtrbFldId |
+|   ↳ `tmAtrbFldUsageId` | string | tmAtrbFldUsageId |
+|   ↳ `attributeName` | string | attributeName |
+|   ↳ `contextCode` | string | contextCode |
+|   ↳ `displayName` | string | displayName |
+|   ↳ `description` | string | description |
+|   ↳ `name` | string | name |
+
+### List Time Attribute Data Sources in Oracle Fusion HCM
+
+Read one page of time attribute data sources from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `timeAttributeId` | string | Yes | Time attribute ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeAttributeDataSources` | array | Time Attribute Data Source records |
+|   ↳ `dataSourceUsageId` | string | dataSourceUsageId |
+|   ↳ `dataSourceUsageCode` | string | dataSourceUsageCode |
+|   ↳ `tmAtrbFldId` | string | tmAtrbFldId |
+
+### List Time Attribute Criteria Binds in Oracle Fusion HCM
+
+Read one page of time attribute criteria binds from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `timeAttributeId` | string | Yes | Time attribute ID, as a positive decimal string |
+| `dataSourceUsageId` | string | Yes | Data source usage ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeAttributeCriteriaBinds` | array | Time Attribute Criteria Bind records |
+|   ↳ `bindName` | string | bindName |
+|   ↳ `criteriaName` | string | criteriaName |
+|   ↳ `dataType` | string | dataType |
+
+### List Time Attribute Values in Oracle Fusion HCM
+
+Read one page of time attribute values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `dataSourceUsageId` | string | Yes | Data source usage ID, as a positive decimal string |
+| `timeAttributeUsageId` | string | Yes | Time attribute usage ID, as a positive decimal string |
+| `bindings` | array | No | Up to five typed \{name, value\} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeAttributeValues` | array | Time Attribute Value records |
+|   ↳ `value` | string | value |
+|   ↳ `displayValue` | string | displayValue |
+
+### Create Time Entry in Oracle Fusion HCM
+
+Submit one asynchronous create time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personNumber` | string | Yes | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `assignmentNumber` | string | No | HR assignment number |
+| `startTime` | string | No | Start timestamp in ISO 8601 with explicit time-zone offset |
+| `stopTime` | string | No | Stop timestamp in ISO 8601 with explicit time-zone offset |
+| `measure` | number | No | Positive quantity in hours or units; may accompany startTime and stopTime |
+| `referenceDate` | string | No | Optional processing date for entries spanning multiple days \(YYYY-MM-DD\) |
+| `payrollTimeType` | string | No | PayrollTimeType attribute value discovered for the assignment and effective date |
+| `timeAttributes` | array | No | Up to 30 typed \{attributeName, attributeValue\} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input |
+| `processMode` | string | No | TIME_ENTER \(default\), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval |
+| `changeReason` | string | No | Tenant-configured audit change reason code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeRecordRequest` | object | Time Record Request |
+|   ↳ `timeRecordEventRequestId` | string | timeRecordEventRequestId |
+|   ↳ `processInline` | string | processInline |
+|   ↳ `processMode` | string | processMode |
+
+### Update Time Entry in Oracle Fusion HCM
+
+Submit one asynchronous update time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personNumber` | string | Yes | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `assignmentNumber` | string | No | HR assignment number |
+| `timeRecordId` | string | Yes | Time record ID, as a positive decimal string |
+| `timeRecordVersion` | number | Yes | Current time-record version from get_time_record; required for update and delete |
+| `startTime` | string | No | Start timestamp in ISO 8601 with explicit time-zone offset |
+| `stopTime` | string | No | Stop timestamp in ISO 8601 with explicit time-zone offset |
+| `measure` | number | No | Positive quantity in hours or units; may accompany startTime and stopTime |
+| `referenceDate` | string | No | Optional processing date for entries spanning multiple days \(YYYY-MM-DD\) |
+| `payrollTimeType` | string | No | PayrollTimeType attribute value discovered for the assignment and effective date |
+| `timeAttributes` | array | No | Up to 30 typed \{attributeName, attributeValue\} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input |
+| `processMode` | string | No | TIME_ENTER \(default\), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval |
+| `changeReason` | string | No | Tenant-configured audit change reason code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeRecordRequest` | object | Time Record Request |
+|   ↳ `timeRecordEventRequestId` | string | timeRecordEventRequestId |
+|   ↳ `processInline` | string | processInline |
+|   ↳ `processMode` | string | processMode |
+
+### Delete Time Entry in Oracle Fusion HCM
+
+Submit one asynchronous delete time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personNumber` | string | Yes | Worker person number, including any leading zeros; does not require current public-directory membership |
+| `assignmentNumber` | string | No | HR assignment number |
+| `timeRecordId` | string | Yes | Time record ID, as a positive decimal string |
+| `timeRecordVersion` | number | Yes | Current time-record version from get_time_record; required for update and delete |
+| `processMode` | string | No | TIME_ENTER \(default\), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval |
+| `changeReason` | string | No | Tenant-configured audit change reason code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeRecordRequest` | object | Time Record Request |
+|   ↳ `timeRecordEventRequestId` | string | timeRecordEventRequestId |
+|   ↳ `processInline` | string | processInline |
+|   ↳ `processMode` | string | processMode |
+
+### Get Time Record Request in Oracle Fusion HCM
+
+Read an Oracle Fusion HCM time record request by its documented ID, subject to tenant data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `timeRecordEventRequestId` | string | Yes | Time record event request ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeRecordRequest` | object | Time Record Request |
+|   ↳ `timeRecordEventRequestId` | string | timeRecordEventRequestId |
+|   ↳ `processInline` | string | processInline |
+|   ↳ `processMode` | string | processMode |
+
+### List Time Record Request Events in Oracle Fusion HCM
+
+Read one page of time record request events from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `timeRecordEventRequestId` | string | Yes | Time record event request ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeRecordRequestEvents` | array | Time Record Request Event records |
+|   ↳ `timeRecordEventId` | string | timeRecordEventId |
+|   ↳ `timeRecordEventRequestId` | string | timeRecordEventRequestId |
+|   ↳ `timeRecordId` | string | timeRecordId |
+|   ↳ `timeRecordVersion` | number | timeRecordVersion |
+|   ↳ `operationType` | string | operationType |
+|   ↳ `eventStatus` | string | eventStatus |
+|   ↳ `eventStatusValue` | number | eventStatusValue |
+|   ↳ `crudStatusValue` | number | crudStatusValue |
+|   ↳ `personId` | string | personId |
+|   ↳ `reporterId` | string | reporterId |
+|   ↳ `reporterIdType` | string | reporterIdType |
+|   ↳ `assignmentNumber` | string | assignmentNumber |
+|   ↳ `startTime` | string | startTime |
+|   ↳ `stopTime` | string | stopTime |
+|   ↳ `measure` | number | measure |
+|   ↳ `referenceDate` | string | referenceDate |
+
+### List Time Record Event Messages in Oracle Fusion HCM
+
+Read one page of time record event messages from Oracle Fusion HCM. Requires the corresponding tenant module and data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `timeRecordEventRequestId` | string | Yes | Time record event request ID, as a positive decimal string |
+| `timeRecordEventId` | string | Yes | Time record event ID, as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `timeRecordEventMessages` | array | Time Record Event Message records |
+|   ↳ `timeRecordEventMessageId` | string | timeRecordEventMessageId |
+|   ↳ `timeRecordId` | string | timeRecordId |
+|   ↳ `timeBldgBlkVersion` | number | timeBldgBlkVersion |
+|   ↳ `messageId` | string | messageId |
+|   ↳ `messageName` | string | messageName |
+|   ↳ `messageField` | string | messageField |
+|   ↳ `attributeType` | string | attributeType |
+|   ↳ `allowException` | string | allowException |
+
+### List Oracle Fusion HCM Workers
+
+List or safely search public worker profiles.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `workers` | array | Workers |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `knownAs` | string | Known-as name |
+|   ↳ `workEmail` | string | Work email |
+|   ↳ `username` | string | Oracle username |
+
+### Get Oracle Fusion HCM Worker
+
+Get one public worker profile by person ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worker` | object | Worker |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `knownAs` | string | Known-as name |
+|   ↳ `workEmail` | string | Work email |
+|   ↳ `username` | string | Oracle username |
+
+### List Oracle Fusion HCM Worker Assignments
+
+List assignments for a worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `assignments` | array | Assignments |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `primaryFlag` | boolean | Primary assignment for worker |
+|   ↳ `primaryAssignmentFlag` | boolean | Primary assignment for work relationship |
+|   ↳ `workerType` | string | Worker type |
+|   ↳ `workerNumber` | string | Worker number |
+|   ↳ `fullPartTime` | string | Full-time or part-time value |
+|   ↳ `legalEmployerName` | string | Legal employer |
+|   ↳ `businessUnitName` | string | Business unit |
+|   ↳ `departmentName` | string | Department |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `positionName` | string | Position name |
+|   ↳ `locationCode` | string | Location code |
+|   ↳ `locationName` | string | Location name |
+|   ↳ `managerName` | string | Manager name |
+
+### Get Oracle Fusion HCM Worker Assignment
+
+Get one assignment for a worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `assignmentId` | string | Yes | Oracle assignment ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignment` | object | Assignment |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `primaryFlag` | boolean | Primary assignment for worker |
+|   ↳ `primaryAssignmentFlag` | boolean | Primary assignment for work relationship |
+|   ↳ `workerType` | string | Worker type |
+|   ↳ `workerNumber` | string | Worker number |
+|   ↳ `fullPartTime` | string | Full-time or part-time value |
+|   ↳ `legalEmployerName` | string | Legal employer |
+|   ↳ `businessUnitName` | string | Business unit |
+|   ↳ `departmentName` | string | Department |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `positionName` | string | Position name |
+|   ↳ `locationCode` | string | Location code |
+|   ↳ `locationName` | string | Location name |
+|   ↳ `managerName` | string | Manager name |
+
+### List Oracle Fusion HCM Worker Managers
+
+List managers for a worker assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `assignmentId` | string | Yes | Oracle assignment ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `managers` | array | Managers |
+|   ↳ `assignmentSupervisorId` | string | Assignment supervisor ID |
+|   ↳ `managerAssignmentId` | string | Manager assignment ID |
+|   ↳ `managerAssignmentNumber` | string | Manager assignment number |
+|   ↳ `managerAssignmentName` | string | Manager assignment name |
+|   ↳ `managerPersonId` | string | Manager person ID |
+|   ↳ `managerPersonNumber` | string | Manager person number |
+|   ↳ `displayName` | string | Manager display name |
+|   ↳ `firstName` | string | Manager first name |
+|   ↳ `knownAs` | string | Manager known-as name |
+|   ↳ `lastName` | string | Manager last name |
+|   ↳ `managerType` | string | Manager type |
+|   ↳ `managerTypeMeaning` | string | Manager type meaning |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `positionName` | string | Position name |
+|   ↳ `workEmail` | string | Work email |
+
+### List Oracle Fusion HCM Direct Reports
+
+List direct reports for a worker assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `assignmentId` | string | Yes | Oracle assignment ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `directReports` | array | Direct reports |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `knownAs` | string | Known-as name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `relationshipType` | string | Relationship type |
+|   ↳ `relationshipTypeMeaning` | string | Relationship meaning |
+|   ↳ `workerType` | string | Worker type |
+|   ↳ `directReportsCount` | number | Direct report count |
+|   ↳ `allReportsCount` | number | All report count |
+
+### List Oracle Fusion HCM Absences
+
+List a worker’s absences using documented Oracle finders.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `absenceTypeId` | string | No | Optional absence type ID |
+| `startDate` | string | No | Range start date \(YYYY-MM-DD\) |
+| `endDate` | string | No | Range end date \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `absences` | array | Absences |
+|   ↳ `absenceId` | string | Absence entry ID |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `absenceTypeId` | string | Absence type ID |
+|   ↳ `absenceType` | string | Absence type |
+|   ↳ `absenceStatusCode` | string | Absence status code |
+|   ↳ `displayStatus` | string | Display status |
+|   ↳ `displayStatusMeaning` | string | Display status meaning |
+|   ↳ `approvalStatusCode` | string | Approval status code |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `startTime` | string | Start time |
+|   ↳ `endDate` | string | End date |
+|   ↳ `endTime` | string | End time |
+|   ↳ `duration` | number | Duration |
+|   ↳ `formattedDuration` | string | Formatted duration |
+|   ↳ `unitOfMeasure` | string | Duration unit |
+|   ↳ `unitOfMeasureMeaning` | string | Duration unit meaning |
+|   ↳ `openEndedFlag` | boolean | Open-ended flag |
+|   ↳ `singleDayFlag` | boolean | Single-day flag |
+|   ↳ `employer` | string | Employer |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### Get Oracle Fusion HCM Absence
+
+Get one absence entry by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `absenceId` | string | Yes | Oracle absence entry ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `absence` | object | Absence |
+|   ↳ `absenceId` | string | Absence entry ID |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `absenceTypeId` | string | Absence type ID |
+|   ↳ `absenceType` | string | Absence type |
+|   ↳ `absenceStatusCode` | string | Absence status code |
+|   ↳ `displayStatus` | string | Display status |
+|   ↳ `displayStatusMeaning` | string | Display status meaning |
+|   ↳ `approvalStatusCode` | string | Approval status code |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `startTime` | string | Start time |
+|   ↳ `endDate` | string | End date |
+|   ↳ `endTime` | string | End time |
+|   ↳ `duration` | number | Duration |
+|   ↳ `formattedDuration` | string | Formatted duration |
+|   ↳ `unitOfMeasure` | string | Duration unit |
+|   ↳ `unitOfMeasureMeaning` | string | Duration unit meaning |
+|   ↳ `openEndedFlag` | boolean | Open-ended flag |
+|   ↳ `singleDayFlag` | boolean | Single-day flag |
+|   ↳ `employer` | string | Employer |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Absence Types
+
+List absence types available to a worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `absenceTypes` | array | Absence types |
+|   ↳ `absenceTypeId` | string | Absence type ID |
+|   ↳ `name` | string | Absence type name |
+|   ↳ `nameWithEmployer` | string | Name with employer |
+|   ↳ `description` | string | Description |
+|   ↳ `employerId` | string | Employer ID |
+|   ↳ `employerName` | string | Employer name |
+|   ↳ `durationCalculationBasis` | string | Duration calculation basis |
+|   ↳ `durationUomCode` | string | Duration unit code |
+|   ↳ `durationUomMeaning` | string | Duration unit meaning |
+|   ↳ `displaySequence` | number | Display sequence |
+
+### List Oracle Fusion HCM Jobs
+
+List or search jobs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `jobs` | array | Jobs |
+|   ↳ `jobId` | string | Job ID |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `name` | string | Job name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `jobFamilyId` | string | Job family ID |
+|   ↳ `jobFunctionCode` | string | Job function code |
+|   ↳ `managerLevel` | string | Manager level |
+|   ↳ `regularTemporary` | string | Regular or temporary |
+|   ↳ `fullPartTime` | string | Full-time or part-time |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Job Families
+
+List or search job families.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `jobFamilies` | array | Job families |
+|   ↳ `jobFamilyId` | string | Job family ID |
+|   ↳ `jobFamilyCode` | string | Job family code |
+|   ↳ `name` | string | Job family name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Departments
+
+List or search departments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `departments` | array | Departments |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `organizationCode` | string | Organization code |
+|   ↳ `name` | string | Department name |
+|   ↳ `classificationCode` | string | Classification code |
+|   ↳ `status` | string | Status |
+|   ↳ `locationId` | string | Location ID |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Locations
+
+List or search work locations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `locations` | array | Locations |
+|   ↳ `locationId` | string | Location ID |
+|   ↳ `locationCode` | string | Location code |
+|   ↳ `name` | string | Location name |
+|   ↳ `description` | string | Location description |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `country` | string | Country |
+|   ↳ `townOrCity` | string | Town or city |
+|   ↳ `region1` | string | Region 1 |
+|   ↳ `region2` | string | Region 2 |
+|   ↳ `region3` | string | Region 3 |
+|   ↳ `postalCode` | string | Postal code |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Positions
+
+List or search positions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `positions` | array | Positions |
+|   ↳ `positionId` | string | Position ID |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `name` | string | Position name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `positionType` | string | Position type |
+|   ↳ `jobId` | string | Job ID |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `locationId` | string | Location ID |
+|   ↳ `businessUnitId` | string | Business unit ID |
+|   ↳ `regularTemporary` | string | Regular or temporary |
+|   ↳ `fullPartTime` | string | Full-time or part-time |
+|   ↳ `hiringStatus` | string | Hiring status |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Business Units
+
+List or search business units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `businessUnits` | array | Business units |
+|   ↳ `businessUnitId` | string | Business unit ID |
+|   ↳ `name` | string | Business unit name |
+|   ↳ `status` | string | Status |
+
+### List Oracle Fusion HCM Legal Employers
+
+List or search legal employers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `legalEmployers` | array | Legal employers |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `name` | string | Legal employer name |
+|   ↳ `legislationCode` | string | Legislation code |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+
+### List Oracle Fusion HCM Grades
+
+List or search grades.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `grades` | array | Grades |
+|   ↳ `gradeId` | string | Grade ID |
+|   ↳ `gradeCode` | string | Grade code |
+|   ↳ `name` | string | Grade name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `categoryCode` | string | Category code |
+|   ↳ `setId` | string | Reference data set ID |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Person Types
+
+List or search person types.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `personTypes` | array | Person types |
+|   ↳ `personTypeId` | string | Person type ID |
+|   ↳ `systemPersonType` | string | System person type |
+|   ↳ `userPersonType` | string | User person type |
+|   ↳ `activeFlag` | boolean | Active flag |
+|   ↳ `defaultFlag` | boolean | Default flag |
+
+

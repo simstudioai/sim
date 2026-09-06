@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,329 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_hcm",
+      "slug": "oracle-fusion-cloud-hcm",
+      "name": "Oracle Fusion Cloud HCM",
+      "description": "Workforce, payroll records, compensation, talent, and time",
+      "longDescription": "Connect to Oracle Fusion Cloud HCM using a reusable integration-user credential. Preserve workforce and absence reads while accessing dedicated payroll, compensation, secured talent, and Time and Labor tools. Administrative salary and payroll-record writes require separate privileges. Time-entry intake is asynchronous: inspect events and messages before treating it as complete. No payroll orchestration, Recruiting, Learning, tax, or payment administration.",
+      "bgColor": "#F80000",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_hcm",
+      "operations": [
+        {
+          "name": "List payroll relationships",
+          "description": "Read one page of payroll relationships from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get payroll relationship",
+          "description": "Read an Oracle Fusion HCM payroll relationship by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List payroll assignments",
+          "description": "Read one page of payroll assignments from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get payroll assignment",
+          "description": "Read an Oracle Fusion HCM payroll assignment by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List assigned payrolls",
+          "description": "Read one page of assigned payrolls from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get assigned payroll",
+          "description": "Read an Oracle Fusion HCM assigned payroll by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "Create assigned payroll",
+          "description": "Create Assigned Payroll using documented Oracle fields. Requires administrative privileges and valid tenant configuration."
+        },
+        {
+          "name": "Update assigned payroll",
+          "description": "Correct or effectively update an assigned-payroll record. Does not transfer the worker to another payroll or execute a payroll process."
+        },
+        {
+          "name": "List payroll definitions",
+          "description": "Read one page of payroll definitions from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List payroll time periods",
+          "description": "Read one page of payroll time periods from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List payroll element definitions",
+          "description": "Read one page of payroll element definitions from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List payroll input values",
+          "description": "Read one page of payroll input values from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List element entries",
+          "description": "Read one page of element entries from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get element entry",
+          "description": "Read an Oracle Fusion HCM element entry by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List element entry values",
+          "description": "Read one page of element entry values from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Create element entry",
+          "description": "Create Element Entry using documented Oracle fields. Requires administrative privileges and valid tenant configuration."
+        },
+        {
+          "name": "Update element entry value",
+          "description": "Update Element Entry Value using documented Oracle fields. Requires administrative privileges and valid tenant configuration."
+        },
+        {
+          "name": "List person process results",
+          "description": "Read one page of person process results from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get person process result",
+          "description": "Read an Oracle Fusion HCM person process result by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List payroll run results",
+          "description": "Read one page of payroll run results from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List payroll balances",
+          "description": "Read one page of payroll balances from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List salaries",
+          "description": "Read one page of salaries from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get salary",
+          "description": "Read an Oracle Fusion HCM salary by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "Create salary",
+          "description": "Administratively create an effective-dated salary for a user-entered salary basis. Does not submit an approval request or support component-calculated salary bases."
+        },
+        {
+          "name": "Correct salary",
+          "description": "Correct the amount on an existing user-entered salary record. This changes that historical row; it does not create an effective-dated salary or submit an approval request."
+        },
+        {
+          "name": "List salary bases",
+          "description": "Read one page of salary bases from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List salary components",
+          "description": "Read one page of salary components from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List grade rate values",
+          "description": "Read one page of grade rate values from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List goal plans",
+          "description": "Read one page of goal plans from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get goal plan",
+          "description": "Read an Oracle Fusion HCM goal plan by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List performance goals",
+          "description": "Read one page of performance goals from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get performance goal",
+          "description": "Read an Oracle Fusion HCM performance goal by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List development goals",
+          "description": "Read one page of development goals from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get development goal",
+          "description": "Read an Oracle Fusion HCM development goal by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List performance documents",
+          "description": "Read one page of performance documents from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get performance document",
+          "description": "Read an Oracle Fusion HCM performance document by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List performance document roles",
+          "description": "Read one page of performance document roles from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List performance document participants",
+          "description": "Read one page of performance document participants from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List performance document tasks",
+          "description": "Read one page of performance document tasks from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List talent profiles",
+          "description": "Read one page of talent profiles from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get talent profile",
+          "description": "Read an Oracle Fusion HCM talent profile by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List talent profile sections",
+          "description": "Read one page of talent profile sections from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List talent profile skills",
+          "description": "Read one page of talent profile skills from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List talent profile certifications",
+          "description": "Read one page of talent profile certifications from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List time records",
+          "description": "Read one page of time records from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get time record",
+          "description": "Read an Oracle Fusion HCM time record by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List time cards",
+          "description": "Read one page of time cards from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Get time card",
+          "description": "Read an Oracle Fusion HCM time card by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List time attributes",
+          "description": "Read one page of time attributes from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List time attribute data sources",
+          "description": "Read one page of time attribute data sources from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List time attribute criteria binds",
+          "description": "Read one page of time attribute criteria binds from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List time attribute values",
+          "description": "Read one page of time attribute values from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "Create time entry",
+          "description": "Submit one asynchronous create time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward."
+        },
+        {
+          "name": "Update time entry",
+          "description": "Submit one asynchronous update time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward."
+        },
+        {
+          "name": "Delete time entry",
+          "description": "Submit one asynchronous delete time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward."
+        },
+        {
+          "name": "Get time record request",
+          "description": "Read an Oracle Fusion HCM time record request by its documented ID, subject to tenant data access."
+        },
+        {
+          "name": "List time record request events",
+          "description": "Read one page of time record request events from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List time record event messages",
+          "description": "Read one page of time record event messages from Oracle Fusion HCM. Requires the corresponding tenant module and data access."
+        },
+        {
+          "name": "List Workers",
+          "description": "List or safely search public worker profiles."
+        },
+        {
+          "name": "Get Worker",
+          "description": "Get one public worker profile by person ID."
+        },
+        {
+          "name": "List Worker Assignments",
+          "description": "List assignments for a worker."
+        },
+        {
+          "name": "Get Worker Assignment",
+          "description": "Get one assignment for a worker."
+        },
+        {
+          "name": "List Worker Managers",
+          "description": "List managers for a worker assignment."
+        },
+        {
+          "name": "List Worker Direct Reports",
+          "description": "List direct reports for a worker assignment."
+        },
+        {
+          "name": "List Absences",
+          "description": "List a worker’s absences using documented Oracle finders."
+        },
+        {
+          "name": "Get Absence",
+          "description": "Get one absence entry by ID."
+        },
+        {
+          "name": "List Absence Types",
+          "description": "List absence types available to a worker."
+        },
+        {
+          "name": "List Jobs",
+          "description": "List or search jobs."
+        },
+        {
+          "name": "List Job Families",
+          "description": "List or search job families."
+        },
+        {
+          "name": "List Departments",
+          "description": "List or search departments."
+        },
+        {
+          "name": "List Locations",
+          "description": "List or search work locations."
+        },
+        {
+          "name": "List Positions",
+          "description": "List or search positions."
+        },
+        {
+          "name": "List Business Units",
+          "description": "List or search business units."
+        },
+        {
+          "name": "List Legal Employers",
+          "description": "List or search legal employers."
+        },
+        {
+          "name": "List Grades",
+          "description": "List or search grades."
+        },
+        {
+          "name": "List Person Types",
+          "description": "List or search person types."
+        }
+      ],
+      "operationCount": 76,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["automation"]
     },
     {
       "type": "netsuite",
