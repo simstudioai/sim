@@ -88,6 +88,8 @@ describe('workbench upload composition', () => {
       const request = new Request(input, init)
       requests.push(request)
       if (request.url.includes('/complete?')) {
+        expect(remove).toHaveBeenCalledTimes(1)
+        await expect(stat(remove.mock.calls[0][0])).rejects.toMatchObject({ code: 'ENOENT' })
         return Response.json({ data: { file: { id: 'file', name: 'report.bin' } } })
       }
       expect(JSON.parse(await request.text()).size).toBe(bytes.length)

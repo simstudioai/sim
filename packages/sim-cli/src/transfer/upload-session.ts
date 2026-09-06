@@ -139,7 +139,10 @@ export async function finishUploadSession<T>(
       streamed = new StreamingUpload(
         await snapshot.stream(),
         snapshot.size,
-        embedded.identity.signal
+        AbortSignal.any([
+          ...(embedded.identity.signal ? [embedded.identity.signal] : []),
+          ...(snapshot.signal ? [snapshot.signal] : []),
+        ])
       )
       file = streamed
     } else {
@@ -158,6 +161,8 @@ export async function finishUploadSession<T>(
       await uploadParts(client, workspaceId, session, session.transfer, file)
     }
     await streamed?.verifyComplete()
+    await streamed?.close()
+    await snapshot?.dispose().catch(() => {})
 
     const completed = await client.request<{ data: T }>(`${session.basePath}/complete`, {
       method: 'POST',

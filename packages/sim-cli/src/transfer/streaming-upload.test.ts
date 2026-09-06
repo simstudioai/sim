@@ -186,6 +186,53 @@ describe('streamed upload bytes', () => {
     }
   )
 
+  it('keeps the host snapshot deadline active while waiting for an upload acknowledgement', async () => {
+    const deadline = new AbortController()
+    const calls: string[] = []
+    const dispose = vi.fn(async () => {})
+    const transport = async (input: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(input, init)
+      calls.push(request.method)
+      if (request.method === 'DELETE') {
+        expect(request.signal.aborted).toBe(false)
+        return Response.json({ data: { status: 'aborted' } })
+      }
+      if (request.url.includes('/complete?'))
+        return Response.json({ data: { file: { id: 'file' } } })
+      return Response.json({
+        data: {
+          session: { id: 'upload' },
+          uploadToken: 'fixture',
+          transfer: { method: 'put', url: 'https://upload.test/data', headers: {} },
+        },
+      })
+    }
+    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+      await new Request(input, init).arrayBuffer()
+      deadline.abort(new Error('Workbench snapshot expired'))
+      init?.signal?.throwIfAborted()
+      return new Response(null, { status: 200 })
+    })
+    const result = await runEmbeddedCli(
+      ['files', 'upload', 'data.bin'],
+      { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'ws', transport },
+      {
+        openFile: async () => ({
+          size: 4,
+          signal: deadline.signal,
+          stream: async () => new Blob(['data']).stream(),
+          dispose,
+        }),
+      }
+    )
+    expect(result).toMatchObject({
+      exitCode: 1,
+      stderr: expect.stringContaining('snapshot expired'),
+    })
+    expect(calls).toEqual(['POST', 'DELETE'])
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
   it('requests another URL batch without rereading or buffering earlier file parts', async () => {
     const original = Uint8Array.from({ length: 207 }, (_, index) => index % 256)
     const parts: number[] = []
