@@ -5,6 +5,45 @@ import { describe, expect, it } from 'vitest'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
+describe('validateGeneratedToolPayload browser_fill_form parameters', () => {
+  it('accepts mixed fields, including empty text and false checked state', () => {
+    const payload = {
+      fields: [
+        { elementId: 0, kind: 'text', text: '' },
+        { elementId: 1, kind: 'select', value: 'pro' },
+        { elementId: 2, kind: 'checked', checked: false },
+      ],
+    }
+    expect(validateGeneratedToolPayload('browser_fill_form', 'parameters', payload)).toBe(payload)
+  })
+
+  it.each([
+    { fields: [] },
+    {
+      fields: Array.from({ length: 9 }, (_, elementId) => ({ elementId, kind: 'text', text: '' })),
+    },
+    { fields: [{ elementId: 1, kind: 'text' }] },
+    { fields: [{ elementId: 1, kind: 'select' }] },
+    { fields: [{ elementId: 1, kind: 'checked' }] },
+    { fields: [{ elementId: 1, kind: 'text', text: 'a', value: 'a' }] },
+    { fields: [{ elementId: 1, kind: 'select', value: 'a', checked: false }] },
+    { fields: [{ elementId: 1, kind: 'checked', checked: false, text: '' }] },
+    { fields: [{ elementId: 1, kind: 'checked', checked: 'false' }] },
+    { fields: [{ elementId: 1, kind: 'text', text: null }] },
+    { fields: [{ elementId: 1, kind: 'text', text: '', submit: true }] },
+    { fields: [{ elementId: -1, kind: 'text', text: '' }] },
+    { fields: [{ elementId: 1.5, kind: 'text', text: '' }] },
+    { fields: [{ elementId: Number.MAX_SAFE_INTEGER + 1, kind: 'text', text: '' }] },
+    { fields: [{ elementId: 1, kind: 'text', text: 'a'.repeat(4097) }] },
+    { fields: [{ elementId: 1, kind: 'select', value: 'a'.repeat(4097) }] },
+    { fields: [{ elementId: 1, kind: 'text', text: '' }], submit: true },
+  ])('rejects malformed form payload %# through the generated contract', (payload) => {
+    expect(() => validateGeneratedToolPayload('browser_fill_form', 'parameters', payload)).toThrow(
+      OrchestrationError
+    )
+  })
+})
+
 /**
  * The shapes below are what an agent actually sent when the catalog advertised
  * `updates` as a bare array: the provider-path sanitizer filled the missing

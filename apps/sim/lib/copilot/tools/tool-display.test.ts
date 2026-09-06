@@ -763,6 +763,12 @@ describe('resource-naming titles', () => {
   })
 
   it('describes semantic browser controls without exposing element ids', () => {
+    expect(
+      getToolDisplayTitle('browser_fill_form', {
+        fields: [{ elementId: 42, kind: 'text', text: 'private form content' }],
+      })
+    ).toBe('Filling form')
+    expect(getToolCompletedTitle('Filling form')).toBe('Filled form')
     expect(getToolDisplayTitle('browser_find', { query: 'Submit order' })).toBe(
       'Finding "Submit order"'
     )

@@ -15,6 +15,7 @@ export interface ToolCatalogEntry {
     | 'browser_close_tab'
     | 'browser_drag'
     | 'browser_extract'
+    | 'browser_fill_form'
     | 'browser_find'
     | 'browser_go_back'
     | 'browser_go_forward'
@@ -150,6 +151,7 @@ export interface ToolCatalogEntry {
     | 'browser_close_tab'
     | 'browser_drag'
     | 'browser_extract'
+    | 'browser_fill_form'
     | 'browser_find'
     | 'browser_go_back'
     | 'browser_go_forward'
@@ -811,6 +813,142 @@ export const BrowserExtract: ToolCatalogEntry = {
   clientExecutable: true,
 }
 
+export const BrowserFillForm: ToolCatalogEntry = {
+  id: 'browser_fill_form',
+  name: 'browser_fill_form',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    additionalProperties: false,
+    properties: {
+      fields: {
+        description:
+          "Ordered list of 1–8 fields with unique elementId refs from the current top page's latest snapshot. Supply exactly one matching value parameter per kind.",
+        items: {
+          oneOf: [
+            {
+              additionalProperties: false,
+              properties: { elementId: {}, kind: { enum: ['text'] }, text: {} },
+              required: ['text'],
+            },
+            {
+              additionalProperties: false,
+              properties: { elementId: {}, kind: { enum: ['select'] }, value: {} },
+              required: ['value'],
+            },
+            {
+              additionalProperties: false,
+              properties: { checked: {}, elementId: {}, kind: { enum: ['checked'] } },
+              required: ['checked'],
+            },
+          ],
+          properties: {
+            checked: {
+              description:
+                'Desired state for kind=checked. A radio can only be set true; native checkboxes may be true or false.',
+              type: 'boolean',
+            },
+            elementId: {
+              description:
+                "Nonnegative integer element ref from the current page's latest snapshot.",
+              maximum: 9007199254740991,
+              minimum: 0,
+              type: 'integer',
+            },
+            kind: {
+              description:
+                'text requires text; select requires value; checked requires checked. Do not supply parameters for another kind.',
+              enum: ['text', 'select', 'checked'],
+              type: 'string',
+            },
+            text: {
+              description:
+                'Replacement content for kind=text, including empty to clear. At most 4096 characters. Ordinary input or textarea only.',
+              maxLength: 4096,
+              type: 'string',
+            },
+            value: {
+              description:
+                'Option value or visible label for kind=select. At most 4096 characters. Native single-selection dropdown only.',
+              maxLength: 4096,
+              type: 'string',
+            },
+          },
+          required: ['elementId', 'kind'],
+          type: 'object',
+        },
+        maxItems: 8,
+        minItems: 1,
+        type: 'array',
+      },
+    },
+    required: ['fields'],
+    type: 'object',
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      completed: {
+        type: 'boolean',
+        description:
+          'True only when every requested field passed exact verification and the page boundary stayed unchanged.',
+      },
+      completedCount: {
+        type: 'number',
+        description:
+          'Number of field results whose latest readback matched the requested state. Inspect results for the individual indices.',
+      },
+      doNotRetry: {
+        type: 'boolean',
+        description:
+          'True when input dispatch began: inspect partial results and a fresh snapshot before deciding on remaining work; never blindly repeat the batch.',
+      },
+      error: {
+        type: 'string',
+        description: 'Reason filling stopped; preceding fields may already have taken effect.',
+      },
+      note: {
+        type: 'string',
+        description: 'Partial-outcome recovery guidance. Form filling is not atomic.',
+      },
+      notices: { type: 'array', items: { type: 'string' } },
+      results: {
+        type: 'array',
+        description:
+          'Ordered field readbacks. An interrupted write may have no result; absence is not proof that input had no effect.',
+        items: {
+          type: 'object',
+          properties: {
+            checked: { type: 'boolean' },
+            elementId: { type: 'number' },
+            index: { type: 'number' },
+            kind: { type: 'string', enum: ['text', 'select', 'checked'] },
+            redacted: { type: 'boolean' },
+            valueLength: { type: 'number' },
+            valuePreview: {
+              type: 'string',
+              description:
+                'Bounded normalized actual field preview, withheld for sensitive autocomplete fields; full-value equality is checked inside the page.',
+            },
+            verified: {
+              type: 'boolean',
+              description:
+                'Whether the full requested value or checked state matched at the latest successful probe, not merely whether input was dispatched.',
+            },
+          },
+          required: ['index', 'elementId', 'kind', 'verified'],
+        },
+      },
+      stoppedIndex: {
+        type: 'number',
+        description: 'Zero-based field index being processed or verified when filling stopped.',
+      },
+    },
+    required: ['completed', 'completedCount', 'results'],
+  },
+  clientExecutable: true,
+}
+
 export const BrowserFind: ToolCatalogEntry = {
   id: 'browser_find',
   name: 'browser_find',
@@ -1395,9 +1533,13 @@ export const BrowserScroll: ToolCatalogEntry = {
       amount: {
         type: 'number',
         description:
-          'Optional distance to scroll in pixels (default: 85% of the viewport height, so a little context carries over).',
+          'Optional distance to scroll in pixels (default: 85% of the viewport height for up/down or width for left/right, so a little context carries over).',
       },
-      direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down'] },
+      direction: {
+        type: 'string',
+        description: 'Scroll direction.',
+        enum: ['up', 'down', 'left', 'right'],
+      },
       elementId: {
         type: 'number',
         description:
@@ -1413,14 +1555,29 @@ export const BrowserScroll: ToolCatalogEntry = {
         type: 'boolean',
         description: 'Whether the selected region is at its bottom boundary.',
       },
+      atLeft: {
+        type: 'boolean',
+        description:
+          'Whether the selected region is at its physical left boundary, included for left/right.',
+      },
+      atRight: {
+        type: 'boolean',
+        description:
+          'Whether the selected region is at its physical right boundary, included for left/right.',
+      },
       atTop: {
         type: 'boolean',
         description: 'Whether the selected region is at its top boundary.',
       },
       clientHeight: { type: 'number', description: 'Region viewport height.' },
+      clientWidth: {
+        type: 'number',
+        description: 'Region viewport width, included for left/right.',
+      },
       movedBy: {
         type: 'number',
-        description: 'Actual signed movement; zero means the target did not move.',
+        description:
+          'Actual signed movement on the requested axis: negative for up/left, positive for down/right; zero means the target did not move.',
       },
       notices: {
         type: 'array',
@@ -1429,16 +1586,29 @@ export const BrowserScroll: ToolCatalogEntry = {
         items: { type: 'string' },
       },
       scrollHeight: { type: 'number', description: 'Region content height.' },
-      scrollTop: { type: 'number', description: 'Resulting region scroll offset.' },
+      scrollLeft: {
+        type: 'number',
+        description:
+          'Resulting horizontal region scroll offset, included for left/right; may be negative in right-to-left regions.',
+      },
+      scrollTop: { type: 'number', description: 'Resulting vertical region scroll offset.' },
+      scrollWidth: {
+        type: 'number',
+        description: 'Region content width, included for left/right.',
+      },
       target: { type: 'string', description: 'Chosen scroll region label.' },
       targetSource: {
         type: 'string',
         description:
           'element, element-boundary, focus, focus-boundary, viewport-center, viewport-center-boundary, largest-visible, or page.',
       },
+      windowScrollX: {
+        type: 'number',
+        description: 'Top-page horizontal window scroll offset after a left/right region scroll.',
+      },
       windowScrollY: {
         type: 'number',
-        description: 'Top-page window scroll offset after the region scroll.',
+        description: 'Top-page vertical window scroll offset after the region scroll.',
       },
     },
     required: ['atTop', 'atBottom'],
@@ -7338,6 +7508,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserCloseTab.id]: BrowserCloseTab,
   [BrowserDrag.id]: BrowserDrag,
   [BrowserExtract.id]: BrowserExtract,
+  [BrowserFillForm.id]: BrowserFillForm,
   [BrowserFind.id]: BrowserFind,
   [BrowserGoBack.id]: BrowserGoBack,
   [BrowserGoForward.id]: BrowserGoForward,

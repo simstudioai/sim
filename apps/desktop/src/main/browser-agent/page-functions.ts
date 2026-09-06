@@ -2208,6 +2208,7 @@ export function readPageActionState(
   const roots: ParentNode[] = observationRoot ? [observationRoot] : []
   const allElements: Element[] = []
   const stateNodeCap = 12_000
+  const overlayLimit = 10
   for (let index = 0; index < roots.length; index++) {
     for (const element of Array.from(roots[index].querySelectorAll('*'))) {
       if (allElements.length >= stateNodeCap) break
@@ -2296,48 +2297,46 @@ export function readPageActionState(
   const dialogs = allElements.filter((element) =>
     element.matches('dialog[open], [role="dialog"], [aria-modal="true"]')
   )
-  const visibleDialogLabels = dialogs
-    .filter((element) => {
-      const rect = element.getBoundingClientRect()
-      const view = element.ownerDocument.defaultView
-      if (!view || rect.width <= 0 || rect.height <= 0) return false
-      for (let current: Element | null = element; current; ) {
-        const style = view.getComputedStyle(current)
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          Number.parseFloat(style.opacity || '1') <= 0.01 ||
-          current.hasAttribute('hidden') ||
-          current.getAttribute('aria-hidden') === 'true'
-        ) {
-          return false
-        }
-        if (current.parentElement) current = current.parentElement
-        else {
-          const root = current.getRootNode()
-          current = 'host' in root ? (root.host as Element) : null
-        }
+  const visibleDialogs = dialogs.filter((element) => {
+    const rect = element.getBoundingClientRect()
+    const view = element.ownerDocument.defaultView
+    if (!view || rect.width <= 0 || rect.height <= 0) return false
+    for (let current: Element | null = element; current; ) {
+      const style = view.getComputedStyle(current)
+      if (
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        Number.parseFloat(style.opacity || '1') <= 0.01 ||
+        current.hasAttribute('hidden') ||
+        current.getAttribute('aria-hidden') === 'true'
+      ) {
+        return false
       }
-      return (
-        rect.right > 0 &&
-        rect.bottom > 0 &&
-        rect.left < view.innerWidth &&
-        rect.top < view.innerHeight
-      )
-    })
-    .slice(0, 10)
-    .map((element) =>
-      (
-        element.getAttribute('aria-label') ||
-        (element as HTMLElement).innerText ||
-        element.textContent ||
-        ''
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-        .replace(/[\uD800-\uDBFF]$/, '')
+      if (current.parentElement) current = current.parentElement
+      else {
+        const root = current.getRootNode()
+        current = 'host' in root ? (root.host as Element) : null
+      }
+    }
+    return (
+      rect.right > 0 &&
+      rect.bottom > 0 &&
+      rect.left < view.innerWidth &&
+      rect.top < view.innerHeight
     )
+  })
+  const visibleDialogLabels = visibleDialogs.slice(0, overlayLimit).map((element) =>
+    (
+      element.getAttribute('aria-label') ||
+      (element as HTMLElement).innerText ||
+      element.textContent ||
+      ''
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  )
 
   // Roles an app uses for something that APPEARS over the page. The first three
   // were the whole list, which missed the most common hover affordance there
@@ -2345,7 +2344,7 @@ export function readPageActionState(
   // with an aria-label). A hover that mounted one produced no popup change, no
   // target change, and so no observed effect at all — the agent concluded its
   // hover had failed and escalated to clicking pixels.
-  const visiblePopupLabels = allElements
+  const visiblePopups = allElements
     .filter((element) =>
       element.matches(
         '[role="tooltip"], [role="menu"], [role="listbox"], [role="toolbar"], [role="menubar"], [role="group"][aria-label], [popover]'
@@ -2367,20 +2366,19 @@ export function readPageActionState(
         rect.top < view.innerHeight
       )
     })
-    .slice(0, 10)
-    .map((element) =>
-      (
-        element.getAttribute('aria-label') ||
-        (element as HTMLElement).innerText ||
-        element.textContent ||
-        element.getAttribute('role') ||
-        ''
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-        .replace(/[\uD800-\uDBFF]$/, '')
+  const visiblePopupLabels = visiblePopups.slice(0, overlayLimit).map((element) =>
+    (
+      element.getAttribute('aria-label') ||
+      (element as HTMLElement).innerText ||
+      element.textContent ||
+      element.getAttribute('role') ||
+      ''
     )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  )
 
   const scrolledRegions = allElements
     .filter((element) => (element as HTMLElement).scrollTop !== 0)
@@ -2405,13 +2403,19 @@ export function readPageActionState(
     popups: visiblePopupLabels,
     scroll: [Math.round(observedWindow.scrollY), ...scrolledRegions],
     ...(targetState ? { targetState } : {}),
-    observationTruncated: allElements.length >= stateNodeCap,
+    observationTruncated:
+      allElements.length >= stateNodeCap ||
+      visibleDialogs.length > overlayLimit ||
+      visiblePopups.length > overlayLimit,
   }
 }
 
 export function scrollPage(direction: string, amount?: number, elementId?: number): unknown {
-  const distance = typeof amount === 'number' && amount > 0 ? amount : window.innerHeight * 0.85
-  const delta = direction === 'up' ? -distance : distance
+  const horizontal = direction === 'left' || direction === 'right'
+  const viewportSize = horizontal ? window.innerWidth : window.innerHeight
+  const distance = typeof amount === 'number' && amount > 0 ? amount : viewportSize * 0.85
+  const towardStart = direction === 'up' || direction === 'left'
+  const delta = towardStart ? -distance : distance
   const scrollingElement = (document.scrollingElement || document.documentElement) as HTMLElement
 
   const isVisible = (element: Element): boolean => {
@@ -2455,18 +2459,30 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   }
   const isScrollable = (element: Element): element is HTMLElement => {
     const html = element as HTMLElement
-    if (html.scrollHeight <= html.clientHeight + 1) return false
+    const scrollSize = horizontal ? html.scrollWidth : html.scrollHeight
+    const clientSize = horizontal ? html.clientWidth : html.clientHeight
+    if (scrollSize <= clientSize + 1) return false
     const ownerScroller =
       element.ownerDocument.scrollingElement || element.ownerDocument.documentElement
     if (element === ownerScroller) return true
     const view = element.ownerDocument.defaultView
     if (!view) return false
-    const overflow = view.getComputedStyle(element).overflowY
+    const style = view.getComputedStyle(element)
+    const overflow = horizontal ? style.overflowX : style.overflowY
     return overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay'
   }
+  const horizontalBounds = (element: HTMLElement): { min: number; max: number } => {
+    const extent = Math.max(0, element.scrollWidth - element.clientWidth)
+    const rtl = element.ownerDocument.defaultView?.getComputedStyle(element).direction === 'rtl'
+    /** Chromium's RTL scrollLeft runs from a negative left edge to zero at the right edge. */
+    return rtl ? { min: -extent, max: 0 } : { min: 0, max: extent }
+  }
   const canMove = (element: HTMLElement): boolean => {
-    const max = Math.max(0, element.scrollHeight - element.clientHeight)
-    return direction === 'up' ? element.scrollTop > 1 : element.scrollTop < max - 1
+    const position = horizontal ? element.scrollLeft : element.scrollTop
+    const { min, max } = horizontal
+      ? horizontalBounds(element)
+      : { min: 0, max: Math.max(0, element.scrollHeight - element.clientHeight) }
+    return towardStart ? position > min + 1 : position < max - 1
   }
   const ancestors = (start: Element | null): HTMLElement[] => {
     const result: HTMLElement[] = []
@@ -2584,11 +2600,22 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   const targetWindow = targetDocument.defaultView
   const targetDocumentScroller = targetDocument.scrollingElement || targetDocument.documentElement
   const isDocumentScroller = target === targetDocumentScroller
-  const before = isDocumentScroller ? (targetWindow?.scrollY ?? target.scrollTop) : target.scrollTop
+  const position = (): number => {
+    if (horizontal) {
+      return isDocumentScroller ? (targetWindow?.scrollX ?? target.scrollLeft) : target.scrollLeft
+    }
+    return isDocumentScroller ? (targetWindow?.scrollY ?? target.scrollTop) : target.scrollTop
+  }
+  const before = position()
+  const scrollOptions: ScrollToOptions = horizontal
+    ? { left: delta, behavior: 'instant' }
+    : { top: delta, behavior: 'instant' }
   if (isDocumentScroller && targetWindow) {
-    targetWindow.scrollBy({ top: delta, behavior: 'instant' })
+    targetWindow.scrollBy(scrollOptions)
   } else if (typeof target.scrollBy === 'function') {
-    target.scrollBy({ top: delta, behavior: 'instant' })
+    target.scrollBy(scrollOptions)
+  } else if (horizontal) {
+    target.scrollLeft += delta
   } else {
     target.scrollTop += delta
   }
@@ -2601,6 +2628,7 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   const clientHeight = isDocumentScroller
     ? (targetWindow?.innerHeight ?? target.clientHeight)
     : target.clientHeight
+  const after = position()
   const label =
     target.getAttribute('aria-label') ||
     target.getAttribute('role') ||
@@ -2612,10 +2640,20 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
     scrollTop: Math.round(scrollTop),
     scrollHeight: Math.round(scrollHeight),
     clientHeight: Math.round(clientHeight),
-    movedBy: Math.round(scrollTop - before),
+    movedBy: Math.round(after - before),
     atTop: scrollTop <= 1,
     atBottom: scrollTop + clientHeight >= scrollHeight - 2,
     windowScrollY: Math.round(window.scrollY),
+    ...(horizontal
+      ? {
+          scrollLeft: Math.round(after),
+          scrollWidth: Math.round(target.scrollWidth),
+          clientWidth: Math.round(target.clientWidth),
+          atLeft: after <= horizontalBounds(target).min + 1,
+          atRight: after >= horizontalBounds(target).max - 2,
+          windowScrollX: Math.round(window.scrollX),
+        }
+      : {}),
   }
 }
 
@@ -2656,6 +2694,106 @@ export function selectOptionInElement(id: number, value: string): unknown {
     selected: option.label.trim(),
     value: option.value,
     refRecovered: resolved?.recovered === true,
+  }
+}
+
+/** Reads and verifies an ordinary top-document form control without exposing secret values. */
+export function readFormFieldState(
+  id: number,
+  kind: 'text' | 'select' | 'checked',
+  expected: string | boolean
+): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const registered = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  const element =
+    String(registered?.tagName || '').toUpperCase() === 'LABEL'
+      ? (registered as HTMLLabelElement).control
+      : registered
+  if (!element?.isConnected) return { error: 'stale' }
+  if (element.ownerDocument !== document) return { error: 'Form batches require top-page fields.' }
+  const tag = String(element.tagName || '').toUpperCase()
+  const input = element as HTMLInputElement
+  const type = tag === 'INPUT' ? String(input.type || 'text').toLowerCase() : ''
+  const hints = String(element.getAttribute('autocomplete') || '')
+    .toLowerCase()
+    .split(/\s+/)
+  if (
+    tag === 'INPUT' &&
+    (type === 'password' ||
+      hints.some((hint) => hint === 'current-password' || hint === 'new-password'))
+  )
+    return { error: 'password' }
+  if (element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true') {
+    return { error: 'disabled' }
+  }
+  if (input.readOnly || element.getAttribute('aria-readonly') === 'true') {
+    return { error: 'readonly' }
+  }
+  if (kind === 'checked') {
+    if (tag !== 'INPUT' || !['checkbox', 'radio'].includes(type)) {
+      return { error: 'Form batches require native checkboxes or radio buttons.' }
+    }
+    if (type === 'radio' && expected === false)
+      return { error: 'Radio buttons cannot be unchecked directly.' }
+    return {
+      matchesRequested: !input.indeterminate && input.checked === expected,
+      checked: input.checked,
+    }
+  }
+  let value: string
+  let matchesRequested: boolean
+  if (kind === 'select') {
+    if (tag !== 'SELECT' || (element as HTMLSelectElement).multiple) {
+      return { error: 'Form batches require single-selection native dropdowns.' }
+    }
+    const select = element as HTMLSelectElement
+    const wanted = String(expected).trim().toLowerCase()
+    const option = Array.from(select.options).find(
+      (candidate) =>
+        candidate.value.trim().toLowerCase() === wanted ||
+        candidate.label.trim().toLowerCase() === wanted
+    )
+    if (
+      !option ||
+      option.disabled ||
+      (option.parentElement as HTMLOptGroupElement | null)?.disabled
+    ) {
+      return { error: 'The requested dropdown option is absent or disabled.' }
+    }
+    value = select.value
+    matchesRequested = value === option.value
+  } else {
+    if (
+      tag !== 'TEXTAREA' &&
+      (tag !== 'INPUT' || !['text', 'search', 'email', 'url', 'tel', 'number'].includes(type))
+    ) {
+      return { error: 'Form batches require ordinary text inputs or textareas.' }
+    }
+    value = input.value
+    matchesRequested = value === expected
+  }
+  const redacted =
+    tag === 'INPUT' &&
+    hints.some((hint) =>
+      ['one-time-code', 'cc-number', 'cc-csc', 'cc-exp', 'cc-exp-month', 'cc-exp-year'].includes(
+        hint
+      )
+    )
+  let active = document.activeElement
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+  return {
+    matchesRequested,
+    focused: active === element,
+    valueLength: value.length,
+    valuePreview: redacted
+      ? ''
+      : value
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 120)
+          .replace(/[\uD800-\uDBFF]$/, ''),
+    redacted,
   }
 }
 
