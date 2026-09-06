@@ -3358,6 +3358,18 @@ import {
   obsidianSearchTool,
 } from '@/tools/obsidian'
 import {
+  ociDocumentAnalyzeDocumentTool,
+  ociDocumentCancelProcessorJobTool,
+  ociDocumentCreateProcessorJobTool,
+  ociDocumentGetJobOutputTool,
+  ociDocumentGetModelTool,
+  ociDocumentGetModelTypeTool,
+  ociDocumentGetProcessorJobTool,
+  ociDocumentListJobOutputsTool,
+  ociDocumentListModelsTool,
+  ociDocumentListProjectsTool,
+} from '@/tools/oci_document_understanding'
+import {
   oktaActivateGroupRuleTool,
   oktaActivateUserTool,
   oktaAddUserToGroupTool,
@@ -5907,6 +5919,17 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ExecutableToolConfig> = {
+  oci_document_understanding_analyze_document: ociDocumentAnalyzeDocumentTool,
+  oci_document_understanding_cancel_processor_job: ociDocumentCancelProcessorJobTool,
+  oci_document_understanding_create_processor_job: ociDocumentCreateProcessorJobTool,
+  oci_document_understanding_get_job_output: ociDocumentGetJobOutputTool,
+  oci_document_understanding_get_model: ociDocumentGetModelTool,
+  oci_document_understanding_get_model_type: ociDocumentGetModelTypeTool,
+  oci_document_understanding_get_processor_job: ociDocumentGetProcessorJobTool,
+  oci_document_understanding_list_job_outputs: ociDocumentListJobOutputsTool,
+  oci_document_understanding_list_models: ociDocumentListModelsTool,
+  oci_document_understanding_list_projects: ociDocumentListProjectsTool,
+
   a2a_cancel_task: a2aCancelTaskTool,
   a2a_get_agent_card: a2aGetAgentCardTool,
   a2a_get_task: a2aGetTaskTool,

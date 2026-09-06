@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,65 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_document_understanding",
+      "slug": "oci-document-understanding",
+      "name": "OCI Document Understanding",
+      "description": "Extract document text, tables and fields, classify documents, and manage analysis jobs",
+      "longDescription": "Analyze JPEG, PNG, PDF and TIFF documents with native OCI API signing-key credentials. Synchronous and inline job input is limited to 8 MB and five pages. Object Storage jobs accept up to 2000 documents, 500 MB and 2000 pages per document, within a 500 KB request body. Remote document limits are enforced by Oracle. Choose feature objects for OCR, tables, key-value extraction, document classification and language classification. Pretrained models need no modelId. Language and feature combinations depend on the model; no explicit model-version switch is sent. Searchable PDFs are supported through jobs. Existing models and projects can be discovered; model training and separate Generative AI products are not included. Jobs require an existing output bucket and prefix plus Oracle IAM access to process documents and read/write Object Storage. Cross-tenancy inputs require Oracle endorse/admit policies. Artifact paths follow Oracle’s prefix/jobId/ convention; no complete failure manifest or ZIP schema is assumed. Partial success is FAILED with PARTIALLY_SUCCEEDED details. Status reads do not poll automatically. The OCI transport sends synchronous analysis once. Disable block/workflow retries for paid analysis: the shared executor currently drops the non-retryable marker. Job tokens are derived from complete workflow invocation identity, otherwise generated per call; supply a stable token for deliberate replays with identical input. Oracle tokens expire after 24 hours and may be invalidated earlier. Structured output defaults to 1 MiB and 20 pages, capped at 8 MiB and 100 pages, with explicit truncation. JSON parsing is capped at 32 MiB. File artifacts up to 100 MiB are persisted as Sim files. Use file retrieval when an artifact exceeds the structured limit. No arbitrary document URLs are accepted.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_document_understanding",
+      "operations": [
+        {
+          "name": "Analyze Document",
+          "description": "Analyze text, tables, fields and classifications in one JPEG, PNG, PDF or TIFF document of at most 8 MB and five pages. The OCI transport makes one attempt. Disable block/workflow retries to avoid duplicate paid analysis."
+        },
+        {
+          "name": "Create Processor Job",
+          "description": "Submit document analysis or searchable-PDF generation. Inline: 8 MB/five pages. Object Storage: 500 MB/2000 pages per document, at most 2000 documents and 500 KB request JSON. Results require Object Storage access."
+        },
+        {
+          "name": "Get Processor Job",
+          "description": "Read processor status once. Use bounded workflow waits for polling; FAILED with PARTIALLY_SUCCEEDED can still have usable output artifacts."
+        },
+        {
+          "name": "Cancel Processor Job",
+          "description": "Request processor cancellation. The acknowledgement does not prove the job is canceled; read its status afterward."
+        },
+        {
+          "name": "List Job Outputs",
+          "description": "List one page of artifacts beneath the authenticated job’s output prefix. Requires Oracle Object Storage list access. Missing artifacts do not establish individual document failures."
+        },
+        {
+          "name": "Get Job Output",
+          "description": "Retrieve one job artifact with Oracle Object Storage read access. Project documented analysis JSON up to 32 MiB or persist a file up to 100 MiB. No automatic reanalysis or ZIP parsing."
+        },
+        {
+          "name": "List Projects",
+          "description": "Discover one page of Document Understanding projects in a compartment."
+        },
+        {
+          "name": "List Models",
+          "description": "Discover one page of existing models, optionally within a project. Does not create or train models."
+        },
+        {
+          "name": "Get Model",
+          "description": "Inspect an existing Document Understanding model’s identity, type, language, version and lifecycle."
+        },
+        {
+          "name": "Get Model Type",
+          "description": "Inspect documented model-type versions and capabilities; does not select a hidden analysis API version."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["document-processing", "automation", "cloud"]
     },
     {
       "type": "okta",
