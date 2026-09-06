@@ -2,7 +2,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { createOciClient, type OciClient } from '@/lib/internal/oci/client.server'
 import { createOciStaticEndpointPolicy } from '@/lib/internal/oci/endpoints'
 import { executeOciComputeOperation } from '@/lib/internal/oci-compute/operations'
-import { ociComputeSchemas, type OciComputeOperation } from '@/lib/internal/oci-compute/schema'
+import { type OciComputeOperation, ociComputeSchemas } from '@/lib/internal/oci-compute/schema'
 import { OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -14,8 +14,8 @@ import { selectorProviderStatusError } from '@/lib/selectors/server/providers/pr
 import {
   definePreparedSelectorAttachment,
   detailSelectorResult,
-  listSelectorResult,
   type ExecuteServerSelectorArgs,
+  listSelectorResult,
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
@@ -122,26 +122,39 @@ async function prepareCompute(args: ExecuteServerSelectorArgs): Promise<Prepared
     serviceId: OCI_COMPUTE_SERVICE_ID,
     region,
   })
-  const identity = ['oci_compute.compartments', 'oci_compute.availabilityDomains', 'oci_compute.faultDomains'].includes(args.selectorKey)
-  await client.prepareStaticEndpoint(createOciStaticEndpointPolicy({
-    serviceId: OCI_COMPUTE_SERVICE_ID,
-    serviceName: identity ? 'identity' : 'iaas',
-    hostnameTemplate: identity ? 'regional-oci' : 'regional',
-  }))
+  const identity = [
+    'oci_compute.compartments',
+    'oci_compute.availabilityDomains',
+    'oci_compute.faultDomains',
+  ].includes(args.selectorKey)
+  await client.prepareStaticEndpoint(
+    createOciStaticEndpointPolicy({
+      serviceId: OCI_COMPUTE_SERVICE_ID,
+      serviceName: identity ? 'identity' : 'iaas',
+      hostnameTemplate: identity ? 'regional-oci' : 'regional',
+    })
+  )
   args.signal?.throwIfAborted()
   return { client, credentialId: access.resolvedCredentialId }
 }
 
 function option(value: unknown, key: ComputeSelectorKey): SafeSelectorOption {
   if (!isPlainRecord(value)) throw new SelectorOptionsUnavailableError()
-  const id = key === 'oci_compute.shapes' ? value.shape
-    : key === 'oci_compute.availabilityDomains' || key === 'oci_compute.faultDomains'
-      ? value.name : value.id
+  const id =
+    key === 'oci_compute.shapes'
+      ? value.shape
+      : key === 'oci_compute.availabilityDomains' || key === 'oci_compute.faultDomains'
+        ? value.name
+        : value.id
   if (typeof id !== 'string' || !id || id.length > 512) {
     throw new SelectorOptionsUnavailableError()
   }
-  const name = typeof value.displayName === 'string' ? value.displayName
-    : typeof value.name === 'string' ? value.name : id
+  const name =
+    typeof value.displayName === 'string'
+      ? value.displayName
+      : typeof value.name === 'string'
+        ? value.name
+        : id
   const label = name === id ? id : `${name} (${id.slice(-12)})`
   const meta: Record<string, string | number | boolean | null> = {}
   for (const field of ['lifecycleState', 'availabilityDomain', 'shape', 'isFlexible']) {
@@ -157,8 +170,10 @@ async function executeCompute(args: ExecuteServerSelectorArgs, prepared: Prepare
   const key = args.selectorKey as ComputeSelectorKey
   const selector = SELECTORS[key]
   if (!selector) throw new SelectorOptionsUnavailableError()
-  const compartmentId = key === 'oci_compute.compartments'
-    ? args.context.parentCompartmentId : args.context.compartmentId
+  const compartmentId =
+    key === 'oci_compute.compartments'
+      ? args.context.parentCompartmentId
+      : args.context.compartmentId
   if (!compartmentId) throw new SelectorContextUnavailableError()
   const flat = key === 'oci_compute.availabilityDomains' || key === 'oci_compute.faultDomains'
   const direct = args.request.kind === 'detail' && selector.get !== null
@@ -188,7 +203,12 @@ async function executeCompute(args: ExecuteServerSelectorArgs, prepared: Prepare
   if (!parsed.success) throw new SelectorContextUnavailableError()
   args.signal?.throwIfAborted()
   args.recordCredentialUse?.(OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID)
-  const result = await executeOciComputeOperation(prepared.client, operation, parsed.data, args.signal)
+  const result = await executeOciComputeOperation(
+    prepared.client,
+    operation,
+    parsed.data,
+    args.signal
+  )
   args.signal?.throwIfAborted()
   if (!result.success) {
     if (direct && result.output.status === 404) return detailSelectorResult(null)
@@ -207,8 +227,13 @@ async function executeCompute(args: ExecuteServerSelectorArgs, prepared: Prepare
   const resources = output[selector.output]
   if (!Array.isArray(resources)) throw new SelectorOptionsUnavailableError()
   const items = resources
-    .filter((item) => key !== 'oci_compute.subnets' || !args.context.availabilityDomain ||
-      (isPlainRecord(item) && (!item.availabilityDomain || item.availabilityDomain === args.context.availabilityDomain)))
+    .filter(
+      (item) =>
+        key !== 'oci_compute.subnets' ||
+        !args.context.availabilityDomain ||
+        (isPlainRecord(item) &&
+          (!item.availabilityDomain || item.availabilityDomain === args.context.availabilityDomain))
+    )
     .map((item) => option(item, key))
   if (args.request.kind === 'detail') {
     const selectedId = args.request.id

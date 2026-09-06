@@ -310,10 +310,7 @@ const INSTANCE_POOL_ID_OPERATIONS = [
   'oci_compute_detach_instance_pool_instance',
 ]
 
-const SIZE_OPERATIONS = [
-  'oci_compute_create_instance_pool',
-  'oci_compute_update_instance_pool',
-]
+const SIZE_OPERATIONS = ['oci_compute_create_instance_pool', 'oci_compute_update_instance_pool']
 
 const PLACEMENT_CONFIGURATIONS_OPERATIONS = [
   'oci_compute_create_instance_pool',
@@ -330,42 +327,23 @@ const INSTANCE_HOSTNAME_FORMATTER_OPERATIONS = [
   'oci_compute_update_instance_pool',
 ]
 
-const IS_AUTO_TERMINATE_OPERATIONS = [
-  'oci_compute_detach_instance_pool_instance',
-]
+const IS_AUTO_TERMINATE_OPERATIONS = ['oci_compute_detach_instance_pool_instance']
 
-const IS_DECREMENT_SIZE_OPERATIONS = [
-  'oci_compute_detach_instance_pool_instance',
-]
+const IS_DECREMENT_SIZE_OPERATIONS = ['oci_compute_detach_instance_pool_instance']
 
-const NAME_OPERATIONS = [
-  'oci_compute_list_compartments',
-]
+const NAME_OPERATIONS = ['oci_compute_list_compartments']
 
-const ACCESS_LEVEL_OPERATIONS = [
-  'oci_compute_list_compartments',
-]
+const ACCESS_LEVEL_OPERATIONS = ['oci_compute_list_compartments']
 
-const COMPARTMENT_ID_IN_SUBTREE_OPERATIONS = [
-  'oci_compute_list_compartments',
-]
+const COMPARTMENT_ID_IN_SUBTREE_OPERATIONS = ['oci_compute_list_compartments']
 
-const VCN_ID_OPERATIONS = [
-  'oci_compute_list_subnets',
-]
+const VCN_ID_OPERATIONS = ['oci_compute_list_subnets']
 
-const SUBNET_ID_OPERATIONS = [
-  'oci_compute_get_subnet',
-  'oci_compute_launch_instance',
-]
+const SUBNET_ID_OPERATIONS = ['oci_compute_get_subnet', 'oci_compute_launch_instance']
 
-const VNIC_ID_OPERATIONS = [
-  'oci_compute_get_vnic',
-]
+const VNIC_ID_OPERATIONS = ['oci_compute_get_vnic']
 
-const RESOURCE_ID_OPERATIONS = [
-  'oci_compute_list_work_requests',
-]
+const RESOURCE_ID_OPERATIONS = ['oci_compute_list_work_requests']
 
 const WORK_REQUEST_ID_OPERATIONS = [
   'oci_compute_get_work_request',
@@ -411,7 +389,9 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
         oci_compute_delete_image: ['Delete image'],
         oci_compute_change_image_compartment: ['Change image compartment'],
         oci_compute_list_shapes: ['List shapes'],
-        oci_compute_list_image_shape_compatibility_entries: ['List image shape compatibility entries'],
+        oci_compute_list_image_shape_compatibility_entries: [
+          'List image shape compatibility entries',
+        ],
         oci_compute_get_image_shape_compatibility_entry: ['Get image shape compatibility entry'],
         oci_compute_create_compute_capacity_report: ['Create compute capacity report'],
         oci_compute_list_instance_configurations: ['List instance configurations'],
@@ -420,7 +400,9 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
         oci_compute_update_instance_configuration: ['Update instance configuration'],
         oci_compute_delete_instance_configuration: ['Delete instance configuration'],
         oci_compute_launch_instance_configuration: ['Launch instance configuration'],
-        oci_compute_change_instance_configuration_compartment: ['Change instance configuration compartment'],
+        oci_compute_change_instance_configuration_compartment: [
+          'Change instance configuration compartment',
+        ],
         oci_compute_list_instance_pools: ['List instance pools'],
         oci_compute_get_instance_pool: ['Get instance pool'],
         oci_compute_create_instance_pool: ['Create instance pool'],
@@ -489,7 +471,10 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
         { label: 'Instance Action', id: 'oci_compute_instance_action' },
         { label: 'Terminate Instance', id: 'oci_compute_terminate_instance' },
         { label: 'Change Instance Compartment', id: 'oci_compute_change_instance_compartment' },
-        { label: 'Get Instance Maintenance Reboot', id: 'oci_compute_get_instance_maintenance_reboot' },
+        {
+          label: 'Get Instance Maintenance Reboot',
+          id: 'oci_compute_get_instance_maintenance_reboot',
+        },
         { label: 'List Images', id: 'oci_compute_list_images' },
         { label: 'Get Image', id: 'oci_compute_get_image' },
         { label: 'Create Image', id: 'oci_compute_create_image' },
@@ -497,23 +482,38 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
         { label: 'Delete Image', id: 'oci_compute_delete_image' },
         { label: 'Change Image Compartment', id: 'oci_compute_change_image_compartment' },
         { label: 'List Shapes', id: 'oci_compute_list_shapes' },
-        { label: 'List Image Shape Compatibility Entries', id: 'oci_compute_list_image_shape_compatibility_entries' },
-        { label: 'Get Image Shape Compatibility Entry', id: 'oci_compute_get_image_shape_compatibility_entry' },
-        { label: 'Create Compute Capacity Report', id: 'oci_compute_create_compute_capacity_report' },
+        {
+          label: 'List Image Shape Compatibility Entries',
+          id: 'oci_compute_list_image_shape_compatibility_entries',
+        },
+        {
+          label: 'Get Image Shape Compatibility Entry',
+          id: 'oci_compute_get_image_shape_compatibility_entry',
+        },
+        {
+          label: 'Create Compute Capacity Report',
+          id: 'oci_compute_create_compute_capacity_report',
+        },
         { label: 'List Instance Configurations', id: 'oci_compute_list_instance_configurations' },
         { label: 'Get Instance Configuration', id: 'oci_compute_get_instance_configuration' },
         { label: 'Create Instance Configuration', id: 'oci_compute_create_instance_configuration' },
         { label: 'Update Instance Configuration', id: 'oci_compute_update_instance_configuration' },
         { label: 'Delete Instance Configuration', id: 'oci_compute_delete_instance_configuration' },
         { label: 'Launch Instance Configuration', id: 'oci_compute_launch_instance_configuration' },
-        { label: 'Change Instance Configuration Compartment', id: 'oci_compute_change_instance_configuration_compartment' },
+        {
+          label: 'Change Instance Configuration Compartment',
+          id: 'oci_compute_change_instance_configuration_compartment',
+        },
         { label: 'List Instance Pools', id: 'oci_compute_list_instance_pools' },
         { label: 'Get Instance Pool', id: 'oci_compute_get_instance_pool' },
         { label: 'Create Instance Pool', id: 'oci_compute_create_instance_pool' },
         { label: 'Update Instance Pool', id: 'oci_compute_update_instance_pool' },
         { label: 'Instance Pool Action', id: 'oci_compute_instance_pool_action' },
         { label: 'Terminate Instance Pool', id: 'oci_compute_terminate_instance_pool' },
-        { label: 'Change Instance Pool Compartment', id: 'oci_compute_change_instance_pool_compartment' },
+        {
+          label: 'Change Instance Pool Compartment',
+          id: 'oci_compute_change_instance_pool_compartment',
+        },
         { label: 'List Instance Pool Instances', id: 'oci_compute_list_instance_pool_instances' },
         { label: 'Get Instance Pool Instance', id: 'oci_compute_get_instance_pool_instance' },
         { label: 'Attach Instance Pool Instance', id: 'oci_compute_attach_instance_pool_instance' },
@@ -824,7 +824,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       id: 'retryToken',
       title: 'Retry Token',
       type: 'short-input',
-      placeholder: 'Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key',
+      placeholder: 'Optional 1–64 character retry token. Reuse only for the same logical request; otherwise Sim derives an invocation key',
       mode: 'advanced',
       condition: { field: 'operation', value: RETRY_TOKEN_OPERATIONS },
       required: false,
@@ -1373,11 +1373,39 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       tool: (params) => params.operation,
       params: (params) => {
         const result: Record<string, unknown> = { ...params }
-        for (const field of ['limit', 'bootVolumeSizeInGBs', 'bootVolumeVpusPerGB', 'size']) {
-          result[field] = parseOptionalNumberInput(params[field], field, { integer: true, min: field === 'size' ? 0 : 1 })
+        const numericOperations: Record<string, readonly string[]> = {
+          limit: LIMIT_OPERATIONS,
+          bootVolumeSizeInGBs: BOOT_VOLUME_SIZE_IN_GBS_OPERATIONS,
+          bootVolumeVpusPerGB: BOOT_VOLUME_VPUS_PER_GB_OPERATIONS,
+          size: SIZE_OPERATIONS,
         }
-        for (const field of ['allowDenseRebootMigration', 'deleteLocalStorage', 'preserveBootVolume', 'preserveDataVolumesCreatedAtLaunch', 'isAutoTerminate', 'isDecrementSize', 'compartmentIdInSubtree']) {
-          result[field] = optionalBoolean(params[field])
+        for (const [field, operations] of Object.entries(numericOperations)) {
+          if (operations.includes(params.operation)) {
+            result[field] = parseOptionalNumberInput(params[field], field, {
+              integer: true,
+              min: field === 'size' ? 0 : 1,
+            })
+          } else delete result[field]
+        }
+        const booleanOperations: Record<string, readonly string[]> = {
+          allowDenseRebootMigration: ALLOW_DENSE_REBOOT_MIGRATION_OPERATIONS,
+          deleteLocalStorage: DELETE_LOCAL_STORAGE_OPERATIONS,
+          preserveBootVolume: PRESERVE_BOOT_VOLUME_OPERATIONS,
+          preserveDataVolumesCreatedAtLaunch: PRESERVE_DATA_VOLUMES_CREATED_AT_LAUNCH_OPERATIONS,
+          isAutoTerminate: IS_AUTO_TERMINATE_OPERATIONS,
+          isDecrementSize: IS_DECREMENT_SIZE_OPERATIONS,
+          compartmentIdInSubtree: COMPARTMENT_ID_IN_SUBTREE_OPERATIONS,
+        }
+        for (const [field, operations] of Object.entries(booleanOperations)) {
+          if (operations.includes(params.operation)) result[field] = optionalBoolean(params[field])
+          else delete result[field]
+        }
+        if (params.operation === 'oci_compute_create_instance_pool') {
+          if (result.instanceDisplayNameFormatter === '') result.instanceDisplayNameFormatter = undefined
+          if (result.instanceHostnameFormatter === '') result.instanceHostnameFormatter = undefined
+        }
+        if (params.operation === 'oci_compute_list_instances' && result.capacityReservationId === '') {
+          result.capacityReservationId = undefined
         }
         for (const field of ['compartmentId', 'page', 'sortBy', 'sortOrder', 'displayName', 'availabilityDomain', 'lifecycleState', 'instanceId', 'shape', 'sourceMode', 'imageId', 'imageFilter', 'bootVolumeId', 'kmsKeyId', 'freeformTags', 'definedTags', 'retryToken', 'shapeConfig', 'createVnicDetails', 'faultDomain', 'metadata', 'extendedMetadata', 'agentConfig', 'availabilityConfig', 'instanceOptions', 'dedicatedVmHostId', 'ifMatch', 'timeMaintenanceRebootDue', 'updateOperationConstraint', 'action', 'timeScheduled', 'operatingSystem', 'operatingSystemVersion', 'shapeAvailabilities', 'instanceConfigurationId', 'configurationSource', 'instanceDetails', 'instancePoolId', 'placementConfigurations', 'name', 'accessLevel', 'vcnId', 'subnetId', 'vnicId', 'resourceId', 'workRequestId']) {
           if (result[field] === '') delete result[field]
@@ -1389,22 +1417,22 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
             throw new Error('Primary VNIC settings must be a JSON object')
           }
           result.createVnicDetails = { ...(vnic ?? {}), subnetId: params.subnetId }
-          if (params.sourceMode !== 'image') delete result.imageId
-          if (params.sourceMode !== 'imageFilter') delete result.imageFilter
-          if (params.sourceMode !== 'bootVolume') delete result.bootVolumeId
+          if (params.sourceMode !== 'image') result.imageId = undefined
+          if (params.sourceMode !== 'imageFilter') result.imageFilter = undefined
+          if (params.sourceMode !== 'bootVolume') result.bootVolumeId = undefined
           if (params.sourceMode === 'bootVolume') {
             for (const field of ['bootVolumeSizeInGBs', 'bootVolumeVpusPerGB', 'kmsKeyId']) delete result[field]
           }
         }
         if (params.operation === 'oci_compute_create_instance_configuration') {
-          if (params.configurationSource === 'INSTANCE') delete result.instanceDetails
-          else delete result.instanceId
+          if (params.configurationSource === 'INSTANCE') result.instanceDetails = undefined
+          else result.instanceId = undefined
         }
         if (params.operation === 'oci_compute_instance_action') {
-          if (params.action !== 'RESET' && params.action !== 'SOFTRESET') delete result.allowDenseRebootMigration
+          if (params.action !== 'RESET' && params.action !== 'SOFTRESET') result.allowDenseRebootMigration = undefined
           if (params.action !== 'REBOOTMIGRATE') {
-            delete result.deleteLocalStorage
-            delete result.timeScheduled
+            result.deleteLocalStorage = undefined
+            result.timeScheduled = undefined
           }
         }
         return result
@@ -1436,7 +1464,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     kmsKeyId: { type: 'string', description: 'Existing Vault key OCID for a newly created image-source boot volume' },
     freeformTags: { type: 'json', description: 'Free-form tags as a string-to-string JSON map' },
     definedTags: { type: 'json', description: 'Defined string tags grouped by namespace, for example {Operations: {CostCenter: "42"}}' },
-    retryToken: { type: 'string', description: 'Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key' },
+    retryToken: { type: 'string', description: 'Optional 1–64 character retry token. Reuse only for the same logical request; otherwise Sim derives an invocation key' },
     shapeConfig: { type: 'json', description: 'Shape resources: ocpus OR vcpus, memoryInGBs, baselineOcpuUtilization, nvmes; use List Shapes for valid ranges' },
     createVnicDetails: { type: 'json', description: 'Primary VNIC settings: subnetId (required), displayName, assignPublicIp, assignPrivateDnsRecord, hostnameLabel, privateIp/privateIpId/subnetCidr, nsgIds, skipSourceDestCheck, assignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails' },
     faultDomain: { type: 'string', description: 'Fault domain within the selected availability domain' },

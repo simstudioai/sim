@@ -447,7 +447,15 @@ export const OCI_COMPUTE_OPERATIONS: Record<OciComputeOperation, ComputeOperatio
   list_compartments: {
     method: 'GET',
     path: '/compartments',
-    query: ['compartmentId', 'limit', 'page', 'name', 'lifecycleState', 'accessLevel', 'compartmentIdInSubtree'],
+    query: [
+      'compartmentId',
+      'limit',
+      'page',
+      'name',
+      'lifecycleState',
+      'accessLevel',
+      'compartmentIdInSubtree',
+    ],
     output: 'compartments',
     projection: COMPARTMENT_OUTPUT_PROPERTIES,
     identity: true,
@@ -463,7 +471,16 @@ export const OCI_COMPUTE_OPERATIONS: Record<OciComputeOperation, ComputeOperatio
   list_subnets: {
     method: 'GET',
     path: '/subnets',
-    query: ['compartmentId', 'limit', 'page', 'sortBy', 'sortOrder', 'displayName', 'vcnId', 'lifecycleState'],
+    query: [
+      'compartmentId',
+      'limit',
+      'page',
+      'sortBy',
+      'sortOrder',
+      'displayName',
+      'vcnId',
+      'lifecycleState',
+    ],
     output: 'subnets',
     projection: SUBNET_OUTPUT_PROPERTIES,
     list: true,
@@ -551,13 +568,17 @@ function parseResource(body: Uint8Array): unknown {
 }
 
 /** Projects documented resource properties without reflecting arbitrary upstream fields. */
-export function projectOciComputeResource(value: unknown, properties: Record<string, ToolOutputProperty>): Record<string, unknown> {
+export function projectOciComputeResource(
+  value: unknown,
+  properties: Record<string, ToolOutputProperty>
+): Record<string, unknown> {
   if (!isPlainRecord(value)) throw new Error('OCI returned an invalid resource object')
   const result: Record<string, unknown> = {}
   for (const [key, property] of Object.entries(properties)) {
     const field = value[key]
     if (property.type === 'array') {
-      if (field !== undefined && field !== null && !Array.isArray(field)) throw new Error('OCI returned an invalid resource array')
+      if (field !== undefined && field !== null && !Array.isArray(field))
+        throw new Error('OCI returned an invalid resource array')
       const values: unknown[] = Array.isArray(field) ? field : []
       const item = property.items
       result[key] = item?.properties
@@ -568,13 +589,15 @@ export function projectOciComputeResource(value: unknown, properties: Record<str
           })
     } else if (property.type === 'json') {
       if (field === undefined || field === null) result[key] = null
-      else if (property.properties) result[key] = projectOciComputeResource(field, property.properties)
+      else if (property.properties)
+        result[key] = projectOciComputeResource(field, property.properties)
       else {
         if (!isPlainRecord(field)) throw new Error('OCI returned invalid resource tags')
         result[key] = field
       }
     } else {
-      if (field !== undefined && field !== null && typeof field !== property.type) throw new Error('OCI returned an invalid resource field')
+      if (field !== undefined && field !== null && typeof field !== property.type)
+        throw new Error('OCI returned an invalid resource field')
       result[key] = field ?? null
     }
   }
@@ -582,33 +605,52 @@ export function projectOciComputeResource(value: unknown, properties: Record<str
 }
 
 /** Identity is for provider deduplication, never credential or workspace authorization. */
-export function resolveOciComputeRetryToken(operation: OciComputeOperation, input: OciComputeInput): string {
+export function resolveOciComputeRetryToken(
+  operation: OciComputeOperation,
+  input: OciComputeInput
+): string {
   if ('retryToken' in input && input.retryToken) return input.retryToken
   if (input.deliveryIdentity) {
-    return deriveDeliveryKey({ ...input.deliveryIdentity, toolId: `oci_compute_${operation}` }, operation)
+    return deriveDeliveryKey(
+      { ...input.deliveryIdentity, toolId: `oci_compute_${operation}` },
+      operation
+    )
   }
   return generateId()
 }
 
-function requestBody(operation: OciComputeOperation, input: Record<string, unknown>, definition: ComputeOperation): Record<string, unknown> | undefined {
+function requestBody(
+  operation: OciComputeOperation,
+  input: Record<string, unknown>,
+  definition: ComputeOperation
+): Record<string, unknown> | undefined {
   const body = select(input, definition.body ?? [])
   if (operation === 'launch_instance') {
-    body.sourceDetails = input.sourceMode === 'bootVolume'
-      ? { sourceType: 'bootVolume', bootVolumeId: input.bootVolumeId }
-      : {
-          sourceType: 'image',
-          ...select(input, ['bootVolumeSizeInGBs', 'bootVolumeVpusPerGB', 'kmsKeyId']),
-          ...(input.sourceMode === 'image' ? { imageId: input.imageId } : { instanceSourceImageFilterDetails: input.imageFilter }),
-        }
+    body.sourceDetails =
+      input.sourceMode === 'bootVolume'
+        ? { sourceType: 'bootVolume', bootVolumeId: input.bootVolumeId }
+        : {
+            sourceType: 'image',
+            ...select(input, ['bootVolumeSizeInGBs', 'bootVolumeVpusPerGB', 'kmsKeyId']),
+            ...(input.sourceMode === 'image'
+              ? { imageId: input.imageId }
+              : { instanceSourceImageFilterDetails: input.imageFilter }),
+          }
   }
   if (operation === 'create_instance_configuration') body.source = input.configurationSource
-  if (operation === 'launch_instance_configuration') return input.instanceDetails as Record<string, unknown>
+  if (operation === 'launch_instance_configuration')
+    return input.instanceDetails as Record<string, unknown>
   if (operation === 'instance_action') {
-    if (input.action === 'REBOOTMIGRATE') return { actionType: 'rebootMigrate', ...select(input, ['deleteLocalStorage', 'timeScheduled']) }
-    if (input.allowDenseRebootMigration !== undefined) return {
-      actionType: input.action === 'RESET' ? 'reset' : 'softreset',
-      allowDenseRebootMigration: input.allowDenseRebootMigration,
-    }
+    if (input.action === 'REBOOTMIGRATE')
+      return {
+        actionType: 'rebootMigrate',
+        ...select(input, ['deleteLocalStorage', 'timeScheduled']),
+      }
+    if (input.allowDenseRebootMigration !== undefined)
+      return {
+        actionType: input.action === 'RESET' ? 'reset' : 'softreset',
+        allowDenseRebootMigration: input.allowDenseRebootMigration,
+      }
     return undefined
   }
   return Object.keys(body).length ? body : undefined
@@ -629,12 +671,17 @@ export async function executeOciComputeOperation(
   try {
     signal?.throwIfAborted()
     validateOciComputeMetadata(input)
-    const endpoint = await client.prepareStaticEndpoint(definition.identity ? IDENTITY_ENDPOINT : CORE_ENDPOINT)
+    const endpoint = await client.prepareStaticEndpoint(
+      definition.identity ? IDENTITY_ENDPOINT : CORE_ENDPOINT
+    )
     signal?.throwIfAborted()
     const values: Record<string, unknown> = input
     const headers: Record<string, string> = {}
     if (definition.etag && typeof values.ifMatch === 'string') headers['if-match'] = values.ifMatch
-    if (operation === 'update_instance' && (values.metadata !== undefined || values.extendedMetadata !== undefined)) {
+    if (
+      operation === 'update_instance' &&
+      (values.metadata !== undefined || values.extendedMetadata !== undefined)
+    ) {
       const current = await client.request({
         endpoint, method: 'GET', encodedPath: `/20160918/instances/${encodeURIComponent(String(values.instanceId))}`,
         timeoutMs: 30_000, maxResponseBytes: 2_000_000, signal, retry: { kind: 'safe', maxAttempts: 2 },

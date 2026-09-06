@@ -38,7 +38,8 @@ function body(request: OciRequest) {
 describe('OCI Compute requests', () => {
   it('preserves token and payload across re-entry of a lifecycle invocation', async () => {
     const input = {
-      instanceId: 'instance', action: 'STOP',
+      instanceId: 'instance',
+      action: 'STOP',
       deliveryIdentity: { executionId: 'execution', blockId: 'block', invocationId: 'call' },
     }
     const first = await run('instance_action', input)
@@ -49,27 +50,41 @@ describe('OCI Compute requests', () => {
 
   it('builds configuration creation and deferred launch overrides distinctly', async () => {
     const created = await run('create_instance_configuration', {
-      compartmentId: 'destination', configurationSource: 'INSTANCE', instanceId: 'source',
+      compartmentId: 'destination',
+      configurationSource: 'INSTANCE',
+      instanceId: 'source',
     })
     expect(body(created.request.mock.calls[0][0])).toEqual({
-      compartmentId: 'destination', source: 'INSTANCE', instanceId: 'source',
+      compartmentId: 'destination',
+      source: 'INSTANCE',
+      instanceId: 'source',
     })
     const launched = await run('launch_instance_configuration', {
       instanceConfigurationId: 'configuration',
       instanceDetails: { instanceType: 'compute', blockVolumes: [{ volumeId: 'existing' }] },
     })
     expect(body(launched.request.mock.calls[0][0])).toEqual({
-      instanceType: 'compute', blockVolumes: [{ volumeId: 'existing' }],
+      instanceType: 'compute',
+      blockVolumes: [{ volumeId: 'existing' }],
     })
   })
 
   it('returns optional work headers and sends explicit member-detachment choices', async () => {
-    const { request, result } = await run('detach_instance_pool_instance', {
-      instancePoolId: 'pool', instanceId: 'instance', isAutoTerminate: false, isDecrementSize: false,
-      retryToken: 'member-delivery',
-    }, harness(undefined, 202, { 'opc-work-request-id': 'work' }))
+    const { request, result } = await run(
+      'detach_instance_pool_instance',
+      {
+        instancePoolId: 'pool',
+        instanceId: 'instance',
+        isAutoTerminate: false,
+        isDecrementSize: false,
+        retryToken: 'member-delivery',
+      },
+      harness(undefined, 202, { 'opc-work-request-id': 'work' })
+    )
     expect(body(request.mock.calls[0][0])).toEqual({
-      instanceId: 'instance', isAutoTerminate: false, isDecrementSize: false,
+      instanceId: 'instance',
+      isAutoTerminate: false,
+      isDecrementSize: false,
     })
     expect(result.output).toMatchObject({ workRequestId: 'work', retryToken: 'member-delivery' })
   })
@@ -138,7 +153,7 @@ describe('OCI Compute requests', () => {
     expect(request.mock.calls[0][0].retry).toMatchObject({ kind: 'tokenized', maxAttempts: 2 })
   })
 
-  it('uses a pool action path and a single attempt', async () => {
+  it('uses a pool action path with tokenized bounded retries', async () => {
     const { request } = await run('instance_pool_action', {
       instancePoolId: 'pool',
       action: 'SOFTSTOP',
@@ -207,25 +222,39 @@ describe('OCI Compute requests', () => {
   })
 
   it('retains correlation when a successful mutation response cannot be projected', async () => {
-    const { result, request } = await run('create_image', {
-      instanceId: 'instance', compartmentId: 'compartment', retryToken: 'token',
-    }, harness({ id: { invalid: true } }))
+    const { result, request } = await run(
+      'create_image',
+      {
+        instanceId: 'instance',
+        compartmentId: 'compartment',
+        retryToken: 'token',
+      },
+      harness({ id: { invalid: true } })
+    )
     expect(result).toMatchObject({
-      success: false, retryable: false,
+      success: false,
+      retryable: false,
       output: { outcome: 'unknown', status: 200, requestId: 'request', retryToken: 'token' },
     })
     expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('requires immutable metadata to be retained and uses the pre-read ETag', async () => {
-    const h = harness({ metadata: { user_data: 'encoded' }, extendedMetadata: {} }, 200, { etag: 'current' })
+    const h = harness({ metadata: { user_data: 'encoded' }, extendedMetadata: {} }, 200, {
+      etag: 'current',
+    })
     const denied = await run('update_instance', { instanceId: 'instance', metadata: {} }, h)
     expect(denied.result.success).toBe(false)
     expect(h.request).toHaveBeenCalledTimes(1)
     h.request.mockClear()
-    const accepted = await run('update_instance', {
-      instanceId: 'instance', metadata: { user_data: 'encoded', purpose: 'test' },
-    }, h)
+    const accepted = await run(
+      'update_instance',
+      {
+        instanceId: 'instance',
+        metadata: { user_data: 'encoded', purpose: 'test' },
+      },
+      h
+    )
     expect(accepted.result.success).toBe(true)
     expect(h.request.mock.calls[1][0]).toMatchObject({ headers: { 'if-match': 'current' } })
   })
@@ -234,24 +263,37 @@ describe('OCI Compute requests', () => {
     const h = harness()
     const controller = new AbortController()
     controller.abort()
-    const result = await executeOciComputeOperation(h.client, 'get_instance',
-      ociComputeSchemas.get_instance.parse({ ...auth, instanceId: 'instance' }), controller.signal)
+    const result = await executeOciComputeOperation(
+      h.client,
+      'get_instance',
+      ociComputeSchemas.get_instance.parse({ ...auth, instanceId: 'instance' }),
+      controller.signal
+    )
     expect(result.success).toBe(false)
     expect(h.request).not.toHaveBeenCalled()
   })
 
   it('derives stable delivery tokens and distinguishes independent invocations', () => {
     const input = ociComputeSchemas.create_image.parse({
-      ...auth, instanceId: 'instance', compartmentId: 'compartment',
+      ...auth,
+      instanceId: 'instance',
+      compartmentId: 'compartment',
       deliveryIdentity: { executionId: 'execution', blockId: 'block', invocationId: 'one' },
     })
     const token = resolveOciComputeRetryToken('create_image', input)
     expect(resolveOciComputeRetryToken('create_image', input)).toBe(token)
-    expect(resolveOciComputeRetryToken('create_image', {
-      ...input, deliveryIdentity: { ...input.deliveryIdentity!, invocationId: 'two' },
-    })).not.toBe(token)
-    expect(resolveOciComputeRetryToken('create_image', { ...input, retryToken: 'explicit' })).toBe('explicit')
+    expect(
+      resolveOciComputeRetryToken('create_image', {
+        ...input,
+        deliveryIdentity: { ...input.deliveryIdentity!, invocationId: 'two' },
+      })
+    ).not.toBe(token)
+    expect(resolveOciComputeRetryToken('create_image', { ...input, retryToken: 'explicit' })).toBe(
+      'explicit'
+    )
     const { deliveryIdentity: _identity, ...unkeyed } = input
-    expect(resolveOciComputeRetryToken('create_image', unkeyed)).not.toBe(resolveOciComputeRetryToken('create_image', unkeyed))
+    expect(resolveOciComputeRetryToken('create_image', unkeyed)).not.toBe(
+      resolveOciComputeRetryToken('create_image', unkeyed)
+    )
   })
 })
