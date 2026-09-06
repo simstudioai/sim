@@ -187,9 +187,14 @@ function queueRead(file: typeof SOURCE, provenance: WorkspaceFileSecretProvenanc
   ])
 }
 
-function execute(argv: string[], trace: ResolvedSecretTraceRegistry) {
+function execute(argv: string[], trace: ResolvedSecretTraceRegistry, sink?: string) {
   return executeSimCli(
-    { request: { invocation: { kind: 'cli', argv } } },
+    {
+      request: {
+        invocation: { kind: 'cli', argv },
+        ...(sink ? { sink: { kind: 'sandbox-file', path: sink } } : {}),
+      },
+    },
     {
       userId: 'reader',
       workspaceId: WORKSPACE,
@@ -302,60 +307,86 @@ afterEach(async () => {
 })
 
 /** Application adapters stand in for session/provider control; registration and observation are real. */
-describe('download → workbench copy → private upload adapter → registration → fresh observation', () => {
-  it.each(['unknown', 'secret', 'safe'] as const)(
-    'preserves the %s source classification across separate tool calls',
-    async (classification) => {
-      const sourceProvenance: WorkspaceFileSecretProvenance =
-        classification === 'unknown'
-          ? { status: 'unknown' }
-          : {
-              status: 'exact',
-              entries:
-                classification === 'safe'
-                  ? []
-                  : [
-                      {
-                        name: 'FILE_SECRET',
-                        encryptedValue: 'fixture-ciphertext',
-                        sourceUserId: 'reader',
-                      },
-                    ],
-            }
-      queueRead(SOURCE, sourceProvenance)
-      const downloadTrace = registry()
-      const input = join(directory, 'download.txt')
-      const download = await execute(['files', 'get', SOURCE.id, '-o', input], downloadTrace)
-      expect(download, JSON.stringify(download)).toMatchObject({ success: true })
-      expect(await readFile(input, 'utf8')).toBe(CONTENT)
-      expect([...mocks.receipts.values()].join()).not.toContain(CONTENT)
-      const sourceObservation = JSON.stringify(
-        inspectToolResultForCopilot({ success: true, output: CONTENT }, downloadTrace, 'sim_cli')
-          .result
-      )
-      expect(sourceObservation.includes(CONTENT)).toBe(classification === 'safe')
+describe.each(['download', 'stdout', 'stdout with pending sibling'] as const)(
+  '%s → workbench copy → private upload adapter → registration → fresh observation',
+  (mode) => {
+    it.each(['unknown', 'secret', 'safe'] as const)(
+      'preserves the %s source classification across separate tool calls',
+      async (classification) => {
+        const sourceProvenance: WorkspaceFileSecretProvenance =
+          classification === 'unknown'
+            ? { status: 'unknown' }
+            : {
+                status: 'exact',
+                entries:
+                  classification === 'safe'
+                    ? []
+                    : [
+                        {
+                          name: 'FILE_SECRET',
+                          encryptedValue: 'fixture-ciphertext',
+                          sourceUserId: 'reader',
+                        },
+                      ],
+              }
+        queueRead(SOURCE, sourceProvenance)
+        const downloadTrace = registry()
+        const input = join(directory, 'download.txt')
+        const settleSibling =
+          mode === 'stdout with pending sibling'
+            ? downloadTrace.beginPendingActivation()
+            : undefined
+        const download = await (mode === 'download'
+          ? execute(['files', 'get', SOURCE.id, '-o', input], downloadTrace)
+          : execute(['files', 'get', SOURCE.id], downloadTrace, input)
+        ).finally(() => settleSibling?.())
+        expect(download, JSON.stringify(download)).toMatchObject({ success: true })
+        expect(await readFile(input, 'utf8')).toBe(CONTENT)
+        expect([...mocks.receipts.values()].join()).not.toContain(CONTENT)
+        const sourceObservation = JSON.stringify(
+          inspectToolResultForCopilot({ success: true, output: CONTENT }, downloadTrace, 'sim_cli')
+            .result
+        )
+        expect(sourceObservation.includes(CONTENT)).toBe(classification === 'safe')
 
-      const derived = join(directory, 'derived.txt')
-      await copyFile(input, derived)
-      const upload = await execute(['files', 'upload', derived], registry())
-      expect(
-        mocks.logError.mock.calls.filter(([message]) => message === 'File upload control failed')
-      ).toEqual([])
-      expect(upload, JSON.stringify(upload)).toMatchObject({ success: true })
-      expect(uploaded?.toString()).toBe(CONTENT)
-      expect(registered).toBe(true)
-      expect(storedProvenance).toBeDefined()
-      if (!storedProvenance) throw new Error('No publication classification was persisted')
+        const derived = join(directory, 'derived.txt')
+        await copyFile(input, derived)
+        const upload = await execute(['files', 'upload', derived], registry())
+        expect(
+          mocks.logError.mock.calls.filter(([message]) => message === 'File upload control failed')
+        ).toEqual([])
+        expect(upload, JSON.stringify(upload)).toMatchObject({ success: true })
+        expect(uploaded?.toString()).toBe(CONTENT)
+        expect(registered).toBe(true)
+        expect(storedProvenance).toBeDefined()
+        if (!storedProvenance) throw new Error('No publication classification was persisted')
+        if (classification === 'unknown') {
+          expect(storedProvenance).toEqual({ status: 'unknown' })
+        } else {
+          expect(storedProvenance.status).toBe('exact')
+          if (storedProvenance.status !== 'exact') throw new Error('Exact source evidence was lost')
+          expect(storedProvenance.entries).toEqual(
+            classification === 'safe'
+              ? []
+              : [
+                  expect.objectContaining({
+                    encryptedValue: 'fixture-ciphertext',
+                    sourceUserId: 'reader',
+                  }),
+                ]
+          )
+        }
 
-      queueRead(PUBLISHED, storedProvenance)
-      const readTrace = registry()
-      const reread = await execute(['files', 'get', PUBLISHED.id], readTrace)
-      expect(reread, JSON.stringify(reread)).toMatchObject({ success: true })
-      expect(JSON.stringify(reread.output)).toContain(CONTENT)
-      const observation = JSON.stringify(
-        inspectToolResultForCopilot(reread, readTrace, 'sim_cli').result
-      )
-      expect(observation.includes(CONTENT)).toBe(classification === 'safe')
-    }
-  )
-})
+        queueRead(PUBLISHED, storedProvenance)
+        const readTrace = registry()
+        const reread = await execute(['files', 'get', PUBLISHED.id], readTrace)
+        expect(reread, JSON.stringify(reread)).toMatchObject({ success: true })
+        expect(JSON.stringify(reread.output)).toContain(CONTENT)
+        const observation = JSON.stringify(
+          inspectToolResultForCopilot(reread, readTrace, 'sim_cli').result
+        )
+        expect(observation.includes(CONTENT)).toBe(classification === 'safe')
+      }
+    )
+  }
+)
