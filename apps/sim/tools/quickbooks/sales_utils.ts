@@ -370,7 +370,7 @@ export function mergeQuickBooksPaymentLines(
  * do list `CustomerRef` and keep the reference required.
  */
 export function buildQuickBooksCreateSalesDocumentBody(
-  params: QuickBooksCreateSalesDocumentParams,
+  params: Omit<QuickBooksCreateSalesDocumentParams, 'customerId'> & { customerId?: string },
   options: { requireDepositAccount?: boolean; customerOptional?: boolean } = {}
 ): Record<string, unknown> {
   if (options.requireDepositAccount && !params.depositAccountId?.trim()) {
@@ -385,7 +385,7 @@ export function buildQuickBooksCreateSalesDocumentBody(
     CustomerRef:
       options.customerOptional && !params.customerId?.trim()
         ? undefined
-        : quickBooksReference(params.customerId, 'customerId'),
+        : quickBooksReference(params.customerId ?? '', 'customerId'),
     Line: buildQuickBooksSalesLines(params.lines),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     DocNumber: boundedString(

@@ -885,10 +885,14 @@ export type QuickBooksCreateEstimateParams = Omit<QuickBooksNonReceiptCreatePara
 export type QuickBooksUpdateEstimateParams = Omit<QuickBooksNonReceiptUpdateParams, 'dueDate'>
 export type QuickBooksCreateInvoiceParams = Omit<QuickBooksNonReceiptCreateParams, 'expirationDate'>
 export type QuickBooksUpdateInvoiceParams = Omit<QuickBooksNonReceiptUpdateParams, 'expirationDate'>
+/**
+ * Intuit's `salesreceiptrequest` requires only `Line`; `CustomerRef` is absent
+ * from its required set, so an anonymous counter sale is a valid sales receipt.
+ */
 export type QuickBooksCreateSalesReceiptParams = Omit<
   QuickBooksCreateSalesDocumentParams,
-  'dueDate' | 'expirationDate'
->
+  'dueDate' | 'expirationDate' | 'customerId'
+> & { customerId?: string }
 export type QuickBooksUpdateSalesReceiptParams = Omit<
   QuickBooksUpdateSalesDocumentParams,
   'dueDate' | 'expirationDate'

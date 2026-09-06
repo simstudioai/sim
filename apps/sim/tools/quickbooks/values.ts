@@ -274,8 +274,11 @@ export function quickBooksActiveValue(
  * Enforces both halves of the contract:
  * 1. `sparse` is literally `true`. Intuit treats an update without it as a
  *    *full* replacement, silently clearing every field the body omits, and
- *    documents `sparse` as required to void an object. A builder that drops it
- *    would otherwise fail only against the live API.
+ *    documents `sparse` as required by the `include=void` form of the void
+ *    operation (Payment, SalesReceipt). Invoice voids through
+ *    `?operation=void`, whose documented request model is `deleterequest` —
+ *    `Id` and `SyncToken` only, no `sparse`. A builder that drops it would
+ *    otherwise fail only against the live API.
  * 2. The body carries at least one field beyond the required identifiers
  *    (`Id`, `SyncToken`, `sparse` by default), so an update that would change
  *    nothing never reaches the API.
