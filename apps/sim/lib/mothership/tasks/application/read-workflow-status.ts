@@ -40,6 +40,7 @@ export const readWatchedWorkflowStatus = defineAuthorizedWorkspaceUseCase({
         4000
       )
     return {
+      workflowId: run.workflowId,
       status,
       summary,
       ...(result.error ? { output: result.error.slice(0, 2_000_000) } : {}),
