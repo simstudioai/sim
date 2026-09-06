@@ -86,8 +86,14 @@ import {
   prepareWorkbenchAccess,
   settleSimToolExecution,
 } from '@/lib/mothership/async-runs/repository'
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import {
+  buildPersistedAssistantMessage,
+  normalizeMessage,
+} from '@/lib/mothership/chat/persisted-message'
+import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
@@ -948,6 +954,49 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       await settleSimToolExecution(toolCallId)
       expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(true)
     })
+
+    it.each(['', 'Saved partial report'])(
+      'retains a terminal failure in physical chat history with %j',
+      async (content) => {
+        const chatId = generateId()
+        const streamId = generateId()
+        await db.insert(copilotChats).values({
+          id: chatId,
+          userId: 'run-reader',
+          workspaceId,
+          type: 'mothership',
+          title: 'Interrupted diagnosis',
+          conversationId: streamId,
+        })
+        await appendCopilotChatMessages(chatId, [
+          {
+            id: streamId,
+            role: 'user',
+            content: 'Diagnose the saved run',
+            timestamp: new Date().toISOString(),
+          },
+        ])
+        const finalization = await finalizeAssistantTurn({
+          chatId,
+          userMessageId: streamId,
+          assistantMessage: buildPersistedAssistantMessage({
+            success: false,
+            content,
+            contentBlocks: [],
+            toolCalls: [],
+            error: 'The worker connection was interrupted.',
+          }),
+        })
+        expect(finalization.updated).toBe(true)
+        const saved = await loadCopilotChatMessages(chatId)
+        expect(saved).toHaveLength(2)
+        const restored = normalizeMessage({ ...saved[1] })
+        expect(restored.content).toBe(content)
+        expect(toDisplayMessage(restored).contentBlocks?.at(-1)?.content).toBe(
+          '<mothership-error>{"message":"The worker connection was interrupted."}</mothership-error>'
+        )
+      }
+    )
 
     it('retains Stop snapshot metadata through the HTTP contract and physical chat history', async () => {
       const chatId = generateId()
