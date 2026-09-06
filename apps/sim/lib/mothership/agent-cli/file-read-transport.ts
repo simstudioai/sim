@@ -29,6 +29,10 @@ export function createFileReadTransport(context: {
   endpoint: string
   userId: string
   registry?: ResolvedSecretTraceRegistry
+  trackDownload?: (
+    stream: ReadableStream<Uint8Array>,
+    provenance?: WorkspaceFileSecretProvenance
+  ) => void
 }): typeof fetch {
   const base = new URL(context.endpoint)
   const basePath = base.pathname.replace(/\/$/, '')
@@ -119,12 +123,17 @@ export function createFileReadTransport(context: {
       stream = result.stream
       await observe(result.file.workspaceId, result.secretProvenance)
       request.signal.throwIfAborted()
-      return new Response(stream.pipeThrough(new TransformStream(), { signal: request.signal }), {
-        headers: {
-          'content-type': result.contentType,
-          'content-length': String(result.contentLength),
-        },
-      })
+      const response = new Response(
+        stream.pipeThrough(new TransformStream(), { signal: request.signal }),
+        {
+          headers: {
+            'content-type': result.contentType,
+            'content-length': String(result.contentLength),
+          },
+        }
+      )
+      if (response.body) context.trackDownload?.(response.body, result.secretProvenance)
+      return response
     } catch (error) {
       await stream?.cancel().catch(() => {})
       request.signal.throwIfAborted()

@@ -7,9 +7,11 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
+import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
@@ -40,18 +42,29 @@ export async function executeAgentCliRequest(
   })
   if (!apiKey) return agentCliFail('Could not establish workspace credentials for this command.')
   const endpoint = getInternalApiBaseUrl()
+  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
+  const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
+  const reads = createFileReadTransport({
+    endpoint,
+    userId: context.userId,
+    registry: context.resolvedSecretTraceRegistry,
+    ...(files ? { trackDownload: files.trackDownload } : {}),
+  })
   const identity: EmbeddedCliIdentity = {
     endpoint,
     apiKey,
     workspaceId: context.workspaceId,
-    transport: createFileReadTransport({
-      endpoint,
-      userId: context.userId,
-      registry: context.resolvedSecretTraceRegistry,
-    }),
+    transport: files
+      ? createFileUploadTransport({
+          endpoint,
+          workspaceId: context.workspaceId,
+          userId: context.userId,
+          fallback: reads,
+          uploadProvenance: files.uploadProvenance,
+        })
+      : reads,
     ...(context.signal ? { signal: context.signal } : {}),
   }
-  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
 
   let result: AgentCliRawResult
   context.signal?.throwIfAborted()
@@ -72,7 +85,7 @@ export async function executeAgentCliRequest(
       request.invocation.flags
     )
   } else {
-    result = await runCli(request.invocation.argv, identity, sessionKey)
+    result = await runCli(request.invocation.argv, identity, sessionKey, files)
     if (result.exitCode === 0 && request.curate === 'block') {
       result = await curateBlockDetail(result, context)
     }

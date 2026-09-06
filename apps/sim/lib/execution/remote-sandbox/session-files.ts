@@ -9,6 +9,7 @@ import {
   ensureSessionSandbox,
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
+import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -85,7 +86,7 @@ export async function writeSessionSandboxFile(
   path: string,
   content: string | Uint8Array | ReadableStream<Uint8Array>,
   abortSignal?: AbortSignal,
-  options: { overwrite: boolean } = { overwrite: true }
+  options: { overwrite: boolean; observe?: SessionFileObserver } = { overwrite: true }
 ): Promise<SessionFileWrite> {
   try {
     const resolved = resolveSessionPath(path)
@@ -111,7 +112,17 @@ export async function writeSessionSandboxFile(
         { overwrite: options.overwrite, signal, timeoutMs, rootUser: false },
         (staged) =>
           content instanceof ReadableStream
-            ? streamSessionFile(sandbox, staged, content, signal)
+            ? streamSessionFile(
+                sandbox,
+                staged,
+                options.observe
+                  ? options.observe(
+                      { providerId: provider.id, sandboxId: sandbox.sandboxId },
+                      content
+                    )
+                  : content,
+                signal
+              )
             : sandbox.writeFile(
                 staged,
                 typeof content === 'string' ? content : new Uint8Array(content).buffer

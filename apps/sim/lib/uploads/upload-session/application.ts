@@ -16,6 +16,7 @@ import {
   type UploadSessionRecord,
   type UploadSessionTransfer,
 } from '@/lib/uploads/upload-session/service'
+import type { WorkspaceFileUploadSource } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { authorizeWorkspaceFileOperation } from '@/lib/workspace-files/application/workspace-operation-context'
 import {
@@ -62,7 +63,7 @@ export interface UploadSessionCreateResult {
 async function createWorkspaceFileUploadSession(
   principal: Principal,
   input: WorkspaceFileUploadCreateInput,
-  secretProvenance?: WorkspaceFileSecretProvenance
+  secretProvenance?: WorkspaceFileUploadSource
 ): Promise<Awaited<ReturnType<typeof createUploadSession>>> {
   const userId = await resolveUploadAttributionUserId(principal, input.workspaceId)
   return createUploadSession({
@@ -268,7 +269,8 @@ export async function abortWorkspaceUploadSession(
 export async function completeWorkspaceUploadSession(
   principal: Principal,
   input: UploadSessionControlInput,
-  request: OrchestrationRequestContext
+  request: OrchestrationRequestContext,
+  secretProvenance?: WorkspaceFileSecretProvenance
 ): Promise<{
   session: UploadSessionRecord
   value: WorkspaceFileRecord
@@ -281,6 +283,7 @@ export async function completeWorkspaceUploadSession(
   }
   return completeUploadSession({
     session,
+    ...(secretProvenance ? { secretProvenance } : {}),
     loadCompleted: async (claimed) => {
       await reauthorizeWorkspaceUploadPurpose(principal, claimed, fileOperations.uploadComplete)
       return loadCompletedWorkspaceFileUpload(claimed)
@@ -322,7 +325,7 @@ export const createWorkspaceFileUploadOperation = {
     input: CreateWorkspaceFileUploadOperationInput
     request?: OrchestrationRequestContext
     /** Trusted byte-source classification supplied outside the parsed public input. */
-    secretProvenance?: WorkspaceFileSecretProvenance
+    secretProvenance?: WorkspaceFileUploadSource
   }) {
     if (!request) throw new Error('Workspace upload creation requires a request context')
     await authorizeWorkspaceFileOperation(principal, fileOperations.uploadCreate, input.workspaceId)
@@ -369,13 +372,16 @@ export const completeWorkspaceFileUploadOperation = {
     principal,
     input,
     request,
+    secretProvenance,
   }: {
     principal: Principal
     input: UploadSessionControlInput
     request?: OrchestrationRequestContext
+    /** Trusted evidence from the transferred workbench snapshot. */
+    secretProvenance?: WorkspaceFileSecretProvenance
   }) {
     if (!request) throw new Error('Upload completion requires a request context')
-    return completeWorkspaceUploadSession(principal, input, request)
+    return completeWorkspaceUploadSession(principal, input, request, secretProvenance)
   },
 } as const
 
