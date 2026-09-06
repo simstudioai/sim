@@ -214,7 +214,8 @@ async function executeCompute(args: ExecuteServerSelectorArgs, prepared: Prepare
     if (direct && result.output.status === 404) return detailSelectorResult(null)
     throw selectorProviderStatusError(result.output.status || 502)
   }
-  const output = result.output as unknown as Record<string, unknown>
+  const output = result.output
+  if (!isPlainRecord(output)) throw new SelectorOptionsUnavailableError()
   if (direct) {
     const resource = output[selector.singular]
     if (!isPlainRecord(resource)) throw new SelectorOptionsUnavailableError()
