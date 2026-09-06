@@ -95,6 +95,8 @@ export interface AgentNode extends NodeBase {
   status: NodeStatus
   /** Wire seq at which the run terminated (span end), for ordering the close marker. */
   endSeq?: number
+  /** The terminal failure reported by this child, independent of its tools. */
+  error?: string
 }
 
 export interface TextNode extends NodeBase {
@@ -647,10 +649,12 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         if (data?.pending === true) break
         breakLane(model, resolvedSpanId, tsMs)
         const node = model.nodes.get(resolvedSpanId)
-        const spanErrored = Boolean(data && asString(data.error))
+        const error = data && asString(data.error)
+        const spanErrored = Boolean(error)
         if (node && node.kind === 'agent' && !isNodeTerminal(node.status)) {
           node.status = spanErrored ? 'error' : 'success'
           node.endSeq = seq
+          if (error) node.error = error
         }
         // The lane is over: settle any tool row still `running` in it (its
         // result was dropped or reordered past the end). Left open, the row

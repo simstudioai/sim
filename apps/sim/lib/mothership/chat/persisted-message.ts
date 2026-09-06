@@ -62,6 +62,8 @@ export interface PersistedContentBlock {
   task?: import('@/lib/mothership/request/types').TaskBlockInfo
   timestamp?: number
   endedAt?: number
+  /** Terminal failure of this subagent span. */
+  error?: string
   parentToolCallId?: string
   spanId?: string
   parentSpanId?: string
@@ -256,6 +258,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
         content: block.content,
         ...(block.subagentName ? { name: block.subagentName } : {}),
+        ...(block.error ? { error: block.error } : {}),
       }
     case 'subagent_text':
       return {
@@ -444,6 +447,8 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
 const CANONICAL_BLOCK_TYPES: Set<string> = new Set(Object.values(MothershipStreamV1EventType))
 
 interface RawBlock {
+  error?: string
+  subagent?: string
   type: string
   lane?: string
   task?: import('@/lib/mothership/request/types').TaskBlockInfo
@@ -515,10 +520,11 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   const result: PersistedContentBlock = {
     type: block.type as MothershipStreamV1EventType,
   }
-  if (block.lane === 'subagent') {
-    result.lane = block.lane
+  if (block.lane === 'subagent' || (block.subagent && block.spanId)) {
+    result.lane = 'subagent'
   }
-  if (block.agent) result.agent = block.agent
+  const agent = block.agent ?? block.subagent
+  if (agent) result.agent = agent
   if (block.name) result.name = block.name
   const blockContent = block.content ?? block.text
   if (blockContent !== undefined) result.content = blockContent
@@ -649,6 +655,9 @@ function normalizeBlock(block: RawBlock): PersistedContentBlock {
   const result = isCanonicalBlock(block)
     ? normalizeCanonicalBlock(block)
     : normalizeLegacyBlock(block)
+  if (result.type === 'span' && typeof block.error === 'string' && block.error) {
+    result.error = block.error
+  }
   if (typeof block.timestamp === 'number' && result.timestamp === undefined) {
     result.timestamp = block.timestamp
   }

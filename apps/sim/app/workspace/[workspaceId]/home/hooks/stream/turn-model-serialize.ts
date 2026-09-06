@@ -195,6 +195,7 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
         seq: node.endSeq,
         block: {
           type: 'subagent_end',
+          ...(node.error ? { error: node.error } : {}),
           spanId: node.spanId,
           parentSpanId: node.parentSpanId,
           ...(node.triggerToolCallId ? { parentToolCallId: node.triggerToolCallId } : {}),
@@ -333,7 +334,12 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
           model,
           synth(
             'span',
-            { kind: 'subagent', event: 'end', agent: block.content, data: {} },
+            {
+              kind: 'subagent',
+              event: 'end',
+              agent: block.content,
+              data: { ...(block.error ? { error: block.error } : {}) },
+            },
             scopeFor(block),
             block.endedAt
           )
@@ -344,7 +350,16 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
     if (block.type === 'subagent_end') {
       reduceEvent(
         model,
-        synth('span', { kind: 'subagent', event: 'end', agent: '', data: {} }, scopeFor(block))
+        synth(
+          'span',
+          {
+            kind: 'subagent',
+            event: 'end',
+            agent: '',
+            data: { ...(block.error ? { error: block.error } : {}) },
+          },
+          scopeFor(block)
+        )
       )
       continue
     }
