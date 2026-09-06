@@ -33,14 +33,13 @@ import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permissio
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/mothership/request/context/result'
 import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
-import { StreamContinuityError } from '@/lib/mothership/request/go/parser'
 import {
   BillingLimitError,
   CopilotBackendError,
   runStreamLoop,
-  StreamEndedWithoutTerminalError,
 } from '@/lib/mothership/request/go/stream'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import {
@@ -74,8 +73,6 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const logger = createLogger('CopilotLifecycle')
 
-const MAX_RESUME_ATTEMPTS = 3
-const RESUME_BACKOFF_MS = [250, 500, 1000] as const
 const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
   '/api/copilot',
   '/api/mothership',
@@ -640,14 +637,11 @@ function collectResultsForToolIds(
   return toolIds.map((toolCallId) => buildResumeToolResult(context, toolCallId, checkpointId))
 }
 
-// runResumeLegWithRetry runs ONE resume POST with the same retryable-error +
-// bounded-backoff policy the sequential checkpoint loop uses, so a concurrent
-// child leg survives a transient Go 5xx (or network blip) instead of failing the
-// whole turn — Go releases the claim on such errors expecting a retry. The leg's
-// transient error is rolled back on its OWN (isolated) errors array so a
-// recovered retry isn't mis-finalized as `error`. An AbortError (a sibling
-// failure cancelling this leg, see driveSubagentChains) is non-retryable and
-// propagates immediately.
+/**
+ * A child connection has the same recovery budget as a main connection. Failed
+ * attempts roll back only this lane's errors, preserving concurrent sibling work.
+ * Stop and sibling cancellation interrupt recovery before another request starts.
+ */
 async function runResumeLegWithRetry(
   url: string,
   body: Record<string, unknown>,
@@ -656,8 +650,9 @@ async function runResumeLegWithRetry(
   options: CopilotLifecycleOptions,
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
-  let attempt = 0
+  const retry = new StreamRetryWindow(options.timeout)
   for (;;) {
+    options.abortSignal?.throwIfAborted()
     const errorsBeforeAttempt = leg.errors.length
     try {
       await runStreamLoop(
@@ -669,17 +664,15 @@ async function runResumeLegWithRetry(
         },
         leg,
         execContext,
-        options
+        { ...options, timeout: retry.remainingMs() }
       )
       return
     } catch (error) {
-      if (isRetryableStreamError(error) && attempt < MAX_RESUME_ATTEMPTS - 1) {
+      const backoff = retry.nextDelay(error, options.abortSignal)
+      if (backoff !== null) {
         leg.errors.length = errorsBeforeAttempt
-        attempt++
-        const backoff = RESUME_BACKOFF_MS[attempt - 1] ?? 1000
         logger.warn('Child resume leg failed, retrying', {
-          attempt: attempt + 1,
-          maxAttempts: MAX_RESUME_ATTEMPTS,
+          attempt: retry.attempt + 1,
           backoffMs: backoff,
           error: toError(error).message,
         })
@@ -868,8 +861,7 @@ async function runCheckpointLoop(
 ): Promise<void> {
   let route = initialRoute
   let payload: Record<string, unknown> = initialPayload
-  let resumeAttempt = 0
-  let initialAttempt = 0
+  let retry: StreamRetryWindow | undefined
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
@@ -894,6 +886,11 @@ async function runCheckpointLoop(
 
   for (;;) {
     context.streamComplete = false
+    if (isAborted(options, context)) {
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
+      break
+    }
     const isResume = route === '/api/tools/resume'
 
     // Enterprise BYOK rides EVERY leg, resume included: a resume that lands on a dead
@@ -901,7 +898,7 @@ async function runCheckpointLoop(
     // revocation is immediate (key rows are read fresh; entitlement is cached).
     payload = await withEnterpriseByokKey(payload, route, lifecycleWorkspaceId)
 
-    if (isResume && isAborted(options, context)) {
+    if (isAborted(options, context)) {
       cancelPendingTools(context)
       context.awaitingAsyncContinuation = undefined
       break
@@ -932,13 +929,14 @@ async function runCheckpointLoop(
       },
     }
 
+    retry ??= new StreamRetryWindow(options.timeout)
     const streamSpan = context.trace.startSpan(
       isResume ? 'Sim → Go (Resume)' : 'Sim → Go Stream',
       isResume ? 'lifecycle.resume' : 'sim.stream',
       {
         route,
         isResume,
-        ...(isResume ? { attempt: resumeAttempt } : {}),
+        ...(isResume ? { attempt: retry.attempt } : {}),
       }
     )
     context.trace.setActiveSpan(streamSpan)
@@ -946,7 +944,7 @@ async function runCheckpointLoop(
     logger.info('Starting stream loop', {
       route,
       isResume,
-      resumeAttempt,
+      resumeAttempt: retry.attempt,
       pendingToolPromises: context.pendingToolPromises.size,
       toolCallCount: context.toolCalls.size,
       hasCheckpoint: !!context.awaitingAsyncContinuation,
@@ -980,7 +978,7 @@ async function runCheckpointLoop(
         },
         context,
         execContext,
-        loopOptions
+        { ...loopOptions, timeout: retry.remainingMs() }
       )
       const streamStatus = isAborted(options, context)
         ? RequestTraceV1SpanStatus.cancelled
@@ -989,8 +987,7 @@ async function runCheckpointLoop(
           : RequestTraceV1SpanStatus.ok
       context.trace.endSpan(streamSpan, streamStatus)
       context.trace.setActiveSpan(undefined)
-      resumeAttempt = 0
-      initialAttempt = 0
+      retry = undefined
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
@@ -998,23 +995,14 @@ async function runCheckpointLoop(
         await handleBillingLimitResponse(streamError.userId, context, execContext, options)
         break
       }
-      const attempt = isResume ? resumeAttempt : initialAttempt
-      const retryable = isResume
-        ? isRetryableStreamError(streamError)
-        : isRetryableInitialStreamError(streamError)
-      if (retryable && attempt < MAX_RESUME_ATTEMPTS - 1) {
-        // Discard errors recorded during this failed attempt; we're about to
-        // redo this leg and a clean retry must not finalize as `error`.
+      const backoff = retry?.nextDelay(streamError, options.abortSignal) ?? null
+      if (backoff !== null) {
+        /** A recovered connection must not finalize with an earlier transport failure. */
         context.errors.length = errorsBeforeAttempt
-        if (isResume) resumeAttempt++
-        else initialAttempt++
-        const nextAttempt = isResume ? resumeAttempt : initialAttempt
-        const backoff = RESUME_BACKOFF_MS[nextAttempt - 1] ?? 1000
         logger.warn(
           isResume ? 'Resume stream failed, retrying' : 'Initial stream failed, retrying',
           {
-            attempt: nextAttempt + 1,
-            maxAttempts: MAX_RESUME_ATTEMPTS,
+            attempt: (retry?.attempt ?? 0) + 1,
             backoffMs: backoff,
             error: toError(streamError).message,
           }
@@ -1457,40 +1445,4 @@ function cancelPendingTools(context: StreamingContext): void {
       })
     }
   }
-}
-
-/** The worker deduplicates resumes by run and tool call identity, including an interrupted HTTP 200 leg. */
-function isRetryableStreamError(error: unknown): boolean {
-  if (error instanceof DOMException && error.name === 'AbortError') {
-    return false
-  }
-  if (error instanceof StreamEndedWithoutTerminalError || error instanceof StreamContinuityError) {
-    return true
-  }
-  if (error instanceof CopilotBackendError) {
-    return error.status !== undefined && error.status >= 500
-  }
-  if (error instanceof TypeError) {
-    return true
-  }
-  return false
-}
-
-/**
- * Initial requests use a durable request identity and the backend's checkpoint
- * delivery reservation. Reposting a transport-ambiguous initial leg is safe:
- * Go redelivers an untouched committed pause, starts a request that never
- * anchored, or fails closed when the accepted leg has no recoverable pause.
- */
-function isRetryableInitialStreamError(error: unknown): boolean {
-  if (error instanceof DOMException && error.name === 'AbortError') {
-    return false
-  }
-  if (error instanceof StreamEndedWithoutTerminalError || error instanceof StreamContinuityError) {
-    return true
-  }
-  if (error instanceof CopilotBackendError) {
-    return error.status !== undefined && error.status >= 500
-  }
-  return error instanceof TypeError
 }

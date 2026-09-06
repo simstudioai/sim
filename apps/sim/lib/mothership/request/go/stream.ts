@@ -78,11 +78,9 @@ export const STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE =
   'The assistant stopped before finishing this turn. The work it already completed has been saved — send a message to continue from there.'
 
 /**
- * The SSE body closed after a `200` response without a terminal event: the
- * backend accepted the leg, ran it, and ended it on whatever outcome it reached
- * in-band. Distinct from {@link CopilotBackendError} because there is no HTTP
- * failure here — the leg is already claimed on the backend, so the outcome is
- * deterministic and re-posting it cannot change anything.
+ * The SSE body closed after HTTP 200 without a terminal receipt. The durable
+ * run may still be active or complete; recovery reuses its identity and delivery
+ * position instead of inferring an execution outcome from the connection close.
  */
 export class StreamEndedWithoutTerminalError extends Error {
   readonly path: string
@@ -125,6 +123,8 @@ export async function runStreamLoop(
   options: StreamLoopOptions
 ): Promise<void> {
   const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
+  const timeoutSignal = AbortSignal.timeout(Math.ceil(timeout))
+  const requestSignal = abortSignal ? AbortSignal.any([abortSignal, timeoutSignal]) : timeoutSignal
   const filePreviewAdapterState = createFilePreviewAdapterState()
 
   const pathname = new URL(fetchUrl).pathname
@@ -139,7 +139,7 @@ export async function runStreamLoop(
   try {
     response = await fetchGo(fetchUrl, {
       ...fetchOptions,
-      signal: abortSignal,
+      signal: requestSignal,
       otelContext: options.otelContext,
       spanName: `sim → go ${pathname}`,
       operation: 'stream',

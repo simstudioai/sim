@@ -1266,7 +1266,6 @@ describe('runCopilotLifecycle', () => {
 
   it('runs cancelled completion persistence when a stream throws after abort', async () => {
     const abortController = new AbortController()
-    abortController.abort('stop')
     const onComplete = vi.fn()
     const onError = vi.fn()
     const executionContext: ExecutionContext = {
@@ -1288,6 +1287,7 @@ describe('runCopilotLifecycle', () => {
           content: 'partial answer',
           timestamp: 1,
         })
+        abortController.abort('stop')
         throw new Error('publisher closed after stop')
       }
     )
@@ -1337,7 +1337,6 @@ describe('runCopilotLifecycle', () => {
 
   it('returns the cancelled result when cancelled completion persistence fails', async () => {
     const abortController = new AbortController()
-    abortController.abort('stop')
     const onComplete = vi.fn().mockRejectedValue(new Error('db unavailable'))
     const onError = vi.fn()
     const executionContext: ExecutionContext = {
@@ -1354,6 +1353,7 @@ describe('runCopilotLifecycle', () => {
         context: StreamingContext
       ): Promise<void> => {
         context.accumulatedContent = 'partial answer'
+        abortController.abort('stop')
         throw new Error('publisher closed after stop')
       }
     )
@@ -1890,7 +1890,7 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
-  it('does not promise Go a transparent stream-error retry it will not perform', async () => {
+  it('bounds repeated unavailable responses by the leg timeout', async () => {
     const bodies: Record<string, unknown>[] = []
     const executionContext: ExecutionContext = {
       userId: 'user-1',
@@ -1920,8 +1920,7 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    // Three resume attempts, all failing with a retryable 5xx so the loop
-    // exhausts MAX_RESUME_ATTEMPTS (= 3) and gives up.
+    /** The third backoff cannot fit inside the one-second budget. */
     for (let i = 0; i < 3; i++) {
       mockRunStreamLoop.mockImplementationOnce(
         async (
@@ -1947,16 +1946,109 @@ describe('runCopilotLifecycle', () => {
         executionId: 'exec-1',
         runId: 'run-1',
         executionContext,
+        timeout: 1000,
       }
     )
 
-    // Initial + 3 resume attempts: a 5xx is still transient, so the bounded
-    // retry budget is unchanged.
+    /** Initial + three failed resume attempts fit within this leg's deadline. */
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
-    // No leg claims a transparent retry. The flag made Go swallow the error tag
-    // that explains the failure, and a stream error is never retried now.
+    /** Recovery never asks the producer to suppress a terminal error. */
     for (const body of bodies) {
       expect(body.willRetryOnStreamError).toBeUndefined()
+    }
+  })
+
+  it('keeps the same request and partial response across a longer worker outage', async () => {
+    vi.useFakeTimers()
+    try {
+      const bodies: Record<string, unknown>[] = []
+      const headers: Headers[] = []
+      for (let attempt = 0; attempt < 4; attempt++) {
+        mockRunStreamLoop.mockImplementationOnce(
+          async (_url, request, context: StreamingContext) => {
+            bodies.push(JSON.parse(String(request.body)))
+            headers.push(new Headers(request.headers))
+            context.accumulatedContent = 'Saved partial answer'
+            context.errors.push('connection interrupted')
+            throw new TypeError('fetch failed')
+          }
+        )
+      }
+      mockRunStreamLoop.mockImplementationOnce(async (_url, request, context: StreamingContext) => {
+        bodies.push(JSON.parse(String(request.body)))
+        headers.push(new Headers(request.headers))
+        context.accumulatedContent += ' recovered'
+        context.streamComplete = true
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      })
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'outage-stream' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          simRequestId: 'outage-request',
+          timeout: 30_000,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(10_000)
+      const result = await pending
+      expect(result).toMatchObject({
+        success: true,
+        cancelled: false,
+        content: 'Saved partial answer recovered',
+      })
+      expect(result.errors).toBeUndefined()
+      expect(bodies).toHaveLength(5)
+      expect(bodies.map((body) => body.messageId)).toEqual(Array(5).fill('outage-stream'))
+      expect(headers.map((header) => header.get('X-Sim-Request-ID'))).toEqual(
+        Array(5).fill('outage-request')
+      )
+      expect(bodies.slice(1).map((body) => body.receivedTextChars)).toEqual(
+        Array(4).fill('Saved partial answer'.length)
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('honors Stop while waiting to reconnect to the worker', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      mockRunStreamLoop.mockRejectedValueOnce(new TypeError('fetch failed'))
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stopped-outage' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          abortSignal: controller.signal,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(100)
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      controller.abort()
+      expect(await pending).toMatchObject({ success: false, cancelled: true })
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
     }
   })
 

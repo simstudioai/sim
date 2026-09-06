@@ -177,6 +177,24 @@ describe('copilot go stream helpers', () => {
     vi.unstubAllGlobals()
   })
 
+  it('bounds response-header waits without classifying the deadline as user Stop', async () => {
+    vi.mocked(fetch).mockImplementationOnce(
+      (_url, options) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = options?.signal
+          if (!signal) throw new Error('Missing request deadline')
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const context = createStreamingContext()
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, turnScopedExecContext(), {
+        timeout: 20,
+      })
+    ).rejects.toMatchObject({ name: 'TimeoutError' })
+    expect(context.wasAborted).not.toBe(true)
+  })
+
   it('decodes complete escapes and stops at incomplete unicode escapes', () => {
     expect(decodeJsonStringPrefix('hello\\nworld')).toBe('hello\nworld')
     expect(decodeJsonStringPrefix('emoji \\u263A')).toBe('emoji ☺')
