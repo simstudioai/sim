@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
+import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
-import type { PersistedContentBlock } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
