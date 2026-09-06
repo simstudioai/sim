@@ -7,6 +7,10 @@ import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { MAX_RENDERED_DOCUMENT_BYTES, needsRenderedArtifact } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -17,6 +21,8 @@ import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/applica
 export interface DownloadWorkspaceFileInput {
   fileId: string
   assertedWorkspaceId?: string
+  /** Trusted runtime callers can request the classification bound to the streamed bytes. */
+  includeSecretProvenance?: boolean
 }
 
 export interface DownloadWorkspaceFileResult {
@@ -32,6 +38,7 @@ export interface DownloadWorkspaceFileStreamResult extends DownloadWorkspaceFile
    */
   contentLength: number
   contentType: string
+  secretProvenance?: WorkspaceFileSecretProvenance
 }
 
 /** Audits the bytes actually handed out, which for a generated doc is not `file.size`. */
@@ -81,6 +88,7 @@ function resolveRenderedArtifact(
 }
 
 async function executeDownloadWorkspaceFileStream({
+  input,
   context,
   principal,
 }: AuthorizedWorkspaceUseCaseContext<
@@ -92,7 +100,15 @@ async function executeDownloadWorkspaceFileStream({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  return streamWorkspaceFileRecord(file, principal)
+  const secretProvenance = input.includeSecretProvenance
+    ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+        fileId: file.id,
+        key: file.key,
+        context: file.storageContext ?? 'workspace',
+        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+      })
+    : undefined
+  return streamWorkspaceFileRecord(file, principal, secretProvenance)
 }
 
 /**
@@ -101,7 +117,8 @@ async function executeDownloadWorkspaceFileStream({
  */
 export async function streamWorkspaceFileRecord(
   file: DownloadWorkspaceFileResult['file'],
-  principal: Principal
+  principal: Principal,
+  secretProvenance?: WorkspaceFileSecretProvenance
 ): Promise<DownloadWorkspaceFileStreamResult> {
   /**
    * AI-generated docs store their generation SOURCE as the primary file and keep
@@ -126,6 +143,7 @@ export async function streamWorkspaceFileRecord(
       }),
       contentLength: buffer.length,
       contentType,
+      ...(secretProvenance ? { secretProvenance } : {}),
     }
   }
 
@@ -138,6 +156,7 @@ export async function streamWorkspaceFileRecord(
     stream: nodeReadableToWebStream(stream),
     contentLength: file.size,
     contentType: file.type || 'application/octet-stream',
+    ...(secretProvenance ? { secretProvenance } : {}),
   }
 }
 

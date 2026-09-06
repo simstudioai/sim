@@ -10,6 +10,10 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
   formatFileSize,
   getFileExtension,
   MAX_TEXT_EXTRACTION_BYTES,
@@ -35,6 +39,8 @@ export interface ReadWorkspaceFileTextInput {
   offset?: number
   /** How many lines to return from `offset`. Absent reads to the end. */
   limit?: number
+  /** Private classification for runtime consumers, omitted from ordinary API reads. */
+  includeSecretProvenance?: boolean
 }
 
 export interface ReadWorkspaceFileTextResult {
@@ -58,6 +64,7 @@ export interface ReadWorkspaceFileTextResult {
     /** False when extraction was truncated, so `totalLines` is not the file's end. */
     totalLinesExact: boolean
   }
+  secretProvenance?: WorkspaceFileSecretProvenance
 }
 
 /**
@@ -141,6 +148,14 @@ export async function extractWorkspaceFileRecordText(
     : await readSourceBuffer(file, maxBytes, signal)
   const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
+  const secretProvenance = input.includeSecretProvenance
+    ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+        fileId: file.id,
+        key: file.key,
+        context: file.storageContext ?? 'workspace',
+        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+      })
+    : undefined
 
   const truncated = metadata.truncated === true
   const { text, lineRange } = sliceFileTextLines(
@@ -157,6 +172,7 @@ export async function extractWorkspaceFileRecordText(
     degraded: metadata.degraded === true,
     degradedReason: metadata.degraded === true ? (metadata.warning ?? null) : null,
     byteCount: content.byteLength,
+    ...(secretProvenance ? { secretProvenance } : {}),
     ...(lineRange ? { lineRange } : {}),
   }
 }
