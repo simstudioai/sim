@@ -2,6 +2,7 @@ import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
@@ -2580,19 +2581,18 @@ export async function executeFunctionRequest(
       )
     }
 
-    // Harvested on every remote run rather than behind a switch: the directory is
-    // Sim's own, so nothing lands there unless the code put it there, and the cost
-    // is one listing on a run that already paid for a sandbox. Isolate runs never
-    // reach here, so they stay as fast as they were.
-    //
-    // Declared sandbox outputs opt out. That request names exactly which paths to
-    // export and answers with that export's own result, so harvesting alongside it
-    // would collect files the response has no shape to carry — they would be read,
-    // scanned, uploaded, and then dropped. Making the exclusion explicit here keeps
-    // it from resting on which branch happens to return first.
+    /**
+     * Automatic exports belong to one execution. Persistent workbenches need a
+     * distinct directory per call so a parallel or later run cannot harvest them.
+     * Declared outputs already name their exact paths and opt out of discovery.
+     */
     const declaresSandboxOutputs = outputFiles.some((file) => file.sandboxPath)
     const outputSandboxDir =
-      useRemoteSandbox && !declaresSandboxOutputs ? SANDBOX_OUTPUT_DIR : undefined
+      useRemoteSandbox && !declaresSandboxOutputs
+        ? mothershipSession
+          ? `${SANDBOX_OUTPUT_DIR}/call-${generateShortId(16)}`
+          : SANDBOX_OUTPUT_DIR
+        : undefined
 
     if (mountManifest.length > 0) {
       logger.info(`[${requestId}] Mounted files into sandbox`, {

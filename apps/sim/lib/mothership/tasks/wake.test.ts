@@ -1,13 +1,6 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -17,7 +10,7 @@ const {
   mockReleasePendingChatStream,
   mockPublishStatusChanged,
   mockCheckWorkspaceAccess,
-  mockGetActivelyBannedUserIds,
+  mockAuthorizeTaskWake,
 } = vi.hoisted(() => ({
   mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockAppendCopilotChatMessages: vi.fn(),
@@ -25,11 +18,12 @@ const {
   mockReleasePendingChatStream: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
-  mockGetActivelyBannedUserIds: vi.fn(),
+  mockAuthorizeTaskWake: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mockGetActivelyBannedUserIds }))
+vi.mock('@/lib/mothership/tasks/application/prepare-wake', () => ({
+  authorizeTaskWake: mockAuthorizeTaskWake,
+}))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: vi.fn().mockResolvedValue({}),
 }))
@@ -53,10 +47,13 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
 
-import { resolveTaskPill, runWakeTurn, validateWake } from './wake'
+import { runWakeTurn } from './wake'
 
 const WAKE = {
   taskId: '22222222-2222-4222-8222-222222222222',
+  runId: '33333333-3333-4333-8333-333333333333',
+  status: 'completed' as const,
+  summary: 'Timer elapsed',
   chatId: 'chat-1',
   workspaceId: 'ws-1',
   userId: 'user-1',
@@ -66,9 +63,8 @@ const WAKE = {
 
 describe('copilot task wake', () => {
   beforeEach(() => {
-    resetDbChainMock()
     vi.clearAllMocks()
-    mockGetActivelyBannedUserIds.mockResolvedValue([])
+    mockAuthorizeTaskWake.mockResolvedValue(undefined)
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
     mockAcquirePendingChatStream.mockResolvedValue(true)
     mockRunHeadlessCopilotLifecycle.mockResolvedValue({
@@ -78,32 +74,17 @@ describe('copilot task wake', () => {
     })
   })
 
-  it('refuses a chat that belongs to another user', async () => {
-    queueTableRows(schemaMock.copilotChats, [{ userId: 'someone-else', workspaceId: 'ws-1' }])
-    expect(await validateWake(WAKE)).toEqual({
-      ok: false,
-      status: 404,
-      error: 'Chat not found for this user and workspace',
-    })
-  })
-
-  it('refuses a suspended user', async () => {
-    queueTableRows(schemaMock.copilotChats, [{ userId: 'user-1', workspaceId: 'ws-1' }])
-    mockGetActivelyBannedUserIds.mockResolvedValue(['user-1'])
-    expect((await validateWake(WAKE)).ok).toBe(false)
-  })
-
-  it('runs the headless turn under the task id, persists both messages with the task origin, and announces it', async () => {
+  it('runs the headless turn under the reserved run id, persists both messages with the task origin, and announces it', async () => {
     await runWakeTurn(WAKE)
-    expect(mockAcquirePendingChatStream).toHaveBeenCalledWith('chat-1', WAKE.taskId)
+    expect(mockAcquirePendingChatStream).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'started', chatId: 'chat-1', streamId: WAKE.taskId })
+      expect.objectContaining({ type: 'started', chatId: 'chat-1', streamId: WAKE.runId })
     )
     const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
     expect(payload).toEqual(
       expect.objectContaining({
         message: WAKE.message,
-        messageId: WAKE.taskId,
+        messageId: WAKE.runId,
         origin: 'task',
         chatId: 'chat-1',
       })
@@ -114,60 +95,32 @@ describe('copilot task wake', () => {
     const [chatId, messages, opts] = mockAppendCopilotChatMessages.mock.calls[0]
     expect(chatId).toBe('chat-1')
     expect(messages[0]).toEqual(
-      expect.objectContaining({ role: 'user', id: WAKE.taskId, origin: 'task' })
+      expect.objectContaining({ role: 'user', id: WAKE.runId, origin: 'task' })
     )
     expect(messages[1]).toEqual(
       expect.objectContaining({ role: 'assistant', content: 'TIMER FIRED' })
     )
-    expect(opts).toEqual({ streamId: WAKE.taskId })
-    expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', WAKE.taskId)
+    expect(opts).toEqual({ streamId: WAKE.runId })
+    expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', WAKE.runId)
     expect(mockPublishStatusChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'completed', chatId: 'chat-1', streamId: WAKE.taskId })
+      expect.objectContaining({ type: 'completed', chatId: 'chat-1', streamId: WAKE.runId })
     )
   })
 
-  it('resolves the pill in the arming message before the wake turn lands', async () => {
-    queueTableRows(schemaMock.copilotMessages, [
-      {
-        id: 'row-1',
-        content: {
-          id: 'assistant-1',
-          role: 'assistant',
-          contentBlocks: [
-            { type: 'text', content: 'armed' },
-            {
-              type: 'task',
-              task: {
-                taskId: WAKE.taskId,
-                kind: 'timer',
-                target: {},
-                note: 'n',
-                status: 'pending',
-              },
-            },
-          ],
-        },
-      },
-    ])
-    await resolveTaskPill('chat-1', WAKE.taskId, 'completed', 'Timer elapsed')
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.copilotMessages)
-    const [setArg] = dbChainMockFns.set.mock.calls[0] as [
-      {
-        content: {
-          contentBlocks: Array<{ type: string; task?: { status?: string; summary?: string } }>
-        }
-      },
-    ]
-    expect(setArg.content.contentBlocks[1]?.task).toMatchObject({
-      status: 'completed',
-      summary: 'Timer elapsed',
-    })
-  })
-
-  it('skips the turn when another stream holds the chat', async () => {
-    mockAcquirePendingChatStream.mockResolvedValue(false)
+  it('rechecks access before spending on a wake, and releases the reservation on failure', async () => {
+    mockAuthorizeTaskWake.mockRejectedValue(new Error('Access revoked'))
     await runWakeTurn(WAKE)
     expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
-    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+    expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', WAKE.runId)
+  })
+  it('does not persist an empty turn when the wake was already consumed by a human turn', async () => {
+    mockRunHeadlessCopilotLifecycle.mockResolvedValue({
+      success: true,
+      content: '',
+      contentBlocks: [],
+    })
+    await runWakeTurn(WAKE)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', WAKE.runId)
   })
 })

@@ -1,5 +1,6 @@
 import { Check, Clock, cn, X } from '@sim/emcn'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { useMothershipTaskStatus } from '@/hooks/queries/mothership-tasks'
 
 interface TaskPillProps {
   task: TaskBlockInfo
@@ -21,7 +22,12 @@ function describeTarget(task: TaskBlockInfo): string {
  * docs/revamp/21-background-tasks.md §6.4). Pending until the task's notification lands
  * in this chat, then it shows the outcome. Read-only.
  */
-export function TaskPill({ task }: TaskPillProps) {
+export function TaskPill({ task: recorded }: TaskPillProps) {
+  const { data } = useMothershipTaskStatus(recorded)
+  const task =
+    data && (!recorded.status || recorded.status === 'pending')
+      ? { ...recorded, status: data.status, summary: data.summary ?? undefined }
+      : recorded
   const pending = task.status === undefined || task.status === 'pending'
   const failed = task.status === 'failed' || task.status === 'expired'
   const Icon = pending ? Clock : failed ? X : Check

@@ -108,6 +108,7 @@ import {
   createKnowledgeDocuments,
   deleteKnowledgeDocument,
   listKnowledgeDocuments,
+  readKnowledgeDocument,
   updateKnowledgeDocument,
   uploadKnowledgeDocument,
   upsertKnowledgeDocument,
@@ -207,10 +208,62 @@ describe('knowledge document application use cases', () => {
         },
       ],
     })
+    mocks.getDocumentTagDefinitions.mockResolvedValue([])
     mocks.getDocuments.mockResolvedValue({
       documents: [],
       pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
     })
+  })
+
+  it.each([
+    { kind: 'session' as const, userId: 'reader' },
+    { kind: 'personal_api_key' as const, userId: 'reader', keyId: 'key-1' },
+  ])('authorizes a document read for the actual $kind subject', async (principal) => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    const input = {
+      knowledgeBaseId: context.knowledgeBaseId,
+      documentId: document.id,
+      assertedWorkspaceId: context.workspaceId,
+    }
+    const result = await readKnowledgeDocument.execute({ principal, input })
+    expect(result).toEqual({ document, tagDefinitions: [], workspaceId: context.workspaceId })
+    expect(mocks.resolveDocument).toHaveBeenCalledWith(input)
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      principal.userId,
+      context.workspaceId,
+      context.workspaceOrganizationId,
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(mocks.getDocumentTagDefinitions).toHaveBeenCalledWith(context.knowledgeBaseId)
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a document read after workspace permission is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      readKnowledgeDocument.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { knowledgeBaseId: context.knowledgeBaseId, documentId: document.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.getDocumentTagDefinitions).not.toHaveBeenCalled()
+  })
+
+  it('enforces personal-key policy before returning a resolved document', async () => {
+    mocks.resolveDocument.mockResolvedValue({
+      ...context,
+      allowPersonalApiKeys: false,
+      documentId: document.id,
+      document,
+    })
+    await expect(
+      readKnowledgeDocument.execute({
+        principal: { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
+        input: { knowledgeBaseId: context.knowledgeBaseId, documentId: document.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.getDocumentTagDefinitions).not.toHaveBeenCalled()
   })
 
   /**

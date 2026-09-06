@@ -171,6 +171,7 @@ export const mothershipChatAbortEnvelopeSchema = z
   .object({
     streamId: z.string().optional(),
     chatId: z.string().optional(),
+    workspaceId: z.string().min(1).optional(),
   })
   .passthrough()
 

@@ -2,23 +2,325 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
+import {
+  copilotAsyncToolCalls,
+  copilotChats,
+  copilotRequestStops,
+  copilotRuns,
+} from '@sim/db/schema'
+import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  areStreamToolExecutionsSettled,
   claimCompletedAsyncToolCall,
   claimPendingAsyncToolCall,
+  claimSimToolExecution,
   claimWorkflowToolExecution,
+  closeStreamToolAdmission,
   completeAsyncToolCall,
   completeClaimedAsyncToolCall,
   completePendingAsyncToolCall,
+  createRunSegment,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
+  getUnsettledStreamSandboxProcesses,
   markAsyncToolRunning,
+  recordSimSandboxProcess,
   recordToolPermissionDecision,
   releaseWorkflowToolExecutionClaim,
   replaceTerminalAsyncToolCallResult,
+  settleSimSandboxProcess,
+  settleSimToolExecution,
+  stopPendingRequest,
+  updateRunStatus,
   upsertAsyncToolCall,
-} from './repository'
+} from '@/lib/mothership/async-runs/repository'
+
+describe('run admission and early Stop', () => {
+  const scope = { userId: 'user-1', workspaceId: 'workspace-1', streamId: 'stream-1' }
+  const input = { ...scope, chatId: 'chat-1', executionId: 'execution-1' }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('records a pending Stop using the authenticated actor and workspace', async () => {
+    expect(await stopPendingRequest(scope)).toBeNull()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(scope)
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalled()
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0]?.[0],
+        (condition) =>
+          condition.type === 'eq' &&
+          condition.left === copilotRuns.userId &&
+          condition.right === scope.userId
+      )
+    ).toBe(true)
+  })
+
+  it('retains an admitted run for the normal authorized Stop path', async () => {
+    const run = { ...input, status: 'active' }
+    queueTableRows(copilotRuns, [run])
+    expect(await stopPendingRequest(scope)).toEqual(run)
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges a delayed cancelled admission without requiring a nonexistent worker run', async () => {
+    queueTableRows(copilotRuns, [{ ...input, status: 'cancelled' }])
+    queueTableRows(copilotRequestStops, [{ ...scope, stoppedAt: new Date() }])
+    expect(await stopPendingRequest(scope)).toBeNull()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('does not confuse an ordinary cancelled run with one stopped before admission', async () => {
+    const run = { ...input, status: 'cancelled' }
+    queueTableRows(copilotRuns, [run])
+    expect(await stopPendingRequest(scope)).toEqual(run)
+  })
+
+  it('creates a terminal, tool-closed run when a scoped Stop preceded admission', async () => {
+    const stoppedAt = new Date('2026-09-01T00:00:00Z')
+    queueTableRows(copilotRequestStops, [{ ...scope, stoppedAt }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'run-1', status: 'cancelled' }])
+    expect(await createRunSegment(input)).toMatchObject({ status: 'cancelled' })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'cancelled',
+        toolAdmissionClosedAt: stoppedAt,
+        completedAt: expect.anything(),
+      })
+    )
+    for (const [column, value] of [
+      [copilotRequestStops.userId, scope.userId],
+      [copilotRequestStops.workspaceId, scope.workspaceId],
+      [copilotRequestStops.streamId, scope.streamId],
+    ]) {
+      expect(
+        hasMockCondition(
+          dbChainMockFns.where.mock.calls[0]?.[0],
+          (condition) =>
+            condition.type === 'eq' && condition.left === column && condition.right === value
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('resolves a missing workspace from the actor-owned chat before checking Stop', async () => {
+    queueTableRows(copilotChats, [{ workspaceId: scope.workspaceId }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'run-1', status: 'active' }])
+    await createRunSegment({ ...input, workspaceId: undefined })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: scope.workspaceId, status: 'active' })
+    )
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0]?.[0],
+        (condition) =>
+          condition.type === 'eq' &&
+          condition.left === copilotChats.userId &&
+          condition.right === scope.userId
+      )
+    ).toBe(true)
+  })
+
+  it('refuses admission when its canonical workspace cannot be resolved', async () => {
+    await expect(createRunSegment({ ...input, workspaceId: undefined })).rejects.toThrow(
+      'Chat workspace is unavailable'
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('does not acknowledge a failed Stop transaction or continue after a failed admission', async () => {
+    dbChainMockFns.execute.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(stopPendingRequest(scope)).rejects.toThrow('database unavailable')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    await expect(createRunSegment(input)).rejects.toThrow('persisted identity')
+  })
+})
+
+describe('durable Sim tool ownership', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  const input = { toolCallId: 'tool-1', runId: 'run-1', userId: 'user-1' }
+
+  it.each(['complete', 'error', 'cancelled'] as const)(
+    'closes %s admission and refuses preexisting terminal rows',
+    async (status) => {
+      await updateRunStatus(input.runId, status)
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status, toolAdmissionClosedAt: expect.anything() })
+      )
+      expect(
+        hasMockCondition(
+          dbChainMockFns.where.mock.calls[0]?.[0],
+          (condition) => condition.type === 'notInArray' && condition.column === copilotRuns.status
+        )
+      ).toBe(true)
+      dbChainMockFns.for.mockResolvedValueOnce([
+        { toolExecutionVersion: 2, toolAdmissionClosedAt: null, status },
+      ])
+      expect(await claimSimToolExecution(input)).toEqual({ outcome: 'closed' })
+      dbChainMockFns.for.mockResolvedValueOnce([{ version: 2, closedAt: null, status }])
+      await expect(
+        recordSimSandboxProcess({
+          ...input,
+          process: { id: 'command-1', sandboxId: 'sandbox-1', sessionKey: 'chat:1' },
+        })
+      ).rejects.toThrow('admission is closed')
+      expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('locks the actor-owned run before claiming a still-unclaimed execution', async () => {
+    expect(copilotRuns.toolExecutionVersion).toBeDefined()
+    expect(copilotRuns.toolAdmissionClosedAt).toBeDefined()
+    expect(copilotAsyncToolCalls.executionStartedAt).toBeDefined()
+    expect(copilotAsyncToolCalls.executionSettledAt).toBeDefined()
+    dbChainMockFns.for.mockResolvedValueOnce([
+      { id: input.runId, toolExecutionVersion: 2, toolAdmissionClosedAt: null },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
+    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'claimed' })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0]?.[0],
+        (condition) => condition.type === 'eq' && condition.right === input.userId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[1]?.[0],
+        (condition) =>
+          condition.type === 'isNull' &&
+          condition.column === copilotAsyncToolCalls.executionStartedAt
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ executionStartedAt: expect.any(Date), status: 'running' })
+    )
+  })
+
+  it('refuses admission after Stop without touching any tool row', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([
+      { toolExecutionVersion: 2, toolAdmissionClosedAt: new Date() },
+    ])
+    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'closed' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it.each([0, 1])('does not certify or execute through tracking version %s', async (version) => {
+    dbChainMockFns.for.mockResolvedValueOnce([{ toolExecutionVersion: version }])
+    await expect(claimSimToolExecution(input)).rejects.toThrow('ownership is unavailable')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ version }])
+    expect(await closeStreamToolAdmission('stream-1', input.userId)).toBe(false)
+  })
+
+  it('returns an existing outcome without taking its execution ownership', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([{ toolExecutionVersion: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    const record = {
+      toolCallId: input.toolCallId,
+      status: 'failed',
+      executionStartedAt: new Date(),
+      executionSettledAt: null,
+    }
+    queueTableRows(copilotAsyncToolCalls, [record])
+    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'existing', record })
+  })
+
+  it('keeps a terminal result distinct from actual execution settlement', async () => {
+    queueTableRows(copilotRuns, [{ id: input.runId }])
+    queueTableRows(copilotAsyncToolCalls, [{ id: 'still-owned' }])
+    expect(await areStreamToolExecutionsSettled('stream-1', input.userId)).toBe(false)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
+    await settleSimToolExecution(input.toolCallId)
+    expect(dbChainMockFns.set).toHaveBeenLastCalledWith({ executionSettledAt: expect.any(Date) })
+  })
+
+  it('requires a tracked closed run even when no tool rows were returned', async () => {
+    expect(await areStreamToolExecutionsSettled('stream-1', input.userId)).toBe(false)
+    queueTableRows(copilotRuns, [{ id: input.runId }])
+    expect(await areStreamToolExecutionsSettled('stream-1', input.userId)).toBe(true)
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[1]?.[0],
+        (condition) => condition.type === 'eq' && condition.right === input.userId
+      )
+    ).toBe(true)
+  })
+
+  it('records a command identity only under the live actor-owned run lock', async () => {
+    expect(copilotAsyncToolCalls.sandboxProcesses).toBeDefined()
+    dbChainMockFns.for.mockResolvedValueOnce([{ version: 2, closedAt: null }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'tool-row' }])
+    await recordSimSandboxProcess({
+      ...input,
+      process: { id: 'process-1', sandboxId: 'sandbox-1', sessionKey: 'chat-1' },
+    })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0]?.[0],
+        (condition) => condition.type === 'eq' && condition.right === input.userId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[1]?.[0],
+        (condition) => condition.type === 'eq' && condition.right === input.runId
+      )
+    ).toBe(true)
+  })
+
+  it('refuses another command within a running tool after Stop closes admission', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([{ version: 2, closedAt: new Date() }])
+    await expect(
+      recordSimSandboxProcess({
+        ...input,
+        process: { id: 'process-1', sandboxId: 'sandbox-1', sessionKey: 'chat-1' },
+      })
+    ).rejects.toThrow('admission is closed')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('returns only unresolved command identities and retains their tool owners', async () => {
+    queueTableRows(copilotAsyncToolCalls, [
+      {
+        toolCallId: input.toolCallId,
+        processes: {
+          unresolved: { sandboxId: 'sandbox-1', sessionKey: 'chat-1', settled: false },
+          finished: { sandboxId: 'sandbox-1', sessionKey: 'chat-1', settled: true },
+        },
+      },
+    ])
+    expect(await getUnsettledStreamSandboxProcesses('stream-1', input.userId)).toEqual([
+      {
+        toolCallId: input.toolCallId,
+        id: 'unresolved',
+        sandboxId: 'sandbox-1',
+        sessionKey: 'chat-1',
+      },
+    ])
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[0]?.[0],
+        (condition) => condition.type === 'eq' && condition.right === input.userId
+      )
+    ).toBe(true)
+  })
+
+  it('refuses to manufacture settlement for a command absent from the tool record', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await expect(settleSimSandboxProcess(input.toolCallId, 'unknown')).rejects.toThrow(
+      'settlement could not be recorded'
+    )
+  })
+})
 
 describe('async tool repository single-row semantics', () => {
   beforeEach(() => {
@@ -51,6 +353,7 @@ describe('async tool repository single-row semantics', () => {
       })
     )
     expect(dbChainMockFns.where).toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls[0]?.[0]).not.toHaveProperty('executionSettledAt')
   })
 
   it('returns null when another terminal transition already won', async () => {

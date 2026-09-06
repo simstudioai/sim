@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "sandbox_processes" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -1,16 +1,21 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
+import {
+  type ReferenceValidationOptions,
+  type SelectorReference,
+  validateSelectorIds,
+} from '@/lib/workflows/editing/selector-validator'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   resolveCanonicalMode,
@@ -1121,26 +1126,20 @@ export interface UnresolvedSelectorReference {
 export const UNRESOLVABLE_AT_LINT_NOTE =
   'Credential/resource resolution covers oauth credentials, knowledge bases, documents, workflows, and MCP servers. External selector IDs (Slack channels, Drive files, Jira projects, folders, MCP tools) are validated only at run time.'
 
-interface SelectorFieldToValidate {
-  blockId: string
-  blockType: string
-  blockName?: string
-  fieldName: string
-  selectorType: string
-  value: string | string[]
-}
-
 /**
  * Walk a workflow state and collect selector/credential fields to validate.
  * For canonical pairs only the ACTIVE member is collected (an intentionally-empty
  * inactive member is never flagged). oauth-input credentials are included only
- * when `options.includeCredentials` is set.
+ * when `options.includeCredentials` is set. Complete standalone diagnostics also
+ * inspect active manual inputs using their canonical selector's resource type and
+ * ignore fields whose operation condition is inactive. Advisory writes retain their
+ * existing selector-only behavior.
  */
 function collectSelectorFields(
   workflowState: any,
-  options: { includeCredentials?: boolean } = {}
-): SelectorFieldToValidate[] {
-  const fields: SelectorFieldToValidate[] = []
+  options: { includeCredentials?: boolean; requireComplete?: boolean } = {}
+): SelectorReference[] {
+  const fields: SelectorReference[] = []
 
   for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
     const blockData = block as any
@@ -1162,16 +1161,28 @@ function collectSelectorFields(
     const canonicalModeOverrides = blockData.data?.canonicalModes
 
     for (const subBlockConfig of activeSubBlocks) {
-      if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+      const basicMember =
+        options.requireComplete && group?.basicId
+          ? activeSubBlocks.find((config) => config.id === group.basicId)
+          : undefined
+      const selectorType = SELECTOR_TYPES.has(subBlockConfig.type)
+        ? subBlockConfig.type
+        : basicMember?.type
+      if (!selectorType || !SELECTOR_TYPES.has(selectorType)) continue
+      if (
+        options.requireComplete &&
+        !evaluateSubBlockCondition(subBlockConfig.condition, allValues)
+      )
+        continue
 
       // oauth-input credentials are only validated when explicitly requested
       // (the edit path pre-validates them separately; the lint opts in).
-      if (subBlockConfig.type === 'oauth-input' && !options.includeCredentials) continue
+      if (selectorType === 'oauth-input' && !options.includeCredentials) continue
 
       // For canonical pairs, only validate the active member's value so an
       // intentionally-empty inactive member is never flagged.
-      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
-      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
       if (group && isCanonicalPair(group)) {
         const mode = resolveCanonicalMode(group, allValues, canonicalModeOverrides)
         const isActiveMember =
@@ -1198,7 +1209,7 @@ function collectSelectorFields(
         blockType,
         blockName: blockData.name,
         fieldName: subBlockConfig.id,
-        selectorType: subBlockConfig.type,
+        selectorType,
         value: values,
       })
     }
@@ -1273,16 +1284,20 @@ export async function validateWorkflowSelectorIds(
  * member (including oauth-input) against the workspace and return the references
  * that do not resolve to an accessible entity. This is the "set in basic mode
  * but the dropdown shows nothing" check, using the same resolver the dropdown
- * options come from. Best-effort: per-field resolution failures are skipped.
+ * options come from. Advisory callers skip failed lookups; complete diagnostics propagate them.
  */
 export async function collectUnresolvedReferences(
   workflowState: any,
-  context: { userId: string; workspaceId?: string }
+  context: { userId: string; workspaceId?: string },
+  options: ReferenceValidationOptions = {}
 ): Promise<UnresolvedSelectorReference[]> {
   const logger = createLogger('EditWorkflowResolutionLint')
   const references: UnresolvedSelectorReference[] = []
 
-  const selectorsToValidate = collectSelectorFields(workflowState, { includeCredentials: true })
+  const selectorsToValidate = collectSelectorFields(workflowState, {
+    includeCredentials: true,
+    requireComplete: options.requireComplete,
+  })
   if (selectorsToValidate.length === 0) {
     return references
   }
@@ -1290,13 +1305,16 @@ export async function collectUnresolvedReferences(
   for (const selector of selectorsToValidate) {
     let result: Awaited<ReturnType<typeof validateSelectorIds>>
     try {
-      result = await validateSelectorIds(selector.selectorType, selector.value, context)
+      result = options.resolveSelector
+        ? await options.resolveSelector(selector)
+        : await validateSelectorIds(selector.selectorType, selector.value, context, options)
     } catch (error) {
-      logger.warn('Selector resolution failed; skipping field', {
+      logger.warn('Selector resolution failed', {
         blockId: selector.blockId,
         fieldName: selector.fieldName,
         error: toError(error).message,
       })
+      if (options.requireComplete) throw error
       continue
     }
 
@@ -1318,119 +1336,112 @@ export async function collectUnresolvedReferences(
   return references
 }
 
+export interface AgentToolReference {
+  blockId: string
+  blockName?: string
+  blockType: 'agent'
+  field: 'tools' | 'skills'
+  value: string
+  kind: 'custom-tool' | 'mcp-tool' | 'skill'
+}
+
+export interface AgentToolReferenceValidationOptions extends ReferenceValidationOptions {
+  /** Undefined means no missing-reference finding; the caller owns unchecked notes. */
+  resolveAgentTool?: (reference: AgentToolReference) => Promise<string | undefined>
+}
+
 /**
- * Lint-facing existence check for agent-block tool/skill references. Walks every
- * agent block and verifies that reference-format custom tools (`customToolId`),
- * MCP tools (`params.serverId`), and skills (`skillId`) resolve to real
- * workspace/builtin entities. A well-shaped entry whose id does not resolve
- * passes shape validation but is silently dropped at runtime (the agent never
- * sees the tool/skill), so surface it through the lint channel. Best-effort:
- * per-entry resolution failures are skipped rather than failing the edit.
+ * Walk attached references once. Standalone diagnostics resolve through authorized
+ * application reads; advisory writes keep their existing best-effort lookups.
+ * Inline custom tools can execute their schema when the stored ID is unavailable.
  */
 export async function collectUnresolvedAgentToolReferences(
-  workflowState: any,
-  context: { userId: string; workspaceId?: string }
+  workflowState: unknown,
+  context: { userId: string; workspaceId?: string },
+  options: AgentToolReferenceValidationOptions = {}
 ): Promise<UnresolvedSelectorReference[]> {
-  const logger = agentToolLintLogger
   const references: UnresolvedSelectorReference[] = []
-  const { userId, workspaceId } = context
-
-  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
-    const blockData = block as any
-    if (blockData?.type !== 'agent') continue
-    const blockName = blockData.name as string | undefined
-
-    const tools = blockData.subBlocks?.tools?.value
-    if (Array.isArray(tools)) {
-      for (const tool of tools) {
-        if (!tool || typeof tool !== 'object') continue
-
-        // Reference-format custom tools must resolve to a DB row. Inline tools
-        // (those carrying their own schema) are self-contained, so skip them.
-        // Gated on workspaceId (like the MCP/skill paths below): without a
-        // workspace, getCustomToolById only sees legacy tools and would
-        // false-positive on every workspace-scoped tool.
-        if (tool.type === 'custom-tool' && !tool.schema && workspaceId) {
-          const toolId = tool.customToolId
-          if (typeof toolId !== 'string' || toolId.trim() === '') continue
-          try {
-            const found = await getCustomToolById({ toolId, userId, workspaceId })
-            if (!found) {
-              references.push({
-                blockId,
-                blockName,
-                blockType: 'agent',
-                field: 'tools',
-                value: toolId,
-                kind: 'custom-tool',
-                reason: `custom tool id "${toolId}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`,
-              })
-            }
-          } catch (error) {
-            logger.warn('Custom tool resolution failed; skipping', {
-              blockId,
-              toolId,
-              error: toError(error).message,
-            })
-          }
-        } else if (tool.type === 'mcp' && workspaceId) {
-          const serverId = tool.params?.serverId
-          if (typeof serverId !== 'string' || serverId.trim() === '') continue
-          try {
-            const result = await validateSelectorIds('mcp-server-selector', serverId, context)
-            if (result.invalid.length > 0) {
-              references.push({
-                blockId,
-                blockName,
-                blockType: 'agent',
-                field: 'tools',
-                value: serverId,
-                kind: 'mcp-tool',
-                reason: `MCP server "${serverId}" does not resolve to an enabled MCP server in this workspace`,
-              })
-            }
-          } catch (error) {
-            logger.warn('MCP server resolution failed; skipping', {
-              blockId,
-              serverId,
-              error: toError(error).message,
-            })
-          }
+  if (
+    !context.workspaceId ||
+    !isPlainRecord(workflowState) ||
+    !isPlainRecord(workflowState.blocks)
+  ) {
+    return references
+  }
+  for (const [blockId, block] of Object.entries(workflowState.blocks)) {
+    if (!isPlainRecord(block) || block.type !== 'agent' || !isPlainRecord(block.subBlocks)) continue
+    const blockName = typeof block.name === 'string' ? block.name : undefined
+    for (const field of ['tools', 'skills'] as const) {
+      const subBlock = block.subBlocks[field]
+      if (!isPlainRecord(subBlock) || !Array.isArray(subBlock.value)) continue
+      for (const entry of subBlock.value) {
+        if (!isPlainRecord(entry)) continue
+        let kind: AgentToolReference['kind']
+        let value: unknown
+        if (field === 'skills') {
+          kind = 'skill'
+          value = entry.skillId
+        } else if (entry.type === 'custom-tool' && !entry.schema) {
+          kind = 'custom-tool'
+          value = entry.customToolId
+        } else if (entry.type === 'mcp' && isPlainRecord(entry.params)) {
+          kind = 'mcp-tool'
+          value = entry.params.serverId
+        } else continue
+        if (typeof value !== 'string' || value.trim() === '') continue
+        const reference: AgentToolReference = {
+          blockId,
+          blockName,
+          blockType: 'agent',
+          field,
+          value,
+          kind,
         }
-      }
-    }
-
-    const skills = blockData.subBlocks?.skills?.value
-    if (Array.isArray(skills) && workspaceId) {
-      for (const skillEntry of skills) {
-        if (!skillEntry || typeof skillEntry !== 'object') continue
-        const skillId = skillEntry.skillId
-        if (typeof skillId !== 'string' || skillId.trim() === '') continue
         try {
-          const found = await getSkillById({ skillId, workspaceId })
-          if (!found) {
-            references.push({
-              blockId,
-              blockName,
-              blockType: 'agent',
-              field: 'skills',
-              value: skillId,
-              kind: 'skill',
-              reason: `skill id "${skillId}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`,
-            })
-          }
+          const reason = options.resolveAgentTool
+            ? await options.resolveAgentTool(reference)
+            : await resolveAdvisoryAgentToolReference(
+                reference,
+                { userId: context.userId, workspaceId: context.workspaceId },
+                options
+              )
+          if (reason) references.push({ ...reference, reason })
         } catch (error) {
-          logger.warn('Skill resolution failed; skipping', {
+          agentToolLintLogger.warn('Agent tool reference resolution failed', {
             blockId,
-            skillId,
+            kind,
+            value,
             error: toError(error).message,
           })
+          if (options.requireComplete) throw error
         }
       }
     }
   }
-
   return references
+}
+
+/** Existing write-time observations remain advisory and keep their public result wording. */
+async function resolveAdvisoryAgentToolReference(
+  reference: AgentToolReference,
+  context: { userId: string; workspaceId: string },
+  options: ReferenceValidationOptions
+): Promise<string | undefined> {
+  const { value, kind } = reference
+  if (kind === 'custom-tool') {
+    const found = await getCustomToolById({ toolId: value, ...context })
+    if (!found)
+      return `custom tool id "${value}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`
+  } else if (kind === 'mcp-tool') {
+    const result = await validateSelectorIds('mcp-server-selector', value, context, options)
+    if (result.invalid.length > 0)
+      return `MCP server "${value}" does not resolve to an enabled MCP server in this workspace`
+  } else {
+    const found = await getSkillById({ skillId: value, workspaceId: context.workspaceId })
+    if (!found)
+      return `skill id "${value}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`
+  }
+  return undefined
 }
 
 /**

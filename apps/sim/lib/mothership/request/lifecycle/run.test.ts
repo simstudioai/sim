@@ -153,7 +153,7 @@ vi.mock('@/lib/mothership/request/tools/billing', () => ({
 
 vi.mock('@/lib/mothership/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
-  forceFailHungToolCall: mockForceFailHungToolCall,
+  failPendingToolCall: mockForceFailHungToolCall,
   pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
 }))
 
@@ -188,6 +188,7 @@ const SCHEMA_CONTROL_KEYS = [
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateRunSegment.mockResolvedValue({ status: 'active' })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockEnv.COPILOT_API_KEY = undefined
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
@@ -202,6 +203,120 @@ describe('runCopilotLifecycle', () => {
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
+  })
+
+  it('refuses a headless chat before worker dispatch when its run cannot be persisted', async () => {
+    mockCreateRunSegment.mockRejectedValueOnce(new Error('database failed with private parameters'))
+
+    await expect(
+      runCopilotLifecycle(
+        { message: 'update the report', messageId: 'stream-headless-admission' },
+        { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+      )
+    ).rejects.toThrow('Chat could not start because its execution record is unavailable')
+
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockPrepareCopilotEnvironmentContext).not.toHaveBeenCalled()
+  })
+
+  it('uses the persisted headless identity for tool execution', async () => {
+    let admittedIdentity: { id: string; executionId: string } | undefined
+    mockCreateRunSegment.mockImplementationOnce(async (input) => {
+      admittedIdentity = input
+      return { ...input, status: 'active' }
+    })
+    let executionContext: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _url: string,
+        _request: RequestInit,
+        _streamingContext: StreamingContext,
+        context: ExecutionContext
+      ) => {
+        expect(admittedIdentity).toBeDefined()
+        executionContext = context
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'stream-headless-owned' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+
+    expect(mockCreateRunSegment).toHaveBeenCalledOnce()
+    expect(executionContext?.runId).toBe(admittedIdentity?.id)
+    expect(executionContext?.executionId).toBe(admittedIdentity?.executionId)
+  })
+
+  it('honors pending Stop in headless admission before preparing context or dispatching a model', async () => {
+    mockCreateRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
+    const result = await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'stream-headless-stopped' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+    expect(result).toMatchObject({ success: false, cancelled: true, content: '', toolCalls: [] })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockPrepareCopilotEnvironmentContext).not.toHaveBeenCalled()
+  })
+
+  it('closes the run it creates for headless work when context preparation fails', async () => {
+    mockPrepareCopilotEnvironmentContext.mockRejectedValueOnce(new Error('context unavailable'))
+    await expect(
+      runCopilotLifecycle(
+        { message: 'read the report', messageId: 'headless-preparation-failure' },
+        { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+      )
+    ).rejects.toThrow('context unavailable')
+    const runId = mockCreateRunSegment.mock.calls[0]?.[0].id
+    expect(mockUpdateRunStatus).toHaveBeenCalledWith(runId, 'error', {
+      completedAt: expect.any(Date),
+    })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it.each(['complete', 'error', 'cancelled'] as const)(
+    'persists the headless %s outcome before returning',
+    async (status) => {
+      mockRunStreamLoop.mockImplementationOnce(
+        async (_url, _request, context: StreamingContext) => {
+          context.completionStatus = status
+          context.wasAborted = status === 'cancelled'
+          if (status === 'error') context.errors.push('backend failed')
+        }
+      )
+      await runCopilotLifecycle(
+        { message: 'read the report', messageId: `headless-${status}` },
+        { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+      )
+      expect(mockUpdateRunStatus).toHaveBeenCalledWith(
+        mockCreateRunSegment.mock.calls[0]?.[0].id,
+        status,
+        { completedAt: expect.any(Date) }
+      )
+    }
+  )
+
+  it('keeps performed headless work successful when terminal persistence is unavailable', async () => {
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context: StreamingContext) => {
+      context.completionStatus = 'complete'
+    })
+    mockUpdateRunStatus.mockRejectedValueOnce(new Error('database unavailable'))
+    const result = await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'headless-finished' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+    expect(result.success).toBe(true)
+    expect(mockUpdateRunStatus).toHaveBeenCalledOnce()
+  })
+
+  it('does not require a chat run record for a chatless one-shot', async () => {
+    await runCopilotLifecycle(
+      { message: 'summarize the input', messageId: 'stream-chatless' },
+      { userId: 'user-1', workspaceId: 'ws-1', interactive: false }
+    )
+
+    expect(mockCreateRunSegment).not.toHaveBeenCalled()
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
   })
 
   it('threads trace provenance through server execution context only', async () => {
@@ -1899,7 +2014,7 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
-  it('does not retry a resume leg the backend already claimed and ended early', async () => {
+  it('retries an interrupted resume with the same identity and keeps prior content', async () => {
     const executionContext: ExecutionContext = {
       userId: 'user-1',
       workflowId: '',
@@ -1926,9 +2041,6 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    // The resume leg is answered with 200 and then ends without a terminal
-    // event — the backend has claimed the checkpoint and reported its outcome,
-    // so re-posting it would only reproduce and re-bill the same failure.
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
@@ -1940,6 +2052,10 @@ describe('runCopilotLifecycle', () => {
         throw new StreamEndedWithoutTerminalError('/api/tools/resume')
       }
     )
+
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _options, context) => {
+      context.streamComplete = true
+    })
 
     const result = await runCopilotLifecycle(
       { message: 'hello', messageId: 'stream-1' },
@@ -1953,10 +2069,13 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
-    expect(result.success).toBe(false)
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(3)
+    expect(result.success).toBe(true)
     expect(result.cancelled).toBe(false)
-    expect(result.error).toBe(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+    expect(result.error).toBeUndefined()
+    expect(mockRunStreamLoop.mock.calls[1]?.[1].body).toBe(
+      mockRunStreamLoop.mock.calls[2]?.[1].body
+    )
     // Everything that streamed before the leg died is still the user's answer.
     expect(result.content).toBe('Moved the files and updated the workflow.')
   })

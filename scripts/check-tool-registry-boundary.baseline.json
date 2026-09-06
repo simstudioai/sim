@@ -382,16 +382,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2070,
+      "modules": 2116,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 497,
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 511,
         "apps/sim/triggers/registry.ts": 472,
-        "apps/sim/blocks/registry.ts": 343,
-        "apps/sim/lib/auth/index.ts": 303,
+        "apps/sim/blocks/registry.ts": 345,
+        "apps/sim/lib/auth/index.ts": 306,
         "apps/sim/lib/webhooks/providers/index.ts": 110,
         "apps/sim/lib/webhooks/providers/registry.ts": 108,
-        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 56,
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/prefetch.ts": 52
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/prefetch.ts": 69,
+        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 58
       }
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/layout.tsx": {
@@ -683,6 +683,10 @@
     },
     "lib/catalog/projection/connector-type.ts": {
       "modules": 1,
+      "gateways": {}
+    },
+    "lib/catalog/projection/container-blocks.ts": {
+      "modules": 2,
       "gateways": {}
     },
     "lib/catalog/projection/subblock.ts": {

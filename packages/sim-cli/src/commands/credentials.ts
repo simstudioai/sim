@@ -57,8 +57,11 @@ function serviceAccountProvider(
   return provider
 }
 
-function credentialValues(provider: ServiceAccountProvider, raw: string): Record<string, string> {
-  const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'credentials')
+async function credentialValues(
+  provider: ServiceAccountProvider,
+  raw: string
+): Promise<Record<string, string>> {
+  const parsed = await coerce(raw, { kind: 'object' }, { json: true }, 'credentials')
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new SimApiError('--credentials must be a JSON object', 0)
   }
@@ -120,7 +123,7 @@ async function createServiceAccount(
     throw new SimApiError(`--id is required for ${providerId}.`, 0)
   }
 
-  const credentialFields = credentialValues(provider, options.credentials)
+  const credentialFields = await credentialValues(provider, options.credentials)
   const operation = V2_OPERATIONS.createServiceAccountCredential
   const response = await client.request<CreateServiceAccountCredentialResponse>(operation.path, {
     method: operation.method,

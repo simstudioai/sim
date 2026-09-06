@@ -84,7 +84,7 @@ vi.mock('@/lib/mothership/request/session', () => ({
   registerActiveStream,
   unregisterActiveStream,
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
-  isExplicitStopReason: vi.fn().mockReturnValue(false),
+  isExplicitStopReason: (reason: unknown) => reason === 'user_stop:abortActiveStream',
   SSE_RESPONSE_HEADERS: {},
   StreamWriter: vi.fn().mockImplementation(
     class {
@@ -185,7 +185,7 @@ describe('createSSEStream terminal error handling', () => {
     cleanupAbortMarker.mockResolvedValue(undefined)
     hasAbortMarker.mockResolvedValue(false)
     releasePendingChatStream.mockResolvedValue(undefined)
-    createRunSegment.mockResolvedValue(null)
+    createRunSegment.mockResolvedValue({ status: 'active' })
     updateRunStatus.mockResolvedValue(null)
   })
 
@@ -223,7 +223,40 @@ describe('createSSEStream terminal error handling', () => {
         type: MothershipStreamV1EventType.error,
       })
     )
-    expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
+    await vi.waitFor(() => expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1'))
+  })
+
+  it('finishes a pre-admission Stop as cancelled without calling the agent or title model', async () => {
+    createRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
+    await drainStream(
+      createSSEStream({
+        requestPayload: { message: 'hello' },
+        userId: 'user-1',
+        streamId: 'stream-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        chatId: 'chat-1',
+        workspaceId: 'workspace-1',
+        currentChat: null,
+        isNewChat: true,
+        message: 'hello',
+        titleModel: 'gpt-5.4',
+        requestId: 'req-1',
+        orchestrateOptions: {},
+      })
+    )
+    expect(runCopilotLifecycle).not.toHaveBeenCalled()
+    expect(fetchGo).not.toHaveBeenCalled()
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'complete',
+        payload: expect.objectContaining({ status: 'cancelled' }),
+      })
+    )
+    expect(appendEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-1')
+    expect(releasePendingChatStream).toHaveBeenCalledWith('chat-1', 'stream-1')
+    await vi.waitFor(() => expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1'))
   })
 
   it('writes the thrown terminal error event before close for replay durability', async () => {

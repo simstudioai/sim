@@ -12,9 +12,7 @@ const { mockAuthenticate, mockGetLatestRunForStream, mockRequestStreamSteering, 
     mockAppend: vi.fn(),
   }))
 
-vi.mock('@/lib/mothership/request/http', () => ({
-  authenticateCopilotRequestSessionOnly: mockAuthenticate,
-}))
+vi.mock('@/lib/auth', () => ({ getSession: mockAuthenticate }))
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getLatestRunForStream: mockGetLatestRunForStream,
 }))
@@ -23,6 +21,18 @@ vi.mock('@/lib/mothership/request/session/steer', () => ({
 }))
 vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppend,
+}))
+
+const { mockChatContext, mockAuthorize } = vi.hoisted(() => ({
+  mockChatContext: vi.fn(),
+  mockAuthorize: vi.fn(),
+}))
+vi.mock('@/lib/mothership/chat/application/context', () => ({
+  resolveOwnedChatContext: mockChatContext,
+}))
+vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
+  ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
+  authorizeWorkspaceOperation: mockAuthorize,
 }))
 
 import { POST } from '@/app/api/copilot/chat/steer/route'
@@ -40,7 +50,15 @@ function steerRequest(overrides: Record<string, unknown> = {}) {
 describe('POST /api/copilot/chat/steer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthenticate.mockResolvedValue({ userId: 'user-1', isAuthenticated: true })
+    mockChatContext.mockResolvedValue({
+      chatId: 'chat-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: false,
+    })
+    mockAuthorize.mockResolvedValue(undefined)
+    mockAuthenticate.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockGetLatestRunForStream.mockResolvedValue({ chatId: 'chat-1', workspaceId: 'workspace-1' })
     mockRequestStreamSteering.mockResolvedValue({ queued: true, status: 200 })
     mockAppend.mockResolvedValue(undefined)
@@ -102,7 +120,7 @@ describe('POST /api/copilot/chat/steer', () => {
   })
 
   it('rejects unauthenticated callers', async () => {
-    mockAuthenticate.mockResolvedValue({ userId: null, isAuthenticated: false })
+    mockAuthenticate.mockResolvedValue(null)
 
     const response = await POST(steerRequest())
 
@@ -124,5 +142,21 @@ describe('POST /api/copilot/chat/steer', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ ok: true, queued: true })
+  })
+  it('refuses a stream with no owned run', async () => {
+    mockGetLatestRunForStream.mockResolvedValue(null)
+    expect((await POST(steerRequest())).status).toBe(404)
+    expect(mockRequestStreamSteering).not.toHaveBeenCalled()
+  })
+  it('does not forward when ownership lookup fails', async () => {
+    mockGetLatestRunForStream.mockRejectedValue(new Error('db unavailable'))
+    expect((await POST(steerRequest())).status).toBe(500)
+    expect(mockRequestStreamSteering).not.toHaveBeenCalled()
+  })
+
+  it('rechecks current workspace permission before controlling the run', async () => {
+    mockAuthorize.mockRejectedValue(new Error('access revoked'))
+    expect((await POST(steerRequest())).status).toBe(500)
+    expect(mockRequestStreamSteering).not.toHaveBeenCalled()
   })
 })

@@ -114,6 +114,7 @@ export interface ResolvedProfile {
    * answer its own v2 routes in-process; the installed CLI never does.
    */
   transport?: typeof fetch
+  signal?: AbortSignal
   /** Where each value came from, for `sim whoami` to explain surprising results. */
   sources: {
     endpoint: SettingSource

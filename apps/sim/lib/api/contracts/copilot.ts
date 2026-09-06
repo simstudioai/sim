@@ -123,6 +123,7 @@ export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatR
 export const copilotChatAbortBodySchema = z.object({
   streamId: z.string().optional(),
   chatId: z.string().optional(),
+  workspaceId: z.string().min(1).optional(),
 })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
@@ -621,4 +622,28 @@ export const deleteCopilotChatContract = defineRouteContract({
   path: '/api/copilot/chat/delete',
   body: deleteCopilotChatBodySchema,
   response: { mode: 'json', schema: successFlagSchema },
+})
+
+export const copilotChatAbortContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/abort',
+  body: copilotChatAbortBodySchema.extend({ streamId: z.string().min(1, 'streamId is required') }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      aborted: z.boolean(),
+      /** Execution ended, or admission was durably cancelled before execution could start. */
+      settled: z.boolean(),
+      forceReleased: z.boolean().optional(),
+    }),
+  },
+})
+export const copilotChatSteerContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/steer',
+  body: copilotChatSteerBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ ok: z.boolean(), queued: z.boolean(), goStatus: z.number().optional() }),
+  },
 })

@@ -192,6 +192,7 @@ describe('block detail regressions', () => {
     expect(Object.keys(detail)[0]).toBe('sunset')
     expect(detail.sunset).toEqual({ status: 'legacy', replacedBy: 'table_v2' })
     expect(detail.description.startsWith('Legacy — replaced by table_v2. ')).toBe(true)
+    // utils-lint-allow: verify the actual JSON wire representation, including dropped undefined fields.
     expect(v2BlockDetailSchema.parse(JSON.parse(JSON.stringify(detail))).description).toBe(
       detail.description
     )

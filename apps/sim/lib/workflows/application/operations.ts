@@ -44,6 +44,13 @@ export const workflowOperations = {
     workspaceApiKey: 'deny',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /** Full diagnostics include caller-owned secrets, whose read policy requires a human API identity. */
+  readLint: defineWorkspaceOperation({
+    id: 'workflows.lint.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key'],
+  }),
   readCopilotRunOptions: defineWorkspaceOperation({
     id: 'workflows.copilot.run_options.read',
     minimumRole: 'read',

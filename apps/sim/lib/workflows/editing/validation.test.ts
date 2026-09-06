@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
@@ -280,6 +281,8 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
+vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn(async () => null) }))
+
 vi.mock('@/providers/utils', () => ({
   isFunctionToolCall: (toolCall: unknown) =>
     typeof toolCall === 'object' &&
@@ -293,6 +296,7 @@ vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
+import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import {
   collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
@@ -1175,6 +1179,23 @@ describe('collectUnresolvedReferences', () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
   })
 
+  it('propagates an unavailable credential lookup only for a complete diagnostic', async () => {
+    const state = {
+      blocks: {
+        b1: { type: 'slack', subBlocks: { credential: { value: 'cred-1' } } },
+      },
+    }
+    mockValidateSelectorIds.mockRejectedValueOnce(new Error('lookup unavailable'))
+    await expect(
+      collectUnresolvedReferences(state, CTX, { requireComplete: true })
+    ).rejects.toThrow('lookup unavailable')
+    expect(mockValidateSelectorIds).toHaveBeenLastCalledWith('oauth-input', 'cred-1', CTX, {
+      requireComplete: true,
+    })
+    mockValidateSelectorIds.mockRejectedValueOnce(new Error('lookup unavailable'))
+    await expect(collectUnresolvedReferences(state, CTX)).resolves.toEqual([])
+  })
+
   it('flags a basic-mode credential that does not resolve (kind: credential)', async () => {
     mockValidateSelectorIds.mockResolvedValue({
       valid: [],
@@ -1229,6 +1250,38 @@ describe('collectUnresolvedReferences', () => {
     expect(mockValidateSelectorIds).not.toHaveBeenCalled()
   })
 
+  it('validates active manual references only when complete diagnostics are requested', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['manual-credential'] })
+    const state = {
+      blocks: {
+        c1: {
+          type: 'canonicalcred',
+          subBlocks: {
+            credential: { value: '' },
+            manualCredential: { value: 'manual-credential' },
+          },
+        },
+      },
+    }
+    await expect(collectUnresolvedReferences(state, CTX)).resolves.toEqual([])
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    await expect(
+      collectUnresolvedReferences(state, CTX, { requireComplete: true })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        field: 'manualCredential',
+        value: 'manual-credential',
+        kind: 'credential',
+      }),
+    ])
+    expect(mockValidateSelectorIds).toHaveBeenCalledExactlyOnceWith(
+      'oauth-input',
+      'manual-credential',
+      CTX,
+      { requireComplete: true }
+    )
+  })
+
   it('validates the active basic credential member', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['good-but-missing'] })
     const state = {
@@ -1242,7 +1295,7 @@ describe('collectUnresolvedReferences', () => {
       },
     }
     const refs = await collectUnresolvedReferences(state, CTX)
-    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX, {})
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
   })
@@ -1490,6 +1543,71 @@ describe('collectUnresolvedAgentToolReferences', () => {
     mockGetSkillById.mockResolvedValue(null)
   })
 
+  it.each(['custom-tool', 'mcp', 'skill', 'credential'])(
+    'a real lint report cannot hide an unavailable %s lookup in complete mode',
+    async (kind) => {
+      const isCredential = kind === 'credential'
+      const field = kind === 'skill' ? 'skills' : isCredential ? 'credential' : 'tools'
+      const lookup =
+        kind === 'custom-tool'
+          ? mockGetCustomToolById
+          : kind === 'skill'
+            ? mockGetSkillById
+            : mockValidateSelectorIds
+      const value =
+        kind === 'custom-tool'
+          ? [{ type: 'custom-tool', customToolId: 'tool-1' }]
+          : kind === 'mcp'
+            ? [{ type: 'mcp', params: { serverId: 'server-1' } }]
+            : kind === 'skill'
+              ? [{ skillId: 'skill-1' }]
+              : 'cred-1'
+      const graph: Pick<WorkflowState, 'blocks' | 'edges'> = {
+        blocks: {
+          b1: {
+            id: 'b1',
+            type: isCredential ? 'slack' : 'agent',
+            name: 'Block',
+            enabled: true,
+            position: { x: 0, y: 0 },
+            outputs: {},
+            subBlocks: {
+              [field]: {
+                id: field,
+                type: isCredential
+                  ? 'oauth-input'
+                  : kind === 'skill'
+                    ? 'skill-input'
+                    : 'tool-input',
+                value,
+              },
+            },
+          },
+        },
+        edges: [],
+      }
+      const scope = { workflowId: 'wf-1', workspaceId: CTX.workspaceId, subjectUserId: CTX.userId }
+      lookup.mockRejectedValueOnce(new Error('private database details'))
+      await expect(
+        buildWorkflowLintReport(graph, scope, { requireComplete: true })
+      ).rejects.toThrow(
+        'Workflow reference checks could not complete; retry when lookup is available'
+      )
+      if (kind === 'mcp' || isCredential) {
+        expect(mockValidateSelectorIds).toHaveBeenLastCalledWith(
+          isCredential ? 'oauth-input' : 'mcp-server-selector',
+          isCredential ? 'cred-1' : 'server-1',
+          CTX,
+          { requireComplete: true }
+        )
+      }
+      lookup.mockRejectedValueOnce(new Error('private database details'))
+      await expect(buildWorkflowLintReport(graph, scope)).resolves.toMatchObject({
+        unresolvedReferences: [],
+      })
+    }
+  )
+
   it('flags a custom tool whose customToolId does not resolve', async () => {
     mockGetCustomToolById.mockResolvedValue(null)
     const state = {
@@ -1574,7 +1692,12 @@ describe('collectUnresolvedAgentToolReferences', () => {
     const refs = await collectUnresolvedAgentToolReferences(state, CTX)
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'tools', kind: 'mcp-tool' })
-    expect(mockValidateSelectorIds).toHaveBeenCalledWith('mcp-server-selector', 'srv_missing', CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'mcp-server-selector',
+      'srv_missing',
+      CTX,
+      {}
+    )
   })
 
   it('flags a skill whose skillId does not resolve', async () => {

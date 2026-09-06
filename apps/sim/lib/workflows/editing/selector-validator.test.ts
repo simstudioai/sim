@@ -21,7 +21,7 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn((...args: unknown[]) => ({ type: 'or', args })),
 }))
 
-import { validateSelectorIds } from './selector-validator'
+import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 
 describe('validateSelectorIds', () => {
   beforeEach(() => {
@@ -29,6 +29,29 @@ describe('validateSelectorIds', () => {
     resetDbChainMock()
     mockCheckWorkspaceAccess.mockResolvedValue({ canAdmin: false })
   })
+
+  it.each([
+    'oauth-input',
+    'knowledge-base-selector',
+    'workflow-selector',
+    'document-selector',
+    'mcp-server-selector',
+  ])(
+    'propagates an unavailable %s lookup for a complete diagnostic, preserving advisory validation',
+    async (selectorType) => {
+      const context = { userId: 'user-1', workspaceId: 'workspace-1' }
+      dbChainMockFns.where.mockRejectedValueOnce(new Error('lookup unavailable'))
+      await expect(
+        validateSelectorIds(selectorType, 'resource-1', context, { requireComplete: true })
+      ).rejects.toThrow('lookup unavailable')
+      dbChainMockFns.where.mockRejectedValueOnce(new Error('lookup unavailable'))
+      await expect(validateSelectorIds(selectorType, 'resource-1', context)).resolves.toEqual({
+        valid: ['resource-1'],
+        invalid: [],
+        warning: `Failed to validate ${selectorType} IDs - validation skipped`,
+      })
+    }
+  )
 
   it('accepts shared workspace credential ids and legacy account ids for oauth-input', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([{ credentialId: 'cred-1', accountId: 'acct-1' }])

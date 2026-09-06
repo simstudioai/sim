@@ -59,7 +59,9 @@ Search for similar content in a knowledge base using vector similarity
 |   ↳ `sourceUrl` | string | URL to the original source document \(e.g., Confluence page, Google Doc, Notion page\). Null for documents without an external source. |
 |   ↳ `content` | string | Content of the result |
 |   ↳ `chunkIndex` | number | Index of the chunk within the document |
-|   ↳ `similarity` | number | Similarity score of the result |
+|   ↳ `similarity` | number | Cosine similarity between the query and the chunk \(1 - cosine distance\) in every search mode; 1 for tag-only matches. Not the ordering key in hybrid mode |
+|   ↳ `rankScore` | number | Score the results are ordered by, descending: the reciprocal-rank-fusion score in hybrid mode, the cosine similarity in vector mode, or the reranker score when a reranker ordered the results |
+|   ↳ `rank` | number | 1-based position in the returned order |
 |   ↳ `metadata` | object | Metadata of the result, including tags |
 | `query` | string | The search query that was executed |
 | `totalResults` | number | Total number of results found |

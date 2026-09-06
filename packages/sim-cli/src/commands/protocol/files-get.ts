@@ -214,13 +214,7 @@ export async function saveToFile(
       )
     }
     const bytes = new Uint8Array(await new Response(body).arrayBuffer())
-    const written = await embedded.writeFile(target, bytes)
-    if (!written) {
-      throw new SimApiError(
-        `Could not write ${target} on your machine — the workbench is not running yet; run any run_code call first, then retry.`,
-        0
-      )
-    }
+    await embedded.writeFile(target, bytes, { overwrite: force })
     return
   }
   return saveStagedFile(body, target, force)

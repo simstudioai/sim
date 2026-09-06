@@ -3,31 +3,13 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-const { buildWorkflowLintReport } = vi.hoisted(() => ({
-  buildWorkflowLintReport: vi.fn().mockResolvedValue({
-    sources: ['block-1'],
-    sinks: ['block-2'],
-    orphanBlocks: [],
-    emptyOutgoingPorts: [],
-    invalidBranchPorts: [],
-    invalidConnectionTargets: [],
-    fieldIssues: [
-      {
-        blockId: 'block-2',
-        blockName: 'Summarize emails',
-        missingRequiredFields: ['model'],
-        inactiveModeValues: [],
-      },
-    ],
-    unresolvedReferences: [],
-    tableFieldIssues: [],
-  }),
+vi.mock('@/lib/workflows/application/read-workflow-lint', () => ({
+  readWorkflowLint: { execute: vi.fn() },
 }))
-
-vi.mock('@/lib/workflows/editing/lint-report', () => ({ buildWorkflowLintReport }))
 
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
+import { navigatePath } from '@/executor/variables/resolvers/reference'
 
 const WORKFLOW_STATE = {
   blocks: {
@@ -54,57 +36,6 @@ function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
 
 const STATE_PATH = '/api/v2/workflows/wf-1/state'
 const stateResponse = { data: WORKFLOW_STATE }
-
-describe('workflows lint', () => {
-  it('lints a workflow through the shared engine with the caller scoped as subject', async () => {
-    const result = await runEngine(
-      'workflows lint',
-      ['wf-1'],
-      runtimeWith({ [STATE_PATH]: stateResponse }),
-      {}
-    )
-    expect(result.stderr).toBe('')
-    expect(result.exitCode).toBe(0)
-    const report = JSON.parse(result.stdout)
-    expect(report.fieldIssues).toHaveLength(1)
-    expect(report.summary.length).toBeGreaterThan(0)
-    expect(buildWorkflowLintReport).toHaveBeenCalledWith(expect.anything(), {
-      workflowId: 'wf-1',
-      workspaceId: 'ws-1',
-      subjectUserId: 'user-1',
-    })
-  })
-
-  it('says what a clean report checked so it is not read as a working workflow', async () => {
-    buildWorkflowLintReport.mockResolvedValueOnce({
-      sources: ['block-1'],
-      sinks: ['block-2'],
-      orphanBlocks: [],
-      emptyOutgoingPorts: [],
-      invalidBranchPorts: [],
-      invalidConnectionTargets: [],
-      fieldIssues: [],
-      unresolvedReferences: [],
-      tableFieldIssues: [],
-    })
-    const result = await runEngine(
-      'workflows lint',
-      ['wf-1'],
-      runtimeWith({ [STATE_PATH]: stateResponse }),
-      {}
-    )
-    expect(result.exitCode).toBe(0)
-    expect(JSON.parse(result.stdout).summary).toBe(
-      'No structural issues found (orphans, ports, required fields, references). Code and runtime behaviour are not checked — run it.'
-    )
-  })
-
-  it('surfaces execution errors as a failed result, never a throw', async () => {
-    const result = await runEngine('workflows lint', ['wf-missing'], runtimeWith({}), {})
-    expect(result.exitCode).toBe(1)
-    expect(result.stderr).toContain('Unexpected request')
-  })
-})
 
 const RUNS_PATH = '/api/v2/workflows/wf-1/runs'
 const COUNT_ROWS_RUNS = {
@@ -208,6 +139,42 @@ const DEPS_STATE = {
 }
 
 describe('workflows deps', () => {
+  it('builds indexed mocks that round-trip through the actual reference navigator', async () => {
+    const state = structuredClone(DEPS_STATE)
+    state.blocks.target.subBlocks.code.value =
+      'return [<fetchrows.result.items[0].id>, <fetchrows.result.items[2].name>, <fetchrows.result.matrix[1][2]>, <fetchrows.result.__proto__.safe>]'
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    const output = report.mock['Fetch rows']
+    expect(output.result.items).toEqual([{ id: null }, null, { name: null }])
+    expect(output.result.matrix).toEqual([null, [null, null, null]])
+    expect(navigatePath(output, ['result', 'items[0]', 'id'])).toBeNull()
+    expect(navigatePath(output, ['result', 'items[2]', 'name'])).toBeNull()
+    expect(navigatePath(output, ['result', 'matrix[1][2]'])).toBeNull()
+    expect(Object.hasOwn(output.result, '__proto__')).toBe(true)
+    expect(Object.hasOwn(Object.prototype, 'safe')).toBe(false)
+  })
+
+  it('reports array examples too large to materialize instead of returning a misleading complete mock', async () => {
+    const state = structuredClone(DEPS_STATE)
+    state.blocks.target.subBlocks.code.value = 'return <fetchrows.result.items[1000000000].id>'
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    expect(report.mock['Fetch rows']).toEqual({ result: { items: [] } })
+    expect(report.mockOmittedArrays).toEqual([{ blockName: 'Fetch rows', path: 'result.items' }])
+    expect(report.mockArrayNote).toContain('not a complete mock')
+  })
+
   it('lists graph predecessors beside token references and mocks both', async () => {
     const result = await runEngine(
       'workflows deps',
@@ -235,7 +202,7 @@ describe('workflows deps', () => {
       Gate: {},
     })
     expect(report.mockNote).toBe(
-      'variableInputs: fill each null with the value the block would output'
+      'variableInputs: fill placeholders with representative upstream outputs'
     )
     expect(report.mockEmptyNote).toContain('Gate')
     expect(report.mockEmptyNote).not.toContain('Enrich')

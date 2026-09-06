@@ -3,12 +3,15 @@
   "version": "2.1.2",
   "description": "Sim CLI - talk to the Sim API from your terminal",
   "type": "module",
+  "imports": {
+    "#cli/*": "./src/*.ts"
+  },
   "bin": {
     "sim": "dist/index.js"
   },
   "scripts": {
     "prebuild": "bun run clean",
-    "build": "bun build src/index.ts --target=node --format=esm --packages=bundle --reject-unresolved --outfile=dist/index.js",
+    "build": "bun build src/index.ts src/workbench.ts --target=node --format=esm --packages=bundle --reject-unresolved --outdir=dist",
     "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",

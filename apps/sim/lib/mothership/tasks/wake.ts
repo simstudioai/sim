@@ -6,12 +6,10 @@
  * announces itself through the chat status channel exactly like a typed turn, so an open
  * chat attaches to the live stream and a closed one shows the new turn on return.
  */
-import { copilotChats, copilotMessages, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
-import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
@@ -20,106 +18,19 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import type { TaskWakeRequest as WakeRequest } from '@/lib/mothership/generated/tasks'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
-import {
-  acquirePendingChatStream,
-  releasePendingChatStream,
-} from '@/lib/mothership/request/session/abort'
-import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { releasePendingChatStream } from '@/lib/mothership/request/session/abort'
+import { TASK_DELEGATION_AUDIENCE } from '@/lib/mothership/tasks/application/context'
+import { authorizeTaskWake } from '@/lib/mothership/tasks/application/prepare-wake'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotTaskWake')
 
-export interface WakeRequest {
-  taskId: string
-  chatId: string
-  workspaceId: string
-  userId: string
-  message: string
-  /** The task's outcome, for the pill in the turn that armed it. */
-  status?: 'completed' | 'failed' | 'stopped' | 'expired'
-  summary?: string
-}
-
-/**
- * Resolves the "watching" pill: the assistant message that armed the task keeps a
- * `task` block whose status is pending until the outcome arrives — a steer resolves it
- * live through `task_delivered`, a wake resolves it here before the new turn lands.
- */
-export async function resolveTaskPill(
-  chatId: string,
-  taskId: string,
-  status: NonNullable<WakeRequest['status']>,
-  summary: string
-): Promise<void> {
-  const rows = await db
-    .select({ id: copilotMessages.id, content: copilotMessages.content })
-    .from(copilotMessages)
-    .where(
-      and(
-        eq(copilotMessages.chatId, chatId),
-        // The id alone is the filter — jsonb text puts a space after every colon, so a
-        // `"taskId":"…"` pattern never matches; the block walk below is the real check.
-        sql`${copilotMessages.content}::text LIKE ${`%${taskId}%`}`
-      )
-    )
-  for (const row of rows) {
-    const content = row.content as {
-      contentBlocks?: Array<{ type?: string; task?: TaskBlockInfo }>
-    }
-    const blocks = content.contentBlocks
-    if (!Array.isArray(blocks)) continue
-    let touched = false
-    for (const block of blocks) {
-      if (block.type === 'task' && block.task?.taskId === taskId) {
-        block.task = { ...block.task, status, summary }
-        touched = true
-      }
-    }
-    if (touched) {
-      await db.update(copilotMessages).set({ content }).where(eq(copilotMessages.id, row.id))
-    }
-  }
-}
-
-export async function validateWake(
-  input: WakeRequest
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const [chat] = await db
-    .select({ userId: copilotChats.userId, workspaceId: copilotChats.workspaceId })
-    .from(copilotChats)
-    .where(eq(copilotChats.id, input.chatId))
-    .limit(1)
-  if (!chat || chat.workspaceId !== input.workspaceId || chat.userId !== input.userId) {
-    return { ok: false, status: 404, error: 'Chat not found for this user and workspace' }
-  }
-  const banned = await getActivelyBannedUserIds([input.userId])
-  if (banned.length > 0) return { ok: false, status: 403, error: 'User account is suspended' }
-  const access = await checkWorkspaceAccess(input.workspaceId, input.userId)
-  if (!access.permission) return { ok: false, status: 403, error: 'No workspace access' }
-  return { ok: true }
-}
-
 /** Runs the wake turn to completion; the caller has already answered the worker. */
 export async function runWakeTurn(input: WakeRequest): Promise<void> {
-  const { taskId, chatId, workspaceId, userId, message } = input
-  if (input.status) {
-    await resolveTaskPill(chatId, taskId, input.status, input.summary ?? '').catch((error) => {
-      logger.warn('Could not resolve the task pill', {
-        taskId,
-        chatId,
-        error: getErrorMessage(error),
-      })
-    })
-  }
-  // The task id is the turn's message id: the worker's duplicate-send preflight makes a
-  // retried wake attach to the running turn instead of driving it twice.
-  const userMessageId = taskId
-  const locked = await acquirePendingChatStream(chatId, userMessageId)
-  if (!locked) {
-    logger.warn('Wake skipped: another stream holds the chat', { taskId, chatId })
-    return
-  }
+  const { taskId, chatId, workspaceId, userId, message, runId } = input
+  const userMessageId = runId
   chatPubSub?.publishStatusChanged({
     workspaceId,
     chatId,
@@ -127,6 +38,13 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
     streamId: userMessageId,
   })
   try {
+    await authorizeTaskWake({
+      principal: createTrustedCopilotPrincipal(
+        { userId, workspaceId, delegationId: `wake:${runId}` },
+        { audience: TASK_DELEGATION_AUDIENCE, ttlMs: 60_000 }
+      ),
+      input,
+    })
     const [access, integrationTools, billingAttribution] = await Promise.all([
       checkWorkspaceAccess(workspaceId, userId),
       buildIntegrationToolSchemas(userId, undefined, undefined, workspaceId),
@@ -152,6 +70,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
       billingAttribution,
       ...(access.permission ? { userPermission: access.permission } : {}),
     })
+    if (result.success && !result.content && result.contentBlocks.length === 0) return
     const userMessage = buildPersistedUserMessage({
       id: userMessageId,
       content: message,

@@ -4,6 +4,7 @@ import type { CommandSpec, FlagSpec } from '../contract/types'
 import { embedStore } from '../embed-context'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
+import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
 
@@ -199,22 +200,31 @@ function literalAtHint(error: unknown, path: string): string {
     : ''
 }
 
-export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
+export async function readArgumentSource(
+  raw: string,
+  flagName: string
+): Promise<{ text: string; from: string }> {
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
 
   // An embedded run executes in-process on the hosting server, so a raw file
   // path here would read the SERVER's filesystem with argv the model controls.
-  // The host may pre-resolve @paths from the caller's own file surface into the
-  // embed context; anything else is refused — never read from local disk.
+  // Read through the host's callback only after this flag consumes a file.
   const embedded = embedStore.getStore()
   if (embedded) {
-    const preloaded = embedded.fileArguments?.[raw.slice(1)]
-    if (preloaded !== undefined) return { text: preloaded, from: ' (read from your machine)' }
-    throw new SimApiError(
-      `--${flagName}: no file "${raw.slice(1)}" on this machine — write it first (run_code), or pass the value inline`,
-      0
-    )
+    if (raw === '@-')
+      throw new SimApiError(
+        `--${flagName}: this invocation has no stdin; use @path or an inline value`,
+        0
+      )
+    const content = await embeddedFileContent(embedded, raw)
+    return {
+      text:
+        typeof content === 'string'
+          ? content
+          : new TextDecoder('utf-8', { fatal: true }).decode(content),
+      from: ' (read from your machine)',
+    }
   }
 
   const path = raw.slice(1)
@@ -246,33 +256,39 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
  * generated path does (`workflows runs get --select-output`), so a `@-` or
  * `@path` source is read exactly once, by whichever of the two sees it first.
  */
-export function readListValues(raw: unknown, flagName: string): string[] {
+export async function readListValues(raw: unknown, flagName: string): Promise<string[]> {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
-  const values = arguments_.flatMap((argument) => {
+  const values: string[] = []
+  for (const argument of arguments_) {
     if (typeof argument !== 'string') {
       throw new SimApiError(`--${flagName} values must be strings`, 0)
     }
 
-    if (!argument.startsWith('@')) return [argument]
+    if (!argument.startsWith('@')) {
+      values.push(argument)
+      continue
+    }
 
-    const source = readArgumentSource(argument, flagName)
+    const source = await readArgumentSource(argument, flagName)
     const lines = source.text.split(/\r?\n/)
     if (lines.at(-1) === '') lines.pop()
     if (lines.length === 0) {
       throw new SimApiError(`--${flagName}${source.from} contains no values`, 0)
     }
 
-    return lines.map((line, index) => {
-      const value = line.trim()
-      if (!value) {
-        throw new SimApiError(
-          `--${flagName}${source.from} has an empty value on line ${index + 1}`,
-          0
-        )
-      }
-      return value
-    })
-  })
+    values.push(
+      ...lines.map((line, index) => {
+        const value = line.trim()
+        if (!value) {
+          throw new SimApiError(
+            `--${flagName}${source.from} has an empty value on line ${index + 1}`,
+            0
+          )
+        }
+        return value
+      })
+    )
+  }
 
   return values.map((value) => {
     const trimmed = value.trim()
@@ -358,7 +374,7 @@ const FRACTIONAL_DIGITS = /\.\d*[1-9]/
  */
 function pathHint(raw: string): string {
   if (raw.startsWith('@') || /^\s*[[{"\-\d]|^\s*(true|false|null)/.test(raw)) return ''
-  return existsSync(raw)
+  return !embedStore.getStore() && existsSync(raw)
     ? `. ${raw} is a file — pass it as @${raw}`
     : '. To read a file, pass @path (or @- for stdin)'
 }
@@ -370,7 +386,12 @@ function pathHint(raw: string): string {
  * the caller typed — and every one of these is caught before any request is
  * made, so a typo costs nothing.
  */
-export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName: string): unknown {
+export async function coerce(
+  raw: unknown,
+  field: FieldSpec,
+  flag: FlagSpec,
+  flagName: string
+): Promise<unknown> {
   if (raw === undefined) return undefined
 
   /**
@@ -386,7 +407,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = readListValues(raw, flagName).map((value) =>
+    const values = (await readListValues(raw, flagName)).map((value) =>
       flag.folderPath ? encodeFolderPath(value) : value
     )
     // Encoding first is also what keeps the comma-joined form unambiguous: a
@@ -399,7 +420,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
 
   if (takesJson(field, flag)) {
     if (typeof raw !== 'string') return raw
-    const source = readArgumentSource(raw, flagName)
+    const source = await readArgumentSource(raw, flagName)
     try {
       return JSON.parse(source.text)
     } catch (error) {
@@ -488,12 +509,12 @@ function asQueryValue(value: unknown): QueryValue {
  * API contract declares it in, so a field that moved from query to body moves
  * here on the next regeneration.
  */
-export function buildRequest(
+export async function buildRequest(
   operation: V2OperationName,
   positional: string[],
   flags: Record<string, unknown>,
   workspaceId: string | null
-): BuiltRequest {
+): Promise<BuiltRequest> {
   const commandSpec: CommandSpec = CLI_CONTRACT[operation] ?? {}
   const spec: OperationSpec = V2_OPERATIONS[operation]
 
@@ -594,7 +615,7 @@ export function buildRequest(
         throw new SimApiError(`--${flagName} cannot be empty`, 0)
       }
 
-      const value = coerce(raw ?? undefined, descriptor, flag, flagName)
+      const value = await coerce(raw ?? undefined, descriptor, flag, flagName)
 
       /**
        * A non-paginated `limit` is a row cap the route bounds at `1`, which is
@@ -656,7 +677,7 @@ export function buildRequest(
       const variant = provided[0]
       const raw = flags[camel(variant.name)]
       if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
-      const parsed = coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
+      const parsed = await coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
       if (
         (variant.kind === 'object' &&
           (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) ||
@@ -669,7 +690,7 @@ export function buildRequest(
 
     const raw = flags.body
     if (typeof raw !== 'string') throw new SimApiError('--body is required', 0)
-    const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'body')
+    const parsed = await coerce(raw, { kind: 'object' }, { json: true }, 'body')
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new SimApiError('--body must be a JSON object', 0)
     }

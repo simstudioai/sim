@@ -47,6 +47,7 @@ import {
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/mothership/request/session'
+import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
@@ -209,59 +210,74 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
           await Promise.all([resetBuffer(streamId), clearFilePreviewSessions(streamId)])
 
-          if (chatId) {
-            createRunSegment({
-              id: runId,
-              executionId,
-              chatId,
-              userId,
-              workflowId:
-                typeof requestPayload.workflowId === 'string' ? requestPayload.workflowId : null,
-              workspaceId,
-              streamId,
-              model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
-              provider:
-                typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
-              requestContext: { requestId },
-            }).catch((error) => {
-              logger.warn(`[${requestId}] Failed to create copilot run segment`, {
-                error: getErrorMessage(error),
-              })
-            })
-          }
-
-          abortPoller = startAbortPoller(streamId, abortController, {
-            requestId,
-            chatId,
-          })
-          publisher.startKeepalive()
-
-          if (chatId) {
-            publisher.publish({
-              type: MothershipStreamV1EventType.session,
-              payload: {
-                kind: MothershipStreamV1SessionKind.chat,
-                chatId,
-              },
-            })
-          }
-
-          fireTitleGeneration({
-            chatId,
-            currentChat,
-            isNewChat,
-            userId,
-            message,
-            titleModel,
-            titleProvider,
-            workspaceId,
-            billingAttribution: orchestrateOptions.billingAttribution,
-            requestId,
-            publisher,
-            otelContext,
-          })
-
           try {
+            if (chatId) {
+              const run = await createRunSegment({
+                id: runId,
+                executionId,
+                chatId,
+                userId,
+                workflowId:
+                  typeof requestPayload.workflowId === 'string' ? requestPayload.workflowId : null,
+                workspaceId,
+                streamId,
+                model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
+                provider:
+                  typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
+                requestContext: { requestId },
+              })
+              if (run.status === 'cancelled') {
+                outcome = RequestTraceV1Outcome.cancelled
+                abortController.abort(AbortReason.UserStop)
+                cancelReason = recordCancelled()
+                await finalizeStream(
+                  {
+                    success: false,
+                    cancelled: true,
+                    content: '',
+                    contentBlocks: [],
+                    toolCalls: [],
+                  },
+                  publisher,
+                  runId,
+                  outcome,
+                  requestId
+                )
+                return
+              }
+            }
+
+            abortPoller = startAbortPoller(streamId, abortController, {
+              requestId,
+              chatId,
+            })
+            publisher.startKeepalive()
+
+            if (chatId) {
+              publisher.publish({
+                type: MothershipStreamV1EventType.session,
+                payload: {
+                  kind: MothershipStreamV1SessionKind.chat,
+                  chatId,
+                },
+              })
+            }
+
+            fireTitleGeneration({
+              chatId,
+              currentChat,
+              isNewChat,
+              userId,
+              message,
+              titleModel,
+              titleProvider,
+              workspaceId,
+              billingAttribution: orchestrateOptions.billingAttribution,
+              requestId,
+              publisher,
+              otelContext,
+            })
+
             const result = await runCopilotLifecycle(requestPayload, {
               ...orchestrateOptions,
               executionId,

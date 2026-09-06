@@ -139,7 +139,11 @@ const nextConfig: NextConfig = {
      * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
      * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
      */
-    '/*': ['./lib/execution/sandbox/bundles/*.cjs', './node_modules/ws/**/*'],
+    '/*': [
+      './lib/execution/sandbox/bundles/*.cjs',
+      './node_modules/ws/**/*',
+      '../../packages/sim-cli/dist/workbench.js',
+    ],
   },
   experimental: {
     /**

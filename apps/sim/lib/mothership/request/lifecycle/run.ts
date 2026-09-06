@@ -49,7 +49,7 @@ import {
 import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
 import {
   executeToolAndReport,
-  forceFailHungToolCall,
+  failPendingToolCall,
   pendingToolWaitBudgetMs,
 } from '@/lib/mothership/request/tools/executor'
 import type { TraceCollector } from '@/lib/mothership/request/trace'
@@ -230,218 +230,246 @@ export async function runCopilotLifecycle(
     runId,
     messageId: payloadMsgId,
   })
+  if (runIdentity.cancelled) {
+    return { success: false, cancelled: true, content: '', contentBlocks: [], toolCalls: [] }
+  }
   const resolvedExecutionId = runIdentity.executionId ?? executionId
   const resolvedRunId = runIdentity.runId ?? runId
-  const lifecycleOptions: CopilotLifecycleOptions = {
-    ...options,
-    executionId: resolvedExecutionId,
-    runId: resolvedRunId,
-    ...(options.executionContext
-      ? {
-          executionContext: {
-            ...options.executionContext,
-            messageId: payloadMsgId,
-            executionId: resolvedExecutionId,
-            runId: resolvedRunId,
-            abortSignal: options.abortSignal,
-            billingAttribution:
-              options.billingAttribution ?? options.executionContext.billingAttribution,
-            ...(options.userPermission ? { userPermission: options.userPermission } : {}),
-            ...(options.resolvedSecretTraceRegistry
-              ? { resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry }
-              : {}),
-            ...(options.secretMountPolicy ? { secretMountPolicy: options.secretMountPolicy } : {}),
-            ...(options.secretActorUserId !== undefined
-              ? { secretActorUserId: options.secretActorUserId }
-              : {}),
-          },
-        }
-      : {}),
-  }
-
-  const execContext =
-    lifecycleOptions.executionContext ??
-    (await buildExecutionContext(requestPayload, {
-      userId,
-      workflowId,
-      workspaceId,
-      chatId,
+  const ownedRunId = !runId && !executionId ? runIdentity.runId : undefined
+  let terminalResult: OrchestratorResult | undefined
+  try {
+    const lifecycleOptions: CopilotLifecycleOptions = {
+      ...options,
       executionId: resolvedExecutionId,
       runId: resolvedRunId,
-      abortSignal: lifecycleOptions.abortSignal,
-      billingAttribution: lifecycleOptions.billingAttribution,
-      resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
-      environmentContext: lifecycleOptions.environmentContext,
-      userPermission: lifecycleOptions.userPermission,
-      secretMountPolicy: lifecycleOptions.secretMountPolicy,
-      secretActorUserId: lifecycleOptions.secretActorUserId,
-    }))
-  execContext.copilotInteractionMode =
-    lifecycleOptions.interactive === true ? 'interactive' : 'headless'
-  if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
-    execContext.sandboxProfile = 'mothership'
-  } else {
-    execContext.sandboxProfile = undefined
-  }
-  if (isHosted && (!execContext.workspaceId || !execContext.billingAttribution)) {
-    throw new Error('Billing attribution is required for hosted Copilot execution')
-  }
-  let hostedBillingRequest: AttributedBillingRequestEnvelope | undefined
-  if (execContext.billingAttribution) {
-    const billingAttribution = assertBillingAttributionSnapshot(execContext.billingAttribution)
-    if (
-      billingAttribution.actorUserId !== execContext.userId ||
-      billingAttribution.workspaceId !== execContext.workspaceId
-    ) {
-      throw new Error('Copilot billing attribution does not match its actor and workspace')
-    }
-    execContext.billingAttribution = billingAttribution
-    if (isHosted) {
-      hostedBillingRequest = createAttributedBillingRequestEnvelope(billingAttribution)
-    }
-  }
-
-  const context = createStreamingContext({
-    chatId,
-    requestId: lifecycleOptions.simRequestId,
-    executionId: resolvedExecutionId,
-    runId: resolvedRunId,
-    messageId: payloadMsgId,
-    toolPermissions: await resolveToolPermissions(lifecycleOptions),
-    ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
-  })
-  let onCompleteStarted = false
-
-  try {
-    // Hosted admission (usage limits) belongs HERE, at dispatch, with the attribution
-    // already in hand. The old path outsourced it to the Go backend's api-keys/validate
-    // callback — a call the TS worker rightly never makes, so without this gate the
-    // limit check simply never runs on the new path. On exceeded, the same synthetic
-    // 402 UX as the mid-stream path renders the upgrade prompt, the backend is never
-    // dispatched, and the shared verdict assembly below runs exactly as after a
-    // mid-stream billing break.
-    const admission =
-      isHosted && execContext.billingAttribution
-        ? await checkAttributedUsageLimits(
-            assertBillingAttributionSnapshot(execContext.billingAttribution)
-          )
-        : { isExceeded: false as const }
-    if (admission.isExceeded) {
-      await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
-    } else {
-      await ensureModelEgressRegistry(execContext, lifecycleOptions)
-      const modelSafeRequestPayload = await omitUnsafeInitialCopilotAttachments(
-        requestPayload,
-        lifecycleOptions.workspaceId
-      )
-      await runCheckpointLoop(
-        modelSafeRequestPayload,
-        context,
-        execContext,
-        lifecycleOptions,
-        goRoute,
-        hostedBillingRequest
-      )
-    }
-
-    // The backend's terminal `complete` is the turn's verdict. A failure it
-    // reported in-band on the way there — a tool or a subagent that failed and
-    // was handed back to the model as data — belongs to a turn that still
-    // finished, so it must not turn the whole request into an error and discard
-    // the work the user watched succeed.
-    const backendFinishedTurn =
-      context.completionStatus === MothershipStreamV1CompletionStatus.complete
-    // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
-    // only reached from a fanout leg through the (deliberately asymmetric) merge
-    // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
-    // classify the turn as a success. Mirrors the check already used below on
-    // the throw path.
-    const turnWasAborted = context.wasAborted || (lifecycleOptions.abortSignal?.aborted ?? false)
-    const succeeded = !turnWasAborted && (backendFinishedTurn || context.errors.length === 0)
-
-    const result: OrchestratorResult = {
-      success: succeeded,
-      // `cancelled` is an explicit discriminator so callers can tell
-      // "user hit Stop" (persist partial assistant content through the
-      // cancelled completion path) from "backend errored" (do clear the
-      // row so the chat isn't stuck with a non-null `conversationId`).
-      // An error that also
-      // happens to fire the abort signal still counts as an error
-      // path, but practically that doesn't happen in the success
-      // branch here — if there are errors we never reach a
-      // wasAborted-without-errors state.
-      cancelled: turnWasAborted && context.errors.length === 0,
-      content: resultContent(context, lifecycleOptions),
-      contentBlocks: context.contentBlocks,
-      toolCalls: buildToolCallSummaries(context),
-      chatId: context.chatId,
-      requestId: context.requestId,
-      errors: !succeeded && context.errors.length ? context.errors : undefined,
-      usage: context.usage,
-      cost: context.cost,
-    }
-    if (lifecycleOptions.onComplete) {
-      onCompleteStarted = true
-      await lifecycleOptions.onComplete(result)
-    }
-    return result
-  } catch (error) {
-    const err = toError(error)
-    // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
-    // from /api/tools/resume when an oversized tool result — a rendered-doc
-    // image — is posted back). Log those so a client-side "Stream error" that
-    // originates from a thrown backend leg (vs an `error` SSE event) is
-    // explained, not just reduced to a message string.
-    logger.error('Copilot orchestration failed', {
-      error: err.message,
-      name: err.name,
-      ...(error instanceof CopilotBackendError
-        ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
+      ...(options.executionContext
+        ? {
+            executionContext: {
+              ...options.executionContext,
+              messageId: payloadMsgId,
+              executionId: resolvedExecutionId,
+              runId: resolvedRunId,
+              abortSignal: options.abortSignal,
+              billingAttribution:
+                options.billingAttribution ?? options.executionContext.billingAttribution,
+              ...(options.userPermission ? { userPermission: options.userPermission } : {}),
+              ...(options.resolvedSecretTraceRegistry
+                ? { resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry }
+                : {}),
+              ...(options.secretMountPolicy
+                ? { secretMountPolicy: options.secretMountPolicy }
+                : {}),
+              ...(options.secretActorUserId !== undefined
+                ? { secretActorUserId: options.secretActorUserId }
+                : {}),
+            },
+          }
         : {}),
-    })
-    // If the abort signal fired, this throw is a consequence of the
-    // cancel (publisher.publish fails once the client disconnects, a
-    // downstream Go read throws on ctx cancel, etc.) — NOT a real
-    // backend error. Don't invoke `onError`, because on the cancel
-    // path `onComplete(cancelled)` persists partial content with an
-    // idempotent row-locked finalizer. `onError` would race with it via
-    // `finalizeAssistantTurn`, clearing `conversationId` before the
-    // partial content can be appended.
-    // Return `cancelled: true` so upstream classification stays
-    // consistent with the success-path cancel result.
-    const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
-    // Preserve whatever streamed before the throw for both terminals. A thrown
-    // backend error (as opposed to an `error` SSE event that lets the loop finish
-    // normally) must still carry the partial assistant turn so onError can
-    // persist it — otherwise the post-error refetch replaces the rich live turn
-    // with an empty assistant row and the UI appears to wipe the message +
-    // subagent work.
-    const result: OrchestratorResult = {
-      success: false,
-      cancelled: wasCancelled,
-      content: context.accumulatedContent,
-      contentBlocks: context.contentBlocks,
-      toolCalls: buildToolCallSummaries(context),
-      chatId: context.chatId,
-      requestId: context.requestId,
-      error: err.message,
-      errors: context.errors.length ? context.errors : undefined,
-      usage: context.usage,
-      cost: context.cost,
     }
 
-    if (!wasCancelled) {
-      await lifecycleOptions.onError?.(err, result)
-    } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
-      try {
+    const execContext =
+      lifecycleOptions.executionContext ??
+      (await buildExecutionContext(requestPayload, {
+        userId,
+        workflowId,
+        workspaceId,
+        chatId,
+        executionId: resolvedExecutionId,
+        runId: resolvedRunId,
+        abortSignal: lifecycleOptions.abortSignal,
+        billingAttribution: lifecycleOptions.billingAttribution,
+        resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
+        environmentContext: lifecycleOptions.environmentContext,
+        userPermission: lifecycleOptions.userPermission,
+        secretMountPolicy: lifecycleOptions.secretMountPolicy,
+        secretActorUserId: lifecycleOptions.secretActorUserId,
+      }))
+    execContext.copilotInteractionMode =
+      lifecycleOptions.interactive === true ? 'interactive' : 'headless'
+    if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
+      execContext.sandboxProfile = 'mothership'
+    } else {
+      execContext.sandboxProfile = undefined
+    }
+    if (isHosted && (!execContext.workspaceId || !execContext.billingAttribution)) {
+      throw new Error('Billing attribution is required for hosted Copilot execution')
+    }
+    let hostedBillingRequest: AttributedBillingRequestEnvelope | undefined
+    if (execContext.billingAttribution) {
+      const billingAttribution = assertBillingAttributionSnapshot(execContext.billingAttribution)
+      if (
+        billingAttribution.actorUserId !== execContext.userId ||
+        billingAttribution.workspaceId !== execContext.workspaceId
+      ) {
+        throw new Error('Copilot billing attribution does not match its actor and workspace')
+      }
+      execContext.billingAttribution = billingAttribution
+      if (isHosted) {
+        hostedBillingRequest = createAttributedBillingRequestEnvelope(billingAttribution)
+      }
+    }
+
+    const context = createStreamingContext({
+      chatId,
+      requestId: lifecycleOptions.simRequestId,
+      executionId: resolvedExecutionId,
+      runId: resolvedRunId,
+      messageId: payloadMsgId,
+      toolPermissions: await resolveToolPermissions(lifecycleOptions),
+      ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
+    })
+    let onCompleteStarted = false
+
+    try {
+      // Hosted admission (usage limits) belongs HERE, at dispatch, with the attribution
+      // already in hand. The old path outsourced it to the Go backend's api-keys/validate
+      // callback — a call the TS worker rightly never makes, so without this gate the
+      // limit check simply never runs on the new path. On exceeded, the same synthetic
+      // 402 UX as the mid-stream path renders the upgrade prompt, the backend is never
+      // dispatched, and the shared verdict assembly below runs exactly as after a
+      // mid-stream billing break.
+      const admission =
+        isHosted && execContext.billingAttribution
+          ? await checkAttributedUsageLimits(
+              assertBillingAttributionSnapshot(execContext.billingAttribution)
+            )
+          : { isExceeded: false as const }
+      if (admission.isExceeded) {
+        await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
+      } else {
+        await ensureModelEgressRegistry(execContext, lifecycleOptions)
+        const modelSafeRequestPayload = await omitUnsafeInitialCopilotAttachments(
+          requestPayload,
+          lifecycleOptions.workspaceId
+        )
+        await runCheckpointLoop(
+          modelSafeRequestPayload,
+          context,
+          execContext,
+          lifecycleOptions,
+          goRoute,
+          hostedBillingRequest
+        )
+      }
+
+      // The backend's terminal `complete` is the turn's verdict. A failure it
+      // reported in-band on the way there — a tool or a subagent that failed and
+      // was handed back to the model as data — belongs to a turn that still
+      // finished, so it must not turn the whole request into an error and discard
+      // the work the user watched succeed.
+      const backendFinishedTurn =
+        context.completionStatus === MothershipStreamV1CompletionStatus.complete
+      // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
+      // only reached from a fanout leg through the (deliberately asymmetric) merge
+      // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
+      // classify the turn as a success. Mirrors the check already used below on
+      // the throw path.
+      const turnWasAborted = context.wasAborted || (lifecycleOptions.abortSignal?.aborted ?? false)
+      const succeeded = !turnWasAborted && (backendFinishedTurn || context.errors.length === 0)
+
+      const result: OrchestratorResult = {
+        success: succeeded,
+        // `cancelled` is an explicit discriminator so callers can tell
+        // "user hit Stop" (persist partial assistant content through the
+        // cancelled completion path) from "backend errored" (do clear the
+        // row so the chat isn't stuck with a non-null `conversationId`).
+        // An error that also
+        // happens to fire the abort signal still counts as an error
+        // path, but practically that doesn't happen in the success
+        // branch here — if there are errors we never reach a
+        // wasAborted-without-errors state.
+        cancelled: turnWasAborted && context.errors.length === 0,
+        content: resultContent(context, lifecycleOptions),
+        contentBlocks: context.contentBlocks,
+        toolCalls: buildToolCallSummaries(context),
+        chatId: context.chatId,
+        requestId: context.requestId,
+        errors: !succeeded && context.errors.length ? context.errors : undefined,
+        usage: context.usage,
+        cost: context.cost,
+      }
+      if (lifecycleOptions.onComplete) {
+        onCompleteStarted = true
         await lifecycleOptions.onComplete(result)
-      } catch (completeError) {
-        logger.error('Cancelled copilot completion callback failed', {
-          error: toError(completeError).message,
+      }
+      terminalResult = result
+      return result
+    } catch (error) {
+      const err = toError(error)
+      // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
+      // from /api/tools/resume when an oversized tool result — a rendered-doc
+      // image — is posted back). Log those so a client-side "Stream error" that
+      // originates from a thrown backend leg (vs an `error` SSE event) is
+      // explained, not just reduced to a message string.
+      logger.error('Copilot orchestration failed', {
+        error: err.message,
+        name: err.name,
+        ...(error instanceof CopilotBackendError
+          ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
+          : {}),
+      })
+      // If the abort signal fired, this throw is a consequence of the
+      // cancel (publisher.publish fails once the client disconnects, a
+      // downstream Go read throws on ctx cancel, etc.) — NOT a real
+      // backend error. Don't invoke `onError`, because on the cancel
+      // path `onComplete(cancelled)` persists partial content with an
+      // idempotent row-locked finalizer. `onError` would race with it via
+      // `finalizeAssistantTurn`, clearing `conversationId` before the
+      // partial content can be appended.
+      // Return `cancelled: true` so upstream classification stays
+      // consistent with the success-path cancel result.
+      const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+      // Preserve whatever streamed before the throw for both terminals. A thrown
+      // backend error (as opposed to an `error` SSE event that lets the loop finish
+      // normally) must still carry the partial assistant turn so onError can
+      // persist it — otherwise the post-error refetch replaces the rich live turn
+      // with an empty assistant row and the UI appears to wipe the message +
+      // subagent work.
+      const result: OrchestratorResult = {
+        success: false,
+        cancelled: wasCancelled,
+        content: context.accumulatedContent,
+        contentBlocks: context.contentBlocks,
+        toolCalls: buildToolCallSummaries(context),
+        chatId: context.chatId,
+        requestId: context.requestId,
+        error: err.message,
+        errors: context.errors.length ? context.errors : undefined,
+        usage: context.usage,
+        cost: context.cost,
+      }
+
+      if (!wasCancelled) {
+        await lifecycleOptions.onError?.(err, result)
+      } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
+        try {
+          await lifecycleOptions.onComplete(result)
+        } catch (completeError) {
+          logger.error('Cancelled copilot completion callback failed', {
+            error: toError(completeError).message,
+          })
+        }
+      }
+      terminalResult = result
+      return result
+    }
+  } finally {
+    /** Headless admission owns its record; the streaming adapter owns records it supplies. */
+    if (ownedRunId) {
+      const status = terminalResult?.success
+        ? 'complete'
+        : terminalResult?.cancelled || options.abortSignal?.aborted
+          ? 'cancelled'
+          : 'error'
+      try {
+        await updateRunStatus(ownedRunId, status, { completedAt: new Date() })
+      } catch (error) {
+        logger.warn('Headless run completion could not be persisted', {
+          runId: ownedRunId,
+          error: toError(error).message,
         })
       }
     }
-    return result
   }
 }
 
@@ -1125,7 +1153,7 @@ async function runCheckpointLoop(
                   waitBudgetMs: watchdog.waitBudgetMs,
                 }
               )
-              await forceFailHungToolCall(
+              await failPendingToolCall(
                 toolCallId,
                 context,
                 'Tool execution hung on the Sim executor and was abandoned so the conversation could continue.'
@@ -1354,7 +1382,7 @@ async function ensureHeadlessRunIdentity(input: {
   executionId?: string
   runId?: string
   messageId: string
-}): Promise<{ executionId?: string; runId?: string }> {
+}): Promise<{ executionId?: string; runId?: string; cancelled?: boolean }> {
   if (!input.chatId || input.executionId || input.runId) {
     return {
       executionId: input.executionId,
@@ -1366,7 +1394,7 @@ async function ensureHeadlessRunIdentity(input: {
   const runId = generateId()
 
   try {
-    await createRunSegment({
+    const run = await createRunSegment({
       id: runId,
       executionId,
       chatId: input.chatId,
@@ -1381,14 +1409,9 @@ async function ensureHeadlessRunIdentity(input: {
         source: 'headless_lifecycle',
       },
     })
-    return { executionId, runId }
-  } catch (error) {
-    logger.warn('Failed to create headless run identity', {
-      chatId: input.chatId,
-      messageId: input.messageId,
-      error: toError(error).message,
-    })
-    return {}
+    return { executionId, runId, cancelled: run.status === 'cancelled' }
+  } catch {
+    throw new Error('Chat could not start because its execution record is unavailable')
   }
 }
 
@@ -1436,24 +1459,13 @@ function cancelPendingTools(context: StreamingContext): void {
   }
 }
 
-/**
- * Only a leg the backend never took is worth re-posting: a network failure with
- * no response at all, or a 5xx it answered with — Go releases the checkpoint
- * claim on those, expecting the retry.
- *
- * Once the backend answers `200` the checkpoint is claimed and the leg runs to
- * whatever outcome it reaches, so a leg that ends early is reporting a result,
- * not a transport fault. Re-posting it reproduces the same result and bills the
- * leg again — which is why the resume payload no longer claims
- * `willRetryOnStreamError`: promising Go a transparent retry makes it suppress
- * the error tag that explains the failure, and nothing here would retry it.
- */
+/** The worker deduplicates resumes by run and tool call identity, including an interrupted HTTP 200 leg. */
 function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return false
   }
   if (error instanceof StreamEndedWithoutTerminalError) {
-    return false
+    return true
   }
   if (error instanceof CopilotBackendError) {
     return error.status !== undefined && error.status >= 500

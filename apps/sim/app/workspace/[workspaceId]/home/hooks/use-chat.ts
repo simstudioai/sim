@@ -19,6 +19,7 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
+import type { CopilotChatAbortBody } from '@/lib/api/contracts/copilot'
 import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
@@ -4058,8 +4059,9 @@ export function useChat(
               },
               body: JSON.stringify({
                 streamId: sid,
+                workspaceId,
                 ...(chatId ? { chatId } : {}),
-              }),
+              } satisfies CopilotChatAbortBody),
             })
             const payload: unknown = await res.json().catch(() => null)
             if (isRecordLike(payload) && payload.aborted === true) {

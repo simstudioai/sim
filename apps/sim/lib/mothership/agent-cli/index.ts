@@ -11,12 +11,13 @@ import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
-import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 
 export interface AgentCliExecutionContext {
   workspaceId: string
   userId: string
   chatId?: string | undefined
+  signal?: AbortSignal | undefined
 }
 
 /**
@@ -29,6 +30,7 @@ export async function executeAgentCliRequest(
   request: AgentCliRequest,
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
+  context.signal?.throwIfAborted()
   const apiKey = await mintDelegationToken({
     workspaceId: context.workspaceId,
     userId: context.userId,
@@ -38,10 +40,12 @@ export async function executeAgentCliRequest(
     endpoint: getInternalApiBaseUrl(),
     apiKey,
     workspaceId: context.workspaceId,
+    ...(context.signal ? { signal: context.signal } : {}),
   }
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
 
   let result: AgentCliRawResult
+  context.signal?.throwIfAborted()
   if (request.invocation.kind === 'stdout') {
     // Text the worker already holds (sliced, or worker-answered): only the sink applies.
     result = { exitCode: 0, stdout: request.invocation.stdout, stderr: '' }
@@ -54,6 +58,7 @@ export async function executeAgentCliRequest(
         workspaceId: context.workspaceId,
         userId: context.userId,
         principal: await principalForDelegation(apiKey),
+        signal: context.signal,
       },
       request.invocation.flags
     )
@@ -63,7 +68,7 @@ export async function executeAgentCliRequest(
       result = await curateBlockDetail(result, context)
     }
   }
-  return request.sink ? applySink(request.sink, sessionKey, result) : result
+  return request.sink ? applySink(request.sink, sessionKey, result, context.signal) : result
 }
 
 /**

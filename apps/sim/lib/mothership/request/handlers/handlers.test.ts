@@ -1683,7 +1683,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(toolCall?.error).toBeTruthy()
   })
 
-  it('still executes the tool when async row upsert fails', async () => {
+  it('refuses the tool when its async execution record cannot be persisted', async () => {
     upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
 
@@ -1706,9 +1706,12 @@ describe('sse-handlers tool lifecycle', () => {
 
     await sleep(0)
 
-    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(executeTool).not.toHaveBeenCalled()
     expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe(
-      MothershipStreamV1ToolOutcome.success
+      MothershipStreamV1ToolOutcome.error
+    )
+    expect(context.toolCalls.get('tool-upsert-fail')?.error).toContain(
+      'execution record is unavailable'
     )
   })
 

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   queryChunks: vi.fn(),
   batchChunkOperation: vi.fn(),
+  createChunk: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -28,7 +29,7 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 
 vi.mock('@/lib/knowledge/chunks/service', () => ({
   batchChunkOperation: mocks.batchChunkOperation,
-  createChunk: vi.fn(),
+  createChunk: mocks.createChunk,
   deleteChunk: vi.fn(),
   queryChunks: mocks.queryChunks,
   updateChunk: vi.fn(),
@@ -39,14 +40,19 @@ vi.mock('@/lib/execution/durable-secret-provenance', () => ({
 }))
 
 vi.mock('@/lib/knowledge/model-input-provenance', () => ({
-  runWithKnowledgeModelInputProvenance: vi.fn(),
+  runWithKnowledgeModelInputProvenance: (_registry: unknown, execute: () => Promise<unknown>) =>
+    execute(),
 }))
 
 vi.mock('@/providers/utils', () => ({ calculateCost: vi.fn() }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
-import { bulkUpdateKnowledgeChunks, listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
+import {
+  bulkUpdateKnowledgeChunks,
+  createKnowledgeChunk,
+  listKnowledgeChunks,
+} from '@/lib/knowledge/application/chunks'
 
 describe('knowledge chunk application use cases', () => {
   beforeEach(() => {
@@ -77,6 +83,65 @@ describe('knowledge chunk application use cases', () => {
       message: 'Document is not ready for access (status: processing)',
     })
     expect(mocks.queryChunks).not.toHaveBeenCalled()
+  })
+
+  it('copies document tag values into a newly created chunk without a separate tagging operation', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+    const tags = {
+      tag1: 'billing',
+      tag2: null,
+      tag3: null,
+      tag4: null,
+      tag5: null,
+      tag6: null,
+      tag7: null,
+      number1: '2026',
+      number2: null,
+      number3: null,
+      number4: null,
+      number5: null,
+      date1: '2026-09-01',
+      date2: null,
+      boolean1: 'false',
+      boolean2: null,
+      boolean3: null,
+    }
+    mocks.resolveDocument.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+      knowledgeBaseId: 'knowledge-1',
+      knowledgeBase: { id: 'knowledge-1', userId: 'owner-1', embeddingModel: 'model' },
+      documentId: 'document-1',
+      document: {
+        id: 'document-1',
+        filename: 'handbook.md',
+        processingStatus: 'completed',
+        ...tags,
+      },
+    })
+    mocks.createChunk.mockResolvedValue({ id: 'chunk-1', tokenCount: 12, ...tags })
+    const result = await createKnowledgeChunk.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        documentId: 'document-1',
+        content: 'Refund policy',
+        enabled: true,
+        resolveContentProvenance: () => undefined,
+      },
+    })
+    expect(mocks.createChunk).toHaveBeenCalledWith(
+      'knowledge-1',
+      'document-1',
+      tags,
+      { content: 'Refund policy', enabled: true },
+      expect.any(String),
+      'workspace-1',
+      undefined
+    )
+    expect(result.chunk).toMatchObject({ id: 'chunk-1', documentId: 'document-1', ...tags })
   })
 
   it('passes a keyset position straight through to the chunk query', async () => {

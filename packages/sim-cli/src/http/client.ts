@@ -499,7 +499,9 @@ export class SimClient {
     // to abort, so neither can mask the other.
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
-    const signal = combineSignals(options.signal, timeout)
+    const caller = combineSignals(options.signal, this.profile.signal)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    const signal = combineSignals(caller, timeout)
 
     const trace = debugEnabled()
     const startedAt = performance.now()
@@ -521,7 +523,7 @@ export class SimClient {
       })
     } catch (cause) {
       if (trace) traceRequest(method, url, 'failed', startedAt)
-      if (options.signal?.aborted) {
+      if (caller?.aborted) {
         throw new SimApiError('Request cancelled.', 0)
       }
       if (timeout?.aborted) {

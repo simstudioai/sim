@@ -36,6 +36,7 @@ async function uploadPut(transfer: Extract<UploadTransfer, { method: 'put' }>, b
     method: 'PUT',
     headers: transfer.headers,
     body: blob,
+    signal: embedStore.getStore()?.identity.signal,
   })
   if (!response.ok) {
     throw new SimApiError(`Upload failed with status ${response.status}`, response.status)
@@ -81,6 +82,7 @@ async function uploadParts(
         method: 'PUT',
         headers: part.headers,
         body: chunk,
+        signal: embedStore.getStore()?.identity.signal,
       })
       if (!response.ok) {
         throw new SimApiError(
@@ -101,7 +103,9 @@ export async function finishUploadSession<T>(
 ): Promise<T> {
   try {
     const embedded = embedStore.getStore()
-    const blob = embedded ? new Blob([embeddedFileContent(embedded, path)]) : await openAsBlob(path)
+    const blob = embedded
+      ? new Blob([await embeddedFileContent(embedded, path)])
+      : await openAsBlob(path)
     if (session.transfer.method === 'put') {
       await uploadPut(session.transfer, blob)
     } else {

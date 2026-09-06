@@ -3336,11 +3336,30 @@ export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValu
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
+/** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
+export const copilotRequestStops = pgTable(
+  'copilot_request_stops',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    streamId: text('stream_id').notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.workspaceId, table.streamId] })]
+)
+
 export const copilotRuns = pgTable(
   'copilot_runs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     executionId: text('execution_id').notNull(),
+    /** Rows predating the active ownership protocol cannot certify tool settlement. */
+    toolExecutionVersion: integer('tool_execution_version').notNull().default(0),
+    toolAdmissionClosedAt: timestamp('tool_admission_closed_at'),
     parentRunId: uuid('parent_run_id'),
     chatId: uuid('chat_id')
       .notNull()
@@ -3433,6 +3452,13 @@ export const copilotAsyncToolCalls = pgTable(
     permissionDecidedAt: timestamp('permission_decided_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
+    /** Separate from the model-facing terminal result, which can precede cleanup. */
+    executionStartedAt: timestamp('execution_started_at'),
+    executionSettledAt: timestamp('execution_settled_at'),
+    sandboxProcesses: jsonb('sandbox_processes')
+      .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
+      .notNull()
+      .default({}),
     completedAt: timestamp('completed_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -5379,11 +5405,9 @@ export const sandboxImage = pgTable(
 )
 
 /**
- * Copilot background-task subscriptions (mothership docs/revamp/21-background-tasks.md):
- * a worker task that watches a workflow execution. The executor's completion path looks
- * the execution id up here and posts the outcome back to the worker, which owns the task
- * and its delivery. Rows are deleted once notified; an execution that never finishes
- * leaves a row the worker's own TTL makes irrelevant.
+ * Retained for the deployment transition from callback subscriptions to the worker task
+ * inbox (mothership D35). New code reads canonical execution status and does not use
+ * this table. Drop it only after the previous worker/Sim versions have been retired.
  */
 export const copilotTaskSubscriptions = pgTable(
   'copilot_task_subscriptions',

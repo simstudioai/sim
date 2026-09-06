@@ -985,6 +985,8 @@ export const schemaMock = {
   copilotRuns: {
     id: 'copilotRuns.id',
     executionId: 'copilotRuns.executionId',
+    toolExecutionVersion: 'copilotRuns.toolExecutionVersion',
+    toolAdmissionClosedAt: 'copilotRuns.toolAdmissionClosedAt',
     parentRunId: 'copilotRuns.parentRunId',
     chatId: 'copilotRuns.chatId',
     userId: 'copilotRuns.userId',
@@ -1001,6 +1003,12 @@ export const schemaMock = {
     createdAt: 'copilotRuns.createdAt',
     updatedAt: 'copilotRuns.updatedAt',
     error: 'copilotRuns.error',
+  },
+  copilotRequestStops: {
+    userId: 'copilotRequestStops.userId',
+    workspaceId: 'copilotRequestStops.workspaceId',
+    streamId: 'copilotRequestStops.streamId',
+    stoppedAt: 'copilotRequestStops.stoppedAt',
   },
   copilotRunCheckpoints: {
     id: 'copilotRunCheckpoints.id',
@@ -1024,6 +1032,9 @@ export const schemaMock = {
     error: 'copilotAsyncToolCalls.error',
     claimedAt: 'copilotAsyncToolCalls.claimedAt',
     claimedBy: 'copilotAsyncToolCalls.claimedBy',
+    executionStartedAt: 'copilotAsyncToolCalls.executionStartedAt',
+    sandboxProcesses: 'copilotAsyncToolCalls.sandboxProcesses',
+    executionSettledAt: 'copilotAsyncToolCalls.executionSettledAt',
     completedAt: 'copilotAsyncToolCalls.completedAt',
     createdAt: 'copilotAsyncToolCalls.createdAt',
     updatedAt: 'copilotAsyncToolCalls.updatedAt',
