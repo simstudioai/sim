@@ -169,10 +169,18 @@ describe('OCI Compute selectors', () => {
         nextPage: 'next',
       },
     })
-    expect(await execute(args({
-      selectorKey: 'oci_compute.subnets',
-      context: { region: 'us-ashburn-1', compartmentId: 'compartment', availabilityDomain: 'selected' },
-    }))).toEqual({ kind: 'list', items: [], nextCursor: 'next' })
+    expect(
+      await execute(
+        args({
+          selectorKey: 'oci_compute.subnets',
+          context: {
+            region: 'us-ashburn-1',
+            compartmentId: 'compartment',
+            availabilityDomain: 'selected',
+          },
+        })
+      )
+    ).toEqual({ kind: 'list', items: [], nextCursor: 'next' })
     expect(mocks.execute.mock.calls[0][2]).not.toHaveProperty('availabilityDomain')
   })
 

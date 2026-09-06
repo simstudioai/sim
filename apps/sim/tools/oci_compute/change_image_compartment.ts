@@ -63,12 +63,7 @@ export const ociComputeChangeImageCompartmentTool: InternalToolConfig<
   },
   operation: {
     input: (params) =>
-      ociComputeOperationInput(params, [
-        'imageId',
-        'ifMatch',
-        'compartmentId',
-        'retryToken',
-      ]),
+      ociComputeOperationInput(params, ['imageId', 'ifMatch', 'compartmentId', 'retryToken']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },

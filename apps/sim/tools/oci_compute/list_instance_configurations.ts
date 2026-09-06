@@ -69,13 +69,7 @@ export const ociComputeListInstanceConfigurationsTool: InternalToolConfig<
   },
   operation: {
     input: (params) =>
-      ociComputeOperationInput(params, [
-        'compartmentId',
-        'limit',
-        'page',
-        'sortBy',
-        'sortOrder',
-      ]),
+      ociComputeOperationInput(params, ['compartmentId', 'limit', 'page', 'sortBy', 'sortOrder']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },

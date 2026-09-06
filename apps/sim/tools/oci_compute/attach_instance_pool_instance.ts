@@ -1,8 +1,8 @@
 import {
   type OciComputeAttachInstancePoolInstanceParams,
   type OciComputeResponse,
-  POOL_INSTANCE_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  POOL_INSTANCE_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -56,11 +56,7 @@ export const ociComputeAttachInstancePoolInstanceTool: InternalToolConfig<
   },
   operation: {
     input: (params) =>
-      ociComputeOperationInput(params, [
-        'instancePoolId',
-        'instanceId',
-        'retryToken',
-      ]),
+      ociComputeOperationInput(params, ['instancePoolId', 'instanceId', 'retryToken']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },

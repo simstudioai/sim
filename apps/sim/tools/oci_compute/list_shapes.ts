@@ -1,8 +1,8 @@
 import {
   type OciComputeListShapesParams,
   type OciComputeResponse,
-  SHAPE_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  SHAPE_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 

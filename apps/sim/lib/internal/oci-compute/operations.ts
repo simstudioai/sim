@@ -683,8 +683,13 @@ export async function executeOciComputeOperation(
       (values.metadata !== undefined || values.extendedMetadata !== undefined)
     ) {
       const current = await client.request({
-        endpoint, method: 'GET', encodedPath: `/20160918/instances/${encodeURIComponent(String(values.instanceId))}`,
-        timeoutMs: 30_000, maxResponseBytes: 2_000_000, signal, retry: { kind: 'safe', maxAttempts: 2 },
+        endpoint,
+        method: 'GET',
+        encodedPath: `/20160918/instances/${encodeURIComponent(String(values.instanceId))}`,
+        timeoutMs: 30_000,
+        maxResponseBytes: 2_000_000,
+        signal,
+        retry: { kind: 'safe', maxAttempts: 2 },
       })
       const existing = parseResource(current.body)
       if (!isPlainRecord(existing)) throw new Error('OCI returned an invalid instance')
@@ -693,7 +698,10 @@ export async function executeOciComputeOperation(
         const before = isPlainRecord(existing[field]) ? existing[field] : {}
         const after = isPlainRecord(values[field]) ? values[field] : {}
         for (const key of ['user_data', 'ssh_authorized_keys']) {
-          if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) throw new Error(`Updating ${field} must preserve existing user_data and ssh_authorized_keys`)
+          if (JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+            throw new Error(
+              `Updating ${field} must preserve existing user_data and ssh_authorized_keys`
+            )
         }
       }
       validateOciComputeMetadata({
@@ -701,14 +709,16 @@ export async function executeOciComputeOperation(
         extendedMetadata: values.extendedMetadata ?? existing.extendedMetadata,
       })
       if (!headers['if-match']) {
-        if (!current.headers.etag) throw new Error('OCI did not return an ETag for the metadata update')
+        if (!current.headers.etag)
+          throw new Error('OCI did not return an ETag for the metadata update')
         headers['if-match'] = current.headers.etag
       }
     }
     const path = definition.path.replace(/\{(\w+)\}/g, (_match, key: string) => {
-      const value = operation === 'instance_pool_action' && key === 'action'
-        ? String(values[key]).toLowerCase()
-        : String(values[key])
+      const value =
+        operation === 'instance_pool_action' && key === 'action'
+          ? String(values[key]).toLowerCase()
+          : String(values[key])
       return encodeURIComponent(value)
     })
     const queryPairs: [string, string][] = []
@@ -716,8 +726,13 @@ export async function executeOciComputeOperation(
       if (values[key] !== undefined) queryPairs.push([key, String(values[key])])
     }
     const base = {
-      endpoint, encodedPath: `/20160918${path}`, queryPairs, headers,
-      timeoutMs: 30_000, maxResponseBytes: 2_000_000, signal,
+      endpoint,
+      encodedPath: `/20160918${path}`,
+      queryPairs,
+      headers,
+      timeoutMs: 30_000,
+      maxResponseBytes: 2_000_000,
+      signal,
       responseHeaders: [
         ...(definition.query?.includes('page') ? ['opc-next-page'] : []),
         ...(definition.work ? ['opc-work-request-id'] : []),
@@ -725,16 +740,23 @@ export async function executeOciComputeOperation(
       ],
     }
     const body = requestBody(operation, values, definition)
-    const request: OciRequest = definition.method === 'GET'
-      ? { ...base, method: 'GET', retry: { kind: 'safe', maxAttempts: 2 } }
-      : definition.method === 'DELETE'
-        ? { ...base, method: 'DELETE' }
-        : {
-            ...base, method: definition.method as 'POST' | 'PUT',
-            body: body === undefined ? new Uint8Array() : new TextEncoder().encode(JSON.stringify(body)),
-            contentType: 'application/json',
-            ...(retryToken ? { retry: { kind: 'tokenized' as const, maxAttempts: 2, retryToken } } : {}),
-          }
+    const request: OciRequest =
+      definition.method === 'GET'
+        ? { ...base, method: 'GET', retry: { kind: 'safe', maxAttempts: 2 } }
+        : definition.method === 'DELETE'
+          ? { ...base, method: 'DELETE' }
+          : {
+              ...base,
+              method: definition.method as 'POST' | 'PUT',
+              body:
+                body === undefined
+                  ? new Uint8Array()
+                  : new TextEncoder().encode(JSON.stringify(body)),
+              contentType: 'application/json',
+              ...(retryToken
+                ? { retry: { kind: 'tokenized' as const, maxAttempts: 2, retryToken } }
+                : {}),
+            }
     signal?.throwIfAborted()
     dispatched = true
     const response = await client.request(request)
@@ -744,29 +766,37 @@ export async function executeOciComputeOperation(
       status: response.status,
       requestId: response.opcRequestId ?? response.headers['opc-request-id'] ?? null,
       etag: response.headers.etag ?? null,
-      ...(definition.query?.includes('page') ? { nextPage: response.headers['opc-next-page'] ?? null } : {}),
-      ...(definition.work ? { workRequestId: response.headers['opc-work-request-id'] ?? null } : {}),
+      ...(definition.query?.includes('page')
+        ? { nextPage: response.headers['opc-next-page'] ?? null }
+        : {}),
+      ...(definition.work
+        ? { workRequestId: response.headers['opc-work-request-id'] ?? null }
+        : {}),
       ...(definition.location ? { location: response.headers.location ?? null } : {}),
       ...(retryToken ? { retryToken } : {}),
     }
     if (definition.output && definition.projection) {
       const data = parseResource(response.body)
-      if (definition.list && (!Array.isArray(data) || data.length > 100)) throw new Error('OCI returned an invalid or oversized resource page')
-      const resource = definition.list && Array.isArray(data)
-        ? data.map((entry) => projectOciComputeResource(entry, definition.projection ?? {}))
-        : projectOciComputeResource(data, definition.projection)
+      if (definition.list && (!Array.isArray(data) || data.length > 100))
+        throw new Error('OCI returned an invalid or oversized resource page')
+      const resource =
+        definition.list && Array.isArray(data)
+          ? data.map((entry) => projectOciComputeResource(entry, definition.projection ?? {}))
+          : projectOciComputeResource(data, definition.projection)
       Object.assign(output, { [definition.output]: resource })
     }
     return { success: true, output }
   } catch (error) {
     const providerError = error instanceof OciClientError ? error : undefined
-    const rejected = !dispatched || (providerError?.status !== undefined && providerError.status < 500)
+    const rejected =
+      !dispatched || (providerError?.status !== undefined && providerError.status < 500)
     return {
       success: false,
       retryable: definition.method === 'GET',
-      error: providerError?.status === 412
-        ? 'The resource changed. Read its current state and ETag before submitting another update.'
-        : getErrorMessage(error, 'OCI Compute operation failed'),
+      error:
+        providerError?.status === 412
+          ? 'The resource changed. Read its current state and ETag before submitting another update.'
+          : getErrorMessage(error, 'OCI Compute operation failed'),
       output: {
         status: providerError?.status ?? receivedStatus ?? 0,
         requestId: providerError?.opcRequestId ?? receivedRequestId ?? null,

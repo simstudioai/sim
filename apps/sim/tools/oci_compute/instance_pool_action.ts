@@ -65,12 +65,7 @@ export const ociComputeInstancePoolActionTool: InternalToolConfig<
   },
   operation: {
     input: (params) =>
-      ociComputeOperationInput(params, [
-        'instancePoolId',
-        'ifMatch',
-        'action',
-        'retryToken',
-      ]),
+      ociComputeOperationInput(params, ['instancePoolId', 'ifMatch', 'action', 'retryToken']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
