@@ -191,7 +191,7 @@ export interface ProtocolMismatch {
  * streams the same mothership-stream-v1 frames. No skills, no CLI — the block's tool
  * surface is exactly what the caller passes.
  */
-export interface ExecuteRequest {
+export interface ExecuteRequest extends StreamResponseReceipt {
   messages: ExecuteMessage[];
   /** JSON schema for structured output; enforced by instruction + caller-side validation. */
   responseFormat?: unknown | undefined;
