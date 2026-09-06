@@ -43,7 +43,7 @@ export function IconSwitch<T extends string>({
       role='radiogroup'
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex w-fit shrink-0 items-center gap-0.5 rounded-[5px] border border-[var(--border)] bg-[var(--surface-3)] p-[1px]',
+        'inline-flex w-fit shrink-0 items-center gap-0.5 rounded-sm border border-[var(--border)] bg-[var(--surface-3)] p-[1px]',
         disabled && 'opacity-50',
         className
       )}
@@ -62,7 +62,7 @@ export function IconSwitch<T extends string>({
             onChange={() => onValueChange(option.value)}
             disabled={disabled}
             aria-label={option.label}
-            className='peer m-0 size-[16px] cursor-pointer appearance-none rounded-[3px] bg-transparent transition-colors checked:bg-[var(--surface-active)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--text-icon)] disabled:cursor-not-allowed'
+            className='peer m-0 size-[16px] cursor-pointer appearance-none rounded-[calc(theme(borderRadius.sm)-1px-var(--border-width,1px))] bg-transparent transition-colors checked:bg-[var(--surface-active)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--text-icon)] disabled:cursor-not-allowed'
           />
         )
 
