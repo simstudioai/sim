@@ -5,14 +5,15 @@ import {
   internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
+import { internalCopilotAuth } from '@/lib/mothership/auth/internal'
+import { TASK_DELEGATION_AUDIENCE } from '@/lib/mothership/tasks/application/context'
 import { taskOperations } from '@/lib/mothership/tasks/application/operations'
 import { prepareTaskWake } from '@/lib/mothership/tasks/application/prepare-wake'
-import { internalTaskAuth } from '@/lib/mothership/tasks/auth'
 import { runWakeTurn } from '@/lib/mothership/tasks/wake'
 
 export const POST = defineInternalJsonRoute({
   contract: wakeMothershipTaskContract,
-  auth: internalTaskAuth,
+  auth: internalCopilotAuth(TASK_DELEGATION_AUDIENCE),
   operation: taskOperations.wake,
   rateLimit: internalRateLimits.none({
     reason:
