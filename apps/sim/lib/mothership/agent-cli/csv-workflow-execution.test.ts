@@ -2,22 +2,36 @@
  * @vitest-environment node
  *
  * Enable with SIM_HELPERS_SMOKE=1 and the installed Node isolated-vm runtime.
- * Real registry, serialization, DAG, tool dispatch, application authorization,
- * Function worker and file broker; fixture membership, delegation minting, metadata,
- * shares and disk storage. Remote compute is rejected. This does not exercise CLI
- * ingress, persisted workflow loading, real identity records or cloud storage.
+ * Real CLI, routes, application operations, execution service/core, registry,
+ * serializer, DAG, Function isolate and file broker. Identity, admission/billing,
+ * saved-state records, log persistence and physical storage are local fixtures.
+ * Remote compute is rejected; no live server, model or cloud service is involved.
  */
+import { createReadStream } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
+import { NextRequest } from 'next/server'
+import type { EmbeddedCliIdentity } from 'sim/embed'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { v2FileSchema } from '@/lib/api/contracts/v2/files'
+import { v2ExecuteWorkflowDataSchema } from '@/lib/api/contracts/v2/workflows'
 import { executeInSandbox, executeShellInSandbox } from '@/lib/execution/remote-sandbox'
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import type { CreateExecutorPrincipalFromExecutionContextInput } from '@/lib/internal/principals/executor'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import type {
+  uploadWorkspaceFile,
+  WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { GET as downloadFileRoute } from '@/app/api/v2/files/[fileId]/route'
+import { POST as createFileRoute } from '@/app/api/v2/files/route'
+import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
 import { getLatestBlock } from '@/blocks/registry'
 import { DAGExecutor } from '@/executor/execution/executor'
 import { Serializer } from '@/serializer'
@@ -31,10 +45,161 @@ const fixtures = vi.hoisted(() => ({
   permission: 'admin' as PermissionType | null,
   reads: [] as string[],
   audiences: [] as string[],
+  saved: new Map<string, ReturnType<typeof workflowState>>(),
+  loaded: [] as string[],
+  completed: [] as Array<Parameters<LoggingSession['safeComplete']>[0]>,
+  pending: [] as Promise<void>[],
+  upload: vi.fn<typeof uploadWorkspaceFile>(),
+}))
+
+const workspaceStorage = vi.hoisted(() => ({
+  uploadWorkspaceFile: fixtures.upload,
+  loadActiveWorkspaceContext: async (workspaceId: string) =>
+    workspaceId === fixtures.workspaceId
+      ? {
+          workspaceId,
+          workspaceOrganizationId: null,
+          allowPersonalApiKeys: true,
+          billedAccountUserId: fixtures.userId,
+        }
+      : null,
+  loadActiveWorkspaceFileContext: async (fileId: string) =>
+    fixtures.files.has(fileId)
+      ? {
+          fileId,
+          workspaceId: fixtures.workspaceId,
+          workspaceOrganizationId: null,
+          allowPersonalApiKeys: true,
+          billedAccountUserId: fixtures.userId,
+        }
+      : null,
+  getWorkspaceFile: async (workspaceId: string, fileId: string) =>
+    workspaceId === fixtures.workspaceId ? (fixtures.files.get(fileId)?.record ?? null) : null,
+  fetchWorkspaceFileBuffer: async (file: WorkspaceFileRecord) => {
+    const stored = fixtures.files.get(file.id)
+    if (!stored || stored.record.key !== file.key) throw new Error('Missing local fixture file')
+    fixtures.reads.push(file.id)
+    return readFile(stored.path)
+  },
 }))
 
 vi.unmock('@/tools/registry')
 vi.unmock('@/blocks/registry')
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api/server/routes/v2-api-key-auth')>()),
+  authenticateV2ApiKey: async () => ({
+    principal: { kind: 'personal_api_key', userId: fixtures.userId, keyId: 'csv-key' },
+    rateLimitSubjectIds: ['user:csv-user'],
+    rateLimitSubscription: null,
+    keyType: 'personal',
+    keyExpiresAt: null,
+  }),
+}))
+vi.mock('@/lib/core/rate-limiter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/rate-limiter')>()),
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class {
+    async checkRateLimitDirect() {
+      return { allowed: true, remaining: 99, resetAt: new Date() }
+    }
+    async checkRateLimitDirectOrThrow() {
+      return { allowed: true, remaining: 99, resetAt: new Date() }
+    }
+  },
+}))
+vi.mock('@/lib/workflows/application/context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/application/context')>()),
+  resolveActiveWorkflowApplicationContext: async ({ workflowId }: { workflowId: string }) => ({
+    workflowId,
+    workspaceId: fixtures.workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: fixtures.userId,
+    workflow: {
+      id: workflowId,
+      userId: fixtures.userId,
+      workspaceId: fixtures.workspaceId,
+      variables: {},
+      isDeployed: false,
+    },
+  }),
+}))
+vi.mock('@/lib/workflows/persistence/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/persistence/utils')>()),
+  loadWorkflowFromNormalizedTables: async (workflowId: string) => {
+    fixtures.loaded.push(workflowId)
+    return structuredClone(fixtures.saved.get(workflowId) ?? null)
+  },
+  loadDeployedWorkflowState: async () => {
+    throw new Error('This fixture has no deployed version')
+  },
+}))
+vi.mock('@/lib/execution/preprocessing', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/execution/preprocessing')>()),
+  preprocessExecution: async ({ workflowId }: { workflowId: string }) => ({
+    success: true,
+    actorUserId: fixtures.userId,
+    workflowRecord: {
+      id: workflowId,
+      userId: fixtures.userId,
+      workspaceId: fixtures.workspaceId,
+      variables: {},
+      isDeployed: false,
+    },
+    actorSubscription: { plan: 'pro' },
+    billingAttribution: {
+      actorUserId: fixtures.userId,
+      workspaceId: fixtures.workspaceId,
+      organizationId: null,
+      billedAccountUserId: fixtures.userId,
+      billingEntity: { type: 'user', id: fixtures.userId },
+      billingPeriod: { start: '2026-09-01T00:00:00.000Z', end: '2026-10-01T00:00:00.000Z' },
+      payerSubscription: null,
+    },
+    executionTimeout: { sync: 20_000, async: 20_000 },
+  }),
+}))
+vi.mock('@/lib/workflows/custom-blocks/operations', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/custom-blocks/operations')>()),
+  getCustomBlockRowsForWorkspace: async () => [],
+}))
+vi.mock('@/lib/workflows/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/utils')>()),
+  updateWorkflowRunCounts: async () => {},
+}))
+vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
+  claimExecutionId: async (executionId: string) => ({ key: executionId, token: executionId }),
+  hasDurableExecutionOwner: async () => true,
+  releaseExecutionIdClaim: async () => {},
+}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
+  PauseResumeManager: { processQueuedResumes: async () => {} },
+}))
+vi.mock('@/lib/logs/execution/logging-session', () => ({
+  LoggingSession: class {
+    setExecutionDeadlineAt() {}
+    setResolvedSecretTraceRegistry() {}
+    setTraceLargeValueAccess() {}
+    async safeStart() {
+      return true
+    }
+    async onBlockStart() {}
+    async onBlockComplete() {}
+    async safeComplete(input: Parameters<LoggingSession['safeComplete']>[0]) {
+      fixtures.completed.push(input)
+    }
+    async safeCompleteWithError() {}
+    hasCompleted() {
+      return true
+    }
+    setPostExecutionPromise(promise: Promise<void>) {
+      fixtures.pending.push(promise)
+    }
+    projectDiagnosticError() {
+      return {}
+    }
+  },
+}))
 vi.mock('@/lib/execution/remote-sandbox', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/execution/remote-sandbox')>()),
   executeInSandbox: vi.fn(async () => {
@@ -86,24 +251,25 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', async (import
   ...(await importOriginal<
     typeof import('@/lib/uploads/contexts/workspace/workspace-file-manager')
   >()),
-  loadActiveWorkspaceFileContext: async (fileId: string) =>
-    fixtures.files.has(fileId)
-      ? {
-          fileId,
-          workspaceId: fixtures.workspaceId,
-          workspaceOrganizationId: null,
-          allowPersonalApiKeys: true,
-          billedAccountUserId: fixtures.userId,
-        }
-      : null,
-  getWorkspaceFile: async (workspaceId: string, fileId: string) =>
-    workspaceId === fixtures.workspaceId ? (fixtures.files.get(fileId)?.record ?? null) : null,
-  fetchWorkspaceFileBuffer: async (file: WorkspaceFileRecord) => {
-    const stored = fixtures.files.get(file.id)
-    if (!stored || stored.record.key !== file.key) throw new Error('Missing local fixture file')
-    fixtures.reads.push(file.id)
-    return readFile(stored.path)
+  ...workspaceStorage,
+}))
+vi.mock('@/lib/uploads/contexts/workspace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/contexts/workspace')>()),
+  ...workspaceStorage,
+}))
+vi.mock('@/lib/uploads/core/storage-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/core/storage-service')>()),
+  downloadFileStream: async ({ key }: { key: string }) => {
+    const stored = [...fixtures.files.values()].find((entry) => entry.record.key === key)
+    if (!stored) throw new Error('Missing fixture download')
+    fixtures.reads.push(stored.record.id)
+    return createReadStream(stored.path)
   },
+}))
+vi.mock('@/lib/users/queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/users/queries')>()),
+  getUserEmailsByIds: async (ids: readonly string[]) =>
+    new Map(ids.map((id) => [id, 'csv@example.test'])),
 }))
 vi.mock('@/lib/uploads/server/metadata', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/uploads/server/metadata')>()),
@@ -120,7 +286,7 @@ vi.mock('@/lib/uploads/utils/file-utils.server', async (importOriginal) => ({
   },
 }))
 
-function workflow(code: string): SerializedWorkflow {
+function workflowState(code: string) {
   const fileBlock = getLatestBlock('file')
   if (!fileBlock) throw new Error('File block is not registered')
   const blocks: Record<string, BlockState> = {
@@ -165,14 +331,24 @@ function workflow(code: string): SerializedWorkflow {
       outputs: { result: { type: 'json' } },
     },
   }
-  return new Serializer().serializeWorkflow(
+  return {
     blocks,
-    [
+    edges: [
       { id: 'start-file', source: 'start', target: 'file' },
       { id: 'file-summarize', source: 'file', target: 'summarize' },
     ],
-    {},
-    {},
+    loops: {},
+    parallels: {},
+  }
+}
+
+function workflow(code: string): SerializedWorkflow {
+  const state = workflowState(code)
+  return new Serializer().serializeWorkflow(
+    state.blocks,
+    state.edges,
+    state.loops,
+    state.parallels,
     true
   )
 }
@@ -193,6 +369,35 @@ function execute(saved: SerializedWorkflow, fileId: string, workspaceId = fixtur
       },
     },
   }).execute('csv-workflow')
+}
+
+function cliIdentity(workflowId: string): EmbeddedCliIdentity {
+  return {
+    endpoint: 'https://sim.test',
+    apiKey: 'csv-key',
+    workspaceId: fixtures.workspaceId,
+    transport: async (url, init) => {
+      const request = new NextRequest(new Request(url, init))
+      const pathname = request.nextUrl.pathname
+      expect(request.headers.get('x-api-key')).toBe('csv-key')
+      if (pathname === `/api/v2/workflows/${workflowId}/execute`) {
+        return executeRoute(request, { params: Promise.resolve({ workflowId }) })
+      }
+      if (pathname === '/api/v2/files' && request.method === 'POST') return createFileRoute(request)
+      const fileId = pathname.match(/^\/api\/v2\/files\/([^/]+)$/)?.[1]
+      if (fileId && request.method === 'GET')
+        return downloadFileRoute(request, { params: Promise.resolve({ fileId }) })
+      throw new Error(`Unexpected fixture request: ${request.method} ${pathname}`)
+    },
+  }
+}
+
+function runSavedCsv(workflowId: string, fileId: string) {
+  return runCli(
+    ['workflows', 'run', workflowId, '--manual', '--input', JSON.stringify({ file_id: fileId })],
+    cliIdentity(workflowId),
+    null
+  )
 }
 
 const csvHeader = 'order_id,customer_id,region,amount,status,order_date'
@@ -265,7 +470,7 @@ describe.skipIf(!smokeEnabled)(
     let fileId: string
     let program: string
     const csvFileIds: string[] = []
-    async function storeFile(name: string, content: string) {
+    async function storeFile(name: string, content: string, contentType = 'text/csv') {
       const id = generateId()
       const path = join(directory, name)
       await writeFile(path, content)
@@ -279,7 +484,7 @@ describe.skipIf(!smokeEnabled)(
           key: `workspace/${fixtures.workspaceId}/${id}/${name}`,
           path: `/api/files/serve/${id}`,
           size: Buffer.byteLength(content),
-          type: 'text/csv',
+          type: contentType,
           uploadedBy: fixtures.userId,
           uploadedAt: now,
           updatedAt: now,
@@ -296,9 +501,28 @@ describe.skipIf(!smokeEnabled)(
         'utf8'
       )
       for (const input of inputs) csvFileIds.push(await storeFile(input.name, input.content))
+      fixtures.upload.mockImplementation(async (workspaceId, userId, buffer, name, type) => {
+        expect(workspaceId).toBe(fixtures.workspaceId)
+        expect(userId).toBe(fixtures.userId)
+        const id = await storeFile(name, buffer.toString('utf8'), type)
+        const stored = fixtures.files.get(id)
+        if (!stored) throw new Error('Fixture upload did not create a file')
+        return {
+          ...stored.record,
+          url: `https://sim.test/api/v2/files/${id}`,
+          context: 'workspace',
+          folderId: null,
+          folderPath: null,
+          deletedAt: null,
+        }
+      })
     })
     beforeEach(() => {
       vi.clearAllMocks()
+      fixtures.saved.clear()
+      fixtures.loaded.length = 0
+      fixtures.completed.length = 0
+      fixtures.pending.length = 0
       fixtures.reads.length = 0
       fixtures.audiences.length = 0
       fixtures.permission = 'admin'
@@ -352,6 +576,108 @@ describe.skipIf(!smokeEnabled)(
         /File not found/i
       )
       expect(fixtures.reads).toEqual([])
+    }, 30_000)
+    it('runs saved CSV state through the CLI and publishes the returned summary through file routes', async () => {
+      const workflowId = generateId()
+      const saved = workflowState(program)
+      fixtures.saved.set(workflowId, structuredClone(saved))
+      const identity = cliIdentity(workflowId)
+      let reportContent: string | undefined
+      const runIds = new Set<string>()
+      for (const index of [1, 2, 0]) {
+        const result = await runSavedCsv(workflowId, csvFileIds[index])
+        await Promise.all(fixtures.pending)
+        expect(result.exitCode, JSON.stringify(result)).toBe(0)
+        const run = v2ExecuteWorkflowDataSchema.parse(JSON.parse(result.stdout))
+        expect(run).toEqual(
+          expect.objectContaining({
+            workflowId,
+            status: 'completed',
+            error: null,
+            output: expect.objectContaining({ result: inputs[index].expected }),
+          })
+        )
+        expect(fixtures.completed.at(-1)).toEqual(
+          expect.objectContaining({
+            workflowInput: { file_id: csvFileIds[index] },
+            finalOutput: expect.objectContaining({ result: inputs[index].expected }),
+          })
+        )
+        runIds.add(run.runId)
+        reportContent = JSON.stringify(z.object({ result: z.json() }).parse(run.output).result)
+      }
+      if (!reportContent) throw new Error('No execution result to publish')
+      expect(runIds.size).toBe(3)
+      expect(fixtures.loaded).toContain(workflowId)
+      expect(fixtures.completed).toHaveLength(3)
+      expect(fixtures.saved.get(workflowId)).toEqual(saved)
+      const created = await runCli(
+        ['files', 'create', '--name', `${workflowId}-summary.json`, '--content', reportContent],
+        identity,
+        null
+      )
+      expect(created.exitCode, JSON.stringify(created)).toBe(0)
+      const report = v2FileSchema.parse(JSON.parse(created.stdout))
+      const downloaded = await runCli(['files', 'get', report.id], identity, null)
+      expect(downloaded.exitCode, JSON.stringify(downloaded)).toBe(0)
+      expect(JSON.parse(downloaded.stdout)).toEqual(inputs[0].expected)
+      const stored = fixtures.files.get(report.id)
+      if (!stored) throw new Error('Published report is missing')
+      expect(await readFile(stored.path, 'utf8')).toBe(reportContent)
+      for (const [index, id] of csvFileIds.entries()) {
+        const source = fixtures.files.get(id)
+        if (!source) throw new Error('Source file was removed during publication')
+        expect(await readFile(source.path, 'utf8')).toBe(inputs[index].content)
+      }
+      expect(executeInSandbox).not.toHaveBeenCalled()
+      expect(executeShellInSandbox).not.toHaveBeenCalled()
+    }, 30_000)
+    it('returns a real Function failure as a failed CLI run with its run identity and error', async () => {
+      const workflowId = generateId()
+      fixtures.saved.set(workflowId, workflowState(program))
+      const result = await runSavedCsv(workflowId, fileId)
+      await Promise.all(fixtures.pending)
+      expect(result.exitCode).toBe(1)
+      const run = v2ExecuteWorkflowDataSchema.parse(JSON.parse(result.stdout))
+      expect(run).toEqual(
+        expect.objectContaining({
+          workflowId,
+          status: 'failed',
+          error: expect.objectContaining({
+            message: expect.stringContaining('Unexpected CSV header'),
+            blockId: 'summarize',
+          }),
+        })
+      )
+      expect(result.stderr).toContain('Unexpected CSV header')
+      expect(fixtures.upload).not.toHaveBeenCalled()
+    }, 30_000)
+    it('rechecks current access at report creation after a successful run', async () => {
+      const workflowId = generateId()
+      fixtures.saved.set(workflowId, workflowState(program))
+      const result = await runSavedCsv(workflowId, csvFileIds[0])
+      await Promise.all(fixtures.pending)
+      expect(result.exitCode, JSON.stringify(result)).toBe(0)
+      const run = v2ExecuteWorkflowDataSchema.parse(JSON.parse(result.stdout))
+      const summary = z.object({ result: z.json() }).parse(run.output).result
+      const initialFileCount = fixtures.files.size
+      fixtures.permission = null
+      const created = await runCli(
+        [
+          'files',
+          'create',
+          '--name',
+          `${workflowId}-summary.json`,
+          '--content',
+          JSON.stringify(summary),
+        ],
+        cliIdentity(workflowId),
+        null
+      )
+      expect(created.exitCode).toBe(1)
+      expect(created.stderr).toContain('FORBIDDEN')
+      expect(fixtures.upload).not.toHaveBeenCalled()
+      expect(fixtures.files.size).toBe(initialFileCount)
     }, 30_000)
   }
 )
