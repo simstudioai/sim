@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeMessage, type PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
+import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
   MothershipStreamV1CompletionStatus,
   type MothershipStreamV1ErrorPayload,
@@ -16,6 +17,7 @@ import {
 import { isTerminalStreamStatus } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
+import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   getToolDisplayTitle,
@@ -125,6 +127,10 @@ function buildLiveAssistantMessage(params: {
   const { streamId, events, status } = params
   const blocks: RawPersistedBlock[] = []
   const toolIndexById = new Map<string, number>()
+  const taskBlocks = new Map<
+    string,
+    { type: 'task'; task: TaskBlockInfo; timestamp: number; endedAt?: number }
+  >()
   const subagentByParentToolCallId = new Map<string, string>()
   const subagentBySpanId = new Map<string, string>()
   let activeSubagentParentToolCallId: string | undefined
@@ -435,6 +441,23 @@ function buildLiveAssistantMessage(params: {
         continue
       }
       case MothershipStreamV1EventType.run: {
+        const payload = parsed.payload
+        if (payload.kind === 'task_armed' || payload.kind === 'task_delivered') {
+          const existing = taskBlocks.get(payload.taskId)
+          const task = reduceTaskState(existing?.task, payload)
+          if (task) {
+            const timestamp = Date.parse(parsed.ts)
+            if (existing) {
+              existing.task = task
+              if (payload.kind === 'task_delivered') existing.endedAt ??= timestamp
+            } else {
+              const block = { type: 'task' as const, task, timestamp }
+              taskBlocks.set(payload.taskId, block)
+              blocks.push(block)
+            }
+          }
+          continue
+        }
         if (parsed.payload.kind === MothershipStreamV1RunKind.compaction_start) {
           const compactionId = `compaction_${entry.eventId}`
           activeCompactionIdByLane.set(compactionLaneKey, compactionId)

@@ -46,18 +46,6 @@ vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getLatestRunForStream: mockGetLatestRunForStream,
 }))
 
-vi.mock('@/lib/mothership/request/session/types', () => ({
-  toStreamBatchEvent: (e: unknown) => e,
-}))
-
-vi.mock('@/lib/mothership/chat/effective-transcript', () => ({
-  buildEffectiveChatTranscript: ({ messages }: { messages: unknown[] }) => messages,
-}))
-
-vi.mock('@/lib/mothership/chat/persisted-message', () => ({
-  normalizeMessage: (m: unknown) => m,
-}))
-
 vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
@@ -112,6 +100,80 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     mockReadFilePreviewSessions.mockResolvedValue([])
     mockGetLatestRunForStream.mockResolvedValue(null)
   })
+
+  it.each(['active', 'complete'] as const)(
+    'returns watch history through the real transcript projection for a %s stream',
+    async (status) => {
+      mockGetAccessibleCopilotChat.mockResolvedValueOnce({
+        id: 'chat-watch',
+        type: 'mothership',
+        title: 'Watch',
+        messages: [
+          {
+            id: 'stream-watch',
+            role: 'user',
+            content: 'Watch the report',
+            timestamp: '2026-09-06T12:00:00Z',
+          },
+        ],
+        resources: [],
+        conversationId: 'stream-watch',
+        createdAt: new Date('2026-09-06T12:00:00Z'),
+        updatedAt: new Date('2026-09-06T12:00:00Z'),
+      })
+      mockGetLatestRunForStream.mockResolvedValueOnce({ status })
+      mockReadEvents.mockResolvedValueOnce([
+        {
+          v: 1,
+          type: 'run',
+          seq: 1,
+          ts: '2026-09-06T12:00:01Z',
+          stream: { streamId: 'stream-watch' },
+          payload: {
+            kind: 'task_armed',
+            taskId: 'task-1',
+            taskKind: 'timer',
+            target: { firesAt: '2026-09-06T12:01:00Z' },
+            note: 'Check report',
+          },
+        },
+        ...(status === 'complete'
+          ? [
+              {
+                v: 1,
+                type: 'run',
+                seq: 2,
+                ts: '2026-09-06T12:01:00Z',
+                stream: { streamId: 'stream-watch' },
+                payload: {
+                  kind: 'task_delivered',
+                  taskId: 'task-1',
+                  status: 'completed',
+                  summary: 'Timer elapsed',
+                },
+              },
+            ]
+          : []),
+      ])
+      const response = await GET(createRequest('chat-watch'), makeContext('chat-watch'))
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.chat.messages).toHaveLength(2)
+      expect(body.chat.messages[1].contentBlocks).toEqual([
+        expect.objectContaining({
+          type: 'task',
+          task: expect.objectContaining({
+            taskId: 'task-1',
+            kind: 'timer',
+            note: 'Check report',
+            status: status === 'active' ? 'pending' : 'completed',
+            ...(status === 'complete' ? { summary: 'Timer elapsed' } : {}),
+          }),
+        }),
+      ])
+      expect(body.chat.streamSnapshot).toEqual({ events: [], previewSessions: [], status })
+    }
+  )
 
   it('clears activeStreamId when the redis lock has expired (stuck-yellow bug)', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
