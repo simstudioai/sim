@@ -1,4 +1,5 @@
 import { type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
+import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import {
   readSessionSandboxFile,
@@ -17,7 +18,8 @@ import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 export async function runCli(
   argv: string[],
   identity: EmbeddedCliIdentity,
-  sessionKey: string | null
+  sessionKey: string | null,
+  files?: { observeDownload: SessionFileObserver; observeUpload: SessionFileObserver }
 ): Promise<AgentCliRawResult> {
   const readFile = sessionKey
     ? async (path: string) => {
@@ -40,20 +42,18 @@ export async function runCli(
         content: ReadableStream<Uint8Array>,
         options: { overwrite: boolean }
       ) => {
-        const written = await writeSessionSandboxFile(
-          sessionKey,
-          path,
-          content,
-          identity.signal,
-          options
-        )
+        const written = await writeSessionSandboxFile(sessionKey, path, content, identity.signal, {
+          ...options,
+          ...(files ? { observe: files.observeDownload } : {}),
+        })
         if (written.outcome !== 'written') {
           throw new Error(`Writing ${path} could not be confirmed: ${written.detail}`)
         }
       }
     : undefined
   const openFile = sessionKey
-    ? (path: string) => openSessionFileSnapshot(sessionKey, path, identity.signal)
+    ? (path: string) =>
+        openSessionFileSnapshot(sessionKey, path, identity.signal, files?.observeUpload)
     : undefined
   identity.signal?.throwIfAborted()
   const result = await runEmbeddedCli(argv, identity, {

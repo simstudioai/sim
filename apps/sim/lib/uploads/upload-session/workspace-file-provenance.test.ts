@@ -16,6 +16,12 @@ const read = (binding: unknown) =>
   })
 
 describe('private workspace-upload classification', () => {
+  it('never treats pending transfer evidence as safe', () => {
+    const pending = bindWorkspaceFileUploadProvenance('workspace', 'pending')
+    expect(pending.pending).toBe(true)
+    expect(read(pending)).toEqual({ status: 'unknown' })
+    expect(read({ ...bound, pending: true })).toEqual({ status: 'unknown' })
+  })
   it('preserves ordinary uploads without a private binding', () => {
     expect(
       readWorkspaceFileUploadProvenance({

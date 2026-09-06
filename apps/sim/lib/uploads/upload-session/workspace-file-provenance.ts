@@ -8,13 +8,19 @@ interface WorkspaceFileUploadProvenance {
   version: 1
   workspaceId: string
   provenance: WorkspaceFileSecretProvenance
+  pending?: true
 }
 
-/** Copies bounded encrypted entries into immutable upload-session metadata. */
+export type WorkspaceFileUploadSource = WorkspaceFileSecretProvenance | 'pending'
+
+/** A streamed source starts unknown and is sealed by the host when it claims completion. */
 export function bindWorkspaceFileUploadProvenance(
   workspaceId: string,
-  provenance: WorkspaceFileSecretProvenance
+  provenance: WorkspaceFileUploadSource
 ): WorkspaceFileUploadProvenance {
+  if (provenance === 'pending') {
+    return { version: 1, workspaceId, provenance: { status: 'unknown' }, pending: true }
+  }
   return { version: 1, workspaceId, provenance: parseProvenance(provenance) }
 }
 
@@ -36,6 +42,7 @@ export function readWorkspaceFileUploadProvenance(session: {
     !('provenance' in binding)
   )
     return { status: 'unknown' }
+  if ('pending' in binding) return { status: 'unknown' }
   return parseProvenance(binding.provenance)
 }
 
