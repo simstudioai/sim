@@ -275,3 +275,55 @@ describe('QuickBooks report capabilities', () => {
     ).toThrow('profit_and_loss does not support docnum')
   })
 })
+
+describe('QuickBooks report controls Intuit documents beyond one report', () => {
+  function applied(params: QuickBooksRunFinancialReportParams): URL {
+    const url = new URL('https://quickbooks.api.intuit.com/v3/company/123/reports/Report')
+    applyQuickBooksReportParams(url, params)
+    return url
+  }
+
+  it('accepts every documented summarize_column_by value on every report advertising it', () => {
+    for (const reportType of getQuickBooksReportTypesSupporting('summarizeBy')) {
+      expect(
+        applied(reportParams({ reportType, summarizeBy: 'customer' })).searchParams.get(
+          'summarize_column_by'
+        ),
+        reportType
+      ).toBe('Customers')
+      expect(
+        applied(reportParams({ reportType, summarizeBy: 'employee' })).searchParams.get(
+          'summarize_column_by'
+        ),
+        reportType
+      ).toBe('Employees')
+    }
+  })
+
+  it('accepts the paid-status filters on the balance reports documenting them', () => {
+    expect(
+      applied(
+        reportParams({ reportType: 'customer_balance_detail', accountsReceivablePaid: 'unpaid' })
+      ).searchParams.get('arpaid')
+    ).toBe('Unpaid')
+    expect(
+      applied(
+        reportParams({ reportType: 'vendor_balance_detail', accountsPayablePaid: 'paid' })
+      ).searchParams.get('appaid')
+    ).toBe('Paid')
+    expect(() =>
+      applied(reportParams({ reportType: 'balance_sheet', accountsPayablePaid: 'paid' }))
+    ).toThrow('balance_sheet does not support appaid')
+  })
+
+  it('accepts group_by on the inventory valuation detail report', () => {
+    expect(
+      applied(
+        reportParams({ reportType: 'inventory_valuation_detail', groupBy: 'account' })
+      ).searchParams.get('group_by')
+    ).toBe('Account')
+    expect(() =>
+      applied(reportParams({ reportType: 'balance_sheet', groupBy: 'account' }))
+    ).toThrow('balance_sheet does not support group_by')
+  })
+})

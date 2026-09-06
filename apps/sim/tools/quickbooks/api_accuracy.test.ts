@@ -51,7 +51,7 @@ describe('QuickBooks credential authority', () => {
         'params' in value
     )
 
-    expect(tools).toHaveLength(47)
+    expect(tools).toHaveLength(49)
     for (const tool of tools) {
       expect(tool.oauth?.authoritativeParams, tool.id).toContain('realmId')
       expect(tool.oauth?.authoritativeParams, tool.id).toContain('quickBooksEnvironment')
