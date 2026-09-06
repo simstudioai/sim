@@ -826,6 +826,7 @@ export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefin
   return executionId.length > 0 ? executionId : undefined
 }
 
+/** Browser pickup and server fallback share the parent run's Stop/admission lock. */
 export async function claimWorkflowToolExecution(toolCallId: string, executionId: string) {
   const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
   return await withDbSpan(
@@ -836,37 +837,55 @@ export async function claimWorkflowToolExecution(toolCallId: string, executionId
       [TraceAttr.ToolCallId]: toolCallId,
       [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
     },
-    async () => {
-      const now = new Date()
-      const [row] = await db
-        .update(copilotAsyncToolCalls)
-        .set({
-          status: sql`CASE WHEN ${copilotAsyncToolCalls.status} = ${ASYNC_TOOL_STATUS.pending} THEN ${ASYNC_TOOL_STATUS.running} ELSE ${copilotAsyncToolCalls.status} END`,
-          claimedBy,
-          claimedAt: now,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-            isNull(copilotAsyncToolCalls.claimedBy),
-            or(
-              inArray(copilotAsyncToolCalls.status, [
-                ASYNC_TOOL_STATUS.running,
-                ASYNC_TOOL_STATUS.delivered,
-              ]),
-              and(
-                eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-                inArray(copilotAsyncToolCalls.permissionDecision, [
-                  ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
-                ])
+    () =>
+      db.transaction(async (tx) => {
+        const [run] = await tx
+          .select({
+            version: copilotRuns.toolExecutionVersion,
+            status: copilotRuns.status,
+            closedAt: copilotRuns.toolAdmissionClosedAt,
+          })
+          .from(copilotRuns)
+          .innerJoin(copilotAsyncToolCalls, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+          .for('update', { of: copilotRuns })
+        if (
+          !run ||
+          run.version !== SIM_TOOL_EXECUTION_VERSION ||
+          run.closedAt ||
+          TERMINAL_RUN_STATUSES.includes(run.status)
+        )
+          return null
+        const now = new Date()
+        const [row] = await tx
+          .update(copilotAsyncToolCalls)
+          .set({
+            status: sql`CASE WHEN ${copilotAsyncToolCalls.status} = ${ASYNC_TOOL_STATUS.pending} THEN ${ASYNC_TOOL_STATUS.running} ELSE ${copilotAsyncToolCalls.status} END`,
+            claimedBy,
+            claimedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+              isNull(copilotAsyncToolCalls.claimedBy),
+              or(
+                inArray(copilotAsyncToolCalls.status, [
+                  ASYNC_TOOL_STATUS.running,
+                  ASYNC_TOOL_STATUS.delivered,
+                ]),
+                and(
+                  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+                  inArray(copilotAsyncToolCalls.permissionDecision, [
+                    ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+                  ])
+                )
               )
             )
           )
-        )
-        .returning()
-      return row ?? null
-    }
+          .returning()
+        return row ?? null
+      })
   )
 }
 

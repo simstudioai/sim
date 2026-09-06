@@ -543,6 +543,7 @@ describe('async tool repository single-row semantics', () => {
   })
 
   it('atomically binds an eligible workflow tool to one execution', async () => {
+    queueTableRows(copilotRuns, [{ version: 2, status: 'active', closedAt: null }])
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
         toolCallId: 'workflow-tool',
@@ -567,9 +568,22 @@ describe('async tool repository single-row semantics', () => {
   })
 
   it('returns null when a workflow tool execution claim loses the race', async () => {
+    queueTableRows(copilotRuns, [{ version: 2, status: 'active', closedAt: null }])
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+  })
+
+  it.each([
+    { version: 2, status: 'active', closedAt: new Date() },
+    { version: 2, status: 'cancelled', closedAt: null },
+    { version: 2, status: 'complete', closedAt: null },
+    { version: 2, status: 'error', closedAt: null },
+    { version: 0, status: 'active', closedAt: null },
+  ])('refuses workflow pickup without active parent admission: %j', async (run) => {
+    queueTableRows(copilotRuns, [run])
+    await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('overwrites a workflow execution claim once the sim path starts running it', async () => {
