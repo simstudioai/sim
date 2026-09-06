@@ -49,7 +49,9 @@ export function formatEmailAsMessage(
       .join('\n')
     parts.push(`**Attachments:**\n${attachmentList}`)
   } else if (task.hasAttachments) {
-    parts.push('**Attachments:** (attached files are available for processing)')
+    parts.push(
+      '**Attachments:** (the email reports attachments, but their metadata was unavailable)'
+    )
   }
 
   return parts.join('\n\n')

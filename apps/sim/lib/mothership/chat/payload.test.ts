@@ -15,8 +15,8 @@ const {
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockGetHighestPrioritySubscription: vi.fn(),
   mockGetUserPermissionConfig: vi.fn(),
-  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
-  mockIsOAuthServiceDeploymentAvailable: vi.fn(() => true),
+  mockIsIntegrationDeploymentAvailable: vi.fn((_blockType: string) => true),
+  mockIsOAuthServiceDeploymentAvailable: vi.fn((_providerId: string) => true),
   mockTrackChatUpload: vi.fn(),
 }))
 
