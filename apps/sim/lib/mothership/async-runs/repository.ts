@@ -90,7 +90,7 @@ export interface CreateRunSegmentInput {
 type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /** Serializes Stop and admission, including when no run row exists to lock yet. */
-async function withRunAdmissionLock<T>(
+export async function withRunAdmissionLock<T>(
   userId: string,
   streamId: string,
   action: (tx: RunAdmissionTransaction) => Promise<T>
@@ -171,53 +171,55 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
       [TraceAttr.CopilotRunProvider]: input.provider ?? undefined,
       [TraceAttr.CopilotRunStatus]: input.status ?? 'active',
     },
-    () =>
-      withRunAdmissionLock(input.userId, input.streamId, async (tx) => {
-        let workspaceId = input.workspaceId
-        if (!workspaceId) {
-          const [chat] = await tx
-            .select({ workspaceId: copilotChats.workspaceId })
-            .from(copilotChats)
-            .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
-            .limit(1)
-          workspaceId = chat?.workspaceId
-        }
-        if (!workspaceId) throw new Error('Chat workspace is unavailable for run admission')
-        const [stop] = await tx
-          .select()
-          .from(copilotRequestStops)
-          .where(
-            and(
-              eq(copilotRequestStops.userId, input.userId),
-              eq(copilotRequestStops.workspaceId, workspaceId),
-              eq(copilotRequestStops.streamId, input.streamId)
-            )
-          )
-          .limit(1)
-        const [run] = await tx
-          .insert(copilotRuns)
-          .values({
-            ...(input.id ? { id: input.id } : {}),
-            executionId: input.executionId,
-            parentRunId: input.parentRunId ?? null,
-            chatId: input.chatId,
-            userId: input.userId,
-            workflowId: input.workflowId ?? null,
-            workspaceId,
-            streamId: input.streamId,
-            toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
-            agent: input.agent ?? null,
-            model: input.model ?? null,
-            provider: input.provider ?? null,
-            requestContext: input.requestContext ?? {},
-            status: stop ? 'cancelled' : (input.status ?? 'active'),
-            ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
-          })
-          .returning()
-        if (!run) throw new Error('Run admission did not return its persisted identity')
-        return run
-      })
+    () => withRunAdmissionLock(input.userId, input.streamId, (tx) => insertRunSegment(tx, input))
   )
+}
+
+/** Caller holds the Stop/admission lock; its related chat writes commit with this run. */
+export async function insertRunSegment(tx: RunAdmissionTransaction, input: CreateRunSegmentInput) {
+  let workspaceId = input.workspaceId
+  if (!workspaceId) {
+    const [chat] = await tx
+      .select({ workspaceId: copilotChats.workspaceId })
+      .from(copilotChats)
+      .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
+      .limit(1)
+    workspaceId = chat?.workspaceId
+  }
+  if (!workspaceId) throw new Error('Chat workspace is unavailable for run admission')
+  const [stop] = await tx
+    .select()
+    .from(copilotRequestStops)
+    .where(
+      and(
+        eq(copilotRequestStops.userId, input.userId),
+        eq(copilotRequestStops.workspaceId, workspaceId),
+        eq(copilotRequestStops.streamId, input.streamId)
+      )
+    )
+    .limit(1)
+  const [run] = await tx
+    .insert(copilotRuns)
+    .values({
+      ...(input.id ? { id: input.id } : {}),
+      executionId: input.executionId,
+      parentRunId: input.parentRunId ?? null,
+      chatId: input.chatId,
+      userId: input.userId,
+      workflowId: input.workflowId ?? null,
+      workspaceId,
+      streamId: input.streamId,
+      toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
+      agent: input.agent ?? null,
+      model: input.model ?? null,
+      provider: input.provider ?? null,
+      requestContext: input.requestContext ?? {},
+      status: stop ? 'cancelled' : (input.status ?? 'active'),
+      ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
+    })
+    .returning()
+  if (!run) throw new Error('Run admission did not return its persisted identity')
+  return run
 }
 
 export async function updateRunStatus(

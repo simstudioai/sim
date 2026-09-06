@@ -80,6 +80,7 @@ vi.mock('@/lib/mothership/async-runs/repository', () => ({
   updateRunStatus,
 }))
 
+let mockDisconnected = false
 let mockPublisherController: ReadableStreamDefaultController | null = null
 
 vi.mock('@/lib/mothership/request/session', () => ({
@@ -111,12 +112,14 @@ vi.mock('@/lib/mothership/request/session', () => ({
         // already closed
       }
     })
-    markDisconnected = vi.fn()
+    markDisconnected = vi.fn(() => {
+      mockDisconnected = true
+    })
     publish = vi.fn().mockImplementation(async (event: Record<string, unknown>) => {
       appendEvent(event)
     })
     get clientDisconnected() {
-      return false
+      return mockDisconnected
     }
     get sawComplete() {
       return false
@@ -159,6 +162,7 @@ describe('createSSEStream terminal error handling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: false })
     fetchGo.mockResolvedValue(
@@ -201,6 +205,57 @@ describe('createSSEStream terminal error handling', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
+
+  it.each(['returned', 'thrown'])(
+    'retains an error verdict after a detached sink (%s failure)',
+    async (kind) => {
+      let settle!: () => void
+      const pending = new Promise<void>((resolve) => {
+        settle = resolve
+      })
+      runCopilotLifecycle.mockImplementation(async () => {
+        await pending
+        if (kind === 'thrown') throw new Error('worker unavailable')
+        return {
+          success: false,
+          error: 'worker unavailable',
+          content: '',
+          contentBlocks: [],
+          toolCalls: [],
+        }
+      })
+      const stream = createSSEStream({
+        requestPayload: { message: 'hello' },
+        userId: 'user-1',
+        streamId: 'stream-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        currentChat: null,
+        isNewChat: false,
+        message: 'hello',
+        titleModel: '',
+        requestId: 'req-1',
+        orchestrateOptions: { userId: 'user-1' },
+      })
+      await vi.waitFor(() => expect(runCopilotLifecycle).toHaveBeenCalledOnce())
+      await stream.cancel()
+      settle()
+      await vi.waitFor(() =>
+        expect(updateRunStatus).toHaveBeenCalledWith(
+          'run-1',
+          'error',
+          expect.any(Object),
+          undefined
+        )
+      )
+      expect(appendEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'complete',
+          payload: expect.objectContaining({ status: 'error' }),
+        })
+      )
+    }
+  )
 
   it('writes a terminal error event before close when orchestration returns success=false', async () => {
     runCopilotLifecycle.mockResolvedValue({
@@ -455,6 +510,7 @@ describe('requestChatTitle billing protocol', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: true })
     fetchGo.mockResolvedValue(
