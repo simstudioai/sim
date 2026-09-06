@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,225 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_compute",
+      "slug": "oci-compute",
+      "name": "OCI Compute",
+      "description": "Manage OCI instances, images, capacity, configurations, and pools",
+      "longDescription": "Manage Compute instances, custom images, shapes, capacity reports, instance configurations and pools with a reusable OCI signing-key credential. Discover existing placement and attachment resources and inspect work requests. Launching, resizing, starting, and capturing images can incur charges. Deletion and termination can permanently destroy data. Operations return current state promptly; use get/status tools to check progress. Retry tokens protect supported requests within Oracle’s token lifetime; unkeyed mutations can repeat if workflow retries are enabled. Networking and storage provisioning are separate integrations.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_compute",
+      "operations": [
+        {
+          "name": "List Instances",
+          "description": "List instances in OCI"
+        },
+        {
+          "name": "Get Instance",
+          "description": "Get instance in OCI"
+        },
+        {
+          "name": "Launch Instance",
+          "description": "Launch a billable Compute instance from an image or existing boot volume and return its provisioning state"
+        },
+        {
+          "name": "Update Instance",
+          "description": "Update instance settings with optimistic concurrency and explicit downtime control"
+        },
+        {
+          "name": "Instance Action",
+          "description": "Start, stop, reset, or reboot-migrate an instance; actions may interrupt workloads or incur charges"
+        },
+        {
+          "name": "Terminate Instance",
+          "description": "Terminate an instance with explicit boot/data-volume preservation; returns before termination completes"
+        },
+        {
+          "name": "Change Instance Compartment",
+          "description": "Change instance compartment in OCI"
+        },
+        {
+          "name": "Get Instance Maintenance Reboot",
+          "description": "Get instance maintenance reboot in OCI"
+        },
+        {
+          "name": "List Images",
+          "description": "List images in OCI"
+        },
+        {
+          "name": "Get Image",
+          "description": "Get image in OCI"
+        },
+        {
+          "name": "Create Image",
+          "description": "Capture a custom image from an instance; may interrupt the instance and creates billable image storage"
+        },
+        {
+          "name": "Update Image",
+          "description": "Update image in OCI"
+        },
+        {
+          "name": "Delete Image",
+          "description": "Delete image in OCI"
+        },
+        {
+          "name": "Change Image Compartment",
+          "description": "Change image compartment in OCI"
+        },
+        {
+          "name": "List Shapes",
+          "description": "List shapes in OCI"
+        },
+        {
+          "name": "List Image Shape Compatibility Entries",
+          "description": "List image shape compatibility entries in OCI"
+        },
+        {
+          "name": "Get Image Shape Compatibility Entry",
+          "description": "Get image shape compatibility entry in OCI"
+        },
+        {
+          "name": "Create Compute Capacity Report",
+          "description": "Inspect available capacity for requested shapes without reserving or launching resources"
+        },
+        {
+          "name": "List Instance Configurations",
+          "description": "List instance configurations in OCI"
+        },
+        {
+          "name": "Get Instance Configuration",
+          "description": "Get instance configuration in OCI"
+        },
+        {
+          "name": "Create Instance Configuration",
+          "description": "Create a reusable typed instance configuration or copy an existing instance’s settings, excluding disk contents"
+        },
+        {
+          "name": "Update Instance Configuration",
+          "description": "Update configuration name and tags; launch settings require a new configuration"
+        },
+        {
+          "name": "Delete Instance Configuration",
+          "description": "Delete instance configuration in OCI"
+        },
+        {
+          "name": "Launch Instance Configuration",
+          "description": "Launch an instance from a configuration with typed deferred-field overrides; may create billable resources"
+        },
+        {
+          "name": "Change Instance Configuration Compartment",
+          "description": "Change instance configuration compartment in OCI"
+        },
+        {
+          "name": "List Instance Pools",
+          "description": "List instance pools in OCI"
+        },
+        {
+          "name": "Get Instance Pool",
+          "description": "Get instance pool in OCI"
+        },
+        {
+          "name": "Create Instance Pool",
+          "description": "Create a pool from an instance configuration and placement settings; provisions billable instances"
+        },
+        {
+          "name": "Update Instance Pool",
+          "description": "Update pool size and settings; scale-down terminates members and configuration changes affect future instances"
+        },
+        {
+          "name": "Instance Pool Action",
+          "description": "Start, stop, or reset a pool’s instances; may interrupt workloads and affect charges"
+        },
+        {
+          "name": "Terminate Instance Pool",
+          "description": "Terminate a pool and its created resources, including volumes; no preservation flags are supported"
+        },
+        {
+          "name": "Change Instance Pool Compartment",
+          "description": "Change instance pool compartment in OCI"
+        },
+        {
+          "name": "List Instance Pool Instances",
+          "description": "List instance pool instances in OCI"
+        },
+        {
+          "name": "Get Instance Pool Instance",
+          "description": "Get instance pool instance in OCI"
+        },
+        {
+          "name": "Attach Instance Pool Instance",
+          "description": "Attach an eligible existing instance to a pool and return membership status"
+        },
+        {
+          "name": "Detach Instance Pool Instance",
+          "description": "Detach a pool member with explicit termination and replacement-size choices"
+        },
+        {
+          "name": "List Availability Domains",
+          "description": "List availability domains in OCI"
+        },
+        {
+          "name": "List Fault Domains",
+          "description": "List fault domains in OCI"
+        },
+        {
+          "name": "List Compartments",
+          "description": "List compartments in OCI"
+        },
+        {
+          "name": "Get Compartment",
+          "description": "Get compartment in OCI"
+        },
+        {
+          "name": "List Subnets",
+          "description": "List subnets in OCI"
+        },
+        {
+          "name": "Get Subnet",
+          "description": "Get subnet in OCI"
+        },
+        {
+          "name": "List Vnic Attachments",
+          "description": "List vnic attachments in OCI"
+        },
+        {
+          "name": "Get Vnic",
+          "description": "Get vnic in OCI"
+        },
+        {
+          "name": "List Boot Volume Attachments",
+          "description": "List boot volume attachments in OCI"
+        },
+        {
+          "name": "List Volume Attachments",
+          "description": "List volume attachments in OCI"
+        },
+        {
+          "name": "List Work Requests",
+          "description": "List work requests in OCI"
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Get work request in OCI"
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List work request errors in OCI"
+        },
+        {
+          "name": "List Work Request Logs",
+          "description": "List work request logs in OCI"
+        }
+      ],
+      "operationCount": 50,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["automation", "monitoring"]
     },
     {
       "type": "okta",

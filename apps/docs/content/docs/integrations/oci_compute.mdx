@@ -1,0 +1,1963 @@
+---
+title: OCI Compute
+description: Manage OCI instances, images, capacity, configurations, and pools
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_compute"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Manage Compute instances, custom images, shapes, capacity reports, instance configurations and pools with a reusable OCI signing-key credential. Discover existing placement and attachment resources and inspect work requests. Launching, resizing, starting, and capturing images can incur charges. Deletion and termination can permanently destroy data. Operations return current state promptly; use get/status tools to check progress. Retry tokens protect supported requests within Oracle’s token lifetime; unkeyed mutations can repeat if workflow retries are enabled. Networking and storage provisioning are separate integrations.
+
+
+
+## Actions
+
+### OCI Compute List instances
+
+List instances in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `sortBy` | string | No | Sort by TIMECREATED or DISPLAYNAME |
+| `sortOrder` | string | No | Sort direction: ASC or DESC |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `availabilityDomain` | string | No | Exact availability-domain name returned by OCI discovery |
+| `lifecycleState` | string | No | Exact lifecycle-state filter supported by this resource |
+| `capacityReservationId` | string | No | Existing reservation OCID; an empty string opts out on direct launch or removes the reservation on update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `instances` | array | Instances in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `capacityReservationId` | string | capacity Reservation Id |
+|   ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `timeMaintenanceRebootDue` | string | time Maintenance Reboot Due |
+|   ↳ `shapeConfig` | json | Allocated shape resources |
+|     ↳ `ocpus` | number | Allocated OCPUs |
+|     ↳ `memoryInGBs` | number | Allocated memory in GB |
+|     ↳ `vcpus` | number | Allocated vCPUs |
+|     ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|     ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|   ↳ `sourceDetails` | json | Instance launch source |
+|     ↳ `sourceType` | string | image or bootVolume |
+|     ↳ `imageId` | string | Source image OCID |
+|     ↳ `bootVolumeId` | string | Source boot volume OCID |
+|     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+
+### OCI Compute Get instance
+
+Get instance in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instance` | json | Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `capacityReservationId` | string | capacity Reservation Id |
+|   ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `timeMaintenanceRebootDue` | string | time Maintenance Reboot Due |
+|   ↳ `shapeConfig` | json | Allocated shape resources |
+|     ↳ `ocpus` | number | Allocated OCPUs |
+|     ↳ `memoryInGBs` | number | Allocated memory in GB |
+|     ↳ `vcpus` | number | Allocated vCPUs |
+|     ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|     ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|   ↳ `sourceDetails` | json | Instance launch source |
+|     ↳ `sourceType` | string | image or bootVolume |
+|     ↳ `imageId` | string | Source image OCID |
+|     ↳ `bootVolumeId` | string | Source boot volume OCID |
+|     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+
+### OCI Compute Launch instance
+
+Launch a billable Compute instance from an image or existing boot volume and return its provisioning state
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `availabilityDomain` | string | Yes | Exact availability-domain name returned by OCI discovery |
+| `shape` | string | Yes | Compute shape name; image, capacity, and shape compatibility are validated by OCI |
+| `sourceMode` | string | Yes | Launch from image ID \(image\), image filter \(imageFilter\), or existing boot volume \(bootVolume\) |
+| `imageId` | string | No | Image OCID; required for image-ID launches |
+| `imageFilter` | json | No | Image selection criteria: compartmentId, operatingSystem, operatingSystemVersion, definedTagsFilter |
+| `bootVolumeId` | string | No | Existing boot volume OCID in the instance availability domain; only for bootVolume launches |
+| `bootVolumeSizeInGBs` | number | No | Image-source boot volume size in GB, 50–32768; increases storage charges |
+| `bootVolumeVpusPerGB` | number | No | Image-source boot volume performance: 10, 20, or 30–120 VPUs/GB; affects charges |
+| `kmsKeyId` | string | No | Existing Vault key OCID for a newly created image-source boot volume |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `shapeConfig` | json | No | Shape resources: ocpus OR vcpus, memoryInGBs, baselineOcpuUtilization, nvmes; use List Shapes for valid ranges |
+| `createVnicDetails` | json | Yes | Primary VNIC settings: subnetId \(required\), displayName, assignPublicIp, assignPrivateDnsRecord, hostnameLabel, privateIp/privateIpId/subnetCidr, nsgIds, skipSourceDestCheck, assignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails |
+| `faultDomain` | string | No | Fault domain within the selected availability domain |
+| `metadata` | json | No | String-to-string metadata map; user_data is base64 and ssh_authorized_keys contains SSH public keys. Updates replace the map and must retain immutable launch keys unchanged |
+| `extendedMetadata` | json | No | Nested metadata map; combined with metadata, at most 32000 bytes. Updates must preserve immutable launch keys |
+| `agentConfig` | json | No | Oracle Cloud Agent settings: isMonitoringDisabled, isManagementDisabled, areAllPluginsDisabled, pluginsConfig \[\{name, desiredState: ENABLED or DISABLED\}\] |
+| `availabilityConfig` | json | No | Availability settings: recoveryAction \(RESTORE_INSTANCE or STOP_INSTANCE\), isLiveMigrationPreferred |
+| `instanceOptions` | json | No | Instance options: areLegacyImdsEndpointsDisabled |
+| `capacityReservationId` | string | No | Existing reservation OCID; an empty string opts out on direct launch or removes the reservation on update |
+| `dedicatedVmHostId` | string | No | Existing dedicated VM host OCID; placement restrictions and capacity are enforced by OCI |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+| `retryToken` | string | Retry token used for this creation request |
+| `instance` | json | Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `capacityReservationId` | string | capacity Reservation Id |
+|   ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `timeMaintenanceRebootDue` | string | time Maintenance Reboot Due |
+|   ↳ `shapeConfig` | json | Allocated shape resources |
+|     ↳ `ocpus` | number | Allocated OCPUs |
+|     ↳ `memoryInGBs` | number | Allocated memory in GB |
+|     ↳ `vcpus` | number | Allocated vCPUs |
+|     ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|     ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|   ↳ `sourceDetails` | json | Instance launch source |
+|     ↳ `sourceType` | string | image or bootVolume |
+|     ↳ `imageId` | string | Source image OCID |
+|     ↳ `bootVolumeId` | string | Source boot volume OCID |
+|     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+
+### OCI Compute Update instance
+
+Update instance settings with optimistic concurrency and explicit downtime control
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `shape` | string | No | Compute shape name; image, capacity, and shape compatibility are validated by OCI |
+| `shapeConfig` | json | No | Shape resources: ocpus OR vcpus, memoryInGBs, baselineOcpuUtilization, nvmes; use List Shapes for valid ranges |
+| `faultDomain` | string | No | Fault domain within the selected availability domain |
+| `metadata` | json | No | String-to-string metadata map; user_data is base64 and ssh_authorized_keys contains SSH public keys. Updates replace the map and must retain immutable launch keys unchanged |
+| `extendedMetadata` | json | No | Nested metadata map; combined with metadata, at most 32000 bytes. Updates must preserve immutable launch keys |
+| `agentConfig` | json | No | Oracle Cloud Agent settings: isMonitoringDisabled, isManagementDisabled, areAllPluginsDisabled, pluginsConfig \[\{name, desiredState: ENABLED or DISABLED\}\] |
+| `availabilityConfig` | json | No | Availability settings: recoveryAction \(RESTORE_INSTANCE or STOP_INSTANCE\), isLiveMigrationPreferred |
+| `instanceOptions` | json | No | Instance options: areLegacyImdsEndpointsDisabled |
+| `capacityReservationId` | string | No | Existing reservation OCID; an empty string opts out on direct launch or removes the reservation on update |
+| `dedicatedVmHostId` | string | No | Existing dedicated VM host OCID; placement restrictions and capacity are enforced by OCI |
+| `timeMaintenanceRebootDue` | string | No | RFC3339 VM maintenance reboot schedule within the maximum returned by Get Instance Maintenance Reboot |
+| `updateOperationConstraint` | string | No | AVOID_DOWNTIME \(default\) rejects updates requiring a reboot; ALLOW_DOWNTIME permits downtime |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+| `instance` | json | Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `capacityReservationId` | string | capacity Reservation Id |
+|   ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `timeMaintenanceRebootDue` | string | time Maintenance Reboot Due |
+|   ↳ `shapeConfig` | json | Allocated shape resources |
+|     ↳ `ocpus` | number | Allocated OCPUs |
+|     ↳ `memoryInGBs` | number | Allocated memory in GB |
+|     ↳ `vcpus` | number | Allocated vCPUs |
+|     ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|     ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|   ↳ `sourceDetails` | json | Instance launch source |
+|     ↳ `sourceType` | string | image or bootVolume |
+|     ↳ `imageId` | string | Source image OCID |
+|     ↳ `bootVolumeId` | string | Source boot volume OCID |
+|     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+
+### OCI Compute Instance action
+
+Start, stop, reset, or reboot-migrate an instance; actions may interrupt workloads or incur charges
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `action` | string | Yes | Instance action: START, STOP, SOFTSTOP, RESET, SOFTRESET, or REBOOTMIGRATE. Pools support the first five |
+| `allowDenseRebootMigration` | boolean | No | For RESET/SOFTRESET only: enabling DenseIO reboot migration permanently deletes local SSD data |
+| `deleteLocalStorage` | boolean | No | For REBOOTMIGRATE only: explicitly permit deletion of local storage on applicable bare metal instances |
+| `timeScheduled` | string | No | RFC3339 REBOOTMIGRATE timestamp; omit for immediate migration |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instance` | json | Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `capacityReservationId` | string | capacity Reservation Id |
+|   ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `timeMaintenanceRebootDue` | string | time Maintenance Reboot Due |
+|   ↳ `shapeConfig` | json | Allocated shape resources |
+|     ↳ `ocpus` | number | Allocated OCPUs |
+|     ↳ `memoryInGBs` | number | Allocated memory in GB |
+|     ↳ `vcpus` | number | Allocated vCPUs |
+|     ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|     ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|   ↳ `sourceDetails` | json | Instance launch source |
+|     ↳ `sourceType` | string | image or bootVolume |
+|     ↳ `imageId` | string | Source image OCID |
+|     ↳ `bootVolumeId` | string | Source boot volume OCID |
+|     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+
+### OCI Compute Terminate instance
+
+Terminate an instance with explicit boot/data-volume preservation; returns before termination completes
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `preserveBootVolume` | boolean | No | Preserve the boot volume on termination \(default true\); retained storage remains billable |
+| `preserveDataVolumesCreatedAtLaunch` | boolean | No | Preserve launch-created data volumes on termination \(default true\); retained storage remains billable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+
+### OCI Compute Change instance compartment
+
+Change instance compartment in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+
+### OCI Compute Get instance maintenance reboot
+
+Get instance maintenance reboot in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `maintenanceReboot` | json | Maintenance Reboot information returned by OCI |
+|   ↳ `timeMaintenanceRebootDueMax` | string | Latest permitted maintenance reboot timestamp |
+
+### OCI Compute List images
+
+List images in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `sortBy` | string | No | Sort by TIMECREATED or DISPLAYNAME |
+| `sortOrder` | string | No | Sort direction: ASC or DESC |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `operatingSystem` | string | No | Exact image operating-system filter |
+| `operatingSystemVersion` | string | No | Exact image operating-system-version filter |
+| `shape` | string | No | Compute shape name; image, capacity, and shape compatibility are validated by OCI |
+| `lifecycleState` | string | No | Exact lifecycle-state filter supported by this resource |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `images` | array | Images in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `operatingSystem` | string | operating System |
+|   ↳ `operatingSystemVersion` | string | operating System Version |
+|   ↳ `baseImageId` | string | base Image Id |
+|   ↳ `launchMode` | string | launch Mode |
+|   ↳ `sizeInMBs` | number | Image size in MB |
+|   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
+|   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
+
+### OCI Compute Get image
+
+Get image in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `imageId` | string | Yes | Image OCID; required for image-ID launches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `image` | json | Image information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `operatingSystem` | string | operating System |
+|   ↳ `operatingSystemVersion` | string | operating System Version |
+|   ↳ `baseImageId` | string | base Image Id |
+|   ↳ `launchMode` | string | launch Mode |
+|   ↳ `sizeInMBs` | number | Image size in MB |
+|   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
+|   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
+
+### OCI Compute Create image
+
+Capture a custom image from an instance; may interrupt the instance and creates billable image storage
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+| `retryToken` | string | Retry token used for this creation request |
+| `image` | json | Image information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `operatingSystem` | string | operating System |
+|   ↳ `operatingSystemVersion` | string | operating System Version |
+|   ↳ `baseImageId` | string | base Image Id |
+|   ↳ `launchMode` | string | launch Mode |
+|   ↳ `sizeInMBs` | number | Image size in MB |
+|   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
+|   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
+
+### OCI Compute Update image
+
+Update image in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `imageId` | string | Yes | Image OCID; required for image-ID launches |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `image` | json | Image information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `operatingSystem` | string | operating System |
+|   ↳ `operatingSystemVersion` | string | operating System Version |
+|   ↳ `baseImageId` | string | base Image Id |
+|   ↳ `launchMode` | string | launch Mode |
+|   ↳ `sizeInMBs` | number | Image size in MB |
+|   ↳ `billableSizeInGBs` | number | Billable image storage in GB |
+|   ↳ `createImageAllowed` | boolean | Whether new images can be captured from instances using this image |
+
+### OCI Compute Delete image
+
+Delete image in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `imageId` | string | Yes | Image OCID; required for image-ID launches |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+
+### OCI Compute Change image compartment
+
+Change image compartment in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `imageId` | string | Yes | Image OCID; required for image-ID launches |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+
+### OCI Compute List shapes
+
+List shapes in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `availabilityDomain` | string | No | Exact availability-domain name returned by OCI discovery |
+| `imageId` | string | No | Image OCID; required for image-ID launches |
+| `shape` | string | No | Compute shape name; image, capacity, and shape compatibility are validated by OCI |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `shapes` | array | Shapes in this page |
+|   ↳ `shape` | string | shape |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `processorDescription` | string | processor Description |
+|   ↳ `billingType` | string | billing Type |
+|   ↳ `ocpus` | number | Default OCPUs |
+|   ↳ `memoryInGBs` | number | Default memory in GB |
+|   ↳ `gpus` | number | GPUs |
+|   ↳ `localDisks` | number | Local disks |
+|   ↳ `localDisksTotalSizeInGBs` | number | Local storage in GB |
+|   ↳ `networkingBandwidthInGbps` | number | Network bandwidth in Gbps |
+|   ↳ `maxVnicAttachments` | number | Maximum VNIC attachments |
+|   ↳ `isFlexible` | boolean | Supports flexible resource sizing |
+|   ↳ `isBilledForStoppedInstance` | boolean | Compute charges continue while stopped |
+|   ↳ `ocpuOptions` | json | Flexible OCPU limits |
+|     ↳ `min` | number | Minimum OCPUs |
+|     ↳ `max` | number | Maximum OCPUs |
+|   ↳ `memoryOptions` | json | Flexible memory limits |
+|     ↳ `minInGBs` | number | Minimum memory |
+|     ↳ `maxInGBs` | number | Maximum memory |
+|     ↳ `minPerOcpuInGBs` | number | Minimum memory per OCPU |
+|     ↳ `maxPerOcpuInGBs` | number | Maximum memory per OCPU |
+|     ↳ `defaultPerOcpuInGBs` | number | Default memory per OCPU |
+
+### OCI Compute List image shape compatibility entries
+
+List image shape compatibility entries in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `imageId` | string | Yes | Image OCID; required for image-ID launches |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `compatibilityEntries` | array | Compatibility Entries in this page |
+|   ↳ `imageId` | string | image Id |
+|   ↳ `shape` | string | shape |
+|   ↳ `memoryConstraints` | json | Compatible memory range |
+|     ↳ `minInGBs` | number | Minimum memory |
+|     ↳ `maxInGBs` | number | Maximum memory |
+|   ↳ `ocpuConstraints` | json | Compatible OCPU range |
+|     ↳ `min` | number | Minimum OCPUs |
+|     ↳ `max` | number | Maximum OCPUs |
+
+### OCI Compute Get image shape compatibility entry
+
+Get image shape compatibility entry in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `imageId` | string | Yes | Image OCID; required for image-ID launches |
+| `shape` | string | Yes | Compute shape name; image, capacity, and shape compatibility are validated by OCI |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `compatibilityEntry` | json | Compatibility Entry information returned by OCI |
+|   ↳ `imageId` | string | image Id |
+|   ↳ `shape` | string | shape |
+|   ↳ `memoryConstraints` | json | Compatible memory range |
+|     ↳ `minInGBs` | number | Minimum memory |
+|     ↳ `maxInGBs` | number | Maximum memory |
+|   ↳ `ocpuConstraints` | json | Compatible OCPU range |
+|     ↳ `min` | number | Minimum OCPUs |
+|     ↳ `max` | number | Maximum OCPUs |
+
+### OCI Compute Create compute capacity report
+
+Inspect available capacity for requested shapes without reserving or launching resources
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `availabilityDomain` | string | Yes | Exact availability-domain name returned by OCI discovery |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `shapeAvailabilities` | json | Yes | Capacity queries \[\{instanceShape, instanceShapeConfig: \{ocpus, memoryInGBs\}, faultDomain\}\]; reports do not reserve capacity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this creation request |
+| `capacityReport` | json | Capacity Report information returned by OCI |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `shapeAvailabilities` | array | Capacity snapshot; does not reserve resources |
+|     ↳ `instanceShape` | string | instance Shape |
+|     ↳ `faultDomain` | string | fault Domain |
+|     ↳ `availabilityStatus` | string | availability Status |
+|     ↳ `availableCount` | number | Available instance count |
+|     ↳ `instanceShapeConfig` | json | Requested shape resources |
+|       ↳ `ocpus` | number | OCPUs |
+|       ↳ `memoryInGBs` | number | Memory in GB |
+
+### OCI Compute List instance configurations
+
+List instance configurations in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `sortBy` | string | No | Sort by TIMECREATED or DISPLAYNAME |
+| `sortOrder` | string | No | Sort direction: ASC or DESC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `instanceConfigurations` | array | Instance Configurations in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+
+### OCI Compute Get instance configuration
+
+Get instance configuration in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceConfigurationId` | string | Yes | Instance configuration OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instanceConfiguration` | json | Instance Configuration information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `deferredFields` | array | Fields that must be supplied at launch |
+|   ↳ `instanceDetails` | json | Selected configuration settings |
+|     ↳ `instanceType` | string | Instance configuration type |
+|     ↳ `launchDetails` | json | Launch settings; omitted values can be deferred |
+|       ↳ `compartmentId` | string | compartment Id |
+|       ↳ `availabilityDomain` | string | availability Domain |
+|       ↳ `displayName` | string | display Name |
+|       ↳ `shape` | string | shape |
+|       ↳ `faultDomain` | string | fault Domain |
+|       ↳ `capacityReservationId` | string | capacity Reservation Id |
+|       ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|       ↳ `shapeConfig` | json | Configured shape resources |
+|         ↳ `ocpus` | number | Allocated OCPUs |
+|         ↳ `memoryInGBs` | number | Allocated memory in GB |
+|         ↳ `vcpus` | number | Allocated vCPUs |
+|         ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|         ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|       ↳ `sourceDetails` | json | Configured launch source |
+|         ↳ `sourceType` | string | image or bootVolume |
+|         ↳ `imageId` | string | Source image OCID |
+|         ↳ `bootVolumeId` | string | Source boot volume OCID |
+|         ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+|       ↳ `createVnicDetails` | json | Configured primary VNIC |
+|         ↳ `subnetId` | string | subnet Id |
+|         ↳ `displayName` | string | display Name |
+|         ↳ `hostnameLabel` | string | hostname Label |
+|         ↳ `privateIp` | string | private Ip |
+|         ↳ `privateIpId` | string | private Ip Id |
+|         ↳ `subnetCidr` | string | subnet Cidr |
+|         ↳ `assignPublicIp` | boolean | Assign a public IP |
+|         ↳ `nsgIds` | array | Network security group OCIDs |
+|     ↳ `blockVolumes` | array | Existing data volume attachments |
+|       ↳ `volumeId` | string | Existing volume OCID |
+|       ↳ `attachDetails` | json | Volume attachment settings |
+|         ↳ `type` | string | iscsi or paravirtualized |
+|         ↳ `isReadOnly` | boolean | Read-only attachment |
+|         ↳ `isShareable` | boolean | Shareable attachment |
+|     ↳ `secondaryVnics` | array | Secondary VNIC configuration |
+|       ↳ `displayName` | string | VNIC display name |
+|       ↳ `nicIndex` | number | Physical NIC index |
+|       ↳ `createVnicDetails` | json | VNIC settings |
+|         ↳ `subnetId` | string | subnet Id |
+|         ↳ `displayName` | string | display Name |
+|         ↳ `hostnameLabel` | string | hostname Label |
+|         ↳ `privateIp` | string | private Ip |
+|         ↳ `privateIpId` | string | private Ip Id |
+|         ↳ `subnetCidr` | string | subnet Cidr |
+|         ↳ `assignPublicIp` | boolean | Assign a public IP |
+|         ↳ `nsgIds` | array | Network security group OCIDs |
+
+### OCI Compute Create instance configuration
+
+Create a reusable typed instance configuration or copy an existing instance’s settings, excluding disk contents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `configurationSource` | string | Yes | NONE creates a typed template using instanceDetails; INSTANCE copies settings using instanceId, not disk contents |
+| `instanceId` | string | No | Compute instance OCID |
+| `instanceDetails` | json | No | Typed compute configuration: \{instanceType: "compute", launchDetails: \{...\}, blockVolumes: \[\{volumeId, attachDetails: \{type: "iscsi" or "paravirtualized", ...\}\}\], secondaryVnics: \[\{createVnicDetails, displayName, nicIndex\}\]\}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this creation request |
+| `instanceConfiguration` | json | Instance Configuration information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `deferredFields` | array | Fields that must be supplied at launch |
+|   ↳ `instanceDetails` | json | Selected configuration settings |
+|     ↳ `instanceType` | string | Instance configuration type |
+|     ↳ `launchDetails` | json | Launch settings; omitted values can be deferred |
+|       ↳ `compartmentId` | string | compartment Id |
+|       ↳ `availabilityDomain` | string | availability Domain |
+|       ↳ `displayName` | string | display Name |
+|       ↳ `shape` | string | shape |
+|       ↳ `faultDomain` | string | fault Domain |
+|       ↳ `capacityReservationId` | string | capacity Reservation Id |
+|       ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|       ↳ `shapeConfig` | json | Configured shape resources |
+|         ↳ `ocpus` | number | Allocated OCPUs |
+|         ↳ `memoryInGBs` | number | Allocated memory in GB |
+|         ↳ `vcpus` | number | Allocated vCPUs |
+|         ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|         ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|       ↳ `sourceDetails` | json | Configured launch source |
+|         ↳ `sourceType` | string | image or bootVolume |
+|         ↳ `imageId` | string | Source image OCID |
+|         ↳ `bootVolumeId` | string | Source boot volume OCID |
+|         ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+|       ↳ `createVnicDetails` | json | Configured primary VNIC |
+|         ↳ `subnetId` | string | subnet Id |
+|         ↳ `displayName` | string | display Name |
+|         ↳ `hostnameLabel` | string | hostname Label |
+|         ↳ `privateIp` | string | private Ip |
+|         ↳ `privateIpId` | string | private Ip Id |
+|         ↳ `subnetCidr` | string | subnet Cidr |
+|         ↳ `assignPublicIp` | boolean | Assign a public IP |
+|         ↳ `nsgIds` | array | Network security group OCIDs |
+|     ↳ `blockVolumes` | array | Existing data volume attachments |
+|       ↳ `volumeId` | string | Existing volume OCID |
+|       ↳ `attachDetails` | json | Volume attachment settings |
+|         ↳ `type` | string | iscsi or paravirtualized |
+|         ↳ `isReadOnly` | boolean | Read-only attachment |
+|         ↳ `isShareable` | boolean | Shareable attachment |
+|     ↳ `secondaryVnics` | array | Secondary VNIC configuration |
+|       ↳ `displayName` | string | VNIC display name |
+|       ↳ `nicIndex` | number | Physical NIC index |
+|       ↳ `createVnicDetails` | json | VNIC settings |
+|         ↳ `subnetId` | string | subnet Id |
+|         ↳ `displayName` | string | display Name |
+|         ↳ `hostnameLabel` | string | hostname Label |
+|         ↳ `privateIp` | string | private Ip |
+|         ↳ `privateIpId` | string | private Ip Id |
+|         ↳ `subnetCidr` | string | subnet Cidr |
+|         ↳ `assignPublicIp` | boolean | Assign a public IP |
+|         ↳ `nsgIds` | array | Network security group OCIDs |
+
+### OCI Compute Update instance configuration
+
+Update configuration name and tags; launch settings require a new configuration
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceConfigurationId` | string | Yes | Instance configuration OCID |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instanceConfiguration` | json | Instance Configuration information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `deferredFields` | array | Fields that must be supplied at launch |
+|   ↳ `instanceDetails` | json | Selected configuration settings |
+|     ↳ `instanceType` | string | Instance configuration type |
+|     ↳ `launchDetails` | json | Launch settings; omitted values can be deferred |
+|       ↳ `compartmentId` | string | compartment Id |
+|       ↳ `availabilityDomain` | string | availability Domain |
+|       ↳ `displayName` | string | display Name |
+|       ↳ `shape` | string | shape |
+|       ↳ `faultDomain` | string | fault Domain |
+|       ↳ `capacityReservationId` | string | capacity Reservation Id |
+|       ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|       ↳ `shapeConfig` | json | Configured shape resources |
+|         ↳ `ocpus` | number | Allocated OCPUs |
+|         ↳ `memoryInGBs` | number | Allocated memory in GB |
+|         ↳ `vcpus` | number | Allocated vCPUs |
+|         ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|         ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|       ↳ `sourceDetails` | json | Configured launch source |
+|         ↳ `sourceType` | string | image or bootVolume |
+|         ↳ `imageId` | string | Source image OCID |
+|         ↳ `bootVolumeId` | string | Source boot volume OCID |
+|         ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+|       ↳ `createVnicDetails` | json | Configured primary VNIC |
+|         ↳ `subnetId` | string | subnet Id |
+|         ↳ `displayName` | string | display Name |
+|         ↳ `hostnameLabel` | string | hostname Label |
+|         ↳ `privateIp` | string | private Ip |
+|         ↳ `privateIpId` | string | private Ip Id |
+|         ↳ `subnetCidr` | string | subnet Cidr |
+|         ↳ `assignPublicIp` | boolean | Assign a public IP |
+|         ↳ `nsgIds` | array | Network security group OCIDs |
+|     ↳ `blockVolumes` | array | Existing data volume attachments |
+|       ↳ `volumeId` | string | Existing volume OCID |
+|       ↳ `attachDetails` | json | Volume attachment settings |
+|         ↳ `type` | string | iscsi or paravirtualized |
+|         ↳ `isReadOnly` | boolean | Read-only attachment |
+|         ↳ `isShareable` | boolean | Shareable attachment |
+|     ↳ `secondaryVnics` | array | Secondary VNIC configuration |
+|       ↳ `displayName` | string | VNIC display name |
+|       ↳ `nicIndex` | number | Physical NIC index |
+|       ↳ `createVnicDetails` | json | VNIC settings |
+|         ↳ `subnetId` | string | subnet Id |
+|         ↳ `displayName` | string | display Name |
+|         ↳ `hostnameLabel` | string | hostname Label |
+|         ↳ `privateIp` | string | private Ip |
+|         ↳ `privateIpId` | string | private Ip Id |
+|         ↳ `subnetCidr` | string | subnet Cidr |
+|         ↳ `assignPublicIp` | boolean | Assign a public IP |
+|         ↳ `nsgIds` | array | Network security group OCIDs |
+
+### OCI Compute Delete instance configuration
+
+Delete instance configuration in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceConfigurationId` | string | Yes | Instance configuration OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+
+### OCI Compute Launch instance configuration
+
+Launch an instance from a configuration with typed deferred-field overrides; may create billable resources
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceConfigurationId` | string | Yes | Instance configuration OCID |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `instanceDetails` | json | No | Typed compute configuration: \{instanceType: "compute", launchDetails: \{...\}, blockVolumes: \[\{volumeId, attachDetails: \{type: "iscsi" or "paravirtualized", ...\}\}\], secondaryVnics: \[\{createVnicDetails, displayName, nicIndex\}\]\}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+| `retryToken` | string | Retry token used for this creation request |
+| `instance` | json | Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `capacityReservationId` | string | capacity Reservation Id |
+|   ↳ `dedicatedVmHostId` | string | dedicated Vm Host Id |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `timeMaintenanceRebootDue` | string | time Maintenance Reboot Due |
+|   ↳ `shapeConfig` | json | Allocated shape resources |
+|     ↳ `ocpus` | number | Allocated OCPUs |
+|     ↳ `memoryInGBs` | number | Allocated memory in GB |
+|     ↳ `vcpus` | number | Allocated vCPUs |
+|     ↳ `networkingBandwidthInGbps` | number | Networking bandwidth in Gbps |
+|     ↳ `maxVnicAttachments` | number | Maximum attached VNICs |
+|   ↳ `sourceDetails` | json | Instance launch source |
+|     ↳ `sourceType` | string | image or bootVolume |
+|     ↳ `imageId` | string | Source image OCID |
+|     ↳ `bootVolumeId` | string | Source boot volume OCID |
+|     ↳ `bootVolumeSizeInGBs` | number | Boot volume size in GB |
+
+### OCI Compute Change instance configuration compartment
+
+Change instance configuration compartment in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceConfigurationId` | string | Yes | Instance configuration OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+
+### OCI Compute List instance pools
+
+List instance pools in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `sortBy` | string | No | Sort by TIMECREATED or DISPLAYNAME |
+| `sortOrder` | string | No | Sort direction: ASC or DESC |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `lifecycleState` | string | No | Exact lifecycle-state filter supported by this resource |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `instancePools` | array | Instance Pools in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `instanceConfigurationId` | string | Configuration OCID |
+|   ↳ `size` | number | Desired pool size |
+|   ↳ `availabilityDomains` | array | Pool availability domains |
+
+### OCI Compute Get instance pool
+
+Get instance pool in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instancePool` | json | Instance Pool information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `instanceConfigurationId` | string | Configuration used for future pool instances |
+|   ↳ `size` | number | Desired pool size |
+|   ↳ `instanceDisplayNameFormatter` | string | Future instance display-name formatter |
+|   ↳ `instanceHostnameFormatter` | string | Future instance hostname formatter |
+|   ↳ `placementConfigurations` | array | Pool placement configuration |
+|     ↳ `availabilityDomain` | string | Placement availability domain |
+|     ↳ `faultDomains` | array | Placement fault domains |
+|     ↳ `primarySubnetId` | string | Legacy primary subnet OCID |
+|     ↳ `primaryVnicSubnets` | json | Primary VNIC subnet placement |
+|       ↳ `subnetId` | string | Subnet OCID |
+|       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
+
+### OCI Compute Create instance pool
+
+Create a pool from an instance configuration and placement settings; provisions billable instances
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instanceConfigurationId` | string | Yes | Instance configuration OCID |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `retryToken` | string | No | Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key |
+| `size` | number | Yes | Desired pool size; increasing creates billable resources and decreasing terminates members |
+| `placementConfigurations` | json | Yes | Placements \[\{availabilityDomain, faultDomains, primaryVnicSubnets: \{subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails\}, secondaryVnicSubnets: \[\{subnetId, displayName, ...\}\]\}\]; one placement per AD |
+| `instanceDisplayNameFormatter` | string | No | Display-name formatter for future pool instances; empty string clears it on update |
+| `instanceHostnameFormatter` | string | No | Hostname formatter for future pool instances; empty string clears it on update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `retryToken` | string | Retry token used for this creation request |
+| `instancePool` | json | Instance Pool information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `instanceConfigurationId` | string | Configuration used for future pool instances |
+|   ↳ `size` | number | Desired pool size |
+|   ↳ `instanceDisplayNameFormatter` | string | Future instance display-name formatter |
+|   ↳ `instanceHostnameFormatter` | string | Future instance hostname formatter |
+|   ↳ `placementConfigurations` | array | Pool placement configuration |
+|     ↳ `availabilityDomain` | string | Placement availability domain |
+|     ↳ `faultDomains` | array | Placement fault domains |
+|     ↳ `primarySubnetId` | string | Legacy primary subnet OCID |
+|     ↳ `primaryVnicSubnets` | json | Primary VNIC subnet placement |
+|       ↳ `subnetId` | string | Subnet OCID |
+|       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
+
+### OCI Compute Update instance pool
+
+Update pool size and settings; scale-down terminates members and configuration changes affect future instances
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `freeformTags` | json | No | Free-form tags as a string-to-string JSON map |
+| `definedTags` | json | No | Defined string tags grouped by namespace, for example \{Operations: \{CostCenter: "42"\}\} |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `instanceConfigurationId` | string | No | Instance configuration OCID |
+| `size` | number | No | Desired pool size; increasing creates billable resources and decreasing terminates members |
+| `placementConfigurations` | json | No | Placements \[\{availabilityDomain, faultDomains, primaryVnicSubnets: \{subnetId, isAssignIpv6Ip, ipv6AddressIpv6SubnetCidrPairDetails\}, secondaryVnicSubnets: \[\{subnetId, displayName, ...\}\]\}\]; one placement per AD |
+| `instanceDisplayNameFormatter` | string | No | Display-name formatter for future pool instances; empty string clears it on update |
+| `instanceHostnameFormatter` | string | No | Hostname formatter for future pool instances; empty string clears it on update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instancePool` | json | Instance Pool information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `instanceConfigurationId` | string | Configuration used for future pool instances |
+|   ↳ `size` | number | Desired pool size |
+|   ↳ `instanceDisplayNameFormatter` | string | Future instance display-name formatter |
+|   ↳ `instanceHostnameFormatter` | string | Future instance hostname formatter |
+|   ↳ `placementConfigurations` | array | Pool placement configuration |
+|     ↳ `availabilityDomain` | string | Placement availability domain |
+|     ↳ `faultDomains` | array | Placement fault domains |
+|     ↳ `primarySubnetId` | string | Legacy primary subnet OCID |
+|     ↳ `primaryVnicSubnets` | json | Primary VNIC subnet placement |
+|       ↳ `subnetId` | string | Subnet OCID |
+|       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
+
+### OCI Compute Instance pool action
+
+Start, stop, or reset a pool’s instances; may interrupt workloads and affect charges
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `action` | string | Yes | Instance action: START, STOP, SOFTSTOP, RESET, SOFTRESET, or REBOOTMIGRATE. Pools support the first five |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `instancePool` | json | Instance Pool information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `instanceConfigurationId` | string | Configuration used for future pool instances |
+|   ↳ `size` | number | Desired pool size |
+|   ↳ `instanceDisplayNameFormatter` | string | Future instance display-name formatter |
+|   ↳ `instanceHostnameFormatter` | string | Future instance hostname formatter |
+|   ↳ `placementConfigurations` | array | Pool placement configuration |
+|     ↳ `availabilityDomain` | string | Placement availability domain |
+|     ↳ `faultDomains` | array | Placement fault domains |
+|     ↳ `primarySubnetId` | string | Legacy primary subnet OCID |
+|     ↳ `primaryVnicSubnets` | json | Primary VNIC subnet placement |
+|       ↳ `subnetId` | string | Subnet OCID |
+|       ↳ `isAssignIpv6Ip` | boolean | Assign IPv6 |
+
+### OCI Compute Terminate instance pool
+
+Terminate a pool and its created resources, including volumes; no preservation flags are supported
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+
+### OCI Compute Change instance pool compartment
+
+Change instance pool compartment in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `ifMatch` | string | No | ETag from a previous get response; a conflict is returned instead of overwriting changed state |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+
+### OCI Compute List instance pool instances
+
+List instance pool instances in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `sortBy` | string | No | Sort by TIMECREATED or DISPLAYNAME |
+| `sortOrder` | string | No | Sort direction: ASC or DESC |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `poolInstances` | array | Pool Instances in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `state` | string | state |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+
+### OCI Compute Get instance pool instance
+
+Get instance pool instance in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `instanceId` | string | Yes | Compute instance OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `poolInstance` | json | Pool Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `state` | string | state |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `instancePoolId` | string | Pool OCID |
+|   ↳ `lifecycleState` | string | Pool membership lifecycle state |
+
+### OCI Compute Attach instance pool instance
+
+Attach an eligible existing instance to a pool and return membership status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `instanceId` | string | Yes | Compute instance OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+| `location` | string | Provider resource location; not followed automatically |
+| `poolInstance` | json | Pool Instance information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `faultDomain` | string | fault Domain |
+|   ↳ `region` | string | region |
+|   ↳ `shape` | string | shape |
+|   ↳ `state` | string | state |
+|   ↳ `instanceConfigurationId` | string | instance Configuration Id |
+|   ↳ `instancePoolId` | string | Pool OCID |
+|   ↳ `lifecycleState` | string | Pool membership lifecycle state |
+
+### OCI Compute Detach instance pool instance
+
+Detach a pool member with explicit termination and replacement-size choices
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `instancePoolId` | string | Yes | Instance pool OCID |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `isAutoTerminate` | boolean | No | Terminate the detached instance \(default false\) |
+| `isDecrementSize` | boolean | No | Reduce desired pool size when detaching \(default true\); false can create a billable replacement |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequestId` | string | Work request OCID when returned; use status tools |
+
+### OCI Compute List availability domains
+
+List availability domains in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `availabilityDomains` | array | Availability Domains in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `name` | string | name |
+
+### OCI Compute List fault domains
+
+List fault domains in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `availabilityDomain` | string | Yes | Exact availability-domain name returned by OCI discovery |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `faultDomains` | array | Fault Domains in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `name` | string | name |
+|   ↳ `availabilityDomain` | string | availability Domain |
+
+### OCI Compute List compartments
+
+List compartments in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `name` | string | No | Exact compartment name filter |
+| `lifecycleState` | string | No | Exact lifecycle-state filter supported by this resource |
+| `accessLevel` | string | No | ACCESSIBLE \(default\) lists accessible compartments; ANY requests all permitted results |
+| `compartmentIdInSubtree` | boolean | No | List descendants instead of immediate children \(default false\); subtree listing requires the tenancy root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `compartments` | array | Compartments in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `name` | string | name |
+|   ↳ `description` | string | description |
+|   ↳ `isAccessible` | boolean | Whether the compartment is accessible |
+
+### OCI Compute Get compartment
+
+Get compartment in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `compartment` | json | Compartment information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `name` | string | name |
+|   ↳ `description` | string | description |
+|   ↳ `isAccessible` | boolean | Whether the compartment is accessible |
+
+### OCI Compute List subnets
+
+List subnets in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `sortBy` | string | No | Sort by TIMECREATED or DISPLAYNAME |
+| `sortOrder` | string | No | Sort direction: ASC or DESC |
+| `displayName` | string | No | Display name; on list operations this is an exact provider filter |
+| `vcnId` | string | No | Filter by VCN OCID |
+| `lifecycleState` | string | No | Exact lifecycle-state filter supported by this resource |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `subnets` | array | Subnets in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `vcnId` | string | vcn Id |
+|   ↳ `cidrBlock` | string | cidr Block |
+|   ↳ `dnsLabel` | string | dns Label |
+|   ↳ `routeTableId` | string | route Table Id |
+|   ↳ `dhcpOptionsId` | string | dhcp Options Id |
+|   ↳ `prohibitPublicIpOnVnic` | boolean | Public IP assignment is prohibited |
+|   ↳ `securityListIds` | array | Security list OCIDs |
+|   ↳ `ipv6CidrBlocks` | array | IPv6 CIDRs |
+
+### OCI Compute Get subnet
+
+Get subnet in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `subnetId` | string | Yes | Subnet OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `subnet` | json | Subnet information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `vcnId` | string | vcn Id |
+|   ↳ `cidrBlock` | string | cidr Block |
+|   ↳ `dnsLabel` | string | dns Label |
+|   ↳ `routeTableId` | string | route Table Id |
+|   ↳ `dhcpOptionsId` | string | dhcp Options Id |
+|   ↳ `prohibitPublicIpOnVnic` | boolean | Public IP assignment is prohibited |
+|   ↳ `securityListIds` | array | Security list OCIDs |
+|   ↳ `ipv6CidrBlocks` | array | IPv6 CIDRs |
+
+### OCI Compute List vnic attachments
+
+List vnic attachments in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `availabilityDomain` | string | No | Exact availability-domain name returned by OCI discovery |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `vnicAttachments` | array | Vnic Attachments in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `instanceId` | string | instance Id |
+|   ↳ `lifecycleState` | string | lifecycle State |
+|   ↳ `subnetId` | string | subnet Id |
+|   ↳ `vnicId` | string | vnic Id |
+|   ↳ `nicIndex` | number | Physical NIC index |
+
+### OCI Compute Get vnic
+
+Get vnic in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `vnicId` | string | Yes | VNIC OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `vnic` | json | Vnic information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `freeformTags` | json | Resource free-form string tags |
+|   ↳ `definedTags` | json | Resource defined tags grouped by namespace |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `subnetId` | string | subnet Id |
+|   ↳ `hostnameLabel` | string | hostname Label |
+|   ↳ `privateIp` | string | private Ip |
+|   ↳ `publicIp` | string | public Ip |
+|   ↳ `macAddress` | string | mac Address |
+|   ↳ `isPrimary` | boolean | Primary VNIC |
+|   ↳ `nsgIds` | array | Network security group OCIDs |
+|   ↳ `ipv6Addresses` | array | Assigned IPv6 addresses |
+
+### OCI Compute List boot volume attachments
+
+List boot volume attachments in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `availabilityDomain` | string | Yes | Exact availability-domain name returned by OCI discovery |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `bootVolumeAttachments` | array | Boot Volume Attachments in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `instanceId` | string | instance Id |
+|   ↳ `lifecycleState` | string | lifecycle State |
+|   ↳ `bootVolumeId` | string | boot Volume Id |
+|   ↳ `isPvEncryptionInTransitEnabled` | boolean | Encryption in transit is enabled |
+
+### OCI Compute List volume attachments
+
+List volume attachments in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `instanceId` | string | Yes | Compute instance OCID |
+| `availabilityDomain` | string | No | Exact availability-domain name returned by OCI discovery |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `volumeAttachments` | array | Volume Attachments in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `displayName` | string | display Name |
+|   ↳ `timeCreated` | string | time Created |
+|   ↳ `availabilityDomain` | string | availability Domain |
+|   ↳ `instanceId` | string | instance Id |
+|   ↳ `lifecycleState` | string | lifecycle State |
+|   ↳ `volumeId` | string | volume Id |
+|   ↳ `attachmentType` | string | attachment Type |
+|   ↳ `device` | string | device |
+|   ↳ `isReadOnly` | boolean | Read-only attachment |
+|   ↳ `isShareable` | boolean | Shareable attachment |
+|   ↳ `isVolumeCreatedDuringLaunch` | boolean | Volume was created during launch |
+
+### OCI Compute List work requests
+
+List work requests in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `compartmentId` | string | Yes | Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+| `resourceId` | string | No | Filter work requests by affected resource OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `workRequests` | array | Work Requests in this page |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `operationType` | string | operation Type |
+|   ↳ `status` | string | status |
+|   ↳ `timeAccepted` | string | time Accepted |
+|   ↳ `timeStarted` | string | time Started |
+|   ↳ `timeFinished` | string | time Finished |
+|   ↳ `percentComplete` | number | Operation progress percentage |
+|   ↳ `resources` | array | Resources affected by the operation |
+|     ↳ `actionType` | string | action Type |
+|     ↳ `entityType` | string | entity Type |
+|     ↳ `identifier` | string | identifier |
+|     ↳ `entityUri` | string | entity Uri |
+
+### OCI Compute Get work request
+
+Get work request in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `workRequestId` | string | Yes | Work request OCID returned by a supported asynchronous operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `workRequest` | json | Work Request information returned by OCI |
+|   ↳ `id` | string | id |
+|   ↳ `compartmentId` | string | compartment Id |
+|   ↳ `operationType` | string | operation Type |
+|   ↳ `status` | string | status |
+|   ↳ `timeAccepted` | string | time Accepted |
+|   ↳ `timeStarted` | string | time Started |
+|   ↳ `timeFinished` | string | time Finished |
+|   ↳ `percentComplete` | number | Operation progress percentage |
+|   ↳ `resources` | array | Resources affected by the operation |
+|     ↳ `actionType` | string | action Type |
+|     ↳ `entityType` | string | entity Type |
+|     ↳ `identifier` | string | identifier |
+|     ↳ `entityUri` | string | entity Uri |
+
+### OCI Compute List work request errors
+
+List work request errors in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `workRequestId` | string | Yes | Work request OCID returned by a supported asynchronous operation |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `workRequestErrors` | array | Work Request Errors in this page |
+|   ↳ `code` | string | code |
+|   ↳ `message` | string | message |
+|   ↳ `timestamp` | string | timestamp |
+
+### OCI Compute List work request logs
+
+List work request logs in OCI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Authorized OCI signing-key credential ID |
+| `region` | string | Yes | OCI region, such as us-ashburn-1; must remain in the credential realm |
+| `workRequestId` | string | Yes | Work request OCID returned by a supported asynchronous operation |
+| `limit` | number | No | Maximum results in this page, 1–100; default 50 |
+| `page` | string | No | Opaque continuation token from nextPage; empty pages can still have another token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `requestId` | string | Oracle request ID for correlation |
+| `etag` | string | Resource ETag when returned |
+| `nextPage` | string | Continuation token, including on empty pages |
+| `workRequestLogs` | array | Work Request Logs in this page |
+|   ↳ `message` | string | message |
+|   ↳ `timestamp` | string | timestamp |
+
+

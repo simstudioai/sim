@@ -1036,6 +1036,16 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     name: 'Oracle Cloud Infrastructure',
     icon: OracleIcon,
     services: {
+      oci_compute: {
+        name: 'OCI Compute',
+        description: 'Manage OCI Compute instances, images, configurations, and pools.',
+        providerId: 'oci',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
       oci: {
         name: 'Oracle Cloud Infrastructure',
         description: 'Connect OCI services with an API signing key.',

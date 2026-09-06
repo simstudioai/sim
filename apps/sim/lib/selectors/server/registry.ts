@@ -20,6 +20,7 @@ import { managedAgentSelectorAttachments } from '@/lib/selectors/server/provider
 import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/microsoft'
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
+import { ociComputeSelectorAttachments } from '@/lib/selectors/server/providers/oci-compute'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
 import { sharepointSelectorAttachments } from '@/lib/selectors/server/providers/sharepoint'
@@ -54,6 +55,7 @@ export const serverSelectorRegistry = {
   ...microsoftSelectorAttachments,
   ...mondaySelectorAttachments,
   ...netsuiteSelectorAttachments,
+  ...ociComputeSelectorAttachments,
   ...notionSelectorAttachments,
   ...pipedriveSelectorAttachments,
   ...sharepointSelectorAttachments,
