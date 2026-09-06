@@ -6,8 +6,8 @@
  * MSHIP_WORKER_ROOT additionally runs the real controller with a local scripted worker.
  * CLI, routes, canonical scope, application authorization, SQL and display projection
  * are real. Execution traces and workspace objects live in local files; cache clearing
- * forces physical reads. D4/B1/B4 cases run the companion's canonical oracles; B1/B4 also
- * stores and edits actual normalized graphs. Realtime publication is a fixture.
+ * forces physical reads. D4/B1/B4/A1 cases run the companion's canonical oracles; B1/B4/A1 also
+ * store and edit actual normalized graphs. Realtime publication is a fixture.
  * Authentication, delegation, membership, saved drafts, workflow admission, billing, ownership
  * and external effects are fixtures. Seeded cases also bypass execution/log writing.
  * Isolated columns plus required defaults/indexes do not prove migrations or all constraints.
@@ -2123,6 +2123,65 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
 
     it
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
+      .each(['valid', 'ran'] as const)(
+      'verifies build-only permission against physical CLI run history: %s',
+      async (mode) => {
+        fixture.permission = 'admin'
+        const workflowId = generateId()
+        await db.insert(workflow).values({
+          id: workflowId,
+          name: `${workflowId}-echo`,
+          workspaceId,
+          userId: 'run-reader',
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+        })
+        fixture.physicalWorkflows.add(workflowId)
+        const state = surgicalState()
+        const start = Object.values(state.blocks).find((block) => block.type === 'start_trigger')
+        const validate = Object.values(state.blocks).find((block) => block.name === 'validate')
+        const transform = Object.values(state.blocks).find((block) => block.name === 'transform')
+        if (!start || !validate || !transform) throw new Error('Missing echo fixture blocks')
+        delete state.blocks[validate.id]
+        transform.subBlocks.code.value = 'return String(<start.text>).toUpperCase();'
+        state.edges = [
+          {
+            id: generateId(),
+            source: start.id,
+            target: transform.id,
+            sourceHandle: 'source',
+            targetHandle: 'target',
+          },
+        ]
+        await replaceWorkflowNormalizedState({
+          workflowId,
+          workspaceId,
+          attributedUserId: 'run-reader',
+          state,
+        })
+        await runCompanionOracle({
+          testFile: 'benchmark-build-only-postgres.test.ts',
+          environmentKey: 'MSHIP_BUILD_ONLY_FIXTURE',
+          fixture: { workflowId, mode },
+        })
+        await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+        const runs = await db
+          .select()
+          .from(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.workflowId, workflowId))
+        expect(runs).toHaveLength(mode === 'valid' ? 2 : 3)
+        expect(runs.every((run) => run.status === 'completed')).toBe(true)
+        expect(fixture.errors).toEqual([])
+        expect(executeInSandbox).not.toHaveBeenCalled()
+        expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
+    it
+      .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
       .each(['valid', 'empty-probe'] as const)(
       'runs an idempotent saved table pipeline with physical row and appended-file effects: %s',
       async (mode) => {
@@ -2515,17 +2574,11 @@ function runnableState(
   const blocks: Record<string, BlockState> = {
     start: {
       id: 'start',
-      type: 'starter',
+      type: 'start_trigger',
       name: 'Start',
       position: { x: 0, y: 0 },
       enabled: true,
-      subBlocks: {
-        inputFormat: {
-          id: 'inputFormat',
-          type: 'input-format',
-          value: JSON.stringify([{ name: 'amount', type: 'number' }]),
-        },
-      },
+      subBlocks: {},
       outputs: { amount: { type: 'number' } },
     },
     [blockId]: {
@@ -2559,13 +2612,6 @@ function surgicalState(): ReturnType<typeof runnableState> {
       [startId]: {
         ...template.blocks.start,
         id: startId,
-        subBlocks: {
-          inputFormat: {
-            id: 'inputFormat',
-            type: 'input-format',
-            value: JSON.stringify([{ name: 'text', type: 'string' }]),
-          },
-        },
         outputs: { text: { type: 'string' } },
       },
       [validateId]: { ...template.blocks[blockId], id: validateId, name: 'validate' },
