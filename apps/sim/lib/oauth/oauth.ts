@@ -1049,6 +1049,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'oci',
   },
+  oci_vision: {
+    name: 'OCI Vision',
+    icon: NetSuiteIcon,
+    services: {
+      oci_vision: {
+        name: 'OCI Vision',
+        description: 'Analyze images with OCI Vision using an API signing key.',
+        providerId: 'oci_vision',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci_vision',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
