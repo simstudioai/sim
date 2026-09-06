@@ -479,6 +479,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
       .each([
         'connected',
+        'controller-cli-long',
         'lost-handoff',
         'lost-final',
         'partial-final',
@@ -495,6 +496,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'relay-overlap',
         'controller-overlap',
         'child-connected',
+        'child-cli-long',
         'child-failed-check',
         'child-lost-start',
         'child-partial-start',
@@ -502,6 +504,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
+        const delayedCli = connection.endsWith('cli-long')
         const workerRoot = process.env.MSHIP_WORKER_ROOT
         if (!workerRoot)
           throw new Error('MSHIP_WORKER_ROOT must point to the sibling worker checkout')
@@ -564,6 +567,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         }
         const ready = waitForReady()
         let startupTimeout = setTimeout(() => child.kill(), 10_000)
+        let restoreClock = () => {}
+        let finishDelay = () => {}
         try {
           fixture.workerUrl = await Promise.race([
             ready,
@@ -575,6 +580,34 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           vi.stubEnv('COPILOT_API_KEY', 'local-controller-probe-key')
           vi.unstubAllGlobals()
           const nativeFetch = globalThis.fetch
+          const nativeSetTimeout = globalThis.setTimeout
+          if (delayedCli) {
+            const nativeNow = Date.now
+            const start = nativeNow()
+            let offset: number | undefined
+            const clock = vi.spyOn(Date, 'now').mockImplementation(() => {
+              const now = nativeNow()
+              return offset === undefined ? start + (now - start) * 100 : now + offset
+            })
+            restoreClock = () => clock.mockRestore()
+            // Resume compares absolute deadlines. Stop accelerating before entering the workflow engine.
+            finishDelay = () => {
+              offset = Date.now() - nativeNow()
+            }
+            // Cross both the handler and resume watchdogs without slowing real workflow execution.
+            vi.stubGlobal(
+              'setTimeout',
+              Object.assign(
+                (...[handler, delay, ...args]: Parameters<typeof setTimeout>) =>
+                  nativeSetTimeout(
+                    handler,
+                    delay && delay >= 60_000 ? delay / 100 : delay,
+                    ...args
+                  ),
+                { __promisify__: nativeSetTimeout.__promisify__ }
+              )
+            )
+          }
           const workerRequests: string[] = []
           const receivedTextCounts: number[] = []
           const activityReceipts: unknown[] = []
@@ -583,6 +616,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = new URL(input instanceof Request ? input.url : input)
             if (url.origin === identity.endpoint) {
+              if (delayedCli && url.pathname.endsWith('/execute')) {
+                await new Promise((resolve) => nativeSetTimeout(resolve, 1_100))
+                finishDelay()
+              }
               if (connection === 'controller-overlap' && url.pathname.endsWith('/execute')) {
                 executionStarted.resolve()
                 await releaseExecution.promise
@@ -710,6 +747,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             if (
               connection !== 'connected' &&
               connection !== 'controller-overlap' &&
+              !delayedCli &&
               connection !== 'child-connected' &&
               connection !== 'child-failed-check' &&
               url.pathname === '/api/tools/resume' &&
@@ -807,6 +845,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 },
               }
             )
+          const controllerStartedAt = Date.now()
           const first = runController()
           let result: Awaited<ReturnType<typeof runCopilotLifecycle>>
           if (connection === 'controller-overlap') {
@@ -852,6 +891,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             result.success,
             JSON.stringify({ result, errors: fixture.errors, diagnostics })
           ).toBe(true)
+          if (delayedCli) expect(Date.now() - controllerStartedAt).toBeGreaterThan(90_000)
           expect(
             receivedTextCounts.some((count) => count > 0 && count < result.content.length)
           ).toBe(
@@ -879,7 +919,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             })
             expect(JSON.stringify(receipt).length).toBeLessThan(200)
           }
-          if (['connected', 'child-connected', 'child-failed-check'].includes(connection)) {
+          if (
+            delayedCli ||
+            ['connected', 'child-connected', 'child-failed-check'].includes(connection)
+          ) {
             expect(replayedToolFrames).toBe(0)
           }
           const report: unknown = JSON.parse(result.content)
@@ -919,6 +962,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(responseDropped).toBe(
             connection !== 'connected' &&
               connection !== 'controller-overlap' &&
+              !delayedCli &&
               connection !== 'child-connected' &&
               connection !== 'child-failed-check'
           )
@@ -975,6 +1019,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(executeInSandbox).not.toHaveBeenCalled()
           expect(executeShellInSandbox).not.toHaveBeenCalled()
         } finally {
+          restoreClock()
           releaseExecution.resolve()
           clearTimeout(startupTimeout)
           child.kill()
