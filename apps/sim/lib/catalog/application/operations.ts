@@ -3,16 +3,15 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 /**
  * Semantic operations for reading Sim's code-defined catalogs.
  *
- * All six share the policy of `credentials.providers.list`: a workspace-scoped
+ * These share the policy of `credentials.providers.list`: a workspace-scoped
  * read at the `read` role, reachable by a workspace API key. That is the exact
  * shipped precedent for "a code-defined registry whose availability is evaluated
  * per workspace", and these catalogs are the same thing — filtered by the
  * workspace's integration allowlist, the organization's revealed preview blocks,
  * the deployment's allowlist, and the workspace's own deployed custom blocks.
  *
- * No `delegated` principal kind: Copilot reads these catalogs through its own
- * tools, which share the projection rather than the use case, so adding one
- * would widen authorization for a caller that does not exist.
+ * Mothership calls these use cases as the personal-key principal authenticated
+ * for its embedded CLI. No `delegated` principal kind is needed.
  */
 export const catalogOperations = {
   listBlocks: defineWorkspaceOperation({

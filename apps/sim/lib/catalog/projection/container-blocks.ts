@@ -155,7 +155,7 @@ const parallelDetail: CatalogBlockDetail = {
 
 export const CONTAINER_BLOCK_SUMMARIES: CatalogBlockSummary[] = [loopSummary, parallelSummary]
 
-const CONTAINER_BLOCK_DETAILS: Record<string, CatalogBlockDetail> = {
+export const CONTAINER_BLOCK_DETAILS: Readonly<Record<string, CatalogBlockDetail>> = {
   loop: loopDetail,
   parallel: parallelDetail,
 }

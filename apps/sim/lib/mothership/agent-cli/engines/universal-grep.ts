@@ -1,7 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
-import { LRUCache } from 'lru-cache'
 import type { ReadFileTextResponse } from 'sim/embed'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
+import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -47,51 +47,55 @@ const FILE_READ_CONCURRENCY = 5
 const MAX_BYTES_PER_FILE = 262_144
 /** `workflow:<uuid>` — a prefixed form no world or resource ever prints as its path. */
 const PREFIX_SELECTOR = /^\w+:/
-/**
- * Blocks and tools are platform-owned and change only on deploy, so their rendered
- * corpora are kept per workspace (visibility keys them). The tools world is the reason
- * this exists: 5,000 built-in tools list at 100 a page, so an unmemoized grep re-walked
- * the whole registry fifty times per call.
- */
 const PLATFORM_SCOPES: ReadonlySet<Scope> = new Set<Scope>(['blocks', 'tools'])
-const platformCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 60 * 60_000 })
+
+interface GrepRuntime extends AgentCliRuntime {
+  reportIncomplete(message: string): void
+}
 
 /**
- * One build per (world, workspace) at a time. A turn that fans out several greps at once
- * used to build every world once per grep, concurrently — eight greps in one dev turn
- * meant 24 block-catalog listings, 150 tool-catalog pages, and 130 file reads inside
- * sixty seconds, on the one process serving the chat. Now the concurrent callers share
- * the build in flight.
- */
-const inflight = new Map<string, Promise<Materialized[]>>()
-
-/**
- * The requests behind a grep run in-process on the same server that answers the chat, so
- * the fan-out is bounded for the whole process, not per world: ten worlds at eight-way
- * concurrency each would be eighty nested route executions per grep.
+ * Bound backend reads across active searches. Both direct application reads and
+ * client requests use this queue; a released slot belongs to its next waiter.
  */
 const NESTED_REQUEST_CONCURRENCY = 8
 let activeRequests = 0
 const waiting: Array<() => void> = []
 
-async function gated<T>(work: () => Promise<T>): Promise<T> {
+async function gated<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  signal?.throwIfAborted()
   if (activeRequests >= NESTED_REQUEST_CONCURRENCY) {
-    await new Promise<void>((release) => waiting.push(release))
-  }
-  activeRequests += 1
+    await new Promise<void>((resolve, reject) => {
+      const release = () => {
+        signal?.removeEventListener('abort', abort)
+        resolve()
+      }
+      const abort = () => {
+        const index = waiting.indexOf(release)
+        if (index !== -1) waiting.splice(index, 1)
+        signal?.removeEventListener('abort', abort)
+        reject(signal?.reason)
+      }
+      waiting.push(release)
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
+    })
+  } else activeRequests += 1
   try {
+    signal?.throwIfAborted()
     return await work()
   } finally {
-    activeRequests -= 1
-    waiting.shift()?.()
+    const next = waiting.shift()
+    if (next) next()
+    else activeRequests -= 1
   }
 }
 
-function gatedRuntime(runtime: AgentCliRuntime): AgentCliRuntime {
+function gatedRuntime(runtime: GrepRuntime): GrepRuntime {
   return {
     ...runtime,
     client: {
-      request: (path, options) => gated(() => runtime.client.request(path, options)),
+      request: (path, options) =>
+        gated(() => runtime.client.request(path, options), runtime.signal),
     },
   }
 }
@@ -101,7 +105,7 @@ interface Materialized {
   /** Display identity: the resource's name when it has one, else its id. */
   label: string
   id: string
-  text: string
+  text: string | null
 }
 
 interface Page {
@@ -113,7 +117,7 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-async function listAll(runtime: AgentCliRuntime, path: string): Promise<Record<string, unknown>[]> {
+async function listAll(runtime: GrepRuntime, path: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = []
   let cursor: string | undefined
   for (let pages = 0; pages < 50; pages++) {
@@ -121,9 +125,13 @@ async function listAll(runtime: AgentCliRuntime, path: string): Promise<Record<s
       query: { workspaceId: runtime.workspaceId, limit: '100', ...(cursor ? { cursor } : {}) },
     })
     out.push(...page.data)
-    if (!page.nextCursor) break
+    if (!page.nextCursor) return out
     cursor = page.nextCursor
   }
+  const scope = path.slice('/api/v2/'.length)
+  runtime.reportIncomplete(
+    `${scope}: listing stopped after 50 pages; use ${scope} list to continue discovery.`
+  )
   return out
 }
 
@@ -134,7 +142,7 @@ async function mapConcurrent<T, R>(
 ): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let next = 0
-  await Promise.all(
+  await settleAll(
     Array.from({ length: Math.min(limit, items.length) }, async () => {
       while (next < items.length) {
         const index = next++
@@ -143,6 +151,15 @@ async function mapConcurrent<T, R>(
     })
   )
   return results
+}
+
+/** Do not return a tool result while sibling reads can still change its provenance. */
+async function settleAll<T>(tasks: Promise<T>[]): Promise<T[]> {
+  const results = await Promise.allSettled(tasks)
+  return results.map((result) => {
+    if (result.status === 'rejected') throw result.reason
+    return result.value
+  })
 }
 
 /**
@@ -183,7 +200,7 @@ function fileLabel(file: Record<string, unknown>): string {
  * find one block cost 65 detail calls per `--in agent` (18-34s and the per-user rate
  * limit on dev, 2026-09-03).
  */
-const INDEXERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<IndexEntry[]>> = {
+const INDEXERS: Record<Scope, (runtime: GrepRuntime) => Promise<IndexEntry[]>> = {
   workflows: async (runtime) =>
     (await listAll(runtime, '/api/v2/workflows')).map((w) =>
       entry(str(w.id) ?? '', str(w.name) ?? str(w.id) ?? '', w)
@@ -198,16 +215,22 @@ const INDEXERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<IndexEntry[]
     // a world-wide grep. With the caller's principal the catalog use case the route itself
     // runs answers in one call, same authorization, same projection.
     if (runtime.principal) {
-      const page = await listCatalogTools.execute({
-        principal: runtime.principal,
-        input: {
-          workspaceId: runtime.workspaceId,
-          sortBy: 'id',
-          sortOrder: 'asc',
-          offset: 0,
-          limit: CATALOG_ALL,
-        },
-      })
+      const principal = runtime.principal
+      const page = await gated(
+        () =>
+          listCatalogTools.execute({
+            principal,
+            input: {
+              workspaceId: runtime.workspaceId,
+              sortBy: 'id',
+              sortOrder: 'asc',
+              offset: 0,
+              limit: CATALOG_ALL,
+            },
+          }),
+        runtime.signal
+      )
+      if (page.hasMore) runtime.reportIncomplete('tools: catalog exceeds the search limit.')
       return page.entries.map((t) => entry(t.id, t.id, t))
     }
     return (await listAll(runtime, '/api/v2/tools')).map((t) =>
@@ -219,9 +242,7 @@ const INDEXERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<IndexEntry[]
       entry(str(t.id) ?? '', str(t.name) ?? str(t.id) ?? '', t)
     ),
   files: async (runtime) =>
-    (await listAll(runtime, '/api/v2/files'))
-      .slice(0, MAX_FILES)
-      .map((f) => entry(str(f.id) ?? '', fileLabel(f), f)),
+    (await listAll(runtime, '/api/v2/files')).map((f) => entry(str(f.id) ?? '', fileLabel(f), f)),
   integrations: async (runtime) => {
     // The viewer's callable connected-service operations — the same projection the
     // chat request carries, so `integrations list` and this world never disagree.
@@ -257,11 +278,8 @@ const INDEXERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<IndexEntry[]
     ),
 }
 
-/** One fetch per scope: the resource as its `get` returns it, or null when unreadable. */
-const FETCHERS: Record<
-  Scope,
-  (runtime: AgentCliRuntime, item: IndexEntry) => Promise<Materialized | null>
-> = {
+/** One fetch per scope; a null text preserves the identity of an unreadable resource. */
+const FETCHERS: Record<Scope, (runtime: GrepRuntime, item: IndexEntry) => Promise<Materialized>> = {
   workflows: async (runtime, item) => {
     // The draft state, not the export: export is sanitized for sharing and nulls
     // workspace-specific fields (a Table block's `tableId`), so a grep for a table id
@@ -292,10 +310,20 @@ const FETCHERS: Record<
         `/api/v2/files/${encodeURIComponent(item.id)}/text`,
         { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
       )
-      if (response.data.degraded) return null
+      if (response.data.degraded || response.data.truncated) {
+        runtime.reportIncomplete(
+          `files/${item.label} (${item.id}): text extraction is ${response.data.degraded ? 'degraded' : 'truncated'}; use files read or files get to inspect it.`
+        )
+      }
+      if (response.data.degraded)
+        return { scope: 'files', id: item.id, label: item.label, text: null }
       return { scope: 'files', id: item.id, label: item.label, text: response.data.text }
     } catch {
-      return null
+      runtime.signal?.throwIfAborted()
+      runtime.reportIncomplete(
+        `files/${item.label} (${item.id}): could not read text; use files read to inspect the error.`
+      )
+      return { scope: 'files', id: item.id, label: item.label, text: null }
     }
   },
   integrations: async (_runtime, item) => render('integrations', item.id, item.label, item.raw),
@@ -321,35 +349,34 @@ function concurrencyFor(scope: Scope): number {
 }
 
 async function fetchAll(
-  runtime: AgentCliRuntime,
+  runtime: GrepRuntime,
   scope: Scope,
   entries: IndexEntry[]
 ): Promise<Materialized[]> {
-  const items = await mapConcurrent(entries, concurrencyFor(scope), (item) =>
-    FETCHERS[scope](runtime, item)
-  )
-  return items.flatMap((m) => (m ? [m] : []))
+  if (scope === 'files' && entries.length > MAX_FILES) {
+    runtime.reportIncomplete(
+      `files: searched the first ${MAX_FILES} of ${entries.length} selected files; narrow with --in files/<name-or-id>.`
+    )
+  }
+  const selected = scope === 'files' ? entries.slice(0, MAX_FILES) : entries
+  return mapConcurrent(selected, concurrencyFor(scope), (item) => FETCHERS[scope](runtime, item))
 }
 
 /** A whole world, for a search with no `--in`: every resource the index lists. */
-async function materializeScope(runtime: AgentCliRuntime, scope: Scope): Promise<Materialized[]> {
-  /** A shared file build would import provenance only into the first caller's registry. */
-  if (scope === 'files') return fetchAll(runtime, scope, await INDEXERS[scope](runtime))
-  const key = `${scope}:${runtime.workspaceId}`
-  const platform = PLATFORM_SCOPES.has(scope)
-  if (platform) {
-    const cached = platformCache.get(key)
-    if (cached !== undefined) return cached
+async function materializeScope(runtime: GrepRuntime, scope: Scope): Promise<Materialized[]> {
+  if (scope === 'blocks' && runtime.principal) {
+    const principal = runtime.principal
+    const { blocks } = await gated(
+      () =>
+        readBlockCatalog.execute({
+          principal,
+          input: { workspaceId: runtime.workspaceId },
+        }),
+      runtime.signal
+    )
+    return blocks.map((block) => render('blocks', block.id, block.id, block))
   }
-  const pending = inflight.get(key)
-  if (pending) return pending
-  const build = (async () => {
-    const materialized = await fetchAll(runtime, scope, await INDEXERS[scope](runtime))
-    if (platform) platformCache.set(key, materialized)
-    return materialized
-  })().finally(() => inflight.delete(key))
-  inflight.set(key, build)
-  return build
+  return fetchAll(runtime, scope, await INDEXERS[scope](runtime))
 }
 
 function selects(nameFilter: string): (id: string, label: string) => boolean {
@@ -358,12 +385,12 @@ function selects(nameFilter: string): (id: string, label: string) => boolean {
 
 /**
  * Only the resources a `--in` selector names. Platform ids settle it first: `--in file_v5`
- * is a block id, both platform corpora are memoized, and an exact hit there means the
+ * is a block id, an exact platform hit means the
  * workspace worlds are never listed. A name fragment (`--in "lead scorer"`) has no such
  * anchor, so every searched world's index is read and only the matches are fetched.
  */
 async function materializeWithin(
-  runtime: AgentCliRuntime,
+  runtime: GrepRuntime,
   scopes: Scope[],
   nameFilter: string
 ): Promise<Materialized[]> {
@@ -377,7 +404,7 @@ async function materializeWithin(
     platform.push(...corpus)
   }
   const wanted = selects(nameFilter)
-  const perScope = await Promise.all(
+  const perScope = await settleAll(
     scopes.map(async (scope) => {
       if (PLATFORM_SCOPES.has(scope))
         return platform.filter((m) => m.scope === scope && wanted(m.id, m.label))
@@ -510,22 +537,41 @@ export const universalGrepCommand: AgentCliEngine = {
       return agentCliFail(unknownWithin(within))
     }
     const matches = compilePattern(pattern, ignoreCase)
-    const bounded = gatedRuntime(runtime)
+    const issues: string[] = []
+    let issueCount = 0
+    const bounded = gatedRuntime({
+      ...runtime,
+      reportIncomplete: (message) => {
+        issueCount++
+        if (issues.length < 10) issues.push(clip(message))
+      },
+    })
+    const finish = (stdout: string) =>
+      issueCount === 0
+        ? agentCliOk(stdout)
+        : {
+            exitCode: 1,
+            stdout,
+            stderr: `Search incomplete (${issueCount} issue${issueCount === 1 ? '' : 's'}); matches and counts cover only the content read.\n${issues.join('\n')}${issueCount > issues.length ? `\n${issueCount - issues.length} further issues omitted.` : ''}`,
+          }
     const candidates = nameFilter
       ? await materializeWithin(bounded, searched, nameFilter)
-      : (await Promise.all(searched.map((scope) => materializeScope(bounded, scope)))).flat()
+      : (await settleAll(searched.map((scope) => materializeScope(bounded, scope)))).flat()
+    runtime.signal?.throwIfAborted()
     /**
      * A resource nothing in the searched worlds answers to is a wrong selector, not a
      * search with no hits — a silent "No matches" would hide the misspelling.
      */
     if (within && nameFilter && candidates.length === 0) {
-      return agentCliFail(unknownWithin(within))
+      return issueCount ? finish('') : agentCliFail(unknownWithin(within))
     }
 
     const out: string[] = []
     let total = 0
+    let shownMatches = 0
     const perScope = new Map<Scope, number>()
     for (const resource of candidates) {
+      if (resource.text === null) continue
       const lines = resource.text.split('\n')
       const selected = new Set<number>()
       for (let i = 0; i < lines.length; i++) {
@@ -541,28 +587,28 @@ export const universalGrepCommand: AgentCliEngine = {
           selected.add(j)
         }
       }
-      if (countOnly || selected.size === 0) continue
+      if (countOnly || selected.size === 0 || out.length >= limit) continue
       const header = `${resource.scope}/${resource.label}${resource.label === resource.id ? '' : ` (${resource.id})`}`
       for (const i of [...selected].sort((a, b) => a - b)) {
         if (out.length >= limit) break
         out.push(`${header}:${i + 1}: ${clip(lines[i])}`)
+        if (matches(lines[i])) shownMatches++
       }
-      if (out.length >= limit) break
     }
 
     if (countOnly) {
       const breakdown = [...perScope.entries()].map(([s, n]) => `${s}=${n}`).join(' ')
-      return agentCliOk(`${total}${breakdown ? ` (${breakdown})` : ''}`)
+      return finish(`${total}${breakdown ? ` (${breakdown})` : ''}`)
     }
     if (out.length === 0) {
-      return agentCliOk(
+      return finish(
         `No matches for ${JSON.stringify(pattern)} in ${searched.join(', ')}${nameFilter ? ` within "${nameFilter}"` : ''}.`
       )
     }
     const truncated =
-      total > out.length
-        ? `\n[${out.length} of ${total} matching lines shown — narrow with --scope, --in, or a tighter pattern]`
+      total > shownMatches
+        ? `\n[${shownMatches} of ${total} matching lines shown — narrow with --scope, --in, or a tighter pattern]`
         : ''
-    return agentCliOk(out.join('\n') + truncated)
+    return finish(out.join('\n') + truncated)
   },
 }
