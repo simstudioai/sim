@@ -5,8 +5,10 @@ import {
   forwardRef,
   type KeyboardEvent,
   type ReactNode,
+  useCallback,
+  useRef,
 } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 
@@ -20,10 +22,6 @@ interface CommandSearchProps extends Omit<CommandInputProps, 'className'> {
   endAdornment?: ReactNode
 }
 
-interface CommandFadedListProps extends CommandListProps {
-  fade: 'canvas' | 'palette'
-}
-
 /**
  * The fog must repaint its host's exact background or it reads as a tinted
  * band under the input: the canvas selector card fills with `--surface-2`,
@@ -35,24 +33,6 @@ const SEARCH_SURFACE_CLASSNAME = {
     'bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)]',
   palette:
     'bg-[linear-gradient(to_bottom,var(--bg)_0%,color-mix(in_srgb,var(--bg)_88%,transparent)_68%,transparent_100%)]',
-} as const
-
-/**
- * The palette hides its scrollbar (`scrollbar-none` at the call site), so it
- * fades with one plain mask; its band is kept short — fully masked only under
- * the floating input (0–36px), legible by 58px, and a brief 13px exit — so
- * rows spend less time in the fog than on the canvas surface. The palette's
- * stops are anchored in pixels (the 448px max-height look frozen) because the
- * list shrinks to its content: percentage stops would move the fog on every
- * result-count change, a shimmer the dark selected first row makes obvious.
- * The canvas list fills a fixed-height card, so its percentage stops never
- * move.
- */
-const LIST_FADE_CLASSNAME = {
-  canvas:
-    '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)]',
-  palette:
-    '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)]',
 } as const
 
 /**
@@ -102,17 +82,36 @@ export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
 
 CommandSearch.displayName = 'CommandSearch'
 
-/** Scrollable command list with soft edge fades tuned for each command surface. */
-export const CommandFadedList = forwardRef<HTMLDivElement, CommandFadedListProps>(
-  function CommandFadedList({ className, fade, ...props }, ref) {
+/**
+ * Scrollable command list with the shared edge fade. The search field floats over
+ * the list's top 48px (`pt-12` keeps the first row clear of it), so the top band
+ * is inset by that height: while scrolled, rows are fully hidden under the field
+ * and fade in just beneath it. At rest neither edge fades, so the first group's
+ * heading and the last row are never fogged on a list that has not moved.
+ */
+export const CommandFadedList = forwardRef<HTMLDivElement, CommandListProps>(
+  function CommandFadedList({ className, ...props }, ref) {
+    const listRef = useRef<HTMLDivElement | null>(null)
+    const edges = useScrollEdges(listRef)
+
+    const setRefs = useCallback(
+      (node: HTMLDivElement | null) => {
+        listRef.current = node
+        if (typeof ref === 'function') ref(node)
+        else if (ref) ref.current = node
+      },
+      [ref]
+    )
+
     return (
       <Command.List
-        ref={ref}
+        ref={setRefs}
         className={cn(
-          'overflow-y-auto overflow-x-hidden px-1.5 pt-12 pb-1.5 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col',
-          LIST_FADE_CLASSNAME[fade],
+          'overflow-y-auto overflow-x-hidden px-1.5 pt-12 pb-1.5 [--scroll-fade-inset:3rem] [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col',
+          scrollFadeClass,
           className
         )}
+        {...scrollFadeAttributes(edges)}
         {...props}
       />
     )

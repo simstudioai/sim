@@ -84,7 +84,7 @@ describe('Enterprise owner claim routes', () => {
     mocks.acceptClaim.mockResolvedValue({
       success: true,
       claim,
-      redirectPath: '/workspace',
+      redirectPath: '/home',
     })
 
     const response = await POST(

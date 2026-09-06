@@ -9,6 +9,7 @@ import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import { AuthFormMessage, AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOForm')
@@ -88,12 +89,13 @@ function SSOFormContent({
 
   /**
    * Derived during render rather than seeded into state from an effect: the
-   * first painted frame otherwise carries the `/workspace` default, so the
+   * first painted frame otherwise carries the app-entry default, so the
    * "Sign in with email" and "Sign up" links briefly point at the wrong
    * destination on any deep link carrying `?callbackUrl=`.
    */
   const isCallbackValid = callbackParam !== null && validateCallbackUrl(callbackParam)
-  const callbackUrl = callbackParam !== null && isCallbackValid ? callbackParam : '/workspace'
+  const callbackUrl =
+    callbackParam !== null && isCallbackValid ? callbackParam : DEFAULT_POST_AUTH_ROUTE
   const hasEmailError = showEmailValidationError && emailErrors.length > 0
 
   useEffect(() => {

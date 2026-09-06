@@ -7,6 +7,7 @@ import {
   completeAccountDataTeardown,
   waitForAccountDataMutations,
 } from '@/main/account-data-generation'
+import { APP_ENTRY_ROUTE } from '@/main/app-routes'
 import { isSafeInternalPath } from '@/main/config'
 import { isAuthSurfacePath, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -60,14 +61,14 @@ export function isLogoutNavigation(rawUrl: string, appOrigin: string): boolean {
 
 /**
  * Picks the route to load at launch: the last visited route (when safe and
- * not itself an auth surface), falling back to /workspace. A signed-out
+ * not itself an auth surface), falling back to the app entry. A signed-out
  * partition is handled by the web app's own login redirect.
  */
 export function decideStartRoute(lastRoute: string | undefined): string {
   if (lastRoute && isSafeInternalPath(lastRoute) && !isAuthSurfacePath(lastRoute)) {
     return lastRoute
   }
-  return '/workspace'
+  return APP_ENTRY_ROUTE
 }
 
 function workspaceIdFromRoute(route: string): string | null {
@@ -110,8 +111,8 @@ export async function resolveStartRoute(
       }
     )
     if (response.status === 403) {
-      logger.info('Saved workspace route is no longer accessible; opening workspace picker')
-      return '/workspace'
+      logger.info('Saved workspace route is no longer accessible; opening the app entry')
+      return APP_ENTRY_ROUTE
     }
     return route
   } catch {

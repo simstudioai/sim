@@ -408,7 +408,9 @@ function SignupFormContent({
     <div className='space-y-6'>
       <AuthHeader title='Create an account' description='Create an account or log in' />
 
-      {hasOnlySSO && <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />}
+      {hasOnlySSO && (
+        <SSOLoginButton callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE} variant='primary' />
+      )}
 
       {emailEnabled && (
         <form onSubmit={onSubmit} className='space-y-6'>
@@ -486,10 +488,13 @@ function SignupFormContent({
           githubAvailable={githubAvailable}
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
-          callbackURL={redirectUrl || '/workspace'}
+          callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE}
         >
           {ssoEnabled && !hasOnlySSO && (
-            <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
+            <SSOLoginButton
+              callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE}
+              variant='outline'
+            />
           )}
         </SocialLoginButtons>
       )}

@@ -18,16 +18,27 @@ const API_ENDPOINTS = {
  * @see layout.tsx for pre-hydration script that reads localStorage
  */
 
-/** Inset gap in pixels between the viewport edge and the content window */
-export const CONTENT_WINDOW_GAP = 8
+/**
+ * Inset in pixels between the viewport edge and the content window. Zero: the
+ * pane sits flush against the viewport and meets the sidebar on a hairline
+ * divider. Kept as a named constant because the panel, terminal, and floating
+ * window geometry all measure from it.
+ */
+export const CONTENT_WINDOW_GAP = 0
 
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
-  DEFAULT: 238,
-  MIN: 238,
+  DEFAULT: 256,
+  MIN: 256,
   /** Width when sidebar is collapsed to icon-only mode */
   COLLAPSED: 48,
-  /** Maximum is 30% of viewport, enforced dynamically */
+  /**
+   * Absolute ceiling on the expanded width. The percentage below already scales
+   * the rail with the viewport; this keeps a wide monitor from granting a rail
+   * that swallows a third of the page. `getMaxSidebarWidth` combines the two.
+   */
+  MAX: 400,
+  /** Maximum is 30% of viewport (up to `MAX`), enforced dynamically */
   MAX_PERCENTAGE: 0.3,
 } as const
 

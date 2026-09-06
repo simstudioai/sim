@@ -39,6 +39,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   attachOwnedWorkspacesToOrganizationTx,
@@ -1371,7 +1372,7 @@ async function acceptLockedInvitation(
   effects.membershipAlreadyExists = membershipAlreadyExists
 
   const redirectPath =
-    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}` : '/workspace'
+    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}` : APP_ENTRY_PATH
 
   return {
     success: true,

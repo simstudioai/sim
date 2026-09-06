@@ -284,7 +284,7 @@ export function useDeleteWorkspace() {
 
 type UpdateWorkspaceParams = { workspaceId: string } & Pick<
   ContractBodyInput<typeof updateWorkspaceContract>,
-  'name' | 'color' | 'logoUrl'
+  'name' | 'logoUrl'
 >
 
 /**

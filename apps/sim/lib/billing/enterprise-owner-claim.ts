@@ -34,6 +34,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitations/expiry'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import {
   createDefaultPersonalWorkspaceInTransaction,
   emitWorkspaceCreatedPlatformEvent,
@@ -1049,7 +1050,7 @@ export async function acceptEnterpriseOwnerClaim(params: {
         createdDefaultWorkspaceId: acceptance.acceptance.createdDefaultWorkspaceId,
       },
     })
-    return { success: true, claim, redirectPath: '/workspace' }
+    return { success: true, claim, redirectPath: APP_ENTRY_PATH }
   } catch (error) {
     logger.error('Failed to accept Enterprise owner claim', {
       claimId: params.claimId,

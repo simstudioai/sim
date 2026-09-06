@@ -14,7 +14,7 @@ interface SwitchAccountProps {
  * callback.
  *
  * A plain link to `/login` would not work: the middleware bounces `/login` back
- * to `/workspace` while any session cookie is set, so the wrong account has to
+ * to the app entry while any session cookie is set, so the wrong account has to
  * be cleared before the login page is reachable at all. For the same reason a
  * failed sign-out must not navigate — it would land the user right back where
  * they started with no explanation.

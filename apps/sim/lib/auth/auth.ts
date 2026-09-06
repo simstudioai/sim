@@ -111,6 +111,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -138,7 +139,7 @@ const logger = createLogger('Auth')
 
 function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
   const callbackUrl =
-    callbackLocation && validateCallbackUrl(callbackLocation) ? callbackLocation : '/workspace'
+    callbackLocation && validateCallbackUrl(callbackLocation) ? callbackLocation : APP_ENTRY_PATH
   const params = new URLSearchParams({ error: code, callbackUrl })
   return `${getBaseUrl()}/sso?${params.toString()}`
 }

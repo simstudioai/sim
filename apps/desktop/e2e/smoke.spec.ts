@@ -10,7 +10,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 
 const PAGES: Record<string, string> = {
-  '/workspace': `<!doctype html><html><head><title>Sim Fixture</title></head><body>
+  '/home': `<!doctype html><html><head><title>Sim Fixture</title></head><body>
     <h1 id="app">fixture-app</h1>
     <button id="internal-blank" onclick="window.open('/workspace/two', '_blank')">internal</button>
     <button id="external-blank" onclick="window.open('https://docs.sim.ai/x', '_blank')">external</button>
@@ -82,7 +82,7 @@ test.describe('desktop shell smoke', () => {
     app = await launchApp(origin)
     const window = await app.firstWindow()
     await expect(window.locator('#app')).toHaveText('fixture-app')
-    expect(window.url()).toBe(`${origin}/workspace`)
+    expect(window.url()).toBe(`${origin}/home`)
   })
 
   test('internal window.open creates an independent full Sim window', async () => {
@@ -150,7 +150,7 @@ test.describe('desktop shell smoke', () => {
         app.evaluate(() => (globalThis as { __openedExternal?: string[] }).__openedExternal)
       )
       .toEqual(['https://docs.sim.ai/navigation'])
-    expect(window.url()).toBe(`${origin}/workspace`)
+    expect(window.url()).toBe(`${origin}/home`)
   })
 
   test('unreachable origin shows the bundled offline page', async () => {

@@ -8,6 +8,9 @@ import {
   chipVariants,
   cn,
   OverflowText,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
@@ -32,6 +35,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { warmSettingsSectionQuery } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-query-warmers'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
@@ -39,7 +43,6 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
@@ -98,7 +101,10 @@ export function SettingsSidebar({
   const pendingLeave = useSettingsDirtyStore((s) => s.pendingLeave)
   const showDiscardDialog = pendingLeave !== null
 
-  const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const scrollEdges = useScrollEdges(scrollContainerRef, {
+    contentRef: scrollContentRef,
+    enabled: !isCollapsed,
+  })
   const [desktopSurfaces, setDesktopSurfaces] = useState<Record<DesktopSettingsSurface, boolean>>({
     settings: false,
     browser: false,
@@ -303,37 +309,19 @@ export function SettingsSidebar({
     })
   }, [])
 
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-
-    const updateScrollState = () => {
-      setHasOverflowTop(container.scrollTop > 1)
-    }
-
-    updateScrollState()
-    container.addEventListener('scroll', updateScrollState, { passive: true })
-    const observer = new ResizeObserver(updateScrollState)
-    observer.observe(container)
-    if (scrollContentRef.current) {
-      observer.observe(scrollContentRef.current)
-    }
-
-    return () => {
-      container.removeEventListener('scroll', updateScrollState)
-      observer.disconnect()
-    }
-  }, [isCollapsed])
-
   return (
     <>
       {/* Back button */}
+      {/* The divider is the pinned block's bottom rule, not the scroll region's top one:
+          the region's edge fade masks its own first pixels, which would erase a rule
+          drawn there exactly when it should show. Same construction as the footer. */}
       <div
         className={cn(
           SIDEBAR_SECTION_GAP_CLASS,
           SIDEBAR_ITEM_GAP_CLASS,
           SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-          'flex shrink-0 flex-col px-2'
+          'flex shrink-0 flex-col border-b px-2 transition-colors duration-150',
+          !scrollEdges.top && 'border-transparent'
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
@@ -356,9 +344,11 @@ export function SettingsSidebar({
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
           SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pb-2 transition-colors duration-150',
-          !hasOverflowTop && 'border-transparent'
+          SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+          scrollFadeClass,
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden'
         )}
+        {...scrollFadeAttributes(scrollEdges)}
       >
         <div ref={scrollContentRef} className='flex flex-col'>
           {sectionConfig

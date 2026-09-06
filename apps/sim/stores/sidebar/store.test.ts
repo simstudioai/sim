@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-import { readCollapsedCookie, useSidebarStore } from './store'
+import { getMaxSidebarWidth, readCollapsedCookie, useSidebarStore } from './store'
 
 function setCookie(value: string) {
   document.cookie = `sidebar_collapsed=${value}; path=/`
@@ -92,5 +92,19 @@ describe('sidebar width CSS variables', () => {
     useSidebarStore.getState().syncWidth()
 
     expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
+  })
+})
+
+describe('getMaxSidebarWidth', () => {
+  it('scales with the viewport below the cap', () => {
+    expect(getMaxSidebarWidth(1000)).toBe(1000 * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+  })
+
+  it('caps a wide viewport at the absolute maximum', () => {
+    expect(getMaxSidebarWidth(4000)).toBe(SIDEBAR_WIDTH.MAX)
+  })
+
+  it('never drops below the minimum on a narrow viewport', () => {
+    expect(getMaxSidebarWidth(400)).toBe(SIDEBAR_WIDTH.MIN)
   })
 })
