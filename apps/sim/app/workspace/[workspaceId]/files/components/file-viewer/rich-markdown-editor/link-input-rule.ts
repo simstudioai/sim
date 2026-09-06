@@ -1,12 +1,13 @@
 import { Extension, InputRule } from '@tiptap/core'
-import { normalizeLinkHref } from './markdown-fidelity'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 /**
  * Typed markdown link: `[text](url)` or `[text](url "title")`, completed by the closing `)`. The URL
  * is space-free (markdown requires `<url>` for spaces, which this intentionally skips). StarterKit's
  * Link ships no input rule — only paste/autolink — so without this, typed link syntax stays literal.
+ * A preceding bang belongs to the image input rule, which must receive the complete syntax.
  */
-const LINK_INPUT_RULE = /\[([^\]]+)]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/
+const LINK_INPUT_RULE = /(?<!!)\[([^\]]+)]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/
 
 /**
  * Converts a typed markdown link into a real link mark on the closing `)`. The visible text is the

@@ -67,7 +67,7 @@ const SEED_IF_EMPTY_SCRIPT =
 
 /** Orders a durable replacement with seeds and merges, and fences publishers in the same transaction. */
 const INVALIDATE_DOCUMENT_SCRIPT =
-  "local invalidated = redis.call('get', KEYS[6]); if invalidated and tonumber(invalidated) >= tonumber(ARGV[1]) then return 0 end; local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[1]) then return 0 end; if version == ARGV[1] and redis.call('get', KEYS[2]) == ARGV[3] then return 0 end; redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[2]); redis.call('set', KEYS[3], ARGV[1], 'EX', ARGV[2]); redis.call('set', KEYS[6], ARGV[1], 'EX', ARGV[2]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); return 1"
+  "local invalidated = redis.call('get', KEYS[6]); if invalidated and tonumber(invalidated) >= tonumber(ARGV[1]) then return false end; local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[1]) then return false end; local generation = redis.call('get', KEYS[2]) or ''; if version == ARGV[1] and generation == ARGV[3] then return false end; redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[2]); redis.call('set', KEYS[3], ARGV[1], 'EX', ARGV[2]); redis.call('set', KEYS[6], ARGV[1], 'EX', ARGV[2]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); return generation"
 
 /** Upgrades an existing pre-negotiation stream without ever resurrecting a missing stream. */
 const ADOPT_GENERATION_SCRIPT =
@@ -81,9 +81,13 @@ const APPEND_UPDATE_SCRIPT =
 const REFRESH_DOCUMENT_TTLS_SCRIPT =
   "for _, key in ipairs(KEYS) do redis.call('expire', key, ARGV[1]) end; return 1"
 
-/** A compacted snapshot replaces the seed entry, so it must carry that seed's generation forward. */
+/**
+ * Append and trim under one generation fence: invalidation can recreate the stream with lower IDs
+ * within the same millisecond, so a separate trim could delete the replacement's seed and edits.
+ * Carry the seed's generation forward and keep every entry at or beyond the captured prefix barrier.
+ */
 const APPEND_SNAPSHOT_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4])"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; local id = redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4]); redis.call('xtrim', KEYS[1], 'MINID', ARGV[6]); return id"
 
 /**
  * Atomically deduplicate and append an acknowledged client update. Socket acknowledgements can be
@@ -298,7 +302,7 @@ interface StoreRoom {
   lastId: string
   /** Local publish count, to pace compaction checks. */
   publishes: number
-  /** Non-snapshot bytes observed since this replica last compacted; peer compactions may reduce them. */
+  /** Non-snapshot bytes observed since this replica last compacted. */
   uncompactedDeltaBytes: number
   compacting: boolean
   /** Document generation read from the seed entry; every later append is fenced against it. */
@@ -666,34 +670,44 @@ export class FileDocStore {
    * seed replaces the tombstone. A separate version watermark deduplicates retries across reseeds;
    * both expire with the stream TTL once the document is idle.
    */
-  async invalidateDocument(name: string, version: number): Promise<boolean> {
+  async invalidateDocument(
+    name: string,
+    version: number
+  ): Promise<{ status: 'applied'; docId?: string } | { status: 'stale' }> {
     if (!this.enabled) {
       const now = Date.now()
       const previous = this.localInvalidations.get(name)
-      if (previous && previous.expiresAt > now && previous.version >= version) return false
+      if (previous && previous.expiresAt > now && previous.version >= version)
+        return { status: 'stale' }
       this.localInvalidations.set(name, { version, expiresAt: now + STREAM_TTL_SEC * 1_000 })
       const room = this.rooms.get(name)
+      const docId = room?.generationInvalidated
+        ? undefined
+        : room?.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
       if (room) room.generationInvalidated = true
       if (!this.heartbeat) {
         this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
         this.heartbeat.unref()
       }
-      return true
+      return { status: 'applied', ...(typeof docId === 'string' ? { docId } : {}) }
     }
     if (!this.write) throw new Error('FileDocStore is not initialized')
-    return (
-      (await this.write.eval(INVALIDATE_DOCUMENT_SCRIPT, {
-        keys: [
-          streamKey(name),
-          generationKey(name),
-          `${SYNC_VERSION_PREFIX}${name}`,
-          `${CLIENT_UPDATE_PREFIX}${name}`,
-          `${AGENT_STREAM_PREFIX}${name}`,
-          `${INVALIDATION_VERSION_PREFIX}${name}`,
-        ],
-        arguments: [String(version), String(STREAM_TTL_SEC), INVALIDATED_GENERATION],
-      })) === 1
-    )
+    const generation = await this.write.eval(INVALIDATE_DOCUMENT_SCRIPT, {
+      keys: [
+        streamKey(name),
+        generationKey(name),
+        `${SYNC_VERSION_PREFIX}${name}`,
+        `${CLIENT_UPDATE_PREFIX}${name}`,
+        `${AGENT_STREAM_PREFIX}${name}`,
+        `${INVALIDATION_VERSION_PREFIX}${name}`,
+      ],
+      arguments: [String(version), String(STREAM_TTL_SEC), INVALIDATED_GENERATION],
+    })
+    if (typeof generation !== 'string') return { status: 'stale' }
+    return {
+      status: 'applied',
+      ...(generation && generation !== INVALIDATED_GENERATION ? { docId: generation } : {}),
+    }
   }
 
   async getDocumentGeneration(name: string): Promise<string> {
@@ -1155,12 +1169,16 @@ export class FileDocStore {
         const marker = room.realEdited ? SNAPSHOT_FIELD : AGENT_FIELD
         const snapshotId = await this.write.eval(APPEND_SNAPSHOT_SCRIPT, {
           keys: [streamKey(name), generationKey(name)],
-          arguments: [UPDATE_FIELD, snapshot, marker, room.generation ?? '', GENERATION_FIELD],
+          arguments: [
+            UPDATE_FIELD,
+            snapshot,
+            marker,
+            room.generation ?? '',
+            GENERATION_FIELD,
+            upTo,
+          ],
         })
         if (typeof snapshotId !== 'string') return
-        // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
-        // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
-        await this.write.xTrim(streamKey(name), 'MINID', upTo)
         /** Deltas observed after the barrier survive MINID; snapshots never contribute to this count. */
         room.uncompactedDeltaBytes = Math.max(0, room.uncompactedDeltaBytes - deltaBytesAtBarrier)
       } finally {

@@ -16,8 +16,11 @@ import {
   TextQuote,
   Unlink,
 } from '@sim/emcn/icons'
+import type { MappablePosition } from '@tiptap/core'
+import type { Node } from '@tiptap/pm/model'
 import {
   PluginKey,
+  type Selection,
   type SelectionBookmark,
   TextSelection,
   type Transaction,
@@ -58,17 +61,54 @@ function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'updatePosition')
 }
 
+type CapturedSelection =
+  | { anchor: MappablePosition; head: MappablePosition; bookmark?: never }
+  | { bookmark: SelectionBookmark; anchor?: never; head?: never }
+
 interface LinkSelection {
-  target: SelectionBookmark
-  original: SelectionBookmark
+  target: CapturedSelection
+  original: CapturedSelection
+}
+
+/** Collaborative positions survive the full-document replacements used to apply Yjs updates. */
+function captureSelection(editor: Editor): CapturedSelection {
+  const { selection } = editor.state
+  return selection instanceof TextSelection
+    ? {
+        anchor: editor.utils.createMappablePosition(selection.anchor),
+        head: editor.utils.createMappablePosition(selection.head),
+      }
+    : { bookmark: selection.getBookmark() }
+}
+
+function mapSelection(
+  editor: Editor,
+  selection: CapturedSelection,
+  transaction: Transaction
+): CapturedSelection {
+  return selection.bookmark
+    ? { bookmark: selection.bookmark.map(transaction.mapping) }
+    : {
+        anchor: editor.utils.getUpdatedPosition(selection.anchor, transaction).position,
+        head: editor.utils.getUpdatedPosition(selection.head, transaction).position,
+      }
+}
+
+function resolveSelection(selection: CapturedSelection, doc: Node): Selection {
+  return selection.bookmark
+    ? selection.bookmark.resolve(doc)
+    : TextSelection.between(
+        doc.resolve(selection.anchor.position),
+        doc.resolve(selection.head.position)
+      )
 }
 
 /** Keep the editing target separate from the selection restored when the user cancels. */
 function captureLinkSelection(editor: Editor): LinkSelection | null {
-  const original = editor.state.selection.getBookmark()
+  const original = captureSelection(editor)
   if (editor.state.selection.empty) editor.commands.extendMarkRange('link')
   const { selection } = editor.state
-  return selection.empty ? null : { target: selection.getBookmark(), original }
+  return selection.empty ? null : { target: captureSelection(editor), original }
 }
 
 interface EditorBubbleMenuProps {
@@ -139,11 +179,11 @@ export function EditorBubbleMenu({
       if (!captured) return
       for (const change of [transaction, ...appendedTransactions]) {
         captured = {
-          target: captured.target.map(change.mapping),
-          original: captured.original.map(change.mapping),
+          target: mapSelection(editor, captured.target, change),
+          original: mapSelection(editor, captured.original, change),
         }
       }
-      const selection = captured.target.resolve(editor.state.doc)
+      const selection = resolveSelection(captured.target, editor.state.doc)
       linkSelectionRef.current =
         selection instanceof TextSelection && !selection.empty ? captured : null
       if (!linkSelectionRef.current) setLinkValue(null)
@@ -229,7 +269,8 @@ export function EditorBubbleMenu({
 
   const commitCapturedLink = (href: string) => {
     if (editor.isDestroyed || !editor.isEditable) return
-    const selection = linkSelectionRef.current?.target.resolve(editor.state.doc)
+    const captured = linkSelectionRef.current
+    const selection = captured && resolveSelection(captured.target, editor.state.doc)
     if (selection instanceof TextSelection && !selection.empty) {
       applyLink(
         editor.chain().focus().setTextSelection({ from: selection.from, to: selection.to }),
@@ -247,7 +288,9 @@ export function EditorBubbleMenu({
     linkSelectionRef.current = null
     setLinkValue(null)
     if (!captured || editor.isDestroyed) return
-    editor.view.dispatch(editor.state.tr.setSelection(captured.original.resolve(editor.state.doc)))
+    editor.view.dispatch(
+      editor.state.tr.setSelection(resolveSelection(captured.original, editor.state.doc))
+    )
     editor.commands.focus()
   }
 

@@ -164,6 +164,8 @@ export interface JoinFileDocSuccess {
   clientId?: number
   /** Whether this relay durably acknowledges client updates. Absent on older relays. */
   acknowledgedUpdates?: true
+  /** Durable version incorporated by the admitted generation; absent on older relays. */
+  version?: number
   /**
    * The identity of the document this room holds ({@link FILE_DOC_SEED.docIdKey}), so a client can tell
    * "the room I left" from "a document built in its place" BEFORE it syncs. Absent for a room whose doc
@@ -194,6 +196,10 @@ export interface LeaveFileDocPayload {
 export interface FileDocInvalidated {
   fileId: string
   message: string
+  /** Generation atomically removed by this invalidation, when one existed. */
+  docId?: string
+  /** Durable replacement version; absent only on older relays. */
+  version?: number
 }
 
 /** A bounded, retry-safe batch of user-authored changes. */

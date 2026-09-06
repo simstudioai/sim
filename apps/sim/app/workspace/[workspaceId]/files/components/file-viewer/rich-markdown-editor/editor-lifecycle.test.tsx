@@ -330,6 +330,43 @@ describe('loaded rich editor lifecycle', () => {
     expect(container.textContent).not.toContain('Reconnecting…')
   })
 
+  it('keeps timeout preview separate from the authoritative document and recovers on late sync', async () => {
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    collaborationRef.current = {
+      doc,
+      awareness: new Awareness(doc),
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    await render('stored preview body', 'stored preview body', true, { collaborative: true })
+    await act(async () =>
+      provider.fail({
+        fileId: 'file-1',
+        error: 'Not ready',
+        code: 'READINESS_TIMEOUT',
+        retryable: true,
+      })
+    )
+    expect(container.textContent).toContain('stored preview body')
+    expect(container.textContent).toContain('Reconnecting…')
+    expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBeUndefined()
+    expect(doc.getXmlFragment('default').length).toBe(0)
+    const editors = [...container.querySelectorAll('.tiptap')].map(
+      (element) => (element as HTMLElement & { editor: Editor }).editor
+    )
+    expect(editors.every((editor) => !editor.isEditable)).toBe(true)
+    await act(async () => {
+      provider.joinError = null
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+      provider.setSynced(true)
+    })
+    expect(container.textContent).not.toContain('stored preview body')
+    expect(container.textContent).not.toContain('Reconnecting…')
+    expect(getEditor().isEditable).toBe(true)
+    expect(onClientAutosaveChange).not.toHaveBeenCalledWith(true)
+  })
+
   it.each(['DOCUMENT_REPLACED', 'PENDING_UPDATE_LIMIT', 'INVALID_UPDATE'])(
     'preserves pending edits with only a passive status for %s',
     async (code) => {

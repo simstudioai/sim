@@ -9,6 +9,10 @@ vi.mock('@tiptap/react', () => ({
   ReactNodeViewRenderer: vi.fn(),
 }))
 
+vi.mock('@tiptap/y-tiptap', () => ({
+  ySyncPluginKey: { getState: vi.fn() },
+}))
+
 vi.mock('@/hooks/use-file-content-source', () => ({
   useFileContentSource: () => ({
     resolveImageSrc: (src: string) => src,
@@ -125,6 +129,17 @@ describe('ResizableImageView', () => {
       [{ alt: 'changed', href: 'https://example.com' }],
       [{ width: null, height: null }],
     ])
+  })
+
+  it('preserves omitted image details and explicitly clears an empty link', () => {
+    const updateAttributes = vi.fn()
+    renderImage(updateAttributes)
+    const inspector = vi.mocked(ImageInspector).mock.calls.at(-1)![0]
+    act(() => {
+      inspector.onApply({ alt: 'changed' })
+      inspector.onApply({ href: '' })
+    })
+    expect(updateAttributes.mock.calls).toEqual([[{ alt: 'changed' }], [{ href: null }]])
   })
 
   it('renders a height-only image proportionally without fixing its responsive height', () => {

@@ -85,7 +85,7 @@ describe('createHttpHandler', () => {
   })
 
   it('invalidates the shared generation before notifying every open editor', async () => {
-    mockInvalidateDocument.mockResolvedValueOnce('applied')
+    mockInvalidateDocument.mockResolvedValueOnce({ status: 'applied', docId: 'old-document' })
     const { handler, req, res, writeHead, roomManager } = createMocks(
       requestWithBody('/api/file-doc/invalidate', { fileId: 'file-1', version: 100 })
     )
@@ -96,7 +96,7 @@ describe('createHttpHandler', () => {
     expect(roomManager.emitToRoom).toHaveBeenCalledWith(
       { type: 'workspace-file-doc', id: 'file-1' },
       'file-doc-invalidated',
-      expect.objectContaining({ fileId: 'file-1' })
+      expect.objectContaining({ fileId: 'file-1', version: 100, docId: 'old-document' })
     )
     expect(mockInvalidateDocument.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(roomManager.emitToRoom).mock.invocationCallOrder[0]
@@ -105,7 +105,7 @@ describe('createHttpHandler', () => {
   })
 
   it('does not evict editors for a superseded invalidation', async () => {
-    mockInvalidateDocument.mockResolvedValueOnce('stale')
+    mockInvalidateDocument.mockResolvedValueOnce({ status: 'stale' })
     const { handler, req, res, end, roomManager } = createMocks(
       requestWithBody('/api/file-doc/invalidate', { fileId: 'file-1', version: 100 })
     )
