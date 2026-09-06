@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,89 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_notifications",
+      "slug": "oci-notifications",
+      "name": "OCI Notifications",
+      "description": "Publish messages and manage notification topics and subscriptions",
+      "longDescription": "Connect an OCI API-key service account to publish messages and manage topics, subscriptions, tags, compartments, and locks. Subscription and publish operations discover the topic endpoint using GetTopic and require ONS_TOPIC_READ in addition to their operation permissions. Use the recipient confirmation flow; pending subscriptions do not receive messages and Functions need no confirmation. Direct publication does not deliver SMS. Publish runs once, and acceptance is not delivery. Leave whole-block retries disabled because an ambiguous failure can still have published. Sim conservatively caps serialized publish requests at 64,000 UTF-8 bytes. No inbound trigger is provided.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_notifications",
+      "operations": [
+        {
+          "name": "List Topics",
+          "description": "List topics in one compartment, one page at a time."
+        },
+        {
+          "name": "Get Topic",
+          "description": "Get topic configuration and its subscription/publishing endpoint."
+        },
+        {
+          "name": "Create Topic",
+          "description": "Create a topic with optional tags and an explicit retry token."
+        },
+        {
+          "name": "Update Topic",
+          "description": "Update topic description and tags without renaming the topic."
+        },
+        {
+          "name": "Delete Topic",
+          "description": "Request topic deletion; success does not mean deletion has finished."
+        },
+        {
+          "name": "Change Topic Compartment",
+          "description": "Move a topic within its tenancy; subscriptions stay in their compartments."
+        },
+        {
+          "name": "Add Topic Lock",
+          "description": "Add a FULL or DELETE topic lock using Oracle resource-lock permissions."
+        },
+        {
+          "name": "Remove Topic Lock",
+          "description": "Remove the specified topic lock using RESOURCE_LOCK_REMOVE permission."
+        },
+        {
+          "name": "List Subscriptions",
+          "description": "List one page of subscriptions for a topic in the selected subscription compartment."
+        },
+        {
+          "name": "Get Subscription",
+          "description": "Get subscription configuration, protocol, and confirmation state."
+        },
+        {
+          "name": "Create Subscription",
+          "description": "Create a subscription in the parent topic compartment; recipients confirm except for Functions."
+        },
+        {
+          "name": "Update Subscription",
+          "description": "Update subscription delivery retry policy and tags; endpoint and protocol are immutable."
+        },
+        {
+          "name": "Delete Subscription",
+          "description": "Administratively delete a subscription using the OCI credential."
+        },
+        {
+          "name": "Change Subscription Compartment",
+          "description": "Move a subscription within its tenancy without moving its topic."
+        },
+        {
+          "name": "Resend Subscription Confirmation",
+          "description": "Resend confirmation to the recipient; the URL expires after three days."
+        },
+        {
+          "name": "Publish Message",
+          "description": "Publish once to active subscriptions. Acceptance is not delivery; block retries can duplicate messages. Direct SMS is unsupported."
+        }
+      ],
+      "operationCount": 16,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["automation", "monitoring"]
     },
     {
       "type": "okta",
