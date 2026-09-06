@@ -42,6 +42,7 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
     // that one resolves. Keyed and deduped by spanId, so every invocation —
     // including same-type concurrent respawns — gets its own group.
     const startData = payload.data as Record<string, unknown> | undefined
+    const error = typeof startData?.error === 'string' ? startData.error : undefined
     if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
       context.openSubagentSpans ??= new Set()
       if (!context.openSubagentSpans.has(traceKey)) {
@@ -70,6 +71,7 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
             (b.spanId || '') === (event.scope?.spanId || '')
           ) {
             b.endedAt = Date.now()
+            if (error) b.error = error
             break
           }
         }
@@ -86,7 +88,7 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
     } else if (evt === MothershipStreamV1SpanLifecycleEvent.end) {
       const span = context.subAgentTraceSpans?.get(traceKey)
       if (span) {
-        context.trace.endSpan(span, 'ok')
+        context.trace.endSpan(span, error ? 'error' : 'ok')
         context.subAgentTraceSpans?.delete(traceKey)
       }
     }
