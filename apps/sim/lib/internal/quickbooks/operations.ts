@@ -188,7 +188,7 @@ async function downloadQuickBooksTransactionPdf(
     headers: { ...buildQuickBooksHeaders(body.accessToken), Accept: 'application/pdf' },
     signal: transferSignal,
   })
-  if (!response.ok) throw await getQuickBooksDocumentError(response, signal)
+  if (!response.ok) throw await getQuickBooksDocumentError(response, transferSignal)
 
   const mimeType =
     response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''

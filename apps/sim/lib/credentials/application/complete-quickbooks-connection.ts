@@ -98,7 +98,13 @@ export const completeQuickBooksConnection = defineAuthorizedWorkspaceUseCase({
     const accountValues = {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      idToken: tokens.idToken ?? null,
+      /**
+       * Intuit's OIDC identity JWT is only meaningful at connection time, where
+       * `profile.accountId` is already derived from it. Persisting it would project
+       * the token into the credential payload of every QuickBooks tool call, none of
+       * which read it.
+       */
+      idToken: null,
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
       scope: tokens.scope || getCanonicalScopesForProvider('quickbooks').join(' '),
