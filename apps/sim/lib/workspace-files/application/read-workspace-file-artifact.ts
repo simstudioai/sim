@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   isOpaqueWorkspaceFileEgressSafe,
@@ -11,14 +12,20 @@ import { resolveReferencedWorkspaceFileContext } from '@/lib/workspace-files/app
 interface ReadWorkspaceFileArtifactInput {
   workspaceId: string
   reference: string
+  chatId?: string
   maxBytes: number
 }
 
 /** Authorizes a visual model observation, including file access and opaque-media provenance. */
 export const readWorkspaceFileArtifact = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }: { input: ReadWorkspaceFileArtifactInput }) =>
-    resolveReferencedWorkspaceFileContext(input, { includeChatUploads: true }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkspaceFileArtifactInput
+  }) => resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
   async execute({ input, context, principal }) {
     const file = context.file
     const safe = await isOpaqueWorkspaceFileEgressSafe(context.workspaceId, {
