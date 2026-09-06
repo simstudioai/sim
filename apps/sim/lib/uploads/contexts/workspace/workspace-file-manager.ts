@@ -666,8 +666,11 @@ export async function registerUploadedWorkspaceFile(params: {
   contentType: string
   folderId?: string | null
   uploadSessionId?: string
+  /** Private runtime classification committed with the uploaded file's first content version. */
+  secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType } = params
+  const secretProvenance = params.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
 
   if (parseWorkspaceFileKey(key) !== workspaceId) {
@@ -740,7 +743,7 @@ export async function registerUploadedWorkspaceFile(params: {
         tx,
         found.id,
         found.contentUpdatedAt,
-        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        secretProvenance
       )
     }
     await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, found.id)
@@ -796,7 +799,7 @@ export async function registerUploadedWorkspaceFile(params: {
             tx,
             raceWinner.id,
             raceWinner.contentUpdatedAt,
-            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+            secretProvenance
           )
         }
         await markUploadSessionFileRegistered(
@@ -817,7 +820,7 @@ export async function registerUploadedWorkspaceFile(params: {
         tx,
         inserted.id,
         inserted.contentUpdatedAt,
-        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        secretProvenance
       )
       await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, inserted.id)
       return { kind: 'created', file: inserted, updatedUsage } as const

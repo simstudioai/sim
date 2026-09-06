@@ -12,6 +12,7 @@ import {
   createOrganizationLogoUpload,
 } from '@/lib/uploads/contexts/organization-logo/application'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -66,9 +67,10 @@ export interface UploadSessionCreateResult {
 }
 
 /** Creates a workspace-file session after current principal authorization. */
-export async function createWorkspaceFileUploadSession(
+async function createWorkspaceFileUploadSession(
   principal: Principal,
-  input: WorkspaceFileUploadCreateInput
+  input: WorkspaceFileUploadCreateInput,
+  secretProvenance?: WorkspaceFileSecretProvenance
 ): Promise<Awaited<ReturnType<typeof createUploadSession>>> {
   const userId = await resolveUploadAttributionUserId(principal, input.workspaceId)
   return createUploadSession({
@@ -81,6 +83,7 @@ export async function createWorkspaceFileUploadSession(
     fileSize: input.size,
     metadata: { folderId: input.folderId ?? null },
     localOrigin: input.localOrigin,
+    ...(secretProvenance ? { secretProvenance } : {}),
   })
 }
 
@@ -347,24 +350,31 @@ export const createWorkspaceFileUploadOperation = {
     principal,
     input,
     request,
+    secretProvenance,
   }: {
     principal: Principal
     input: CreateWorkspaceFileUploadOperationInput
     request?: OrchestrationRequestContext
+    /** Trusted byte-source classification supplied outside the parsed public input. */
+    secretProvenance?: WorkspaceFileSecretProvenance
   }) {
     if (!request) throw new Error('Workspace upload creation requires a request context')
     await authorizeWorkspaceFileOperation(principal, fileOperations.uploadCreate, input.workspaceId)
     const folderIndex = await loadActiveFolderPathIndex(input.workspaceId, 'file')
     const folderId = resolveFolderPathFromIndex(folderIndex, input.folderPath)
     if (folderId === undefined) throw new OrchestrationError('not_found', 'Folder not found')
-    return createWorkspaceFileUploadSession(principal, {
-      workspaceId: input.workspaceId,
-      name: input.name,
-      contentType: input.contentType,
-      size: input.size,
-      folderId,
-      localOrigin: requestOrigin(request),
-    })
+    return createWorkspaceFileUploadSession(
+      principal,
+      {
+        workspaceId: input.workspaceId,
+        name: input.name,
+        contentType: input.contentType,
+        size: input.size,
+        folderId,
+        localOrigin: requestOrigin(request),
+      },
+      secretProvenance
+    )
   },
 } as const
 
