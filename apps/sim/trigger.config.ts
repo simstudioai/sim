@@ -9,6 +9,7 @@ import {
 } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/core/config/env'
+import { resolveTriggerEnvVars } from './lib/core/config/trigger-env-sync'
 import { markInsideTriggerRun } from './lib/core/config/trigger-runtime'
 import { parseOtlpHeaders } from './lib/monitoring/otlp'
 
@@ -24,43 +25,6 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
   throw new Error(
     'Grafana OTLP telemetry is partially configured. Set GRAFANA_OTLP_ENDPOINT, GRAFANA_OTLP_HEADERS, and GRAFANA_DEPLOYMENT_ENVIRONMENT together, or leave all three unset.'
   )
-}
-
-/**
- * Environment a run needs for sandboxed work. Function block runs and the
- * document compiler share one provider selection, and the doc-template
- * variables decide whether a run reads a generated document through the doc
- * sandbox's artifact store or the isolated-vm fallback. The app authors
- * documents for whichever compiler it sees, so a worker missing the doc
- * template falls back to isolated-vm and tries to run Python or Node-style
- * sources as sandbox JavaScript. Reading a generated document under the doc
- * sandbox means loading its compiled artifact from the copilot storage
- * context, so that bucket has to be visible to the run as well. The values
- * still have to exist in the Trigger.dev environment; syncing only keeps the
- * worker's view of them aligned with the app's.
- */
-const FUNCTION_EXECUTION_ENV = [
-  { name: 'REDIS_URL', secret: true },
-  { name: 'REDIS_TLS_SERVERNAME', secret: false },
-  { name: 'SANDBOX_PROVIDER', secret: false },
-  { name: 'E2B_ENABLED', secret: false },
-  { name: 'E2B_API_KEY', secret: true },
-  { name: 'E2B_FUNCTION_TEMPLATE_ID', secret: false },
-  { name: 'E2B_FUNCTION_TEMPLATE_GENERATION', secret: false },
-  { name: 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID', secret: false },
-  { name: 'DAYTONA_API_KEY', secret: true },
-  { name: 'DAYTONA_FUNCTION_SNAPSHOT_ID', secret: false },
-  { name: 'DAYTONA_DOC_SNAPSHOT_ID', secret: false },
-  { name: 'S3_COPILOT_BUCKET_NAME', secret: false },
-  { name: 'AZURE_STORAGE_COPILOT_CONTAINER_NAME', secret: false },
-  { name: 'GCS_COPILOT_BUCKET_NAME', secret: false },
-] as const
-
-function getFunctionExecutionEnvVars() {
-  return FUNCTION_EXECUTION_ENV.flatMap(({ name, secret }) => {
-    const value = env[name]
-    return value ? [{ name, value, isSecret: secret }] : []
-  })
 }
 
 const grafanaTelemetry = grafanaFullyConfigured
@@ -125,17 +89,19 @@ export default defineConfig({
       'pdfjs-dist',
     ],
     extensions: [
-      syncEnvVars(() => [
-        { name: 'DB_APP_NAME', value: 'sim-trigger' },
-        /**
-         * Workers run Trigger.dev by definition, but the flag saying so was only
-         * set on the app container. Syncing it keeps the deployment flag honest
-         * inside runs; the dispatch decision itself no longer depends on it,
-         * because the `init` hook above marks the run process directly.
-         */
-        { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
-        ...getFunctionExecutionEnvVars(),
-      ]),
+      /**
+       * Publishes the worker environment from the same `/{env}/sim/env-vars`
+       * secret the app container boots from, so the two runtimes cannot drift
+       * and a new worker variable never has to be typed into the Trigger.dev
+       * dashboard. Reads Secrets Manager with the build's own AWS credentials —
+       * on the GitHub integration those arrive as `TRIGGER_BUILD_AWS_*`.
+       *
+       * This deliberately does not read the build machine's `process.env`: that
+       * made every value depend on who ran the deploy, so a local `deploy --env
+       * prod` would have published the developer's own `.env` into production
+       * (`syncEnvVars` applies its layer with `override: true`).
+       */
+      syncEnvVars(({ environment }) => resolveTriggerEnvVars(environment)),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
