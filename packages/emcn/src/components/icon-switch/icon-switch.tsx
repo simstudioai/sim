@@ -1,7 +1,8 @@
 'use client'
 
 import { type ComponentType, useId } from 'react'
-import { cn, Tooltip } from '@sim/emcn'
+import { cn } from '../../lib/cn'
+import { Tooltip } from '../tooltip/tooltip'
 
 export interface IconSwitchOption<T extends string = string> {
   value: T
