@@ -1028,6 +1028,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  'oracle-epm-profitability': {
+    name: 'Oracle EPM Profitability and Cost Management (PCM)',
+    icon: NetSuiteIcon,
+    services: {
+      'oracle-epm-profitability': {
+        name: 'Oracle PCM',
+        description:
+          'Operate PCM applications, allocations, POVs, reports, tasks, and PCM repository files.',
+        providerId: 'oracle-epm-profitability',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm-profitability',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,

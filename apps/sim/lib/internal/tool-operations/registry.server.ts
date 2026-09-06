@@ -783,6 +783,29 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+
+const ORACLE_PCM_TOOL_IDS = [
+  'oracle_epm_profitability_apply_data_grants',
+  'oracle_epm_profitability_clear_pov',
+  'oracle_epm_profitability_copy_pov',
+  'oracle_epm_profitability_create_application',
+  'oracle_epm_profitability_deploy_cube',
+  'oracle_epm_profitability_download_file',
+  'oracle_epm_profitability_enable_application',
+  'oracle_epm_profitability_export_query_results',
+  'oracle_epm_profitability_generate_program_documentation',
+  'oracle_epm_profitability_get_rule_balancing',
+  'oracle_epm_profitability_get_task_status',
+  'oracle_epm_profitability_import_template',
+  'oracle_epm_profitability_list_files',
+  'oracle_epm_profitability_load_data',
+  'oracle_epm_profitability_merge_slices',
+  'oracle_epm_profitability_optimize_cube',
+  'oracle_epm_profitability_run_calculation',
+  'oracle_epm_profitability_update_dimensions',
+  'oracle_epm_profitability_upload_file',
+  'oracle_epm_profitability_wait_for_task',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1430,6 +1453,9 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_PCM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-profitability/execute-tool')).executeOraclePcmTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool

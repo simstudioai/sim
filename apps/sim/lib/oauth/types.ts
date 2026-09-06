@@ -115,6 +115,7 @@ export type OAuthService =
   | 'airtable'
   | 'bitbucket'
   | 'notion'
+  | 'oracle-epm-profitability'
   | 'jira'
   | 'atlassian-service-account'
   | 'box'

@@ -65,6 +65,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
+  'oracle-epm-service-account': [],
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
@@ -108,6 +109,28 @@ describe('service-account coverage', () => {
       serviceAccountProviderId: 'netsuite-service-account',
       authType: 'service_account',
     })
+  })
+
+  it('binds PCM to the existing reusable Oracle EPM credential', () => {
+    expect(
+      OAUTH_PROVIDERS['oracle-epm-profitability'].services['oracle-epm-profitability']
+    ).toMatchObject({
+      providerId: 'oracle-epm-profitability',
+      serviceAccountProviderId: 'oracle-epm-service-account',
+      authType: 'service_account',
+    })
+    expect(
+      credentialProviderMatchesService(
+        'oracle-epm-service-account',
+        OAUTH_PROVIDERS['oracle-epm-profitability'].services['oracle-epm-profitability']
+      )
+    ).toBe(true)
+    expect(
+      credentialProviderMatchesService(
+        'netsuite-service-account',
+        OAUTH_PROVIDERS['oracle-epm-profitability'].services['oracle-epm-profitability']
+      )
+    ).toBe(false)
   })
 
   it('pins the table to exactly the registered service-account provider ids', () => {

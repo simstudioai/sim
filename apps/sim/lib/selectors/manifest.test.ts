@@ -9,8 +9,8 @@ describe('selector manifest', () => {
     const count = (classification: (typeof classifications)[number]) =>
       classifications.filter((value) => value === classification).length
 
-    expect(Object.keys(selectorManifest)).toHaveLength(94)
-    expect(count('provider-server')).toBe(82)
+    expect(Object.keys(selectorManifest)).toHaveLength(96)
+    expect(count('provider-server')).toBe(84)
     expect(count('internal-server')).toBe(11)
     expect(count('local')).toBe(1)
     expect(classifications).not.toContain('provider-legacy')
@@ -36,13 +36,29 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(82)
+    expect(providerKeys).toHaveLength(84)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',
       'imap.mailboxes',
     ])
   })
+
+  it.each(['oracleEpmPcm.inputFiles', 'oracleEpmPcm.outputFiles'] as const)(
+    'binds %s to PCM credentials and list-backed detail resolution',
+    (key) => {
+      expect(selectorManifest[key].context.readiness).toEqual({ all: ['oauthCredential'] })
+      expect(serverSelectorRegistry[key].credential).toMatchObject({
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['oracle-epm-profitability'],
+      })
+      expect(serverSelectorRegistry[key].integrationBlockTypes).toEqual([
+        'oracle_epm_profitability',
+      ])
+      expect(serverSelectorRegistry[key].destination).toMatchObject({ kind: 'credential-bound' })
+    }
+  )
 
   it('keeps shared Microsoft selectors bound only to their intended credential families', () => {
     expect(serverSelectorRegistry['onedrive.files'].credential?.serviceIds).toEqual(['onedrive'])
@@ -98,7 +114,7 @@ describe('selector manifest', () => {
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(13)
+    expect(preparedDestinations).toHaveLength(15)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({
