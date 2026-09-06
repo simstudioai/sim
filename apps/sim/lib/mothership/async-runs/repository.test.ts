@@ -29,9 +29,9 @@ import {
   recordToolPermissionDecision,
   releaseWorkflowToolExecutionClaim,
   replaceTerminalAsyncToolCallResult,
+  requestRunStop,
   settleSimSandboxProcess,
   settleSimToolExecution,
-  stopPendingRequest,
   updateRunStatus,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
@@ -45,7 +45,7 @@ describe('run admission and early Stop', () => {
   })
 
   it('records a pending Stop using the authenticated actor and workspace', async () => {
-    expect(await stopPendingRequest(scope)).toBeNull()
+    expect(await requestRunStop(scope)).toBeNull()
     expect(dbChainMockFns.values).toHaveBeenCalledWith(scope)
     expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalled()
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
@@ -60,24 +60,36 @@ describe('run admission and early Stop', () => {
     ).toBe(true)
   })
 
-  it('retains an admitted run for the normal authorized Stop path', async () => {
+  it('durably records Stop and closes tool admission before returning an active run', async () => {
     const run = { ...input, status: 'active' }
     queueTableRows(copilotRuns, [run])
-    expect(await stopPendingRequest(scope)).toEqual(run)
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(await requestRunStop(scope)).toEqual(run)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(scope)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ toolAdmissionClosedAt: expect.anything() })
   })
 
-  it('acknowledges a delayed cancelled admission without requiring a nonexistent worker run', async () => {
-    queueTableRows(copilotRuns, [{ ...input, status: 'cancelled' }])
-    queueTableRows(copilotRequestStops, [{ ...scope, stoppedAt: new Date() }])
-    expect(await stopPendingRequest(scope)).toBeNull()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  it('keeps repeated Stop delivery eligible after a run is cancelled locally', async () => {
+    const run = { ...input, status: 'cancelled' }
+    queueTableRows(copilotRuns, [run])
+    expect(await requestRunStop(scope)).toEqual(run)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(scope)
   })
+
+  it.each([{ workspaceId: 'other-workspace' }, { chatId: 'other-chat' }])(
+    'does not record Stop when admission won in a different asserted scope: %j',
+    async (assertion) => {
+      const run = { ...input, status: 'active' }
+      queueTableRows(copilotRuns, [run])
+      expect(await requestRunStop({ ...input, ...assertion })).toEqual(run)
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not confuse an ordinary cancelled run with one stopped before admission', async () => {
     const run = { ...input, status: 'cancelled' }
     queueTableRows(copilotRuns, [run])
-    expect(await stopPendingRequest(scope)).toEqual(run)
+    expect(await requestRunStop(scope)).toEqual(run)
   })
 
   it('creates a terminal, tool-closed run when a scoped Stop preceded admission', async () => {
@@ -134,7 +146,7 @@ describe('run admission and early Stop', () => {
 
   it('does not acknowledge a failed Stop transaction or continue after a failed admission', async () => {
     dbChainMockFns.execute.mockRejectedValueOnce(new Error('database unavailable'))
-    await expect(stopPendingRequest(scope)).rejects.toThrow('database unavailable')
+    await expect(requestRunStop(scope)).rejects.toThrow('database unavailable')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     await expect(createRunSegment(input)).rejects.toThrow('persisted identity')
   })
