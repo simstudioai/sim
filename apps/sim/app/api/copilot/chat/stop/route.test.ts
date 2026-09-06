@@ -22,6 +22,8 @@ vi.mock('@/lib/mothership/chat-status', () => ({
 
 import { POST } from '@/app/api/copilot/chat/stop/route'
 
+const stopRequest = (request: NextRequest) => POST(request, undefined)
+
 function createRequest(body: Record<string, unknown>) {
   return new NextRequest('http://localhost:3000/api/copilot/chat/stop', {
     method: 'POST',
@@ -52,10 +54,57 @@ describe('copilot chat stop route', () => {
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
   })
 
+  it('preserves task, plan and subagent identity through the partial-response contract', async () => {
+    mockReads({
+      chat: { workspaceId: 'ws-1', conversationId: 'stream-1', model: null },
+      last: { messageId: 'stream-1', role: 'user' },
+    })
+    const blocks = [
+      {
+        type: 'task',
+        task: {
+          taskId: 'watch-1',
+          kind: 'workflow_run',
+          status: 'pending',
+          target: { workflowId: 'workflow-1', executionId: 'execution-1' },
+          note: 'Watch invoice run',
+        },
+      },
+      { type: 'plan', planItems: [{ step: 'Check the result', status: 'active' }] },
+      {
+        type: 'span',
+        kind: 'subagent',
+        lifecycle: 'end',
+        name: 'Investigate invoices',
+        error: 'Lookup interrupted',
+        spanId: 'child-span',
+        parentSpanId: 'main',
+        parentToolCallId: 'task-call',
+      },
+      {
+        type: 'text',
+        lane: 'subagent',
+        agent: 'Investigate invoices',
+        channel: 'assistant',
+        content: 'Found the relevant run.',
+        spanId: 'child-span',
+        parentSpanId: 'main',
+        parentToolCallId: 'task-call',
+      },
+    ]
+    const response = await stopRequest(
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '', contentBlocks: blocks })
+    )
+    expect(response.status).toBe(200)
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledOnce()
+    const [, appended] = mockAppendCopilotChatMessages.mock.calls[0]
+    expect(appended[0].contentBlocks).toEqual(expect.arrayContaining(blocks))
+  })
+
   it('returns 401 when unauthenticated', async () => {
     authMockFns.mockGetSession.mockResolvedValueOnce(null)
 
-    const response = await POST(
+    const response = await stopRequest(
       createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
     )
 
@@ -66,7 +115,7 @@ describe('copilot chat stop route', () => {
   it('is a no-op when the chat is missing', async () => {
     mockReads({ chat: null })
 
-    const response = await POST(
+    const response = await stopRequest(
       createRequest({ chatId: 'missing-chat', streamId: 'stream-1', content: '' })
     )
 
@@ -81,7 +130,7 @@ describe('copilot chat stop route', () => {
       last: { messageId: 'stream-1', role: 'user' },
     })
 
-    const response = await POST(
+    const response = await stopRequest(
       createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
     )
 
@@ -114,7 +163,7 @@ describe('copilot chat stop route', () => {
       last: { messageId: 'stream-1', role: 'user' },
     })
 
-    const response = await POST(
+    const response = await stopRequest(
       createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'partial' })
     )
 
@@ -139,7 +188,7 @@ describe('copilot chat stop route', () => {
       last: { messageId: 'assistant-1', role: 'assistant' },
     })
 
-    const response = await POST(
+    const response = await stopRequest(
       createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'partial' })
     )
 

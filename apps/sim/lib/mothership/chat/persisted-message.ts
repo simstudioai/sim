@@ -1,5 +1,10 @@
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import type {
+  PersistedContentBlock,
+  PersistedToolCall,
+  PersistedToolState,
+} from '@/lib/api/contracts/copilot-messages'
 import {
   mergeAndRedactPersistedBlocks,
   redactSensitiveContent,
@@ -10,64 +15,13 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
-  type MothershipStreamV1StreamScope,
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type {
-  ContentBlock,
-  LocalToolCallStatus,
-  OrchestratorResult,
-} from '@/lib/mothership/request/types'
+import type { ContentBlock, OrchestratorResult } from '@/lib/mothership/request/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
-
-export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
-
-interface PersistedToolCall {
-  id: string
-  name: string
-  state: PersistedToolState
-  params?: Record<string, unknown>
-  result?: { success: boolean; output?: unknown; error?: string }
-  error?: string
-  calledBy?: string
-  durationMs?: number
-  display?: { title?: string }
-}
-
-export interface PersistedContentBlock {
-  type: MothershipStreamV1EventType | 'plan' | 'task'
-  lane?: MothershipStreamV1StreamScope['lane']
-  /**
-   * Subagent name on lane text blocks. The span-tree parser needs a name to
-   * create a group for content whose `subagent` start block is missing (resume
-   * legs re-emit text without re-emitting start); without it the prose is
-   * silently dropped on reload.
-   */
-  agent?: string
-  channel?: MothershipStreamV1TextChannel
-  phase?: MothershipStreamV1ToolPhase
-  kind?: MothershipStreamV1SpanPayloadKind
-  lifecycle?: MothershipStreamV1SpanLifecycleEvent
-  status?: MothershipStreamV1CompletionStatus
-  content?: string
-  /** Orchestrator-chosen display name on a subagent start block. */
-  name?: string
-  toolCall?: PersistedToolCall
-  /** The agent's plan checklist (plan blocks only). */
-  planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
-  /** The background task a task block announces. */
-  task?: import('@/lib/mothership/request/types').TaskBlockInfo
-  timestamp?: number
-  endedAt?: number
-  /** Terminal failure of this subagent span. */
-  error?: string
-  parentToolCallId?: string
-  spanId?: string
-  parentSpanId?: string
-}
 
 export interface PersistedFileAttachment {
   id: string

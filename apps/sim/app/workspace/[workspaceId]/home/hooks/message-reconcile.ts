@@ -6,6 +6,7 @@
  */
 
 import { isBrowserToolName } from '@sim/browser-protocol'
+import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { normalizeMessage, withBlockTiming } from '@/lib/mothership/chat/persisted-message'
 import {
@@ -22,7 +23,7 @@ import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import type { ContentBlock } from '../types'
 import { isZeroStreamCursor } from './stream-protocol'
 
-export function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {
+export function toRawPersistedContentBlock(block: ContentBlock): PersistedContentBlock | null {
   const persisted = toRawPersistedContentBlockBody(block)
   if (!persisted) return null
   if (block.parentToolCallId) persisted.parentToolCallId = block.parentToolCallId
@@ -31,13 +32,17 @@ export function toRawPersistedContentBlock(block: ContentBlock): Record<string, 
   // live blocks lose spanId and parseBlocks falls back to legacy flat grouping,
   // rendering nested subagents (e.g. deploy) at the top level mid-stream until
   // the persisted message (which keeps spanId) replaces it.
+  if (block.subagentName) persisted.name = block.subagentName
+  if (block.error) persisted.error = block.error
   if (block.spanId) persisted.spanId = block.spanId
   if (block.parentSpanId) persisted.parentSpanId = block.parentSpanId
   return withBlockTiming(persisted, block)
 }
 
-function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unknown> | null {
+function toRawPersistedContentBlockBody(block: ContentBlock): PersistedContentBlock | null {
   switch (block.type) {
+    case 'plan':
+      return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
     case 'text':
       return {
         type: MothershipStreamV1EventType.text,
@@ -123,7 +128,7 @@ export function buildAssistantSnapshotMessage(params: {
 }): PersistedMessage {
   const rawContentBlocks = params.contentBlocks
     .map(toRawPersistedContentBlock)
-    .filter((block): block is Record<string, unknown> => block !== null)
+    .filter((block) => block !== null)
 
   return normalizeMessage({
     id: params.id,
