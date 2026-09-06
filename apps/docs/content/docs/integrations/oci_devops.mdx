@@ -1,0 +1,2011 @@
+---
+title: OCI DevOps
+description: Manage OCI builds, deployments, and delivery configuration
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_devops"
+  color="#C74634"
+/>
+
+## Usage Instructions
+
+Manage OCI DevOps projects, repositories, build and deployment pipelines, stages, target references, artifact descriptors, connections, and native repository triggers. Submit executions with stable retry tokens and inspect bounded status pages. Configuration acceptance is not execution success. Credentials use the existing OCI API-key service account. Connection inputs contain Vault secret OCIDs, never plaintext tokens. External webhook creation, Git transport, and unrestricted logs are excluded.
+
+
+
+## Actions
+
+### OCI DevOps Approve Deployment
+
+Approve Deployment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deploymentId` | string | Yes | Unique deployment identifier. |
+| `action` | string | Yes | The action of Approve or Reject. Allowed: APPROVE, REJECT. |
+| `deployStageId` | string | Yes | The \[OCID\]\(/Content/General/Concepts/identifiers.htm\) of the stage which is marked for approval. |
+| `reason` | string | No | The reason for approving or rejecting the deployment. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Cancel Build Run
+
+Cancel Build Run in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildRunId` | string | Yes | Unique build run identifier. |
+| `reason` | string | Yes | The reason for canceling the build run. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Cancel Deployment
+
+Cancel Deployment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deploymentId` | string | Yes | Unique deployment identifier. |
+| `reason` | string | Yes | The reason for canceling the deployment. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Build Pipeline
+
+Create Build Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineParameters` | json | No | buildPipelineParameters |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `description` | string | No | Optional description about the build pipeline. |
+| `displayName` | string | No | Build pipeline display name. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `projectId` | string | Yes | The OCID of the DevOps project. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Build Pipeline Stage
+
+Create Build Pipeline Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineId` | string | Yes | The OCID of the build pipeline. |
+| `stage` | json | Yes | Typed BuildPipelineStage configuration discriminated by buildPipelineStageType. Supports only documented fields; see the configuration example. Supported buildPipelineStageType values: BUILD, DELIVER_ARTIFACT, TRIGGER_DEPLOYMENT_PIPELINE, WAIT. Example: \{"buildPipelineStagePredecessorCollection":\{"items":\[\{"id":"ocid1.resource.oc1..example"\}\]\},"buildPipelineStageType":"BUILD","buildSourceCollection":\{"items":\[\{"branch":"example","connectionType":"BITBUCKET_CLOUD","name":"example","repositoryUrl":"https://example.com/repository","connectionId":"ocid1.resource.oc1..example"\}\]\},"image":"OL7_X86_64_STANDARD_10"\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Build Run
+
+Create Build Run in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineId` | string | Yes | The OCID of the build pipeline. |
+| `buildRunArguments` | json | No | buildRunArguments |
+| `commitInfo` | json | No | commitInfo |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `displayName` | string | No | Build run display name, which can be renamed and is not necessarily unique. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+| `ifMatch` | string | No | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Connection
+
+Create Connection in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | The OCID of the DevOps project. |
+| `connection` | json | Yes | Typed Connection configuration discriminated by connectionType. Supports only documented fields; see the configuration example. secretId is an existing OCI Vault secret OCID, not a plaintext access token. Supported connectionType values: BITBUCKET_SERVER_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, GITLAB_ACCESS_TOKEN, GITLAB_SERVER_ACCESS_TOKEN, VBS_ACCESS_TOKEN. Example: \{"connectionType":"BITBUCKET_SERVER_ACCESS_TOKEN","secretId":"ocid1.vaultsecret.oc1..example","baseUrl":"https://example.com/repository"\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Deploy Artifact
+
+Create Deploy Artifact in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | The OCID of a project. |
+| `artifact` | json | Yes | Typed DeployArtifact configuration. Supports only documented fields; see the configuration example. Example: \{"argumentSubstitutionMode":"NONE","deployArtifactSource":\{"deployArtifactSourceType":"GENERIC_ARTIFACT","deployArtifactPath":"example","deployArtifactVersion":"example","repositoryId":"ocid1.resource.oc1..example"\},"deployArtifactType":"DEPLOYMENT_SPEC"\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Deploy Environment
+
+Create Deploy Environment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | The OCID of a project. |
+| `environment` | json | Yes | Typed DeployEnvironment configuration discriminated by deployEnvironmentType. Supports only documented fields; see the configuration example. Supported deployEnvironmentType values: COMPUTE_INSTANCE_GROUP, FUNCTION, OKE_CLUSTER. Example: \{"deployEnvironmentType":"COMPUTE_INSTANCE_GROUP","computeInstanceGroupSelectors":\{"items":\[\{"selectorType":"INSTANCE_IDS","computeInstanceIds":\["example"\]\}\]\}\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Deploy Pipeline
+
+Create Deploy Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `deployPipelineParameters` | json | No | deployPipelineParameters |
+| `description` | string | No | Optional description about the deployment pipeline. |
+| `displayName` | string | No | Deployment pipeline display name. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `projectId` | string | Yes | The OCID of a project. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Deploy Stage
+
+Create Deploy Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployPipelineId` | string | Yes | The OCID of a pipeline. |
+| `stage` | json | Yes | Typed DeployStage configuration discriminated by deployStageType. Supports only documented fields; see the configuration example. Supported deployStageType values: COMPUTE_INSTANCE_GROUP_BLUE_GREEN_DEPLOYMENT, COMPUTE_INSTANCE_GROUP_BLUE_GREEN_TRAFFIC_SHIFT, COMPUTE_INSTANCE_GROUP_CANARY_APPROVAL, COMPUTE_INSTANCE_GROUP_CANARY_DEPLOYMENT, COMPUTE_INSTANCE_GROUP_CANARY_TRAFFIC_SHIFT, COMPUTE_INSTANCE_GROUP_ROLLING_DEPLOYMENT, DEPLOY_FUNCTION, INVOKE_FUNCTION, LOAD_BALANCER_TRAFFIC_SHIFT, MANUAL_APPROVAL, OKE_BLUE_GREEN_DEPLOYMENT, OKE_BLUE_GREEN_TRAFFIC_SHIFT, OKE_CANARY_APPROVAL, OKE_CANARY_DEPLOYMENT, OKE_CANARY_TRAFFIC_SHIFT, OKE_DEPLOYMENT, OKE_HELM_CHART_DEPLOYMENT, SHELL, WAIT. Example: \{"deployStagePredecessorCollection":\{"items":\[\{"id":"ocid1.resource.oc1..example"\}\]\},"deployStageType":"COMPUTE_INSTANCE_GROUP_BLUE_GREEN_DEPLOYMENT","deployEnvironmentIdA":"example","deployEnvironmentIdB":"example","deploymentSpecDeployArtifactId":"ocid1.resource.oc1..example","productionLoadBalancerConfig":\{"listenerName":"example","loadBalancerId":"ocid1.resource.oc1..example"\},"rolloutPolicy":\{"policyType":"COMPUTE_INSTANCE_GROUP_LINEAR_ROLLOUT_POLICY_BY_COUNT","batchCount":1\}\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Deployment
+
+Create Deployment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployPipelineId` | string | Yes | The OCID of a pipeline. |
+| `deployment` | json | Yes | Typed Deployment configuration discriminated by deploymentType. Supports only documented fields; see the configuration example. Supported deploymentType values: PIPELINE_DEPLOYMENT, PIPELINE_REDEPLOYMENT, SINGLE_STAGE_DEPLOYMENT, SINGLE_STAGE_REDEPLOYMENT. Example: \{"deploymentType":"PIPELINE_DEPLOYMENT"\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Project
+
+Create Project in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `compartmentId` | string | Yes | The OCID of the compartment where the project is created. |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `description` | string | No | Project description. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `name` | string | Yes | Project name \(case-sensitive\). |
+| `notificationConfig` | json | Yes | notificationConfig |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Repository
+
+Create Repository in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `defaultBranch` | string | No | The default branch of the repository. |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `description` | string | No | Details of the repository. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `mirrorRepositoryConfig` | json | No | mirrorRepositoryConfig |
+| `name` | string | Yes | Name of the repository. Should be unique within the project. |
+| `parentRepositoryId` | string | No | The OCID of the parent repository. |
+| `projectId` | string | Yes | The OCID of the DevOps project containing the repository. |
+| `repositoryType` | string | Yes | Type of repository. Allowed values: 
+`MIRRORED` 
+`HOSTED`
+`FORKED`
+ Allowed: MIRRORED, HOSTED, FORKED. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Create Trigger
+
+Create Trigger in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | The OCID of the DevOps project to which the trigger belongs to. |
+| `trigger` | json | Yes | Typed Trigger configuration discriminated by triggerSource. Supports only documented fields; see the configuration example. Supported triggerSource values: DEVOPS_CODE_REPOSITORY. Example: \{"actions":\[\{"type":"TRIGGER_BUILD_PIPELINE","buildPipelineId":"ocid1.resource.oc1..example"\}\],"triggerSource":"DEVOPS_CODE_REPOSITORY"\} |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Build Pipeline
+
+Delete Build Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineId` | string | Yes | Unique build pipeline identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Build Pipeline Stage
+
+Delete Build Pipeline Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineStageId` | string | Yes | Unique stage identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Connection
+
+Delete Connection in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `connectionId` | string | Yes | Unique connection identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Deploy Artifact
+
+Delete Deploy Artifact in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployArtifactId` | string | Yes | Unique artifact identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Deploy Environment
+
+Delete Deploy Environment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployEnvironmentId` | string | Yes | Unique environment identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Deploy Pipeline
+
+Delete Deploy Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployPipelineId` | string | Yes | Unique pipeline identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Deploy Stage
+
+Delete Deploy Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployStageId` | string | Yes | Unique stage identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Project
+
+Delete Project in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | Unique project identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Repository
+
+Delete Repository in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Delete Trigger
+
+Delete Trigger in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `triggerId` | string | Yes | Unique trigger identifier. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Build Pipeline
+
+Get Build Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineId` | string | Yes | Unique build pipeline identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Build Pipeline Stage
+
+Get Build Pipeline Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineStageId` | string | Yes | Unique stage identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Build Run
+
+Get Build Run in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildRunId` | string | Yes | Unique build run identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Commit
+
+Get Commit in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `commitId` | string | Yes | A filter to return only resources that match the given commit ID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Connection
+
+Get Connection in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `connectionId` | string | Yes | Unique connection identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Deploy Artifact
+
+Get Deploy Artifact in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployArtifactId` | string | Yes | Unique artifact identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Deploy Environment
+
+Get Deploy Environment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployEnvironmentId` | string | Yes | Unique environment identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Deploy Pipeline
+
+Get Deploy Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployPipelineId` | string | Yes | Unique pipeline identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Deploy Stage
+
+Get Deploy Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployStageId` | string | Yes | Unique stage identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Deployment
+
+Get Deployment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deploymentId` | string | Yes | Unique deployment identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Project
+
+Get Project in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | Unique project identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Repository
+
+Get Repository in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `fields` | json | No | Fields parameter can contain multiple flags useful in deciding the API functionality. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Trigger
+
+Get Trigger in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `triggerId` | string | Yes | Unique trigger identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Get Work Request
+
+Get Work Request in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `workRequestId` | string | Yes | The ID of the asynchronous work request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Build Pipeline Stages
+
+List Build Pipeline Stages in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `buildPipelineId` | string | Yes | The OCID of the parent build pipeline. |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return the stages that matches the given lifecycle state. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Build Pipelines
+
+List Build Pipelines in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `projectId` | string | Yes | unique project identifier |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return only build pipelines that matches the given lifecycle state. Allowed: CREATING, UPDATING, ACTIVE, INACTIVE, DELETING, DELETED, FAILED. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Build Runs
+
+List Build Runs in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `buildPipelineId` | string | Yes | Unique build pipeline identifier. |
+| `projectId` | string | No | unique project identifier |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `lifecycleState` | string | No | A filter to return only build runs that matches the given lifecycle state. Allowed: ACCEPTED, IN_PROGRESS, FAILED, SUCCEEDED, CANCELING, CANCELED, DELETING. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Commits
+
+List Commits in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `refName` | string | No | A filter to return only resources that match the given reference name. |
+| `excludeRefName` | string | No | A filter to exclude commits that match the given reference name. |
+| `filePath` | string | No | A filter to return only commits that affect any of the specified paths. |
+| `timestampGreaterThanOrEqualTo` | string | No | A filter to return commits only created after the specified timestamp value. |
+| `timestampLessThanOrEqualTo` | string | No | A filter to return commits only created before the specified timestamp value. |
+| `commitMessage` | string | No | A filter to return any commits that contains the given message. |
+| `authorName` | string | No | A filter to return any commits that are pushed by the requested author. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Connections
+
+List Connections in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `projectId` | string | Yes | unique project identifier |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return only connections that matches the given lifecycle state. Allowed: ACTIVE, DELETING. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `connectionType` | string | No | A filter to return only resources that match the given connection type. Allowed: GITHUB_ACCESS_TOKEN, GITLAB_ACCESS_TOKEN, GITLAB_SERVER_ACCESS_TOKEN, BITBUCKET_SERVER_ACCESS_TOKEN, BITBUCKET_CLOUD_APP_PASSWORD, VBS_ACCESS_TOKEN. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Deploy Artifacts
+
+List Deploy Artifacts in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `projectId` | string | Yes | unique project identifier |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return only DeployArtifacts that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Deploy Environments
+
+List Deploy Environments in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | unique project identifier |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `lifecycleState` | string | No | A filter to return only DeployEnvironments that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED, NEEDS_ATTENTION. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Deploy Pipelines
+
+List Deploy Pipelines in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `projectId` | string | Yes | unique project identifier |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return only DeployPipelines that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, INACTIVE, DELETING, DELETED, FAILED. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Deploy Stages
+
+List Deploy Stages in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `deployPipelineId` | string | Yes | The ID of the parent pipeline. |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return only deployment stages that matches the given lifecycle state. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Deployments
+
+List Deployments in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployPipelineId` | string | Yes | The ID of the parent pipeline. |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `projectId` | string | No | unique project identifier |
+| `lifecycleState` | string | No | A filter to return only Deployments that matches the given lifecycleState. Allowed: ACCEPTED, IN_PROGRESS, FAILED, SUCCEEDED, CANCELING, CANCELED. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+| `timeCreatedLessThan` | string | No | Search for DevOps resources that were created before a specific date. Specifying this parameter corresponding to `timeCreatedLessThan` parameter will retrieve all assessments created before the specified created date, in "YYYY-MM-ddThh:mmZ" format with a Z offset, as defined by \[RFC3339\]\(https://datatracker.ietf.org/doc/html/rfc3339\). |
+| `timeCreatedGreaterThanOrEqualTo` | string | No | Search for DevOps resources that were created after a specific date. Specifying this parameter corresponding to `timeCreatedGreaterThanOrEqualTo` parameter will retrieve all security assessments created after the specified created date, in "YYYY-MM-ddThh:mmZ" format with a Z offset, as defined by \[RFC3339\]\(https://datatracker.ietf.org/doc/html/rfc3339\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Paths
+
+List Paths in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `ref` | string | No | The name of branch/tag or commit hash it points to. If names conflict, order of preference is commit &gt; branch &gt; tag.
+You can disambiguate with "heads/foobar" and "tags/foobar". If left blank repository's default branch will be used.
+ |
+| `pathsInSubtree` | boolean | No | Flag to determine if files must be retrived recursively. Flag is False by default. |
+| `folderPath` | string | No | The fully qualified path to the folder whose contents are returned, including the folder name. For example, /examples is a fully-qualified path to a folder named examples that was created off of the root directory \(/\) of a repository. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order is ascending. If no value is specified name is default.
+ Allowed: type, sizeInBytes, name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Projects
+
+List Projects in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
+| `compartmentId` | string | Yes | The OCID of the compartment in which to list resources. |
+| `lifecycleState` | string | No | A filter to return only Projects that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED, NEEDS_ATTENTION. |
+| `name` | string | No | A filter to return only resources that match the entire name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Refs
+
+List Refs in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `refType` | string | No | Reference type to distinguish between branch and tag. If it is not specified, all references are returned. Allowed: BRANCH, TAG. |
+| `commitId` | string | No | Commit ID in a repository. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `refName` | string | No | A filter to return only resources that match the given reference name. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for reference name is ascending. Default order for reference type is ascending. If no value is specified reference name is default.
+ Allowed: refType, refName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Repositories
+
+List Repositories in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `projectId` | string | Yes | unique project identifier |
+| `repositoryId` | string | No | Unique repository identifier. |
+| `lifecycleState` | string | No | A filter to return only resources whose lifecycle state matches the given lifecycle state. Allowed: ACTIVE, CREATING, DELETED, FAILED, DELETING. |
+| `name` | string | No | A filter to return only resources that match the entire name given. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for name is ascending. If no value is specified time created is default.
+ Allowed: timeCreated, name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Triggers
+
+List Triggers in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
+| `projectId` | string | Yes | unique project identifier |
+| `lifecycleState` | string | No | A filter to return only triggers that matches the given lifecycle state. Allowed: ACTIVE, DELETING. |
+| `displayName` | string | No | A filter to return only resources that match the entire display name given. |
+| `id` | string | No | Unique trigger identifier. |
+| `limit` | number | No | The maximum number of items to return. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order may be provided. Default order for time created is descending. Default order for display name is ascending. If no value is specified, then the default time created value is considered. Allowed: timeCreated, displayName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Work Request Errors
+
+List Work Request Errors in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `workRequestId` | string | Yes | The ID of the asynchronous work request. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `limit` | number | No | The maximum number of items to return. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order can be provided. Default sort order is descending and is based on the timeAccepted field. Allowed: timeAccepted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps List Work Requests
+
+List Work Requests in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `compartmentId` | string | Yes | The OCID of the compartment in which to list resources. |
+| `workRequestId` | string | No | The ID of the asynchronous work request. |
+| `status` | string | No | A filter to return only resources where the lifecycle state matches the given operation status. Allowed: ACCEPTED, IN_PROGRESS, FAILED, SUCCEEDED, CANCELING, CANCELED, WAITING, NEEDS_ATTENTION. |
+| `resourceId` | string | No | The ID of the resource affected by the work request. |
+| `page` | string | No | The page token representing the page at which to start retrieving results. This is usually retrieved from a previous list call. |
+| `limit` | number | No | The maximum number of items to return. |
+| `sortOrder` | string | No | The sort order to use. Use either ascending or descending. Allowed: ASC, DESC. |
+| `sortBy` | string | No | The field to sort by. Only one sort order can be provided. Default sort order is descending and is based on the timeAccepted field. Allowed: timeAccepted. |
+| `operationTypeMultiValueQuery` | json | No | A filter to return only resources where their Operation Types matches the parameter operation types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Build Pipeline
+
+Update Build Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineId` | string | Yes | Unique build pipeline identifier. |
+| `buildPipelineParameters` | json | No | buildPipelineParameters |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `description` | string | No | Optional description about the build pipeline. |
+| `displayName` | string | No | Build pipeline display name. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Build Pipeline Stage
+
+Update Build Pipeline Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildPipelineStageId` | string | Yes | Unique stage identifier. |
+| `stage` | json | Yes | Typed BuildPipelineStage configuration discriminated by buildPipelineStageType. Supports only documented fields; see the configuration example. Supported buildPipelineStageType values: BUILD, DELIVER_ARTIFACT, TRIGGER_DEPLOYMENT_PIPELINE, WAIT. Example: \{"buildPipelineStageType":"BUILD"\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Build Run
+
+Update Build Run in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `buildRunId` | string | Yes | Unique build run identifier. |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `displayName` | string | No | Build run display name. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Connection
+
+Update Connection in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `connectionId` | string | Yes | Unique connection identifier. |
+| `connection` | json | Yes | Typed Connection configuration discriminated by connectionType. Supports only documented fields; see the configuration example. secretId is an existing OCI Vault secret OCID, not a plaintext access token. Supported connectionType values: BITBUCKET_SERVER_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, GITLAB_ACCESS_TOKEN, GITLAB_SERVER_ACCESS_TOKEN, VBS_ACCESS_TOKEN. Example: \{"connectionType":"BITBUCKET_SERVER_ACCESS_TOKEN"\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Deploy Artifact
+
+Update Deploy Artifact in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployArtifactId` | string | Yes | Unique artifact identifier. |
+| `artifact` | json | Yes | Typed DeployArtifact configuration. Supports only documented fields; see the configuration example. Example: \{\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Deploy Environment
+
+Update Deploy Environment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployEnvironmentId` | string | Yes | Unique environment identifier. |
+| `environment` | json | Yes | Typed DeployEnvironment configuration discriminated by deployEnvironmentType. Supports only documented fields; see the configuration example. Supported deployEnvironmentType values: COMPUTE_INSTANCE_GROUP, FUNCTION, OKE_CLUSTER. Example: \{"deployEnvironmentType":"COMPUTE_INSTANCE_GROUP"\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Deploy Pipeline
+
+Update Deploy Pipeline in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployPipelineId` | string | Yes | Unique pipeline identifier. |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `deployPipelineParameters` | json | No | deployPipelineParameters |
+| `description` | string | No | Optional description about the deloyment pipeline. |
+| `displayName` | string | No | Deloyment pipeline display name. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Deploy Stage
+
+Update Deploy Stage in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deployStageId` | string | Yes | Unique stage identifier. |
+| `stage` | json | Yes | Typed DeployStage configuration discriminated by deployStageType. Supports only documented fields; see the configuration example. Supported deployStageType values: COMPUTE_INSTANCE_GROUP_BLUE_GREEN_DEPLOYMENT, COMPUTE_INSTANCE_GROUP_BLUE_GREEN_TRAFFIC_SHIFT, COMPUTE_INSTANCE_GROUP_CANARY_APPROVAL, COMPUTE_INSTANCE_GROUP_CANARY_DEPLOYMENT, COMPUTE_INSTANCE_GROUP_CANARY_TRAFFIC_SHIFT, COMPUTE_INSTANCE_GROUP_ROLLING_DEPLOYMENT, DEPLOY_FUNCTION, INVOKE_FUNCTION, LOAD_BALANCER_TRAFFIC_SHIFT, MANUAL_APPROVAL, OKE_BLUE_GREEN_DEPLOYMENT, OKE_BLUE_GREEN_TRAFFIC_SHIFT, OKE_CANARY_APPROVAL, OKE_CANARY_DEPLOYMENT, OKE_CANARY_TRAFFIC_SHIFT, OKE_DEPLOYMENT, OKE_HELM_CHART_DEPLOYMENT, SHELL, WAIT. Example: \{"deployStageType":"COMPUTE_INSTANCE_GROUP_BLUE_GREEN_DEPLOYMENT"\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Deployment
+
+Update Deployment in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `deploymentId` | string | Yes | Unique deployment identifier. |
+| `deployment` | json | Yes | Typed Deployment configuration discriminated by deploymentType. Supports only documented fields; see the configuration example. Supported deploymentType values: PIPELINE_DEPLOYMENT, PIPELINE_REDEPLOYMENT, SINGLE_STAGE_DEPLOYMENT, SINGLE_STAGE_REDEPLOYMENT. Example: \{"deploymentType":"PIPELINE_DEPLOYMENT"\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Project
+
+Update Project in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `projectId` | string | Yes | Unique project identifier. |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `description` | string | No | Project description. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `notificationConfig` | json | No | notificationConfig |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Repository
+
+Update Repository in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `repositoryId` | string | Yes | Unique repository identifier. |
+| `defaultBranch` | string | No | The default branch of the repository. |
+| `definedTags` | json | No | Defined tags for this resource. Each key is predefined and scoped to a namespace. See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"foo-namespace": \{"bar-key": "value"\}\}` |
+| `description` | string | No | Details of the repository. Avoid entering confidential information. |
+| `freeformTags` | json | No | Simple key-value pair that is applied without any predefined name, type or scope. Exists for cross-compatibility only.  See \[Resource Tags\]\(/Content/General/Concepts/resourcetags.htm\). Example: `\{"bar-key": "value"\}` |
+| `mirrorRepositoryConfig` | json | No | mirrorRepositoryConfig |
+| `name` | string | No | Name of the repository. Should be unique within the project. |
+| `repositoryType` | string | No | Type of repository. Allowed values: 
+`MIRRORED` 
+`HOSTED`
+`FORKED`
+ Allowed: MIRRORED, HOSTED, FORKED. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Update Trigger
+
+Update Trigger in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `triggerId` | string | Yes | Unique trigger identifier. |
+| `trigger` | json | Yes | Typed Trigger configuration discriminated by triggerSource. Supports only documented fields; see the configuration example. Supported triggerSource values: BITBUCKET_CLOUD, BITBUCKET_SERVER, DEVOPS_CODE_REPOSITORY, GITHUB, GITLAB_SERVER, GITLAB, VBS. Example: \{"triggerSource":"BITBUCKET_CLOUD"\} |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+### OCI DevOps Validate Connection
+
+Validate Connection in OCI DevOps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
+| `region` | string | No | OCI region; defaults to the credential region |
+| `connectionId` | string | Yes | Unique connection identifier. |
+| `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
+| `ifMatch` | string | Yes | ETag from a preceding read. Mismatches fail without overwriting concurrent changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Resource identity, parent references, configuration references, and lifecycle status |
+| `items` | json | One page of resource summaries |
+| `nextPage` | string | Opaque next page token |
+| `etag` | string | ETag for conditional changes |
+| `requestId` | string | OCI request ID |
+| `workRequestId` | string | Configuration work request ID |
+| `accepted` | boolean | Mutation accepted; does not imply execution success |
+| `retryAfterSeconds` | number | Bounded suggested polling delay |
+
+

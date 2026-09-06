@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,301 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_devops",
+      "slug": "oci-devops",
+      "name": "OCI DevOps",
+      "description": "Manage OCI builds, deployments, and delivery configuration",
+      "longDescription": "Manage OCI DevOps projects, repositories, build and deployment pipelines, stages, target references, artifact descriptors, connections, and native repository triggers. Submit executions with stable retry tokens and inspect bounded status pages. Configuration acceptance is not execution success. Credentials use the existing OCI API-key service account. Connection inputs contain Vault secret OCIDs, never plaintext tokens. External webhook creation, Git transport, and unrestricted logs are excluded.",
+      "bgColor": "#C74634",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_devops",
+      "operations": [
+        {
+          "name": "Approve Deployment",
+          "description": "Approve Deployment in OCI DevOps"
+        },
+        {
+          "name": "Cancel Build Run",
+          "description": "Cancel Build Run in OCI DevOps"
+        },
+        {
+          "name": "Cancel Deployment",
+          "description": "Cancel Deployment in OCI DevOps"
+        },
+        {
+          "name": "Create Build Pipeline",
+          "description": "Create Build Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Create Build Pipeline Stage",
+          "description": "Create Build Pipeline Stage in OCI DevOps"
+        },
+        {
+          "name": "Create Build Run",
+          "description": "Create Build Run in OCI DevOps"
+        },
+        {
+          "name": "Create Connection",
+          "description": "Create Connection in OCI DevOps"
+        },
+        {
+          "name": "Create Deploy Artifact",
+          "description": "Create Deploy Artifact in OCI DevOps"
+        },
+        {
+          "name": "Create Deploy Environment",
+          "description": "Create Deploy Environment in OCI DevOps"
+        },
+        {
+          "name": "Create Deploy Pipeline",
+          "description": "Create Deploy Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Create Deploy Stage",
+          "description": "Create Deploy Stage in OCI DevOps"
+        },
+        {
+          "name": "Create Deployment",
+          "description": "Create Deployment in OCI DevOps"
+        },
+        {
+          "name": "Create Project",
+          "description": "Create Project in OCI DevOps"
+        },
+        {
+          "name": "Create Repository",
+          "description": "Create Repository in OCI DevOps"
+        },
+        {
+          "name": "Create Trigger",
+          "description": "Create Trigger in OCI DevOps"
+        },
+        {
+          "name": "Delete Build Pipeline",
+          "description": "Delete Build Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Delete Build Pipeline Stage",
+          "description": "Delete Build Pipeline Stage in OCI DevOps"
+        },
+        {
+          "name": "Delete Connection",
+          "description": "Delete Connection in OCI DevOps"
+        },
+        {
+          "name": "Delete Deploy Artifact",
+          "description": "Delete Deploy Artifact in OCI DevOps"
+        },
+        {
+          "name": "Delete Deploy Environment",
+          "description": "Delete Deploy Environment in OCI DevOps"
+        },
+        {
+          "name": "Delete Deploy Pipeline",
+          "description": "Delete Deploy Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Delete Deploy Stage",
+          "description": "Delete Deploy Stage in OCI DevOps"
+        },
+        {
+          "name": "Delete Project",
+          "description": "Delete Project in OCI DevOps"
+        },
+        {
+          "name": "Delete Repository",
+          "description": "Delete Repository in OCI DevOps"
+        },
+        {
+          "name": "Delete Trigger",
+          "description": "Delete Trigger in OCI DevOps"
+        },
+        {
+          "name": "Get Build Pipeline",
+          "description": "Get Build Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Get Build Pipeline Stage",
+          "description": "Get Build Pipeline Stage in OCI DevOps"
+        },
+        {
+          "name": "Get Build Run",
+          "description": "Get Build Run in OCI DevOps"
+        },
+        {
+          "name": "Get Commit",
+          "description": "Get Commit in OCI DevOps"
+        },
+        {
+          "name": "Get Connection",
+          "description": "Get Connection in OCI DevOps"
+        },
+        {
+          "name": "Get Deploy Artifact",
+          "description": "Get Deploy Artifact in OCI DevOps"
+        },
+        {
+          "name": "Get Deploy Environment",
+          "description": "Get Deploy Environment in OCI DevOps"
+        },
+        {
+          "name": "Get Deploy Pipeline",
+          "description": "Get Deploy Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Get Deploy Stage",
+          "description": "Get Deploy Stage in OCI DevOps"
+        },
+        {
+          "name": "Get Deployment",
+          "description": "Get Deployment in OCI DevOps"
+        },
+        {
+          "name": "Get Project",
+          "description": "Get Project in OCI DevOps"
+        },
+        {
+          "name": "Get Repository",
+          "description": "Get Repository in OCI DevOps"
+        },
+        {
+          "name": "Get Trigger",
+          "description": "Get Trigger in OCI DevOps"
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Get Work Request in OCI DevOps"
+        },
+        {
+          "name": "List Build Pipeline Stages",
+          "description": "List Build Pipeline Stages in OCI DevOps"
+        },
+        {
+          "name": "List Build Pipelines",
+          "description": "List Build Pipelines in OCI DevOps"
+        },
+        {
+          "name": "List Build Runs",
+          "description": "List Build Runs in OCI DevOps"
+        },
+        {
+          "name": "List Commits",
+          "description": "List Commits in OCI DevOps"
+        },
+        {
+          "name": "List Connections",
+          "description": "List Connections in OCI DevOps"
+        },
+        {
+          "name": "List Deploy Artifacts",
+          "description": "List Deploy Artifacts in OCI DevOps"
+        },
+        {
+          "name": "List Deploy Environments",
+          "description": "List Deploy Environments in OCI DevOps"
+        },
+        {
+          "name": "List Deploy Pipelines",
+          "description": "List Deploy Pipelines in OCI DevOps"
+        },
+        {
+          "name": "List Deploy Stages",
+          "description": "List Deploy Stages in OCI DevOps"
+        },
+        {
+          "name": "List Deployments",
+          "description": "List Deployments in OCI DevOps"
+        },
+        {
+          "name": "List Paths",
+          "description": "List Paths in OCI DevOps"
+        },
+        {
+          "name": "List Projects",
+          "description": "List Projects in OCI DevOps"
+        },
+        {
+          "name": "List Refs",
+          "description": "List Refs in OCI DevOps"
+        },
+        {
+          "name": "List Repositories",
+          "description": "List Repositories in OCI DevOps"
+        },
+        {
+          "name": "List Triggers",
+          "description": "List Triggers in OCI DevOps"
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List Work Request Errors in OCI DevOps"
+        },
+        {
+          "name": "List Work Requests",
+          "description": "List Work Requests in OCI DevOps"
+        },
+        {
+          "name": "Update Build Pipeline",
+          "description": "Update Build Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Update Build Pipeline Stage",
+          "description": "Update Build Pipeline Stage in OCI DevOps"
+        },
+        {
+          "name": "Update Build Run",
+          "description": "Update Build Run in OCI DevOps"
+        },
+        {
+          "name": "Update Connection",
+          "description": "Update Connection in OCI DevOps"
+        },
+        {
+          "name": "Update Deploy Artifact",
+          "description": "Update Deploy Artifact in OCI DevOps"
+        },
+        {
+          "name": "Update Deploy Environment",
+          "description": "Update Deploy Environment in OCI DevOps"
+        },
+        {
+          "name": "Update Deploy Pipeline",
+          "description": "Update Deploy Pipeline in OCI DevOps"
+        },
+        {
+          "name": "Update Deploy Stage",
+          "description": "Update Deploy Stage in OCI DevOps"
+        },
+        {
+          "name": "Update Deployment",
+          "description": "Update Deployment in OCI DevOps"
+        },
+        {
+          "name": "Update Project",
+          "description": "Update Project in OCI DevOps"
+        },
+        {
+          "name": "Update Repository",
+          "description": "Update Repository in OCI DevOps"
+        },
+        {
+          "name": "Update Trigger",
+          "description": "Update Trigger in OCI DevOps"
+        },
+        {
+          "name": "Validate Connection",
+          "description": "Validate Connection in OCI DevOps"
+        }
+      ],
+      "operationCount": 69,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "ci-cd"]
     },
     {
       "type": "okta",
