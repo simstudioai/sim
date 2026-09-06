@@ -81,6 +81,14 @@ vi.mock('@/lib/mothership/request/tools/workflow-context', () => ({
   applyCreateWorkflowOutputToContext: vi.fn(),
 }))
 
+vi.mock('@/lib/mothership/chat/delegation', () => ({
+  mintDelegationToken: async () => 'local-cli-budget-fixture',
+}))
+vi.mock('@/lib/core/utils/urls', () => ({
+  getInternalApiBaseUrl: () => 'https://cli-budget.test',
+  SITE_URL: 'https://cli-budget.test',
+}))
+
 import type { AsyncConfirmationState } from '@/lib/mothership/async-runs/lifecycle'
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 import {
@@ -97,6 +105,7 @@ import {
   toolWatchdogTimeoutMs,
 } from '@/lib/mothership/request/tools/executor'
 import type { ExecutionContext, ToolCallState } from '@/lib/mothership/request/types'
+import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 function buildStreamingContext(toolCall: ToolCallState) {
@@ -127,7 +136,7 @@ describe('toolWatchdogTimeoutMs', () => {
 
   // The Go-era deploy_* tools left the live surface with the TS worker (deploys go
   // through the CLI now); the long-running set tracks tools that can actually execute.
-  it.each(['run_workflow', 'run_code', 'generate_video', 'apply_file_edit'])(
+  it.each(['sim_cli', 'run_workflow', 'run_code', 'generate_video', 'apply_file_edit'])(
     'does not undercut long-running live tool %s with the default watchdog',
     (toolName) => {
       expect(toolWatchdogTimeoutMs(toolName)).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)
@@ -136,6 +145,15 @@ describe('toolWatchdogTimeoutMs', () => {
 })
 
 describe('pendingToolWaitBudgetMs', () => {
+  it('uses the executable identity for displayed CLI calls', () => {
+    expect(
+      pendingToolWaitBudgetMs({
+        name: 'cli_workflows_run',
+        execName: 'sim_cli',
+        status: 'executing',
+      })
+    ).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)
+  })
   it('bounds retired browser calls that can no longer be executed by the client', () => {
     expect(pendingToolWaitBudgetMs({ name: 'browser_request_takeover', status: 'executing' })).toBe(
       TOOL_WATCHDOG_DEFAULT_MS
@@ -231,6 +249,57 @@ describe('executeToolAndReport provenance isolation', () => {
   })
 
   afterEach(() => vi.useRealTimers())
+
+  it('keeps a real embedded workflow execution alive beyond the generic watchdog', async () => {
+    vi.useFakeTimers()
+    const runWorkflow = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('https://cli-budget.test/api/v2/workflows/workflow-1/execute')
+      expect(init?.method).toBe('POST')
+      await new Promise((resolve) => setTimeout(resolve, 70_000))
+      init?.signal?.throwIfAborted()
+      return Response.json({
+        data: {
+          executionId: 'run-1',
+          status: 'completed',
+          output: { answer: 42 },
+        },
+      })
+    })
+    vi.stubGlobal('fetch', runWorkflow)
+    executeTool.mockImplementation(async (name, params, context) => {
+      expect(name).toBe('sim_cli')
+      return executeSimCli(params, context)
+    })
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'cli_workflows_run',
+      execName: 'sim_cli',
+      params: {
+        request: {
+          invocation: {
+            kind: 'cli',
+            argv: ['workflows', 'run', 'workflow-1', '--manual'],
+          },
+        },
+      },
+    }
+    const pending = executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+    await vi.advanceTimersByTimeAsync(80_000)
+    const completion = await pending
+    expect(tool.error).toBeUndefined()
+    expect(completion.status).toBe('success')
+    expect(tool.result).toMatchObject({ success: true, output: { exitCode: 0, stderr: '' } })
+    const output = tool.result?.output
+    expect(output).toHaveProperty('stdout', expect.stringContaining('completed'))
+    expect(runWorkflow).toHaveBeenCalledOnce()
+    expect(executeTool).toHaveBeenCalledOnce()
+    expect(settleSimToolExecution).toHaveBeenCalledOnce()
+  })
 
   it.each(['success', 'error', 'cancelled'] as const)(
     'observes another controller until its durable %s result without repeating or settling its execution',

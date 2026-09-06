@@ -207,6 +207,8 @@ function abortRequested(
  * default or be failed so the run can continue.
  */
 const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
+  // Embedded CLI commands retain their own request budgets, including synchronous runs.
+  'sim_cli',
   Run.id,
   RunBlock.id,
   RunFromBlock.id,
@@ -235,17 +237,18 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
  */
 export function pendingToolWaitBudgetMs(
   toolCall:
-    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params'>>)
+    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
     | undefined
 ): number {
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
-  if (toolCall?.name === 'browser_wait_for') {
+  const executableName = toolCall?.execName ?? toolCall?.name
+  if (executableName === 'browser_wait_for') {
     return (
-      normalizeBrowserWaitForTimeoutMs(toolCall.params?.timeoutMs) +
+      normalizeBrowserWaitForTimeoutMs(toolCall?.params?.timeoutMs) +
       BROWSER_WAIT_FOR_RENDERER_GRACE_MS
     )
   }
-  return toolWatchdogTimeoutMs(toolCall?.name)
+  return toolWatchdogTimeoutMs(executableName)
 }
 
 /**
