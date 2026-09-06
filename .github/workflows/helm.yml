@@ -5,6 +5,8 @@ on:
     branches: [main, staging, dev]
     paths:
       - 'helm/sim/**'
+      # Repository-level Artifact Hub metadata, republished by the publish job.
+      - 'helm/artifacthub-repo.yml'
       - '.github/workflows/helm.yml'
       # The image inventory is generated from the chart and checked here, so a
       # change to its generator has to run this workflow too.
@@ -14,6 +16,8 @@ on:
     branches: [main, staging, dev]
     paths:
       - 'helm/sim/**'
+      # Repository-level Artifact Hub metadata, republished by the publish job.
+      - 'helm/artifacthub-repo.yml'
       - '.github/workflows/helm.yml'
       # The image inventory is generated from the chart and checked here, so a
       # change to its generator has to run this workflow too.
@@ -181,3 +185,148 @@ jobs:
 
       - name: Run helm test
         run: helm test sim --namespace sim --timeout 5m
+
+  # Publishes the chart to GHCR as an OCI artifact. Self-hosters cannot admit a
+  # chart pulled from a git checkout — they need an immutable, versioned artifact
+  # they can pin by digest and mirror into an internal registry — so shipping the
+  # chart in-repo only is the same as not shipping it.
+  #
+  # Lives here rather than in a `publish-*.yml` of its own so it can gate on the
+  # jobs above: nothing is published unless the chart linted, unit-tested,
+  # rendered clean under kubeconform, and actually installed on a kind cluster.
+  # A separate workflow would race those instead of waiting for them.
+  publish:
+    name: Publish chart to GHCR
+    needs: [chart, install]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      # Sigstore signs against the runner's OIDC identity; no key material is stored.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.16.4
+
+      # oras also reads ~/.docker/config.json, so this one login covers both the
+      # chart push and the Artifact Hub metadata push below.
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package chart
+        id: package
+        run: |
+          set -euo pipefail
+          name=$(helm show chart helm/sim | awk '/^name:/ {print $2}')
+          version=$(helm show chart helm/sim | awk '/^version:/ {print $2}')
+          helm package helm/sim --destination dist
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "path=dist/${name}-${version}.tgz" >> "$GITHUB_OUTPUT"
+          echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}" >> "$GITHUB_OUTPUT"
+
+      # Chart versions are immutable once published: whoever pinned a version
+      # must keep resolving the same bytes forever. The PR gate above
+      # already forces a version bump on every chart change, so a version that
+      # is already in the registry means this commit changed something outside
+      # `helm/sim/` — republishing would either fail or silently move a tag.
+      - name: Skip if this version is already published
+        id: exists
+        run: |
+          set -euo pipefail
+          if helm show chart "oci://${{ steps.package.outputs.repository }}" \
+               --version "${{ steps.package.outputs.version }}" > /dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ steps.package.outputs.name }} ${{ steps.package.outputs.version }} is already published; skipping."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # `helm push` takes the namespace only — it derives the repository
+      # basename from the chart's name and the tag from its version, so the
+      # result is ghcr.io/<owner>/charts/sim:<version>.
+      - name: Push chart
+        id: push
+        if: steps.exists.outputs.already == 'false'
+        run: |
+          set -euo pipefail
+          output=$(helm push "${{ steps.package.outputs.path }}" \
+            "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts" 2>&1)
+          echo "$output"
+          digest=$(echo "$output" | grep -oE 'sha256:[a-f0-9]{64}' | head -1 || true)
+          if [ -z "$digest" ]; then
+            echo "::error::helm push did not report a digest; refusing to sign an unidentified artifact"
+            exit 1
+          fi
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Cosign
+        if: steps.exists.outputs.already == 'false'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Signed by digest, never by tag: a tag is a mutable pointer, so signing
+      # one would attest to whatever it happens to reference later. The verify
+      # is not ceremony — it fails the run if the signature we just wrote cannot
+      # be read back with the identity we expect, which is the whole point of
+      # publishing a signature at all.
+      - name: Sign and verify chart
+        if: steps.exists.outputs.already == 'false'
+        run: |
+          set -euo pipefail
+          ref="${{ steps.package.outputs.repository }}@${{ steps.push.outputs.digest }}"
+          cosign sign --yes "$ref"
+          cosign verify "$ref" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+      # Stored alongside the chart so a mirrored registry carries the
+      # attestation with it, rather than only being retrievable from GitHub.
+      - name: Attest build provenance
+        if: steps.exists.outputs.already == 'false'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.package.outputs.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
+
+      # Artifact Hub reads repository metadata from the reserved `artifacthub.io`
+      # tag on the chart's own OCI repository. Pushed on every run, including
+      # version-skip runs, so an edit to the metadata file alone still lands.
+      - name: Publish Artifact Hub metadata
+        run: |
+          set -euo pipefail
+          oras push "${{ steps.package.outputs.repository }}:artifacthub.io" \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            helm/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+
+      - name: Summary
+        run: |
+          {
+            if [ "${{ steps.exists.outputs.already }}" = "true" ]; then
+              echo "### Chart ${{ steps.package.outputs.version }} was already published — nothing to do"
+            else
+              echo "### Published chart ${{ steps.package.outputs.version }}"
+              echo
+              echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            fi
+            echo
+            echo '```bash'
+            echo "helm install sim oci://${{ steps.package.outputs.repository }} --version ${{ steps.package.outputs.version }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
