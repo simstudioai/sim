@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { requestJson } from '@/lib/api/client/request'
+import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
@@ -38,12 +40,17 @@ import {
   consolePersistence,
   loadExecutionPointer,
   saveExecutionPointer,
+  useTerminalConsoleStore,
 } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
-const activeRunToolByWorkflowId = new Map<string, string>()
-const activeRunAbortByWorkflowId = new Map<string, AbortController>()
+interface ActiveRunTool {
+  toolCallId: string
+  execution?: { id: string; controller: AbortController }
+}
+
+const activeRunToolByWorkflowId = new Map<string, ActiveRunTool>()
 const manuallyStoppedToolCallIds = new Set<string>()
 const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
 
@@ -253,7 +260,7 @@ export async function bindRunToolToExecution(
   toolCallId: string,
   workflowId: string
 ): Promise<boolean> {
-  const existingToolCallId = activeRunToolByWorkflowId.get(workflowId)
+  const existingToolCallId = activeRunToolByWorkflowId.get(workflowId)?.toolCallId
   if (existingToolCallId === toolCallId) {
     logger.info('[RunTool] Recovery skipped: run tool is already active in this tab', {
       workflowId,
@@ -355,63 +362,67 @@ export function executeRunToolOnClient(
   })
 }
 
-/**
- * Synchronously mark the active run tool for a workflow as manually stopped.
- * Must be called before issuing the cancellation request so that the
- * concurrent doExecuteRunTool catch/success paths see the marker and skip
- * their own completion report.
- */
-export function markRunToolManuallyStopped(workflowId: string): string | null {
-  const toolCallId = activeRunToolByWorkflowId.get(workflowId)
-  if (!toolCallId) return null
-  manuallyStoppedToolCallIds.add(toolCallId)
-  return toolCallId
-}
-
 export function isRunToolActiveForId(toolCallId: string): boolean {
-  for (const activeId of activeRunToolByWorkflowId.values()) {
-    if (activeId === toolCallId) return true
+  for (const active of activeRunToolByWorkflowId.values()) {
+    if (active.toolCallId === toolCallId) return true
   }
   return false
 }
 
-export function cancelRunToolExecution(workflowId: string): void {
-  const controller = activeRunAbortByWorkflowId.get(workflowId)
-  if (!controller) return
-  controller.abort('user_stop:cancelRunToolExecution')
-  activeRunAbortByWorkflowId.delete(workflowId)
+/** The resource's Stop button refers to its displayed execution, which may be a manual run. */
+export function stopRunToolForExecution(workflowId: string, executionId: string | null): boolean {
+  const active = activeRunToolByWorkflowId.get(workflowId)
+  if (!executionId || active?.execution?.id !== executionId) return false
+  stopRunToolExecutions(new Set([active.toolCallId]))
+  return true
 }
 
-/**
- * Report a manual user-initiated stop for an active client-executed run tool.
- * This lets Copilot know the run was intentionally cancelled by the user.
- * Call markRunToolManuallyStopped first to prevent race conditions.
- */
-export async function reportManualRunToolStop(
-  workflowId: string,
-  toolCallIdOverride?: string | null
-): Promise<void> {
-  const toolCallId = toolCallIdOverride || activeRunToolByWorkflowId.get(workflowId)
-  if (!toolCallId) return
-
-  if (!manuallyStoppedToolCallIds.has(toolCallId)) {
+/** Cancels exact tool-owned executions; a workflow's current UI pointer is not ownership. */
+export function stopRunToolExecutions(toolCallIds: ReadonlySet<string>): void {
+  for (const [workflowId, active] of activeRunToolByWorkflowId) {
+    const { toolCallId, execution } = active
+    if (!toolCallIds.has(toolCallId) || !execution || manuallyStoppedToolCallIds.has(toolCallId)) {
+      continue
+    }
     manuallyStoppedToolCallIds.add(toolCallId)
+    execution.controller.abort('user_stop:stopRunToolExecutions')
+    requestJson(cancelWorkflowExecutionContract, {
+      params: { id: workflowId, executionId: execution.id },
+    }).catch((error) => logger.warn('Workflow cancellation request failed', { toolCallId, error }))
+    reportCompletion(
+      toolCallId,
+      MothershipStreamV1ToolOutcome.cancelled,
+      getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.cancelled),
+      { reason: 'user_cancelled', cancelledByUser: true },
+      execution.id
+    ).catch((error) => logger.warn('Workflow stop report failed', { toolCallId, error }))
+
+    const consoleStore = useTerminalConsoleStore.getState()
+    consoleStore.cancelRunningEntries(workflowId, execution.id)
+    const now = new Date().toISOString()
+    consoleStore.addConsole({
+      input: {},
+      output: {},
+      success: false,
+      error: 'Run was cancelled',
+      durationMs: 0,
+      startedAt: now,
+      executionOrder: Number.MAX_SAFE_INTEGER,
+      endedAt: now,
+      workflowId,
+      blockId: 'cancelled',
+      executionId: execution.id,
+      blockName: 'Run Cancelled',
+      blockType: 'cancelled',
+    })
+    const state = useExecutionStore.getState()
+    if (state.getCurrentExecutionId(workflowId) === execution.id) {
+      clearExecutionPointer(workflowId)
+      state.setCurrentExecutionId(workflowId, null)
+      state.setIsExecuting(workflowId, false)
+      state.setActiveBlocks(workflowId, new Set())
+    }
   }
-
-  const executionId =
-    useExecutionStore.getState().getCurrentExecutionId(workflowId) ??
-    (await loadExecutionPointer(workflowId).catch(() => null))?.executionId
-
-  await reportCompletion(
-    toolCallId,
-    MothershipStreamV1ToolOutcome.cancelled,
-    getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.cancelled),
-    {
-      reason: 'user_cancelled',
-      cancelledByUser: true,
-    },
-    executionId
-  )
 }
 
 async function doExecuteRunTool(
@@ -440,7 +451,7 @@ async function doExecuteRunTool(
     logger.warn('[RunTool] Execution prevented: another run tool is already active', {
       toolCallId,
       toolName,
-      existingToolCallId,
+      existingToolCallId: existingToolCallId.toolCallId,
     })
     await reportCompletion(
       toolCallId,
@@ -451,7 +462,8 @@ async function doExecuteRunTool(
   }
 
   setActiveWorkflow(targetWorkflowId)
-  activeRunToolByWorkflowId.set(targetWorkflowId, toolCallId)
+  const activeRun: ActiveRunTool = { toolCallId }
+  activeRunToolByWorkflowId.set(targetWorkflowId, activeRun)
 
   const { getWorkflowExecution, setIsExecuting } = useExecutionStore.getState()
   const { isExecuting } = getWorkflowExecution(targetWorkflowId)
@@ -482,7 +494,7 @@ async function doExecuteRunTool(
         triggerBlockId
       )
     } finally {
-      if (activeRunToolByWorkflowId.get(targetWorkflowId) === toolCallId) {
+      if (activeRunToolByWorkflowId.get(targetWorkflowId) === activeRun) {
         activeRunToolByWorkflowId.delete(targetWorkflowId)
       }
     }
@@ -525,16 +537,19 @@ async function doExecuteRunTool(
 
   const { setCurrentExecutionId } = useExecutionStore.getState()
   const abortController = new AbortController()
-  activeRunAbortByWorkflowId.set(targetWorkflowId, abortController)
 
   const persistenceExecution = consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
   const executionId = generateId()
+  activeRun.execution = { id: executionId, controller: abortController }
   setCurrentExecutionId(targetWorkflowId, executionId)
   saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const releaseVisibleExecutionForBackground = () => {
     const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
-    if (activeRunToolByWorkflowId.get(targetWorkflowId) === toolCallId) {
+    if (
+      activeRunToolByWorkflowId.get(targetWorkflowId) === activeRun &&
+      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) === executionId
+    ) {
       clearExecId(targetWorkflowId, null)
       consolePersistence.executionEnded(persistenceExecution)
       setIsExecuting(targetWorkflowId, false)
@@ -544,15 +559,13 @@ async function doExecuteRunTool(
 
   const onPageHide = () => {
     if (manuallyStoppedToolCallIds.has(toolCallId)) return
-    const activeExecutionId =
-      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
     navigator.sendBeacon(
       COPILOT_CONFIRM_API_PATH,
       new Blob(
         [
           JSON.stringify({
             toolCallId,
-            executionId: activeExecutionId,
+            executionId,
             status: 'background',
             message: 'Client disconnected, execution continuing server-side',
           }),
@@ -594,9 +607,6 @@ async function doExecuteRunTool(
       preserveExecutionOnTerminal: true,
     })
 
-    const completedExecutionId =
-      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
-
     // Determine success (same logic as staging's RunWorkflowClientTool)
     const succeeded =
       isPlainRecord(result) && Object.hasOwn(result, 'success')
@@ -614,7 +624,7 @@ async function doExecuteRunTool(
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
       const pendingCompletion = {
         status: MothershipStreamV1ToolOutcome.success,
-        executionId: completedExecutionId,
+        executionId,
       }
       savePendingCompletionReport(toolCallId, pendingCompletion)
       await reportCompletion(
@@ -629,7 +639,7 @@ async function doExecuteRunTool(
       logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName })
       const pendingCompletion = {
         status: MothershipStreamV1ToolOutcome.error,
-        executionId: completedExecutionId,
+        executionId,
       }
       savePendingCompletionReport(toolCallId, pendingCompletion)
       await reportCompletion(
@@ -691,8 +701,6 @@ async function doExecuteRunTool(
         return
       }
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
-      const failedExecutionId =
-        useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
       // Carry the real failure through instead of the generic "Workflow execution
       // failed." — the agent can only correct a bad request (a rejected binding,
       // an undeployed workflow) if it is told what was wrong.
@@ -707,7 +715,7 @@ async function doExecuteRunTool(
           error: msg,
           ...(failureCode ? { code: failureCode } : {}),
         },
-        failedExecutionId
+        executionId
       )
     }
   } finally {
@@ -715,19 +723,19 @@ async function doExecuteRunTool(
       window.removeEventListener('pagehide', onPageHide)
     }
     manuallyStoppedToolCallIds.delete(toolCallId)
-    const activeToolCallId = activeRunToolByWorkflowId.get(targetWorkflowId)
-    if (activeToolCallId === toolCallId) {
+    const ownsRegistration = activeRunToolByWorkflowId.get(targetWorkflowId) === activeRun
+    if (ownsRegistration) {
       activeRunToolByWorkflowId.delete(targetWorkflowId)
     }
-    const activeAbortController = activeRunAbortByWorkflowId.get(targetWorkflowId)
-    if (activeAbortController === abortController) {
-      activeRunAbortByWorkflowId.delete(targetWorkflowId)
-    }
+    consolePersistence.executionEnded(persistenceExecution)
     const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
-    if (!leaveExecutionRecoverable && activeToolCallId === toolCallId) {
+    if (
+      !leaveExecutionRecoverable &&
+      ownsRegistration &&
+      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) === executionId
+    ) {
       clearExecId(targetWorkflowId, null)
       clearExecutionPointer(targetWorkflowId)
-      consolePersistence.executionEnded(persistenceExecution)
       setIsExecuting(targetWorkflowId, false)
       setActiveBlocks(targetWorkflowId, new Set())
     }

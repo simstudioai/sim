@@ -19,11 +19,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import { prefersInPlaceNavigation } from '@/lib/desktop'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import {
-  cancelRunToolExecution,
-  markRunToolManuallyStopped,
-  reportManualRunToolStop,
-} from '@/lib/mothership/tools/client/run-tool-execution'
+import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
@@ -395,10 +391,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     setActiveWorkflow(workflowId)
 
     if (isExecuting) {
-      const toolCallId = markRunToolManuallyStopped(workflowId)
-      cancelRunToolExecution(workflowId)
-      await handleCancelExecution()
-      await reportManualRunToolStop(workflowId, toolCallId)
+      const executionId = useExecutionStore.getState().getCurrentExecutionId(workflowId)
+      if (!stopRunToolForExecution(workflowId, executionId)) await handleCancelExecution()
       return
     }
 

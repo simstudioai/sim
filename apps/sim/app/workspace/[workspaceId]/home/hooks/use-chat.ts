@@ -25,7 +25,6 @@ import {
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
-import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import {
@@ -73,10 +72,8 @@ import {
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
 import {
   bindRunToolToExecution,
-  cancelRunToolExecution,
   executeRunToolOnClient,
-  markRunToolManuallyStopped,
-  reportManualRunToolStop,
+  stopRunToolExecutions,
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
@@ -113,9 +110,7 @@ import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-so
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
-import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
-import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -123,7 +118,6 @@ import type {
   QueuedSendHandoffSeed,
 } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
-import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type {
@@ -816,7 +810,6 @@ export function useChat(
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const handledClientLocalFilesystemToolIdsRef = useRef<Set<string>>(new Set())
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
-  const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
   const setTransportIdle = useCallback(() => {
@@ -3857,50 +3850,6 @@ export function useChat(
       clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     })
   }, [workspaceId, chatHistory, queuedHandoffRecoveryEpoch, startSendMessage])
-  const cancelActiveWorkflowExecutions = useCallback(() => {
-    const execState = useExecutionStore.getState()
-    const consoleStore = useTerminalConsoleStore.getState()
-
-    for (const [workflowId, wfExec] of execState.workflowExecutions) {
-      if (!wfExec.isExecuting) continue
-
-      const toolCallId = markRunToolManuallyStopped(workflowId)
-      cancelRunToolExecution(workflowId)
-
-      const executionId = execState.getCurrentExecutionId(workflowId)
-      if (executionId) {
-        execState.setCurrentExecutionId(workflowId, null)
-        requestJson(cancelWorkflowExecutionContract, {
-          params: { id: workflowId, executionId },
-        }).catch(() => {})
-      }
-
-      consoleStore.cancelRunningEntries(workflowId, executionId ?? undefined)
-      const now = new Date()
-      consoleStore.addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: 'Run was cancelled',
-        durationMs: 0,
-        startedAt: now.toISOString(),
-        executionOrder: Number.MAX_SAFE_INTEGER,
-        endedAt: now.toISOString(),
-        workflowId,
-        blockId: 'cancelled',
-        executionId: executionId ?? undefined,
-        blockName: 'Run Cancelled',
-        blockType: 'cancelled',
-      })
-
-      executionStream.cancel(workflowId)
-      execState.setIsExecuting(workflowId, false)
-      execState.setIsDebugging(workflowId, false)
-      execState.setActiveBlocks(workflowId, new Set())
-
-      reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
-    }
-  }, [executionStream])
 
   const stopGeneration = useCallback(
     async (options?: StopGenerationOptions) => {
@@ -3961,6 +3910,16 @@ export function useChat(
         ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
         ...(block.endedAt === undefined ? { endedAt: stopNow } : {}),
       }))
+      const cachedAssistant = activeChatId
+        ? queryClient
+            .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(activeChatId))
+            ?.messages.find((message) => message.id === activeAssistantMessageId)
+        : undefined
+      const stoppedToolCallIds = new Set(
+        [...stopBlocksSnapshot, ...(cachedAssistant?.contentBlocks ?? [])].flatMap((block) =>
+          block.toolCall ? [block.toolCall.id] : []
+        )
+      )
       const stopRequestIdSnapshot = streamRequestIdRef.current ?? initialStopRequestIdSnapshot
       const stopTraceparentSnapshot = streamTraceparentRef.current ?? initialStopTraceparentSnapshot
 
@@ -4037,9 +3996,8 @@ export function useChat(
         throw err
       }
 
-      // Cancel active run-tool executions before waiting for the server-side stream
-      // shutdown barrier; otherwise the abort settle can sit behind tool execution teardown.
-      cancelActiveWorkflowExecutions()
+      /** Exact tool ownership excludes other chats and independent manual workflow runs. */
+      stopRunToolExecutions(stoppedToolCallIds)
 
       let abortSucceeded = false
       const stopBarrier = (async () => {
@@ -4179,7 +4137,6 @@ export function useChat(
       }
     },
     [
-      cancelActiveWorkflowExecutions,
       cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,

@@ -9,6 +9,7 @@ const {
   executeWorkflowWithFullLogging,
   getWorkflowEntries,
   loadExecutionPointer,
+  mockRequestJson,
   MockExecutionStreamHttpError,
   MockSSEEventHandlerError,
   MockSSEStreamInterruptedError,
@@ -17,8 +18,16 @@ const {
 } = vi.hoisted(() => ({
   clearExecutionPointer: vi.fn(),
   executeWorkflowWithFullLogging: vi.fn(),
-  getWorkflowEntries: vi.fn(() => []),
+  getWorkflowEntries: vi.fn<
+    () => Array<{
+      workflowId: string
+      executionId: string
+      isRunning: boolean
+      startedAt: string
+    }>
+  >(() => []),
   loadExecutionPointer: vi.fn(),
+  mockRequestJson: vi.fn(),
   MockExecutionStreamHttpError: class ExecutionStreamHttpError extends Error {
     constructor(
       message: string,
@@ -61,6 +70,7 @@ const getWorkflowExecution = vi.fn(() => ({ isExecuting: false }))
 vi.mock('@sim/utils/retry', () => ({
   backoffWithJitter: () => 0,
 }))
+vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
 vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
   executeWorkflowWithFullLogging,
@@ -106,23 +116,32 @@ vi.mock('@/stores/terminal', () => ({
   useTerminalConsoleStore: {
     getState: () => ({
       getWorkflowEntries,
+      cancelRunningEntries: vi.fn(),
+      addConsole: vi.fn(),
     }),
   },
 }))
 
 import {
   bindRunToolToExecution,
-  cancelRunToolExecution,
   executeRunToolOnClient,
   isRunToolActiveForId,
-  reportManualRunToolStop,
+  stopRunToolExecutions,
+  stopRunToolForExecution,
 } from './run-tool-execution'
 
 describe('run tool execution cancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.sessionStorage.clear()
-    getCurrentExecutionId.mockReturnValue(null)
+    const executionIds = new Map<string, string | null>()
+    getCurrentExecutionId.mockImplementation(
+      (workflowId: string) => executionIds.get(workflowId) ?? null
+    )
+    setCurrentExecutionId.mockImplementation((workflowId: string, executionId: string | null) => {
+      executionIds.set(workflowId, executionId)
+    })
+    mockRequestJson.mockResolvedValue({ success: true })
     getWorkflowEntries.mockReturnValue([])
     loadExecutionPointer.mockResolvedValue(null)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
@@ -144,19 +163,34 @@ describe('run tool execution cancellation', () => {
     executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
     await Promise.resolve()
 
-    cancelRunToolExecution('wf-1')
+    stopRunToolExecutions(new Set(['tool-1']))
     await Promise.resolve()
 
     expect(capturedSignal?.aborted).toBe(true)
   })
 
-  it('can report a manual stop using the explicit toolCallId override', async () => {
+  it('cancels and reports the owned execution even when its workflow has a newer UI pointer', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
-    getCurrentExecutionId.mockReturnValueOnce('exec-manual')
+    let finish: (value: { success: boolean }) => void = () => {}
+    executeWorkflowWithFullLogging.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    executeRunToolOnClient('tool-override', 'run_workflow', { workflowId: 'wf-1' })
+    const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+    expect(stopRunToolForExecution('wf-1', 'newer-manual-execution')).toBe(false)
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    getCurrentExecutionId.mockReturnValue('newer-manual-execution')
+    setCurrentExecutionId.mockClear()
+    setIsExecuting.mockClear()
+    expect(stopRunToolForExecution('wf-1', executionId)).toBe(true)
 
-    await reportManualRunToolStop('wf-1', 'tool-override')
-
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), {
+      params: { id: 'wf-1', executionId },
+    })
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/copilot/confirm',
       expect.objectContaining({
@@ -164,7 +198,13 @@ describe('run tool execution cancellation', () => {
         body: expect.stringContaining('"toolCallId":"tool-override"'),
       })
     )
-    expect(fetchMock.mock.calls[0][1]?.body).toContain('"executionId":"exec-manual"')
+    expect(fetchMock.mock.calls[0][1]?.body).toContain(`"executionId":"${executionId}"`)
+    expect(setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(setIsExecuting).not.toHaveBeenCalled()
+    finish({ success: true })
+    await vi.waitFor(() => expect(isRunToolActiveForId('tool-override')).toBe(false))
+    expect(setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(clearExecutionPointer).not.toHaveBeenCalled()
   })
 
   it('prefers workflow_input, forwards triggerBlockId, and respects useDeployedState', async () => {
@@ -203,8 +243,43 @@ describe('run tool execution cancellation', () => {
         })
       )
     })
-    expect(fetch.mock.calls[0][1]?.body).not.toContain('raw-secret')
+    expect(vi.mocked(fetch).mock.calls[0][1]?.body).not.toContain('raw-secret')
   })
+
+  it.each(['success', 'error', 'background'] as const)(
+    'keeps %s reporting and cleanup bound to the owned execution after the UI moves on',
+    async (outcome) => {
+      let finish: (value: { success: boolean }) => void = () => {}
+      let fail: (error: Error) => void = () => {}
+      executeWorkflowWithFullLogging.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finish = resolve
+            fail = reject
+          })
+      )
+      const toolCallId = `owned-${outcome}`
+      executeRunToolOnClient(toolCallId, 'run_workflow', { workflowId: 'wf-1' })
+      const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+      getCurrentExecutionId.mockReturnValue('new-manual-execution')
+      setCurrentExecutionId.mockClear()
+      setIsExecuting.mockClear()
+
+      if (outcome === 'background')
+        fail(new MockSSEStreamInterruptedError('Disconnected', executionId))
+      else finish({ success: outcome === 'success' })
+      await vi.waitFor(() => expect(isRunToolActiveForId(toolCallId)).toBe(false))
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/copilot/confirm',
+        expect.objectContaining({
+          body: expect.stringContaining(`"executionId":"${executionId}"`),
+        })
+      )
+      expect(setCurrentExecutionId).not.toHaveBeenCalled()
+      expect(setIsExecuting).not.toHaveBeenCalled()
+      expect(clearExecutionPointer).not.toHaveBeenCalled()
+    }
+  )
 
   it('queues run_workflow asynchronously and reports the execution as background', async () => {
     const fetchMock = vi

@@ -24,8 +24,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson, navigationMocks } = vi.hoisted(() => ({
+const { mockRequestJson, mockExecuteWorkflow, navigationMocks } = vi.hoisted(() => ({
   mockRequestJson: vi.fn(),
+  mockExecuteWorkflow:
+    vi.fn<
+      (options: {
+        workflowId?: string
+        executionId?: string
+        abortSignal?: AbortSignal
+      }) => Promise<{ success: boolean }>
+    >(),
   navigationMocks: {
     usePathname: vi.fn(() => '/workspace/ws-1/home'),
     useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() })),
@@ -34,6 +42,12 @@ const { mockRequestJson, navigationMocks } = vi.hoisted(() => ({
 }))
 
 vi.mock('next/navigation', () => navigationMocks)
+vi.unmock('@/stores/execution/store')
+vi.unmock('@/stores/terminal')
+vi.unmock('@/stores/terminal/console/store')
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+  executeWorkflowWithFullLogging: mockExecuteWorkflow,
+}))
 
 vi.mock('@/lib/api/client/request', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api/client/request')>()),
@@ -41,8 +55,16 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => ({
 }))
 
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  executeRunToolOnClient,
+  isRunToolActiveForId,
+  stopRunToolExecutions,
+} from '@/lib/mothership/tools/client/run-tool-execution'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const DEDUPED_CHAT_ID = 'chat-the-first-attempt-opened'
 
@@ -53,7 +75,7 @@ interface NetworkState {
    * - `accept` — a normal streaming response
    * - `deduped` — the 409 the server returns for an already-claimed send
    */
-  postBehavior: 'hang' | 'accept' | 'deduped'
+  postBehavior: 'hang' | 'accept' | 'deduped' | 'tool'
   postBodies: Array<{ message: string; userMessageId?: string }>
 }
 
@@ -71,6 +93,11 @@ function emptySseResponse(): Response {
 
 async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = String(input instanceof Request ? input.url : input)
+
+  if (url.includes('/api/mothership/chat/abort')) {
+    return Response.json({ aborted: true, settled: true })
+  }
+  if (url.includes('/api/copilot/confirm')) return Response.json({ success: true })
 
   /* Stream replay, used by the reconnect a deduplicated send falls into.
      `complete` is the terminal status the hook recognises — anything else and
@@ -95,6 +122,33 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
       )
     }
     if (state.postBehavior === 'accept') return emptySseResponse()
+    if (state.postBehavior === 'tool') {
+      const streamId = state.postBodies.at(-1)?.userMessageId
+      if (!streamId) throw new Error('Missing request identity')
+      const event: MothershipStreamV1EventEnvelope = {
+        v: 1,
+        seq: 1,
+        ts: new Date().toISOString(),
+        type: 'tool',
+        stream: { streamId },
+        payload: {
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolName: 'run_workflow',
+          toolCallId: 'this-chat-tool',
+          arguments: { workflowId: 'this-chat-workflow' },
+        },
+      }
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    }
     return new Promise<Response>((_, reject) => {
       const signal = init?.signal
       if (!signal) return
@@ -302,6 +356,7 @@ describe('useChat remount send recovery', () => {
     state.postBodies = []
     mockRequestJson.mockResolvedValue({ chats: [] })
     useMothershipQueueStore.setState({ queues: {}, editing: {} })
+    useExecutionStore.setState({ workflowExecutions: new Map() })
     window.sessionStorage.clear()
     window.localStorage.clear()
   })
@@ -312,7 +367,86 @@ describe('useChat remount send recovery', () => {
     }
     queryClient?.clear()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     vi.clearAllMocks()
+  })
+
+  it('stopping a chat preserves an unrelated manual workflow execution', async () => {
+    const executionStore = useExecutionStore.getState()
+    executionStore.setIsExecuting('manual-workflow', true)
+    executionStore.setCurrentExecutionId('manual-workflow', 'manual-execution')
+    executionStore.setActiveBlocks('manual-workflow', new Set(['manual-block']))
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+
+    await act(async () => {
+      await getResult().stopGeneration()
+    })
+
+    expect(useExecutionStore.getState().getWorkflowExecution('manual-workflow')).toMatchObject({
+      isExecuting: true,
+      currentExecutionId: 'manual-execution',
+      activeBlockIds: new Set(['manual-block']),
+    })
+    expect(mockRequestJson).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/workflows/[id]/executions/[executionId]/cancel' }),
+      expect.anything()
+    )
+  })
+
+  it('stops its streamed run tool while another chat and manual workflow remain active', async () => {
+    vi.spyOn(useWorkflowRegistry.getState(), 'setActiveWorkflow').mockResolvedValue()
+    const signals = new Map<string, AbortSignal>()
+    mockExecuteWorkflow.mockImplementation(
+      ({ workflowId, abortSignal }) =>
+        new Promise((_, reject) => {
+          if (!workflowId || !abortSignal) throw new Error('Missing execution ownership')
+          signals.set(workflowId, abortSignal)
+          abortSignal.addEventListener('abort', () => reject(abortSignal.reason), { once: true })
+        })
+    )
+    executeRunToolOnClient('other-chat-tool', 'run_workflow', { workflowId: 'other-chat-workflow' })
+    const executionStore = useExecutionStore.getState()
+    executionStore.setIsExecuting('manual-workflow', true)
+    executionStore.setCurrentExecutionId('manual-workflow', 'manual-execution')
+    state.postBehavior = 'tool'
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('run this workflow')
+    })
+    await waitFor(() => signals.has('this-chat-workflow'))
+    const ownedExecutionId = executionStore.getCurrentExecutionId('this-chat-workflow')
+
+    try {
+      await act(async () => {
+        await getResult().stopGeneration()
+      })
+      expect(signals.get('this-chat-workflow')?.aborted).toBe(true)
+      expect(signals.get('other-chat-workflow')?.aborted).toBe(false)
+      expect(
+        useExecutionStore.getState().getWorkflowExecution('this-chat-workflow').isExecuting
+      ).toBe(false)
+      expect(
+        useExecutionStore.getState().getWorkflowExecution('other-chat-workflow').isExecuting
+      ).toBe(true)
+      expect(useExecutionStore.getState().getWorkflowExecution('manual-workflow').isExecuting).toBe(
+        true
+      )
+      expect(mockRequestJson).toHaveBeenCalledWith(
+        expect.objectContaining({ path: '/api/workflows/[id]/executions/[executionId]/cancel' }),
+        { params: { id: 'this-chat-workflow', executionId: ownedExecutionId } }
+      )
+      expect(mockRequestJson).not.toHaveBeenCalledWith(expect.anything(), {
+        params: expect.objectContaining({ id: 'other-chat-workflow' }),
+      })
+      await waitFor(() => !isRunToolActiveForId('this-chat-tool'))
+    } finally {
+      stopRunToolExecutions(new Set(['this-chat-tool', 'other-chat-tool']))
+      await waitFor(() => !isRunToolActiveForId('other-chat-tool'))
+    }
   })
 
   it('keeps a cross-route handoff recoverable across a StrictMode double-mount', async () => {
