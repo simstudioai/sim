@@ -3069,15 +3069,19 @@ export function useChat(
       const { onOptimisticSendApplied } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       let queuedSendHandoff = options?.queuedSendHandoff
-      if (pendingStop && queuedSendHandoff) {
-        queuedSendHandoff = { ...queuedSendHandoff, stopRequired: true }
-      }
       const pendingStopStreamId = pendingStop
-        ? queuedSendHandoff?.supersededStreamId ||
-          locallyTerminalStreamIdRef.current ||
+        ? locallyTerminalStreamIdRef.current ||
+          queuedSendHandoff?.supersededStreamId ||
           streamIdRef.current ||
           activeTurnRef.current?.userMessageId
         : undefined
+      if (pendingStop && queuedSendHandoff) {
+        queuedSendHandoff = {
+          ...queuedSendHandoff,
+          supersededStreamId: pendingStopStreamId ?? null,
+          stopRequired: true,
+        }
+      }
 
       let consumedByTranscript = false
       let sendReachedServer = false
