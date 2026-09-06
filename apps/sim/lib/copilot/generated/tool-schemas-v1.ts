@@ -614,48 +614,89 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   },
   browser_fill_form: {
     parameters: {
-      type: 'object',
+      additionalProperties: false,
       properties: {
         fields: {
-          type: 'array',
           description:
             "Ordered list of 1–8 fields with unique elementId refs from the current top page's latest snapshot. Supply exactly one matching value parameter per kind.",
           items: {
-            type: 'object',
+            oneOf: [
+              {
+                additionalProperties: false,
+                properties: {
+                  elementId: {},
+                  kind: {
+                    enum: ['text'],
+                  },
+                  text: {},
+                },
+                required: ['text'],
+              },
+              {
+                additionalProperties: false,
+                properties: {
+                  elementId: {},
+                  kind: {
+                    enum: ['select'],
+                  },
+                  value: {},
+                },
+                required: ['value'],
+              },
+              {
+                additionalProperties: false,
+                properties: {
+                  checked: {},
+                  elementId: {},
+                  kind: {
+                    enum: ['checked'],
+                  },
+                },
+                required: ['checked'],
+              },
+            ],
             properties: {
               checked: {
-                type: 'boolean',
                 description:
                   'Desired state for kind=checked. A radio can only be set true; native checkboxes may be true or false.',
+                type: 'boolean',
               },
               elementId: {
-                type: 'number',
                 description:
                   "Nonnegative integer element ref from the current page's latest snapshot.",
+                maximum: 9007199254740991,
+                minimum: 0,
+                type: 'integer',
               },
               kind: {
-                type: 'string',
                 description:
                   'text requires text; select requires value; checked requires checked. Do not supply parameters for another kind.',
                 enum: ['text', 'select', 'checked'],
+                type: 'string',
               },
               text: {
-                type: 'string',
                 description:
                   'Replacement content for kind=text, including empty to clear. At most 4096 characters. Ordinary input or textarea only.',
+                maxLength: 4096,
+                type: 'string',
               },
               value: {
-                type: 'string',
                 description:
                   'Option value or visible label for kind=select. At most 4096 characters. Native single-selection dropdown only.',
+                maxLength: 4096,
+                type: 'string',
               },
             },
             required: ['elementId', 'kind'],
+            type: 'object',
           },
           maxItems: 8,
+          minItems: 1,
+          type: 'array',
         },
       },
       required: ['fields'],
+      type: 'object',
     },
     resultSchema: {
       type: 'object',
