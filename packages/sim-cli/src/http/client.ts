@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import { hasProgressTerminal, styles } from '#cli/output/presentation'
 import type { ResolvedProfile } from '../config/index'
 import { userAgent } from '../version'
 import { warnIfKeyOverCleartext, warnIfProxyIgnored } from './environment'
@@ -355,7 +355,7 @@ function debugEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  */
 function traceRequest(method: string, url: string, status: number | string, startedAt: number) {
   process.stderr.write(
-    `${chalk.dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
+    `${styles().dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
   )
 }
 
@@ -644,9 +644,9 @@ export function pageProgress(): PageProgress {
   let reported = false
   return {
     advance: (fetched) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${chalk.dim(`fetched ${fetched}…`)}\u001b[K`)
+      process.stderr.write(`\r${styles().dim(`fetched ${fetched}…`)}\u001b[K`)
     },
     finish: () => {
       if (reported) process.stderr.write('\r\u001b[K')

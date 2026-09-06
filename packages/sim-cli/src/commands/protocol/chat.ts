@@ -1,5 +1,5 @@
-import chalk from 'chalk'
 import type { Command } from 'commander'
+import { styles } from '#cli/output/presentation'
 import { clientFrom } from '../../context'
 import { type ChatResponse, V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
@@ -234,7 +234,7 @@ Examples:
           streamed = content
         }
         endStreamedLine()
-        process.stderr.write(`${chalk.dim(`conversation: ${result.conversationId}`)}\n`)
+        process.stderr.write(`${styles().dim(`conversation: ${result.conversationId}`)}\n`)
       } catch (error) {
         endStreamedLine()
         throw error

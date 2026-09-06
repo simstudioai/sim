@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import chalk from 'chalk'
 import { type Command, Option } from 'commander'
+import { hasProgressTerminal, styles } from '#cli/output/presentation'
 import { clientFrom } from '../../context'
 import type {
   CompleteTableImportResponse,
@@ -107,13 +107,13 @@ async function watchImport(
     )
     current = next.data
     const line = progressLine(current)
-    if (process.stderr.isTTY && line !== reported) {
+    if (hasProgressTerminal() && line !== reported) {
       reported = line
-      process.stderr.write(`\r${chalk.dim(line)}\u001b[K`)
+      process.stderr.write(`\r${styles().dim(line)}\u001b[K`)
     }
   }
 
-  if (process.stderr.isTTY && reported !== null) process.stderr.write('\r\u001b[K')
+  if (hasProgressTerminal() && reported !== null) process.stderr.write('\r\u001b[K')
   return current
 }
 

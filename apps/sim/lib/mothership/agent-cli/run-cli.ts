@@ -56,21 +56,9 @@ export async function runCli(
         openSessionFileSnapshot(sessionKey, path, identity.signal, files?.observeUpload)
     : undefined
   identity.signal?.throwIfAborted()
-  const result = await runEmbeddedCli(argv, identity, {
+  return runEmbeddedCli(argv, identity, {
     ...(readFile ? { readFile } : {}),
     ...(openFile ? { openFile } : {}),
     ...(writeFile ? { writeFile } : {}),
   })
-  return { ...result, stdout: stripAnsi(result.stdout), stderr: stripAnsi(result.stderr) }
-}
-
-const ANSI_SEQUENCE = /\[[0-9;?]*[ -/]*[@-~]/g
-
-/**
- * The CLI colours its notes with chalk, which keys off the HOSTING server's TTY — so an
- * embedded run on a dev server hands the model `[2m…[22m` around every
- * truncation notice. The model reads text, never a terminal: strip escapes on the way out.
- */
-function stripAnsi(text: string): string {
-  return text.replace(ANSI_SEQUENCE, '')
 }
