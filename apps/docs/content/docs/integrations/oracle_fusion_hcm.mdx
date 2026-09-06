@@ -47,6 +47,8 @@ Salary creation and correction support **user-entered salary bases only**. Creat
 
 Payroll run-result values, balance slots, and goal completion percentages remain their documented strings. Balance `value1`–`value10`, definition IDs, and context/dimension labels are preserved without inventing net-pay or year-to-date meanings.
 
+When updating an element input value, supply its text value or explicitly enable `clearScreenEntryValue`. Clearing writes Oracle's documented null value; a missing value alone never clears it. Direct execution also accepts an explicit null. The clear flag follows the established integration pattern for model interfaces that cannot express nullable scalar parameters.
+
 Operation contracts: [assigned payroll creation](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollrelationships-payrollrelationshipsuniqid-child-payrollassignments-payrollassignmentsuniqid-child-assignedpayrolls-post.html), [element entry creation](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-elemententries-post.html), [salary creation](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salaries-post.html), [salary correction](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salaries-salaryid-patch.html), and [salary bases](https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salarybasislov-get.html). Required fields follow the formal operation schemas even where abbreviated examples omit them.
 
 ## Talent and performance
@@ -670,7 +672,8 @@ Update Element Entry Value using documented Oracle fields. Requires administrati
 | `elementEntryValueId` | string | Yes | Element entry value ID, as a positive decimal string |
 | `effectiveDate` | string | Yes | Effective date in YYYY-MM-DD format |
 | `rangeMode` | string | Yes | CORRECTION changes the historical row; UPDATE starts an effective-dated change |
-| `screenEntryValue` | string | No | Element input value as text, preserving decimal precision; null clears a nullable value |
+| `screenEntryValue` | string | No | Element input value as text, preserving decimal precision. To clear it, use clearScreenEntryValue. Direct execution also accepts explicit null. |
+| `clearScreenEntryValue` | boolean | No | Explicitly clear the element input value; omit screenEntryValue when true |
 
 #### Output
 

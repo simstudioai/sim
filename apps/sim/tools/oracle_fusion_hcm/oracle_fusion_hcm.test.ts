@@ -90,6 +90,7 @@ import {
   oracleFusionHcmUpdateElementEntryValueTool,
   oracleFusionHcmUpdateTimeEntryTool,
 } from '@/tools/oracle_fusion_hcm'
+import { createLLMToolSchema } from '@/tools/params'
 import { validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const tools = [
@@ -249,6 +250,48 @@ describe('Oracle Fusion HCM tool definitions', () => {
       }).success
     ).toBe(true)
     expect(oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse(params).success).toBe(false)
+  })
+
+  it('offers a model-expressible clear flag without accepting an accidental omitted value', async () => {
+    const { schema } = await createLLMToolSchema(oracleFusionHcmUpdateElementEntryValueTool, {})
+    expect(schema.properties.clearScreenEntryValue.type).toBe('boolean')
+    const map = OracleFusionHcmBlock.tools.config.params
+    if (!map) throw new Error('Expected parameter mapping')
+    const params = map({
+      operation: 'update_element_entry_value',
+      instanceUrl: 'https://example.oraclecloud.com',
+      accessToken: 'token',
+      elementEntryId: '1',
+      elementEntryValueId: '2',
+      effectiveDate: '2026-01-01',
+      rangeMode: 'CORRECTION',
+      clearScreenEntryValue: 'true',
+      screenEntryValue: '',
+    })
+    expect(oracleFusionHcmUpdateElementEntryValueBodySchema.parse(params).screenEntryValue).toBeNull()
+    expect(
+      oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
+        ...params,
+        screenEntryValue: '125.00',
+      }).success
+    ).toBe(false)
+    expect(
+      oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
+        ...params,
+        clearScreenEntryValue: false,
+      }).success
+    ).toBe(false)
+    for (const clearScreenEntryValue of [undefined, false]) {
+      const blank = map({ ...params, screenEntryValue: '', clearScreenEntryValue })
+      expect(oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse(blank).success).toBe(false)
+      expect(
+        oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
+          ...params,
+          screenEntryValue: '',
+          clearScreenEntryValue,
+        }).success
+      ).toBe(false)
+    }
   })
 
   it('maps every selectable block operation to its executable tool', () => {

@@ -48,7 +48,14 @@ export const oracleFusionHcmUpdateElementEntryValueTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Element input value as text, preserving decimal precision; null clears a nullable value',
+        'Element input value as text, preserving decimal precision. To clear it, use clearScreenEntryValue. Direct execution also accepts explicit null.',
+    },
+    // Ashby update_candidate uses explicit clear flags for nullable scalar fields.
+    clearScreenEntryValue: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Explicitly clear the element input value; omit screenEntryValue when true',
     },
   },
   outputs: ORACLE_FUSION_HCM_UPDATE_ELEMENT_ENTRY_VALUE_OUTPUTS,

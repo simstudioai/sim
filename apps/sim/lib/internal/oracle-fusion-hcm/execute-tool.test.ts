@@ -82,6 +82,25 @@ function invokeHcmTool(overrides: Partial<InternalToolOperationCall>) {
 }
 
 describe('Oracle Fusion HCM tool dispatch', () => {
+  it('turns an explicit model clear flag into a nullable element value before execution', async () => {
+    const response = await invokeHcmTool({
+      toolId: 'oracle_fusion_hcm_update_element_entry_value',
+      input: {
+        ...auth,
+        elementEntryId: '1',
+        elementEntryValueId: '2',
+        effectiveDate: '2026-01-01',
+        rangeMode: 'CORRECTION',
+        clearScreenEntryValue: true,
+      },
+    })
+    expect(response.status).toBe(200)
+    expect(mocks.updateElementEntryValue).toHaveBeenCalledWith(
+      expect.objectContaining({ screenEntryValue: null }),
+      undefined
+    )
+  })
+
   it('marks ambiguous mutation failures non-retryable without exposing provider details', async () => {
     mocks.createSalary.mockRejectedValueOnce(
       new OracleFusionProviderError('Oracle Fusion HCM request timed out', 504)

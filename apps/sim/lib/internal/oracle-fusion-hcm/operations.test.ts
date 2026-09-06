@@ -1181,6 +1181,21 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
         method: 'POST',
         body: {
           processInline: 'N',
+          processMode: 'TIME_ENTER',
+          timeRecordEvent: [
+            expect.objectContaining({
+              operationType,
+              reporterIdType: 'PERSON',
+              reporterId: '0007',
+            }),
+          ],
+        },
+      })
+      expect(result.output.timeRecordRequest.timeRecordEventRequestId).toBe('9007199254740993')
+      expect(result.output.timeRecordRequest).not.toHaveProperty('status')
+      expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
+    }
+  )
 
   it('sends only a changed stop time for a versioned time-entry update', async () => {
     mocks.requestOracleFusionJson.mockResolvedValueOnce({

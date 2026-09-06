@@ -914,11 +914,29 @@ describe('Oracle Fusion HCM payroll and time input contracts', () => {
   })
 
   it('preserves documented string-valued result, goal, flag, and message fields', () => {
-    expect(projectors.projectPayrollRunResult({ RunResultId: '1', ResultValue: '123456789012345.6700' }).resultValue).toBe('123456789012345.6700')
-    expect(projectors.projectPayrollBalance({ Value10: '0.0000', TotalValue1: null }).value10).toBe('0.0000')
-    expect(projectors.projectPerformanceGoal({ GoalId: '2', PercentComplete: '25' }).percentComplete).toBe('25')
-    expect(projectors.projectSalary({ SalaryId: '3', PendingTransactionExists: 'N' }).pendingTransactionExists).toBe('N')
-    expect(projectors.projectTimeRecordEventMessage({ timeRecordEventMessageId: '4', allowException: 'N' }).allowException).toBe('N')
-    expect(projectors.projectTimeRecordRequestEvent({ timeRecordEventId: '5', reporterId: '0007' }).reporterId).toBe('0007')
+    expect(
+      projectors.projectPayrollRunResult({ RunResultId: '1', ResultValue: '123456789012345.6700' })
+        .resultValue
+    ).toBe('123456789012345.6700')
+    expect(projectors.projectPayrollBalance({ Value10: '0.0000', TotalValue1: null }).value10).toBe(
+      '0.0000'
+    )
+    expect(
+      projectors.projectPerformanceGoal({ GoalId: '2', PercentComplete: '25' }).percentComplete
+    ).toBe('25')
+    expect(
+      projectors.projectSalary({ SalaryId: '3', PendingTransactionExists: 'N' })
+        .pendingTransactionExists
+    ).toBe('N')
+    expect(
+      projectors.projectTimeRecordEventMessage({
+        timeRecordEventMessageId: '4',
+        allowException: 'N',
+      }).allowException
+    ).toBe('N')
+    expect(
+      projectors.projectTimeRecordRequestEvent({ timeRecordEventId: '5', reporterId: '0007' })
+        .reporterId
+    ).toBe('0007')
   })
 })

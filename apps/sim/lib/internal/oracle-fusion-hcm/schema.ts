@@ -1641,13 +1641,27 @@ export type OracleFusionHcmCreateElementEntryResponse = z.output<
   typeof oracleFusionHcmCreateElementEntryResponseSchema
 >
 
-export const oracleFusionHcmUpdateElementEntryValueBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  elementEntryId: oracleFusionHcmDecimalIdSchema,
-  elementEntryValueId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema,
-  rangeMode: z.enum(['CORRECTION', 'UPDATE']),
-  screenEntryValue: z.string().max(60).nullable(),
-})
+export const oracleFusionHcmUpdateElementEntryValueBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    elementEntryId: oracleFusionHcmDecimalIdSchema,
+    elementEntryValueId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema,
+    rangeMode: z.enum(['CORRECTION', 'UPDATE']),
+    screenEntryValue: z.string().min(1).max(60).nullable().optional(),
+    clearScreenEntryValue: z.boolean().optional(),
+  })
+  .superRefine((input, context) => {
+    if (input.screenEntryValue === undefined && input.clearScreenEntryValue !== true) {
+      context.addIssue({ code: 'custom', message: 'Supply screenEntryValue or explicitly clear it' })
+    }
+    if (input.clearScreenEntryValue && input.screenEntryValue != null) {
+      context.addIssue({ code: 'custom', message: 'Cannot set and clear screenEntryValue together' })
+    }
+  })
+  .transform((input) => ({
+    ...input,
+    screenEntryValue: input.clearScreenEntryValue ? null : (input.screenEntryValue ?? null),
+  }))
 
 export const oracleFusionHcmUpdateElementEntryValueResponseSchema = successResponse(
   z.object({

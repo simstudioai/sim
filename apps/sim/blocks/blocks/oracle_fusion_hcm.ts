@@ -1119,9 +1119,15 @@ export const OracleFusionHcmBlock: BlockConfig = {
       title: 'Screen Entry Value',
       type: 'short-input',
       condition: { field: 'operation', value: ['update_element_entry_value'] },
-      required: { field: 'operation', value: ['update_element_entry_value'] },
       description:
-        'Element input value as text, preserving decimal precision; null clears a nullable value',
+        'Set a text value or enable Clear Entry Value. Direct execution also accepts explicit null.',
+    },
+    {
+      id: 'clearScreenEntryValue',
+      title: 'Clear Entry Value',
+      type: 'switch',
+      condition: { field: 'operation', value: ['update_element_entry_value'] },
+      description: 'Explicitly clear the value. Leave Screen Entry Value blank when enabled.',
     },
     {
       id: 'objectActionId',
@@ -1432,15 +1438,34 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'profileId',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['get_talent_profile', 'list_talent_profile_sections', 'list_talent_profile_skills', 'list_talent_profile_certifications'] },
-      required: { field: 'operation', value: ['get_talent_profile', 'list_talent_profile_sections', 'list_talent_profile_skills', 'list_talent_profile_certifications'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_talent_profile',
+          'list_talent_profile_sections',
+          'list_talent_profile_skills',
+          'list_talent_profile_certifications',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_talent_profile',
+          'list_talent_profile_sections',
+          'list_talent_profile_skills',
+          'list_talent_profile_certifications',
+        ],
+      },
       placeholder: 'Enter profile id',
     },
     {
       id: 'sectionKind',
       title: 'Section Kind',
       type: 'dropdown',
-      options: [{ id: 'skill', label: 'skill' }, { id: 'certification', label: 'certification' }],
+      options: [
+        { id: 'skill', label: 'skill' },
+        { id: 'certification', label: 'certification' },
+      ],
       value: () => 'skill',
       condition: { field: 'operation', value: ['list_talent_profile_sections'] },
       required: { field: 'operation', value: [] },
@@ -1450,15 +1475,24 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'profileSectionId',
       title: 'Profile Section Id',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_talent_profile_skills', 'list_talent_profile_certifications'] },
-      required: { field: 'operation', value: ['list_talent_profile_skills', 'list_talent_profile_certifications'] },
+      condition: {
+        field: 'operation',
+        value: ['list_talent_profile_skills', 'list_talent_profile_certifications'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_talent_profile_skills', 'list_talent_profile_certifications'],
+      },
       description: 'Profile section ID, as a positive decimal string',
     },
     {
       id: 'startTime',
       title: 'Start Time',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry'],
+      },
       required: { field: 'operation', value: ['list_time_records', 'list_time_cards'] },
       description: 'Start timestamp in ISO 8601 with explicit time-zone offset',
       wandConfig: {
@@ -1472,7 +1506,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'stopTime',
       title: 'Stop Time',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry'],
+      },
       required: { field: 'operation', value: ['list_time_records', 'list_time_cards'] },
       description: 'Stop timestamp in ISO 8601 with explicit time-zone offset',
       wandConfig: {
@@ -1486,8 +1523,14 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'timeRecordId',
       title: 'Time Record Id',
       type: 'short-input',
-      condition: { field: 'operation', value: ['get_time_record', 'update_time_entry', 'delete_time_entry'] },
-      required: { field: 'operation', value: ['get_time_record', 'update_time_entry', 'delete_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['get_time_record', 'update_time_entry', 'delete_time_entry'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_time_record', 'update_time_entry', 'delete_time_entry'],
+      },
       description: 'Time record ID, as a positive decimal string',
     },
     {
@@ -1507,8 +1550,14 @@ export const OracleFusionHcmBlock: BlockConfig = {
       serviceId: 'oracle_fusion_hcm',
       dependsOn: ['oauthCredential'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'] },
-      required: { field: 'operation', value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'] },
+      condition: {
+        field: 'operation',
+        value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'],
+      },
       placeholder: 'Select time attribute id',
       description: 'Time attribute ID, as a positive decimal string',
     },
@@ -1518,23 +1567,43 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'timeAttributeId',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'] },
-      required: { field: 'operation', value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'] },
+      condition: {
+        field: 'operation',
+        value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_time_attribute_data_sources', 'list_time_attribute_criteria_binds'],
+      },
       placeholder: 'Enter time attribute id',
     },
     {
       id: 'dataSourceUsageId',
       title: 'Data Source Usage Id',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_time_attribute_criteria_binds', 'list_time_attribute_values', 'create_time_entry', 'update_time_entry'] },
-      required: { field: 'operation', value: ['list_time_attribute_criteria_binds', 'list_time_attribute_values'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_time_attribute_criteria_binds',
+          'list_time_attribute_values',
+          'create_time_entry',
+          'update_time_entry',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_time_attribute_criteria_binds', 'list_time_attribute_values'],
+      },
       description: 'Data source usage ID, as a positive decimal string',
     },
     {
       id: 'timeAttributeUsageId',
       title: 'Time Attribute Usage Id',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_time_attribute_values', 'create_time_entry', 'update_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['list_time_attribute_values', 'create_time_entry', 'update_time_entry'],
+      },
       required: { field: 'operation', value: ['list_time_attribute_values'] },
       description: 'Time attribute usage ID, as a positive decimal string',
     },
@@ -1577,7 +1646,13 @@ export const OracleFusionHcmBlock: BlockConfig = {
       canonicalParamId: 'payrollTimeType',
       selectorKey: 'oracle_fusion_hcm.payrollTimeTypes',
       serviceId: 'oracle_fusion_hcm',
-      dependsOn: ['oauthCredential', 'assignmentId', 'effectiveDate', 'dataSourceUsageId', 'timeAttributeUsageId'],
+      dependsOn: [
+        'oauthCredential',
+        'assignmentId',
+        'effectiveDate',
+        'dataSourceUsageId',
+        'timeAttributeUsageId',
+      ],
       mode: 'basic',
       condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry'] },
       required: { field: 'operation', value: [] },
@@ -1805,6 +1880,11 @@ export const OracleFusionHcmBlock: BlockConfig = {
             rest[key] = undefined
           }
         }
+        if (rest.clearScreenEntryValue === 'true') rest.clearScreenEntryValue = true
+        if (rest.clearScreenEntryValue === 'false') rest.clearScreenEntryValue = false
+        if (rest.screenEntryValue === '') {
+          rest.screenEntryValue = undefined
+        }
         for (const key of ['limit', 'offset', 'salaryAmount', 'measure', 'timeRecordVersion'] as const) {
           if (typeof rest[key] === 'string') rest[key] = Number(rest[key])
         }
@@ -1845,7 +1925,11 @@ export const OracleFusionHcmBlock: BlockConfig = {
     entryType: { type: 'string', description: 'Oracle element-entry type code supported by the tenant' },
     entryValues: { type: 'json', description: 'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers' },
     elementEntryValueId: { type: 'string', description: 'Element entry value ID, as a positive decimal string' },
-    screenEntryValue: { type: 'string', description: 'Element input value as text, preserving decimal precision; null clears a nullable value' },
+    screenEntryValue: {
+      type: 'string',
+      description: 'Element input value as text; use clearScreenEntryValue to explicitly clear it',
+    },
+    clearScreenEntryValue: { type: 'boolean', description: 'Explicitly clear the element input value' },
     objectActionId: { type: 'string', description: 'Object action ID, as a positive decimal string' },
     salaryId: { type: 'string', description: 'Salary ID, as a positive decimal string' },
     salaryBasisId: { type: 'string', description: 'Salary basis ID, as a positive decimal string' },
