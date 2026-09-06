@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import { styles } from '#cli/output/presentation'
 import type { OutputFormat } from '../config/index'
 import { duration, sanitize } from './render'
 
@@ -106,9 +106,9 @@ function renderSpan(value: unknown, depth: number): string[] {
 export function printTraceSpans(format: OutputFormat, traceSpans: unknown[]): void {
   if (format === 'json' || format === 'yaml') return
   console.log('')
-  console.log(format === 'table' ? chalk.dim('trace:') : 'trace:')
+  console.log(format === 'table' ? styles().dim('trace:') : 'trace:')
   if (traceSpans.length === 0) {
-    console.log(chalk.dim('  No trace spans.'))
+    console.log(styles().dim('  No trace spans.'))
     return
   }
   console.log(traceSpans.flatMap((span) => renderSpan(span, 0)).join('\n'))

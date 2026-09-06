@@ -1,5 +1,5 @@
-import chalk from 'chalk'
 import { type Command, Option } from 'commander'
+import { styles } from '#cli/output/presentation'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import { type SetSecretResponse, V2_OPERATIONS } from '../generated/v2-api'
@@ -108,7 +108,7 @@ async function readSecretValue(options: SetSecretOptions): Promise<string | unde
     return validateSecretValue(await promptSecret())
   } catch (error) {
     if (!(error instanceof SecretInputCancelledError)) throw error
-    console.error(chalk.red(`Error: ${error.message}`))
+    console.error(styles().red(`Error: ${error.message}`))
     return process.exit(CANCELLED_EXIT_CODE)
   }
 }

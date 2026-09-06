@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import { styles } from '#cli/output/presentation'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
@@ -311,7 +311,7 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
   if (!spec.pageNote) return
   const value = at(envelope, spec.pageNote.path)
   if (value === undefined || value === null) return
-  process.stderr.write(chalk.dim(`${spec.pageNote.label}: ${String(value)}\n`))
+  process.stderr.write(styles().dim(`${spec.pageNote.label}: ${String(value)}\n`))
 }
 
 /**
@@ -417,7 +417,7 @@ function clippedSubject(flag: string): string {
 function writeEnvelopeTruncation(envelope: unknown): void {
   for (const flag of responseTruncationFlags(envelope)) {
     process.stderr.write(
-      chalk.dim(
+      styles().dim(
         `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
       )
     )
@@ -436,7 +436,7 @@ function writeEnvelopeTruncation(envelope: unknown): void {
 export function writeCursorTruncation(count: number, truncated: boolean): void {
   if (!truncated) return
   process.stderr.write(
-    chalk.dim(`showing the first ${count}; more results exist — re-run with --limit 0 for all\n`)
+    styles().dim(`showing the first ${count}; more results exist — re-run with --limit 0 for all\n`)
   )
 }
 

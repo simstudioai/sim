@@ -1,5 +1,5 @@
-import chalk from 'chalk'
 import type { Command } from 'commander'
+import { styles } from '#cli/output/presentation'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { V2_OPERATIONS } from '../../generated/v2-api'
@@ -172,11 +172,11 @@ class Commentary {
 
 function toolNotice(frame: Record<string, unknown>): string {
   const name = safeOneLine(stringField(frame, 'name') ?? 'tool')
-  if (frame.phase === 'start') return chalk.dim(`→ ${name}`)
+  if (frame.phase === 'start') return styles().dim(`→ ${name}`)
 
   const status = stringField(frame, 'status')
-  if (status && status !== 'success') return chalk.yellow(`✗ ${name} (${safeOneLine(status)})`)
-  return chalk.dim(`✓ ${name}`)
+  if (status && status !== 'success') return styles().yellow(`✗ ${name} (${safeOneLine(status)})`)
+  return styles().dim(`✓ ${name}`)
 }
 
 /**
@@ -219,11 +219,11 @@ export async function renderRunStream(
 
     switch (frame.event) {
       case 'chunk_reset':
-        commentary.line(chalk.dim('… retracted; that turn resolved to tool calls'))
+        commentary.line(styles().dim('… retracted; that turn resolved to tool calls'))
         break
       case 'thinking':
         if (options.includeThinking && typeof frame.data === 'string') {
-          commentary.inline(chalk.dim(sanitize(frame.data)))
+          commentary.inline(styles().dim(sanitize(frame.data)))
         }
         break
       case 'tool':
@@ -231,7 +231,7 @@ export async function renderRunStream(
         break
       case 'stream_error':
         commentary.line(
-          chalk.yellow(
+          styles().yellow(
             `warning: ${safeOneLine(stringField(frame, 'error') ?? 'stream read failed')}`
           )
         )

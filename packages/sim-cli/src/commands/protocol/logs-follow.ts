@@ -1,6 +1,6 @@
-import chalk from 'chalk'
 import { type Command, Option } from 'commander'
 import { dump } from 'js-yaml'
+import { hasProgressTerminal, styles } from '#cli/output/presentation'
 import type { OutputFormat } from '../../config/index'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
@@ -214,7 +214,7 @@ function createTableWriter(): RowWriter {
       )
       const header = widths
       console.log(
-        chalk.dim(
+        styles().dim(
           COLUMNS.map((column, index) => pad(column.header.toUpperCase(), header[index]))
             .join('  ')
             .trimEnd()
@@ -290,9 +290,9 @@ export function followStatus(): FollowStatus {
   let reported = false
   return {
     note: (message) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${chalk.dim(message)}${ERASE_LINE}`)
+      process.stderr.write(`\r${styles().dim(message)}${ERASE_LINE}`)
     },
     warn: (message) => {
       if (reported) {

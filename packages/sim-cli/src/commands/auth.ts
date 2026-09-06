@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
-import chalk from 'chalk'
 import { Command } from 'commander'
+import { styles } from '#cli/output/presentation'
 import {
   buildApprovalUrl,
   type CliAuthScope,
@@ -257,10 +257,12 @@ function addProfileCommand(): Command {
         workspace: normalizeWorkspaceId(workspace.id, 'the workspace response'),
       })
 
-      console.log(chalk.green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
+      console.log(
+        styles().green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`)
+      )
       console.log(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
       console.log(`  Authentication: ${safeOneLine(authProfile)}`)
-      console.log(chalk.dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
+      console.log(styles().dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
     })
 }
 
@@ -292,7 +294,7 @@ export function loginCommand(): Command {
         if (readCredentialsProfile(profile.name).api_key && !options.yes) {
           const confirmed = await confirmProfileOverwrite(profile.name)
           if (!confirmed) {
-            console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))
+            console.log(styles().dim('Login cancelled; the existing profile was not changed.'))
             return
           }
         }
@@ -306,16 +308,16 @@ export function loginCommand(): Command {
         )
 
         console.log(
-          `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
+          `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
         )
-        console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
+        console.log(`\nPairing code: ${styles().bold(auth.pairing)}`)
         console.log(
-          chalk.dim('Confirm this code matches what the browser shows before approving.\n')
+          styles().dim('Confirm this code matches what the browser shows before approving.\n')
         )
         console.log(url)
 
         if (options.browser) openBrowser(url)
-        console.log(chalk.dim('\nWaiting for approval…'))
+        console.log(styles().dim('\nWaiting for approval…'))
 
         const key = await pollForKey(profile.endpoint, auth)
 
@@ -358,18 +360,20 @@ export function loginCommand(): Command {
         writeConfigProfile(profile.name, settings)
         writeCredentialsProfile(profile.name, key.apiKey)
 
-        console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+        console.log(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
         if (key.workspaceBound && key.workspaceId) {
-          console.log(chalk.dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
+          console.log(
+            styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`)
+          )
         } else if (key.workspaceId) {
           console.log(
-            chalk.dim(
+            styles().dim(
               `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
             )
           )
         } else {
           console.log(
-            chalk.dim(
+            styles().dim(
               '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
             )
           )
@@ -394,10 +398,10 @@ export function logoutCommand(): Command {
         }
         const removed = deleteProfile(profileName)
         if (!removed.config && !removed.credentials) {
-          console.log(chalk.dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
+          console.log(styles().dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
         }
-        console.log(chalk.green(`✓ Removed profile "${safeOneLine(profileName)}".`))
+        console.log(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         return
       }
 
@@ -411,18 +415,18 @@ export function logoutCommand(): Command {
       }
 
       if (!readCredentialsProfile(profile.name).api_key) {
-        console.log(chalk.dim(`No stored key for profile "${safeOneLine(profile.name)}".`))
+        console.log(styles().dim(`No stored key for profile "${safeOneLine(profile.name)}".`))
         return
       }
 
       writeCredentialsProfile(profile.name, null)
       console.log(
-        chalk.green(`✓ Removed the stored key for profile "${safeOneLine(profile.name)}".`)
+        styles().green(`✓ Removed the stored key for profile "${safeOneLine(profile.name)}".`)
       )
       // The key still exists server-side; leaving that unsaid invites the
       // assumption that logging out revoked it.
       console.log(
-        chalk.dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
+        styles().dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
       )
     })
 }
@@ -572,19 +576,19 @@ function presentVerification(verification: Verification): string {
     const { name, memberCount } = verification.workspace
     const members = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`
     // The name is server-supplied and lands in a terminal unescaped otherwise.
-    return `${chalk.green('✓')} ${safeOneLine(name)} · ${members}`
+    return `${styles().green('✓')} ${safeOneLine(name)} · ${members}`
   }
 
   const detail = safeOneLine(verification.detail)
   switch (verification.status) {
     case 'rejected':
-      return `${chalk.red('✗')} ${detail}`
+      return `${styles().red('✗')} ${detail}`
     case 'unauthenticated':
-      return chalk.yellow(`not logged in — ${detail}`)
+      return styles().yellow(`not logged in — ${detail}`)
     case 'disabled':
-      return chalk.dim(detail)
+      return styles().dim(detail)
     default:
-      return chalk.yellow(`could not check — ${detail}`)
+      return styles().yellow(`could not check — ${detail}`)
   }
 }
 
@@ -607,7 +611,7 @@ export function whoamiCommand(): Command {
           }
 
       const annotate = (value: string, source: string) =>
-        source === 'unset' ? chalk.dim('not set') : `${value} ${chalk.dim(`(${source})`)}`
+        source === 'unset' ? styles().dim('not set') : `${value} ${styles().dim(`(${source})`)}`
 
       printRecord(
         profile.output,
@@ -618,12 +622,12 @@ export function whoamiCommand(): Command {
             'API key',
             authentication.authenticated
               ? annotate('configured', authentication.source)
-              : chalk.yellow('not logged in'),
+              : styles().yellow('not logged in'),
           ],
           [
             'Key type',
             verification.keyType ??
-              chalk.dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
+              styles().dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
           ],
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
@@ -668,11 +672,14 @@ interface ProfileRow {
 }
 
 const PROFILE_COLUMNS: Column<ProfileRow>[] = [
-  { header: '', value: (row) => (row.active ? chalk.green('*') : ' ') },
+  { header: '', value: (row) => (row.active ? styles().green('*') : ' ') },
   { header: 'profile', value: (row) => safeOneLine(row.name) },
   { header: 'key', value: (row) => (row.error ? text(null) : row.hasKey ? 'yes' : 'no') },
   { header: 'auth', value: (row) => (row.authProfile ? safeOneLine(row.authProfile) : text(null)) },
-  { header: 'error', value: (row) => (row.error ? chalk.red(safeOneLine(row.error)) : text(null)) },
+  {
+    header: 'error',
+    value: (row) => (row.error ? styles().red(safeOneLine(row.error)) : text(null)),
+  },
 ]
 
 /**
@@ -752,7 +759,7 @@ export function profilesCommand(): Command {
     if (rows.length === 0) {
       // The prose belongs to the human formats; a script asking for json must
       // get an empty list, not a sentence it cannot parse.
-      if (output === 'table') console.log(chalk.dim('No profiles yet. Run: sim login'))
+      if (output === 'table') console.log(styles().dim('No profiles yet. Run: sim login'))
       else printList(output, rows, PROFILE_COLUMNS)
       return
     }
