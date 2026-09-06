@@ -1,10 +1,13 @@
 /** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { read, write } = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn() }))
+const { read, write, open } = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(), open: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   readSessionSandboxFile: read,
   writeSessionSandboxFile: write,
+}))
+vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
+  openSessionFileSnapshot: open,
 }))
 
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
@@ -15,6 +18,7 @@ describe('the CLI owns workbench file semantics', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     read.mockResolvedValue({ outcome: 'error', detail: 'Workbench unavailable' })
+    open.mockRejectedValue(new Error('Workbench unavailable'))
   })
   afterEach(() => vi.unstubAllGlobals())
 
@@ -41,6 +45,7 @@ describe('the CLI owns workbench file semantics', () => {
     expect(requests).toHaveLength(1)
     expect(read).not.toHaveBeenCalled()
     expect(write).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
   })
 
   it('resolves JSON flags on demand and isolates simultaneous same-path reads by invocation', async () => {
@@ -98,11 +103,13 @@ describe('the CLI owns workbench file semantics', () => {
     'uploads %s from one byte snapshot, without requiring host-side @ parsing',
     async (path) => {
       const bytes = Uint8Array.from([0, 255, 128, 13, 10, 195, 0])
-      read.mockResolvedValueOnce({
-        outcome: 'read',
-        content: Buffer.from(bytes).toString('base64'),
+      const dispose = vi.fn(async () => {})
+      open.mockResolvedValueOnce({
+        size: bytes.length,
+        stream: async () => new Blob([bytes]).stream(),
+        dispose,
       })
-      read.mockResolvedValue({ outcome: 'error', detail: 'The original file changed' })
+      open.mockRejectedValue(new Error('The original file changed'))
       const transport = async (input: string | URL | Request, init?: RequestInit) => {
         const request = new Request(input, init)
         if (request.url.endsWith('/complete?workspaceId=workspace')) {
@@ -125,15 +132,49 @@ describe('the CLI owns workbench file semantics', () => {
       vi.stubGlobal('fetch', upload)
       const result = await runCli(['files', 'upload', path], { ...IDENTITY, transport }, 'chat')
       expect(result, result.stderr).toMatchObject({ exitCode: 0 })
-      expect(read).toHaveBeenCalledExactlyOnceWith(
-        'chat',
-        path.replace(/^@/, ''),
-        'base64',
-        undefined
-      )
+      expect(open).toHaveBeenCalledExactlyOnceWith('chat', path.replace(/^@/, ''), undefined)
+      expect(read).not.toHaveBeenCalled()
+      expect(dispose).toHaveBeenCalledTimes(1)
       expect(upload).toHaveBeenCalledTimes(1)
     }
   )
+
+  it('keeps parallel same-path upload snapshots and cleanup scoped to their chats', async () => {
+    const released: string[] = []
+    open.mockImplementation(async (chat: string) => ({
+      size: Buffer.byteLength(chat),
+      stream: async () => new Blob([chat]).stream(),
+      dispose: async () => {
+        released.push(chat)
+      },
+    }))
+    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(input, init)
+      expect(await request.text()).toBe(new URL(request.url).pathname.slice(1))
+      return new Response(null, { status: 200 })
+    })
+    const results = await Promise.all(
+      ['first-chat', 'second-chat'].map(async (chat) => {
+        const transport = async (input: string | URL | Request, init?: RequestInit) => {
+          const request = new Request(input, init)
+          if (request.url.includes('/complete?'))
+            return Response.json({ data: { file: { id: chat } } })
+          expect(JSON.parse(await request.text()).size).toBe(Buffer.byteLength(chat))
+          return Response.json({
+            data: {
+              session: { id: chat },
+              uploadToken: 'fixture',
+              transfer: { method: 'put', url: `https://upload.test/${chat}`, headers: {} },
+            },
+          })
+        }
+        return runCli(['files', 'upload', 'same.bin'], { ...IDENTITY, transport }, chat)
+      })
+    )
+    expect(results.map((result) => result.exitCode)).toEqual([0, 0])
+    expect(open).toHaveBeenCalledTimes(2)
+    expect(released.sort()).toEqual(['first-chat', 'second-chat'])
+  })
 
   it.each(['outage', 'no-session', 'stopped', 'stdin', 'no-chat'])(
     'refuses %s before the API request and never falls back to server files',

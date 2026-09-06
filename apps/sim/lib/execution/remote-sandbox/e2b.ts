@@ -739,6 +739,18 @@ class E2BSandboxHandle implements SandboxHandle {
     return info.size
   }
 
+  async readFileStream(
+    path: string,
+    options: { signal: AbortSignal }
+  ): Promise<ReadableStream<Uint8Array>> {
+    options.signal.throwIfAborted()
+    return this.sandbox.files.read(path, {
+      format: 'stream',
+      signal: options.signal,
+      streamIdleTimeoutMs: 120_000,
+    })
+  }
+
   async readFileWithLimit(
     path: string,
     options: { maxBytes: number; encoding: 'utf8' | 'base64'; signal?: AbortSignal }

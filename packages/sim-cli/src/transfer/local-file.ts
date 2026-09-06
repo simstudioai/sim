@@ -69,8 +69,11 @@ export interface LocalFile {
 export async function localFile(path: string, override?: string): Promise<LocalFile> {
   const embedded = embedStore.getStore()
   if (embedded) {
-    const content = await embeddedFileContent(embedded, path)
-    const size = Buffer.byteLength(content)
+    embedded.identity.signal?.throwIfAborted()
+    if (!embedded.openFile) throw new SimApiError('This invocation has no machine to read from', 0)
+    const { size } = await embedded.openFile(embeddedFileKey(path))
+    embedded.identity.signal?.throwIfAborted()
+    if (!Number.isSafeInteger(size) || size < 0) throw new SimApiError('Invalid file size', 0)
     if (size === 0) throw new SimApiError(`${path} is empty`, 0)
     return { name: override ?? basename(embeddedFileKey(path)), size }
   }

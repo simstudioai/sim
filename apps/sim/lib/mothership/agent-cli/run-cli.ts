@@ -1,4 +1,5 @@
 import { type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
+import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import {
   readSessionSandboxFile,
   writeSessionSandboxFile,
@@ -51,9 +52,13 @@ export async function runCli(
         }
       }
     : undefined
+  const openFile = sessionKey
+    ? (path: string) => openSessionFileSnapshot(sessionKey, path, identity.signal)
+    : undefined
   identity.signal?.throwIfAborted()
   const result = await runEmbeddedCli(argv, identity, {
     ...(readFile ? { readFile } : {}),
+    ...(openFile ? { openFile } : {}),
     ...(writeFile ? { writeFile } : {}),
   })
   return { ...result, stdout: stripAnsi(result.stdout), stderr: stripAnsi(result.stderr) }
