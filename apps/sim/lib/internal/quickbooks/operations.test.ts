@@ -171,6 +171,34 @@ describe('QuickBooks internal operations', () => {
     expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
   })
 
+  it('refuses a transaction PDF that advertises more than the attachment limit', async () => {
+    const pdf = new TextEncoder().encode('%PDF-1.7\n')
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(pdf, {
+        headers: {
+          'content-type': 'application/pdf',
+          'content-length': String(QUICKBOOKS_MAX_ATTACHMENT_BYTES + 1),
+        },
+      })
+    )
+
+    await expect(
+      executeQuickBooksDownloadDocument(
+        {
+          documentKind: 'transaction_pdf',
+          accessToken: 'secret-token',
+          realmId: '123',
+          quickBooksEnvironment: 'sandbox',
+          transactionType: 'invoice',
+          transactionId: 'invoice-1',
+        },
+        context()
+      )
+    ).rejects.toThrow('QuickBooks transaction PDF')
+    expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
+    expect(mocks.uploadExecutionFile).not.toHaveBeenCalled()
+  })
+
   it('stores valid PDFs in trusted execution scope', async () => {
     const pdf = new TextEncoder().encode('%PDF-1.7\n')
     vi.mocked(fetch).mockResolvedValue(
