@@ -177,6 +177,21 @@ export const selectorManifest = {
     detail: true,
   }),
   'microsoft.planner.plans': providerSelector([], { listMode: 'paginated', detail: true }),
+  'oci_document_understanding.projects': providerSelector(['compartmentId', 'region'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    listMode: 'paginated',
+  }),
+  'oci_document_understanding.models': providerSelector(
+    ['compartmentId', 'region', 'projectId', 'modelType'],
+    {
+      readiness: { all: ['oauthCredential', 'compartmentId'] },
+      listMode: 'paginated',
+    }
+  ),
+  'oci_document_understanding.artifacts': providerSelector(['jobId', 'region'], {
+    readiness: { all: ['oauthCredential', 'jobId'] },
+    listMode: 'paginated',
+  }),
   'notion.databases': providerSelector([], { detail: true }),
   'notion.pages': providerSelector([], { detail: true }),
   'netsuite.recordTypes': providerSelector(['jobId'], {

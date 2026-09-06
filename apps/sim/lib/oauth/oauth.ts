@@ -1032,6 +1032,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oci_document_understanding: {
+    name: 'OCI Document Understanding',
+    icon: NetSuiteIcon,
+    services: {
+      oci_document_understanding: {
+        name: 'OCI Document Understanding',
+        description: 'Document analysis using native OCI API signing-key credentials',
+        providerId: 'oci_document_understanding',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci_document_understanding',
+  },
   oci: {
     name: 'Oracle Cloud Infrastructure',
     icon: OracleIcon,
