@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  quickBooksWebhookEventsSchema,
+  type QuickBooksWebhookEvent,
+  quickBooksWebhookEventSchema,
   quickBooksWebhookParamsSchema,
 } from '@/lib/api/contracts/webhooks'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
@@ -14,8 +15,8 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
-import { verifyQuickBooksSignatureAgainstVerifierTokens } from '@/lib/webhooks/providers/quickbooks'
-import { getQuickBooksWebhookVerifierTokensByAppKey } from '@/lib/webhooks/quickbooks-credentials'
+import { verifyQuickBooksSignatureAgainstVerifierTokenStream } from '@/lib/webhooks/providers/quickbooks'
+import { streamQuickBooksWebhookVerifierTokensByAppKey } from '@/lib/webhooks/quickbooks-credentials'
 import {
   enqueueQuickBooksWebhookIngress,
   type QuickBooksWebhookIngressPayload,
@@ -23,6 +24,8 @@ import {
 
 const logger = createLogger('QuickBooksWebhookIngress')
 const BODY_LABEL = 'QuickBooks webhook body'
+/** Mirrors the batch ceiling `quickBooksWebhookEventsSchema` declares for the same envelope. */
+const MAX_WEBHOOK_EVENTS = 1000
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -62,14 +65,10 @@ export const POST = withRouteHandler(
         throw error
       }
 
-      const verifierTokens = await getQuickBooksWebhookVerifierTokensByAppKey(appKey)
-      if (verifierTokens.length === 0) {
-        return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
-      }
-      const authError = verifyQuickBooksSignatureAgainstVerifierTokens(
+      const authError = await verifyQuickBooksSignatureAgainstVerifierTokenStream(
         rawBody,
         request.headers.get('intuit-signature'),
-        verifierTokens,
+        streamQuickBooksWebhookVerifierTokensByAppKey(appKey),
         requestId
       )
       if (authError) return authError
@@ -80,17 +79,29 @@ export const POST = withRouteHandler(
       } catch {
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
       }
-      const parsed = quickBooksWebhookEventsSchema.safeParse(json)
-      if (!parsed.success) {
-        logger.warn(`[${requestId}] Invalid QuickBooks webhook envelope`, {
-          issues: parsed.error.issues,
-        })
+      if (!Array.isArray(json) || json.length === 0 || json.length > MAX_WEBHOOK_EVENTS) {
+        logger.warn(`[${requestId}] Invalid QuickBooks webhook envelope`)
         return NextResponse.json({ error: 'Invalid webhook envelope' }, { status: 400 })
       }
 
+      const events: QuickBooksWebhookEvent[] = []
+      let droppedCount = 0
+      for (const entry of json) {
+        const parsedEvent = quickBooksWebhookEventSchema.safeParse(entry)
+        if (parsedEvent.success) events.push(parsedEvent.data)
+        else droppedCount += 1
+      }
+      if (droppedCount > 0) {
+        logger.warn(`[${requestId}] Dropped unmodelled QuickBooks webhook events`, {
+          droppedCount,
+          eventCount: json.length,
+        })
+      }
+      if (events.length === 0) return NextResponse.json({ ok: true })
+
       const payload: QuickBooksWebhookIngressPayload = {
         appKey,
-        events: parsed.data,
+        events,
         headers: {
           'content-type': request.headers.get('content-type') ?? 'application/json',
         },
@@ -99,7 +110,7 @@ export const POST = withRouteHandler(
       }
       const jobId = await enqueueQuickBooksWebhookIngress(payload)
       logger.info(`[${requestId}] Accepted QuickBooks webhook delivery`, {
-        eventCount: parsed.data.length,
+        eventCount: events.length,
         jobId,
       })
       return NextResponse.json({ ok: true })
