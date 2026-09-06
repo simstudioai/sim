@@ -1479,7 +1479,15 @@ export async function executeOracleFusionHcmGetSalary(
   signal?: AbortSignal
 ) {
   const path = `salaries/${input.salaryId}`
-  const result = await readResource(input, path, SALARY_FIELDS, 'SalaryId', input.salaryId, projectSalary, signal)
+  const result = await readResource(
+    input,
+    path,
+    SALARY_FIELDS,
+    'SalaryId',
+    input.salaryId,
+    projectSalary,
+    signal
+  )
   return { success: true as const, output: { salary: result } }
 }
 
@@ -1489,14 +1497,23 @@ export async function executeOracleFusionHcmListSalaryBases(
   signal?: AbortSignal
 ) {
   const path = 'salaryBasisLov'
-  const result = await list(input, path, SALARY_BASIS_FIELDS, projectSalaryBasis, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['SalaryBasisName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    query.finder = finder('findByWord', { LegislativeDataGroupId: input.legislativeDataGroupId, EffectiveDate: input.effectiveDate })
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    SALARY_BASIS_FIELDS,
+    projectSalaryBasis,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['SalaryBasisName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      query.finder = finder('findByWord', {
+        LegislativeDataGroupId: input.legislativeDataGroupId,
+        EffectiveDate: input.effectiveDate,
+      })
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { salaryBases: result.items, ...withoutItems(result) } }
 }
 
@@ -1506,13 +1523,22 @@ export async function executeOracleFusionHcmListGradeRateValues(
   signal?: AbortSignal
 ) {
   const path = `${await resolveResourcePath(input, 'gradeRates', 'RateId', input.gradeRateId, signal)}/child/rateValues`
-  const result = await list(input, path, GRADE_RATE_VALUE_FIELDS, projectGradeRateValue, (query) => {
-    const clauses: string[] = []
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { gradeRateValues: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    GRADE_RATE_VALUE_FIELDS,
+    projectGradeRateValue,
+    (query) => {
+      const clauses: string[] = []
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { gradeRateValues: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-goalplans-get.html */
@@ -1521,14 +1547,20 @@ export async function executeOracleFusionHcmListGoalPlans(
   signal?: AbortSignal
 ) {
   const path = 'goalPlans'
-  const result = await list(input, path, GOAL_PLAN_FIELDS, projectGoalPlan, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['GoalPlanName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.reviewPeriodId) clauses.push(`ReviewPeriodId=${input.reviewPeriodId}`)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    GOAL_PLAN_FIELDS,
+    projectGoalPlan,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['GoalPlanName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.reviewPeriodId) clauses.push(`ReviewPeriodId=${input.reviewPeriodId}`)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { goalPlans: result.items, ...withoutItems(result) } }
 }
 
@@ -1538,7 +1570,15 @@ export async function executeOracleFusionHcmGetGoalPlan(
   signal?: AbortSignal
 ) {
   const path = `goalPlans/${input.goalPlanId}`
-  const result = await readResource(input, path, GOAL_PLAN_FIELDS, 'GoalPlanId', input.goalPlanId, projectGoalPlan, signal)
+  const result = await readResource(
+    input,
+    path,
+    GOAL_PLAN_FIELDS,
+    'GoalPlanId',
+    input.goalPlanId,
+    projectGoalPlan,
+    signal
+  )
   return { success: true as const, output: { goalPlan: result } }
 }
 
@@ -1548,16 +1588,25 @@ export async function executeOracleFusionHcmListPerformanceGoals(
   signal?: AbortSignal
 ) {
   const path = 'performanceGoals'
-  const result = await list(input, path, PERFORMANCE_GOAL_FIELDS, projectPerformanceGoal, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['GoalName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.personId) clauses.push(`PersonId=${input.personId}`)
-    if (input.reviewPeriodId) clauses.push(`ReviewPeriodId=${input.reviewPeriodId}`)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { performanceGoals: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PERFORMANCE_GOAL_FIELDS,
+    projectPerformanceGoal,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['GoalName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.personId) clauses.push(`PersonId=${input.personId}`)
+      if (input.reviewPeriodId) clauses.push(`ReviewPeriodId=${input.reviewPeriodId}`)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { performanceGoals: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-performancegoals-get.html */
@@ -1566,7 +1615,15 @@ export async function executeOracleFusionHcmGetPerformanceGoal(
   signal?: AbortSignal
 ) {
   const path = await resolveResourcePath(input, 'performanceGoals', 'GoalId', input.goalId, signal)
-  const result = await readResource(input, path, PERFORMANCE_GOAL_FIELDS, 'GoalId', input.goalId, projectPerformanceGoal, signal)
+  const result = await readResource(
+    input,
+    path,
+    PERFORMANCE_GOAL_FIELDS,
+    'GoalId',
+    input.goalId,
+    projectPerformanceGoal,
+    signal
+  )
   return { success: true as const, output: { performanceGoal: result } }
 }
 
@@ -1576,13 +1633,22 @@ export async function executeOracleFusionHcmListDevelopmentGoals(
   signal?: AbortSignal
 ) {
   const path = 'searchDevGoals'
-  const result = await list(input, path, DEVELOPMENT_GOAL_FIELDS, projectDevelopmentGoal, (query) => {
-    const clauses: string[] = []
-    query.finder = finder('findByPersonId', { PersonId: input.personId })
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { developmentGoals: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    DEVELOPMENT_GOAL_FIELDS,
+    projectDevelopmentGoal,
+    (query) => {
+      const clauses: string[] = []
+      query.finder = finder('findByPersonId', { PersonId: input.personId })
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { developmentGoals: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-searchdevgoals-get.html */
@@ -1591,7 +1657,15 @@ export async function executeOracleFusionHcmGetDevelopmentGoal(
   signal?: AbortSignal
 ) {
   const path = `searchDevGoals/${input.goalId}`
-  const result = await readResource(input, path, DEVELOPMENT_GOAL_FIELDS, 'GoalId', input.goalId, projectDevelopmentGoal, signal)
+  const result = await readResource(
+    input,
+    path,
+    DEVELOPMENT_GOAL_FIELDS,
+    'GoalId',
+    input.goalId,
+    projectDevelopmentGoal,
+    signal
+  )
   return { success: true as const, output: { developmentGoal: result } }
 }
 
@@ -1601,16 +1675,25 @@ export async function executeOracleFusionHcmListPerformanceDocuments(
   signal?: AbortSignal
 ) {
   const path = 'performanceEvaluations'
-  const result = await list(input, path, PERFORMANCE_DOCUMENT_FIELDS, projectPerformanceDocument, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['PerformanceDocumentName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.personId) clauses.push(`PersonId=${input.personId}`)
-    if (input.reviewPeriodId) clauses.push(`ReviewPeriodId=${input.reviewPeriodId}`)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { performanceDocuments: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PERFORMANCE_DOCUMENT_FIELDS,
+    projectPerformanceDocument,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['PerformanceDocumentName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.personId) clauses.push(`PersonId=${input.personId}`)
+      if (input.reviewPeriodId) clauses.push(`ReviewPeriodId=${input.reviewPeriodId}`)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { performanceDocuments: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-performanceevaluations-get.html */
@@ -1619,7 +1702,15 @@ export async function executeOracleFusionHcmGetPerformanceDocument(
   signal?: AbortSignal
 ) {
   const path = await performanceDocumentPath(input, signal)
-  const result = await readResource(input, path, PERFORMANCE_DOCUMENT_FIELDS, 'EvaluationId', input.evaluationId, projectPerformanceDocument, signal)
+  const result = await readResource(
+    input,
+    path,
+    PERFORMANCE_DOCUMENT_FIELDS,
+    'EvaluationId',
+    input.evaluationId,
+    projectPerformanceDocument,
+    signal
+  )
   return { success: true as const, output: { performanceDocument: result } }
 }
 
@@ -1629,9 +1720,18 @@ export async function executeOracleFusionHcmListPerformanceDocumentRoles(
   signal?: AbortSignal
 ) {
   const path = `${await performanceDocumentPath(input, signal)}/child/Roles`
-  const result = await list(input, path, PERFORMANCE_DOCUMENT_ROLE_FIELDS, projectPerformanceDocumentRole, undefined,
-  signal)
-  return { success: true as const, output: { performanceDocumentRoles: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PERFORMANCE_DOCUMENT_ROLE_FIELDS,
+    projectPerformanceDocumentRole,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { performanceDocumentRoles: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-performanceevaluations-performanceevaluationsuniqid-child-roles-evalroleid-child-participants-get.html */
@@ -1640,9 +1740,18 @@ export async function executeOracleFusionHcmListPerformanceDocumentParticipants(
   signal?: AbortSignal
 ) {
   const path = `${await performanceDocumentPath(input, signal)}/child/Roles/${input.evalRoleId}/child/Participants`
-  const result = await list(input, path, PERFORMANCE_DOCUMENT_PARTICIPANT_FIELDS, projectPerformanceDocumentParticipant, undefined,
-  signal)
-  return { success: true as const, output: { performanceDocumentParticipants: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PERFORMANCE_DOCUMENT_PARTICIPANT_FIELDS,
+    projectPerformanceDocumentParticipant,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { performanceDocumentParticipants: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-performanceevaluations-performanceevaluationsuniqid-child-roles-evalroleid-child-participants-evalparticipantid-child-tasks-get.html */
@@ -1651,9 +1760,18 @@ export async function executeOracleFusionHcmListPerformanceDocumentTasks(
   signal?: AbortSignal
 ) {
   const path = `${await performanceDocumentPath(input, signal)}/child/Roles/${input.evalRoleId}/child/Participants/${input.evalParticipantId}/child/Tasks`
-  const result = await list(input, path, PERFORMANCE_DOCUMENT_TASK_FIELDS, projectPerformanceDocumentTask, undefined,
-  signal)
-  return { success: true as const, output: { performanceDocumentTasks: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PERFORMANCE_DOCUMENT_TASK_FIELDS,
+    projectPerformanceDocumentTask,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { performanceDocumentTasks: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-talentpersonprofiles-get.html */
@@ -1662,14 +1780,20 @@ export async function executeOracleFusionHcmListTalentProfiles(
   signal?: AbortSignal
 ) {
   const path = 'talentPersonProfiles'
-  const result = await list(input, path, TALENT_PROFILE_FIELDS, projectTalentProfile, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['DisplayName','ProfileCode'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.personId) clauses.push(`PersonId=${input.personId}`)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    TALENT_PROFILE_FIELDS,
+    projectTalentProfile,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['DisplayName', 'ProfileCode'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.personId) clauses.push(`PersonId=${input.personId}`)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { talentProfiles: result.items, ...withoutItems(result) } }
 }
 
@@ -1679,7 +1803,15 @@ export async function executeOracleFusionHcmGetTalentProfile(
   signal?: AbortSignal
 ) {
   const path = await talentProfilePath(input, signal)
-  const result = await readResource(input, path, TALENT_PROFILE_FIELDS, 'ProfileId', input.profileId, projectTalentProfile, signal)
+  const result = await readResource(
+    input,
+    path,
+    TALENT_PROFILE_FIELDS,
+    'ProfileId',
+    input.profileId,
+    projectTalentProfile,
+    signal
+  )
   return { success: true as const, output: { talentProfile: result } }
 }
 
@@ -1689,9 +1821,18 @@ export async function executeOracleFusionHcmListTalentProfileSections(
   signal?: AbortSignal
 ) {
   const path = `${await talentProfilePath(input, signal)}/child/${input.sectionKind === 'skill' ? 'skillSections' : 'certificationSections'}`
-  const result = await list(input, path, TALENT_PROFILE_SECTION_FIELDS, projectTalentProfileSection, undefined,
-  signal)
-  return { success: true as const, output: { talentProfileSections: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TALENT_PROFILE_SECTION_FIELDS,
+    projectTalentProfileSection,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { talentProfileSections: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-talentpersonprofiles-talentpersonprofilesuniqid-child-skillsections-profilesectionid1-child-skillitems-get.html */
@@ -1700,9 +1841,18 @@ export async function executeOracleFusionHcmListTalentProfileSkills(
   signal?: AbortSignal
 ) {
   const path = `${await talentProfilePath(input, signal)}/child/skillSections/${input.profileSectionId}/child/skillItems`
-  const result = await list(input, path, TALENT_PROFILE_SKILL_FIELDS, projectTalentProfileSkill, undefined,
-  signal)
-  return { success: true as const, output: { talentProfileSkills: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TALENT_PROFILE_SKILL_FIELDS,
+    projectTalentProfileSkill,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { talentProfileSkills: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-talentpersonprofiles-talentpersonprofilesuniqid-child-certificationsections-profilesectionid-child-certificationitems-get.html */
@@ -1711,9 +1861,18 @@ export async function executeOracleFusionHcmListTalentProfileCertifications(
   signal?: AbortSignal
 ) {
   const path = `${await talentProfilePath(input, signal)}/child/certificationSections/${input.profileSectionId}/child/certificationItems`
-  const result = await list(input, path, TALENT_PROFILE_CERTIFICATION_FIELDS, projectTalentProfileCertification, undefined,
-  signal)
-  return { success: true as const, output: { talentProfileCertifications: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TALENT_PROFILE_CERTIFICATION_FIELDS,
+    projectTalentProfileCertification,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { talentProfileCertifications: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecords-get.html */
@@ -1722,12 +1881,23 @@ export async function executeOracleFusionHcmListTimeRecords(
   signal?: AbortSignal
 ) {
   const path = 'timeRecords'
-  const result = await list(input, path, TIME_RECORD_FIELDS, projectTimeRecord, (query) => {
-    const clauses: string[] = []
-    query.finder = finder('filterByPerNumTimeGrp', { personNumber: input.personNumber, startTime: input.startTime, stopTime: input.stopTime, groupType: 'TimeCardEntry' })
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    TIME_RECORD_FIELDS,
+    projectTimeRecord,
+    (query) => {
+      const clauses: string[] = []
+      query.finder = finder('filterByPerNumTimeGrp', {
+        personNumber: input.personNumber,
+        startTime: input.startTime,
+        stopTime: input.stopTime,
+        groupType: 'TimeCardEntry',
+      })
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { timeRecords: result.items, ...withoutItems(result) } }
 }
 
@@ -1737,7 +1907,15 @@ export async function executeOracleFusionHcmGetTimeRecord(
   signal?: AbortSignal
 ) {
   const path = `timeRecords/${input.timeRecordId}`
-  const result = await readResource(input, path, TIME_RECORD_FIELDS, 'timeRecordId', input.timeRecordId, projectTimeRecord, signal)
+  const result = await readResource(
+    input,
+    path,
+    TIME_RECORD_FIELDS,
+    'timeRecordId',
+    input.timeRecordId,
+    projectTimeRecord,
+    signal
+  )
   return { success: true as const, output: { timeRecord: result } }
 }
 
@@ -1747,12 +1925,23 @@ export async function executeOracleFusionHcmListTimeCards(
   signal?: AbortSignal
 ) {
   const path = 'timeRecordGroups'
-  const result = await list(input, path, TIME_CARD_FIELDS, projectTimeCard, (query) => {
-    const clauses: string[] = []
-    query.finder = finder('filterByPerNumTimeGrp', { personNumber: input.personNumber, startTime: input.startTime, stopTime: input.stopTime, groupType: 'ProcessedTimecard' })
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    TIME_CARD_FIELDS,
+    projectTimeCard,
+    (query) => {
+      const clauses: string[] = []
+      query.finder = finder('filterByPerNumTimeGrp', {
+        personNumber: input.personNumber,
+        startTime: input.startTime,
+        stopTime: input.stopTime,
+        groupType: 'ProcessedTimecard',
+      })
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { timeCards: result.items, ...withoutItems(result) } }
 }
 
@@ -1762,7 +1951,15 @@ export async function executeOracleFusionHcmGetTimeCard(
   signal?: AbortSignal
 ) {
   const path = `timeRecordGroups/${input.timeRecordGroupId}`
-  const result = await readResource(input, path, TIME_CARD_FIELDS, 'timeRecordGroupId', input.timeRecordGroupId, projectTimeCard, signal)
+  const result = await readResource(
+    input,
+    path,
+    TIME_CARD_FIELDS,
+    'timeRecordGroupId',
+    input.timeRecordGroupId,
+    projectTimeCard,
+    signal
+  )
   return { success: true as const, output: { timeCard: result } }
 }
 
@@ -1772,14 +1969,20 @@ export async function executeOracleFusionHcmListTimeAttributes(
   signal?: AbortSignal
 ) {
   const path = 'timeAttributes'
-  const result = await list(input, path, TIME_ATTRIBUTE_FIELDS, projectTimeAttribute, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['attributeName','displayName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    query.finder = 'filterByAttrContext;contextCode=ORA_HWM_TIME_RECORDS_REST'
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    TIME_ATTRIBUTE_FIELDS,
+    projectTimeAttribute,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['attributeName', 'displayName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      query.finder = 'filterByAttrContext;contextCode=ORA_HWM_TIME_RECORDS_REST'
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { timeAttributes: result.items, ...withoutItems(result) } }
 }
 
@@ -1789,9 +1992,18 @@ export async function executeOracleFusionHcmListTimeAttributeDataSources(
   signal?: AbortSignal
 ) {
   const path = `${await timeAttributePath(input, signal)}/child/dataSourceUsages`
-  const result = await list(input, path, TIME_ATTRIBUTE_DATA_SOURCE_FIELDS, projectTimeAttributeDataSource, undefined,
-  signal)
-  return { success: true as const, output: { timeAttributeDataSources: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TIME_ATTRIBUTE_DATA_SOURCE_FIELDS,
+    projectTimeAttributeDataSource,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { timeAttributeDataSources: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timeattributes-timeattributesuniqid-child-datasourceusages-datasourceusageid-child-datasourcecriteriabinds-get.html */
@@ -1800,9 +2012,18 @@ export async function executeOracleFusionHcmListTimeAttributeCriteriaBinds(
   signal?: AbortSignal
 ) {
   const path = `${await timeAttributePath(input, signal)}/child/dataSourceUsages/${input.dataSourceUsageId}/child/dataSourceCriteriaBinds`
-  const result = await list(input, path, TIME_ATTRIBUTE_CRITERIA_BIND_FIELDS, projectTimeAttributeCriteriaBind, undefined,
-  signal)
-  return { success: true as const, output: { timeAttributeCriteriaBinds: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TIME_ATTRIBUTE_CRITERIA_BIND_FIELDS,
+    projectTimeAttributeCriteriaBind,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { timeAttributeCriteriaBinds: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timeattributevalues-get.html */
@@ -1811,18 +2032,30 @@ export async function executeOracleFusionHcmListTimeAttributeValues(
   signal?: AbortSignal
 ) {
   const path = 'timeAttributeValues'
-  const result = await list(input, path, TIME_ATTRIBUTE_VALUE_FIELDS, projectTimeAttributeValue, (query) => {
-    const clauses: string[] = []
-    const variables: Record<string, string> = { dataSourceUsageId: input.dataSourceUsageId, timeAttributeUsageId: input.timeAttributeUsageId }
-          for (const [index, binding] of (input.bindings ?? []).entries()) {
-            variables[`bindVarName${index + 1}`] = binding.name
-            variables[`bindVarValue${index + 1}`] = binding.value
-          }
-          query.finder = finder('filterByDataSourceUsage', variables)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { timeAttributeValues: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TIME_ATTRIBUTE_VALUE_FIELDS,
+    projectTimeAttributeValue,
+    (query) => {
+      const clauses: string[] = []
+      const variables: Record<string, string> = {
+        dataSourceUsageId: input.dataSourceUsageId,
+        timeAttributeUsageId: input.timeAttributeUsageId,
+      }
+      for (const [index, binding] of (input.bindings ?? []).entries()) {
+        variables[`bindVarName${index + 1}`] = binding.name
+        variables[`bindVarValue${index + 1}`] = binding.value
+      }
+      query.finder = finder('filterByDataSourceUsage', variables)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { timeAttributeValues: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecordeventrequests-get.html */
@@ -1831,7 +2064,15 @@ export async function executeOracleFusionHcmGetTimeRecordRequest(
   signal?: AbortSignal
 ) {
   const path = `timeRecordEventRequests/${input.timeRecordEventRequestId}`
-  const result = await readResource(input, path, TIME_RECORD_REQUEST_FIELDS, 'timeRecordEventRequestId', input.timeRecordEventRequestId, projectTimeRecordRequest, signal)
+  const result = await readResource(
+    input,
+    path,
+    TIME_RECORD_REQUEST_FIELDS,
+    'timeRecordEventRequestId',
+    input.timeRecordEventRequestId,
+    projectTimeRecordRequest,
+    signal
+  )
   return { success: true as const, output: { timeRecordRequest: result } }
 }
 
@@ -1841,9 +2082,18 @@ export async function executeOracleFusionHcmListTimeRecordRequestEvents(
   signal?: AbortSignal
 ) {
   const path = `timeRecordEventRequests/${input.timeRecordEventRequestId}/child/timeRecordEvent`
-  const result = await list(input, path, TIME_RECORD_REQUEST_EVENT_FIELDS, projectTimeRecordRequestEvent, undefined,
-  signal)
-  return { success: true as const, output: { timeRecordRequestEvents: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TIME_RECORD_REQUEST_EVENT_FIELDS,
+    projectTimeRecordRequestEvent,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { timeRecordRequestEvents: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecordeventrequests-timerecordeventrequestid-child-timerecordevent-timerecordeventid-child-timerecordeventmessage-get.html */
@@ -1852,9 +2102,18 @@ export async function executeOracleFusionHcmListTimeRecordEventMessages(
   signal?: AbortSignal
 ) {
   const path = `timeRecordEventRequests/${input.timeRecordEventRequestId}/child/timeRecordEvent/${input.timeRecordEventId}/child/timeRecordEventMessage`
-  const result = await list(input, path, TIME_RECORD_EVENT_MESSAGE_FIELDS, projectTimeRecordEventMessage, undefined,
-  signal)
-  return { success: true as const, output: { timeRecordEventMessages: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    TIME_RECORD_EVENT_MESSAGE_FIELDS,
+    projectTimeRecordEventMessage,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { timeRecordEventMessages: result.items, ...withoutItems(result) },
+  }
 }
 
 export async function executeOracleFusionHcmListSalaryComponents(
@@ -1862,148 +2121,324 @@ export async function executeOracleFusionHcmListSalaryComponents(
   signal?: AbortSignal
 ) {
   if (input.componentKind === 'simple') {
-    const result = await list(input, `salaries/${input.salaryId}/child/salarySimpleComponents`, SIMPLE_SALARY_COMPONENT_FIELDS, projectSimpleSalaryComponent, undefined, signal)
-    return { success: true as const, output: { componentKind: input.componentKind, standardComponents: [], simpleComponents: result.items, rateComponents: [], ...withoutItems(result) } }
+    const result = await list(
+      input,
+      `salaries/${input.salaryId}/child/salarySimpleComponents`,
+      SIMPLE_SALARY_COMPONENT_FIELDS,
+      projectSimpleSalaryComponent,
+      undefined,
+      signal
+    )
+    return {
+      success: true as const,
+      output: {
+        componentKind: input.componentKind,
+        standardComponents: [],
+        simpleComponents: result.items,
+        rateComponents: [],
+        ...withoutItems(result),
+      },
+    }
   }
   if (input.componentKind === 'rate') {
-    const result = await list(input, `salaries/${input.salaryId}/child/salaryPayRateComponents`, RATE_SALARY_COMPONENT_FIELDS, projectRateSalaryComponent, undefined, signal)
-    return { success: true as const, output: { componentKind: input.componentKind, standardComponents: [], simpleComponents: [], rateComponents: result.items, ...withoutItems(result) } }
+    const result = await list(
+      input,
+      `salaries/${input.salaryId}/child/salaryPayRateComponents`,
+      RATE_SALARY_COMPONENT_FIELDS,
+      projectRateSalaryComponent,
+      undefined,
+      signal
+    )
+    return {
+      success: true as const,
+      output: {
+        componentKind: input.componentKind,
+        standardComponents: [],
+        simpleComponents: [],
+        rateComponents: result.items,
+        ...withoutItems(result),
+      },
+    }
   }
-  const result = await list(input, `salaries/${input.salaryId}/child/salaryComponents`, STANDARD_SALARY_COMPONENT_FIELDS, projectStandardSalaryComponent, undefined, signal)
-  return { success: true as const, output: { componentKind: input.componentKind, standardComponents: result.items, simpleComponents: [], rateComponents: [], ...withoutItems(result) } }
+  const result = await list(
+    input,
+    `salaries/${input.salaryId}/child/salaryComponents`,
+    STANDARD_SALARY_COMPONENT_FIELDS,
+    projectStandardSalaryComponent,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: {
+      componentKind: input.componentKind,
+      standardComponents: result.items,
+      simpleComponents: [],
+      rateComponents: [],
+      ...withoutItems(result),
+    },
+  }
 }
 
-export async function executeOracleFusionHcmCreateAssignedPayroll(input: OracleFusionHcmCreateAssignedPayrollBody, signal?: AbortSignal) {
-  const parent = await payrollAssignmentPath({ ...input, effectiveDate: input.effectiveStartDate }, signal)
-  const assignedPayroll = await writeResource(input, `${parent}/child/assignedPayrolls`, 'POST', {
-    PayrollId: oracleFusionExactInteger(input.payrollId),
-    EffectiveStartDate: input.effectiveStartDate,
-    EffectiveEndDate: input.effectiveEndDate,
-    StartDate: input.startDate,
-    EndDate: input.endDate,
-    Lsed: input.lsed,
-    OverridingPeriodId: input.overridingPeriodId ? oracleFusionExactInteger(input.overridingPeriodId) : undefined,
-    TimeCardRequired: input.timeCardRequired,
-  }, projectAssignedPayroll, signal)
+export async function executeOracleFusionHcmCreateAssignedPayroll(
+  input: OracleFusionHcmCreateAssignedPayrollBody,
+  signal?: AbortSignal
+) {
+  const parent = await payrollAssignmentPath(
+    { ...input, effectiveDate: input.effectiveStartDate },
+    signal
+  )
+  const assignedPayroll = await writeResource(
+    input,
+    `${parent}/child/assignedPayrolls`,
+    'POST',
+    {
+      PayrollId: oracleFusionExactInteger(input.payrollId),
+      EffectiveStartDate: input.effectiveStartDate,
+      EffectiveEndDate: input.effectiveEndDate,
+      StartDate: input.startDate,
+      EndDate: input.endDate,
+      Lsed: input.lsed,
+      OverridingPeriodId: input.overridingPeriodId
+        ? oracleFusionExactInteger(input.overridingPeriodId)
+        : undefined,
+      TimeCardRequired: input.timeCardRequired,
+    },
+    projectAssignedPayroll,
+    signal
+  )
   return { success: true as const, output: { assignedPayroll } }
 }
 
-export async function executeOracleFusionHcmUpdateAssignedPayroll(input: OracleFusionHcmUpdateAssignedPayrollBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmUpdateAssignedPayroll(
+  input: OracleFusionHcmUpdateAssignedPayrollBody,
+  signal?: AbortSignal
+) {
   const path = await assignedPayrollPath(input, signal)
-  const assignedPayroll = await writeResource(input, path, 'PATCH', {
-    EffectiveEndDate: input.effectiveEndDate,
-    Lsed: input.lsed,
-    OverridingPeriodId: input.overridingPeriodId ? oracleFusionExactInteger(input.overridingPeriodId) : undefined,
-    TimeCardRequired: input.timeCardRequired,
-  }, projectAssignedPayroll, signal, `RangeMode=${input.rangeMode};RangeStartDate=${input.effectiveDate}`)
+  const assignedPayroll = await writeResource(
+    input,
+    path,
+    'PATCH',
+    {
+      EffectiveEndDate: input.effectiveEndDate,
+      Lsed: input.lsed,
+      OverridingPeriodId: input.overridingPeriodId
+        ? oracleFusionExactInteger(input.overridingPeriodId)
+        : undefined,
+      TimeCardRequired: input.timeCardRequired,
+    },
+    projectAssignedPayroll,
+    signal,
+    `RangeMode=${input.rangeMode};RangeStartDate=${input.effectiveDate}`
+  )
   return { success: true as const, output: { assignedPayroll } }
 }
 
 /** Nested input values are typed individually; Oracle establishes their generated parent identifiers. */
-export async function executeOracleFusionHcmCreateElementEntry(input: OracleFusionHcmCreateElementEntryBody, signal?: AbortSignal) {
-  const elementEntry = await writeResource(input, 'elementEntries', 'POST', {
-    PersonId: oracleFusionExactInteger(input.personId),
-    AssignmentId: input.assignmentId ? oracleFusionExactInteger(input.assignmentId) : undefined,
-    ElementTypeId: oracleFusionExactInteger(input.elementTypeId),
-    ElementName: input.elementName,
-    CreatorType: input.creatorType,
-    EntryType: input.entryType,
-    EffectiveStartDate: input.effectiveStartDate,
-    EffectiveEndDate: input.effectiveEndDate,
-    elementEntryValues: input.entryValues.map((entry) => ({
-      InputValueId: oracleFusionExactInteger(entry.inputValueId),
-      ScreenEntryValue: entry.screenEntryValue,
-    })),
-  }, projectElementEntry, signal)
+export async function executeOracleFusionHcmCreateElementEntry(
+  input: OracleFusionHcmCreateElementEntryBody,
+  signal?: AbortSignal
+) {
+  const elementEntry = await writeResource(
+    input,
+    'elementEntries',
+    'POST',
+    {
+      PersonId: oracleFusionExactInteger(input.personId),
+      AssignmentId: input.assignmentId ? oracleFusionExactInteger(input.assignmentId) : undefined,
+      ElementTypeId: oracleFusionExactInteger(input.elementTypeId),
+      ElementName: input.elementName,
+      CreatorType: input.creatorType,
+      EntryType: input.entryType,
+      EffectiveStartDate: input.effectiveStartDate,
+      EffectiveEndDate: input.effectiveEndDate,
+      elementEntryValues: input.entryValues.map((entry) => ({
+        InputValueId: oracleFusionExactInteger(entry.inputValueId),
+        ScreenEntryValue: entry.screenEntryValue,
+      })),
+    },
+    projectElementEntry,
+    signal
+  )
   return { success: true as const, output: { elementEntry } }
 }
 
-export async function executeOracleFusionHcmUpdateElementEntryValue(input: OracleFusionHcmUpdateElementEntryValueBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmUpdateElementEntryValue(
+  input: OracleFusionHcmUpdateElementEntryValueBody,
+  signal?: AbortSignal
+) {
   const parent = await elementEntryPath(input, signal)
-  const path = await resolveResourcePath(input, `${parent}/child/elementEntryValues`, 'ElementEntryValueId', input.elementEntryValueId, signal)
-  const elementEntryValue = await writeResource(input, path, 'PATCH', {
-    ScreenEntryValue: input.screenEntryValue,
-  }, projectElementEntryValue, signal, `RangeMode=${input.rangeMode};RangeStartDate=${input.effectiveDate}`)
+  const path = await resolveResourcePath(
+    input,
+    `${parent}/child/elementEntryValues`,
+    'ElementEntryValueId',
+    input.elementEntryValueId,
+    signal
+  )
+  const elementEntryValue = await writeResource(
+    input,
+    path,
+    'PATCH',
+    {
+      ScreenEntryValue: input.screenEntryValue,
+    },
+    projectElementEntryValue,
+    signal,
+    `RangeMode=${input.rangeMode};RangeStartDate=${input.effectiveDate}`
+  )
   return { success: true as const, output: { elementEntryValue } }
 }
 
-async function requireUserEnteredSalaryBasis(input: Credentials, salaryBasisId: string, effectiveDate: string, signal?: AbortSignal): Promise<void> {
-  const result = await list({ ...input, limit: 2 }, 'salaryBasisLov', SALARY_BASIS_FIELDS, projectSalaryBasis, (query) => {
-    query.finder = finder('findBySalaryBasisId', { SalaryBasisId: salaryBasisId, EffectiveDate: effectiveDate })
-  }, signal)
+async function requireUserEnteredSalaryBasis(
+  input: Credentials,
+  salaryBasisId: string,
+  effectiveDate: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const result = await list(
+    { ...input, limit: 2 },
+    'salaryBasisLov',
+    SALARY_BASIS_FIELDS,
+    projectSalaryBasis,
+    (query) => {
+      query.finder = finder('findBySalaryBasisId', {
+        SalaryBasisId: salaryBasisId,
+        EffectiveDate: effectiveDate,
+      })
+    },
+    signal
+  )
   if (result.items.length !== 1 || result.hasMore || result.items[0].salaryBasisId !== salaryBasisId) {
-    throw new OracleFusionProviderError('Oracle Fusion HCM salary basis could not be uniquely resolved', 422)
+    throw new OracleFusionProviderError(
+      'Oracle Fusion HCM salary basis could not be uniquely resolved',
+      422
+    )
   }
   if (result.items[0].salaryBasisType !== 'U') {
-    throw new OracleFusionProviderError('Oracle Fusion HCM salary writes require a user-entered salary basis', 422)
+    throw new OracleFusionProviderError(
+      'Oracle Fusion HCM salary writes require a user-entered salary basis',
+      422
+    )
   }
 }
 
-export async function executeOracleFusionHcmCreateSalary(input: OracleFusionHcmCreateSalaryBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmCreateSalary(
+  input: OracleFusionHcmCreateSalaryBody,
+  signal?: AbortSignal
+) {
   await requireUserEnteredSalaryBasis(input, input.salaryBasisId, input.dateFrom, signal)
-  const salary = await writeResource(input, 'salaries', 'POST', {
-    AssignmentId: oracleFusionExactInteger(input.assignmentId),
-    SalaryBasisId: oracleFusionExactInteger(input.salaryBasisId),
-    SalaryAmount: input.salaryAmount,
-    DateFrom: input.dateFrom,
-    DateTo: input.dateTo,
-    MultipleComponents: 'N',
-  }, projectSalary, signal)
+  const salary = await writeResource(
+    input,
+    'salaries',
+    'POST',
+    {
+      AssignmentId: oracleFusionExactInteger(input.assignmentId),
+      SalaryBasisId: oracleFusionExactInteger(input.salaryBasisId),
+      SalaryAmount: input.salaryAmount,
+      DateFrom: input.dateFrom,
+      DateTo: input.dateTo,
+      MultipleComponents: 'N',
+    },
+    projectSalary,
+    signal
+  )
   return { success: true as const, output: { salary } }
 }
 
-export async function executeOracleFusionHcmCorrectSalary(input: OracleFusionHcmCorrectSalaryBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmCorrectSalary(
+  input: OracleFusionHcmCorrectSalaryBody,
+  signal?: AbortSignal
+) {
   const current = await executeOracleFusionHcmGetSalary(input, signal)
   const { salaryBasisId, dateFrom } = current.output.salary
   if (!salaryBasisId || !dateFrom) {
-    throw new OracleFusionProviderError('Oracle Fusion HCM salary is missing basis or effective-date information', 502)
+    throw new OracleFusionProviderError(
+      'Oracle Fusion HCM salary is missing basis or effective-date information',
+      502
+    )
   }
   await requireUserEnteredSalaryBasis(input, salaryBasisId, dateFrom, signal)
-  const salary = await writeResource(input, `salaries/${input.salaryId}`, 'PATCH', {
-    SalaryAmount: input.salaryAmount,
-  }, projectSalary, signal)
+  const salary = await writeResource(
+    input,
+    `salaries/${input.salaryId}`,
+    'PATCH',
+    {
+      SalaryAmount: input.salaryAmount,
+    },
+    projectSalary,
+    signal
+  )
   return { success: true as const, output: { salary } }
 }
 
 /** POST intake only; the separate event/message tools expose subsequent processing results. */
 async function submitTimeEntry(
-  input: OracleFusionHcmCreateTimeEntryBody | OracleFusionHcmUpdateTimeEntryBody | OracleFusionHcmDeleteTimeEntryBody,
+  input:
+    | OracleFusionHcmCreateTimeEntryBody
+    | OracleFusionHcmUpdateTimeEntryBody
+    | OracleFusionHcmDeleteTimeEntryBody,
   operationType: 'ADD' | 'UPDATE' | 'DELETE',
   signal?: AbortSignal
 ) {
-  const attributes = operationType !== 'DELETE' && 'timeAttributes' in input ? [...(input.timeAttributes ?? [])] : []
+  const attributes =
+    operationType !== 'DELETE' && 'timeAttributes' in input ? [...(input.timeAttributes ?? [])] : []
   if (operationType !== 'DELETE' && 'payrollTimeType' in input && input.payrollTimeType) {
     attributes.push({ attributeName: 'PayrollTimeType', attributeValue: input.payrollTimeType })
   }
-  const timeRecordRequest = await writeResource(input, 'timeRecordEventRequests', 'POST', {
-    processInline: 'N',
-    processMode: input.processMode,
-    timeRecordEvent: [filterUndefined({
-      operationType,
-      reporterIdType: 'PERSON',
-      reporterId: input.personNumber,
-      assignmentNumber: input.assignmentNumber,
-      changeReason: input.changeReason,
-      timeRecordId: operationType !== 'ADD' && 'timeRecordId' in input ? oracleFusionExactInteger(input.timeRecordId) : undefined,
-      timeRecordVersion: operationType !== 'ADD' && 'timeRecordVersion' in input ? input.timeRecordVersion : undefined,
-      startTime: operationType !== 'DELETE' && 'startTime' in input ? input.startTime : undefined,
-      stopTime: operationType !== 'DELETE' && 'stopTime' in input ? input.stopTime : undefined,
-      measure: operationType !== 'DELETE' && 'measure' in input ? input.measure : undefined,
-      referenceDate: operationType !== 'DELETE' && 'referenceDate' in input ? input.referenceDate : undefined,
-      timeRecordEventAttribute: attributes.length ? attributes : undefined,
-    })],
-  }, projectTimeRecordRequest, signal)
+  const timeRecordRequest = await writeResource(
+    input,
+    'timeRecordEventRequests',
+    'POST',
+    {
+      processInline: 'N',
+      processMode: input.processMode,
+      timeRecordEvent: [
+        filterUndefined({
+          operationType,
+          reporterIdType: 'PERSON',
+          reporterId: input.personNumber,
+          assignmentNumber: input.assignmentNumber,
+          changeReason: input.changeReason,
+          timeRecordId:
+            operationType !== 'ADD' && 'timeRecordId' in input
+              ? oracleFusionExactInteger(input.timeRecordId)
+              : undefined,
+          timeRecordVersion:
+            operationType !== 'ADD' && 'timeRecordVersion' in input
+              ? input.timeRecordVersion
+              : undefined,
+          startTime: operationType !== 'DELETE' && 'startTime' in input ? input.startTime : undefined,
+          stopTime: operationType !== 'DELETE' && 'stopTime' in input ? input.stopTime : undefined,
+          measure: operationType !== 'DELETE' && 'measure' in input ? input.measure : undefined,
+          referenceDate:
+            operationType !== 'DELETE' && 'referenceDate' in input ? input.referenceDate : undefined,
+          timeRecordEventAttribute: attributes.length ? attributes : undefined,
+        }),
+      ],
+    },
+    projectTimeRecordRequest,
+    signal
+  )
   return { success: true as const, output: { timeRecordRequest } }
 }
 
-export async function executeOracleFusionHcmCreateTimeEntry(input: OracleFusionHcmCreateTimeEntryBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmCreateTimeEntry(
+  input: OracleFusionHcmCreateTimeEntryBody,
+  signal?: AbortSignal
+) {
   return submitTimeEntry(input, 'ADD', signal)
 }
 
-export async function executeOracleFusionHcmUpdateTimeEntry(input: OracleFusionHcmUpdateTimeEntryBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmUpdateTimeEntry(
+  input: OracleFusionHcmUpdateTimeEntryBody,
+  signal?: AbortSignal
+) {
   return submitTimeEntry(input, 'UPDATE', signal)
 }
 
-export async function executeOracleFusionHcmDeleteTimeEntry(input: OracleFusionHcmDeleteTimeEntryBody, signal?: AbortSignal) {
+export async function executeOracleFusionHcmDeleteTimeEntry(
+  input: OracleFusionHcmDeleteTimeEntryBody,
+  signal?: AbortSignal
+) {
   return submitTimeEntry(input, 'DELETE', signal)
 }

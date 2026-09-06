@@ -268,7 +268,9 @@ describe('Oracle Fusion HCM tool definitions', () => {
       clearScreenEntryValue: 'true',
       screenEntryValue: '',
     })
-    expect(oracleFusionHcmUpdateElementEntryValueBodySchema.parse(params).screenEntryValue).toBeNull()
+    expect(
+      oracleFusionHcmUpdateElementEntryValueBodySchema.parse(params).screenEntryValue
+    ).toBeNull()
     expect(
       oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
         ...params,

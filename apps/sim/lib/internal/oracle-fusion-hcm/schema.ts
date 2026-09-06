@@ -1590,11 +1590,13 @@ export type OracleFusionHcmGetElementEntryResponse = z.output<
   typeof oracleFusionHcmGetElementEntryResponseSchema
 >
 
-export const oracleFusionHcmListElementEntryValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  elementEntryId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema.optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListElementEntryValuesBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    elementEntryId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema.optional(),
+    ...paginationBodyShape,
+  }
+)
 
 export const oracleFusionHcmListElementEntryValuesResponseSchema = successResponse(
   z.object({
@@ -1613,17 +1615,35 @@ export type OracleFusionHcmListElementEntryValuesResponse = z.output<
   typeof oracleFusionHcmListElementEntryValuesResponseSchema
 >
 
-export const oracleFusionHcmCreateElementEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personId: oracleFusionHcmDecimalIdSchema,
-  assignmentId: oracleFusionHcmDecimalIdSchema.optional(),
-  elementTypeId: oracleFusionHcmDecimalIdSchema,
-  elementName: z.string().trim().min(1).max(80),
-  creatorType: z.string().trim().min(1).max(30),
-  entryType: z.string().trim().min(1).max(30),
-  effectiveStartDate: dateSchema,
-  effectiveEndDate: dateSchema,
-  entryValues: z.array(z.object({ inputValueId: oracleFusionHcmDecimalIdSchema, screenEntryValue: z.string().max(60).nullable() }).strict()).min(1).max(100),
-}).refine((input) => !input.effectiveStartDate || !input.effectiveEndDate || input.effectiveStartDate <= input.effectiveEndDate, 'effectiveEndDate must be on or after effectiveStartDate')
+export const oracleFusionHcmCreateElementEntryBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    personId: oracleFusionHcmDecimalIdSchema,
+    assignmentId: oracleFusionHcmDecimalIdSchema.optional(),
+    elementTypeId: oracleFusionHcmDecimalIdSchema,
+    elementName: z.string().trim().min(1).max(80),
+    creatorType: z.string().trim().min(1).max(30),
+    entryType: z.string().trim().min(1).max(30),
+    effectiveStartDate: dateSchema,
+    effectiveEndDate: dateSchema,
+    entryValues: z
+      .array(
+        z
+          .object({
+            inputValueId: oracleFusionHcmDecimalIdSchema,
+            screenEntryValue: z.string().max(60).nullable(),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(100),
+  })
+  .refine(
+    (input) =>
+      !input.effectiveStartDate ||
+      !input.effectiveEndDate ||
+      input.effectiveStartDate <= input.effectiveEndDate,
+    'effectiveEndDate must be on or after effectiveStartDate'
+  )
 
 export const oracleFusionHcmCreateElementEntryResponseSchema = successResponse(
   z.object({
@@ -1652,10 +1672,16 @@ export const oracleFusionHcmUpdateElementEntryValueBodySchema = oracleFusionHcmB
   })
   .superRefine((input, context) => {
     if (input.screenEntryValue === undefined && input.clearScreenEntryValue !== true) {
-      context.addIssue({ code: 'custom', message: 'Supply screenEntryValue or explicitly clear it' })
+      context.addIssue({
+        code: 'custom',
+        message: 'Supply screenEntryValue or explicitly clear it',
+      })
     }
     if (input.clearScreenEntryValue && input.screenEntryValue != null) {
-      context.addIssue({ code: 'custom', message: 'Cannot set and clear screenEntryValue together' })
+      context.addIssue({
+        code: 'custom',
+        message: 'Cannot set and clear screenEntryValue together',
+      })
     }
   })
   .transform((input) => ({
@@ -1679,15 +1705,20 @@ export type OracleFusionHcmUpdateElementEntryValueResponse = z.output<
   typeof oracleFusionHcmUpdateElementEntryValueResponseSchema
 >
 
-export const oracleFusionHcmListPersonProcessResultsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personNumber: z.string().trim().min(1).max(30).optional(),
-  personId: oracleFusionHcmDecimalIdSchema.optional(),
-  payrollRelationshipId: oracleFusionHcmDecimalIdSchema.optional(),
-  payrollId: oracleFusionHcmDecimalIdSchema.optional(),
-  startDate: dateSchema.optional(),
-  endDate: dateSchema.optional(),
-  ...paginationBodyShape,
-}).refine((input) => !input.startDate || !input.endDate || input.startDate <= input.endDate, 'endDate must be on or after startDate')
+export const oracleFusionHcmListPersonProcessResultsBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    personNumber: z.string().trim().min(1).max(30).optional(),
+    personId: oracleFusionHcmDecimalIdSchema.optional(),
+    payrollRelationshipId: oracleFusionHcmDecimalIdSchema.optional(),
+    payrollId: oracleFusionHcmDecimalIdSchema.optional(),
+    startDate: dateSchema.optional(),
+    endDate: dateSchema.optional(),
+    ...paginationBodyShape,
+  })
+  .refine(
+    (input) => !input.startDate || !input.endDate || input.startDate <= input.endDate,
+    'endDate must be on or after startDate'
+  )
 
 export const oracleFusionHcmListPersonProcessResultsResponseSchema = successResponse(
   z.object({
@@ -1706,9 +1737,11 @@ export type OracleFusionHcmListPersonProcessResultsResponse = z.output<
   typeof oracleFusionHcmListPersonProcessResultsResponseSchema
 >
 
-export const oracleFusionHcmGetPersonProcessResultBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  objectActionId: oracleFusionHcmDecimalIdSchema,
-})
+export const oracleFusionHcmGetPersonProcessResultBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    objectActionId: oracleFusionHcmDecimalIdSchema,
+  }
+)
 
 export const oracleFusionHcmGetPersonProcessResultResponseSchema = successResponse(
   z.object({
@@ -1806,13 +1839,18 @@ export type OracleFusionHcmGetSalaryResponse = z.output<
   typeof oracleFusionHcmGetSalaryResponseSchema
 >
 
-export const oracleFusionHcmCreateSalaryBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  assignmentId: oracleFusionHcmDecimalIdSchema,
-  salaryBasisId: oracleFusionHcmDecimalIdSchema,
-  salaryAmount: z.number().finite().nonnegative(),
-  dateFrom: dateSchema,
-  dateTo: dateSchema,
-}).refine((input) => !input.dateFrom || !input.dateTo || input.dateFrom <= input.dateTo, 'dateTo must be on or after dateFrom')
+export const oracleFusionHcmCreateSalaryBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    assignmentId: oracleFusionHcmDecimalIdSchema,
+    salaryBasisId: oracleFusionHcmDecimalIdSchema,
+    salaryAmount: z.number().finite().nonnegative(),
+    dateFrom: dateSchema,
+    dateTo: dateSchema,
+  })
+  .refine(
+    (input) => !input.dateFrom || !input.dateTo || input.dateFrom <= input.dateTo,
+    'dateTo must be on or after dateFrom'
+  )
 
 export const oracleFusionHcmCreateSalaryResponseSchema = successResponse(
   z.object({
@@ -2274,12 +2312,21 @@ export type OracleFusionHcmListTalentProfileCertificationsResponse = z.output<
   typeof oracleFusionHcmListTalentProfileCertificationsResponseSchema
 >
 
-export const oracleFusionHcmListTimeRecordsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personNumber: z.string().trim().min(1).max(30),
-  startTime: timeTimestampSchema,
-  stopTime: timeTimestampSchema,
-  ...paginationBodyShape,
-}).refine((input) => finderValueSchema.safeParse(input.personNumber).success, 'Person number cannot contain finder separators').refine((input) => Date.parse(input.startTime) < Date.parse(input.stopTime), 'stopTime must be after startTime')
+export const oracleFusionHcmListTimeRecordsBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    personNumber: z.string().trim().min(1).max(30),
+    startTime: timeTimestampSchema,
+    stopTime: timeTimestampSchema,
+    ...paginationBodyShape,
+  })
+  .refine(
+    (input) => finderValueSchema.safeParse(input.personNumber).success,
+    'Person number cannot contain finder separators'
+  )
+  .refine(
+    (input) => Date.parse(input.startTime) < Date.parse(input.stopTime),
+    'stopTime must be after startTime'
+  )
 
 export const oracleFusionHcmListTimeRecordsResponseSchema = successResponse(
   z.object({
@@ -2318,12 +2365,21 @@ export type OracleFusionHcmGetTimeRecordResponse = z.output<
   typeof oracleFusionHcmGetTimeRecordResponseSchema
 >
 
-export const oracleFusionHcmListTimeCardsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personNumber: z.string().trim().min(1).max(30),
-  startTime: timeTimestampSchema,
-  stopTime: timeTimestampSchema,
-  ...paginationBodyShape,
-}).refine((input) => finderValueSchema.safeParse(input.personNumber).success, 'Person number cannot contain finder separators').refine((input) => Date.parse(input.startTime) < Date.parse(input.stopTime), 'stopTime must be after startTime')
+export const oracleFusionHcmListTimeCardsBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    personNumber: z.string().trim().min(1).max(30),
+    startTime: timeTimestampSchema,
+    stopTime: timeTimestampSchema,
+    ...paginationBodyShape,
+  })
+  .refine(
+    (input) => finderValueSchema.safeParse(input.personNumber).success,
+    'Person number cannot contain finder separators'
+  )
+  .refine(
+    (input) => Date.parse(input.startTime) < Date.parse(input.stopTime),
+    'stopTime must be after startTime'
+  )
 
 export const oracleFusionHcmListTimeCardsResponseSchema = successResponse(
   z.object({
@@ -2430,7 +2486,24 @@ export type OracleFusionHcmListTimeAttributeCriteriaBindsResponse = z.output<
 export const oracleFusionHcmListTimeAttributeValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   dataSourceUsageId: oracleFusionHcmDecimalIdSchema,
   timeAttributeUsageId: oracleFusionHcmDecimalIdSchema,
-  bindings: z.array(z.object({ name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/).max(80), value: finderValueSchema }).strict()).max(5).refine((values) => new Set(values.map((value) => value.name)).size === values.length, 'Binding names must be unique').optional(),
+  bindings: z
+    .array(
+      z
+        .object({
+          name: z
+            .string()
+            .regex(/^[A-Za-z][A-Za-z0-9_]*$/)
+            .max(80),
+          value: finderValueSchema,
+        })
+        .strict()
+    )
+    .max(5)
+    .refine(
+      (values) => new Set(values.map((value) => value.name)).size === values.length,
+      'Binding names must be unique'
+    )
+    .optional(),
   ...paginationBodyShape,
 })
 
@@ -2451,26 +2524,48 @@ export type OracleFusionHcmListTimeAttributeValuesResponse = z.output<
   typeof oracleFusionHcmListTimeAttributeValuesResponseSchema
 >
 
-export const oracleFusionHcmCreateTimeEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personNumber: z.string().trim().min(1).max(30),
-  assignmentNumber: z.string().trim().min(1).max(255).optional(),
-  startTime: timeTimestampSchema.optional(),
-  stopTime: timeTimestampSchema.optional(),
-  measure: z.number().finite().positive().optional(),
-  referenceDate: dateSchema.optional(),
-  payrollTimeType: z.string().trim().min(1).max(150).optional(),
-  timeAttributes: z.array(z.object({ attributeName: z.string().trim().min(1).max(240), attributeValue: z.string().max(150) }).strict()).max(30).refine((values) => new Set(values.map((value) => value.attributeName)).size === values.length && values.every((value) => value.attributeName !== 'PayrollTimeType'), 'Attribute names must be unique; use payrollTimeType for PayrollTimeType').optional(),
-  processMode: z.enum(['TIME_ENTER', 'TIME_SAVE', 'TIME_SUBMIT']).default('TIME_ENTER'),
-  changeReason: z.string().trim().min(1).max(64).optional(),
-}).superRefine((input, context) => {
-  // Oracle permits measure alongside a range; referenceDate controls multi-day processing.
-  if (input.measure === undefined && (!input.startTime || !input.stopTime)) {
-    context.addIssue({ code: 'custom', message: 'Supply a complete time range or measure' })
-  }
-  if (input.startTime && input.stopTime && Date.parse(input.startTime) >= Date.parse(input.stopTime)) {
-    context.addIssue({ code: 'custom', message: 'stopTime must be after startTime' })
-  }
-})
+export const oracleFusionHcmCreateTimeEntryBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    personNumber: z.string().trim().min(1).max(30),
+    assignmentNumber: z.string().trim().min(1).max(255).optional(),
+    startTime: timeTimestampSchema.optional(),
+    stopTime: timeTimestampSchema.optional(),
+    measure: z.number().finite().positive().optional(),
+    referenceDate: dateSchema.optional(),
+    payrollTimeType: z.string().trim().min(1).max(150).optional(),
+    timeAttributes: z
+      .array(
+        z
+          .object({
+            attributeName: z.string().trim().min(1).max(240),
+            attributeValue: z.string().max(150),
+          })
+          .strict()
+      )
+      .max(30)
+      .refine(
+        (values) =>
+          new Set(values.map((value) => value.attributeName)).size === values.length &&
+          values.every((value) => value.attributeName !== 'PayrollTimeType'),
+        'Attribute names must be unique; use payrollTimeType for PayrollTimeType'
+      )
+      .optional(),
+    processMode: z.enum(['TIME_ENTER', 'TIME_SAVE', 'TIME_SUBMIT']).default('TIME_ENTER'),
+    changeReason: z.string().trim().min(1).max(64).optional(),
+  })
+  .superRefine((input, context) => {
+    // Oracle permits measure alongside a range; referenceDate controls multi-day processing.
+    if (input.measure === undefined && (!input.startTime || !input.stopTime)) {
+      context.addIssue({ code: 'custom', message: 'Supply a complete time range or measure' })
+    }
+    if (
+      input.startTime &&
+      input.stopTime &&
+      Date.parse(input.startTime) >= Date.parse(input.stopTime)
+    ) {
+      context.addIssue({ code: 'custom', message: 'stopTime must be after startTime' })
+    }
+  })
 
 export const oracleFusionHcmCreateTimeEntryResponseSchema = successResponse(
   z.object({
@@ -2488,35 +2583,57 @@ export type OracleFusionHcmCreateTimeEntryResponse = z.output<
   typeof oracleFusionHcmCreateTimeEntryResponseSchema
 >
 
-export const oracleFusionHcmUpdateTimeEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personNumber: z.string().trim().min(1).max(30),
-  assignmentNumber: z.string().trim().min(1).max(255).optional(),
-  timeRecordId: oracleFusionHcmDecimalIdSchema,
-  timeRecordVersion: z.number().int().positive().max(2_147_483_647),
-  startTime: timeTimestampSchema.optional(),
-  stopTime: timeTimestampSchema.optional(),
-  measure: z.number().finite().positive().optional(),
-  referenceDate: dateSchema.optional(),
-  payrollTimeType: z.string().trim().min(1).max(150).optional(),
-  timeAttributes: z.array(z.object({ attributeName: z.string().trim().min(1).max(240), attributeValue: z.string().max(150) }).strict()).max(30).refine((values) => new Set(values.map((value) => value.attributeName)).size === values.length && values.every((value) => value.attributeName !== 'PayrollTimeType'), 'Attribute names must be unique; use payrollTimeType for PayrollTimeType').optional(),
-  processMode: z.enum(['TIME_ENTER', 'TIME_SAVE', 'TIME_SUBMIT']).default('TIME_ENTER'),
-  changeReason: z.string().trim().min(1).max(64).optional(),
-}).superRefine((input, context) => {
-  // UPDATE may change only stopTime, as shown in Oracle's Update Time Entries example.
-  if (
-    input.startTime === undefined &&
-    input.stopTime === undefined &&
-    input.measure === undefined &&
-    input.referenceDate === undefined &&
-    input.payrollTimeType === undefined &&
-    !input.timeAttributes?.length
-  ) {
-    context.addIssue({ code: 'custom', message: 'Supply at least one time or attribute change' })
-  }
-  if (input.startTime && input.stopTime && Date.parse(input.startTime) >= Date.parse(input.stopTime)) {
-    context.addIssue({ code: 'custom', message: 'stopTime must be after startTime' })
-  }
-})
+export const oracleFusionHcmUpdateTimeEntryBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    personNumber: z.string().trim().min(1).max(30),
+    assignmentNumber: z.string().trim().min(1).max(255).optional(),
+    timeRecordId: oracleFusionHcmDecimalIdSchema,
+    timeRecordVersion: z.number().int().positive().max(2_147_483_647),
+    startTime: timeTimestampSchema.optional(),
+    stopTime: timeTimestampSchema.optional(),
+    measure: z.number().finite().positive().optional(),
+    referenceDate: dateSchema.optional(),
+    payrollTimeType: z.string().trim().min(1).max(150).optional(),
+    timeAttributes: z
+      .array(
+        z
+          .object({
+            attributeName: z.string().trim().min(1).max(240),
+            attributeValue: z.string().max(150),
+          })
+          .strict()
+      )
+      .max(30)
+      .refine(
+        (values) =>
+          new Set(values.map((value) => value.attributeName)).size === values.length &&
+          values.every((value) => value.attributeName !== 'PayrollTimeType'),
+        'Attribute names must be unique; use payrollTimeType for PayrollTimeType'
+      )
+      .optional(),
+    processMode: z.enum(['TIME_ENTER', 'TIME_SAVE', 'TIME_SUBMIT']).default('TIME_ENTER'),
+    changeReason: z.string().trim().min(1).max(64).optional(),
+  })
+  .superRefine((input, context) => {
+    // UPDATE may change only stopTime, as shown in Oracle's Update Time Entries example.
+    if (
+      input.startTime === undefined &&
+      input.stopTime === undefined &&
+      input.measure === undefined &&
+      input.referenceDate === undefined &&
+      input.payrollTimeType === undefined &&
+      !input.timeAttributes?.length
+    ) {
+      context.addIssue({ code: 'custom', message: 'Supply at least one time or attribute change' })
+    }
+    if (
+      input.startTime &&
+      input.stopTime &&
+      Date.parse(input.startTime) >= Date.parse(input.stopTime)
+    ) {
+      context.addIssue({ code: 'custom', message: 'stopTime must be after startTime' })
+    }
+  })
 
 export const oracleFusionHcmUpdateTimeEntryResponseSchema = successResponse(
   z.object({

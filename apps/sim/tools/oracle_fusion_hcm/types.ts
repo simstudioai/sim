@@ -1186,7 +1186,6 @@ export const ORACLE_FUSION_HCM_TIME_RECORD_EVENT_MESSAGE_OUTPUT_PROPERTIES = {
   allowException: { type: 'string', description: 'allowException', nullable: true },
 } satisfies Record<string, ToolOutputProperty>
 
-
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_RELATIONSHIPS_OUTPUTS = {
   payrollRelationships: {
     type: 'array',

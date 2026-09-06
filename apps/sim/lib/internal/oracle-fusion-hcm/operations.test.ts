@@ -1227,20 +1227,67 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
   })
 
   it('does not replay an ambiguous time intake timeout and drops upstream details', async () => {
-    mocks.requestOracleFusionJson.mockRejectedValueOnce(new OracleFusionProviderError('private timeout detail', 504))
-    await expect(operations.executeOracleFusionHcmCreateTimeEntry({ ...auth, personNumber: '0007', measure: 8, referenceDate: '2026-01-01', processMode: 'TIME_ENTER' })).rejects.toThrow('Oracle Fusion HCM request timed out')
+    mocks.requestOracleFusionJson.mockRejectedValueOnce(
+      new OracleFusionProviderError('private timeout detail', 504)
+    )
+    await expect(
+      operations.executeOracleFusionHcmCreateTimeEntry({
+        ...auth,
+        personNumber: '0007',
+        measure: 8,
+        referenceDate: '2026-01-01',
+        processMode: 'TIME_ENTER',
+      })
+    ).rejects.toThrow('Oracle Fusion HCM request timed out')
     expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
   })
 
   it('reads processing events and messages through their complete request/event parents', async () => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ timeRecordEventId: '2', timeRecordEventRequestId: '1', eventStatus: 'In process', timeRecordId: null, eventStatusValue: 4 }]))
-    const events = await operations.executeOracleFusionHcmListTimeRecordRequestEvents({ ...auth, timeRecordEventRequestId: '1' })
-    expect(lastRequest().address.relativePath).toBe('timeRecordEventRequests/1/child/timeRecordEvent')
-    expect(events.output.timeRecordRequestEvents[0]).toMatchObject({ eventStatus: 'In process', timeRecordId: null, eventStatusValue: 4 })
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ timeRecordEventMessageId: '3', messageName: 'HWM_VALIDATION', messageField: 'startTime', allowException: 'N' }]))
-    const messages = await operations.executeOracleFusionHcmListTimeRecordEventMessages({ ...auth, timeRecordEventRequestId: '1', timeRecordEventId: '2' })
-    expect(lastRequest().address.relativePath).toBe('timeRecordEventRequests/1/child/timeRecordEvent/2/child/timeRecordEventMessage')
-    expect(messages.output.timeRecordEventMessages[0]).toMatchObject({ messageName: 'HWM_VALIDATION', allowException: 'N' })
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([
+        {
+          timeRecordEventId: '2',
+          timeRecordEventRequestId: '1',
+          eventStatus: 'In process',
+          timeRecordId: null,
+          eventStatusValue: 4,
+        },
+      ])
+    )
+    const events = await operations.executeOracleFusionHcmListTimeRecordRequestEvents({
+      ...auth,
+      timeRecordEventRequestId: '1',
+    })
+    expect(lastRequest().address.relativePath).toBe(
+      'timeRecordEventRequests/1/child/timeRecordEvent'
+    )
+    expect(events.output.timeRecordRequestEvents[0]).toMatchObject({
+      eventStatus: 'In process',
+      timeRecordId: null,
+      eventStatusValue: 4,
+    })
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([
+        {
+          timeRecordEventMessageId: '3',
+          messageName: 'HWM_VALIDATION',
+          messageField: 'startTime',
+          allowException: 'N',
+        },
+      ])
+    )
+    const messages = await operations.executeOracleFusionHcmListTimeRecordEventMessages({
+      ...auth,
+      timeRecordEventRequestId: '1',
+      timeRecordEventId: '2',
+    })
+    expect(lastRequest().address.relativePath).toBe(
+      'timeRecordEventRequests/1/child/timeRecordEvent/2/child/timeRecordEventMessage'
+    )
+    expect(messages.output.timeRecordEventMessages[0]).toMatchObject({
+      messageName: 'HWM_VALIDATION',
+      allowException: 'N',
+    })
     expect(messages.output.timeRecordEventMessages[0]).not.toHaveProperty('messageText')
   })
 })

@@ -1685,9 +1685,16 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'processMode',
       title: 'Process Mode',
       type: 'dropdown',
-      options: [{ id: 'TIME_ENTER', label: 'TIME_ENTER' }, { id: 'TIME_SAVE', label: 'TIME_SAVE' }, { id: 'TIME_SUBMIT', label: 'TIME_SUBMIT' }],
+      options: [
+        { id: 'TIME_ENTER', label: 'TIME_ENTER' },
+        { id: 'TIME_SAVE', label: 'TIME_SAVE' },
+        { id: 'TIME_SUBMIT', label: 'TIME_SUBMIT' },
+      ],
       value: () => 'TIME_ENTER',
-      condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry', 'delete_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry', 'update_time_entry', 'delete_time_entry'],
+      },
       required: { field: 'operation', value: [] },
       description:
         'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval',
@@ -1696,7 +1703,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'changeReason',
       title: 'Change Reason',
       type: 'short-input',
-      condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry', 'delete_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry', 'update_time_entry', 'delete_time_entry'],
+      },
       required: { field: 'operation', value: [] },
       description: 'Tenant-configured audit change reason code',
     },
@@ -1713,8 +1723,22 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'timeRecordEventRequestId',
       title: 'Time Record Event Request Id',
       type: 'short-input',
-      condition: { field: 'operation', value: ['get_time_record_request', 'list_time_record_request_events', 'list_time_record_event_messages'] },
-      required: { field: 'operation', value: ['get_time_record_request', 'list_time_record_request_events', 'list_time_record_event_messages'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_time_record_request',
+          'list_time_record_request_events',
+          'list_time_record_event_messages',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_time_record_request',
+          'list_time_record_request_events',
+          'list_time_record_event_messages',
+        ],
+      },
       description: 'Time record event request ID, as a positive decimal string',
     },
     {
@@ -1885,7 +1909,13 @@ export const OracleFusionHcmBlock: BlockConfig = {
         if (rest.screenEntryValue === '') {
           rest.screenEntryValue = undefined
         }
-        for (const key of ['limit', 'offset', 'salaryAmount', 'measure', 'timeRecordVersion'] as const) {
+        for (const key of [
+          'limit',
+          'offset',
+          'salaryAmount',
+          'measure',
+          'timeRecordVersion',
+        ] as const) {
           if (typeof rest[key] === 'string') rest[key] = Number(rest[key])
         }
         for (const key of ['entryValues', 'bindings', 'timeAttributes'] as const) {
@@ -1905,66 +1935,178 @@ export const OracleFusionHcmBlock: BlockConfig = {
     },
   },
   inputs: {
-    personNumber: { type: 'string', description: 'Worker person number, including any leading zeros; does not require current public-directory membership' },
-    payrollRelationshipId: { type: 'string', description: 'Payroll relationship ID, as a positive decimal string' },
-    payrollAssignmentId: { type: 'string', description: 'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string' },
-    assignedPayrollId: { type: 'string', description: 'Assigned payroll ID, as a positive decimal string' },
+    personNumber: {
+      type: 'string',
+      description:
+        'Worker person number, including any leading zeros; does not require current public-directory membership',
+    },
+    payrollRelationshipId: {
+      type: 'string',
+      description: 'Payroll relationship ID, as a positive decimal string',
+    },
+    payrollAssignmentId: {
+      type: 'string',
+      description:
+        'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
+    },
+    assignedPayrollId: {
+      type: 'string',
+      description: 'Assigned payroll ID, as a positive decimal string',
+    },
     payrollId: { type: 'string', description: 'Payroll ID, as a positive decimal string' },
-    effectiveStartDate: { type: 'string', description: 'Effective start date in YYYY-MM-DD format' },
+    effectiveStartDate: {
+      type: 'string',
+      description: 'Effective start date in YYYY-MM-DD format',
+    },
     effectiveEndDate: { type: 'string', description: 'Effective end date in YYYY-MM-DD format' },
     lsed: { type: 'string', description: 'Lsed in YYYY-MM-DD format' },
-    overridingPeriodId: { type: 'string', description: 'Overriding period ID, as a positive decimal string' },
-    timeCardRequired: { type: 'string', description: 'Oracle time-card requirement code, such as Y or N' },
-    rangeMode: { type: 'string', description: 'CORRECTION changes the historical row; UPDATE starts an effective-dated change' },
-    legislativeDataGroupId: { type: 'string', description: 'Legislative data group ID, as a positive decimal string' },
+    overridingPeriodId: {
+      type: 'string',
+      description: 'Overriding period ID, as a positive decimal string',
+    },
+    timeCardRequired: {
+      type: 'string',
+      description: 'Oracle time-card requirement code, such as Y or N',
+    },
+    rangeMode: {
+      type: 'string',
+      description: 'CORRECTION changes the historical row; UPDATE starts an effective-dated change',
+    },
+    legislativeDataGroupId: {
+      type: 'string',
+      description: 'Legislative data group ID, as a positive decimal string',
+    },
     elementTypeId: { type: 'string', description: 'Element type ID, as a positive decimal string' },
     assignmentNumber: { type: 'string', description: 'HR assignment number' },
-    elementEntryId: { type: 'string', description: 'Element entry ID, as a positive decimal string' },
+    elementEntryId: {
+      type: 'string',
+      description: 'Element entry ID, as a positive decimal string',
+    },
     elementName: { type: 'string', description: 'Name of the element matching elementTypeId' },
-    creatorType: { type: 'string', description: 'Oracle element-entry creator code supported by the tenant' },
-    entryType: { type: 'string', description: 'Oracle element-entry type code supported by the tenant' },
-    entryValues: { type: 'json', description: 'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers' },
-    elementEntryValueId: { type: 'string', description: 'Element entry value ID, as a positive decimal string' },
+    creatorType: {
+      type: 'string',
+      description: 'Oracle element-entry creator code supported by the tenant',
+    },
+    entryType: {
+      type: 'string',
+      description: 'Oracle element-entry type code supported by the tenant',
+    },
+    entryValues: {
+      type: 'json',
+      description:
+        'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers',
+    },
+    elementEntryValueId: {
+      type: 'string',
+      description: 'Element entry value ID, as a positive decimal string',
+    },
     screenEntryValue: {
       type: 'string',
       description: 'Element input value as text; use clearScreenEntryValue to explicitly clear it',
     },
-    clearScreenEntryValue: { type: 'boolean', description: 'Explicitly clear the element input value' },
+    clearScreenEntryValue: {
+      type: 'boolean',
+      description: 'Explicitly clear the element input value',
+    },
     objectActionId: { type: 'string', description: 'Object action ID, as a positive decimal string' },
     salaryId: { type: 'string', description: 'Salary ID, as a positive decimal string' },
     salaryBasisId: { type: 'string', description: 'Salary basis ID, as a positive decimal string' },
-    salaryAmount: { type: 'number', description: 'Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request' },
+    salaryAmount: {
+      type: 'number',
+      description:
+        'Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request',
+    },
     dateFrom: { type: 'string', description: 'Date from in YYYY-MM-DD format' },
     dateTo: { type: 'string', description: 'Date to in YYYY-MM-DD format' },
-    componentKind: { type: 'string', description: 'Component family: standard, simple, or rate; each is independently paginated' },
+    componentKind: {
+      type: 'string',
+      description: 'Component family: standard, simple, or rate; each is independently paginated',
+    },
     gradeRateId: { type: 'string', description: 'Grade rate ID, as a positive decimal string' },
     reviewPeriodId: { type: 'string', description: 'Review period ID, as a positive decimal string' },
     goalPlanId: { type: 'string', description: 'Goal plan ID, as a positive decimal string' },
     goalId: { type: 'string', description: 'Goal ID, as a positive decimal string' },
     evaluationId: { type: 'string', description: 'Evaluation ID, as a positive decimal string' },
     evalRoleId: { type: 'string', description: 'Eval role ID, as a positive decimal string' },
-    evalParticipantId: { type: 'string', description: 'Eval participant ID, as a positive decimal string' },
+    evalParticipantId: {
+      type: 'string',
+      description: 'Eval participant ID, as a positive decimal string',
+    },
     profileId: { type: 'string', description: 'Profile ID, as a positive decimal string' },
-    sectionKind: { type: 'string', description: 'Secured profile section family: skill or certification' },
-    profileSectionId: { type: 'string', description: 'Profile section ID, as a positive decimal string' },
-    startTime: { type: 'string', description: 'Start timestamp in ISO 8601 with explicit time-zone offset' },
-    stopTime: { type: 'string', description: 'Stop timestamp in ISO 8601 with explicit time-zone offset' },
+    sectionKind: {
+      type: 'string',
+      description: 'Secured profile section family: skill or certification',
+    },
+    profileSectionId: {
+      type: 'string',
+      description: 'Profile section ID, as a positive decimal string',
+    },
+    startTime: {
+      type: 'string',
+      description: 'Start timestamp in ISO 8601 with explicit time-zone offset',
+    },
+    stopTime: {
+      type: 'string',
+      description: 'Stop timestamp in ISO 8601 with explicit time-zone offset',
+    },
     timeRecordId: { type: 'string', description: 'Time record ID, as a positive decimal string' },
-    timeRecordGroupId: { type: 'string', description: 'Time record group ID, as a positive decimal string' },
+    timeRecordGroupId: {
+      type: 'string',
+      description: 'Time record group ID, as a positive decimal string',
+    },
     timeAttributeId: { type: 'string', description: 'Time attribute ID, as a positive decimal string' },
-    dataSourceUsageId: { type: 'string', description: 'Data source usage ID, as a positive decimal string' },
-    timeAttributeUsageId: { type: 'string', description: 'Time attribute usage ID, as a positive decimal string' },
-    bindings: { type: 'json', description: 'Up to five typed {name, value} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators' },
-    measure: { type: 'number', description: 'Positive quantity in hours or units; may accompany startTime and stopTime' },
-    referenceDate: { type: 'string', description: 'Optional processing date for entries spanning multiple days (YYYY-MM-DD)' },
-    payrollTimeType: { type: 'string', description: 'PayrollTimeType attribute value discovered for the assignment and effective date' },
-    timeAttributes: { type: 'json', description: 'Up to 30 typed {attributeName, attributeValue} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input' },
-    processMode: { type: 'string', description: 'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval' },
+    dataSourceUsageId: {
+      type: 'string',
+      description: 'Data source usage ID, as a positive decimal string',
+    },
+    timeAttributeUsageId: {
+      type: 'string',
+      description: 'Time attribute usage ID, as a positive decimal string',
+    },
+    bindings: {
+      type: 'json',
+      description:
+        'Up to five typed {name, value} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators',
+    },
+    measure: {
+      type: 'number',
+      description: 'Positive quantity in hours or units; may accompany startTime and stopTime',
+    },
+    referenceDate: {
+      type: 'string',
+      description: 'Optional processing date for entries spanning multiple days (YYYY-MM-DD)',
+    },
+    payrollTimeType: {
+      type: 'string',
+      description: 'PayrollTimeType attribute value discovered for the assignment and effective date',
+    },
+    timeAttributes: {
+      type: 'json',
+      description:
+        'Up to 30 typed {attributeName, attributeValue} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input',
+    },
+    processMode: {
+      type: 'string',
+      description:
+        'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval',
+    },
     changeReason: { type: 'string', description: 'Tenant-configured audit change reason code' },
-    timeRecordVersion: { type: 'number', description: 'Current time-record version from get_time_record; required for update and delete' },
-    timeRecordEventRequestId: { type: 'string', description: 'Time record event request ID, as a positive decimal string' },
-    timeRecordEventId: { type: 'string', description: 'Time record event ID, as a positive decimal string' },
-    operation: { type: 'string', description: 'Oracle HCM operation; writes require explicit authorization' },
+    timeRecordVersion: {
+      type: 'number',
+      description: 'Current time-record version from get_time_record; required for update and delete',
+    },
+    timeRecordEventRequestId: {
+      type: 'string',
+      description: 'Time record event request ID, as a positive decimal string',
+    },
+    timeRecordEventId: {
+      type: 'string',
+      description: 'Time record event ID, as a positive decimal string',
+    },
+    operation: {
+      type: 'string',
+      description: 'Oracle HCM operation; writes require explicit authorization',
+    },
     oauthCredential: { type: 'string', description: 'Oracle Fusion integration-user credential' },
     personId: { type: 'string', description: 'Person ID' },
     assignmentId: { type: 'string', description: 'Assignment ID' },
