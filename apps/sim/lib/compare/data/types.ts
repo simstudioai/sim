@@ -173,6 +173,17 @@ export interface ComparisonFacts {
   }
 }
 
+/**
+ * One run of comparison prose, optionally hyperlinked. Kept as data (rather
+ * than markup or a markdown string) so the data layer stays UI-free while
+ * still expressing the in-sentence citation links that comparison intros
+ * need. A segment object renders `text` as a link to `href`.
+ */
+export type ProseSegment = string | { text: string; href: string }
+
+/** A paragraph of comparison prose, as an ordered run of {@link ProseSegment}s. */
+export type Prose = ProseSegment[]
+
 /** Brand icon + colors for a competitor, sourced from a brand-intelligence lookup rather than the vendor's own docs. */
 export interface CompetitorBrand {
   /** Icon component from @/components/icons rendering this competitor's logo. */
@@ -208,6 +219,24 @@ export interface CompetitorProfile {
   website: string
   /** One-sentence, neutral description of what the product is. */
   oneLiner: string
+  /**
+   * A 2-4 sentence direct answer to "which of these two should I pick", shown
+   * as the page's lead paragraph ahead of the generic intro. Written so an
+   * answer engine can quote it standalone: what each product is, then the
+   * condition under which each one wins.
+   */
+  leadAnswer?: Prose
+  /**
+   * Answer to the "Is Sim better than {name}?" section, phrased the way buyers
+   * ask the question of an AI model. Verdict first, then the condition that
+   * decides it. 3-5 sentences.
+   */
+  betterThanAnswer?: Prose
+  /**
+   * One-sentence lead-in per comparison-table section, stating what that
+   * section covers so the section is quotable without the rest of the page.
+   */
+  sectionIntros?: Partial<Record<keyof ComparisonFacts, Prose>>
   /**
    * Whether this competitor is, categorically, a visual workflow/automation
    * builder like Sim. Defaults to `true` when omitted. Set `false` for a

@@ -14,6 +14,7 @@ export {
   enforceIpRateLimit,
   enforceIpRateLimitWithIndependentBackstop,
   enforceRecipientRateLimit,
+  enforceResourceRateLimit,
   enforceUserOrIpRateLimit,
   enforceUserRateLimit,
 } from './route-helpers'

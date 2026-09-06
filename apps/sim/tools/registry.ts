@@ -3823,8 +3823,10 @@ import {
   quickbooksUpdateSalesReceiptTool,
   quickbooksUpdateVendorCreditTool,
   quickbooksUpdateVendorTool,
+  quickbooksVoidBillPaymentTool,
   quickbooksVoidCustomerPaymentTool,
   quickbooksVoidInvoiceTool,
+  quickbooksVoidSalesReceiptTool,
 } from '@/tools/quickbooks'
 import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
 import {
@@ -7826,8 +7828,10 @@ export const tools: Record<string, ExecutableToolConfig> = {
   quickbooks_update_sales_receipt: quickbooksUpdateSalesReceiptTool,
   quickbooks_update_vendor: quickbooksUpdateVendorTool,
   quickbooks_update_vendor_credit: quickbooksUpdateVendorCreditTool,
+  quickbooks_void_bill_payment: quickbooksVoidBillPaymentTool,
   quickbooks_void_customer_payment: quickbooksVoidCustomerPaymentTool,
   quickbooks_void_invoice: quickbooksVoidInvoiceTool,
+  quickbooks_void_sales_receipt: quickbooksVoidSalesReceiptTool,
   rds_query: rdsQueryTool,
   rds_insert: rdsInsertTool,
   rds_update: rdsUpdateTool,

@@ -125,6 +125,27 @@ describe('QuickBooks webhook ingress job', () => {
     expect(mockEnqueue).toHaveBeenCalledOnce()
   })
 
+  it('ignores an event whose company identity can never be routed', async () => {
+    mockFindWebhooks.mockResolvedValue([])
+    const unroutablePayload: QuickBooksWebhookIngressPayload = {
+      ...payload,
+      events: [{ ...event, intuitaccountid: 'not-a-realm' }, payload.events[1]],
+    }
+
+    await expect(executeQuickBooksWebhookIngress(unroutablePayload)).resolves.toEqual({
+      failed: 0,
+      ignored: 1,
+      processed: 0,
+      targetCount: 0,
+    })
+    expect(mockFindWebhooks).toHaveBeenCalledOnce()
+    expect(mockFindWebhooks).toHaveBeenCalledWith(
+      `${payload.appKey}:789`,
+      'request-1',
+      'quickbooks'
+    )
+  })
+
   it('continues later events when targets cannot be resolved', async () => {
     mockFindWebhooks
       .mockRejectedValueOnce(new Error('database unavailable'))

@@ -4,6 +4,7 @@
 import { Document, Header, Packer, Paragraph, TextRun } from 'docx'
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
+import { MAX_OOXML_CENTRAL_DIRECTORY_RECORDS, ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 import {
   appendParagraphsToDocx,
   buildDocxFromContent,
@@ -197,6 +198,21 @@ describe('extractDocxText', () => {
     const blank = await buildDocxFromContent('')
 
     await expect(extractDocxText(blank)).resolves.toBe('')
+  })
+
+  it('refuses an archive the OOXML guard rejects rather than rescuing it', async () => {
+    // The rescue re-opens the buffer with JSZip and reads `word/document.xml`
+    // into a string with no size cap, and the parser rejecting the archive is
+    // exactly what routes it there. The body stays empty so the rescue would
+    // otherwise succeed — reporting the archive as an empty document.
+    const zip = await JSZip.loadAsync(await buildDocxFromContent(''))
+    for (let index = 0; index <= MAX_OOXML_CENTRAL_DIRECTORY_RECORDS; index++) {
+      zip.file(`word/embeddings/pad${index}.bin`, '')
+    }
+
+    await expect(extractDocxText(await zip.generateAsync({ type: 'nodebuffer' }))).rejects.toThrow(
+      ZipBombError
+    )
   })
 
   it('still fails on an archive that is not a Word package', async () => {

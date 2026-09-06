@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { task } from '@trigger.dev/sdk'
 import { NextRequest } from 'next/server'
 import type { QuickBooksWebhookEvent } from '@/lib/api/contracts/webhooks'
@@ -37,6 +38,19 @@ export async function executeQuickBooksWebhookIngress(
   let targetCount = 0
 
   for (const [eventIndex, event] of payload.events.entries()) {
+    let routingKey: string
+    try {
+      routingKey = buildQuickBooksWebhookRoutingKey(payload.appKey, event.intuitaccountid)
+    } catch (error) {
+      ignored += 1
+      logger.warn(`[${payload.requestId}] QuickBooks webhook event is not routable`, {
+        error: getErrorMessage(error, 'Unknown error'),
+        eventId: event.id,
+        eventIndex,
+      })
+      continue
+    }
+
     const request = new NextRequest(
       `http://internal/api/webhooks/quickbooks/${encodeURIComponent(payload.appKey)}`,
       {
@@ -47,7 +61,6 @@ export async function executeQuickBooksWebhookIngress(
     )
 
     try {
-      const routingKey = buildQuickBooksWebhookRoutingKey(payload.appKey, event.intuitaccountid)
       const targets = await findWebhooksByRoutingKey(routingKey, payload.requestId, 'quickbooks')
       targetCount += targets.length
 
