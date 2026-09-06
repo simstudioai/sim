@@ -7,13 +7,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { saveToFile } from '../commands/protocol/files-get'
 import { type EmbedContext, embedStore } from '../embed-context'
+import { EmbeddedOutput } from '../embed-output'
 import { localFile } from './local-file'
 
 function embedded(overrides: Partial<EmbedContext> = {}): EmbedContext {
   return {
     identity: { endpoint: 'http://sim.test', apiKey: 'k', workspaceId: 'ws' },
-    stdout: [],
-    stderr: [],
+    stdout: new EmbeddedOutput(),
+    stderr: new EmbeddedOutput(),
     ...overrides,
   }
 }

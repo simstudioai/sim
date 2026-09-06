@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { embedStore } from '../embed-context'
+import { EmbeddedOutput } from '../embed-output'
 import { readArgumentSource } from './request'
 
 describe('file arguments in embedded runs', () => {
@@ -24,8 +25,8 @@ describe('file arguments in embedded runs', () => {
     await embedStore.run(
       {
         identity: { endpoint: 'http://x', apiKey: 'k' },
-        stdout: [],
-        stderr: [],
+        stdout: new EmbeddedOutput(),
+        stderr: new EmbeddedOutput(),
         readFile: async () => {
           throw new Error('Workbench unavailable')
         },
@@ -41,8 +42,8 @@ describe('file arguments in embedded runs', () => {
   it('refuses @path reads in-process when the host provides no reader', async () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
-      stdout: [] as string[],
-      stderr: [] as string[],
+      stdout: new EmbeddedOutput(),
+      stderr: new EmbeddedOutput(),
     }
     await embedStore.run(ctx, async () => {
       await expect(readArgumentSource('@/etc/hostname', 'input')).rejects.toThrow(
@@ -54,8 +55,8 @@ describe('file arguments in embedded runs', () => {
   it('serves @path through the host reader, never local disk', async () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
-      stdout: [] as string[],
-      stderr: [] as string[],
+      stdout: new EmbeddedOutput(),
+      stderr: new EmbeddedOutput(),
       readFile: async (path: string) => {
         if (path === 'env.json') return '{"thread":"t1"}'
         throw new Error(`no file "${path}"`)
@@ -74,8 +75,8 @@ describe('file arguments in embedded runs', () => {
   it('keeps @@ literal escape and inline values working embedded', async () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
-      stdout: [] as string[],
-      stderr: [] as string[],
+      stdout: new EmbeddedOutput(),
+      stderr: new EmbeddedOutput(),
     }
     await embedStore.run(ctx, async () => {
       expect((await readArgumentSource('@@literal', 'input')).text).toBe('@literal')
