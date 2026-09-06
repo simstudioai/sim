@@ -70,7 +70,12 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 
 import {
+  bindWorkspaceFileUploadProvenance,
+  WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+} from '@/lib/uploads/upload-session/workspace-file-provenance'
+import {
   finalizeUploadPurpose,
+  finalizeWorkspaceFileUpload,
   loadCompletedUploadPurpose,
 } from '@/app/api/files/uploads/finalizers'
 import type { InternalUploadPurpose } from '@/app/api/files/uploads/purposes'
@@ -299,6 +304,103 @@ describe('upload purpose finalizers', () => {
     expect(mockNotifyWorkspaceFilesChanged).toHaveBeenCalledTimes(1)
     expect(mockRecordAudit).toHaveBeenCalledTimes(1)
     expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['exact', 'unknown'] as const)(
+    'recovers private %s provenance from session state before registering bytes',
+    async (status) => {
+      const secretProvenance =
+        status === 'exact'
+          ? { status, entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: actor.id }] }
+          : { status }
+      const session = {
+        ...uploadSession,
+        purpose: 'workspace_file' as const,
+        storageContext: 'workspace' as const,
+        storageKey: workspaceFile.key,
+        fileName: workspaceFile.name,
+        contentType: workspaceFile.type,
+        metadata: {
+          [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: bindWorkspaceFileUploadProvenance(
+            'workspace-1',
+            secretProvenance
+          ),
+        },
+      }
+      mockRegisterUploadedWorkspaceFile.mockResolvedValue({
+        file: { id: workspaceFile.id },
+        created: true,
+      })
+      mockGetWorkspaceFile.mockResolvedValue(workspaceFile)
+      const authorize = vi.fn(async () => {})
+      const finalized = await finalizeWorkspaceFileUpload({
+        session,
+        actor,
+        principal,
+        source: 'api',
+        authorizeBeforeRegistration: authorize,
+        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+      })
+      expect(authorize).toHaveBeenCalledBefore(mockRegisterUploadedWorkspaceFile)
+      expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          secretProvenance,
+          uploadSessionId: session.id,
+          workspaceId: 'workspace-1',
+          key: session.storageKey,
+        })
+      )
+      expect(JSON.stringify(finalized)).not.toContain('fixture-ciphertext')
+    }
+  )
+
+  it('does not turn a malformed stored private binding into an ordinary safe upload', async () => {
+    mockRegisterUploadedWorkspaceFile.mockResolvedValue({
+      file: { id: workspaceFile.id },
+      created: true,
+    })
+    mockGetWorkspaceFile.mockResolvedValue(workspaceFile)
+    await finalizeWorkspaceFileUpload({
+      session: {
+        ...uploadSession,
+        purpose: 'workspace_file',
+        metadata: { [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: null },
+      },
+      actor,
+      principal,
+      source: 'api',
+      request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+    })
+    expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
+  })
+
+  it('does not register classified bytes after finalization authorization is revoked', async () => {
+    await expect(
+      finalizeWorkspaceFileUpload({
+        session: {
+          ...uploadSession,
+          purpose: 'workspace_file',
+          metadata: {
+            [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: bindWorkspaceFileUploadProvenance(
+              'workspace-1',
+              { status: 'unknown' }
+            ),
+          },
+        },
+        actor,
+        principal,
+        source: 'api',
+        authorizeBeforeRegistration: async () => {
+          throw new Error('Access revoked')
+        },
+        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+      })
+    ).rejects.toThrow('Access revoked')
+    expect(mockRegisterUploadedWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockNotifyWorkspaceFilesChanged).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace-file replay after its metadata was archived', async () => {

@@ -16,6 +16,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { UploadSessionError, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
+import { readWorkspaceFileUploadProvenance } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export interface UploadActor {
@@ -187,6 +188,7 @@ export async function finalizeWorkspaceFileUpload(params: {
   }
   await authorizeBeforeRegistration?.()
   const legacyAttributionUserId = principal.kind === 'workspace_api_key' ? actor.id : session.userId
+  const secretProvenance = readWorkspaceFileUploadProvenance(session)
   const registered = await registerUploadedWorkspaceFile({
     workspaceId,
     userId: legacyAttributionUserId,
@@ -195,6 +197,7 @@ export async function finalizeWorkspaceFileUpload(params: {
     originalName: session.fileName,
     contentType: session.contentType,
     folderId: metadata.folderId,
+    ...(secretProvenance ? { secretProvenance } : {}),
   })
   const file = await getWorkspaceFile(workspaceId, registered.file.id, {
     includeDeleted: true,
