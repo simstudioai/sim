@@ -7,7 +7,6 @@ import {
 } from '@/lib/mothership/assistant/tool-policy'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
 import { getToolMetadata } from '@/tools/metadata'
@@ -15,9 +14,6 @@ import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './ro
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
 const logger = createLogger('ToolExecutor')
-const FUNCTION_EXECUTE_TOOL_ID = 'run_function'
-const DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS = 10
-const MILLISECONDS_PER_SECOND = 1000
 
 const handlerRegistry = new Map<string, ToolHandler>()
 
@@ -98,13 +94,11 @@ export async function executeTool(
   }
 
   return withResourceOutboundScope(context, async () => {
-    const normalizedParams = normalizeToolParams(toolId, params, context)
-
     const canUseRegisteredHandler =
       hasHandler(toolId) &&
       (!isKnownTool(toolId) || isSimExecuted(toolId) || usesHeadlessClientFallback)
     if (!canUseRegisteredHandler) {
-      const appParams = buildAppToolParams(normalizedParams, context)
+      const appParams = buildAppToolParams(params, context)
       const options = {
         ...(context.resolvedSecretTraceRegistry
           ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
@@ -157,7 +151,7 @@ export async function executeTool(
     }
 
     try {
-      return await handler(normalizedParams, context)
+      return await handler(params, context)
     } catch (error) {
       const message = toError(error).message
       logger.error('Tool execution failed', {
@@ -168,33 +162,6 @@ export async function executeTool(
       return { success: false, error: message }
     }
   })
-}
-
-function normalizeToolParams(
-  toolId: string,
-  params: Record<string, unknown>,
-  context: ToolExecutionContext
-): Record<string, unknown> {
-  if (toolId !== FUNCTION_EXECUTE_TOOL_ID || !context.copilotToolExecution) {
-    return params
-  }
-
-  const rawTimeoutSeconds =
-    params.timeout === undefined || params.timeout === null
-      ? DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
-      : Number(params.timeout)
-  const timeoutSeconds =
-    Number.isFinite(rawTimeoutSeconds) && rawTimeoutSeconds > 0
-      ? rawTimeoutSeconds
-      : DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
-
-  return {
-    ...params,
-    timeout: Math.min(
-      Math.ceil(timeoutSeconds * MILLISECONDS_PER_SECOND),
-      DEFAULT_EXECUTION_TIMEOUT_MS
-    ),
-  }
 }
 
 /**
