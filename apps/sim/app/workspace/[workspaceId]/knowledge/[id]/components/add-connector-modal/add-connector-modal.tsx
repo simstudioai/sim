@@ -19,6 +19,7 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
+import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -59,7 +60,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
-import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
@@ -159,6 +160,15 @@ export function AddConnectorModal({
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
+  const docsUrl = isSearchIndex ? connectorConfig?.searchDocsUrl : undefined
+  const setupGuideActions = docsUrl
+    ? [
+        {
+          label: 'Setup guide',
+          onClick: () => window.open(docsUrl, '_blank', 'noopener,noreferrer'),
+        },
+      ]
+    : undefined
   const isMembersMode = access.accessMode === 'members'
   const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
   const isApiKeyMode =
@@ -205,9 +215,13 @@ export function AddConnectorModal({
   const serviceAccountProviderId = connectorProviderId
     ? getServiceAccountProviderForProviderId(connectorProviderId)
     : undefined
+  const requiresServiceAccount =
+    access.accessMode === 'admin' &&
+    connectorConfig?.auth.mode === 'oauth' &&
+    !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      isSearchIndex &&
+      (isSearchIndex || requiresServiceAccount) &&
       (serviceAccountProviderId === 'google-service-account' ||
         serviceAccountProviderId === 'atlassian-service-account')
         ? serviceAccountProviderId
@@ -215,8 +229,11 @@ export function AddConnectorModal({
     serviceName: connectorConfig?.name,
     serviceIcon: connectorConfig?.icon,
   })
-  const deploymentState = selectedType
-    ? integrationAvailability.get(selectedType)?.state
+  const deploymentType = connectorProviderId
+    ? (getIntegrationsForCredentialProvider(connectorProviderId)[0]?.type ?? selectedType)
+    : selectedType
+  const deploymentState = deploymentType
+    ? integrationAvailability.get(deploymentType.toLowerCase())?.state
     : undefined
   const canConnectServiceAccount =
     serviceAccountTarget &&
@@ -224,7 +241,7 @@ export function AddConnectorModal({
     (deploymentState === 'ready' || deploymentState === 'limited')
 
   const {
-    data: credentials = [],
+    data: rawCredentials = [],
     isLoading: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
@@ -234,8 +251,20 @@ export function AddConnectorModal({
 
   useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? '', workspaceId)
 
+  const credentials = rawCredentials.filter(
+    (credential) =>
+      !connectorConfig ||
+      isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, credential.type)
+  )
+  const canConnectOAuth =
+    connectorConfig &&
+    isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   const effectiveCredentialId =
-    selectedCredentialId ?? (credentials.length === 1 ? credentials[0].id : null)
+    selectedCredentialId && credentials.some((credential) => credential.id === selectedCredentialId)
+      ? selectedCredentialId
+      : credentials.length === 1
+        ? credentials[0].id
+        : null
 
   const {
     sourceConfig,
@@ -528,7 +557,13 @@ export function AddConnectorModal({
                   ) : showCredentialPicker ? (
                     <ChipModalField
                       type='custom'
-                      title={isMembersMode ? 'Browse with' : 'Account'}
+                      title={
+                        isMembersMode
+                          ? 'Browse with'
+                          : canConnectOAuth
+                            ? 'Account'
+                            : 'Service account'
+                      }
                       hint={isMembersMode ? BROWSE_WITH_HINT : undefined}
                     >
                       <ChipCombobox
@@ -540,18 +575,22 @@ export function AddConnectorModal({
                               icon: withBrandIcon(connectorConfig.icon),
                             })
                           ),
-                          {
-                            label:
-                              credentials.length > 0
-                                ? `Connect another ${connectorConfig.name} account`
-                                : `Connect ${connectorConfig.name} account`,
-                            value: '__connect_new__',
-                            icon: Plus,
-                            onSelect: () => {
-                              saveSetup()
-                              setShowOAuthModal(true)
-                            },
-                          },
+                          ...(canConnectOAuth
+                            ? [
+                                {
+                                  label:
+                                    credentials.length > 0
+                                      ? `Connect another ${connectorConfig.name} account`
+                                      : `Connect ${connectorConfig.name} account`,
+                                  value: '__connect_new__',
+                                  icon: Plus,
+                                  onSelect: () => {
+                                    saveSetup()
+                                    setShowOAuthModal(true)
+                                  },
+                                },
+                              ]
+                            : []),
                           ...(canConnectServiceAccount
                             ? [
                                 {
@@ -568,7 +607,11 @@ export function AddConnectorModal({
                         onOpenChange={(isOpen) => {
                           if (isOpen) void refetchCredentials()
                         }}
-                        placeholder={`Select ${connectorConfig.name} account`}
+                        placeholder={
+                          canConnectOAuth
+                            ? `Select ${connectorConfig.name} account`
+                            : 'Select a service account'
+                        }
                         isLoading={credentialsLoading || isIntegrationAvailabilityLoading}
                         disabled={!isIntegrationAvailabilityReady}
                       />
@@ -695,10 +738,15 @@ export function AddConnectorModal({
 
         {step === 'configure' &&
           (slackSetupRequired ? (
-            <ChipModalFooter onCancel={() => closeSetup(false)} defaultAction='none' />
+            <ChipModalFooter
+              onCancel={() => closeSetup(false)}
+              secondaryActions={setupGuideActions}
+              defaultAction='none'
+            />
           ) : (
             <ChipModalFooter
               onCancel={() => closeSetup(false)}
+              secondaryActions={setupGuideActions}
               primaryAction={{
                 label: isCreating
                   ? isMembersMode
@@ -722,10 +770,7 @@ export function AddConnectorModal({
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
           atlassianProduct={selectedType === 'confluence' ? 'confluence' : undefined}
-          onCreated={(credentialId) => {
-            setSelectedCredentialId(credentialId)
-            void refetchCredentials()
-          }}
+          onCreated={setSelectedCredentialId}
         />
       )}
       {showOAuthModal &&
@@ -744,6 +789,7 @@ export function AddConnectorModal({
             provider={connectorProviderId}
             serviceId={connectorConfig.auth.provider}
             providerId={connectorProviderId}
+            docsUrl={docsUrl}
             requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
             workspaceId={workspaceId}
             knowledgeBaseId={knowledgeBaseId}

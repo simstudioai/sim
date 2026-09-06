@@ -18,13 +18,21 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
-import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Plus, RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
+import {
+  getProviderIdFromServiceId,
+  getServiceAccountProviderForProviderId,
+  type OAuthProvider,
+} from '@/lib/oauth'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import {
+  ConnectServiceAccountModal,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import {
   derivedAclCapFieldIds,
   isConnectorFieldRequired,
@@ -51,6 +59,7 @@ import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { withBrandIcon } from '@/blocks/brand-icon'
+import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
@@ -267,6 +276,7 @@ export function EditConnectorModal({
       })
     : { admin: false, members: false }
   const persistedAccess = currentAccess(connector)
+  const docsUrl = isSearchIndex ? connectorConfig?.searchDocsUrl : undefined
   const searchSourceSupported = !isSearchIndex || connectorConfig?.search === true
   const searchAccessAllowed = !isSearchIndex || access.accessMode !== 'workspace'
   const searchSettingsAllowed =
@@ -285,14 +295,17 @@ export function EditConnectorModal({
   const accessModeChanged = persistedAccess.accessMode !== access.accessMode
   const accessDirty =
     accessModeChanged ||
+    (isContentEngineAccessMode(access.accessMode) &&
+      workspaceCredentialId !== null &&
+      workspaceCredentialId !== connector.credentialId) ||
     (access.accessMode === 'members' &&
       contentCredentialId !== (connector.accessMode === 'members' ? connector.credentialId : null))
-  /** Leaving members mode for a mode that syncs with one credential needs that credential. */
+  /** Exposes credential selection for mode changes and administrator credential recovery. */
   const needsWorkspaceCredential =
     connectorConfig?.auth.mode === 'oauth' &&
-    accessDirty &&
     isContentEngineAccessMode(access.accessMode) &&
-    persistedAccess.accessMode === 'members'
+    (persistedAccess.accessMode === 'members' ||
+      !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth'))
   const missingAdminField =
     accessDirty && access.accessMode === 'admin'
       ? connectorConfig?.configFields.find((field) => {
@@ -495,6 +508,7 @@ export function EditConnectorModal({
             onApplyAccess={handleApplyAccess}
             onResetAccess={() => {
               setAccess(currentAccess(connector))
+              setWorkspaceCredentialId(null)
               setContentCredentialId(
                 connector.accessMode === 'members' ? connector.credentialId : null
               )
@@ -514,6 +528,16 @@ export function EditConnectorModal({
       {activeTab === 'settings' && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
+          secondaryActions={
+            docsUrl
+              ? [
+                  {
+                    label: 'Setup guide',
+                    onClick: () => window.open(docsUrl, '_blank', 'noopener,noreferrer'),
+                  },
+                ]
+              : undefined
+          }
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
@@ -606,21 +630,52 @@ function SettingsTab({
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
       : null
   const syncsPerMember = access.accessMode === 'members'
+  const requiresServiceAccount = Boolean(
+    connectorConfig &&
+      !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
+  )
+  const serviceAccountProviderId = providerId
+    ? getServiceAccountProviderForProviderId(providerId)
+    : undefined
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId:
+      requiresServiceAccount &&
+      (serviceAccountProviderId === 'google-service-account' ||
+        serviceAccountProviderId === 'atlassian-service-account')
+        ? serviceAccountProviderId
+        : undefined,
+    serviceName: connectorConfig?.name,
+    serviceIcon: connectorConfig?.icon,
+  })
+  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
   const isContentCredentialChange = accessDirty && !accessModeChanged
   const { data: rawCredentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
     providerId ?? undefined,
-    { enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId), workspaceId }
+    {
+      enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
+      workspaceId,
+    }
   )
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
   /** A per-member connector has no credential of its own; the admin's account browses the source. */
   const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
   const credentialOptions = useMemo<ComboboxOption[]>(
     () =>
-      rawCredentials.map((credential) => ({
-        label: credential.name || credential.provider,
-        value: credential.id,
-      })),
-    [rawCredentials]
+      rawCredentials
+        .filter(
+          (credential) =>
+            !connectorConfig ||
+            isConnectorCredentialTypeAllowed(
+              connectorConfig.auth,
+              access.accessMode,
+              credential.type
+            )
+        )
+        .map((credential) => ({
+          label: credential.name || credential.provider,
+          value: credential.id,
+        })),
+    [rawCredentials, connectorConfig, access.accessMode]
   )
 
   return (
@@ -663,23 +718,6 @@ function SettingsTab({
               </div>
             ) : accessDirty ? (
               <div className='flex flex-col gap-2'>
-                {needsWorkspaceCredential && (
-                  <>
-                    <ChipCombobox
-                      options={credentialOptions}
-                      value={workspaceCredentialId ?? undefined}
-                      onChange={onWorkspaceCredentialChange}
-                      placeholder={`Select the ${connectorConfig.name} account to sync as`}
-                      isLoading={credentialsLoading}
-                      disabled={isSaving}
-                    />
-                    {!credentialsLoading && credentialOptions.length === 0 && (
-                      <p className='text-[var(--text-muted)] text-caption leading-snug'>
-                        Connect a {connectorConfig.name} account in Integrations first.
-                      </p>
-                    )}
-                  </>
-                )}
                 <div className='flex items-center gap-2'>
                   <Chip
                     variant='primary'
@@ -699,12 +737,63 @@ function SettingsTab({
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
                   {accessSetupHint ??
                     (isContentCredentialChange
-                      ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
+                      ? syncsPerMember
+                        ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
+                        : 'The next sync uses this account and refreshes source permissions.'
                       : SWITCH_NOTICE[access.accessMode])}
                 </p>
               </div>
             ) : undefined
           }
+        />
+      )}
+
+      {connectorConfig && needsWorkspaceCredential && canAdmin && (
+        <ChipModalField
+          type='custom'
+          title={
+            isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
+              ? 'Indexing account'
+              : 'Service account'
+          }
+          hint={
+            !requiresServiceAccount && !credentialsLoading && credentialOptions.length === 0
+              ? `Connect a ${connectorConfig.name} account in Integrations, then return here to select it.`
+              : undefined
+          }
+        >
+          <ChipCombobox
+            options={[
+              ...credentialOptions,
+              ...(serviceAccountTarget && !serviceAccountTarget.hidden && allowAdmin
+                ? [
+                    {
+                      label: serviceAccountTarget.label,
+                      value: '__service_account__',
+                      icon: Plus,
+                      onSelect: () => setShowServiceAccountModal(true),
+                    },
+                  ]
+                : []),
+            ]}
+            value={workspaceCredentialId ?? credentialId ?? undefined}
+            onChange={onWorkspaceCredentialChange}
+            placeholder='Select the account to sync as'
+            isLoading={credentialsLoading}
+            disabled={isSaving}
+          />
+        </ChipModalField>
+      )}
+
+      {showServiceAccountModal && serviceAccountTarget && canAdmin && (
+        <ConnectServiceAccountModal
+          open
+          onOpenChange={setShowServiceAccountModal}
+          workspaceId={workspaceId}
+          serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          serviceName={serviceAccountTarget.serviceName}
+          serviceIcon={serviceAccountTarget.serviceIcon}
+          onCreated={onWorkspaceCredentialChange}
         />
       )}
 

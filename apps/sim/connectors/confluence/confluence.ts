@@ -115,6 +115,8 @@ function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>
     $node.contents().each((_, child) => {
       if (child.type === 'text') {
         current += $(child).text()
+      } else if (child.type === 'cdata') {
+        current += $(child.children).text()
       } else if (child.type === 'tag') {
         const tag = child.tagName?.toLowerCase()
         if (tag && INLINE_FORMATTING_TAGS.has(tag)) {
@@ -193,6 +195,64 @@ export function preserveConfluenceCallouts(html: string): string {
   return $.html()
 }
 
+const STORAGE_MACRO_SELECTOR = 'ac\\:structured-macro, ac\\:macro'
+const LOCAL_STORAGE_MACROS = new Set([
+  'info',
+  'note',
+  'warning',
+  'tip',
+  'panel',
+  'expand',
+  'excerpt',
+  'code',
+  'noformat',
+])
+
+/**
+ * Search authorizes the containing page, not content expanded from another
+ * resource. Read authored storage text and known local macro bodies only;
+ * inclusion and third-party macros may render differently for each reader.
+ */
+export function confluenceStorageToPlainText(storage: string): string {
+  const $ = cheerio.load(
+    storage,
+    { xml: { xmlMode: false, recognizeCDATA: true, recognizeSelfClosing: true } },
+    false
+  )
+  $('ac\\:adf-extension').remove()
+
+  $(STORAGE_MACRO_SELECTOR).each((_, element) => {
+    if (!LOCAL_STORAGE_MACROS.has($(element).attr('ac:name') ?? '')) {
+      $(element).remove()
+    }
+  })
+
+  for (const element of $(STORAGE_MACRO_SELECTOR).toArray().reverse()) {
+    const macro = $(element)
+    const name = macro.attr('ac:name') ?? ''
+    const title = macro.children('ac\\:parameter[ac\\:name="title"]').text().trim()
+    const body = extractBlockJoinedText(
+      $,
+      macro.children('ac\\:rich-text-body, ac\\:plain-text-body')
+    )
+    const label =
+      name === 'panel'
+        ? title
+          ? `[CALLOUT: ${title}]`
+          : '[CALLOUT]'
+        : CALLOUT_LABELS[name === 'info' ? 'information' : name]
+    const text = [label, name === 'panel' ? '' : title, body].filter(Boolean).join(' ')
+    macro.replaceWith($('<p></p>').text(text))
+  }
+
+  $('ac\\:parameter, ac\\:default-parameter, script, style').remove()
+  return extractBlockJoinedText($, $.root()).replace(/\s+/g, ' ').trim()
+}
+
+function usesPermissionScopedContent(syncContext?: Record<string, unknown>): boolean {
+  return syncContext?.perMemberListing === true || syncContext?.mirrorsSourceAcls === true
+}
+
 /**
  * Escapes a value for use inside CQL double-quoted strings.
  */
@@ -240,15 +300,12 @@ export function readIncludedLabels(page: Record<string, unknown>): string[] {
 
 /**
  * Body representation marker embedded in the contentHash. Bumping this
- * invalidates every previously-synced Confluence document so a one-time
- * re-hydration picks up content newly reachable by the current extraction
- * (e.g. the switch from `storage` to rendered `view`, which expands Include
- * Page / Excerpt macros; or `preserveConfluenceCallouts`, which stops
- * flattening panel/info/note/warning/tip macros into indistinguishable plain
- * text). Without it, already-indexed pages whose version is unchanged
- * classify as `unchanged` and keep their stale (pre-fix) content.
+ * causes the next complete listing to rehydrate pages even if their version
+ * is unchanged. Search must replace rendered inclusions with authored content;
+ * ordinary knowledge bases retain their existing rendered representation.
  */
 const CONTENT_REPRESENTATION = 'view-callouts'
+const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v1'
 
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
@@ -264,12 +321,16 @@ function pageToStub(
     contentType?: string
     labels?: string[]
     sourceUrl?: string
-  } = {}
+  } = {},
+  syncContext?: Record<string, unknown>
 ): ExternalDocument {
   const version = page.version as Record<string, unknown> | undefined
   const versionNumber = version?.number as number | undefined
   const lastModified = (version?.createdAt ?? version?.when ?? '') as string
   const versionKey = versionNumber ?? lastModified
+  const representation = usesPermissionScopedContent(syncContext)
+    ? SCOPED_CONTENT_REPRESENTATION
+    : CONTENT_REPRESENTATION
 
   return {
     externalId: String(page.id),
@@ -278,7 +339,7 @@ function pageToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
-    contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
+    contentHash: `confluence:${representation}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
       spaceKey: options.spaceKey,
@@ -294,7 +355,11 @@ function pageToStub(
 /**
  * Converts a v1 CQL search result item to a lightweight metadata stub.
  */
-function cqlResultToStub(item: Record<string, unknown>, domain: string): ExternalDocument {
+function cqlResultToStub(
+  item: Record<string, unknown>,
+  domain: string,
+  syncContext?: Record<string, unknown>
+): ExternalDocument {
   const links = item._links as Record<string, string> | undefined
   const metadata = item.metadata as Record<string, unknown> | undefined
   const labelsWrapper = metadata?.labels as Record<string, unknown> | undefined
@@ -302,13 +367,17 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
   const labels = labelResults.map((l) => l.name as string)
 
   const spaceKey = (item.space as Record<string, unknown>)?.key
-  return pageToStub(item, {
-    spaceId: spaceKey,
-    spaceKey: typeof spaceKey === 'string' ? spaceKey : undefined,
-    contentType: typeof item.type === 'string' ? item.type : undefined,
-    labels,
-    sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-  })
+  return pageToStub(
+    item,
+    {
+      spaceId: spaceKey,
+      spaceKey: typeof spaceKey === 'string' ? spaceKey : undefined,
+      contentType: typeof item.type === 'string' ? item.type : undefined,
+      labels,
+      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+    },
+    syncContext
+  )
 }
 
 /**
@@ -565,18 +634,11 @@ export const confluenceConnector: ConnectorConfig = {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
-    /**
-     * Fetch the `view` representation rather than `storage`. Storage format only
-     * carries unexpanded macro references (e.g. Include Page / Excerpt Include),
-     * so "mirrored" content that pulls in another page's body is stripped to
-     * nothing by `htmlToPlainText`. The `view` representation is server-rendered
-     * HTML with those macros expanded inline, so included content is indexed too.
-     * The v2 single-item GET (`/pages/{id}`, `/blogposts/{id}`) supports
-     * `body-format=view`; only the bulk list endpoints are limited to storage/adf.
-     */
+    const scopedContent = usesPermissionScopedContent(syncContext)
+    const bodyFormat = scopedContent ? 'storage' : 'view'
     let page: Record<string, unknown> | null = null
     for (const endpoint of ['pages', 'blogposts']) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=view&include-labels=true`
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=${bodyFormat}&include-labels=true`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
@@ -597,16 +659,25 @@ export const confluenceConnector: ConnectorConfig = {
 
     if (!page || !isCurrentContent(page)) return null
     const body = page.body as Record<string, unknown> | undefined
-    const view = body?.view as Record<string, unknown> | undefined
-    const rawContent = (view?.value as string) || ''
-    const plainText = htmlToPlainText(preserveConfluenceCallouts(rawContent))
+    const representation = body?.[bodyFormat] as Record<string, unknown> | undefined
+    if (scopedContent && typeof representation?.value !== 'string') {
+      throw new Error('Confluence content is missing its storage body')
+    }
+    const rawContent = (representation?.value as string) || ''
+    const plainText = scopedContent
+      ? confluenceStorageToPlainText(rawContent)
+      : htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const links = page._links as Record<string, unknown> | undefined
-    const stub = pageToStub(page, {
-      spaceId: page.spaceId,
-      labels: readIncludedLabels(page),
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-    })
+    const stub = pageToStub(
+      page,
+      {
+        spaceId: page.spaceId,
+        labels: readIncludedLabels(page),
+        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+      },
+      syncContext
+    )
 
     return {
       ...stub,
@@ -757,12 +828,16 @@ async function listDocumentsV2(
     .filter(isCurrentContent)
     .map((page) => {
       const links = page._links as Record<string, string> | undefined
-      return pageToStub(page, {
-        spaceId: page.spaceId,
-        spaceKey,
-        contentType,
-        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-      })
+      return pageToStub(
+        page,
+        {
+          spaceId: page.spaceId,
+          spaceKey,
+          contentType,
+          sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+        },
+        syncContext
+      )
     })
 
   const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
@@ -1002,7 +1077,7 @@ async function listDocumentsViaCql(
 
   const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
-    .map((item) => cqlResultToStub(item, domain))
+    .map((item) => cqlResultToStub(item, domain, syncContext))
 
   /**
    * Trim to the remaining budget. Trimming stops the walk (`hitLimit` below is

@@ -8,6 +8,7 @@ export const githubConnectorMeta: ConnectorMeta = {
   version: '1.0.0',
   icon: GithubIcon,
   search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/github',
   permissionScopedListing: { capFieldIds: ['maxFiles'] },
   supportsSeparateContentCredential: true,
   memberSetupHint:

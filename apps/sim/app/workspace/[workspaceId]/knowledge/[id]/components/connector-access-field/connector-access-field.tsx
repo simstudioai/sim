@@ -16,6 +16,7 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
 
@@ -140,7 +141,9 @@ export function ConnectorAccessField({
     { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
     {
       mode: 'admin',
-      label: 'Admin or service account',
+      label: isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
+        ? 'Admin or service account'
+        : 'Service account',
       allowed: adminSupported && allowAdmin,
     },
   ]

@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   availabilityError: null as Error | null,
   refetchAvailability: vi.fn(),
   unavailableProviders: [] as string[],
+  integrationAvailability: new Map<
+    string,
+    { oauthAvailable: boolean; state: 'ready' | 'limited' | 'unavailable' | 'misconfigured' }
+  >(),
   userId: 'user-1',
   urlUpdate: vi.fn(),
   oauthReturn: vi.fn(),
@@ -40,7 +44,12 @@ const mocks = vi.hoisted(() => ({
     isSearchIndex?: boolean
   }[],
   connectors: [] as { id: string; connectorType: string; accessMode: string; status: string }[],
-  credentials: [{ id: 'cred-source', name: 'Indexing account', provider: 'slack' }],
+  credentials: [{ id: 'cred-source', name: 'Indexing account', provider: 'slack' }] as {
+    id: string
+    name: string
+    provider: string
+    type?: 'oauth' | 'service_account'
+  }[],
   credentialGroup: null as {
     id: string
     name: string
@@ -66,6 +75,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
     integrationAvailability: new Map([
       ['slack', { oauthAvailable: true, state: 'ready' }],
       ['slack_v2', { oauthAvailable: true, state: 'ready' }],
+      ...mocks.integrationAvailability,
     ]),
     oauthServiceAvailability: new Map(
       [
@@ -169,6 +179,8 @@ vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
 }))
 
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
@@ -279,6 +291,7 @@ beforeEach(() => {
   mocks.prepareData = undefined
   mocks.bases = [{ id: 'kb-search', name: 'Sim Search', isSearchIndex: true }]
   mocks.connectors = []
+  mocks.integrationAvailability.clear()
   mocks.credentials = [{ id: 'cred-source', name: 'Indexing account', provider: 'slack' }]
   mocks.credentialGroup = {
     id: 'group-1',
@@ -311,6 +324,7 @@ afterEach(async () => {
   container?.remove()
   root = null
   container = null
+  vi.restoreAllMocks()
 })
 
 function setup() {
@@ -923,11 +937,71 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     id: 'drive-credential',
     name: 'Drive indexing account',
     provider: 'google-drive',
+    type: 'service_account' as const,
   }
 
   beforeEach(() => {
     mocks.credentials = [driveCredential]
   })
+
+  it.each(['ready', 'limited', 'unavailable', 'misconfigured'] as const)(
+    'uses canonical Confluence availability for inline service-account setup when %s',
+    async (state) => {
+      mocks.credentials = []
+      mocks.integrationAvailability.set('confluence_v2', { oauthAvailable: true, state })
+      await render(
+        <AddConnectorModal
+          open
+          onOpenChange={vi.fn()}
+          knowledgeBaseId='kb-search'
+          isSearchIndex
+          initialConnectorType='confluence'
+          initialAccessMode='admin'
+        />
+      )
+      const picker = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
+        (node) => node.textContent?.includes('Select Confluence account')
+      )
+      expect(picker).toBeDefined()
+      await click(picker!)
+      const serviceAccountOption = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((node) => node.textContent?.trim() === 'Add service account')
+
+      expect(Boolean(serviceAccountOption)).toBe(state === 'ready' || state === 'limited')
+    }
+  )
+
+  it.each(['admin', 'workspace'] as const)(
+    'offers inline Drive service-account setup only when a general KB requires it in %s mode',
+    async (accessMode) => {
+      mocks.credentials = []
+      mocks.integrationAvailability.set('google_drive', { oauthAvailable: true, state: 'ready' })
+      await render(
+        <AddConnectorModal
+          open
+          onOpenChange={vi.fn()}
+          knowledgeBaseId='kb-general'
+          initialConnectorType='google_drive'
+          initialAccessMode={accessMode}
+        />
+      )
+      const picker = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
+        (node) =>
+          node.textContent?.includes(
+            accessMode === 'admin' ? 'Select a service account' : 'Select Google Drive account'
+          )
+      )
+      expect(picker).toBeDefined()
+      await click(picker!)
+      const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map(
+        (node) => node.textContent?.trim()
+      )
+
+      expect(options.includes('Add service account')).toBe(accessMode === 'admin')
+      expect(options.includes('Connect Google Drive account')).toBe(accessMode === 'workspace')
+    }
+  )
 
   it('marks Crawl as required in Drive administrator mode and refuses empty or blank subjects', async () => {
     await render(
@@ -959,6 +1033,105 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       }),
       expect.any(Object)
     )
+  })
+
+  it('excludes personal OAuth accounts and stale OAuth drafts from Drive administrator setup', async () => {
+    const oauthCredential = {
+      id: 'drive-personal',
+      name: 'Personal Drive account',
+      provider: 'google-drive',
+      type: 'oauth' as const,
+    }
+    mocks.credentials = [oauthCredential]
+    const setupDraftKey = 'user-1:workspace-1:kb-search:google_drive'
+    useConnectorSetupStore.getState().saveDraft(setupDraftKey, {
+      sourceConfig: { adminEmail: 'admin@example.com' },
+      canonicalModes: {},
+      accessMode: 'admin',
+      credentialId: oauthCredential.id,
+      contentCredentialId: null,
+      disabledTagIds: [],
+      savedAt: Date.now(),
+    })
+    const modal = (
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        initialConnectorType='google_drive'
+        setupDraftKey={setupDraftKey}
+      />
+    )
+    await render(modal)
+    expect(document.body.textContent).toContain('Service account')
+    expect(document.body.textContent).not.toContain(oauthCredential.name)
+    expect(button('Connect & Sync')).toBeDisabled()
+    const picker = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
+      (node) => node.textContent?.includes('Select a service account')
+    )!
+    await click(picker)
+    expect(document.body.textContent).not.toContain('Connect Google Drive account')
+    expect(document.body.textContent).not.toContain(oauthCredential.name)
+    await click(picker)
+    mocks.credentials = [oauthCredential, driveCredential]
+    await render(cloneElement(modal))
+
+    expect(button('Connect & Sync')).toBeEnabled()
+    await click(button('Connect & Sync'))
+
+    expect(mocks.create).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ credentialId: driveCredential.id, accessMode: 'admin' }),
+      expect.any(Object)
+    )
+  })
+
+  it('replaces an existing Drive administrator account through the access operation', async () => {
+    const oauthCredential = {
+      id: 'drive-personal',
+      name: 'Personal Drive account',
+      provider: 'google-drive',
+      type: 'oauth' as const,
+    }
+    const replacement = { ...driveCredential, id: 'drive-new', name: 'Replacement service account' }
+    mocks.credentials = [oauthCredential, driveCredential, replacement]
+    await render(
+      <EditConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={connector({
+          connectorType: 'google_drive',
+          accessMode: 'admin',
+          credentialId: driveCredential.id,
+          sourceConfig: { adminEmail: 'admin@example.com' },
+        })}
+      />
+    )
+    const picker = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]')).find(
+      (node) => node.textContent?.includes(driveCredential.name)
+    )!
+    await click(picker)
+    expect(document.body.textContent).not.toContain(oauthCredential.name)
+    const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
+      (node) => node.textContent?.trim() === replacement.name
+    )!
+    await act(async () => option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    expect(button('Save')).toBeDisabled()
+    expect(button('Change indexing account')).toBeEnabled()
+
+    await click(button('Change indexing account'))
+
+    expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
+      {
+        knowledgeBaseId: 'kb-search',
+        connectorId: 'connector-1',
+        access: { accessMode: 'admin', credentialId: replacement.id },
+      },
+      expect.any(Object)
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it.each(['members', 'workspace'] as const)(
@@ -1037,7 +1210,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       />
     )
     await fill(folderPlaceholder, 'draft-folder')
-    await click(button('Admin or service account'))
+    await click(button('Service account'))
     expect(document.body.textContent).toContain(
       'Set Crawl as and save your settings before changing the connection method.'
     )
@@ -1081,8 +1254,8 @@ describe('administrator source prerequisites in real connector dialogs', () => {
         })}
       />
     )
-    await click(button('Admin or service account'))
-    await chooseCombo('Select the Google Drive account to sync as', driveCredential.name)
+    await click(button('Service account'))
+    await chooseCombo('Select the account to sync as', driveCredential.name)
     expect(button('Apply connection method')).toBeEnabled()
     await click(button('Apply connection method'))
     expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
@@ -1138,7 +1311,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     )
     await render(modal)
     await click(button('Admin or service account'))
-    await chooseCombo('Select the Confluence account to sync as', 'Confluence indexing account')
+    await chooseCombo('Select the account to sync as', 'Confluence indexing account')
     expect(button('Apply connection method')).toBeEnabled()
     mocks.features.knowledgeMemberAccess = false
     await render(cloneElement(modal))
@@ -1424,5 +1597,134 @@ describe('resuming Search source setup', () => {
     )
     expect(document.body.textContent).not.toContain('Sync Frequency')
     expect(button('Document details (optional)')).toHaveAttribute('aria-expanded', 'false')
+  })
+})
+
+describe('Search setup guides', () => {
+  it('opens the source guide in a new tab without losing an administrator’s setup', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    await render(setup(), '?addConnector=github')
+    await fill('owner/repo', 'acme/docs')
+
+    await click(button('Setup guide'))
+
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.sim.ai/search/github',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="owner/repo"]')?.value).toBe(
+      'acme/docs'
+    )
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.urlUpdate).not.toHaveBeenCalled()
+    await click(button('Create & Invite'))
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'github',
+        sourceConfig: expect.objectContaining({ repository: 'acme/docs' }),
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('offers the Slack guide before its custom app is configured', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    mocks.credentialGroup = null
+    await render(setup(), '?addConnector=slack')
+
+    await click(button('Setup guide'))
+
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.sim.ai/search/slack',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(document.body.textContent).not.toContain('Create & Invite')
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('preserves a member’s required source fields while reading the guide', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const onClose = vi.fn()
+    const onConnect = vi.fn()
+    const github = SEARCH_CONNECTORS.find((item) => item.type === 'github')!
+    await render(<SourceSetupModal connector={github} onClose={onClose} onConnect={onConnect} />)
+    await fill('owner/repo', 'acme/docs')
+
+    await click(button('Setup guide'))
+
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.sim.ai/search/github',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onConnect).not.toHaveBeenCalled()
+    await click(button('Connect'))
+    expect(onConnect).toHaveBeenCalledWith({ repository: 'acme/docs' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('keeps unsaved source edits when opening the guide', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const onOpenChange = vi.fn()
+    await render(
+      <EditConnectorModal
+        open
+        onOpenChange={onOpenChange}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={connector({
+          connectorType: 'github',
+          sourceConfig: { repository: 'acme/docs' },
+        })}
+      />
+    )
+    await fill('owner/repo', 'acme/handbook')
+
+    await click(button('Setup guide'))
+
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.sim.ai/search/github',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    await click(button('Save'))
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updates: expect.objectContaining({
+          sourceConfig: expect.objectContaining({ repository: 'acme/handbook' }),
+        }),
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it.each(['add', 'edit'])('does not show Search guides in general KB %s dialogs', async (mode) => {
+    await render(
+      mode === 'add' ? (
+        <AddConnectorModal
+          open
+          onOpenChange={vi.fn()}
+          knowledgeBaseId='kb-general'
+          initialType='github'
+        />
+      ) : (
+        <EditConnectorModal
+          open
+          onOpenChange={vi.fn()}
+          knowledgeBaseId='kb-general'
+          connector={connector({
+            connectorType: 'github',
+            sourceConfig: { repository: 'acme/docs' },
+          })}
+        />
+      )
+    )
+
+    expect(document.body.textContent).not.toContain('Setup guide')
   })
 })

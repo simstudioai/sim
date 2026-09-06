@@ -8,6 +8,7 @@ export const GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID = 'openSharing'
 
 export const googleDriveConnectorMeta: ConnectorMeta = {
   search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/google-drive',
   id: 'google_drive',
   name: 'Google Drive',
   description: 'Sync documents from Google Drive',
@@ -18,6 +19,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     mode: 'oauth',
     provider: 'google-drive',
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
+    adminCredentialType: 'service_account',
     /**
      * Delegated crawls need read access only. The token acts as the configured
      * administrator and sees files that account can access; delegation alone
@@ -39,7 +41,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
   /** `files.list` reports each file's own permissions, so one crawl can mirror them. */
   mirrorsSourceAcls: true,
   adminSetupHint:
-    'Use an account with Google Workspace Directory access. Service accounts need domain-wide delegation. Only files the syncing account can access are indexed.',
+    'Use a service account with domain-wide delegation and Google Workspace Directory access. Only files the administrator in Crawl as can access are indexed.',
 
   configFields: [
     {

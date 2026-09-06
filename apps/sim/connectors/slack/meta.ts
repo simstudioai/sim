@@ -5,6 +5,7 @@ export const DEFAULT_MAX_MESSAGES = 1000
 
 export const slackConnectorMeta: ConnectorMeta = {
   search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/slack',
   id: 'slack',
   name: 'Slack',
   description:

@@ -5,6 +5,7 @@ export const DEFAULT_MAX_THREADS = 500
 
 export const gmailConnectorMeta: ConnectorMeta = {
   search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/gmail',
   memberSetupHint: 'Each teammate connects their Gmail account. Only they can search their email.',
   id: 'gmail',
   name: 'Gmail',

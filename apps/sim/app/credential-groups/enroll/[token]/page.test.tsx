@@ -22,6 +22,7 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
 }))
 vi.mock('@/lib/credential-groups/providers', () => ({
   getCredentialGroupProviderService: (provider: string) => ({
+    providerId: provider,
     name: provider === 'confluence' ? 'Confluence' : 'Slack',
     icon: () => null,
   }),
@@ -136,6 +137,7 @@ describe('focused Search enrollment', () => {
     )
     expect(document.querySelector('button')?.textContent).toBe('Submit')
     expect(document.body.textContent).not.toContain('Return to Search')
+    expect(document.body.textContent).not.toContain('Setup guide')
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: {} })
   })
 
@@ -155,6 +157,12 @@ describe('focused Search enrollment', () => {
         .find((link) => link.textContent === 'Return to Search')
         ?.getAttribute('href')
     ).toBe('/workspace/canonical-workspace/search')
+    const guide = Array.from(document.querySelectorAll('a')).find(
+      (link) => link.textContent === 'Setup guide'
+    )
+    expect(guide?.getAttribute('href')).toBe('https://docs.sim.ai/search/confluence')
+    expect(guide?.getAttribute('target')).toBe('_blank')
+    expect(guide?.getAttribute('rel')).toBe('noopener noreferrer')
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: { optionId: 'site-two' } })
   })
 

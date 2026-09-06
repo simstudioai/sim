@@ -81,7 +81,7 @@ import { credentialProviderMatchesService, type ServiceProviderIdentity } from '
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
-import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY, getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -221,6 +221,8 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
   workspaceId: string
   actingUserId: string
   service?: ServiceProviderIdentity
+  auth: ConnectorAuthConfig
+  accessMode: string
 }) {
   const access = await getCredentialActorContext(input.credentialId, input.actingUserId)
   if (
@@ -243,15 +245,20 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
       'Credential belongs to another service. Select a credential for the connector’s own provider.'
     )
   }
-  return resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  if (identity && !isConnectorCredentialTypeAllowed(input.auth, input.accessMode, identity.kind)) {
+    throw new OrchestrationError(
+      'validation',
+      'Administrator syncing requires a service account. Select one in source settings or use member accounts.'
+    )
+  }
+  return identity
 }
 
 /**
  * The access token a connector syncs with, once the caller may use the
  * credential in this workspace. Pass `service` to also refuse a credential
- * of another provider: creation validates the source config with the token,
- * which catches that on its own, but a mode switch stores the credential
- * without a call to the source.
+ * of another provider.
  */
 export async function resolveConnectorCredentialAccessToken(input: {
   credentialId: string
@@ -261,6 +268,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
   service?: ServiceProviderIdentity
   /** The connector the credential is being resolved for, so it mints exactly as a sync would. */
   auth: ConnectorAuthConfig
+  accessMode: ConnectorAccessMode
   sourceConfig: Record<string, unknown>
 }): Promise<ConnectorAccessToken | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
@@ -334,6 +342,8 @@ export async function validateConnectorSourceConfig(input: {
       credentialId: input.connector.credentialId,
       workspaceId: input.workspaceId,
       actingUserId: input.actingUserId,
+      auth: connectorConfig.auth,
+      accessMode: input.connector.accessMode,
     })
     if (!identity) {
       return {
@@ -726,6 +736,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
           actingUserId,
           requestId,
           auth: connectorMeta.auth,
+          accessMode: input.accessMode ?? 'workspace',
           sourceConfig: input.sourceConfig,
         }),
       userId: actingUserId,

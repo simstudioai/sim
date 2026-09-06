@@ -9,6 +9,7 @@ import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
@@ -157,6 +158,13 @@ export default async function CredentialGroupEnrollmentPage({
     return <UnavailableSearchConnection workspaceId={principal.workspaceId} />
   const visibleOptions = focusedOption ? [focusedOption] : activeOptions
   const focusedConnected = focusedOption?.connections[0]?.status === 'connected'
+  const focusedProviderId = focusedOption
+    ? getCredentialGroupProviderService(focusedOption.provider).providerId
+    : undefined
+  const docsUrl = focusedProviderId
+    ? SEARCH_CONNECTORS.find((connector) => connector.providerIds.includes(focusedProviderId))?.meta
+        .searchDocsUrl
+    : undefined
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
     : undefined
@@ -255,7 +263,12 @@ export default async function CredentialGroupEnrollmentPage({
           </div>
         </SettingsSection>
         {returnToSearch ? (
-          <div className='mt-6 flex justify-end'>
+          <div className='mt-6 flex justify-end gap-2'>
+            {docsUrl && (
+              <ChipLink href={docsUrl} target='_blank' rel='noopener noreferrer'>
+                Setup guide
+              </ChipLink>
+            )}
             <ChipLink
               href={`/workspace/${encodeURIComponent(principal.workspaceId)}/search`}
               variant={focusedConnected ? 'primary' : undefined}

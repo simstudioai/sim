@@ -104,6 +104,17 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', requiredScopes: ['read:confluence-content.all'] },
       validateConfig: mocks.validateConnectorConfig,
     },
+    google_drive: {
+      name: 'Google Drive',
+      auth: {
+        mode: 'oauth',
+        provider: 'google-drive',
+        adminCredentialType: 'service_account',
+        serviceAccountScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        serviceAccountSubjectFieldId: 'adminEmail',
+      },
+      validateConfig: mocks.validateConnectorConfig,
+    },
   },
 }))
 
@@ -111,12 +122,15 @@ import {
   createKnowledgeConnector,
   deleteKnowledgeConnector,
   listKnowledgeConnectorDocuments,
+  resolveConnectorCredentialAccessToken,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
   updateKnowledgeConnectorDocuments,
+  validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 const crossWorkspaceContext = {
   workspaceId: 'workspace-b',
@@ -206,6 +220,105 @@ describe('knowledge connector application use cases', () => {
   })
 
   afterAll(resetDbChainMock)
+
+  it('rejects a forged OAuth credential for central Drive creation before using its token', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      ...crossWorkspaceContext,
+      workspaceId: 'workspace-a',
+    })
+    mocks.createConnector.mockImplementationOnce(
+      async (input: { resolveAccessToken: (credentialId: string) => Promise<unknown> }) => {
+        await input.resolveAccessToken('credential-1')
+        throw new Error('An ineligible credential reached connector persistence')
+      }
+    )
+    await expect(
+      createKnowledgeConnector.execute({
+        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          connectorType: 'google_drive',
+          credentialId: 'credential-1',
+          accessMode: 'admin',
+          sourceConfig: { adminEmail: 'admin@corp.com' },
+          syncIntervalMinutes: 60,
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('requires a service account'),
+    })
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it.each(['workspace', 'members'] as const)(
+    'keeps ordinary Drive OAuth usable in %s mode',
+    async (accessMode) => {
+      await expect(
+        resolveConnectorCredentialAccessToken({
+          credentialId: 'credential-1',
+          workspaceId: 'workspace-a',
+          actingUserId: 'admin',
+          requestId: 'request',
+          auth: googleDriveConnectorMeta.auth,
+          accessMode,
+          sourceConfig: {},
+        })
+      ).resolves.toEqual({ accessToken: 'access-token' })
+      expect(mocks.resolveTokenBundle).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('mints delegated Drive tokens for an eligible canonical service account', async () => {
+    mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
+    await expect(
+      resolveConnectorCredentialAccessToken({
+        credentialId: 'credential-1',
+        workspaceId: 'workspace-a',
+        actingUserId: 'admin',
+        requestId: 'request',
+        auth: googleDriveConnectorMeta.auth,
+        accessMode: 'admin',
+        sourceConfig: { adminEmail: 'Admin@corp.com' },
+      })
+    ).resolves.toEqual({ accessToken: 'access-token' })
+    expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
+      'credential-1',
+      'admin',
+      'request',
+      [
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/admin.directory.group.readonly',
+        'https://www.googleapis.com/auth/admin.directory.domain.readonly',
+      ],
+      'admin@corp.com'
+    )
+  })
+
+  it('rejects an old central Drive OAuth source during settings validation before provider access', async () => {
+    const connector = {
+      connectorType: 'google_drive',
+      credentialId: 'credential-1',
+      encryptedApiKey: null,
+      accessMode: 'admin',
+    } as Parameters<typeof validateConnectorSourceConfig>[0]['connector']
+    await expect(
+      validateConnectorSourceConfig({
+        connector,
+        sourceConfig: { adminEmail: 'admin@corp.com' },
+        workspaceId: 'workspace-a',
+        actingUserId: 'admin',
+        requestId: 'request',
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('requires a service account'),
+    })
+    expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+  })
 
   it.each([
     { connectorType: 'confluence', apiKey: 'token', error: 'requires an OAuth account' },

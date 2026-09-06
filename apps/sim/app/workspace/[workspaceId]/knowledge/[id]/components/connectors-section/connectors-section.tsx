@@ -216,6 +216,7 @@ export function ConnectorsSection({
               workspaceId={workspaceId}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
+              isSearchIndex={isSearchIndex}
               /**
                * The optimistic status flip relabels this control Pause -> Resume
                * immediately, so without a guard a second click would send
@@ -287,6 +288,7 @@ interface ConnectorCardProps {
   workspaceId: string
   knowledgeBaseId: string
   canEdit: boolean
+  isSearchIndex: boolean
   isUpdating: boolean
   onSync: (rehydrate?: boolean) => void
   onEdit: () => void
@@ -299,6 +301,7 @@ function ConnectorCard({
   workspaceId,
   knowledgeBaseId,
   canEdit,
+  isSearchIndex,
   isUpdating,
   onSync,
   onEdit,
@@ -309,6 +312,7 @@ function ConnectorCard({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
+  const docsUrl = isSearchIndex ? connectorDef?.searchDocsUrl : undefined
   const sourceDescription = connectorDef
     ? describeSearchSource(connectorDef, connector.sourceConfig)
     : ''
@@ -688,6 +692,7 @@ function ConnectorCard({
           }}
           serviceId={serviceId}
           providerId={providerId}
+          docsUrl={docsUrl}
           requiredScopes={getCanonicalScopesForProvider(providerId)}
           workspaceId={workspaceId}
           knowledgeBaseId={knowledgeBaseId}
@@ -713,6 +718,7 @@ function ConnectorCard({
             newScopes={missingScopes}
             serviceId={serviceId}
             providerId={selectedCredential.provider}
+            docsUrl={docsUrl}
             reconnectTarget={{
               workspaceId,
               credentialId: selectedCredential.id,

@@ -9,6 +9,7 @@ import {
 import {
   buildLastModifiedClause,
   confluenceConnector,
+  confluenceStorageToPlainText,
   escapeCql,
   isCurrentContent,
   preserveConfluenceCallouts,
@@ -25,6 +26,8 @@ describe('Confluence service-account scopes', () => {
       expect.arrayContaining([
         'read:content.metadata:confluence',
         'read:space.permission:confluence',
+        'read:group:confluence',
+        'read:user:confluence',
       ])
     )
   })
@@ -517,6 +520,196 @@ describe('confluence incremental CQL listing', () => {
     expect(cqlOfCall(0)).toContain('lastModified >= now("-31m")')
     expect(cqlOfCall(1)).toBe(cqlOfCall(0))
   })
+})
+
+describe('confluenceStorageToPlainText', () => {
+  it('preserves rich text, word boundaries, link labels, and encoded literals', () => {
+    const storage =
+      '<h2>Overview</h2><p>Un<strong>break</strong>able &amp; readable.</p>' +
+      '<ul><li>First</li><li>Second</li></ul>' +
+      '<table><tbody><tr><td>Name</td><td>Value</td></tr></tbody></table>' +
+      '<p><ac:link><ri:page ri:content-title="Another page" />' +
+      '<ac:plain-text-link-body><![CDATA[Read <more>]]></ac:plain-text-link-body></ac:link>' +
+      '&nbsp;Next</p>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      'Overview Unbreakable & readable. First Second Name Value Read <more> Next'
+    )
+  })
+
+  it('retains nested local callouts and literal code without indexing macro parameters', () => {
+    const storage =
+      '<ac:structured-macro ac:name="panel"><ac:parameter ac:name="title">Caution</ac:parameter>' +
+      '<ac:parameter ac:name="borderColor">#ff0000</ac:parameter><ac:rich-text-body>' +
+      '<p>Outer body</p><ac:structured-macro ac:name="warning"><ac:rich-text-body>' +
+      '<p>Do not run:</p><ac:structured-macro ac:name="code"><ac:parameter ac:name="language">xml</ac:parameter>' +
+      '<ac:plain-text-body><![CDATA[<delete key="all" />]]></ac:plain-text-body>' +
+      '</ac:structured-macro></ac:rich-text-body></ac:structured-macro>' +
+      '</ac:rich-text-body></ac:structured-macro>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      '[CALLOUT: Caution] Outer body [WARNING] Do not run: <delete key="all" />'
+    )
+  })
+
+  it('omits inclusion references, remote macro bodies, and extension metadata', () => {
+    const storage =
+      '<p>Public body</p><ac:macro ac:name="excerpt-include">' +
+      '<ac:default-parameter>PRIVATE:Salary</ac:default-parameter></ac:macro>' +
+      '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="jql">private-project</ac:parameter>' +
+      '<ac:rich-text-body><p>Cached private issue</p></ac:rich-text-body></ac:structured-macro>' +
+      '<ac:adf-extension><ac:adf-node type="extension"><ac:adf-attribute key="parameters">' +
+      'remote-parameters</ac:adf-attribute></ac:adf-node></ac:adf-extension>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe('Public body')
+  })
+
+  it.each(['expand', 'excerpt', 'noformat'])(
+    'retains the authored content of the %s macro',
+    (name) => {
+      const storage =
+        `<ac:structured-macro ac:name="${name}"><ac:plain-text-body>` +
+        '<![CDATA[Locally authored content]]></ac:plain-text-body></ac:structured-macro>'
+      expect(confluenceStorageToPlainText(storage)).toBe('Locally authored content')
+    }
+  )
+})
+
+describe('Confluence permission-scoped content', () => {
+  const config = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
+  const storage =
+    '<p>Shared handbook</p>' +
+    '<ac:structured-macro ac:name="include">' +
+    '<ac:parameter ac:name=""><ri:page ri:content-title="Restricted compensation" /></ac:parameter>' +
+    '</ac:structured-macro>' +
+    '<ac:structured-macro ac:name="info">' +
+    '<ac:rich-text-body><p>Local information</p></ac:rich-text-body>' +
+    '</ac:structured-macro>'
+  const view = '<p>Shared handbook</p><p>CONFIDENTIAL SALARY DATA</p><p>Local information</p>'
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const format = new URL(String(input)).searchParams.get('body-format')
+        return new Response(
+          JSON.stringify({
+            id: 'shared-page',
+            title: 'Shared handbook',
+            status: 'current',
+            spaceId: 'space-1',
+            version: { number: 1 },
+            body: { [format ?? 'view']: { value: format === 'storage' ? storage : view } },
+          }),
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      })
+    )
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([{ mirrorsSourceAcls: true }, { perMemberListing: true, memberId: 'member-1' }])(
+    'keeps external restricted content out of a shared page for %j',
+    async (mode) => {
+      const document = await confluenceConnector.getDocument(
+        'authorized-reader',
+        config,
+        'shared-page',
+        {
+          cloudId: 'cloud-1',
+          ...mode,
+        }
+      )
+
+      expect(document?.content).toContain('Shared handbook')
+      expect(document?.content).toContain('Local information')
+      expect(document?.content).not.toContain('CONFIDENTIAL SALARY DATA')
+      expect(document?.contentHash).toContain('storage')
+    }
+  )
+
+  it('retains rendered inclusions for ordinary workspace knowledge bases', async () => {
+    const document = await confluenceConnector.getDocument(
+      'workspace-account',
+      config,
+      'shared-page',
+      {
+        cloudId: 'cloud-1',
+      }
+    )
+
+    expect(document?.content).toContain('CONFIDENTIAL SALARY DATA')
+    expect(document?.contentHash).toBe('confluence:view-callouts:shared-page:1')
+  })
+
+  it('rejects a missing storage body without falling back to rendered content', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'shared-page',
+          version: { number: 1 },
+          body: { view: { value: view } },
+        })
+      )
+    )
+
+    await expect(
+      confluenceConnector.getDocument('token', config, 'shared-page', {
+        cloudId: 'cloud-1',
+        mirrorsSourceAcls: true,
+      })
+    ).rejects.toThrow('missing its storage body')
+  })
+
+  it.each([{ mirrorsSourceAcls: true }, { perMemberListing: true, memberId: 'member-1' }, {}])(
+    'keeps v2, CQL, and hydration hashes consistent for %j',
+    async (mode) => {
+      const content = {
+        id: 'shared-page',
+        title: 'Shared handbook',
+        status: 'current',
+        spaceId: 'space-1',
+        version: { number: 1 },
+      }
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = new URL(String(input))
+        if (url.pathname.endsWith('/spaces')) {
+          return new Response(JSON.stringify({ results: [{ id: 'space-1', key: 'ENG' }] }))
+        }
+        const format = url.searchParams.get('body-format')
+        return new Response(
+          JSON.stringify(
+            format
+              ? { ...content, body: { [format]: { value: format === 'storage' ? storage : view } } }
+              : { results: [content] }
+          )
+        )
+      })
+      const context = { cloudId: 'cloud-1', ...mode }
+      const v2 = await confluenceConnector.listDocuments('token', config, undefined, { ...context })
+      const cql = await confluenceConnector.listDocuments(
+        'token',
+        { ...config, labelFilter: 'published' },
+        undefined,
+        { ...context }
+      )
+      const hydrated = await confluenceConnector.getDocument(
+        'token',
+        config,
+        'shared-page',
+        context
+      )
+      const expectedHash =
+        'mirrorsSourceAcls' in mode || 'perMemberListing' in mode
+          ? 'confluence:storage-local-body-v1:shared-page:1'
+          : 'confluence:view-callouts:shared-page:1'
+
+      expect(v2.documents[0].contentHash).toBe(expectedHash)
+      expect(cql.documents[0].contentHash).toBe(expectedHash)
+      expect(hydrated?.contentHash).toBe(expectedHash)
+    }
+  )
 })
 
 describe('confluence mirrored permissions', () => {

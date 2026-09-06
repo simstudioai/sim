@@ -672,6 +672,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:content.metadata:confluence',
           'read:user:confluence',
           'read:confluence-user',
+          'read:group:confluence',
           'read:task:confluence',
           'write:task:confluence',
           'write:space:confluence',

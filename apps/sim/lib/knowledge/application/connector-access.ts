@@ -216,6 +216,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           workspaceId,
           actingUserId,
           requestId,
+          accessMode: 'members',
         })
         const rejection = await validateConnectorSourceConfig({
           connector: { ...connector, accessMode: 'members', credentialId },
@@ -239,6 +240,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           workspaceId,
           actingUserId,
           requestId,
+          accessMode: input.accessMode,
         }),
       }
       const rejection = await validateConnectorSourceConfig({
@@ -311,6 +313,7 @@ async function requireUsableCredential(input: {
   workspaceId: string
   actingUserId: string
   requestId: string
+  accessMode: ConnectorAccessMode
 }): Promise<string | null> {
   const { auth } = input.connectorMeta
   if (auth.mode !== 'oauth') {
@@ -340,6 +343,7 @@ async function requireUsableCredential(input: {
     requestId: input.requestId,
     service,
     auth,
+    accessMode: input.accessMode,
     sourceConfig: input.sourceConfig,
   })
   if (!token) {

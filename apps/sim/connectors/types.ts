@@ -12,6 +12,8 @@ export type ConnectorAuthConfig =
       mode: 'oauth'
       provider: OAuthService
       requiredScopes?: string[]
+      /** Restricts permission-mirroring crawls when ordinary OAuth cannot grant directory access. */
+      adminCredentialType?: 'service_account'
       /** Optional token authentication for workspace crawls; member access always uses OAuth. */
       apiKey?: { label: string; placeholder?: string }
       /**
@@ -284,6 +286,8 @@ export interface ConnectorConfigField {
 export interface ConnectorMeta {
   /** Opts a source into workspace Search after its indexing and permission paths are verified. */
   search?: true
+  /** Source setup guide shown only in Search connection flows. */
+  searchDocsUrl?: string
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */

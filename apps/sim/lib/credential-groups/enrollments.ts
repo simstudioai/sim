@@ -636,7 +636,7 @@ export async function listCredentialGroupEnrollments(
       WHEN ${credential.revokedAt} IS NOT NULL THEN 'revoked'
       WHEN ${credential.accessTokenExpiresAt} <= now() THEN 'needs_reauth'
       ELSE 'active' END
-    ELSE ${credential.managedOauthStatus} END`
+    ELSE ${credential.managedOauthStatus}::text END`
   const connectionRows =
     enrollmentIds.length === 0
       ? []

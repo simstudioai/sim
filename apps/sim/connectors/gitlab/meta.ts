@@ -3,6 +3,7 @@ import type { ConnectorMeta } from '@/connectors/types'
 
 export const gitlabConnectorMeta: ConnectorMeta = {
   search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/gitlab',
   id: 'gitlab',
   name: 'GitLab',
   description:

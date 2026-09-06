@@ -10,6 +10,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
   version: '1.0.0',
   icon: GoogleCalendarIcon,
   search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/google-calendar',
   memberSetupHint:
     'Each teammate connects their Google Calendar account. They see only event details available to them.',
 

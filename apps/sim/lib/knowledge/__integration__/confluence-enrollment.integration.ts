@@ -18,6 +18,8 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { env } from '@/lib/core/config/env'
+import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -26,6 +28,7 @@ import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/applica
 import { listWorkspaceMemberConnectors } from '@/lib/knowledge/application/connectors'
 
 describe('Confluence mirrored-identity self-enrollment', () => {
+  const previousClient = { id: env.CONFLUENCE_CLIENT_ID, secret: env.CONFLUENCE_CLIENT_SECRET }
   const ids = createKnowledgeAclFixtureIds()
   const foreign = createKnowledgeAclFixtureIds()
   const groupId = generateId()
@@ -47,6 +50,10 @@ describe('Confluence mirrored-identity self-enrollment', () => {
   const source = { knowledgeBaseId: ids.knowledgeBaseId, connectorId: ids.connectorId }
 
   beforeAll(async () => {
+    Object.assign(env, {
+      CONFLUENCE_CLIENT_ID: 'isolated-confluence-fixture-client',
+      CONFLUENCE_CLIENT_SECRET: 'isolated-confluence-fixture-secret',
+    })
     await seedKnowledgeAclFixture(ids)
     await seedKnowledgeAclFixture(foreign)
     await db
@@ -87,6 +94,10 @@ describe('Confluence mirrored-identity self-enrollment', () => {
   })
 
   afterAll(async () => {
+    Object.assign(env, {
+      CONFLUENCE_CLIENT_ID: previousClient.id,
+      CONFLUENCE_CLIENT_SECRET: previousClient.secret,
+    })
     for (const fixture of [ids, foreign]) {
       await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
       await db.delete(user).where(eq(user.id, fixture.aliceId))
@@ -98,6 +109,19 @@ describe('Confluence mirrored-identity self-enrollment', () => {
   function discover(principal = bob, workspaceId = ids.workspaceId) {
     return listWorkspaceMemberConnectors.execute({ principal, input: { workspaceId } })
   }
+
+  it('hides enrollment when the Confluence OAuth client is not configured', async () => {
+    const client = { id: env.CONFLUENCE_CLIENT_ID, secret: env.CONFLUENCE_CLIENT_SECRET }
+    try {
+      Object.assign(env, { CONFLUENCE_CLIENT_ID: undefined, CONFLUENCE_CLIENT_SECRET: undefined })
+      await expect(discover()).resolves.toEqual({ connectors: [] })
+    } finally {
+      Object.assign(env, {
+        CONFLUENCE_CLIENT_ID: client.id,
+        CONFLUENCE_CLIENT_SECRET: client.secret,
+      })
+    }
+  })
 
   function enroll(principal = bob) {
     return startKnowledgeConnectorMemberEnrollment.execute({ principal, input: source })
@@ -171,6 +195,62 @@ describe('Confluence mirrored-identity self-enrollment', () => {
       connectors: [{ connectorId: ids.connectorId, viewerMembership: 'invited' }],
     })
     expect(await crawlerAuthority()).toEqual(before)
+  })
+
+  it('lists enrollment summaries across managed OAuth and personal token status types', async () => {
+    await enroll()
+    const [enrollment] = await enrollments()
+    expect(enrollment).toBeDefined()
+    const list = () => listCredentialGroupEnrollments(ids.workspaceId, groupId, 50)
+    await expect(list()).resolves.toMatchObject({
+      enrollments: [{ id: enrollment!.id, connections: [] }],
+      nextCursor: null,
+    })
+
+    await db.insert(credential).values({
+      id: generateId(),
+      workspaceId: ids.workspaceId,
+      type: 'managed_oauth',
+      displayName: 'Confluence fixture',
+      createdBy: ids.bobId,
+      providerId: 'confluence',
+      authorizationAppId: option.authorizationAppId,
+      credentialGroupEnrollmentId: enrollment!.id,
+      credentialGroupOptionId: option.id,
+      managedOauthScopeVersion: 1,
+      providerSubjectId: 'fixture-atlassian-account',
+      managedOauthStatus: 'active',
+      grantedScopes: ['read:confluence-content.all'],
+      encryptedOauthTokenSet: 'isolated-fixture-no-provider-token',
+      grantedAt: new Date(),
+    })
+    await db.insert(credential).values(
+      (['active', 'needs_reauth', 'revoked'] as const).map((status) => ({
+        id: generateId(),
+        workspaceId: ids.workspaceId,
+        type: 'personal_token' as const,
+        displayName: `GitLab ${status} fixture`,
+        providerId: 'gitlab',
+        createdBy: ids.bobId,
+        credentialGroupEnrollmentId: enrollment!.id,
+        providerSubjectId: `fixture-${status}`,
+        providerTenantId: 'gitlab.fixture.test',
+        encryptedPersonalToken: 'isolated-fixture-no-provider-token',
+        grantedScopes: ['read_api'],
+        accessTokenExpiresAt: status === 'active' ? null : new Date(0),
+        revokedAt: status === 'revoked' ? new Date(0) : null,
+      }))
+    )
+    const result = await list()
+    expect(result.enrollments[0]!.connections).toHaveLength(4)
+    expect(result.enrollments[0]!.connections).toEqual(
+      expect.arrayContaining([
+        { provider: 'confluence', status: 'active', count: 1 },
+        { provider: 'gitlab', status: 'active', count: 1 },
+        { provider: 'gitlab', status: 'needs_reauth', count: 1 },
+        { provider: 'gitlab', status: 'revoked', count: 1 },
+      ])
+    )
   })
 
   it.each(['missing', 'disabled', 'ambiguous', 'disabled-group'] as const)(
