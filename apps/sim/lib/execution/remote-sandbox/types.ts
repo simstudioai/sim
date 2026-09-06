@@ -285,6 +285,12 @@ export interface SandboxHandle {
    * delivered without any shell parsing.
    */
   writeFile(path: string, content: string | ArrayBuffer): Promise<void>
+  /** Session file transfers stream with backpressure and cancellation, without a buffered fallback. */
+  writeFileStream?(
+    path: string,
+    content: ReadableStream<Uint8Array>,
+    options: { signal: AbortSignal }
+  ): Promise<void>
   /** Removes a caller-owned temporary file through the provider filesystem API. */
   removeFile(path: string): Promise<void>
   /**
