@@ -1,10 +1,21 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  quickBooksAddAttachmentBodySchema,
-  quickBooksDownloadDocumentBodySchema,
+  quickBooksAddAttachmentContract,
+  quickBooksCreateBillPaymentContract,
+  quickBooksDownloadDocumentContract,
+  quickBooksUpdateBillContract,
+  quickBooksUpdateBillPaymentContract,
+  quickBooksUpdateCreditMemoContract,
+  quickBooksUpdateCustomerPaymentContract,
+  quickBooksUpdateEmployeeContract,
+  quickBooksUpdateItemContract,
+  quickBooksUpdatePurchaseContract,
+  quickBooksUpdatePurchaseOrderContract,
+  quickBooksUpdateRefundReceiptContract,
+  quickBooksUpdateVendorContract,
+  quickBooksUpdateVendorCreditContract,
 } from '@/lib/api/contracts/tools/quickbooks'
-import { getValidationErrorMessage } from '@/lib/api/server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   executeQuickBooksAddAttachment,
@@ -26,7 +37,8 @@ import {
   executeQuickBooksUpdateVendorCreditOperation,
   executeQuickBooksUpdateVendorOperation,
 } from '@/lib/internal/quickbooks/provider-operations'
-import { executeToolOperationImplementation } from '@/lib/internal/tool-operations/execute'
+import { executeInternalJsonToolOperation } from '@/lib/internal/tool-operations/execute-json-operation'
+import { parseInternalContractInput } from '@/lib/internal/tool-operations/parse-contract-input'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
@@ -76,50 +88,118 @@ function operationContext(request: InternalToolOperationCall): QuickBooksOperati
   }
 }
 
+/**
+ * Every QuickBooks tool id passes the same admission gates — cancellation, the
+ * operation input cap, and the trusted execution identity — before any provider
+ * work is dispatched.
+ */
 export const executeQuickBooksTool: InternalToolOperationHandler = async (request) => {
   request.signal?.throwIfAborted()
+
+  const sizeError = inputSizeError(request.input)
+  if (sizeError) return sizeError
+
+  const context = operationContext(request)
+  if (!context) {
+    return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
+  }
+
   switch (request.toolId) {
     case 'quickbooks_create_bill_payment':
-      return executeToolOperationImplementation(
+      return executeInternalJsonToolOperation(
+        quickBooksCreateBillPaymentContract,
+        request.input,
         executeQuickBooksCreateBillPaymentOperation,
-        request
+        'Failed to create QuickBooks bill payment',
+        request.signal
       )
     case 'quickbooks_update_bill':
-      return executeToolOperationImplementation(executeQuickBooksUpdateBillOperation, request)
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateBillContract,
+        request.input,
+        executeQuickBooksUpdateBillOperation,
+        'Failed to update QuickBooks bill',
+        request.signal
+      )
     case 'quickbooks_update_bill_payment':
-      return executeToolOperationImplementation(
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateBillPaymentContract,
+        request.input,
         executeQuickBooksUpdateBillPaymentOperation,
-        request
+        'Failed to update QuickBooks bill payment',
+        request.signal
       )
     case 'quickbooks_update_credit_memo':
-      return executeToolOperationImplementation(executeQuickBooksUpdateCreditMemoOperation, request)
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateCreditMemoContract,
+        request.input,
+        executeQuickBooksUpdateCreditMemoOperation,
+        'Failed to update QuickBooks credit memo',
+        request.signal
+      )
     case 'quickbooks_update_customer_payment':
-      return executeToolOperationImplementation(
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateCustomerPaymentContract,
+        request.input,
         executeQuickBooksUpdateCustomerPaymentOperation,
-        request
+        'Failed to update QuickBooks customer payment',
+        request.signal
       )
     case 'quickbooks_update_employee':
-      return executeToolOperationImplementation(executeQuickBooksUpdateEmployeeOperation, request)
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateEmployeeContract,
+        request.input,
+        executeQuickBooksUpdateEmployeeOperation,
+        'Failed to update QuickBooks employee',
+        request.signal
+      )
     case 'quickbooks_update_item':
-      return executeToolOperationImplementation(executeQuickBooksUpdateItemOperation, request)
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateItemContract,
+        request.input,
+        executeQuickBooksUpdateItemOperation,
+        'Failed to update QuickBooks item',
+        request.signal
+      )
     case 'quickbooks_update_purchase':
-      return executeToolOperationImplementation(executeQuickBooksUpdatePurchaseOperation, request)
+      return executeInternalJsonToolOperation(
+        quickBooksUpdatePurchaseContract,
+        request.input,
+        executeQuickBooksUpdatePurchaseOperation,
+        'Failed to update QuickBooks purchase',
+        request.signal
+      )
     case 'quickbooks_update_purchase_order':
-      return executeToolOperationImplementation(
+      return executeInternalJsonToolOperation(
+        quickBooksUpdatePurchaseOrderContract,
+        request.input,
         executeQuickBooksUpdatePurchaseOrderOperation,
-        request
+        'Failed to update QuickBooks purchase order',
+        request.signal
       )
     case 'quickbooks_update_refund_receipt':
-      return executeToolOperationImplementation(
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateRefundReceiptContract,
+        request.input,
         executeQuickBooksUpdateRefundReceiptOperation,
-        request
+        'Failed to update QuickBooks refund receipt',
+        request.signal
       )
     case 'quickbooks_update_vendor':
-      return executeToolOperationImplementation(executeQuickBooksUpdateVendorOperation, request)
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateVendorContract,
+        request.input,
+        executeQuickBooksUpdateVendorOperation,
+        'Failed to update QuickBooks vendor',
+        request.signal
+      )
     case 'quickbooks_update_vendor_credit':
-      return executeToolOperationImplementation(
+      return executeInternalJsonToolOperation(
+        quickBooksUpdateVendorCreditContract,
+        request.input,
         executeQuickBooksUpdateVendorCreditOperation,
-        request
+        'Failed to update QuickBooks vendor credit',
+        request.signal
       )
   }
 
@@ -133,28 +213,13 @@ export const executeQuickBooksTool: InternalToolOperationHandler = async (reques
     )
   }
 
-  const sizeError = inputSizeError(request.input)
-  if (sizeError) return sizeError
-  const context = operationContext(request)
-  if (!context) {
-    return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
-  }
-
   try {
     if (request.toolId === 'quickbooks_add_attachment') {
-      const parsed = quickBooksAddAttachmentBodySchema.safeParse(request.input)
-      if (!parsed.success) {
-        return Response.json(
-          {
-            success: false,
-            error: getValidationErrorMessage(parsed.error, 'Invalid request data'),
-          },
-          { status: 400 }
-        )
-      }
+      const parsed = parseInternalContractInput(quickBooksAddAttachmentContract, request.input)
+      if (!parsed.success) return parsed.response
       return Response.json({
         success: true,
-        output: await executeQuickBooksAddAttachment(parsed.data, context),
+        output: await executeQuickBooksAddAttachment(parsed.data.body, context),
       })
     }
 
@@ -163,19 +228,11 @@ export const executeQuickBooksTool: InternalToolOperationHandler = async (reques
       documentKind:
         request.toolId === 'quickbooks_download_attachment' ? 'attachment' : 'transaction_pdf',
     }
-    const parsed = quickBooksDownloadDocumentBodySchema.safeParse(documentInput)
-    if (!parsed.success) {
-      return Response.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(parsed.error, 'Invalid request data'),
-        },
-        { status: 400 }
-      )
-    }
+    const parsed = parseInternalContractInput(quickBooksDownloadDocumentContract, documentInput)
+    if (!parsed.success) return parsed.response
     return Response.json({
       success: true,
-      output: await executeQuickBooksDownloadDocument(parsed.data, context),
+      output: await executeQuickBooksDownloadDocument(parsed.data.body, context),
     })
   } catch (error) {
     request.signal?.throwIfAborted()

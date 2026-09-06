@@ -37,6 +37,7 @@ import type {
   QuickBooksVendor,
 } from '@/tools/quickbooks/types'
 import {
+  assertQuickBooksItemUpdatable,
   optionalQuickBooksString,
   requiredQuickBooksString,
   validateQuickBooksDate,
@@ -184,6 +185,15 @@ export function buildQuickBooksQueryUrl(
     'query',
     `SELECT * FROM ${entity}${where} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
   )
+  /**
+   * `URLSearchParams` serializes a space as `+`, a convention defined only for
+   * `application/x-www-form-urlencoded` bodies. Intuit's documented query
+   * example percent-encodes spaces instead
+   * (`query=SELECT%20FROM%20Customer%20WHERE...`), so they are rewritten to the
+   * unambiguous `%20`. A literal `+` inside a value is already `%2B` by this
+   * point, so only encoded spaces are affected.
+   */
+  url.search = url.searchParams.toString().replace(/\+/g, '%20')
   return url
 }
 
@@ -501,10 +511,21 @@ export async function executeQuickBooksFullUpdate<
       `QuickBooks ${options.entity} ${recordId} changed since sync token ${syncToken} was read (current sync token ${currentSyncToken}). Re-read the record and retry.`
     )
   }
+  if (options.entity === 'Item') assertQuickBooksItemUpdatable(current, patch)
   options.signal?.throwIfAborted()
 
   const fullBody = buildQuickBooksFullUpdateBody(current, patch, recordId, syncToken)
-  const updateResponse = await fetch(buildQuickBooksEntityUrl(options.params, options.resource), {
+  const updateUrl = buildQuickBooksEntityUrl(options.params, options.resource)
+  /**
+   * Intuit documents this query parameter on the Item full update alone: "Add
+   * the query parameter, include=donotupdateaccountontxns, to the endpoint to
+   * supress updating the income or expense account on any existing transactions
+   * associated with this Item object." Without it, changing an item's income or
+   * expense account rewrites the account on every historical transaction that
+   * references the item.
+   */
+  if (options.entity === 'Item') updateUrl.searchParams.set('include', 'donotupdateaccountontxns')
+  const updateResponse = await fetch(updateUrl, {
     method: 'POST',
     headers: getQuickBooksToolHeaders(options.params.accessToken, 'application/json'),
     body: JSON.stringify(fullBody),

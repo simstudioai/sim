@@ -3,25 +3,25 @@ slug: what-is-retrieval-augmented-generation
 title: 'What Is Retrieval-Augmented Generation (RAG)?'
 description: 'Learn how retrieval-augmented generation connects language models to current or private knowledge, how RAG compares with fine-tuning, and how agentic RAG works.'
 date: 2026-08-11
-updated: 2026-08-11
+updated: 2026-09-06
 authors:
   - andrew
-readingTime: 7
+readingTime: 6
 tags: [RAG, AI Agents, Knowledge Bases, Sim]
 ogImage: /library/what-is-retrieval-augmented-generation/cover.jpg
 canonical: https://www.sim.ai/library/what-is-retrieval-augmented-generation
 draft: false
 faq:
   - q: "Is RAG a type of fine-tuning?"
-    a: "RAG retrieves external information without changing the model's weights, while fine-tuning updates those weights through training. Sim Knowledge Bases let an agent retrieve current or private information during a workflow, and you can update that information without retraining the model."
+    a: "RAG retrieves external information without changing the model's weights, while fine-tuning updates those weights through training. Sim Knowledge Bases let an agent retrieve current or private information during a workflow. You can update that information without retraining the model."
   - q: "Does RAG eliminate hallucinations?"
-    a: "RAG reduces hallucinations by grounding responses in retrieved context, but it cannot prevent every model error. A Sim agent can consult a Knowledge Base before answering or acting, and better retrieval gives the agent stronger evidence for its response."
+    a: "RAG can reduce hallucinations by grounding responses in retrieved context, but it cannot prevent every model error. A Sim agent can consult a Knowledge Base before answering or acting. Better retrieval gives the agent stronger evidence for its response."
   - q: "What is agentic RAG?"
-    a: "Agentic RAG lets an agent decide when to retrieve information and whether another search is necessary. Sim agents can call native Knowledge Bases during multi-step reasoning, supporting tasks that require several sources or revised queries."
+    a: "Agentic RAG lets an agent decide when to retrieve information and whether another search is necessary. Sim agents can call native Knowledge Bases during multi-step reasoning. Dynamic retrieval supports tasks that require several sources or revised queries."
   - q: "Can you use RAG and fine-tuning together?"
     a: "RAG and fine-tuning can work together because they address different needs. A fine-tuned model can control behavior or format, while a Sim Knowledge Base supplies current information. Combining them can provide consistent outputs without freezing changing facts into model weights."
   - q: "How much latency does RAG add?"
-    a: "RAG adds time for retrieval, prompt construction, and any reranking before generation. A Sim agent may add more latency when it performs several retrievals during one task. Actual latency depends on index size, retrieval infrastructure, context length, and the number of agent steps."
+    a: "RAG adds time for retrieval, prompt construction, and any reranking before generation. A Sim agent may add more latency when it performs several retrievals during one task. Index size and retrieval infrastructure affect search time, while context length and repeated agent steps add further processing time."
 ---
 
 ## TL;DR
@@ -33,27 +33,27 @@ faq:
 
 ## What is retrieval-augmented generation?
 
-Retrieval-augmented generation connects a frozen large language model to an external knowledge base when the model handles a request. RAG gives the model relevant information beyond its training data without changing its parameters through retraining.
+Retrieval-augmented generation connects a large language model to an external knowledge base when the model handles a request. RAG gives the model relevant information beyond its training data without changing its parameters through retraining.
 
 A RAG request begins with a query and retrieval. A retriever searches the knowledge base for passages related to the user's request. The application then performs augmentation by adding those passages to the prompt, and the model completes generation using both the query and the retrieved context. [IBM describes RAG](https://www.ibm.com/think/topics/retrieval-augmented-generation) as an architecture that connects AI models with external knowledge bases to produce more relevant responses.
 
-The knowledge base can contain private documents, product records, or current information that the model did not encounter during training. RAG therefore changes the context available for a specific request while leaving the underlying model unchanged. The following sections explain why models need that external context and how retrieval and generation work together.
+The knowledge base can contain private documents, product records, or current information that the model did not encounter during training. RAG therefore changes the context available for a specific request while leaving the underlying model unchanged. External context helps the model answer questions about information that is private, current, or absent from its training data.
 
-## Why RAG exists: the problem with relying on model memory alone
+## Why models need retrieval
 
-An LLM's internal knowledge stops at the cutoff for its training data. Events, policies, prices, and product details published after that point remain outside the model's memory. RAG gives the model access to current sources when it answers, so you can update the knowledge base without retraining the model.
+An LLM does not reliably know information created after its training cutoff. New policies and product details may therefore be absent from its responses. RAG gives the model access to current sources when it answers, so you can update the knowledge base without retraining the model.
 
-An LLM also lacks automatic access to private information. Company documents, customer records, and internal procedures do not become available unless an application supplies them as context. RAG retrieves relevant passages from approved sources and places them in the prompt. Grounding an answer in those passages can [reduce hallucinations](https://www.ibm.com/think/topics/retrieval-augmented-generation), though it cannot prevent every factual error.
+An LLM also lacks automatic access to private information. Private company information remains unavailable unless an authorized application supplies it as context. RAG retrieves relevant passages from approved sources and places them in the prompt. Grounding an answer in those passages can [reduce hallucinations](https://www.ibm.com/think/topics/retrieval-augmented-generation), though it cannot prevent every factual error.
 
 Retrieval often costs less than repeatedly retraining a model as information changes. You can refresh documents or indexes while leaving the model itself unchanged. Fine-tuning offers another way to adapt a model, but it serves different needs and requires a separate decision about training cost, maintenance, and intended behavior.
 
 ## How the retrieval step and generation step work together
 
-A RAG pipeline joins retrieval and generation by placing selected source material in the model's prompt before it writes an answer. Four components divide the work. The knowledge base stores source material, and the retriever finds relevant passages. The integration layer combines those passages with the user's query, and the generator produces the response.
+A RAG pipeline joins retrieval and generation by placing selected source material in the model's prompt before it writes an answer. The pipeline stores source material in a searchable knowledge base and retrieves relevant passages for each query. It then adds those passages to the prompt before the model generates a response.
 
-The knowledge base prepares documents for search before any query arrives. It splits each document into chunks and converts each chunk into a numerical representation called an embedding. [Chunk size affects retrieval quality](https://www.ibm.com/think/topics/retrieval-augmented-generation). Large chunks preserve more context but may mix relevant details with unrelated material, while small chunks offer greater precision but may separate a statement from the context needed to interpret it.
+An ingestion pipeline prepares documents for search before any query arrives. It splits each document into chunks and commonly converts those chunks into numerical representations called embeddings. [Chunk size affects retrieval quality](https://www.ibm.com/think/topics/retrieval-augmented-generation). Large chunks preserve more context but may mix relevant details with unrelated material, while small chunks offer greater precision but may separate a statement from the context needed to interpret it.
 
-The retriever searches by meaning rather than relying only on matching words. When a user submits a query, the retriever creates an embedding for it and compares that embedding with the stored chunk embeddings. Chunks with nearby representations rank as more semantically similar to the query.
+A retriever can search by semantic similarity, keyword matching, or a combination of both. When a user submits a query, the retriever creates an embedding for it and compares that embedding with the stored chunk embeddings. In vector retrieval, chunks with nearby representations rank as more semantically similar to the query.
 
 The integration layer then inserts the top-ranked chunks into an augmented prompt alongside the original query and any response instructions. The generator reads that prompt and writes an answer using both its trained language capabilities and the retrieved material. Retrieval quality determines what evidence reaches the generator, while prompt construction determines how clearly the generator can use it.
 
@@ -63,11 +63,11 @@ RAG fills a knowledge gap by retrieving external information when a request arri
 
 | Approach | Mechanism | Best use case | Knowledge currency | Latency and cost profile | Setup complexity |
 | --- | --- | --- | --- | --- | --- |
-| RAG | Retrieves relevant chunks and adds them to the prompt | Private, changing, or source-backed knowledge | Updates when you refresh the external index | Adds retrieval latency but limits input tokens | Requires document processing, indexing, and retrieval evaluation |
+| RAG | Retrieves relevant chunks and adds them to the prompt | Private, changing, or source-backed knowledge | Updates when you refresh the external index | Adds retrieval latency but can use fewer input tokens than supplying entire documents | Requires document processing, indexing, and retrieval evaluation |
 | Fine-tuning | Trains model weights on curated examples | Consistent behavior, style, format, or domain conventions | Remains fixed until another training run | Requires upfront training but can reduce inference latency | Requires training data, evaluation, versioning, and retraining |
 | Long-context prompting | Places whole documents or datasets in the context window | Summarization or analysis within one session | Depends on the material supplied with each request | Costs and latency rise as the prompt grows | Requires little infrastructure beyond prompt construction |
 
-A practical [model-optimization sequence](https://platform.openai.com/docs/guides/model-optimization) starts with prompting. You can add RAG when the model lacks domain knowledge, then consider fine-tuning when prompting and retrieval still cannot produce the required behavior.
+Start with prompting when the model already has the required knowledge. Add RAG when it needs external information, and consider fine-tuning when you need behavior that prompting and retrieval do not produce consistently.
 
 Production systems can combine these methods. A fine-tuned model can provide consistent behavior while RAG supplies current facts. RAG can also select relevant documents for a long-context model to analyze together.
 
@@ -75,28 +75,28 @@ Production systems can combine these methods. A fine-tuned model can provide con
 
 Agentic RAG lets [an AI agent](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples) retrieve evidence whenever a task requires it, including after reasoning has begun. Traditional RAG follows a fixed retrieve-once and generate-once sequence, so the model cannot correct an incomplete search. An [agentic retrieval loop](https://toloka.ai/blog/agentic-rag-systems-for-enterprise-scale-information-retrieval/) can revise queries, retrieve across multiple sources, and decide whether the available evidence supports an answer.
 
-A planner first breaks the task into steps, and the agent then calls retrieval or other tools as needed. Memory carries useful findings into later steps. Reflection lets the agent inspect an intermediate result and search again when evidence conflicts or leaves a gap.
+An agent can break a task into steps and call retrieval or [other tools exposed through an MCP server](https://www.sim.ai/library/what-is-an-mcp-server) when needed. It can retain useful findings for later steps and search again when the available evidence conflicts or leaves a gap.
 
-For example, an agent reviewing a contract might retrieve the standard cancellation policy first. A clause in the contract could then prompt a second search for an account-specific amendment. Static RAG cannot plan the second query because the need for it appears only after the first document has been read.
+For example, an agent reviewing a contract might retrieve the standard cancellation policy first. A clause in the contract could then prompt a second search for an account-specific amendment. A fixed retrieve-once pipeline would not issue the second query because the need for it appears only after the first document has been read.
 
-[Sim's native Knowledge Bases](https://sim.ai) make retrieval a workspace resource that an Agent block can call during reasoning. Knowledge bases sit alongside workflow logic and other tools, including [tools exposed through an MCP server](https://www.sim.ai/library/what-is-an-mcp-server), rather than requiring a separate vector-store integration built around one LLM application. Compared with an [application-centered Dify setup](https://www.sim.ai/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform), Sim places retrieval inside an agent-native workspace where multiple workflow steps can use the same grounded context.
+[Sim's native Knowledge Bases](https://sim.ai) make retrieval a workspace resource that an Agent block can call during reasoning. Knowledge bases sit alongside workflow logic and other tools, rather than requiring a separate vector-store integration built around one LLM application. [Dify can suit application-centered workflows](https://docs.dify.ai/en/cloud/use-dify/knowledge/integrate-knowledge-within-application), while Sim places retrieval inside an agent-native workspace so multiple workflow steps can query the same Knowledge Base. See the [Sim and Dify comparison](https://www.sim.ai/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform) for more context.
 
-Sim's [Apache 2.0 licensing](https://www.sim.ai/library/apache-2-0-vs-fair-code) also supports self-hosting, which gives you control over the agent runtime and retrieval infrastructure. Agentic RAG still costs more than a single retrieval pass because every retry adds model work and latency. You can limit reasoning depth, cache common searches, and rerank retrieved passages when response time or usage cost requires tighter bounds.
+Sim's [Apache 2.0 repository](https://github.com/simstudioai/sim) also supports self-hosting, which gives you control over the agent runtime and retrieval infrastructure. Agentic RAG still costs more than a single retrieval pass because every retry adds model work and latency. You can limit reasoning depth, cache common searches, and rerank retrieved passages when response time or usage cost requires tighter bounds.
 
-## RAG's real tradeoffs
+## RAG tradeoffs
 
-RAG can produce a weak answer even when the source documents contain the right facts. Chunk boundaries can separate a claim from its context, while a poorly matched embedding model can retrieve related but irrelevant passages. You should evaluate retrieval separately from generation because a fluent model can conceal a poor retrieval result, which is one reason [agent observability](https://www.sim.ai/library/ai-agent-observability) matters in production.
+RAG can produce a weak answer even when the source documents contain the right facts. Chunk boundaries can separate a claim from its context, while a poorly matched embedding model can retrieve related but irrelevant passages. You should evaluate retrieval separately from generation because a fluent model can conceal a poor retrieval result. [Agent observability](https://www.sim.ai/library/ai-agent-observability) can help you inspect that behavior in production.
 
-Each retrieval step adds search, network, and prompt-processing time before generation begins. [Even millisecond-scale retrieval overhead can accumulate](https://www.meilisearch.com/blog/rag-vs-long-context-llms), especially when an agent performs several searches. Caching common queries can reduce latency, but cached results may sacrifice freshness.
+Each retrieval step adds processing time before generation begins, including the time required to search the index and assemble the prompt. Retrieval latency can [accumulate across repeated searches](https://www.meilisearch.com/blog/rag-vs-long-context-llms), especially when an agent performs several of them. Caching common queries can reduce latency, but cached results may sacrifice freshness.
 
 A RAG index also needs an explicit update policy. [Knowledge bases lose relevance without continual updates](https://www.ibm.com/think/topics/retrieval-augmented-generation), so synchronization jobs must capture changed and deleted source material. Versioned indexes can help you test updates before they affect production answers.
 
 Vector stores extend the security boundary around private data. You should encrypt stored data and restrict retrieval according to the requesting user's permissions. An agent must never receive a chunk that the user could not open in its source system.
 
-Production RAG requires measurable standards for retrieval accuracy and response time. Update schedules and access controls need the same deliberate planning.
+Before deployment, define targets for retrieval accuracy and response time, then test whether index updates preserve permissions and remove deleted material.
 
 ## Next step: build a RAG-grounded agent
 
-An agent should use retrieval as a workspace capability whenever its reasoning requires private or current information. Sim's native Knowledge Bases give Agent blocks access to grounded context during a workflow, without requiring a separate vector-store integration tied to one chat application.
+Use retrieval as a workspace capability when an agent needs private or current information during a task. Sim's native Knowledge Bases give Agent blocks access to grounded context during a workflow, without requiring a separate vector-store integration tied to one chat application.
 
-You can create the workflow with Mothership, inspect and edit its logic in the visual builder, or connect it through the API. [Start building a RAG-grounded agent in Sim](https://sim.ai).
+You can create the workflow with Mothership, inspect and edit its logic in the visual builder, or connect it through the API. [Explore how to build a RAG-grounded agent in Sim](https://sim.ai).

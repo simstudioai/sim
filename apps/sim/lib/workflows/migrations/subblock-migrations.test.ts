@@ -761,6 +761,166 @@ describe('migrateSubblockIds', () => {
     })
   })
 
+  describe('quickbooks block', () => {
+    function quickbooksBlock(subBlocks: Record<string, unknown>) {
+      return {
+        b1: makeBlock({
+          type: 'quickbooks',
+          subBlocks: subBlocks as BlockState['subBlocks'],
+        }),
+      }
+    }
+
+    it('moves a by-ID read target onto readTransactionId', () => {
+      const { blocks, migrated } = migrateSubblockIds(
+        quickbooksBlock({
+          operation: {
+            id: 'operation',
+            type: 'dropdown',
+            value: 'quickbooks_read_purchasing_transactions',
+          },
+          readMode: { id: 'readMode', type: 'dropdown', value: 'by_id' },
+          transactionId: { id: 'transactionId', type: 'short-input', value: '5' },
+        })
+      )
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.readTransactionId.value).toBe('5')
+      expect(blocks.b1.subBlocks.transactionId).toBeUndefined()
+    })
+
+    it('moves the sales and accounting by-ID read targets too', () => {
+      for (const operation of [
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_accounting_transactions',
+      ]) {
+        const { blocks, migrated } = migrateSubblockIds(
+          quickbooksBlock({
+            operation: { id: 'operation', type: 'dropdown', value: operation },
+            transactionId: { id: 'transactionId', type: 'short-input', value: '7' },
+          })
+        )
+
+        expect(migrated).toBe(true)
+        expect(blocks.b1.subBlocks.readTransactionId.value).toBe('7')
+      }
+    })
+
+    it('leaves an update target on transactionId', () => {
+      const { blocks, migrated } = migrateSubblockIds(
+        quickbooksBlock({
+          operation: {
+            id: 'operation',
+            type: 'dropdown',
+            value: 'quickbooks_update_purchase_order',
+          },
+          transactionId: { id: 'transactionId', type: 'short-input', value: '5' },
+        })
+      )
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.transactionId.value).toBe('5')
+      expect(blocks.b1.subBlocks.readTransactionId).toBeUndefined()
+    })
+
+    it('leaves a void target on transactionId', () => {
+      const { blocks, migrated } = migrateSubblockIds(
+        quickbooksBlock({
+          operation: { id: 'operation', type: 'dropdown', value: 'quickbooks_void_invoice' },
+          transactionId: { id: 'transactionId', type: 'short-input', value: '9' },
+        })
+      )
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.transactionId.value).toBe('9')
+      expect(blocks.b1.subBlocks.readTransactionId).toBeUndefined()
+    })
+
+    it('recovers each retired summarize-columns subset onto reportSummarizeBy', () => {
+      for (const [from, value] of [
+        ['reportCustomerSalesSummarizeBy', 'item'],
+        ['reportVendorExpenseSummarizeBy', 'vendor'],
+        ['reportTimeSummarizeBy', 'quarter'],
+      ] as const) {
+        const { blocks, migrated } = migrateSubblockIds(
+          quickbooksBlock({
+            operation: {
+              id: 'operation',
+              type: 'dropdown',
+              value: 'quickbooks_run_financial_report',
+            },
+            [from]: { id: from, type: 'dropdown', value },
+          })
+        )
+
+        expect(migrated).toBe(true)
+        expect(blocks.b1.subBlocks.reportSummarizeBy.value).toBe(value)
+        expect(blocks.b1.subBlocks[from]).toBeUndefined()
+      }
+    })
+
+    it('never clobbers a reportSummarizeBy value that is already set', () => {
+      const { blocks, migrated } = migrateSubblockIds(
+        quickbooksBlock({
+          operation: {
+            id: 'operation',
+            type: 'dropdown',
+            value: 'quickbooks_run_financial_report',
+          },
+          reportSummarizeBy: { id: 'reportSummarizeBy', type: 'dropdown', value: 'month' },
+          reportCustomerSalesSummarizeBy: {
+            id: 'reportCustomerSalesSummarizeBy',
+            type: 'dropdown',
+            value: 'item',
+          },
+        })
+      )
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.reportSummarizeBy.value).toBe('month')
+      expect(blocks.b1.subBlocks.reportCustomerSalesSummarizeBy).toBeUndefined()
+    })
+
+    it('moves the download-side file name onto downloadAttachmentFileName', () => {
+      const { blocks, migrated } = migrateSubblockIds(
+        quickbooksBlock({
+          operation: {
+            id: 'operation',
+            type: 'dropdown',
+            value: 'quickbooks_download_attachment',
+          },
+          attachmentFileName: {
+            id: 'attachmentFileName',
+            type: 'short-input',
+            value: 'receipt.pdf',
+          },
+        })
+      )
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.downloadAttachmentFileName.value).toBe('receipt.pdf')
+      expect(blocks.b1.subBlocks.attachmentFileName).toBeUndefined()
+    })
+
+    it('leaves the add-side file name on attachmentFileName', () => {
+      const { blocks, migrated } = migrateSubblockIds(
+        quickbooksBlock({
+          operation: { id: 'operation', type: 'dropdown', value: 'quickbooks_add_attachment' },
+          attachmentKind: { id: 'attachmentKind', type: 'dropdown', value: 'file' },
+          attachmentFileName: {
+            id: 'attachmentFileName',
+            type: 'short-input',
+            value: 'receipt.pdf',
+          },
+        })
+      )
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.attachmentFileName.value).toBe('receipt.pdf')
+      expect(blocks.b1.subBlocks.downloadAttachmentFileName).toBeUndefined()
+    })
+  })
+
   it('should handle blocks with empty subBlocks', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({ type: 'knowledge', subBlocks: {} }),

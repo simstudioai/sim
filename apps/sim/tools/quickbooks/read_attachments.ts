@@ -132,7 +132,7 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Read Attachments parameters are required')
     if (params.readMode === 'by_id') {
-      const parsed = await parseQuickBooksAttachableResponse(response)
+      const parsed = await parseQuickBooksAttachableResponse(response, undefined, 'attachment read')
       return { success: true, output: { item: parsed.attachment, time: parsed.time } }
     }
     const pagination = validateQuickBooksPagination(

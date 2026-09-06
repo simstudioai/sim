@@ -85,7 +85,7 @@ List or read one account, class, customer, department, employee, item, or vendor
 | `readMode` | string | Yes | Whether to list records or read one record by ID |
 | `recordId` | string | No | QuickBooks record ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
-| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `maxResults` | number | No | Number of list records to request \(1–1000\) |
 | `activeStatus` | string | No | List records using the QuickBooks default, active, or inactive status |
 
 #### Output
@@ -364,7 +364,7 @@ Read, merge, and full-update a non-payroll employee profile
 | --------- | ---- | -------- | ----------- |
 | `employeeId` | string | Yes | ID of the employee to update |
 | `syncToken` | string | Yes | Current employee sync token |
-| `displayName` | string | No | Replacement employee display name |
+| `displayName` | string | No | Replacement employee display name. Read-only when QuickBooks Payroll is enabled, where QuickBooks derives it from the name components |
 | `givenName` | string | No | Replacement employee given name |
 | `familyName` | string | No | Replacement employee family name |
 | `primaryEmail` | string | No | Replacement employee primary email address |
@@ -510,7 +510,7 @@ Create a Service or Non-inventory item in QuickBooks Online
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `name` | string | Yes | Unique item name |
+| `name` | string | Yes | Unique item name, up to 100 characters, without tabs, new lines, or colons |
 | `itemType` | string | Yes | Writable item type: service or non_inventory |
 | `incomeAccountId` | string | No | Sales of Product Income account ID recording proceeds from the sale. Intuit requires it for Service items except in France locales |
 | `description` | string | No | Sales description |
@@ -562,7 +562,7 @@ Create a Service or Non-inventory item in QuickBooks Online
 
 ### QuickBooks Update Item
 
-Read, merge, and full-update an item without changing its type
+Read, merge, and full-update a Service or Non-inventory item without changing its type
 
 #### Input
 
@@ -570,7 +570,7 @@ Read, merge, and full-update an item without changing its type
 | --------- | ---- | -------- | ----------- |
 | `itemId` | string | Yes | ID of the item to update |
 | `syncToken` | string | Yes | Current item sync token |
-| `name` | string | No | Replacement item name |
+| `name` | string | No | Replacement item name, up to 100 characters, without tabs, new lines, or colons |
 | `incomeAccountId` | string | No | Replacement income account ID |
 | `description` | string | No | Replacement sales description |
 | `unitPrice` | number | No | Replacement sales price per unit |
@@ -578,7 +578,7 @@ Read, merge, and full-update an item without changing its type
 | `purchaseCost` | number | No | Replacement purchase cost per unit |
 | `expenseAccountId` | string | No | Replacement expense account ID |
 | `taxable` | boolean | No | Whether the item is taxable |
-| `activeStatus` | string | No | Item status change: unchanged, active, or inactive |
+| `activeStatus` | string | No | Item status change: unchanged, active, or inactive. Not valid for Category item types |
 
 #### Output
 
@@ -631,7 +631,7 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 | `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
-| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `maxResults` | number | No | Number of list records to request \(1–1000\) |
 | `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
 | `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
 | `customerId` | string | No | List transactions for one QuickBooks customer ID |
@@ -1008,7 +1008,7 @@ Create a sales receipt for a completed customer sale
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `customerId` | string | Yes | Customer for the sales receipt |
+| `customerId` | string | No | Customer for the sales receipt, omitted for an anonymous sale |
 | `lines` | json | Yes | Bounded item and description lines |
 | `transactionDate` | string | No | Sales receipt date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Optional sales receipt number |
@@ -1089,6 +1089,60 @@ Sparse-update a sales receipt using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks SalesReceipt |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Void Sales Receipt
+
+Void a sales receipt after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Sales receipt ID to void |
+| `syncToken` | string | Yes | Current sales receipt sync token |
+| `confirmVoid` | boolean | Yes | Explicit confirmation that the sales receipt should be voided |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `voided` | boolean | Whether QuickBooks voided the transaction |
+| `record` | json | Voided native QuickBooks SalesReceipt |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
@@ -1418,7 +1472,7 @@ Create a customer refund receipt against a required deposit account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `customerId` | string | Yes | Customer receiving the refund |
+| `customerId` | string | No | Customer receiving the refund, omitted for an anonymous refund |
 | `lines` | json | Yes | Bounded item and description lines |
 | `depositAccountId` | string | Yes | QuickBooks bank account funding the refund |
 | `transactionDate` | string | No | Refund receipt date in YYYY-MM-DD format |
@@ -1472,7 +1526,7 @@ Create a customer refund receipt against a required deposit account
 
 ### QuickBooks Update Refund Receipt
 
-Read, merge, and full-update a refund receipt using its current sync token
+Sparse-update a refund receipt using its current sync token
 
 #### Input
 
@@ -1543,7 +1597,7 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 | `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
-| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `maxResults` | number | No | Number of list records to request \(1–1000\) |
 | `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
 | `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
 | `vendorId` | string | No | List transactions for one supported QuickBooks vendor ID |
@@ -1558,7 +1612,8 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1607,7 +1662,8 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1672,6 +1728,9 @@ Create a purchase order with bounded expense lines
 | `transactionDate` | string | No | Purchase-order date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Optional purchase-order number |
 | `privateNote` | string | No | Internal purchase-order note |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
+| `globalTaxCalculation` | string | No | Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable |
+| `dueDate` | string | No | Date the payment is due in YYYY-MM-DD format |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -1687,7 +1746,8 @@ Create a purchase order with bounded expense lines
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1745,6 +1805,7 @@ Read, merge, and full-update purchase-order header fields
 | `vendorId` | string | No | Replacement vendor ID |
 | `apAccountId` | string | No | Replacement accounts-payable account ID |
 | `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `dueDate` | string | No | Replacement due date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement purchase-order number |
 | `privateNote` | string | No | Replacement internal note |
 
@@ -1761,7 +1822,8 @@ Read, merge, and full-update purchase-order header fields
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1821,6 +1883,8 @@ Create a vendor bill with optional Purchase Order line links without paying it
 | `dueDate` | string | No | Bill due date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Optional bill number |
 | `privateNote` | string | No | Internal bill note |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
+| `globalTaxCalculation` | string | No | Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -1846,7 +1910,8 @@ Create a vendor bill with optional Purchase Order line links without paying it
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1921,7 +1986,8 @@ Read, merge, and full-update bill header fields using its current sync token
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -1981,6 +2047,9 @@ Record a check or credit-card payment allocated to one or more bills
 | `billAllocations` | json | No | Optional bounded Bill-only allocations; any unallocated amount becomes vendor credit |
 | `transactionDate` | string | No | Payment date in YYYY-MM-DD format |
 | `privateNote` | string | No | Internal payment note |
+| `apAccountId` | string | No | Optional accounts-payable account the payment is credited to |
+| `documentNumber` | string | No | Optional reference number for the payment |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -1996,7 +2065,8 @@ Record a check or credit-card payment allocated to one or more bills
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2068,7 +2138,80 @@ Read, merge, and full-update a BillPayment without changing allocations
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Void Bill Payment
+
+Void a bill payment after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | BillPayment ID to void |
+| `syncToken` | string | Yes | Current BillPayment sync token |
+| `confirmVoid` | boolean | Yes | Explicit confirmation that the bill payment should be voided |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `voided` | boolean | Whether QuickBooks voided the transaction |
+| `record` | json | Voided native QuickBooks BillPayment |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2127,6 +2270,8 @@ Create a vendor credit without applying it to a bill
 | `transactionDate` | string | No | Credit date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Optional vendor-credit number |
 | `privateNote` | string | No | Internal vendor-credit note |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
+| `globalTaxCalculation` | string | No | Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -2142,7 +2287,8 @@ Create a vendor credit without applying it to a bill
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2216,7 +2362,8 @@ Read, merge, and full-update vendor-credit header fields
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2276,6 +2423,8 @@ Record a cash, check, or credit-card purchase with bounded expense lines
 | `transactionDate` | string | No | Purchase date in YYYY-MM-DD format |
 | `paymentReference` | string | No | Optional transaction reference number, such as a check number, sent as the purchase DocNumber |
 | `privateNote` | string | No | Internal purchase note |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
+| `globalTaxCalculation` | string | No | Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -2291,7 +2440,8 @@ Record a cash, check, or credit-card purchase with bounded expense lines
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2364,7 +2514,8 @@ Read, merge, and full-update purchase header fields without changing lines
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `DueDate` | string | Bill or purchase-order due date |
+|   ↳ `POStatus` | string | Purchase order status: Open or Closed |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2421,7 +2572,7 @@ List or read one journal entry, deposit, or transfer
 | `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
-| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `maxResults` | number | No | Number of list records to request \(1–1000\) |
 | `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
 | `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
 
@@ -2494,6 +2645,8 @@ Post a balanced journal entry after explicit confirmation
 | `transactionDate` | string | No | Journal-entry date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Optional journal-entry number |
 | `privateNote` | string | No | Internal journal-entry note |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
+| `globalTaxCalculation` | string | No | Tax treatment required for non-US companies: TaxExcluded or TaxInclusive |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -2585,6 +2738,8 @@ Create a deposit with bounded account lines
 | `lines` | json | Yes | One to 100 account-based deposit lines |
 | `transactionDate` | string | No | Deposit date in YYYY-MM-DD format |
 | `privateNote` | string | No | Internal deposit note |
+| `currencyCode` | string | No | Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company |
+| `globalTaxCalculation` | string | No | Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
 #### Output
@@ -2628,7 +2783,7 @@ Sparse-update deposit header fields using the current sync token and destination
 | --------- | ---- | -------- | ----------- |
 | `depositId` | string | Yes | Deposit ID to update |
 | `syncToken` | string | Yes | Current deposit sync token |
-| `depositAccountId` | string | Yes | Current QuickBooks account receiving the deposit |
+| `depositAccountId` | string | No | Replacement QuickBooks account receiving the deposit |
 | `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
 | `privateNote` | string | No | Replacement internal note |
 
@@ -2674,11 +2829,14 @@ Run a fixed QuickBooks financial report with verified accountant-focused filters
 | `reportType` | string | Yes | Fixed QuickBooks financial report to run |
 | `startDate` | string | No | Report start date in YYYY-MM-DD format; Intuit recommends periods of six months or less for performance |
 | `endDate` | string | No | Report end or as-of date in YYYY-MM-DD format |
+| `dateMacro` | string | No | Predefined QuickBooks report date range, such as this_fiscal_year_to_date; cannot be combined with startDate or endDate |
 | `accountingMethod` | string | No | Use the QuickBooks default, cash basis, or accrual basis |
 | `summarizeBy` | string | No | Time period or business dimension used to summarize report columns |
+| `quickZoomUrl` | boolean | No | Ask QuickBooks to generate quick-zoom drill-down links, returned as the href on report row values |
 | `customerId` | string | No | Single QuickBooks customer ID filter |
 | `vendorId` | string | No | Single QuickBooks vendor ID filter |
 | `accountId` | string | No | Single QuickBooks account ID filter |
+| `employeeId` | string | No | Single QuickBooks employee ID filter, supported by Profit and Loss Detail |
 | `itemId` | string | No | Single QuickBooks item ID filter |
 | `classId` | string | No | Single QuickBooks class ID filter |
 | `departmentId` | string | No | Single QuickBooks department ID filter |
@@ -2709,6 +2867,7 @@ Run a fixed QuickBooks financial report with verified accountant-focused filters
 |   ↳ `Customer` | string | Applied customer filter |
 |   ↳ `Vendor` | string | Applied vendor filter |
 |   ↳ `Account` | string | Applied account filter |
+|   ↳ `Employee` | string | Applied employee filter |
 |   ↳ `Item` | string | Applied item filter |
 |   ↳ `Class` | string | Applied class filter |
 |   ↳ `Department` | string | Applied department filter |
@@ -2796,6 +2955,7 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `POStatus` | string | Purchase order status |
 |   ↳ `VendorRef` | json | Vendor reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
@@ -2813,7 +2973,6 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `PayType` | string | Bill-payment type |
 |   ↳ `CheckPayment` | json | Check payment account details |
 |   ↳ `CreditCardPayment` | json | Credit-card payment account details |
-|   ↳ `POStatus` | string | Purchase order status |
 | `time` | string | QuickBooks response timestamp |
 
 ### QuickBooks Download Transaction PDF
