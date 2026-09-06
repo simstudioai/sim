@@ -43,7 +43,7 @@ export function IconSwitch<T extends string>({
       role='radiogroup'
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex w-fit shrink-0 items-center rounded-sm border border-[var(--border)] bg-[var(--surface-3)]',
+        'inline-flex w-fit shrink-0 items-center rounded-sm border border-[var(--border)] bg-[var(--surface-2)]',
         disabled && 'opacity-50',
         className
       )}
