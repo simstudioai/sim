@@ -154,7 +154,7 @@ export async function waitForToolConfirmation(
     }
 
     const scheduleDurablePoll = () => {
-      if (settled || timeoutMs !== null) return
+      if (settled) return
       pollId = setTimeout(async () => {
         pollId = null
         await checkDurableConfirmation('poll')

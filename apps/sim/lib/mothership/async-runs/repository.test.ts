@@ -230,7 +230,7 @@ describe('durable Sim tool ownership', () => {
       executionSettledAt: null,
     }
     queueTableRows(copilotAsyncToolCalls, [record])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'existing', record })
+    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'existing' })
   })
 
   it('keeps a terminal result distinct from actual execution settlement', async () => {
