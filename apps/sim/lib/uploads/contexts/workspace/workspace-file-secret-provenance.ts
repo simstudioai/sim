@@ -917,6 +917,17 @@ export async function importWorkspaceFileSecretProvenanceForRuntime(args: {
   actorUserId?: string
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
+  return importWorkspaceFileSnapshotProvenance({ ...args, provenance })
+}
+
+/** Imports a classification already bound by an authorized read to its returned byte snapshot. */
+export async function importWorkspaceFileSnapshotProvenance(args: {
+  workspaceId: string
+  provenance: WorkspaceFileSecretProvenance
+  registry?: ResolvedSecretTraceRegistry
+  actorUserId?: string
+}): Promise<boolean> {
+  const { provenance } = args
   if (provenance.status === 'unknown') return false
   if (provenance.status === 'unrecorded') {
     return mayReadUnrecordedWorkspaceFile(args.workspaceId, 1, args.actorUserId)

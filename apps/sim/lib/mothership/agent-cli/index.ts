@@ -6,18 +6,21 @@ import { authenticateV2ApiKey } from '@/lib/api/server/routes/v2-api-key-auth'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
+import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface AgentCliExecutionContext {
   workspaceId: string
   userId: string
   chatId?: string | undefined
   signal?: AbortSignal | undefined
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 /**
@@ -36,10 +39,16 @@ export async function executeAgentCliRequest(
     userId: context.userId,
   })
   if (!apiKey) return agentCliFail('Could not establish workspace credentials for this command.')
+  const endpoint = getInternalApiBaseUrl()
   const identity: EmbeddedCliIdentity = {
-    endpoint: getInternalApiBaseUrl(),
+    endpoint,
     apiKey,
     workspaceId: context.workspaceId,
+    transport: createFileReadTransport({
+      endpoint,
+      userId: context.userId,
+      registry: context.resolvedSecretTraceRegistry,
+    }),
     ...(context.signal ? { signal: context.signal } : {}),
   }
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null

@@ -1,7 +1,7 @@
 import { v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
@@ -38,18 +38,5 @@ export const GET = defineV2JsonRoute({
     maxBytes: query.maxBytes,
   }),
   useCase: readWorkspaceFileText,
-  present: ({ file, text, truncated, degraded, degradedReason, byteCount }) => ({
-    data: {
-      fileId: file.id,
-      name: file.name,
-      path: workspaceFileVfsPath(file),
-      type: file.type,
-      text,
-      truncated,
-      degraded,
-      degradedReason,
-      charCount: text.length,
-      byteCount,
-    },
-  }),
+  present: presentWorkspaceFileText,
 })

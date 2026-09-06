@@ -35,6 +35,7 @@ export async function executeSimCli(
       userId: context.userId,
       chatId: context.chatId,
       signal: context.abortSignal,
+      resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
     })
     logger.info('CLI invocation finished', {
       exitCode: result.exitCode,
