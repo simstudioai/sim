@@ -16,14 +16,19 @@ const launch = {
 
 describe('OCI Compute input schemas', () => {
   it('accepts deferred attachment overrides and applies configuration-specific NVMe limits', () => {
-    expect(configurationDetailsSchema.parse({
-      instanceType: 'compute',
-      blockVolumes: [{ volumeId: 'volume' }],
-      secondaryVnics: [{ nicIndex: 0 }],
-    })).toMatchObject({ blockVolumes: [{ volumeId: 'volume' }] })
-    expect(configurationDetailsSchema.safeParse({
-      instanceType: 'compute', launchDetails: { shapeConfig: { nvmes: 7 } },
-    }).success).toBe(false)
+    expect(
+      configurationDetailsSchema.parse({
+        instanceType: 'compute',
+        blockVolumes: [{ volumeId: 'volume' }],
+        secondaryVnics: [{ nicIndex: 0 }],
+      })
+    ).toMatchObject({ blockVolumes: [{ volumeId: 'volume' }] })
+    expect(
+      configurationDetailsSchema.safeParse({
+        instanceType: 'compute',
+        launchDetails: { shapeConfig: { nvmes: 7 } },
+      }).success
+    ).toBe(false)
   })
 
   it.each([
@@ -143,23 +148,43 @@ describe('OCI Compute input schemas', () => {
   })
 
   it('preserves empty reservation removal and defaults to avoiding downtime', () => {
-    expect(ociComputeSchemas.update_instance.parse({
-      ...auth, instanceId: 'instance', capacityReservationId: '', metadata: {},
-    })).toMatchObject({
-      capacityReservationId: '', metadata: {}, updateOperationConstraint: 'AVOID_DOWNTIME',
+    expect(
+      ociComputeSchemas.update_instance.parse({
+        ...auth,
+        instanceId: 'instance',
+        capacityReservationId: '',
+        metadata: {},
+      })
+    ).toMatchObject({
+      capacityReservationId: '',
+      metadata: {},
+      updateOperationConstraint: 'AVOID_DOWNTIME',
     })
-    expect(ociComputeSchemas.update_instance_configuration.safeParse({
-      ...auth, instanceConfigurationId: 'configuration', instanceDetails: { instanceType: 'compute' },
-    }).success).toBe(false)
+    expect(
+      ociComputeSchemas.update_instance_configuration.safeParse({
+        ...auth,
+        instanceConfigurationId: 'configuration',
+        instanceDetails: { instanceType: 'compute' },
+      }).success
+    ).toBe(false)
   })
 
   it('bounds pages and metadata without silently truncating', () => {
-    expect(ociComputeSchemas.list_instances.parse({ ...auth, compartmentId: 'compartment' }).limit).toBe(50)
-    expect(ociComputeSchemas.list_instances.safeParse({
-      ...auth, compartmentId: 'compartment', limit: 101,
-    }).success).toBe(false)
-    expect(() => validateOciComputeMetadata({
-      metadata: { a: 'x'.repeat(20_000) }, extendedMetadata: { b: 'x'.repeat(20_000) },
-    })).toThrow('32,000')
+    expect(
+      ociComputeSchemas.list_instances.parse({ ...auth, compartmentId: 'compartment' }).limit
+    ).toBe(50)
+    expect(
+      ociComputeSchemas.list_instances.safeParse({
+        ...auth,
+        compartmentId: 'compartment',
+        limit: 101,
+      }).success
+    ).toBe(false)
+    expect(() =>
+      validateOciComputeMetadata({
+        metadata: { a: 'x'.repeat(20_000) },
+        extendedMetadata: { b: 'x'.repeat(20_000) },
+      })
+    ).toThrow('32,000')
   })
 })

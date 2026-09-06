@@ -60,9 +60,17 @@ describe('OCI Compute trusted execution wiring', () => {
   })
 
   it('does not accept payload workspace or compatibility token as authority', async () => {
-    const response = await executeOciComputeTool(call({
-      input: { oauthCredential: 'submitted', region: 'us-ashburn-1', instanceId: 'instance', workspaceId: 'other', accessToken: 'token' },
-    }))
+    const response = await executeOciComputeTool(
+      call({
+        input: {
+          oauthCredential: 'submitted',
+          region: 'us-ashburn-1',
+          instanceId: 'instance',
+          workspaceId: 'other',
+          accessToken: 'token',
+        },
+      })
+    )
     expect(response.status).toBe(400)
     expect(mocks.createClient).not.toHaveBeenCalled()
   })

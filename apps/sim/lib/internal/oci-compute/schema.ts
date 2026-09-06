@@ -106,24 +106,38 @@ const configurationSource = z
     }
   )
 
-const agentConfig = z.object({
-  isMonitoringDisabled: z.boolean().optional(),
-  isManagementDisabled: z.boolean().optional(),
-  areAllPluginsDisabled: z.boolean().optional(),
-  pluginsConfig: z.array(z.object({ name, desiredState: z.enum(['ENABLED', 'DISABLED']) }).strict()).max(50).optional(),
-}).strict()
-const availabilityConfig = z.object({
-  recoveryAction: z.enum(['RESTORE_INSTANCE', 'STOP_INSTANCE']).optional(),
-  isLiveMigrationPreferred: z.boolean().optional(),
-}).strict()
-const instanceOptions = z.object({ areLegacyImdsEndpointsDisabled: z.boolean().optional() }).strict()
+const agentConfig = z
+  .object({
+    isMonitoringDisabled: z.boolean().optional(),
+    isManagementDisabled: z.boolean().optional(),
+    areAllPluginsDisabled: z.boolean().optional(),
+    pluginsConfig: z
+      .array(z.object({ name, desiredState: z.enum(['ENABLED', 'DISABLED']) }).strict())
+      .max(50)
+      .optional(),
+  })
+  .strict()
+const availabilityConfig = z
+  .object({
+    recoveryAction: z.enum(['RESTORE_INSTANCE', 'STOP_INSTANCE']).optional(),
+    isLiveMigrationPreferred: z.boolean().optional(),
+  })
+  .strict()
+const instanceOptions = z
+  .object({ areLegacyImdsEndpointsDisabled: z.boolean().optional() })
+  .strict()
 
 const launchFields = {
   compartmentId: id.optional(),
   availabilityDomain: name.optional(),
   displayName: name.optional(),
   shape: name.optional(),
-  shapeConfig: shapeConfig.refine((value) => value.nvmes === undefined || value.nvmes <= 6, 'Configuration NVMe count must not exceed 6').optional(),
+  shapeConfig: shapeConfig
+    .refine(
+      (value) => value.nvmes === undefined || value.nvmes <= 6,
+      'Configuration NVMe count must not exceed 6'
+    )
+    .optional(),
   faultDomain: name.optional(),
   createVnicDetails: vnic.optional(),
   sourceDetails: configurationSource.optional(),
@@ -144,33 +158,71 @@ const attachmentFields = {
   isShareable: z.boolean().optional(),
 }
 const attachVolume = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('iscsi'), ...attachmentFields, useChap: z.boolean().optional() }).strict(),
-  z.object({ type: z.literal('paravirtualized'), ...attachmentFields, isPvEncryptionInTransitEnabled: z.boolean().optional() }).strict(),
+  z
+    .object({ type: z.literal('iscsi'), ...attachmentFields, useChap: z.boolean().optional() })
+    .strict(),
+  z
+    .object({
+      type: z.literal('paravirtualized'),
+      ...attachmentFields,
+      isPvEncryptionInTransitEnabled: z.boolean().optional(),
+    })
+    .strict(),
 ])
-export const configurationDetailsSchema = z.object({
-  instanceType: z.literal('compute'),
-  launchDetails: z.object(launchFields).strict().optional(),
-  blockVolumes: z.array(z.object({ volumeId: id.optional(), attachDetails: attachVolume.optional() }).strict()).max(32).optional(),
-  secondaryVnics: z.array(z.object({
-    displayName: name.optional(),
-    nicIndex: z.number().int().min(0).max(31).optional(),
-    createVnicDetails: vnic.optional(),
-  }).strict()).max(32).optional(),
-}).strict()
+export const configurationDetailsSchema = z
+  .object({
+    instanceType: z.literal('compute'),
+    launchDetails: z.object(launchFields).strict().optional(),
+    blockVolumes: z
+      .array(z.object({ volumeId: id.optional(), attachDetails: attachVolume.optional() }).strict())
+      .max(32)
+      .optional(),
+    secondaryVnics: z
+      .array(
+        z
+          .object({
+            displayName: name.optional(),
+            nicIndex: z.number().int().min(0).max(31).optional(),
+            createVnicDetails: vnic.optional(),
+          })
+          .strict()
+      )
+      .max(32)
+      .optional(),
+  })
+  .strict()
 
-const placementSubnet = z.object({
-  subnetId: id,
-  isAssignIpv6Ip: z.boolean().optional(),
-  ipv6AddressIpv6SubnetCidrPairDetails: z.array(z.object({
-    ipv6SubnetCidr: z.string().max(64).optional(),
-  }).strict()).max(16).optional(),
-}).strict()
-const placement = z.object({
-  availabilityDomain: name,
-  faultDomains: z.array(name).max(3).refine((values) => new Set(values).size === values.length, 'Fault domains must be unique').optional(),
-  primaryVnicSubnets: placementSubnet,
-  secondaryVnicSubnets: z.array(placementSubnet.extend({ displayName: name })).max(32).optional(),
-}).strict()
+const placementSubnet = z
+  .object({
+    subnetId: id,
+    isAssignIpv6Ip: z.boolean().optional(),
+    ipv6AddressIpv6SubnetCidrPairDetails: z
+      .array(
+        z
+          .object({
+            ipv6SubnetCidr: z.string().max(64).optional(),
+          })
+          .strict()
+      )
+      .max(16)
+      .optional(),
+  })
+  .strict()
+const placement = z
+  .object({
+    availabilityDomain: name,
+    faultDomains: z
+      .array(name)
+      .max(3)
+      .refine((values) => new Set(values).size === values.length, 'Fault domains must be unique')
+      .optional(),
+    primaryVnicSubnets: placementSubnet,
+    secondaryVnicSubnets: z
+      .array(placementSubnet.extend({ displayName: name }))
+      .max(32)
+      .optional(),
+  })
+  .strict()
 
 const common = z.object({
   oauthCredential: id,

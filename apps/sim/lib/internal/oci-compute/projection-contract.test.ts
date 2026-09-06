@@ -1,9 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import { projectOciComputeResource } from '@/lib/internal/oci-compute/operations'
+import {
+  buildSelectorContextFromValues,
+  getSelectorContextSubBlocks,
+} from '@/lib/selectors/context'
 import { OciComputeBlock } from '@/blocks/blocks/oci_compute'
 import { INSTANCE_OUTPUT_PROPERTIES, ociComputeOperationInput } from '@/tools/oci_compute/types'
 
 describe('OCI Compute input and resource projections', () => {
+  it('keeps resource discovery in the source compartment without falling back to the destination', () => {
+    const selector = OciComputeBlock.subBlocks.find((field) => field.id === 'instanceIdSelector')!
+    const contextFor = (resourceCompartmentId: string | undefined) => {
+      const values = {
+        operation: 'oci_compute_change_instance_compartment',
+        credential: 'credential',
+        region: 'us-ashburn-1',
+        compartmentSelector: 'destination',
+        resourceCompartmentId,
+      }
+      return buildSelectorContextFromValues({
+        selectorKey: 'oci_compute.instances',
+        contextConfigs: getSelectorContextSubBlocks(OciComputeBlock.subBlocks, values),
+        values,
+        dependsOn: selector.dependsOn,
+      })
+    }
+    expect(contextFor('source').compartmentId).toBe('source')
+    expect(contextFor(undefined).compartmentId).toBeUndefined()
+    expect(contextFor('<previous.output>').compartmentId).toBeUndefined()
+    expect(contextFor('{{RESOURCE_COMPARTMENT}}').compartmentId).toBe('{{RESOURCE_COMPARTMENT}}')
+  })
+
   it('preserves runtime references while removing compatibility and authorization extras', () => {
     const input = ociComputeOperationInput(
       {
@@ -57,9 +84,15 @@ describe('OCI Compute input and resource projections', () => {
     })
     expect(values).toMatchObject({
       size: 0,
-      isAutoTerminate: false,
       instanceDisplayNameFormatter: '',
     })
+    expect(values).not.toHaveProperty('isAutoTerminate')
+    expect(
+      normalize({
+        operation: 'oci_compute_detach_instance_pool_instance',
+        isAutoTerminate: 'false',
+      })
+    ).toMatchObject({ isAutoTerminate: false })
     const selectTool = OciComputeBlock.tools.config!.tool
     expect(
       selectTool({ operation: 'oci_compute_launch_instance', imageId: '<image.output.id>' })
