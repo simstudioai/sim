@@ -14,6 +14,9 @@ const {
   mockCloseStreamToolAdmission,
   mockStreamToolsSettled,
   mockUnsettledProcesses,
+  mockUnsettledWorkflows,
+  mockCancelWorkflow,
+  mockAbortWorkflow,
   mockStopProcess,
   mockSettleProcess,
   mockStopPendingRequest,
@@ -37,6 +40,9 @@ const {
     mockCloseStreamToolAdmission: vi.fn(),
     mockStreamToolsSettled: vi.fn(),
     mockUnsettledProcesses: vi.fn(),
+    mockUnsettledWorkflows: vi.fn(),
+    mockCancelWorkflow: vi.fn(),
+    mockAbortWorkflow: vi.fn(),
     mockStopProcess: vi.fn(),
     mockSettleProcess: vi.fn(),
     mockStopPendingRequest: vi.fn(),
@@ -49,9 +55,12 @@ vi.mock('@/lib/mothership/async-runs/repository', () => ({
   closeStreamToolAdmission: mockCloseStreamToolAdmission,
   areStreamToolExecutionsSettled: mockStreamToolsSettled,
   getUnsettledStreamSandboxProcesses: mockUnsettledProcesses,
+  getUnsettledClientWorkflowExecutions: mockUnsettledWorkflows,
   settleSimSandboxProcess: mockSettleProcess,
   stopPendingRequest: mockStopPendingRequest,
 }))
+vi.mock('@/lib/execution/cancellation', () => ({ markExecutionCancelled: mockCancelWorkflow }))
+vi.mock('@/lib/execution/manual-cancellation', () => ({ abortManualExecution: mockAbortWorkflow }))
 vi.mock('@/lib/execution/remote-sandbox/e2b', () => ({ stopE2BSessionProcess: mockStopProcess }))
 vi.mock('@/lib/mothership/request/session', () => ({
   abortActiveStream: mockAbortActiveStream,
@@ -113,8 +122,29 @@ describe('POST /api/copilot/chat/abort', () => {
     mockCloseStreamToolAdmission.mockResolvedValue(true)
     mockStreamToolsSettled.mockResolvedValue(true)
     mockUnsettledProcesses.mockResolvedValue([])
+    mockUnsettledWorkflows.mockResolvedValue([])
+    mockCancelWorkflow.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockAbortWorkflow.mockReturnValue(false)
     mockStopProcess.mockResolvedValue(undefined)
     mockSettleProcess.mockResolvedValue(undefined)
+  })
+
+  it('cancels only the admitted client execution and still requires its settlement receipt', async () => {
+    mockUnsettledWorkflows.mockResolvedValue(['client-execution'])
+    mockStreamToolsSettled.mockResolvedValue(false)
+    const response = await POST(abortRequest())
+    expect(await response.json()).toMatchObject({ settled: false })
+    expect(mockUnsettledWorkflows).toHaveBeenCalledExactlyOnceWith('stream-1', 'user-1')
+    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+    expect(mockAbortWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+  })
+
+  it('does not signal client workflows without closing admission', async () => {
+    mockCloseStreamToolAdmission.mockResolvedValue(false)
+    const response = await POST(abortRequest())
+    expect(await response.json()).toMatchObject({ settled: false })
+    expect(mockUnsettledWorkflows).not.toHaveBeenCalled()
+    expect(mockCancelWorkflow).not.toHaveBeenCalled()
   })
 
   it('recovers recorded commands before certifying settlement after a disconnected executor', async () => {

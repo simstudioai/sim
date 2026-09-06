@@ -103,7 +103,7 @@ export async function raceWorkflowToolClientPickup(
   // reality `/api/workflows/[id]/execute` leans on for its `if (!boundToolCall)`.
   let claimed: Awaited<ReturnType<typeof claimWorkflowToolExecution>> | null = null
   try {
-    claimed = await claimWorkflowToolExecution(toolCallId, boundExecutionId)
+    claimed = await claimWorkflowToolExecution(toolCallId, boundExecutionId, 'sim')
   } catch (error) {
     // Losing the claim to an error is not a reason to run the workflow twice;
     // fall back to waiting on the browser exactly as before.
