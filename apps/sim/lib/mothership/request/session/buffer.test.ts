@@ -76,6 +76,8 @@ const createRedisStub = () => {
       const numKeys = Number(args[1])
       const keys = args.slice(2, 2 + numKeys) as string[]
       const argv = args.slice(2 + numKeys) as Array<string | number>
+      const leased = String(args[0]).includes("if redis.call('GET', KEYS[3]) ~= ARGV[7]")
+      if (leased && values.get(keys[2]) !== argv[6]) return Promise.resolve([-1])
 
       if (api.budgetRefusal) return Promise.resolve(api.budgetRefusal)
 
@@ -83,7 +85,7 @@ const createRedisStub = () => {
       const eventLimit = Number(argv[1])
       const lastSeq = String(argv[5])
       const entries = sortedSets.get(eventsKey) ?? []
-      for (let i = 6; i < argv.length; i += 2) {
+      for (let i = leased ? 7 : 6; i < argv.length; i += 2) {
         const score = Number(argv[i])
         const value = String(argv[i + 1])
         if (!entries.some((entry) => entry.value === value)) entries.push({ score, value })
@@ -155,6 +157,32 @@ describe('mothership-stream-outbox', () => {
     mockRedis = createRedisStub()
     vi.clearAllMocks()
     redisConfigMockFns.mockGetRedisClient.mockImplementation(() => mockRedis)
+  })
+
+  it('fences replaced controllers without appending or advancing the saved cursor', async () => {
+    const envelope = await makeEnvelope('owned event')
+    const lease = { key: 'chat-lock', value: 'current-controller' }
+    await mockRedis.set(lease.key, lease.value)
+    await expect(appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' }, lease))
+      .resolves.toEqual({ persisted: true })
+    const replacement = { ...envelope, seq: 2, cursor: '2' }
+    await mockRedis.set(lease.key, 'replacement-controller')
+    await expect(appendEvents([replacement], { streamId: 'stream-1', userId: 'user-1' }, lease))
+      .rejects.toThrow('Stream controller no longer owns this chat')
+    expect(await mockRedis.get('mothership_stream:stream-1:seq')).toBe('1')
+    expect(await mockRedis.zrangebyscore('mothership_stream:stream-1:events', 0, '+inf'))
+      .toHaveLength(1)
+  })
+
+  it('still enforces byte budgets for the current controller', async () => {
+    const envelope = await makeEnvelope('budgeted event')
+    const lease = { key: 'chat-lock', value: 'current-controller' }
+    await mockRedis.set(lease.key, lease.value)
+    mockRedis.budgetRefusal = [0, 'user_redis_bytes', 128 * 1024 * 1024]
+    await expect(appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' }, lease))
+      .resolves.toMatchObject({ persisted: false, refusal: { resource: 'user_redis_bytes' } })
+    expect(await mockRedis.zrangebyscore('mothership_stream:stream-1:events', 0, '+inf'))
+      .toHaveLength(0)
   })
 
   it('replays envelopes after a given cursor', async () => {

@@ -228,7 +228,8 @@ export async function updateRunStatus(
     completedAt?: Date | null
     error?: string | null
     requestContext?: Record<string, unknown>
-  } = {}
+  } = {},
+  controllerToken?: string
 ) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsUpdateRunStatus,
@@ -256,7 +257,13 @@ export async function updateRunStatus(
           updatedAt: new Date(),
         })
         .where(
-          and(eq(copilotRuns.id, runId), notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES))
+          and(
+            eq(copilotRuns.id, runId),
+            notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+            controllerToken
+              ? sql`${copilotRuns.requestContext}->>'controllerToken' = ${controllerToken}`
+              : undefined
+          )
         )
         .returning()
       return run ?? null

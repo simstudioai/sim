@@ -31,8 +31,79 @@ describe('StreamWriter', () => {
     appendEvents.mockResolvedValue({ persisted: true })
   })
 
+  it('continues the saved cursor only after the current controller has durably appended the event', async () => {
+    let persist!: () => void
+    appendEvents.mockImplementationOnce(
+      () =>
+        new Promise<{ persisted: true }>((resolve) => {
+          persist = () => resolve({ persisted: true })
+        })
+    )
+    const lease = { key: 'chat-lock', value: 'stream-1\ncontroller-2' }
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+      lease,
+      initialSeq: 12,
+    })
+    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    writer.attach(controller as unknown as ReadableStreamDefaultController)
+    const published = writer.publish({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'suffix' },
+    })
+    await Promise.resolve()
+    expect(appendEvents).toHaveBeenCalledWith(
+      [expect.objectContaining({ seq: 13 })],
+      { streamId: 'stream-1' },
+      lease
+    )
+    expect(controller.enqueue).not.toHaveBeenCalled()
+    persist()
+    await published
+    expect(controller.enqueue).toHaveBeenCalledOnce()
+    await writer.close()
+  })
+
+  it('does not deliver an event from a controller whose durable append was rejected', async () => {
+    appendEvents.mockRejectedValueOnce(new Error('ownership lost'))
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+      lease: { key: 'chat-lock', value: 'old-controller' },
+    })
+    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    writer.attach(controller as unknown as ReadableStreamDefaultController)
+    await expect(
+      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'stale' } })
+    ).rejects.toThrow('ownership lost')
+    expect(controller.enqueue).not.toHaveBeenCalled()
+    await expect(writer.close()).rejects.toThrow('ownership lost')
+    expect(controller.close).toHaveBeenCalledOnce()
+  })
+
+  it('does not deliver unreplayable events when an owned controller exhausts its byte budget', async () => {
+    appendEvents.mockResolvedValueOnce({
+      persisted: false,
+      refusal: { resource: 'owner_redis_bytes', currentBytes: 32, limitBytes: 32, attemptedBytes: 1 },
+    })
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+      userId: 'user-1',
+      lease: { key: 'chat-lock', value: 'current-controller' },
+    })
+    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    writer.attach(controller as unknown as ReadableStreamDefaultController)
+    await expect(writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'unsaved' } }))
+      .rejects.toThrow('Stream replay byte budget exhausted')
+    expect(controller.enqueue).not.toHaveBeenCalled()
+    expect(writer.persistenceStopped).toBe(true)
+    await expect(writer.close()).rejects.toThrow('Stream replay byte budget exhausted')
+  })
+
   it('enqueues before persistence completes and flushes pending writes on close', async () => {
-    let releasePersist: (() => void) | null = null
+    let releasePersist!: () => void
     appendEvents.mockImplementation(
       () =>
         new Promise<{ persisted: true }>((resolve) => {
@@ -74,10 +145,7 @@ describe('StreamWriter', () => {
     expect(appendEvents).toHaveBeenCalledOnce()
     expect(closeCount).toBe(0)
 
-    const resolvePersist = releasePersist
-    if (typeof resolvePersist === 'function') {
-      resolvePersist()
-    }
+    releasePersist()
     await closePromise
 
     expect(closeCount).toBe(1)

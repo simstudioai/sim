@@ -19,10 +19,8 @@ import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/g
 import { scopeProviderToolCallEvent } from '@/lib/mothership/request/go/tool-call-identity'
 import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
 import {
-  handleSubagentRouting,
+  applyStreamEvent,
   prePersistClientExecutableToolCall,
-  sseHandlers,
-  subAgentHandlers,
 } from '@/lib/mothership/request/handlers'
 import {
   flushSubagentThinkingBlock,
@@ -33,7 +31,6 @@ import {
   AbortReason,
   eventToStreamEvent,
   hasAbortMarker,
-  isSubagentSpanStreamEvent,
   parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session'
 import {
@@ -284,6 +281,7 @@ export async function runStreamLoop(
           return true
         }
 
+        await options.assertControllerOwnership?.()
         const parsedEvent = parsePersistedStreamEventEnvelope(raw)
         if (!parsedEvent.ok) {
           const detail = [parsedEvent.message, ...(parsedEvent.errors ?? [])]
@@ -383,6 +381,7 @@ export async function runStreamLoop(
         try {
           await options.onEvent?.(streamEvent)
         } catch (error) {
+          if (options.assertControllerOwnership) throw error
           logger.warn('Failed to forward stream event', {
             type: streamEvent.type,
             error: getErrorMessage(error),
@@ -401,40 +400,7 @@ export async function runStreamLoop(
           return context.streamComplete || undefined
         }
 
-        if (isSubagentSpanStreamEvent(streamEvent)) {
-          await sseHandlers.span?.(streamEvent, context, execContext, options)
-          return
-        }
-
-        // Subagent-lane events are routed ONLY by their own scope. A valid one
-        // (has parentToolCallId) goes to the subagent handler; a malformed one
-        // (missing parentToolCallId — Go always stamps it, so this is defensive)
-        // is DROPPED rather than falling through to the main handler, which would
-        // merge foreign subagent text/tools into the durable main assistant
-        // message and mis-attribute it.
-        if (streamEvent.scope?.lane === 'subagent') {
-          if (handleSubagentRouting(streamEvent, context)) {
-            const handler = subAgentHandlers[streamEvent.type]
-            if (handler) {
-              await handler(streamEvent, context, execContext, options)
-            }
-          }
-          return context.streamComplete || undefined
-        }
-
-        const handler = sseHandlers[streamEvent.type]
-        if (handler) {
-          await handler(streamEvent, context, execContext, options)
-        }
-        if (
-          streamEvent.type === 'complete' ||
-          (streamEvent.type === 'run' && streamEvent.payload.kind === 'checkpoint_pause')
-        ) {
-          /** Only a handled leg boundary acknowledges the activity preceding it. */
-          if (streamEvent.payload.activityReceipt) {
-            context.receivedActivity = streamEvent.payload.activityReceipt
-          }
-        }
+        await applyStreamEvent(streamEvent, context, execContext, options)
         return context.streamComplete || undefined
       } finally {
         const dispatchMs = performance.now() - dispatchStart

@@ -45,7 +45,10 @@ describe('startAbortPoller heartbeat', () => {
     const streamId = 'stream-heartbeat-1'
     const chatId = 'chat-heartbeat-1'
 
-    const interval = startAbortPoller(streamId, controller, { chatId })
+    const interval = startAbortPoller(streamId, controller, {
+      chatId,
+      lease: { key: `copilot:chat-stream-lock:${chatId}`, value: `${streamId}\ncontroller-1` },
+    })
 
     try {
       await vi.advanceTimersByTimeAsync(15_000)
@@ -56,7 +59,7 @@ describe('startAbortPoller heartbeat', () => {
       expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(1)
       expect(redisConfigMockFns.mockExtendLock).toHaveBeenLastCalledWith(
         `copilot:chat-stream-lock:${chatId}`,
-        streamId,
+        `${streamId}\ncontroller-1`,
         60
       )
 
@@ -89,7 +92,10 @@ describe('startAbortPoller heartbeat', () => {
 
     redisConfigMockFns.mockExtendLock.mockRejectedValueOnce(new Error('redis down'))
 
-    const interval = startAbortPoller(streamId, controller, { chatId })
+    const interval = startAbortPoller(streamId, controller, {
+      chatId,
+      lease: { key: `copilot:chat-stream-lock:${chatId}`, value: `${streamId}\ncontroller-1` },
+    })
 
     try {
       await vi.advanceTimersByTimeAsync(20_000)
@@ -143,17 +149,22 @@ describe('startAbortPoller heartbeat', () => {
     }
   })
 
-  it('stops heartbeating after ownership is lost', async () => {
+  it('stops heartbeating and aborts the old controller after ownership is lost', async () => {
     const controller = new AbortController()
     const streamId = 'stream-lost'
     const chatId = 'chat-lost'
 
     redisConfigMockFns.mockExtendLock.mockResolvedValueOnce(false)
 
-    const interval = startAbortPoller(streamId, controller, { chatId })
+    const interval = startAbortPoller(streamId, controller, {
+      chatId,
+      lease: { key: `copilot:chat-stream-lock:${chatId}`, value: `${streamId}\ncontroller-1` },
+    })
 
     try {
       await vi.advanceTimersByTimeAsync(21_000)
+      expect(controller.signal.aborted).toBe(true)
+      expect(controller.signal.reason.name).toBe('StreamControllerSupersededError')
       expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(1)
 
       await vi.advanceTimersByTimeAsync(60_000)
