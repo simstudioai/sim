@@ -2,9 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
@@ -34,9 +33,10 @@ vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage }))
 
 import { clearHandlers, executeTool, registerHandler } from './executor'
 
-const toolExecutorLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'ToolExecutor')
-]?.value
+const toolExecutorLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ToolExecutor')
+  ]?.value
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
@@ -104,7 +104,15 @@ describe('copilot tool executor fallback', () => {
     })
 
     await expect(
-      executeTool('throwing_tool', {}, { userId: 'user-1', resolvedSecretTraceRegistry: registry })
+      executeTool(
+        'throwing_tool',
+        {},
+        {
+          userId: 'user-1',
+          workflowId: '',
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
     ).resolves.toEqual({ success: false, error: `Provider reflected ${secret}` })
 
     expect(toolExecutorLogger?.error).toHaveBeenCalledWith('Tool execution failed', {
@@ -112,7 +120,7 @@ describe('copilot tool executor fallback', () => {
       error: 'Provider reflected {{API_KEY}}',
       abortSignalAborted: false,
     })
-    expect(JSON.stringify(toolExecutorLogger?.error.mock.calls)).not.toContain(secret)
+    expect(JSON.stringify(vi.mocked(toolExecutorLogger?.error).mock.calls)).not.toContain(secret)
   })
 
   it('falls back to app tool executor for dynamic sim tools', async () => {
@@ -347,7 +355,7 @@ describe('copilot tool executor fallback', () => {
       error: 'Tool not found: unknown_client_tool',
     })
 
-    await executeTool('unknown_client_tool', {}, { userId: 'user-1' })
+    await executeTool('unknown_client_tool', {}, { userId: 'user-1', workflowId: '' })
 
     expect(executeAppTool).toHaveBeenCalledWith(
       'unknown_client_tool',
@@ -356,42 +364,7 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it('converts run_function timeout from seconds to milliseconds for copilot calls', async () => {
-    isKnownTool.mockReturnValue(false)
-    isSimExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
-
-    await executeTool(
-      'run_function',
-      { code: 'return 1', timeout: 7 },
-      {
-        userId: 'user-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'ws-1',
-        copilotToolExecution: true,
-      }
-    )
-
-    expect(executeAppTool).toHaveBeenCalledWith(
-      'run_function',
-      expect.objectContaining({
-        timeout: 7000,
-        _context: expect.objectContaining({
-          copilotToolExecution: true,
-        }),
-      }),
-      expect.objectContaining({
-        operationContext: expect.objectContaining({
-          userId: 'user-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'ws-1',
-          copilotToolExecution: true,
-        }),
-      })
-    )
-  })
-
-  it('converts run_function timeout before invoking its registered Sim handler', async () => {
+  it('leaves parameter units to the registered handler', async () => {
     isKnownTool.mockReturnValue(true)
     isSimExecuted.mockReturnValue(true)
     isClientExecuted.mockReturnValue(false)
@@ -409,107 +382,11 @@ describe('copilot tool executor fallback', () => {
     expect(handler).toHaveBeenCalledWith(
       expect.objectContaining({
         code: 'return 1',
-        timeout: 7000,
+        timeout: 7,
       }),
       context
     )
     expect(executeAppTool).not.toHaveBeenCalled()
-  })
-
-  it('defaults copilot run_function timeout to 10 seconds when omitted', async () => {
-    isKnownTool.mockReturnValue(false)
-    isSimExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
-
-    await executeTool(
-      'run_function',
-      { code: 'return 1' },
-      {
-        userId: 'user-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'ws-1',
-        copilotToolExecution: true,
-      }
-    )
-
-    expect(executeAppTool).toHaveBeenCalledWith(
-      'run_function',
-      expect.objectContaining({
-        timeout: 10_000,
-      }),
-      expect.objectContaining({
-        operationContext: expect.objectContaining({
-          userId: 'user-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'ws-1',
-          copilotToolExecution: true,
-        }),
-      })
-    )
-  })
-
-  it('defaults copilot run_function timeout to 10 seconds when invalid', async () => {
-    isKnownTool.mockReturnValue(false)
-    isSimExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
-
-    await executeTool(
-      'run_function',
-      { code: 'return 1', timeout: 0 },
-      {
-        userId: 'user-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'ws-1',
-        copilotToolExecution: true,
-      }
-    )
-
-    expect(executeAppTool).toHaveBeenCalledWith(
-      'run_function',
-      expect.objectContaining({
-        timeout: 10_000,
-      }),
-      expect.objectContaining({
-        operationContext: expect.objectContaining({
-          userId: 'user-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'ws-1',
-          copilotToolExecution: true,
-        }),
-      })
-    )
-  })
-
-  it('does not let copilot run_function timeout exceed the default execution limit', async () => {
-    isKnownTool.mockReturnValue(false)
-    isSimExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
-
-    await executeTool(
-      'run_function',
-      { code: 'return 1', timeout: 10_000 },
-      {
-        userId: 'user-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'ws-1',
-        copilotToolExecution: true,
-      }
-    )
-
-    expect(executeAppTool).toHaveBeenCalledWith(
-      'run_function',
-      expect.objectContaining({
-        timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
-      }),
-      expect.objectContaining({
-        operationContext: expect.objectContaining({
-          userId: 'user-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'ws-1',
-          copilotToolExecution: true,
-        }),
-      })
-    )
   })
 
   /**
