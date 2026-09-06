@@ -33,6 +33,11 @@ export interface StreamTextCompletion {
   textLength?: number | undefined;
 }
 
+/** Replayed tool activity is presentation only; it never authorizes execution or approval. */
+export interface StreamToolReplay {
+  replay?: true | undefined;
+}
+
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamTextReceipt {
   message: string;

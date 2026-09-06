@@ -16,7 +16,11 @@ import {
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamTextCompletion, StreamTextPosition } from '@/lib/mothership/generated/protocol'
+import type {
+  StreamTextCompletion,
+  StreamTextPosition,
+  StreamToolReplay,
+} from '@/lib/mothership/generated/protocol'
 import { hasAddressableId } from '@/lib/mothership/resources/types'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
@@ -41,7 +45,9 @@ type EnvelopeToStreamEvent<T> = T extends {
         ? TPayload & StreamTextPosition
         : TType extends 'complete'
           ? TPayload & StreamTextCompletion
-          : TPayload
+          : TType extends 'tool'
+            ? TPayload & StreamToolReplay
+            : TPayload
       scope?: Exclude<TScope, undefined>
       /** Wire ordering key, carried off the envelope; absent on synthetic events. */
       seq?: number
@@ -264,6 +270,7 @@ function isValidTextPayload(payload: JsonRecord): boolean {
 }
 
 function isValidToolPayload(payload: JsonRecord): boolean {
+  if (payload.replay !== undefined && payload.replay !== true) return false
   if (typeof payload.toolCallId !== 'string') return false
   if (typeof payload.toolName !== 'string') return false
   const phase = payload.phase

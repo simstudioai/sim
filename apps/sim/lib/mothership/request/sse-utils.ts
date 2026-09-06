@@ -44,6 +44,8 @@ export function wasToolResultSeen(scope: DedupeScope, toolCallId: string): boole
 
 export function shouldSkipToolCallEvent(scope: DedupeScope, event: StreamEvent): boolean {
   if (!isToolCallStreamEvent(event)) return false
+  /** A history receipt does not consume the later executable handoff for the same call. */
+  if (event.payload.replay) return false
   if (isPathlessVfsGeneratingEvent(event)) return true
   if (event.payload.status === TOOL_CALL_STATUS.generating) return false
   const toolCallId = getToolCallIdFromCallEvent(event)
