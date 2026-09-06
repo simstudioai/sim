@@ -86,6 +86,12 @@ function delegatedWriteOperation<const Id extends string>(id: Id) {
 export const tableOperations = {
   list: toolReadOperation('tables.list'),
   read: toolReadOperation('tables.read'),
+  readSnapshot: defineWorkspaceOperation({
+    id: 'tables.snapshot.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
   create: toolWriteOperation('tables.create'),
   update: writeOperation('tables.update'),
   delete: writeOperation('tables.delete'),

@@ -55,7 +55,7 @@ export interface RenameTableByVfsPathInput extends TableVfsReferenceInput {
 
 export type DeleteTableByVfsPathInput = TableVfsReferenceInput
 
-async function resolveTableByVfsName(
+export async function resolveTableByVfsName(
   workspaceId: string,
   sourceName: string,
   sourceSegments?: string[]
