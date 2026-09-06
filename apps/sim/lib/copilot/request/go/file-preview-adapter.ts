@@ -326,7 +326,6 @@ export function buildPreviewContentUpdate(
     previousText.length === 0 ||
     !nextText.startsWith(previousText) ||
     operation === 'patch' ||
-    operation === 'append' ||
     now - lastSnapshotAt >= DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS
 
   if (shouldForceSnapshot) {
