@@ -3,6 +3,7 @@ import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
 import type { RequestTraceV1Span } from '@/lib/mothership/generated/request-trace-v1'
 import type { ProviderToolCallIdentity } from '@/lib/mothership/request/go/tool-call-identity'
 import type { StreamEvent } from '@/lib/mothership/request/session'
@@ -177,6 +178,7 @@ export interface StreamingContext {
    */
   providerToolCallIdentity?: ProviderToolCallIdentity
   accumulatedContent: string
+  receivedActivity?: StreamActivityReceipt
   finalAssistantContent: string
   sawMainToolCall: boolean
   contentBlocks: ContentBlock[]
