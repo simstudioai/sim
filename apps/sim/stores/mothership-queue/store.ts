@@ -59,15 +59,6 @@ const setQueueForChat = (
 ): Record<string, QueuedMothershipMessage[]> =>
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
 
-// Drop the volatile `queuedSendHandoff` from the persisted snapshot — its
-// stream reference is meaningless after reload; the dispatcher mints a fresh
-// one at send time if needed.
-const stripVolatile = (message: QueuedMothershipMessage): QueuedMothershipMessage => {
-  if (!message.queuedSendHandoff) return message
-  const { queuedSendHandoff: _drop, ...rest } = message
-  return rest
-}
-
 export const useMothershipQueueStore = create<MothershipQueueState>()(
   devtools(
     persist(
@@ -97,18 +88,18 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const index = current.findIndex((m) => m.id === id)
             if (index === -1) return state
             const next = [...current]
-            // Strip `queuedSendHandoff` — references the stream active at
-            // original enqueue time; the dispatcher mints a fresh one at send.
-            // Strip `resumeUserMessageId` too: it deduplicates against a
-            // server-side copy of the PRE-edit text, which the edited message is
-            // not a duplicate of, so reusing it would suppress this send.
+            /** Editing changes the request identity, never an unresolved Stop dependency. */
             const {
-              queuedSendHandoff: _stale,
+              queuedSendHandoff,
               resumeUserMessageId: _staleResume,
+              retryRequired: _retry,
               ...rest
             } = next[index]
             next[index] = {
               ...rest,
+              ...(queuedSendHandoff?.stopRequired
+                ? { queuedSendHandoff: { ...queuedSendHandoff, userMessageId: undefined } }
+                : {}),
               content: patch.content,
               fileAttachments: patch.fileAttachments,
               contexts: patch.contexts,
@@ -171,14 +162,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         // `editing` is intentionally omitted — the composer that holds the
         // edit text is component-local and empty after reload, so a persisted
         // editing flag would render an in-edit row with nothing bound.
-        partialize: (state) => ({
-          queues: Object.fromEntries(
-            Object.entries(state.queues).map(([key, messages]) => [
-              key,
-              messages.map(stripVolatile),
-            ])
-          ),
-        }),
+        partialize: (state) => ({ queues: state.queues }),
       }
     ),
     { name: 'mothership-queue-store' }

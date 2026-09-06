@@ -72,6 +72,7 @@ import {
   isRunToolActiveForId,
   stopRunToolExecutions,
 } from '@/lib/mothership/tools/client/run-tool-execution'
+import { readQueuedSendHandoffState } from '@/app/workspace/[workspaceId]/home/hooks/send-handoff'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
@@ -531,6 +532,179 @@ describe('useChat remount send recovery', () => {
       }
     }
   )
+
+  it.each([
+    [false, 'send-now'],
+    [true, 'send-now'],
+    [false, 'during-stop'],
+    [true, 'during-stop'],
+  ] as const)(
+    'keeps a queued correction behind Stop settlement (retry settles: %s, mode: %s)',
+    async (retrySettles, mode) => {
+      state.postBehavior = 'task'
+      state.abortSettlements = [false, retrySettles]
+      let releasePersistence = () => {}
+      const persistenceGate = new Promise<void>((resolve) => {
+        releasePersistence = resolve
+      })
+      let persistenceStarted = false
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/api/mothership/chat/stop')) {
+          persistenceStarted = true
+          await persistenceGate
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult, unmount } = renderUseChatInChat('chat-a')
+      await act(async () => {
+        void getResult().sendMessage('watch the invoice run')
+      })
+      await waitFor(() =>
+        getResult().messages.some((message) =>
+          message.contentBlocks?.some((block) => block.type === 'task')
+        )
+      )
+      let sending: Promise<void> = Promise.resolve()
+      if (mode === 'during-stop') {
+        await act(async () => {
+          sending = getResult()
+            .stopGeneration()
+            .catch(() => {})
+        })
+      }
+      await act(async () => {
+        await getResult().sendMessage('inspect the second invoice instead')
+      })
+      const pendingHandoff = readQueuedSendHandoffState()
+      const queued =
+        allQueuedMessages()[0] ??
+        (pendingHandoff ? { id: pendingHandoff.id, content: pendingHandoff.message } : undefined)
+      expect(queued?.content).toBe('inspect the second invoice instead')
+      if (!queued) throw new Error('The queued correction is missing')
+      state.postBehavior = 'hang'
+      if (mode === 'send-now') {
+        await act(async () => {
+          sending = getResult().sendNow(queued.id)
+        })
+      }
+      try {
+        await waitFor(() => persistenceStarted && state.abortBodies.length === 1)
+        expect(state.postBodies).toHaveLength(1)
+      } finally {
+        await act(async () => {
+          releasePersistence()
+        })
+      }
+      if (retrySettles) {
+        await waitFor(() => state.postBodies.length === 2)
+        expect(state.postBodies[1].message).toBe('inspect the second invoice instead')
+        expect(allQueuedMessages()).toHaveLength(0)
+      } else {
+        await act(async () => {
+          await sending
+        })
+        await waitFor(() => allQueuedMessages().some((message) => message.retryRequired === true))
+        expect(state.postBodies).toHaveLength(1)
+        expect(allQueuedMessages()).toEqual([
+          expect.objectContaining({ id: queued.id, content: queued.content }),
+        ])
+        expect(getResult().error).toBe('Previous response is still shutting down.')
+        const failed = allQueuedMessages()[0]
+        expect(failed).toMatchObject({
+          retryRequired: true,
+          queuedSendHandoff: {
+            stopRequired: true,
+            supersededStreamId: state.postBodies[0].userMessageId,
+          },
+        })
+        const stored = window.sessionStorage.getItem('mothership-queue')
+        expect(stored).not.toBeNull()
+        await act(async () => {
+          unmount()
+          useMothershipQueueStore.setState({ queues: {}, editing: {} })
+          window.sessionStorage.setItem('mothership-queue', stored ?? '')
+          await useMothershipQueueStore.persist.rehydrate()
+        })
+        const recovered = renderUseChatInChat('chat-a')
+        await act(async () => {
+          await sleep(20)
+        })
+        expect(state.postBodies).toHaveLength(1)
+        expect(allQueuedMessages()[0]).toEqual(failed)
+        state.abortSettlements = [false]
+        await act(async () => {
+          await recovered.getResult().sendNow(queued.id)
+        })
+        expect(state.postBodies).toHaveLength(1)
+        expect(state.abortBodies).toHaveLength(3)
+        expect(state.abortBodies[2]).toEqual(state.abortBodies[0])
+        state.abortSettlements = [true]
+        await act(async () => {
+          void recovered.getResult().sendNow(queued.id)
+        })
+        await waitFor(() => state.postBodies.length === 2)
+        expect(state.postBodies[1]).toMatchObject({
+          message: queued.content,
+          userMessageId: failed.queuedSendHandoff?.userMessageId,
+        })
+        expect(state.abortBodies).toHaveLength(4)
+        expect(state.abortBodies[3]).toEqual(state.abortBodies[0])
+        expect(allQueuedMessages()).toHaveLength(0)
+      }
+      expect(state.abortBodies).toHaveLength(retrySettles ? 2 : 4)
+    }
+  )
+
+  it('retains the handoff if the surface unmounts before Stop settles', async () => {
+    state.postBehavior = 'task'
+    state.abortSettlements = [false, false]
+    let releasePersistence = () => {}
+    const persistenceGate = new Promise<void>((resolve) => {
+      releasePersistence = resolve
+    })
+    let persistenceStarted = false
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input)
+      if (url.includes('/api/mothership/chat/stop')) {
+        persistenceStarted = true
+        await persistenceGate
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult, unmount } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('watch the invoice run')
+    })
+    await waitFor(() =>
+      getResult().messages.some((message) =>
+        message.contentBlocks?.some((block) => block.type === 'task')
+      )
+    )
+    await act(async () => {
+      await getResult().sendMessage('inspect the second invoice instead')
+    })
+    const queued = allQueuedMessages()[0]
+    let sending: Promise<void> = Promise.resolve()
+    await act(async () => {
+      sending = getResult().sendNow(queued.id)
+    })
+    await waitFor(() => persistenceStarted)
+    const prepared = readQueuedSendHandoffState()
+    await act(async () => {
+      unmount()
+      releasePersistence()
+      await sending
+    })
+    expect(state.postBodies).toHaveLength(1)
+    expect(readQueuedSendHandoffState()).toMatchObject({
+      id: queued.id,
+      message: queued.content,
+      supersededStreamId: state.postBodies[0].userMessageId,
+      userMessageId: prepared?.userMessageId,
+      stopRequired: true,
+    })
+  })
 
   it('does not certify an unsettled Stop before the chat ID arrives', async () => {
     state.abortSettlements = [false, false]

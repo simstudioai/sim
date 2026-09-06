@@ -3066,8 +3066,12 @@ export function useChat(
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
       if (!message.trim() || !workspaceId) return false
-      const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
+      const { onOptimisticSendApplied } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
+      let queuedSendHandoff = options?.queuedSendHandoff
+      if (pendingStop && queuedSendHandoff) {
+        queuedSendHandoff = { ...queuedSendHandoff, stopRequired: true }
+      }
       const pendingStopStreamId = pendingStop
         ? queuedSendHandoff?.supersededStreamId ||
           locallyTerminalStreamIdRef.current ||
@@ -3109,6 +3113,7 @@ export function useChat(
           ...(chatId ? { chatId } : {}),
           workspaceId,
           supersededStreamId: queuedSendHandoff.supersededStreamId,
+          ...(queuedSendHandoff.stopRequired ? { stopRequired: true } : {}),
           userMessageId,
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
@@ -3243,9 +3248,28 @@ export function useChat(
       let gen: number | undefined
       let streamTargetChatId: string | undefined
       try {
-        if (pendingStop) {
+        if (pendingStop || queuedSendHandoff?.stopRequired) {
           try {
-            await pendingStop
+            if (pendingStop) {
+              await pendingStop
+            } else {
+              const predecessor = queuedSendHandoff?.supersededStreamId
+              if (!predecessor) throw new Error('The previous response could not be identified.')
+              const stopped = await requestJson(copilotChatAbortContract, {
+                signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
+                headers: {},
+                body: {
+                  streamId: predecessor,
+                  workspaceId,
+                  ...(requestChatId ? { chatId: requestChatId } : {}),
+                },
+              })
+              if (!stopped.settled) throw new Error('Previous response is still shutting down.')
+            }
+            if (queuedSendHandoff) {
+              queuedSendHandoff = { ...queuedSendHandoff, stopRequired: false }
+              writeQueuedSendHandoff(requestChatId)
+            }
             if (!requestChatId) {
               requestChatId =
                 queuedSendHandoff?.chatId ??
@@ -3810,6 +3834,7 @@ export function useChat(
         chatId: handoff.chatId,
         supersededStreamId: handoff.supersededStreamId,
         userMessageId: handoff.userMessageId,
+        ...(handoff.stopRequired ? { stopRequired: true } : {}),
       },
     }).finally(() => {
       if (
@@ -4152,9 +4177,17 @@ export function useChat(
         withdrawnUserMessageId?: string
       ) => {
         const withdrawnByCleanup = withdrawnUserMessageId !== undefined
-        if (!handoff) {
-          clearQueuedSendHandoffState(msg.id)
-        }
+        const savedHandoff = readQueuedSendHandoffState()
+        const retainedHandoff =
+          savedHandoff?.id === msg.id
+            ? {
+                id: savedHandoff.id,
+                chatId: savedHandoff.chatId,
+                supersededStreamId: savedHandoff.supersededStreamId,
+                userMessageId: savedHandoff.userMessageId,
+                stopRequired: savedHandoff.stopRequired,
+              }
+            : handoff
         clearQueuedSendHandoffClaim(msg.id)
         if (!removedFromQueue) {
           return
@@ -4165,6 +4198,7 @@ export function useChat(
         // If the user explicitly removed this message during dispatch, honor
         // that and don't re-insert on failure.
         if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
+          clearQueuedSendHandoffState(msg.id)
           return
         }
         /* A chatless surface regenerates its queue key every mount, so a
@@ -4172,6 +4206,7 @@ export function useChat(
            the next surface instead. A chat-bound key is the stable chat id, so
            the queue itself is the durable retry. */
         if (withdrawnByCleanup && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+          clearQueuedSendHandoffState(msg.id)
           handOffWithdrawnSend({
             content: dispatched.content,
             fileAttachments: dispatched.fileAttachments,
@@ -4180,8 +4215,12 @@ export function useChat(
           })
           return
         }
+        /** Once restored, the queue owns recovery; a second handoff reader must not resend it. */
+        clearQueuedSendHandoffState(msg.id)
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
           ...dispatched,
+          ...(retainedHandoff ? { queuedSendHandoff: retainedHandoff } : {}),
+          retryRequired: !withdrawnByCleanup,
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
         })
       }
@@ -4251,7 +4290,7 @@ export function useChat(
         const queueState = useMothershipQueueStore.getState()
         const activeChatKey = chatKeyRef.current
         const msg = queueState.queues[activeChatKey]?.[0]
-        if (!msg) continue
+        if (!msg || msg.retryRequired) continue
         // Pause draining if the head is bound to the composer; dispatching now
         // would race the eventual submit. The next kick on edit-resolve resumes us.
         if (queueState.editing[activeChatKey] === msg.id) continue
