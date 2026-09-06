@@ -1,12 +1,8 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1SpanLifecycleEvent,
-} from '@/lib/mothership/generated/mothership-stream-v1'
+import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
@@ -53,32 +49,6 @@ import type {
 const logger = createLogger('CopilotGoStream')
 
 export { buildPreviewContentUpdate, decodeJsonStringPrefix, extractEditContent }
-
-type JsonRecord = Record<string, unknown>
-
-type SubagentSpanData = {
-  pending?: boolean
-  toolCallId?: string
-}
-
-function asJsonRecord(value: unknown): JsonRecord | undefined {
-  return isRecordLike(value) ? (value as JsonRecord) : undefined
-}
-
-function parseSubagentSpanData(value: unknown): SubagentSpanData | undefined {
-  const data = asJsonRecord(value)
-  if (!data) {
-    return undefined
-  }
-
-  const toolCallId = typeof data.tool_call_id === 'string' ? data.tool_call_id : undefined
-  const pending = typeof data.pending === 'boolean' ? data.pending : undefined
-
-  return {
-    ...(toolCallId ? { toolCallId } : {}),
-    ...(pending !== undefined ? { pending } : {}),
-  }
-}
 
 export class CopilotBackendError extends Error {
   status?: number
@@ -422,91 +392,8 @@ export async function runStreamLoop(
         }
 
         if (isSubagentSpanStreamEvent(streamEvent)) {
-          const spanData = parseSubagentSpanData(streamEvent.payload.data)
-          const toolCallId = streamEvent.scope?.parentToolCallId || spanData?.toolCallId
-          // Deterministic nesting identity. spanId / parentSpanId are the
-          // primary keys; the toolCallId-keyed stack below is the legacy
-          // fallback for streams that predate span identity.
-          const spanId = streamEvent.scope?.spanId
-          const parentSpanId = streamEvent.scope?.parentSpanId
-          const subagentName = streamEvent.payload.agent
-          const spanEvt = streamEvent.payload.event
-          const isPendingPause = spanData?.pending === true
-          // A subagent lifecycle boundary breaks the main thinking stream.
-          // Flush any open thinking block into contentBlocks BEFORE we push
-          // the `subagent` marker, or the persisted order ends up
-          // [subagent, thinking] and the UI renders the subagent group
-          // above a thinking block that actually happened first.
-          flushSubagentThinkingBlock(context)
-          flushThinkingBlock(context)
-          if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
-            if (toolCallId) {
-              context.subAgentContent[toolCallId] ??= ''
-              context.subAgentToolCalls[toolCallId] ??= []
-            }
-            if (toolCallId && subagentName) {
-              const payloadData = streamEvent.payload.data
-              const rawName =
-                payloadData && typeof payloadData === 'object' && !Array.isArray(payloadData)
-                  ? (payloadData as Record<string, unknown>).name
-                  : undefined
-              const displayName = typeof rawName === 'string' && rawName ? rawName : undefined
-              const openParents = (context.openSubagentParents ??= new Set<string>())
-              if (!openParents.has(toolCallId)) {
-                openParents.add(toolCallId)
-                context.contentBlocks.push({
-                  type: 'subagent',
-                  content: subagentName,
-                  ...(displayName ? { subagentName: displayName } : {}),
-                  parentToolCallId: toolCallId,
-                  ...(spanId ? { spanId } : {}),
-                  ...(parentSpanId ? { parentSpanId } : {}),
-                  timestamp: Date.now(),
-                })
-              } else if (displayName) {
-                // The lane was opened by the dispatch-time start, which fires
-                // before the trigger args (and therefore the name) exist. The
-                // phase-3 start re-announces the lane WITH the name; backfill
-                // it instead of dropping the duplicate wholesale.
-                for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
-                  const b = context.contentBlocks[i]
-                  if (b.type === 'subagent' && b.parentToolCallId === toolCallId) {
-                    if (!b.subagentName) b.subagentName = displayName
-                    break
-                  }
-                }
-              }
-            } else {
-              logger.warn('subagent start missing toolCallId or agent name', {
-                hasToolCallId: Boolean(toolCallId),
-                hasSubagentName: Boolean(subagentName),
-              })
-            }
-            return
-          }
-          if (spanEvt === MothershipStreamV1SpanLifecycleEvent.end) {
-            if (isPendingPause) {
-              return
-            }
-            if (!toolCallId) {
-              logger.warn('subagent end missing toolCallId')
-            }
-            if (toolCallId) {
-              for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
-                const b = context.contentBlocks[i]
-                if (
-                  b.type === 'subagent' &&
-                  b.endedAt === undefined &&
-                  b.parentToolCallId === toolCallId
-                ) {
-                  b.endedAt = Date.now()
-                  break
-                }
-              }
-              context.openSubagentParents?.delete(toolCallId)
-            }
-            return
-          }
+          await sseHandlers.span?.(streamEvent, context, execContext, options)
+          return
         }
 
         // Subagent-lane events are routed ONLY by their own scope. A valid one

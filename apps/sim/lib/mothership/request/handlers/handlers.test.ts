@@ -150,6 +150,56 @@ describe('sse-handlers tool lifecycle', () => {
     }
   })
 
+  it('replays completed child lanes once without reopening traces or losing errors', async () => {
+    const start = vi.spyOn(context.trace, 'startSpan')
+    const end = vi.spyOn(context.trace, 'endSpan')
+    const emit = (lane: string, event: 'start' | 'end', data?: Record<string, unknown>) => {
+      const scope = {
+        lane: 'subagent' as const,
+        agentId: 'task',
+        parentToolCallId: lane,
+        spanId: lane,
+      }
+      const frame: StreamEvent =
+        event === 'start'
+          ? {
+              type: 'span',
+              scope,
+              payload: { kind: 'subagent', agent: 'task', event: 'start', data },
+            }
+          : {
+              type: 'span',
+              scope,
+              payload: { kind: 'subagent', agent: 'task', event: 'end', data },
+            }
+      return sseHandlers.span(frame, context, execContext, { interactive: false })
+    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await emit('A', 'start', { name: 'Inspect workflow' })
+      await emit('B', 'start', { name: 'Check constraints' })
+      await emit('B', 'end', { pending: true })
+      if (attempt === 0)
+        expect(
+          context.contentBlocks.find((block) => block.parentToolCallId === 'B')?.endedAt
+        ).toBeUndefined()
+      await emit('B', 'end', { error: 'Check failed' })
+      await emit('A', 'end')
+    }
+    expect(context.contentBlocks).toHaveLength(2)
+    expect(context.contentBlocks.find((block) => block.parentToolCallId === 'B')).toMatchObject({
+      subagentName: 'Check constraints',
+      error: 'Check failed',
+      endedAt: expect.any(Number),
+    })
+    expect(context.contentBlocks.find((block) => block.parentToolCallId === 'A')).toMatchObject({
+      subagentName: 'Inspect workflow',
+      endedAt: expect.any(Number),
+    })
+    expect(start).toHaveBeenCalledTimes(2)
+    expect(end).toHaveBeenCalledTimes(2)
+    expect(context.subAgentTraceSpans?.size).toBe(0)
+  })
+
   it('pins the workflow target into the args it persists and forwards', async () => {
     // The browser resolved its own target from the open tab while the server
     // resolved the run's workflow; in a workspace chat those disagreed and every
