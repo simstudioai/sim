@@ -110,23 +110,30 @@ export async function writeSessionSandboxFile(
         sandbox,
         resolved,
         { overwrite: options.overwrite, signal, timeoutMs, rootUser: false },
-        (staged) =>
-          content instanceof ReadableStream
-            ? streamSessionFile(
-                sandbox,
-                staged,
-                options.observe
-                  ? options.observe(
-                      { providerId: provider.id, sandboxId: sandbox.sandboxId },
-                      content
-                    )
-                  : content,
-                signal
+        async (staged) => {
+          const material = options.observe
+            ? options.observe(
+                { providerId: provider.id, sandboxId: sandbox.sandboxId },
+                content instanceof ReadableStream
+                  ? content
+                  : new Blob([
+                      typeof content === 'string' ? content : new Uint8Array(content),
+                    ]).stream()
               )
-            : sandbox.writeFile(
+            : content
+          try {
+            if (material instanceof ReadableStream) {
+              await streamSessionFile(sandbox, staged, material, signal)
+            } else {
+              await sandbox.writeFile(
                 staged,
-                typeof content === 'string' ? content : new Uint8Array(content).buffer
+                typeof material === 'string' ? material : new Uint8Array(material).buffer
               )
+            }
+          } finally {
+            if (material instanceof ReadableStream) await material.cancel().catch(() => {})
+          }
+        }
       )
       return { outcome: 'written', path: resolved }
     })

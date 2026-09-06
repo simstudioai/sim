@@ -163,6 +163,57 @@ describe('workbench file cancellation', () => {
     expect(run).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['text', 'binary'] as const)(
+    'observes exactly the %s bytes written before publication',
+    async (kind) => {
+      const content = kind === 'text' ? '保存\n🙂' : new Uint8Array([0, 255, 128, 13, 10])
+      const expected = Buffer.from(content)
+      const observe = vi.fn((_machine, stream: ReadableStream<Uint8Array>) =>
+        stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>())
+      )
+      writeStream.mockImplementation(async (_path, stream: ReadableStream<Uint8Array>) => {
+        expect(Buffer.from(await new Response(stream).arrayBuffer())).toEqual(expected)
+        expect(run).not.toHaveBeenCalled()
+      })
+      expect(
+        await writeSessionSandboxFile('chat', 'saved.bin', content, undefined, {
+          overwrite: true,
+          observe,
+        })
+      ).toMatchObject({ outcome: 'written' })
+      expect(observe).toHaveBeenCalledTimes(1)
+      expect(observe.mock.calls[0][0].providerId).toBe('e2b')
+      expect(write).not.toHaveBeenCalled()
+      expect(run).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('refuses publication and releases the observed stream when receipt persistence fails at EOF', async () => {
+    let observed: ReadableStream<Uint8Array> | undefined
+    const observe = (_machine: unknown, stream: ReadableStream<Uint8Array>) => {
+      observed = stream.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          flush() {
+            throw new Error('Receipt storage unavailable')
+          },
+        })
+      )
+      return observed
+    }
+    writeStream.mockImplementation(async (_path, stream: ReadableStream<Uint8Array>) => {
+      await new Response(stream).arrayBuffer()
+    })
+    expect(
+      await writeSessionSandboxFile('chat', 'saved.txt', 'data', undefined, {
+        overwrite: true,
+        observe,
+      })
+    ).toMatchObject({ outcome: 'error', detail: 'Receipt storage unavailable' })
+    expect(observed?.locked).toBe(false)
+    expect(run).not.toHaveBeenCalled()
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['refused', 'early acknowledgement', 'source failure', 'stopped'])(
     'cancels the streaming source and removes only staging after %s',
     async (failure) => {
