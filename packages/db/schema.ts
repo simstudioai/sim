@@ -3455,6 +3455,8 @@ export const copilotAsyncToolCalls = pgTable(
     /** Separate from the model-facing terminal result, which can precede cleanup. */
     executionStartedAt: timestamp('execution_started_at'),
     executionSettledAt: timestamp('execution_settled_at'),
+    /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
+    clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')
       .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
       .notNull()

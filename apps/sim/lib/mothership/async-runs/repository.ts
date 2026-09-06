@@ -664,6 +664,7 @@ export async function prepareWorkbenchAccess(input: {
           eq(copilotAsyncToolCalls.runId, input.runId),
           eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
           isNotNull(copilotAsyncToolCalls.executionStartedAt),
+          isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
           isNull(copilotAsyncToolCalls.executionSettledAt)
         )
       )
@@ -724,6 +725,7 @@ export async function prepareWorkbenchAccess(input: {
           ne(copilotRuns.id, input.runId),
           olderThanOwner,
           isNotNull(copilotAsyncToolCalls.executionStartedAt),
+          isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
           or(
             isNull(copilotAsyncToolCalls.executionSettledAt),
             sql`EXISTS (SELECT 1 FROM jsonb_each(${copilotAsyncToolCalls.sandboxProcesses}) AS process WHERE process.value->>'settled' IS DISTINCT FROM 'true')`
@@ -820,6 +822,34 @@ export async function areStreamToolExecutionsSettled(
   )
 }
 
+/** Execution IDs reserved by this run's browser-facing workflow handlers, independent of tool results. */
+export async function getUnsettledClientWorkflowExecutions(streamId: string, userId: string) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
+    async () => {
+      const rows = await db
+        .select({ executionId: copilotAsyncToolCalls.clientWorkflowExecutionId })
+        .from(copilotAsyncToolCalls)
+        .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+        .where(
+          and(
+            eq(copilotRuns.streamId, streamId),
+            eq(copilotRuns.userId, userId),
+            eq(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+            isNotNull(copilotRuns.toolAdmissionClosedAt),
+            isNotNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+            isNotNull(copilotAsyncToolCalls.executionStartedAt),
+            isNull(copilotAsyncToolCalls.executionSettledAt)
+          )
+        )
+      return rows.flatMap((row) => (row.executionId ? [row.executionId] : []))
+    }
+  )
+}
+
 export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefined) {
   if (!claimedBy?.startsWith(WORKFLOW_EXECUTION_CLAIM_PREFIX)) return undefined
   const executionId = claimedBy.slice(WORKFLOW_EXECUTION_CLAIM_PREFIX.length)
@@ -827,7 +857,11 @@ export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefin
 }
 
 /** Browser pickup and server fallback share the parent run's Stop/admission lock. */
-export async function claimWorkflowToolExecution(toolCallId: string, executionId: string) {
+export async function claimWorkflowToolExecution(
+  toolCallId: string,
+  executionId: string,
+  executor: 'client' | 'sim'
+) {
   const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -864,11 +898,15 @@ export async function claimWorkflowToolExecution(toolCallId: string, executionId
             claimedBy,
             claimedAt: now,
             updatedAt: now,
+            ...(executor === 'client'
+              ? { executionStartedAt: now, clientWorkflowExecutionId: executionId }
+              : {}),
           })
           .where(
             and(
               eq(copilotAsyncToolCalls.toolCallId, toolCallId),
               isNull(copilotAsyncToolCalls.claimedBy),
+              isNull(copilotAsyncToolCalls.executionStartedAt),
               or(
                 inArray(copilotAsyncToolCalls.status, [
                   ASYNC_TOOL_STATUS.running,

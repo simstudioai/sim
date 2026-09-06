@@ -90,6 +90,7 @@ import {
   getAsyncToolCall,
   getRunSegment,
   releaseWorkflowToolExecutionClaim,
+  settleSimToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
@@ -496,6 +497,26 @@ async function handleExecutePost(
   let executionIdClaimCommitted = false
   let workflowToolClaimAcquired = false
   let copilotToolCallId: string | undefined
+  let copilotExecutionTransferredToStream = false
+  let copilotSettlement: Promise<void> | undefined
+  const settleCopilotExecution = async () => {
+    if (!copilotToolCallId || !workflowToolClaimAcquired) return
+    copilotSettlement ??= settleSimToolExecution(copilotToolCallId).catch((error) => {
+      reqLogger.warn('Could not record Copilot workflow execution settlement', {
+        copilotToolCallId,
+        executionId,
+        error: getErrorMessage(error),
+      })
+    })
+    await copilotSettlement
+  }
+  const executeBoundWorkflow = async <T>(execute: () => Promise<T>): Promise<T> => {
+    try {
+      return await execute()
+    } finally {
+      await settleCopilotExecution()
+    }
+  }
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -1149,7 +1170,11 @@ async function handleExecutePost(
     }
 
     if (copilotToolCallId) {
-      const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
+      const boundToolCall = await claimWorkflowToolExecution(
+        copilotToolCallId,
+        executionId,
+        'client'
+      )
       if (!boundToolCall) {
         reqLogger.warn('Rejected duplicate Copilot workflow execution', {
           copilotToolCallId,
@@ -1721,41 +1746,44 @@ async function handleExecutePost(
         allowLargeValueWorkflowScope,
         requestSignal: req.signal,
         requestHeaders: req.headers,
-        executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
-          executeWorkflow(
-            streamWorkflow,
-            requestId,
-            processedInput,
-            actorUserId,
-            {
-              enabled: true,
-              selectedOutputs: resolvedSelectedOutputs,
-              isSecureMode: false,
-              workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
-              onStream,
-              onBlockComplete,
-              skipLoggingComplete: true,
-              includeFileBase64,
-              base64MaxBytes,
-              abortSignal,
-              executionMode: 'stream',
-              principal: executionPrincipal,
-              enforceCredentialAccess: useAuthenticatedUserAsActor,
-              isPublicApiAccess,
-              billingAttribution,
-              largeValueKeys,
-              fileKeys,
-              stopAfterBlockId,
-              runFromBlock: resolvedRunFromBlock,
-              includeThinking: requestedIncludeThinking,
-              includeToolCalls: requestedIncludeToolCalls,
-              agentEvents,
-              trustedInitialResolvedSecretTraceProvenance,
-            },
-            executionId
+        executeFn: ({ onStream, onBlockComplete, abortSignal }) =>
+          executeBoundWorkflow(() =>
+            executeWorkflow(
+              streamWorkflow,
+              requestId,
+              processedInput,
+              actorUserId,
+              {
+                enabled: true,
+                selectedOutputs: resolvedSelectedOutputs,
+                isSecureMode: false,
+                workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+                onStream,
+                onBlockComplete,
+                skipLoggingComplete: true,
+                includeFileBase64,
+                base64MaxBytes,
+                abortSignal,
+                executionMode: 'stream',
+                principal: executionPrincipal,
+                enforceCredentialAccess: useAuthenticatedUserAsActor,
+                isPublicApiAccess,
+                billingAttribution,
+                largeValueKeys,
+                fileKeys,
+                stopAfterBlockId,
+                runFromBlock: resolvedRunFromBlock,
+                includeThinking: requestedIncludeThinking,
+                includeToolCalls: requestedIncludeToolCalls,
+                agentEvents,
+                trustedInitialResolvedSecretTraceProvenance,
+              },
+              executionId
+            )
           ),
       })
 
+      copilotExecutionTransferredToStream = true
       executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
@@ -1799,8 +1827,8 @@ async function handleExecutePost(
     }
 
     executionIdClaimCommitted = true
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
+    const streamSource = {
+      async start(controller: ReadableStreamDefaultController<Uint8Array>) {
         let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
         let postExecutionAwaited = false
 
@@ -2484,7 +2512,12 @@ async function handleExecutePost(
         isStreamClosed = true
         reqLogger.info('Client detached from SSE stream; workflow execution remains active')
       },
+    }
+    const stream = new ReadableStream<Uint8Array>({
+      ...streamSource,
+      start: (controller) => executeBoundWorkflow(() => streamSource.start(controller)),
     })
+    copilotExecutionTransferredToStream = true
 
     return new NextResponse(stream, {
       headers: {
@@ -2502,6 +2535,7 @@ async function handleExecutePost(
       { status: 500 }
     )
   } finally {
+    if (!copilotExecutionTransferredToStream) await settleCopilotExecution()
     if (executionIdClaim && !executionIdClaimCommitted) {
       try {
         executionIdClaimCommitted = await hasDurableExecutionOwner(executionId)
@@ -2526,7 +2560,8 @@ async function handleExecutePost(
       }
     }
 
-    if (executionIdClaim && !executionIdClaimCommitted) {
+    /** A recorded Copilot handler owns this ID even if preprocessing failed; a late Stop must never hit a reused ID. */
+    if (executionIdClaim && !executionIdClaimCommitted && !workflowToolClaimAcquired) {
       try {
         await releaseExecutionIdClaim(executionIdClaim)
       } catch (error) {

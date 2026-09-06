@@ -552,7 +552,7 @@ describe('async tool repository single-row semantics', () => {
       },
     ])
 
-    const result = await claimWorkflowToolExecution('workflow-tool', 'execution-1')
+    const result = await claimWorkflowToolExecution('workflow-tool', 'execution-1', 'client')
 
     expect(result).toMatchObject({
       toolCallId: 'workflow-tool',
@@ -562,6 +562,8 @@ describe('async tool repository single-row semantics', () => {
       status: expect.anything(),
       claimedBy: 'workflow:execution-1',
       claimedAt: expect.any(Date),
+      executionStartedAt: expect.any(Date),
+      clientWorkflowExecutionId: 'execution-1',
       updatedAt: expect.any(Date),
     })
     expect(getClaimedWorkflowExecutionId(result?.claimedBy)).toBe('execution-1')
@@ -571,7 +573,9 @@ describe('async tool repository single-row semantics', () => {
     queueTableRows(copilotRuns, [{ version: 2, status: 'active', closedAt: null }])
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
-    await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+    await expect(
+      claimWorkflowToolExecution('workflow-tool', 'execution-2', 'client')
+    ).resolves.toBeNull()
   })
 
   it.each([
@@ -582,7 +586,9 @@ describe('async tool repository single-row semantics', () => {
     { version: 0, status: 'active', closedAt: null },
   ])('refuses workflow pickup without active parent admission: %j', async (run) => {
     queueTableRows(copilotRuns, [run])
-    await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+    await expect(
+      claimWorkflowToolExecution('workflow-tool', 'execution-2', 'client')
+    ).resolves.toBeNull()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 

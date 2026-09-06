@@ -9,6 +9,7 @@ import {
   encryptionMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  hybridAuthMock,
   hybridAuthMockFns,
   loggingSessionMock,
   loggingSessionMockFns,
@@ -26,9 +27,15 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import {
+  abortManualExecution,
+  registerManualExecutionAborter,
+  unregisterManualExecutionAborter,
+} from '@/lib/execution/manual-cancellation'
 import { WORKFLOW_NOT_DEPLOYED_CODE } from '@/lib/execution/preprocessing'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -39,8 +46,10 @@ import {
 const {
   mockAssertBillingAttributionSnapshot,
   mockGetWorkspaceBilledAccountUserId,
+  mockCheckHybridAuth,
   mockClaimExecutionId,
   mockClaimWorkflowToolExecution,
+  mockSettleSimToolExecution,
   mockCheckNeedsRedeployment,
   mockEnqueue,
   mockExecuteWorkflowJob,
@@ -69,8 +78,10 @@ const {
     }
     return value
   }),
+  mockCheckHybridAuth: vi.fn<typeof checkHybridAuth>(),
   mockClaimExecutionId: vi.fn(),
   mockClaimWorkflowToolExecution: vi.fn(),
+  mockSettleSimToolExecution: vi.fn().mockResolvedValue(undefined),
   mockCheckNeedsRedeployment: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
   mockExecuteWorkflowJob: vi.fn(),
@@ -116,7 +127,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validatePublicApiAllowed: mockValidatePublicApiAllowed,
 }))
 
-const mockCheckHybridAuth = hybridAuthMockFns.mockCheckHybridAuth
+vi.mock('@/lib/auth/hybrid', () => ({ ...hybridAuthMock, checkHybridAuth: mockCheckHybridAuth }))
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
 const mockAuthorizeWorkflowByWorkspacePermission =
@@ -148,6 +159,7 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
 
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   claimWorkflowToolExecution: mockClaimWorkflowToolExecution,
+  settleSimToolExecution: mockSettleSimToolExecution,
   getAsyncToolCall: mockGetAsyncToolCall,
   getRunSegment: mockGetRunSegment,
   releaseWorkflowToolExecutionClaim: mockReleaseWorkflowToolExecutionClaim,
@@ -252,7 +264,7 @@ function createBoundCopilotExecutionRequest(overrides: Record<string, unknown> =
 
 interface ExecutionCallerCase {
   caseName: string
-  authResult: Record<string, unknown>
+  authResult: AuthResult
   headers: Record<string, string>
   usesExternalInput: boolean
   isPublic?: boolean
@@ -695,7 +707,12 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(200)
     expect(streamCompleted).toBe(false)
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockSettleSimToolExecution).not.toHaveBeenCalled()
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123',
+      'client'
+    )
     expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
     expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
       executionId: 'execution-123',
@@ -712,6 +729,74 @@ describe('workflow execute async route', () => {
     releasePostExecution?.()
     const body = await bodyPromise
     expect(body).toContain('execution:completed')
+    await vi.waitFor(() =>
+      expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+    )
+  })
+
+  it('settles failed Copilot execution after the route finishes error handling', async () => {
+    mockExecuteWorkflowCore.mockRejectedValueOnce(new Error('Execution rejected'))
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+    expect(await response.text()).toContain('execution:error')
+    await vi.waitFor(() =>
+      expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+    )
+  })
+
+  it('settles a detached Copilot stream only after its cancelled execution and cleanup end', async () => {
+    let releaseCleanup: (() => void) | undefined
+    loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseCleanup = resolve
+        })
+    )
+    let ownedSignal: AbortSignal | undefined
+    mockExecuteWorkflowCore.mockImplementationOnce(
+      ({ abortSignal }: { abortSignal: AbortSignal }) => {
+        ownedSignal = abortSignal
+        return new Promise((resolve) => {
+          abortSignal.addEventListener(
+            'abort',
+            () =>
+              resolve({
+                success: false,
+                status: 'cancelled',
+                output: {},
+                logs: [],
+                metadata: { duration: 10 },
+              }),
+            { once: true }
+          )
+        })
+      }
+    )
+    const unrelatedAbort = vi.fn()
+    registerManualExecutionAborter('unrelated-execution', unrelatedAbort)
+    try {
+      const response = await POST(createBoundCopilotExecutionRequest(), {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
+      await vi.waitFor(() => expect(ownedSignal).toBeDefined())
+      const detached = response.body?.cancel()
+      expect(ownedSignal?.aborted).toBe(false)
+      expect(mockSettleSimToolExecution).not.toHaveBeenCalled()
+      expect(abortManualExecution('execution-123')).toBe(true)
+      expect(ownedSignal?.aborted).toBe(true)
+      expect(unrelatedAbort).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(releaseCleanup).toBeDefined())
+      expect(mockSettleSimToolExecution).not.toHaveBeenCalled()
+      releaseCleanup?.()
+      await detached
+      await vi.waitFor(() =>
+        expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+      )
+    } finally {
+      releaseCleanup?.()
+      unregisterManualExecutionAborter('unrelated-execution')
+    }
   })
 
   it('executes a selected trigger as a fresh authenticated draft run', async () => {
@@ -957,7 +1042,7 @@ describe('workflow execute async route', () => {
     expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
   })
 
-  it('releases a bound Copilot workflow claim when preprocessing rejects the run', async () => {
+  it('settles rejected Copilot work but retains its execution identity against a delayed Stop', async () => {
     mockPreprocessExecution.mockResolvedValueOnce({
       success: false,
       error: { message: 'Not admitted', statusCode: 402 },
@@ -972,7 +1057,8 @@ describe('workflow execute async route', () => {
       'copilot-tool-1',
       'execution-123'
     )
-    expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
+    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+    expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
   })
 
   it('retains a bound Copilot workflow claim when preprocessing created a durable error log', async () => {
@@ -1007,7 +1093,11 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(200)
     await response.text()
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123',
+      'client'
+    )
   })
 
   it('binds an approved pending workflow call created by the previous release', async () => {
@@ -1027,7 +1117,11 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(200)
     await response.text()
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123',
+      'client'
+    )
   })
 
   it.each([
@@ -1128,7 +1222,12 @@ describe('workflow execute async route', () => {
     })
 
     expect(response.status).toBe(202)
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123',
+      'client'
+    )
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({ checkDeployment: true, executionType: 'async' })
     )
@@ -1165,7 +1264,11 @@ describe('workflow execute async route', () => {
       error: 'Async execution requires the current workflow to match its deployed version',
       code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
     })
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123',
+      'client'
+    )
     expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
     expect(mockReleaseWorkflowToolExecutionClaim).toHaveBeenCalledWith(
       'copilot-tool-1',
