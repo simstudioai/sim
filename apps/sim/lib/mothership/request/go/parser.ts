@@ -6,6 +6,9 @@ const logger = createLogger('CopilotSseParser')
 
 export class FatalSseEventError extends Error {}
 
+/** A missing prefix can be recovered by reattaching with the last applied text position. */
+export class StreamContinuityError extends FatalSseEventError {}
+
 function createParseFailure(message: string, preview: string): FatalSseEventError {
   logger.error(message, { preview })
   return new FatalSseEventError(message)
@@ -59,6 +62,8 @@ export async function processSSEStream(
       logger.info('SSE stream read aborted')
       return
     }
+    /** A retry must release the abandoned body before a new leg attaches to the owner. */
+    await reader.cancel(error).catch(() => logger.warn('Failed to cancel the failed SSE body'))
     throw error
   } finally {
     // The engine only releases locks it acquired; this reader is caller-supplied,

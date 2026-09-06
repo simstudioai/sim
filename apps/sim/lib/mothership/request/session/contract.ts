@@ -16,6 +16,7 @@ import {
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamTextCompletion, StreamTextPosition } from '@/lib/mothership/generated/protocol'
 import { hasAddressableId } from '@/lib/mothership/resources/types'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
@@ -36,7 +37,11 @@ type EnvelopeToStreamEvent<T> = T extends {
 }
   ? {
       type: TType
-      payload: TPayload
+      payload: TType extends 'text'
+        ? TPayload & StreamTextPosition
+        : TType extends 'complete'
+          ? TPayload & StreamTextCompletion
+          : TPayload
       scope?: Exclude<TScope, undefined>
       /** Wire ordering key, carried off the envelope; absent on synthetic events. */
       seq?: number
@@ -250,7 +255,11 @@ function isValidTextPayload(payload: JsonRecord): boolean {
   return (
     (payload.channel === MothershipStreamV1TextChannel.assistant ||
       payload.channel === MothershipStreamV1TextChannel.thinking) &&
-    typeof payload.text === 'string'
+    typeof payload.text === 'string' &&
+    (payload.textOffset === undefined ||
+      (typeof payload.textOffset === 'number' &&
+        Number.isSafeInteger(payload.textOffset) &&
+        payload.textOffset >= 0))
   )
 }
 

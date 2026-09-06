@@ -18,9 +18,19 @@
 export const PROTOCOL_VERSION = 1;
 
 /** Receipt for main-assistant text applied by Sim, in JavaScript UTF-16 code units.
- * A retry includes the current count so a terminal response replays only missing text. */
+ * A retry includes the contiguous count so any attached leg replays only missing text. */
 export interface StreamTextReceipt {
   receivedTextChars?: number | undefined;
+}
+
+/** Main-assistant text position within this run, measured in UTF-16 code units. */
+export interface StreamTextPosition {
+  textOffset?: number | undefined;
+}
+
+/** Successful completion states the complete main-answer size, including any replayed prefix. */
+export interface StreamTextCompletion {
+  textLength?: number | undefined;
 }
 
 /** POST /api/mothership — the chat request sim sends. */

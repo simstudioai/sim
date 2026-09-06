@@ -20,6 +20,7 @@ import {
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/go/parser'
+import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
 import {
   handleSubagentRouting,
   prePersistClientExecutableToolCall,
@@ -328,7 +329,11 @@ export async function runStreamLoop(
         }
 
         const envelope = parsedEvent.event
-        const streamEvent = eventToStreamEvent(envelope)
+        const streamEvent = reconcileTextEvent(
+          eventToStreamEvent(envelope),
+          context.accumulatedContent
+        )
+        if (!streamEvent) return
         if (envelope.trace?.requestId) {
           const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
           context.trace.setGoTraceId(goTraceId)
