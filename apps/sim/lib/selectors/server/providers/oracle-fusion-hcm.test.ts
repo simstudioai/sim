@@ -212,7 +212,24 @@ describe('Oracle Fusion HCM selectors', () => {
   })
 
   it('declares stored credential-bound, integration-gated, uncached selectors', () => {
-    for (const key of ['workers', 'assignments', 'absences', 'absenceTypes', 'payrollRelationships', 'payrollAssignments', 'payrollDefinitions', 'elementDefinitions', 'elementEntries', 'salaries', 'salaryBases', 'goalPlans', 'performanceDocuments', 'talentProfiles', 'timeAttributes', 'payrollTimeTypes'] as const) {
+    for (const key of [
+      'workers',
+      'assignments',
+      'absences',
+      'absenceTypes',
+      'payrollRelationships',
+      'payrollAssignments',
+      'payrollDefinitions',
+      'elementDefinitions',
+      'elementEntries',
+      'salaries',
+      'salaryBases',
+      'goalPlans',
+      'performanceDocuments',
+      'talentProfiles',
+      'timeAttributes',
+      'payrollTimeTypes',
+    ] as const) {
       const manifest = selectorManifest[`oracle_fusion_hcm.${key}`]
       const attachment = oracleFusionHcmSelectorAttachments[`oracle_fusion_hcm.${key}`]
       expect(manifest).toMatchObject({ classification: 'provider-server', staleTime: 0 })
@@ -504,32 +521,105 @@ describe('Oracle Fusion HCM selectors', () => {
 describe('Oracle Fusion HCM expansion selectors', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    mocks.resolveCredentialBundle.mockResolvedValue({ accessToken: TEST_ACCESS_TOKEN, instanceUrl: 'https://acme.fa.ocs.oraclecloud.com' })
+    mocks.resolveCredentialBundle.mockResolvedValue({
+      accessToken: TEST_ACCESS_TOKEN,
+      instanceUrl: 'https://acme.fa.ocs.oraclecloud.com',
+    })
   })
 
   it('requires payroll parent context before listing assignments', async () => {
     const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollAssignments']
     const input = args({ selectorKey: 'oracle_fusion_hcm.payrollAssignments' })
-    await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    await expect(
+      attachment.execute(input, await prepare(attachment, input))
+    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
     expect(mocks.listPayrollAssignments).not.toHaveBeenCalled()
   })
 
   it('forwards exact payroll parent/date context and only assignment option metadata', async () => {
-    mocks.listPayrollAssignments.mockResolvedValueOnce({ success: true, output: { payrollAssignments: [{ payrollAssignmentId: '9007199254740993', assignmentId: '9007199254740995', assignmentNumber: 'E7', secretSalary: 1000 }], hasMore: true, nextOffset: 51 } })
+    mocks.listPayrollAssignments.mockResolvedValueOnce({
+      success: true,
+      output: {
+        payrollAssignments: [
+          {
+            payrollAssignmentId: '9007199254740993',
+            assignmentId: '9007199254740995',
+            assignmentNumber: 'E7',
+            secretSalary: 1000,
+          },
+        ],
+        hasMore: true,
+        nextOffset: 51,
+      },
+    })
     const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollAssignments']
-    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollAssignments', context: { oauthCredential: 'credential-id', payrollRelationshipId: '9223372036854775807', effectiveDate: '2020-01-01' }, request: { kind: 'list', cursor: '50' } })
+    const input = args({
+      selectorKey: 'oracle_fusion_hcm.payrollAssignments',
+      context: {
+        oauthCredential: 'credential-id',
+        payrollRelationshipId: '9223372036854775807',
+        effectiveDate: '2020-01-01',
+      },
+      request: { kind: 'list', cursor: '50' },
+    })
     const result = await attachment.execute(input, await prepare(attachment, input))
-    expect(mocks.listPayrollAssignments).toHaveBeenCalledWith(expect.objectContaining({ payrollRelationshipId: '9223372036854775807', effectiveDate: '2020-01-01', offset: 50, limit: 50 }), undefined)
-    expect(result).toEqual({ kind: 'list', items: [{ id: '9007199254740993', label: 'E7', meta: { assignmentId: '9007199254740995', assignmentNumber: 'E7' } }], nextCursor: '51' })
+    expect(mocks.listPayrollAssignments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payrollRelationshipId: '9223372036854775807',
+        effectiveDate: '2020-01-01',
+        offset: 50,
+        limit: 50,
+      }),
+      undefined
+    )
+    expect(result).toEqual({
+      kind: 'list',
+      items: [
+        {
+          id: '9007199254740993',
+          label: 'E7',
+          meta: { assignmentId: '9007199254740995', assignmentNumber: 'E7' },
+        },
+      ],
+      nextCursor: '51',
+    })
     expect(mocks.listWorkers).not.toHaveBeenCalled()
   })
 
   it('rejects a salary detail outside the active HR assignment and never returns the amount in options', async () => {
     const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.salaries']
-    const input = args({ selectorKey: 'oracle_fusion_hcm.salaries', context: { oauthCredential: 'credential-id', assignmentId: '2' }, request: { kind: 'detail', id: '3' } })
-    mocks.getSalary.mockResolvedValueOnce({ success: true, output: { salary: { salaryId: '3', assignmentId: '9', salaryBasisName: 'Annual', salaryAmount: 123456 } } })
-    await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
-    mocks.getSalary.mockResolvedValueOnce({ success: true, output: { salary: { salaryId: '3', assignmentId: '2', salaryBasisName: 'Annual', dateFrom: '2020-01-01', dateTo: '2020-12-31', salaryAmount: 123456 } } })
+    const input = args({
+      selectorKey: 'oracle_fusion_hcm.salaries',
+      context: { oauthCredential: 'credential-id', assignmentId: '2' },
+      request: { kind: 'detail', id: '3' },
+    })
+    mocks.getSalary.mockResolvedValueOnce({
+      success: true,
+      output: {
+        salary: {
+          salaryId: '3',
+          assignmentId: '9',
+          salaryBasisName: 'Annual',
+          salaryAmount: 123456,
+        },
+      },
+    })
+    await expect(
+      attachment.execute(input, await prepare(attachment, input))
+    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    mocks.getSalary.mockResolvedValueOnce({
+      success: true,
+      output: {
+        salary: {
+          salaryId: '3',
+          assignmentId: '2',
+          salaryBasisName: 'Annual',
+          dateFrom: '2020-01-01',
+          dateTo: '2020-12-31',
+          salaryAmount: 123456,
+        },
+      },
+    })
     const result = await attachment.execute(input, await prepare(attachment, input))
     expect(result).toEqual({ kind: 'detail', item: { id: '3', label: 'Annual · 2020-01-01', meta: { assignmentId: '2', dateFrom: '2020-01-01', dateTo: '2020-12-31' } } })
     expect(JSON.stringify(result)).not.toContain('123456')

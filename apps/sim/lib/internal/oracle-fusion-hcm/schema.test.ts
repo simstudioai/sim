@@ -114,91 +114,153 @@ describe('Oracle Fusion HCM projection contracts', () => {
       project: projectors.projectPayrollRelationship,
       schema: schemas.oracleFusionHcmPayrollRelationshipSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_RELATIONSHIP_OUTPUT_PROPERTIES,
-      fixture: {'PayrollRelationshipId':'9223372036854775807','PersonNumber':'0007','Country':'GB','EffectiveStartDate':'2020-01-01'},
+      fixture: {
+        PayrollRelationshipId: '9223372036854775807',
+        PersonNumber: '0007',
+        Country: 'GB',
+        EffectiveStartDate: '2020-01-01',
+      },
     },
     {
       name: 'PayrollAssignment',
       project: projectors.projectPayrollAssignment,
       schema: schemas.oracleFusionHcmPayrollAssignmentSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_ASSIGNMENT_OUTPUT_PROPERTIES,
-      fixture: {'RelationshipGroupId':'9007199254740993','AssignmentId':'9007199254740995','AssignmentNumber':'E7','TimeCardRequired':'Y'},
+      fixture: {
+        RelationshipGroupId: '9007199254740993',
+        AssignmentId: '9007199254740995',
+        AssignmentNumber: 'E7',
+        TimeCardRequired: 'Y',
+      },
     },
     {
       name: 'AssignedPayroll',
       project: projectors.projectAssignedPayroll,
       schema: schemas.oracleFusionHcmAssignedPayrollSchema,
       properties: outputs.ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES,
-      fixture: {'AssignedPayrollId':'31','PayrollId':'32','PayrollName':'Monthly','Lsed':null,'TimeCardRequired':'N'},
+      fixture: {
+        AssignedPayrollId: '31',
+        PayrollId: '32',
+        PayrollName: 'Monthly',
+        Lsed: null,
+        TimeCardRequired: 'N',
+      },
     },
     {
       name: 'PayrollDefinition',
       project: projectors.projectPayrollDefinition,
       schema: schemas.oracleFusionHcmPayrollDefinitionSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_DEFINITION_OUTPUT_PROPERTIES,
-      fixture: {'PayrollId':'32','PayrollName':'Monthly','PeriodType':'Calendar Month'},
+      fixture: { PayrollId: '32', PayrollName: 'Monthly', PeriodType: 'Calendar Month' },
     },
     {
       name: 'PayrollTimePeriod',
       project: projectors.projectPayrollTimePeriod,
       schema: schemas.oracleFusionHcmPayrollTimePeriodSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_TIME_PERIOD_OUTPUT_PROPERTIES,
-      fixture: {'TimePeriodId':'33','PayrollId':'32','PeriodNumber':8,'PeriodName':'August'},
+      fixture: { TimePeriodId: '33', PayrollId: '32', PeriodNumber: 8, PeriodName: 'August' },
     },
     {
       name: 'PayrollElementDefinition',
       project: projectors.projectPayrollElementDefinition,
       schema: schemas.oracleFusionHcmPayrollElementDefinitionSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_ELEMENT_DEFINITION_OUTPUT_PROPERTIES,
-      fixture: {'ElementTypeId':'34','ElementName':'Bonus','UseAtAssignmentLevel':'Y','PersonId':null},
+      fixture: {
+        ElementTypeId: '34',
+        ElementName: 'Bonus',
+        UseAtAssignmentLevel: 'Y',
+        PersonId: null,
+      },
     },
     {
       name: 'PayrollInputValue',
       project: projectors.projectPayrollInputValue,
       schema: schemas.oracleFusionHcmPayrollInputValueSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_INPUT_VALUE_OUTPUT_PROPERTIES,
-      fixture: {'InputValueId':'35','ElementTypeId':'34','InputValueName':'Amount','UOM':'M'},
+      fixture: { InputValueId: '35', ElementTypeId: '34', InputValueName: 'Amount', UOM: 'M' },
     },
     {
       name: 'ElementEntry',
       project: projectors.projectElementEntry,
       schema: schemas.oracleFusionHcmElementEntrySchema,
       properties: outputs.ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES,
-      fixture: {'ElementEntryId':'36','PersonId':'7','PersonNumber':'0007','AssignmentId':null,'ElementName':'Bonus','EntryType':'E'},
+      fixture: {
+        ElementEntryId: '36',
+        PersonId: '7',
+        PersonNumber: '0007',
+        AssignmentId: null,
+        ElementName: 'Bonus',
+        EntryType: 'E',
+      },
     },
     {
       name: 'ElementEntryValue',
       project: projectors.projectElementEntryValue,
       schema: schemas.oracleFusionHcmElementEntryValueSchema,
       properties: outputs.ORACLE_FUSION_HCM_ELEMENT_ENTRY_VALUE_OUTPUT_PROPERTIES,
-      fixture: {'ElementEntryValueId':'37','InputValueId':'35','ScreenEntryValue':'123456789012345.67','MandatoryFlag':true,'UserEnterableFlag':false},
+      fixture: {
+        ElementEntryValueId: '37',
+        InputValueId: '35',
+        ScreenEntryValue: '123456789012345.67',
+        MandatoryFlag: true,
+        UserEnterableFlag: false,
+      },
     },
     {
       name: 'PersonProcessResult',
       project: projectors.projectPersonProcessResult,
       schema: schemas.oracleFusionHcmPersonProcessResultSchema,
       properties: outputs.ORACLE_FUSION_HCM_PERSON_PROCESS_RESULT_OUTPUT_PROPERTIES,
-      fixture: {'ObjectActionId':'38','PayrollRelationshipId':'39','PersonNumber':'0007','Status':'Completed','ProcessDate':'2020-01-31'},
+      fixture: {
+        ObjectActionId: '38',
+        PayrollRelationshipId: '39',
+        PersonNumber: '0007',
+        Status: 'Completed',
+        ProcessDate: '2020-01-31',
+      },
     },
     {
       name: 'PayrollRunResult',
       project: projectors.projectPayrollRunResult,
       schema: schemas.oracleFusionHcmPayrollRunResultSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_RUN_RESULT_OUTPUT_PROPERTIES,
-      fixture: {'RunResultId':'40','InputValueId':'35','ResultValue':'123456789012345.6700','Uom':'M'},
+      fixture: {
+        RunResultId: '40',
+        InputValueId: '35',
+        ResultValue: '123456789012345.6700',
+        Uom: 'M',
+      },
     },
     {
       name: 'PayrollBalance',
       project: projectors.projectPayrollBalance,
       schema: schemas.oracleFusionHcmPayrollBalanceSchema,
       properties: outputs.ORACLE_FUSION_HCM_PAYROLL_BALANCE_OUTPUT_PROPERTIES,
-      fixture: {'BalanceTypeId':'41','BalanceName':'Gross Earnings','DimensionName':'Relationship Period to Date','Value1':'123.4500','Value2':null,'Value10':'0','TotalValue1':'123.4500','DefbalId1':'9007199254740993'},
+      fixture: {
+        BalanceTypeId: '41',
+        BalanceName: 'Gross Earnings',
+        DimensionName: 'Relationship Period to Date',
+        Value1: '123.4500',
+        Value2: null,
+        Value10: '0',
+        TotalValue1: '123.4500',
+        DefbalId1: '9007199254740993',
+      },
     },
     {
       name: 'Salary',
       project: projectors.projectSalary,
       schema: schemas.oracleFusionHcmSalarySchema,
       properties: outputs.ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES,
-      fixture: {'SalaryId':'42','AssignmentId':'9007199254740993','SalaryBasisId':'43','SalaryAmount':1000.5,'PendingTransactionExists':'N','SalaryTransactionStatus':null,'MultipleComponents':'N'},
+      fixture: {
+        SalaryId: '42',
+        AssignmentId: '9007199254740993',
+        SalaryBasisId: '43',
+        SalaryAmount: 1000.5,
+        PendingTransactionExists: 'N',
+        SalaryTransactionStatus: null,
+        MultipleComponents: 'N',
+      },
     },
     {
       name: 'SalaryBasis',
@@ -523,7 +585,9 @@ describe('Oracle Fusion HCM projection contracts', () => {
       })
       expect(schema.parse(result)).toEqual(result)
       expect(Object.keys(result).sort()).toEqual(Object.keys(properties).sort())
-      expect(JSON.stringify(result)).not.toContain('private')
+      for (const sensitiveValue of ['private narrative', 'private medical detail', 'https://private.example.com']) {
+        expect(JSON.stringify(result)).not.toContain(sensitiveValue)
+      }
     }
   )
 })

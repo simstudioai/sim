@@ -5,34 +5,34 @@ import {
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
 import {
   executeOracleFusionHcmGetAbsence,
-  executeOracleFusionHcmListPayrollRelationships,
-  executeOracleFusionHcmGetPayrollRelationship,
-  executeOracleFusionHcmListPayrollAssignments,
-  executeOracleFusionHcmGetPayrollAssignment,
-  executeOracleFusionHcmListPayrollDefinitions,
-  executeOracleFusionHcmListPayrollElementDefinitions,
-  executeOracleFusionHcmListElementEntries,
   executeOracleFusionHcmGetElementEntry,
-  executeOracleFusionHcmListSalaries,
-  executeOracleFusionHcmGetSalary,
-  executeOracleFusionHcmListSalaryBases,
-  executeOracleFusionHcmListGoalPlans,
   executeOracleFusionHcmGetGoalPlan,
-  executeOracleFusionHcmListPerformanceDocuments,
+  executeOracleFusionHcmGetPayrollAssignment,
+  executeOracleFusionHcmGetPayrollRelationship,
   executeOracleFusionHcmGetPerformanceDocument,
-  executeOracleFusionHcmListTalentProfiles,
+  executeOracleFusionHcmGetSalary,
   executeOracleFusionHcmGetTalentProfile,
-  executeOracleFusionHcmListTimeAttributes,
-  executeOracleFusionHcmListTimeAttributeValues,
   executeOracleFusionHcmGetWorker,
   executeOracleFusionHcmGetWorkerAssignment,
-  executeOracleFusionHcmListAbsences,
   executeOracleFusionHcmListAbsenceTypes,
+  executeOracleFusionHcmListAbsences,
+  executeOracleFusionHcmListElementEntries,
+  executeOracleFusionHcmListGoalPlans,
+  executeOracleFusionHcmListPayrollAssignments,
+  executeOracleFusionHcmListPayrollDefinitions,
+  executeOracleFusionHcmListPayrollElementDefinitions,
+  executeOracleFusionHcmListPayrollRelationships,
+  executeOracleFusionHcmListPerformanceDocuments,
+  executeOracleFusionHcmListSalaries,
+  executeOracleFusionHcmListSalaryBases,
+  executeOracleFusionHcmListTalentProfiles,
+  executeOracleFusionHcmListTimeAttributeValues,
+  executeOracleFusionHcmListTimeAttributes,
   executeOracleFusionHcmListWorkerAssignments,
   executeOracleFusionHcmListWorkers,
 } from '@/lib/internal/oracle-fusion-hcm/operations'
-import { oracleFusionHcmDecimalIdSchema } from '@/lib/internal/oracle-fusion-hcm/schema'
 import * as schemas from '@/lib/internal/oracle-fusion-hcm/schema'
+import { oracleFusionHcmDecimalIdSchema } from '@/lib/internal/oracle-fusion-hcm/schema'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
@@ -323,12 +323,24 @@ export const oracleFusionHcmSelectorAttachments = {
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
-          const parsed = schemas.oracleFusionHcmGetPayrollRelationshipBodySchema.safeParse({ ...args.context, ...prepared, payrollRelationshipId: parseId(args.request.id) })
+          const parsed = schemas.oracleFusionHcmGetPayrollRelationshipBodySchema.safeParse({
+            ...args.context,
+            ...prepared,
+            payrollRelationshipId: parseId(args.request.id),
+          })
           if (!parsed.success) throw new SelectorContextUnavailableError()
-          const result = await executeOracleFusionHcmGetPayrollRelationship(parsed.data, args.signal)
+          const result = await executeOracleFusionHcmGetPayrollRelationship(
+            parsed.data,
+            args.signal
+          )
           const item = result.output.payrollRelationship
-          if (args.context.personNumber && item.personNumber !== args.context.personNumber) throw new SelectorContextUnavailableError()
-          return detailSelectorResult({ id: item.payrollRelationshipId, label: item.payrollRelationshipNumber || item.payrollRelationshipId, meta: { personNumber: item.personNumber } })
+          if (args.context.personNumber && item.personNumber !== args.context.personNumber)
+            throw new SelectorContextUnavailableError()
+          return detailSelectorResult({
+            id: item.payrollRelationshipId,
+            label: item.payrollRelationshipNumber || item.payrollRelationshipId,
+            meta: { personNumber: item.personNumber },
+          })
         }
         const parsed = schemas.oracleFusionHcmListPayrollRelationshipsBodySchema.safeParse({
           ...args.context,
@@ -338,14 +350,26 @@ export const oracleFusionHcmSelectorAttachments = {
           offset: parseOffset(args.request.cursor),
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
-        const result = await executeOracleFusionHcmListPayrollRelationships(parsed.data, args.signal)
-        return listSelectorResult(result.output.payrollRelationships.map((item) => {
-          if (args.context.personNumber && item.personNumber !== args.context.personNumber) throw new SelectorContextUnavailableError()
-          return { id: item.payrollRelationshipId, label: item.payrollRelationshipNumber || item.payrollRelationshipId, meta: { personNumber: item.personNumber } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        const result = await executeOracleFusionHcmListPayrollRelationships(
+          parsed.data,
+          args.signal
+        )
+        return listSelectorResult(
+          result.output.payrollRelationships.map((item) => {
+            if (args.context.personNumber && item.personNumber !== args.context.personNumber)
+              throw new SelectorContextUnavailableError()
+            return {
+              id: item.payrollRelationshipId,
+              label: item.payrollRelationshipNumber || item.payrollRelationshipId,
+              meta: { personNumber: item.personNumber },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && isMissingDetail(error)) return detailSelectorResult(null)
+        if (args.request.kind === 'detail' && isMissingDetail(error))
+          return detailSelectorResult(null)
         publicSelectorError(error)
       }
     },
@@ -358,12 +382,20 @@ export const oracleFusionHcmSelectorAttachments = {
       try {
         if (!args.context.payrollRelationshipId) throw new SelectorContextUnavailableError()
         if (args.request.kind === 'detail') {
-          const parsed = schemas.oracleFusionHcmGetPayrollAssignmentBodySchema.safeParse({ ...args.context, ...prepared, payrollAssignmentId: parseId(args.request.id) })
+          const parsed = schemas.oracleFusionHcmGetPayrollAssignmentBodySchema.safeParse({
+            ...args.context,
+            ...prepared,
+            payrollAssignmentId: parseId(args.request.id),
+          })
           if (!parsed.success) throw new SelectorContextUnavailableError()
           const result = await executeOracleFusionHcmGetPayrollAssignment(parsed.data, args.signal)
           const item = result.output.payrollAssignment
-          
-          return detailSelectorResult({ id: item.payrollAssignmentId, label: item.assignmentNumber || item.payrollAssignmentId, meta: { assignmentId: item.assignmentId, assignmentNumber: item.assignmentNumber } })
+
+          return detailSelectorResult({
+            id: item.payrollAssignmentId,
+            label: item.assignmentNumber || item.payrollAssignmentId,
+            meta: { assignmentId: item.assignmentId, assignmentNumber: item.assignmentNumber },
+          })
         }
         const parsed = schemas.oracleFusionHcmListPayrollAssignmentsBodySchema.safeParse({
           ...args.context,
@@ -373,13 +405,20 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListPayrollAssignments(parsed.data, args.signal)
-        return listSelectorResult(result.output.payrollAssignments.map((item) => {
-          
-          return { id: item.payrollAssignmentId, label: item.assignmentNumber || item.payrollAssignmentId, meta: { assignmentId: item.assignmentId, assignmentNumber: item.assignmentNumber } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.payrollAssignments.map((item) => {
+            return {
+              id: item.payrollAssignmentId,
+              label: item.assignmentNumber || item.payrollAssignmentId,
+              meta: { assignmentId: item.assignmentId, assignmentNumber: item.assignmentNumber },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && isMissingDetail(error)) return detailSelectorResult(null)
+        if (args.request.kind === 'detail' && isMissingDetail(error))
+          return detailSelectorResult(null)
         publicSelectorError(error)
       }
     },
@@ -400,10 +439,19 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListPayrollDefinitions(parsed.data, args.signal)
-        return listSelectorResult(result.output.payrollDefinitions.map((item) => {
-          
-          return { id: item.payrollId, label: item.payrollName || item.payrollId, meta: { legislativeDataGroupId: item.legislativeDataGroupId, periodType: item.periodType } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.payrollDefinitions.map((item) => {
+            return {
+              id: item.payrollId,
+              label: item.payrollName || item.payrollId,
+              meta: {
+                legislativeDataGroupId: item.legislativeDataGroupId,
+                periodType: item.periodType,
+              },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
         publicSelectorError(error)
@@ -425,11 +473,23 @@ export const oracleFusionHcmSelectorAttachments = {
           offset: parseOffset(args.request.cursor),
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
-        const result = await executeOracleFusionHcmListPayrollElementDefinitions(parsed.data, args.signal)
-        return listSelectorResult(result.output.payrollElementDefinitions.map((item) => {
-          
-          return { id: item.elementTypeId, label: item.elementName || item.elementTypeId, meta: { legislativeDataGroupId: item.legislativeDataGroupId, processingType: item.processingType } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        const result = await executeOracleFusionHcmListPayrollElementDefinitions(
+          parsed.data,
+          args.signal
+        )
+        return listSelectorResult(
+          result.output.payrollElementDefinitions.map((item) => {
+            return {
+              id: item.elementTypeId,
+              label: item.elementName || item.elementTypeId,
+              meta: {
+                legislativeDataGroupId: item.legislativeDataGroupId,
+                processingType: item.processingType,
+              },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
         publicSelectorError(error)

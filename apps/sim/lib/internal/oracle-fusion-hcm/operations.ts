@@ -5,6 +5,7 @@ import {
   requestOracleFusionJson,
 } from '@/lib/internal/oracle-fusion/client'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
+import { normalizeOracleFusionDecimalIdentifier } from '@/lib/internal/oracle-fusion/identifiers'
 import {
   encodeOracleFusionPathSegment,
   extractOracleFusionOpaqueKey,
@@ -12,140 +13,139 @@ import {
   parseOracleFusionCollection,
   validateOracleFusionSelfLink,
 } from '@/lib/internal/oracle-fusion/protocol'
-import { normalizeOracleFusionDecimalIdentifier } from '@/lib/internal/oracle-fusion/identifiers'
 import { oracleFusionExactInteger } from '@/lib/internal/oracle-fusion/request-body'
 import {
-  projectPayrollRelationship,
-  projectPayrollAssignment,
-  projectAssignedPayroll,
-  projectPayrollDefinition,
-  projectPayrollTimePeriod,
-  projectPayrollElementDefinition,
-  projectPayrollInputValue,
-  projectElementEntry,
-  projectElementEntryValue,
-  projectPersonProcessResult,
-  projectPayrollRunResult,
-  projectPayrollBalance,
-  projectSalary,
-  projectSalaryBasis,
-  projectStandardSalaryComponent,
-  projectSimpleSalaryComponent,
-  projectRateSalaryComponent,
-  projectGradeRateValue,
-  projectGoalPlan,
-  projectPerformanceGoal,
-  projectDevelopmentGoal,
-  projectPerformanceDocument,
-  projectPerformanceDocumentRole,
-  projectPerformanceDocumentParticipant,
-  projectPerformanceDocumentTask,
-  projectTalentProfile,
-  projectTalentProfileSection,
-  projectTalentProfileSkill,
-  projectTalentProfileCertification,
-  projectTimeRecord,
-  projectTimeCard,
-  projectTimeAttribute,
-  projectTimeAttributeDataSource,
-  projectTimeAttributeCriteriaBind,
-  projectTimeAttributeValue,
-  projectTimeRecordRequest,
-  projectTimeRecordRequestEvent,
-  projectTimeRecordEventMessage,
   projectAbsence,
   projectAbsenceType,
+  projectAssignedPayroll,
   projectAssignment,
   projectBusinessUnit,
   projectDepartment,
+  projectDevelopmentGoal,
   projectDirectReport,
+  projectElementEntry,
+  projectElementEntryValue,
+  projectGoalPlan,
   projectGrade,
+  projectGradeRateValue,
   projectJob,
   projectJobFamily,
   projectLegalEmployer,
   projectLocation,
   projectManager,
+  projectPayrollAssignment,
+  projectPayrollBalance,
+  projectPayrollDefinition,
+  projectPayrollElementDefinition,
+  projectPayrollInputValue,
+  projectPayrollRelationship,
+  projectPayrollRunResult,
+  projectPayrollTimePeriod,
+  projectPerformanceDocument,
+  projectPerformanceDocumentParticipant,
+  projectPerformanceDocumentRole,
+  projectPerformanceDocumentTask,
+  projectPerformanceGoal,
+  projectPersonProcessResult,
   projectPersonType,
   projectPosition,
+  projectRateSalaryComponent,
+  projectSalary,
+  projectSalaryBasis,
+  projectSimpleSalaryComponent,
+  projectStandardSalaryComponent,
+  projectTalentProfile,
+  projectTalentProfileCertification,
+  projectTalentProfileSection,
+  projectTalentProfileSkill,
+  projectTimeAttribute,
+  projectTimeAttributeCriteriaBind,
+  projectTimeAttributeDataSource,
+  projectTimeAttributeValue,
+  projectTimeCard,
+  projectTimeRecord,
+  projectTimeRecordEventMessage,
+  projectTimeRecordRequest,
+  projectTimeRecordRequestEvent,
   projectWorker,
 } from '@/lib/internal/oracle-fusion-hcm/projectors'
 import type {
-  OracleFusionHcmListPayrollRelationshipsBody,
-  OracleFusionHcmGetPayrollRelationshipBody,
-  OracleFusionHcmListPayrollAssignmentsBody,
-  OracleFusionHcmGetPayrollAssignmentBody,
-  OracleFusionHcmListAssignedPayrollsBody,
-  OracleFusionHcmGetAssignedPayrollBody,
-  OracleFusionHcmCreateAssignedPayrollBody,
-  OracleFusionHcmUpdateAssignedPayrollBody,
-  OracleFusionHcmListPayrollDefinitionsBody,
-  OracleFusionHcmListPayrollTimePeriodsBody,
-  OracleFusionHcmListPayrollElementDefinitionsBody,
-  OracleFusionHcmListPayrollInputValuesBody,
-  OracleFusionHcmListElementEntriesBody,
-  OracleFusionHcmGetElementEntryBody,
-  OracleFusionHcmListElementEntryValuesBody,
-  OracleFusionHcmCreateElementEntryBody,
-  OracleFusionHcmUpdateElementEntryValueBody,
-  OracleFusionHcmListPersonProcessResultsBody,
-  OracleFusionHcmGetPersonProcessResultBody,
-  OracleFusionHcmListPayrollRunResultsBody,
-  OracleFusionHcmListPayrollBalancesBody,
-  OracleFusionHcmListSalariesBody,
-  OracleFusionHcmGetSalaryBody,
-  OracleFusionHcmCreateSalaryBody,
   OracleFusionHcmCorrectSalaryBody,
-  OracleFusionHcmListSalaryBasesBody,
-  OracleFusionHcmListSalaryComponentsBody,
-  OracleFusionHcmListGradeRateValuesBody,
-  OracleFusionHcmListGoalPlansBody,
-  OracleFusionHcmGetGoalPlanBody,
-  OracleFusionHcmListPerformanceGoalsBody,
-  OracleFusionHcmGetPerformanceGoalBody,
-  OracleFusionHcmListDevelopmentGoalsBody,
-  OracleFusionHcmGetDevelopmentGoalBody,
-  OracleFusionHcmListPerformanceDocumentsBody,
-  OracleFusionHcmGetPerformanceDocumentBody,
-  OracleFusionHcmListPerformanceDocumentRolesBody,
-  OracleFusionHcmListPerformanceDocumentParticipantsBody,
-  OracleFusionHcmListPerformanceDocumentTasksBody,
-  OracleFusionHcmListTalentProfilesBody,
-  OracleFusionHcmGetTalentProfileBody,
-  OracleFusionHcmListTalentProfileSectionsBody,
-  OracleFusionHcmListTalentProfileSkillsBody,
-  OracleFusionHcmListTalentProfileCertificationsBody,
-  OracleFusionHcmListTimeRecordsBody,
-  OracleFusionHcmGetTimeRecordBody,
-  OracleFusionHcmListTimeCardsBody,
-  OracleFusionHcmGetTimeCardBody,
-  OracleFusionHcmListTimeAttributesBody,
-  OracleFusionHcmListTimeAttributeDataSourcesBody,
-  OracleFusionHcmListTimeAttributeCriteriaBindsBody,
-  OracleFusionHcmListTimeAttributeValuesBody,
+  OracleFusionHcmCreateAssignedPayrollBody,
+  OracleFusionHcmCreateElementEntryBody,
+  OracleFusionHcmCreateSalaryBody,
   OracleFusionHcmCreateTimeEntryBody,
-  OracleFusionHcmUpdateTimeEntryBody,
   OracleFusionHcmDeleteTimeEntryBody,
-  OracleFusionHcmGetTimeRecordRequestBody,
-  OracleFusionHcmListTimeRecordRequestEventsBody,
-  OracleFusionHcmListTimeRecordEventMessagesBody,
   OracleFusionHcmGetAbsenceBody,
+  OracleFusionHcmGetAssignedPayrollBody,
+  OracleFusionHcmGetDevelopmentGoalBody,
+  OracleFusionHcmGetElementEntryBody,
+  OracleFusionHcmGetGoalPlanBody,
+  OracleFusionHcmGetPayrollAssignmentBody,
+  OracleFusionHcmGetPayrollRelationshipBody,
+  OracleFusionHcmGetPerformanceDocumentBody,
+  OracleFusionHcmGetPerformanceGoalBody,
+  OracleFusionHcmGetPersonProcessResultBody,
+  OracleFusionHcmGetSalaryBody,
+  OracleFusionHcmGetTalentProfileBody,
+  OracleFusionHcmGetTimeCardBody,
+  OracleFusionHcmGetTimeRecordBody,
+  OracleFusionHcmGetTimeRecordRequestBody,
   OracleFusionHcmGetWorkerAssignmentBody,
   OracleFusionHcmGetWorkerBody,
-  OracleFusionHcmListAbsencesBody,
   OracleFusionHcmListAbsenceTypesBody,
+  OracleFusionHcmListAbsencesBody,
+  OracleFusionHcmListAssignedPayrollsBody,
   OracleFusionHcmListBusinessUnitsBody,
   OracleFusionHcmListDepartmentsBody,
+  OracleFusionHcmListDevelopmentGoalsBody,
+  OracleFusionHcmListElementEntriesBody,
+  OracleFusionHcmListElementEntryValuesBody,
+  OracleFusionHcmListGoalPlansBody,
+  OracleFusionHcmListGradeRateValuesBody,
   OracleFusionHcmListGradesBody,
   OracleFusionHcmListJobFamiliesBody,
   OracleFusionHcmListJobsBody,
   OracleFusionHcmListLegalEmployersBody,
   OracleFusionHcmListLocationsBody,
+  OracleFusionHcmListPayrollAssignmentsBody,
+  OracleFusionHcmListPayrollBalancesBody,
+  OracleFusionHcmListPayrollDefinitionsBody,
+  OracleFusionHcmListPayrollElementDefinitionsBody,
+  OracleFusionHcmListPayrollInputValuesBody,
+  OracleFusionHcmListPayrollRelationshipsBody,
+  OracleFusionHcmListPayrollRunResultsBody,
+  OracleFusionHcmListPayrollTimePeriodsBody,
+  OracleFusionHcmListPerformanceDocumentParticipantsBody,
+  OracleFusionHcmListPerformanceDocumentRolesBody,
+  OracleFusionHcmListPerformanceDocumentTasksBody,
+  OracleFusionHcmListPerformanceDocumentsBody,
+  OracleFusionHcmListPerformanceGoalsBody,
+  OracleFusionHcmListPersonProcessResultsBody,
   OracleFusionHcmListPersonTypesBody,
   OracleFusionHcmListPositionsBody,
+  OracleFusionHcmListSalariesBody,
+  OracleFusionHcmListSalaryBasesBody,
+  OracleFusionHcmListSalaryComponentsBody,
+  OracleFusionHcmListTalentProfileCertificationsBody,
+  OracleFusionHcmListTalentProfileSectionsBody,
+  OracleFusionHcmListTalentProfileSkillsBody,
+  OracleFusionHcmListTalentProfilesBody,
+  OracleFusionHcmListTimeAttributeCriteriaBindsBody,
+  OracleFusionHcmListTimeAttributeDataSourcesBody,
+  OracleFusionHcmListTimeAttributeValuesBody,
+  OracleFusionHcmListTimeAttributesBody,
+  OracleFusionHcmListTimeCardsBody,
+  OracleFusionHcmListTimeRecordEventMessagesBody,
+  OracleFusionHcmListTimeRecordRequestEventsBody,
+  OracleFusionHcmListTimeRecordsBody,
   OracleFusionHcmListWorkerAssignmentsBody,
   OracleFusionHcmListWorkerDirectReportsBody,
   OracleFusionHcmListWorkerManagersBody,
   OracleFusionHcmListWorkersBody,
+  OracleFusionHcmUpdateAssignedPayrollBody,
+  OracleFusionHcmUpdateElementEntryValueBody,
+  OracleFusionHcmUpdateTimeEntryBody,
 } from '@/lib/internal/oracle-fusion-hcm/schema'
 
 type Credentials = OracleFusionResolvedCredential
@@ -228,7 +228,10 @@ async function request(
   path: string,
   query: Query,
   signal?: AbortSignal,
-  mutation?: Omit<Extract<OracleFusionRequest, { method: 'POST' | 'PATCH' | 'PUT' }>, 'address' | 'query'>
+  mutation?: Omit<
+    Extract<OracleFusionRequest, { method: 'POST' | 'PATCH' | 'PUT' }>,
+    'address' | 'query'
+  >
 ): Promise<unknown> {
   try {
     const result = await requestOracleFusionJson(
@@ -826,10 +829,8 @@ const PERFORMANCE_DOCUMENT_PARTICIPANT_FIELDS =
   'EvalParticipantId,EvalRoleId,PersonId,ParticipationStatusCode,DueDate,FdbackCompletionDate,MatrixParticipantFlag,RoleTypeCode'
 const PERFORMANCE_DOCUMENT_TASK_FIELDS =
   'EvalStepId,StepCode,StepStatus,TaskName,TaskStatus,DueDate'
-const TALENT_PROFILE_FIELDS =
-  'ProfileId,PersonId,PersonNumber,ProfileCode,DisplayName,StatusCode'
-const TALENT_PROFILE_SECTION_FIELDS =
-  'ProfileSectionId,SectionId,SectionName,SectionContext'
+const TALENT_PROFILE_FIELDS = 'ProfileId,PersonId,PersonNumber,ProfileCode,DisplayName,StatusCode'
+const TALENT_PROFILE_SECTION_FIELDS = 'ProfileSectionId,SectionId,SectionName,SectionContext'
 const TALENT_PROFILE_SKILL_FIELDS =
   'SkillId,ProfileId,SectionId,Skill,SkillType,SkillTypeMeaning,DateAchieved,YearsOfExperience,ProjectOrActivity,Source,SourceType'
 const TALENT_PROFILE_CERTIFICATION_FIELDS =
@@ -840,14 +841,10 @@ const TIME_CARD_FIELDS =
   'timeRecordGroupId,timeRecordGroupVersion,personId,personNumber,assignmentNumber,startTime,stopTime,totalHours,groupType,parentTimeRecordGroupId,parentTimeRecordGroupVersion'
 const TIME_ATTRIBUTE_FIELDS =
   'tmAtrbFldId,tmAtrbFldUsageId,attributeName,contextCode,displayName,description,name'
-const TIME_ATTRIBUTE_DATA_SOURCE_FIELDS =
-  'dataSourceUsageId,dataSourceUsageCode,tmAtrbFldId'
-const TIME_ATTRIBUTE_CRITERIA_BIND_FIELDS =
-  'bindName,criteriaName,dataType'
-const TIME_ATTRIBUTE_VALUE_FIELDS =
-  'value,displayValue'
-const TIME_RECORD_REQUEST_FIELDS =
-  'timeRecordEventRequestId,processInline,processMode'
+const TIME_ATTRIBUTE_DATA_SOURCE_FIELDS = 'dataSourceUsageId,dataSourceUsageCode,tmAtrbFldId'
+const TIME_ATTRIBUTE_CRITERIA_BIND_FIELDS = 'bindName,criteriaName,dataType'
+const TIME_ATTRIBUTE_VALUE_FIELDS = 'value,displayValue'
+const TIME_RECORD_REQUEST_FIELDS = 'timeRecordEventRequestId,processInline,processMode'
 const TIME_RECORD_REQUEST_EVENT_FIELDS =
   'timeRecordEventId,timeRecordEventRequestId,timeRecordId,timeRecordVersion,operationType,eventStatus,eventStatusValue,crudStatusValue,personId,reporterId,reporterIdType,assignmentNumber,startTime,stopTime,measure,referenceDate'
 const TIME_RECORD_EVENT_MESSAGE_FIELDS =
@@ -855,7 +852,9 @@ const TIME_RECORD_EVENT_MESSAGE_FIELDS =
 
 /** Only operation-owned finder names/variables reach this formatter; callers cannot supply a finder. */
 function finder(name: string, variables: Record<string, string | undefined>): string | undefined {
-  const entries = Object.entries(variables).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  const entries = Object.entries(variables).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined
+  )
   if (entries.length === 0) return undefined
   if (entries.some(([, value]) => /[,;=\r\n]/.test(value))) {
     throw new OracleFusionProviderError('Oracle Fusion HCM finder input contains separators', 400)
@@ -871,40 +870,90 @@ async function resolveResourcePath(
   id: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const raw = await request(input, collectionPath, {
-    fields: idField,
-    q: `${idField}=${id}`,
-    limit: 2,
-    offset: 0,
-    links: 'self',
-    effectiveDate: input.effectiveDate,
-  }, signal)
+  const raw = await request(
+    input,
+    collectionPath,
+    {
+      fields: idField,
+      q: `${idField}=${id}`,
+      limit: 2,
+      offset: 0,
+      links: 'self',
+      effectiveDate: input.effectiveDate,
+    },
+    signal
+  )
   const result = parseCollection(raw, (item) => item, { expectedOffset: 0, maxItems: 2 })
   if (result.items.length === 0 && !result.hasMore) {
     throw new OracleFusionProviderError('Oracle Fusion HCM resource was not found', 404)
   }
   if (result.items.length !== 1 || result.hasMore) {
-    throw new OracleFusionProviderError('Oracle Fusion HCM returned an ambiguous resource identity', 502)
+    throw new OracleFusionProviderError(
+      'Oracle Fusion HCM returned an ambiguous resource identity',
+      502
+    )
   }
   const [item] = result.items
-  if (!isRecordLike(item) || normalizeOracleFusionDecimalIdentifier(item[idField], { maxDigits: 19 }) !== id) {
-    throw new OracleFusionProviderError('Oracle Fusion HCM returned a different resource than requested', 502)
+  if (
+    !isRecordLike(item) ||
+    normalizeOracleFusionDecimalIdentifier(item[idField], { maxDigits: 19 }) !== id
+  ) {
+    throw new OracleFusionProviderError(
+      'Oracle Fusion HCM returned a different resource than requested',
+      502
+    )
   }
   return `${collectionPath}/${extractOpaqueKey(item, input, collectionPath)}`
 }
 
-async function payrollRelationshipPath(input: Credentials & { payrollRelationshipId: string; effectiveDate?: string }, signal?: AbortSignal) {
-  return resolveResourcePath(input, 'payrollRelationships', 'PayrollRelationshipId', input.payrollRelationshipId, signal)
+async function payrollRelationshipPath(
+  input: Credentials & { payrollRelationshipId: string; effectiveDate?: string },
+  signal?: AbortSignal
+) {
+  return resolveResourcePath(
+    input,
+    'payrollRelationships',
+    'PayrollRelationshipId',
+    input.payrollRelationshipId,
+    signal
+  )
 }
 
-async function payrollAssignmentPath(input: Credentials & { payrollRelationshipId: string; payrollAssignmentId: string; effectiveDate?: string }, signal?: AbortSignal) {
+async function payrollAssignmentPath(
+  input: Credentials & {
+    payrollRelationshipId: string
+    payrollAssignmentId: string
+    effectiveDate?: string
+  },
+  signal?: AbortSignal
+) {
   const parent = await payrollRelationshipPath(input, signal)
-  return resolveResourcePath(input, `${parent}/child/payrollAssignments`, 'RelationshipGroupId', input.payrollAssignmentId, signal)
+  return resolveResourcePath(
+    input,
+    `${parent}/child/payrollAssignments`,
+    'RelationshipGroupId',
+    input.payrollAssignmentId,
+    signal
+  )
 }
 
-async function assignedPayrollPath(input: Credentials & { payrollRelationshipId: string; payrollAssignmentId: string; assignedPayrollId: string; effectiveDate?: string }, signal?: AbortSignal) {
+async function assignedPayrollPath(
+  input: Credentials & {
+    payrollRelationshipId: string
+    payrollAssignmentId: string
+    assignedPayrollId: string
+    effectiveDate?: string
+  },
+  signal?: AbortSignal
+) {
   const parent = await payrollAssignmentPath(input, signal)
-  return resolveResourcePath(input, `${parent}/child/assignedPayrolls`, 'AssignedPayrollId', input.assignedPayrollId, signal)
+  return resolveResourcePath(
+    input,
+    `${parent}/child/assignedPayrolls`,
+    'AssignedPayrollId',
+    input.assignedPayrollId,
+    signal
+  )
 }
 
 async function elementEntryPath(input: Credentials & { elementEntryId: string; effectiveDate?: string }, signal?: AbortSignal) {

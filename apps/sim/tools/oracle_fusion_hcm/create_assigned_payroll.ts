@@ -12,7 +12,8 @@ export const oracleFusionHcmCreateAssignedPayrollTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_create_assigned_payroll',
   name: 'Create Assigned Payroll in Oracle Fusion HCM',
-  description: 'Create Assigned Payroll using documented Oracle fields. Requires administrative privileges and valid tenant configuration.',
+  description:
+    'Create Assigned Payroll using documented Oracle fields. Requires administrative privileges and valid tenant configuration.',
   ...internalExecution,
   params: {
     ...common,
@@ -26,7 +27,8 @@ export const oracleFusionHcmCreateAssignedPayrollTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
+      description:
+        'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
     },
     payrollId: {
       type: 'string',

@@ -703,48 +703,130 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
   }
 
   it('reads historical payroll relationships without current worker-directory membership', async () => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ PayrollRelationshipId: '9007199254740993', PersonNumber: '0007', EffectiveStartDate: '2001-01-01' }]))
-    const result = await operations.executeOracleFusionHcmListPayrollRelationships({ ...auth, personNumber: '0007', effectiveDate: '2001-01-01' })
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([
+        {
+          PayrollRelationshipId: '9007199254740993',
+          PersonNumber: '0007',
+          EffectiveStartDate: '2001-01-01',
+        },
+      ])
+    )
+    const result = await operations.executeOracleFusionHcmListPayrollRelationships({
+      ...auth,
+      personNumber: '0007',
+      effectiveDate: '2001-01-01',
+    })
     expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
-    expect(lastRequest()).toMatchObject({ address: { family: 'hcm', relativePath: 'payrollRelationships' }, query: { q: "PersonNumber='0007'", effectiveDate: '2001-01-01', limit: 20, offset: 0 } })
+    expect(lastRequest()).toMatchObject({
+      address: { family: 'hcm', relativePath: 'payrollRelationships' },
+      query: { q: "PersonNumber='0007'", effectiveDate: '2001-01-01', limit: 20, offset: 0 },
+    })
     expect(result.output.payrollRelationships[0].payrollRelationshipId).toBe('9007199254740993')
   })
 
   it('keeps payroll assignment identity distinct from HR assignment identity and bounds child pages', async () => {
     mocks.requestOracleFusionJson
-      .mockResolvedValueOnce(discovery('payrollRelationships', 'PayrollRelationshipId', '1', 'relationship%20key'))
-      .mockResolvedValueOnce(collection([{ RelationshipGroupId: '9007199254740993', AssignmentId: '9007199254740995', AssignmentNumber: 'E7', TimeCardRequired: 'Y' }], { limit: 10, offset: 30, hasMore: true }))
-    const result = await operations.executeOracleFusionHcmListPayrollAssignments({ ...auth, payrollRelationshipId: '1', effectiveDate: '2020-01-01', limit: 10, offset: 30 })
-    expect(lastRequest()).toMatchObject({ address: { relativePath: 'payrollRelationships/relationship%20key/child/payrollAssignments' }, query: { limit: 10, offset: 30, effectiveDate: '2020-01-01' } })
-    expect(result.output.payrollAssignments[0]).toMatchObject({ payrollAssignmentId: '9007199254740993', assignmentId: '9007199254740995', timeCardRequired: 'Y' })
+      .mockResolvedValueOnce(
+        discovery('payrollRelationships', 'PayrollRelationshipId', '1', 'relationship%20key')
+      )
+      .mockResolvedValueOnce(
+        collection(
+          [
+            {
+              RelationshipGroupId: '9007199254740993',
+              AssignmentId: '9007199254740995',
+              AssignmentNumber: 'E7',
+              TimeCardRequired: 'Y',
+            },
+          ],
+          { limit: 10, offset: 30, hasMore: true }
+        )
+      )
+    const result = await operations.executeOracleFusionHcmListPayrollAssignments({
+      ...auth,
+      payrollRelationshipId: '1',
+      effectiveDate: '2020-01-01',
+      limit: 10,
+      offset: 30,
+    })
+    expect(lastRequest()).toMatchObject({
+      address: { relativePath: 'payrollRelationships/relationship%20key/child/payrollAssignments' },
+      query: { limit: 10, offset: 30, effectiveDate: '2020-01-01' },
+    })
+    expect(result.output.payrollAssignments[0]).toMatchObject({
+      payrollAssignmentId: '9007199254740993',
+      assignmentId: '9007199254740995',
+      timeCardRequired: 'Y',
+    })
     expect(result.output.nextOffset).toBe(31)
     expect(mocks.requestOracleFusionJson).toHaveBeenCalledTimes(2)
   })
 
   it.each([
     collection([], { limit: 2 }),
-    collection([{ PayrollRelationshipId: '9', links: self('payrollRelationships/key') }], { limit: 2 }),
+    collection([{ PayrollRelationshipId: '9', links: self('payrollRelationships/key') }], {
+      limit: 2,
+    }),
     collection([{ PayrollRelationshipId: '1', links: self('publicWorkers/key') }], { limit: 2 }),
-    collection([{ PayrollRelationshipId: '1', links: self('payrollRelationships/key') }], { limit: 2, hasMore: true }),
-  ])('rejects missing, mismatched, foreign-parent, or ambiguous payroll resolution', async (response) => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(response)
-    await expect(operations.executeOracleFusionHcmListPayrollAssignments({ ...auth, payrollRelationshipId: '1' })).rejects.toBeInstanceOf(OracleFusionProviderError)
-    expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
-  })
+    collection([{ PayrollRelationshipId: '1', links: self('payrollRelationships/key') }], {
+      limit: 2,
+      hasMore: true,
+    }),
+  ])(
+    'rejects missing, mismatched, foreign-parent, or ambiguous payroll resolution',
+    async (response) => {
+      mocks.requestOracleFusionJson.mockResolvedValueOnce(response)
+      await expect(
+        operations.executeOracleFusionHcmListPayrollAssignments({
+          ...auth,
+          payrollRelationshipId: '1',
+        })
+      ).rejects.toBeInstanceOf(OracleFusionProviderError)
+      expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
+    }
+  )
 
   it('creates assigned payroll with all required dates and an exact numeric payroll ID', async () => {
     const assignmentPath = 'payrollRelationships/rel/child/payrollAssignments/asg'
     mocks.requestOracleFusionJson
       .mockResolvedValueOnce(discovery('payrollRelationships', 'PayrollRelationshipId', '1', 'rel'))
-      .mockResolvedValueOnce(discovery('payrollRelationships/rel/child/payrollAssignments', 'RelationshipGroupId', '2', 'asg'))
-      .mockResolvedValueOnce({ AssignedPayrollId: '3', PayrollId: '9223372036854775807', links: self(`${assignmentPath}/child/assignedPayrolls/new`) })
-    await operations.executeOracleFusionHcmCreateAssignedPayroll({ ...auth, payrollRelationshipId: '1', payrollAssignmentId: '2', payrollId: '9223372036854775807', effectiveStartDate: '2026-01-01', effectiveEndDate: '4712-12-31', startDate: '2026-01-01', endDate: '4712-12-31' })
-    expect(lastRequest()).toMatchObject({ address: { relativePath: `${assignmentPath}/child/assignedPayrolls` }, method: 'POST', mediaType: 'application/json' })
-    expect(serializeOracleFusionJsonBody(lastRequest().body)).toBe('{"PayrollId":9223372036854775807,"EffectiveStartDate":"2026-01-01","EffectiveEndDate":"4712-12-31","StartDate":"2026-01-01","EndDate":"4712-12-31"}')
+      .mockResolvedValueOnce(
+        discovery(
+          'payrollRelationships/rel/child/payrollAssignments',
+          'RelationshipGroupId',
+          '2',
+          'asg'
+        )
+      )
+      .mockResolvedValueOnce({
+        AssignedPayrollId: '3',
+        PayrollId: '9223372036854775807',
+        links: self(`${assignmentPath}/child/assignedPayrolls/new`),
+      })
+    await operations.executeOracleFusionHcmCreateAssignedPayroll({
+      ...auth,
+      payrollRelationshipId: '1',
+      payrollAssignmentId: '2',
+      payrollId: '9223372036854775807',
+      effectiveStartDate: '2026-01-01',
+      effectiveEndDate: '4712-12-31',
+      startDate: '2026-01-01',
+      endDate: '4712-12-31',
+    })
+    expect(lastRequest()).toMatchObject({
+      address: { relativePath: `${assignmentPath}/child/assignedPayrolls` },
+      method: 'POST',
+      mediaType: 'application/json',
+    })
+    expect(serializeOracleFusionJsonBody(lastRequest().body)).toBe(
+      '{"PayrollId":9223372036854775807,"EffectiveStartDate":"2026-01-01","EffectiveEndDate":"4712-12-31","StartDate":"2026-01-01","EndDate":"4712-12-31"}'
+    )
   })
 
   it('updates only assigned-payroll fields and sends an explicit effective-dating header', async () => {
-    const collectionPath = 'payrollRelationships/rel/child/payrollAssignments/asg/child/assignedPayrolls'
+    const collectionPath =
+      'payrollRelationships/rel/child/payrollAssignments/asg/child/assignedPayrolls'
     mocks.requestOracleFusionJson
       .mockResolvedValueOnce(discovery('payrollRelationships', 'PayrollRelationshipId', '1', 'rel'))
       .mockResolvedValueOnce(discovery('payrollRelationships/rel/child/payrollAssignments', 'RelationshipGroupId', '2', 'asg'))

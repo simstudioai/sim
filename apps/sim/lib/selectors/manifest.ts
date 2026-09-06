@@ -381,30 +381,39 @@ export const selectorManifest = {
     unknownDetail: true,
     staleTime: 0,
   }),
-  'oracle_fusion_hcm.payrollAssignments': providerSelector(['payrollRelationshipId', 'effectiveDate'], {
-    readiness: { all: ['oauthCredential', 'payrollRelationshipId'] },
-    listMode: 'paginated',
-    search: false,
-    detail: true,
-    unknownDetail: true,
-    staleTime: 0,
-  }),
-  'oracle_fusion_hcm.payrollDefinitions': providerSelector(['legislativeDataGroupId', 'effectiveDate'], {
-    readiness: { all: ['oauthCredential'] },
-    listMode: 'paginated',
-    search: true,
-    detail: false,
-    unknownDetail: false,
-    staleTime: 0,
-  }),
-  'oracle_fusion_hcm.elementDefinitions': providerSelector(['personId', 'legislativeDataGroupId', 'effectiveDate'], {
-    readiness: { all: ['oauthCredential'] },
-    listMode: 'paginated',
-    search: true,
-    detail: false,
-    unknownDetail: false,
-    staleTime: 0,
-  }),
+  'oracle_fusion_hcm.payrollAssignments': providerSelector(
+    ['payrollRelationshipId', 'effectiveDate'],
+    {
+      readiness: { all: ['oauthCredential', 'payrollRelationshipId'] },
+      listMode: 'paginated',
+      search: false,
+      detail: true,
+      unknownDetail: true,
+      staleTime: 0,
+    }
+  ),
+  'oracle_fusion_hcm.payrollDefinitions': providerSelector(
+    ['legislativeDataGroupId', 'effectiveDate'],
+    {
+      readiness: { all: ['oauthCredential'] },
+      listMode: 'paginated',
+      search: true,
+      detail: false,
+      unknownDetail: false,
+      staleTime: 0,
+    }
+  ),
+  'oracle_fusion_hcm.elementDefinitions': providerSelector(
+    ['personId', 'legislativeDataGroupId', 'effectiveDate'],
+    {
+      readiness: { all: ['oauthCredential'] },
+      listMode: 'paginated',
+      search: true,
+      detail: false,
+      unknownDetail: false,
+      staleTime: 0,
+    }
+  ),
   'oracle_fusion_hcm.elementEntries': providerSelector(['personNumber', 'effectiveDate'], {
     readiness: { all: ['oauthCredential'] },
     listMode: 'paginated',
@@ -461,14 +470,25 @@ export const selectorManifest = {
     unknownDetail: false,
     staleTime: 0,
   }),
-  'oracle_fusion_hcm.payrollTimeTypes': providerSelector(['assignmentId', 'effectiveDate', 'dataSourceUsageId', 'timeAttributeUsageId'], {
-    readiness: { all: ['oauthCredential', 'assignmentId', 'effectiveDate', 'dataSourceUsageId', 'timeAttributeUsageId'] },
-    listMode: 'paginated',
-    search: false,
-    detail: false,
-    unknownDetail: false,
-    staleTime: 0,
-  }),
+  'oracle_fusion_hcm.payrollTimeTypes': providerSelector(
+    ['assignmentId', 'effectiveDate', 'dataSourceUsageId', 'timeAttributeUsageId'],
+    {
+      readiness: {
+        all: [
+          'oauthCredential',
+          'assignmentId',
+          'effectiveDate',
+          'dataSourceUsageId',
+          'timeAttributeUsageId',
+        ],
+      },
+      listMode: 'paginated',
+      search: false,
+      detail: false,
+      unknownDetail: false,
+      staleTime: 0,
+    }
+  ),
   'managedAgent.agents': providerSelector(),
   'managedAgent.environments': providerSelector(['environmentType']),
   'managedAgent.vaults': providerSelector(),

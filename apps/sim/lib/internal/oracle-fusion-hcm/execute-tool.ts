@@ -30,10 +30,17 @@ async function executeOperation<S extends z.ZodType>(
   } catch (error) {
     signal?.throwIfAborted()
     if (error instanceof OracleFusionProviderError) {
-      return Response.json({ success: false, error: error.message, ...(mutation ? { retryable: false } : {}) }, { status: error.status })
+      return Response.json(
+        { success: false, error: error.message, ...(mutation ? { retryable: false } : {}) },
+        { status: error.status }
+      )
     }
     return Response.json(
-      { success: false, error: 'Oracle Fusion HCM request failed', ...(mutation ? { retryable: false } : {}) },
+      {
+        success: false,
+        error: 'Oracle Fusion HCM request failed',
+        ...(mutation ? { retryable: false } : {}),
+      },
       { status: 500 }
     )
   }

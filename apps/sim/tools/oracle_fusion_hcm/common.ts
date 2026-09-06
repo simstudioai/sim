@@ -95,7 +95,11 @@ export const elementEntryValueItems = {
   required: ['inputValueId', 'screenEntryValue'],
   additionalProperties: false,
   properties: {
-    inputValueId: { type: 'string', pattern: '^[1-9][0-9]{0,18}$', description: 'Exact positive int64 input value ID' },
+    inputValueId: {
+      type: 'string',
+      pattern: '^[1-9][0-9]{0,18}$',
+      description: 'Exact positive int64 input value ID',
+    },
     screenEntryValue: { anyOf: [{ type: 'string', maxLength: 60 }, { type: 'null' }] },
   },
 } as const

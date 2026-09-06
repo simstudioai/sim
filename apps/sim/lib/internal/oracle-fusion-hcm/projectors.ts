@@ -2,58 +2,58 @@ import { isRecordLike } from '@sim/utils/object'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
 import { normalizeOracleFusionDecimalIdentifier } from '@/lib/internal/oracle-fusion/identifiers'
 import type {
-  OracleFusionHcmPayrollRelationship,
-  OracleFusionHcmPayrollAssignment,
-  OracleFusionHcmAssignedPayroll,
-  OracleFusionHcmPayrollDefinition,
-  OracleFusionHcmPayrollTimePeriod,
-  OracleFusionHcmPayrollElementDefinition,
-  OracleFusionHcmPayrollInputValue,
-  OracleFusionHcmElementEntry,
-  OracleFusionHcmElementEntryValue,
-  OracleFusionHcmPersonProcessResult,
-  OracleFusionHcmPayrollRunResult,
-  OracleFusionHcmPayrollBalance,
-  OracleFusionHcmSalary,
-  OracleFusionHcmSalaryBasis,
-  OracleFusionHcmStandardSalaryComponent,
-  OracleFusionHcmSimpleSalaryComponent,
-  OracleFusionHcmRateSalaryComponent,
-  OracleFusionHcmGradeRateValue,
-  OracleFusionHcmGoalPlan,
-  OracleFusionHcmPerformanceGoal,
-  OracleFusionHcmDevelopmentGoal,
-  OracleFusionHcmPerformanceDocument,
-  OracleFusionHcmPerformanceDocumentRole,
-  OracleFusionHcmPerformanceDocumentParticipant,
-  OracleFusionHcmPerformanceDocumentTask,
-  OracleFusionHcmTalentProfile,
-  OracleFusionHcmTalentProfileSection,
-  OracleFusionHcmTalentProfileSkill,
-  OracleFusionHcmTalentProfileCertification,
-  OracleFusionHcmTimeRecord,
-  OracleFusionHcmTimeCard,
-  OracleFusionHcmTimeAttribute,
-  OracleFusionHcmTimeAttributeDataSource,
-  OracleFusionHcmTimeAttributeCriteriaBind,
-  OracleFusionHcmTimeAttributeValue,
-  OracleFusionHcmTimeRecordRequest,
-  OracleFusionHcmTimeRecordRequestEvent,
-  OracleFusionHcmTimeRecordEventMessage,
   OracleFusionHcmAbsence,
   OracleFusionHcmAbsenceType,
+  OracleFusionHcmAssignedPayroll,
   OracleFusionHcmAssignment,
   OracleFusionHcmBusinessUnit,
   OracleFusionHcmDepartment,
+  OracleFusionHcmDevelopmentGoal,
   OracleFusionHcmDirectReport,
+  OracleFusionHcmElementEntry,
+  OracleFusionHcmElementEntryValue,
+  OracleFusionHcmGoalPlan,
   OracleFusionHcmGrade,
+  OracleFusionHcmGradeRateValue,
   OracleFusionHcmJob,
   OracleFusionHcmJobFamily,
   OracleFusionHcmLegalEmployer,
   OracleFusionHcmLocation,
   OracleFusionHcmManager,
+  OracleFusionHcmPayrollAssignment,
+  OracleFusionHcmPayrollBalance,
+  OracleFusionHcmPayrollDefinition,
+  OracleFusionHcmPayrollElementDefinition,
+  OracleFusionHcmPayrollInputValue,
+  OracleFusionHcmPayrollRelationship,
+  OracleFusionHcmPayrollRunResult,
+  OracleFusionHcmPayrollTimePeriod,
+  OracleFusionHcmPerformanceDocument,
+  OracleFusionHcmPerformanceDocumentParticipant,
+  OracleFusionHcmPerformanceDocumentRole,
+  OracleFusionHcmPerformanceDocumentTask,
+  OracleFusionHcmPerformanceGoal,
+  OracleFusionHcmPersonProcessResult,
   OracleFusionHcmPersonType,
   OracleFusionHcmPosition,
+  OracleFusionHcmRateSalaryComponent,
+  OracleFusionHcmSalary,
+  OracleFusionHcmSalaryBasis,
+  OracleFusionHcmSimpleSalaryComponent,
+  OracleFusionHcmStandardSalaryComponent,
+  OracleFusionHcmTalentProfile,
+  OracleFusionHcmTalentProfileCertification,
+  OracleFusionHcmTalentProfileSection,
+  OracleFusionHcmTalentProfileSkill,
+  OracleFusionHcmTimeAttribute,
+  OracleFusionHcmTimeAttributeCriteriaBind,
+  OracleFusionHcmTimeAttributeDataSource,
+  OracleFusionHcmTimeAttributeValue,
+  OracleFusionHcmTimeCard,
+  OracleFusionHcmTimeRecord,
+  OracleFusionHcmTimeRecordEventMessage,
+  OracleFusionHcmTimeRecordRequest,
+  OracleFusionHcmTimeRecordRequestEvent,
   OracleFusionHcmWorker,
 } from '@/lib/internal/oracle-fusion-hcm/schema'
 
@@ -452,7 +452,9 @@ export function projectPayrollTimePeriod(value: unknown): OracleFusionHcmPayroll
 }
 
 /** Projects the allowlisted payroll element definition fields; excludes unrelated secured children. */
-export function projectPayrollElementDefinition(value: unknown): OracleFusionHcmPayrollElementDefinition {
+export function projectPayrollElementDefinition(
+  value: unknown
+): OracleFusionHcmPayrollElementDefinition {
   const item = record(value)
   return {
     elementTypeId: idValue(item.ElementTypeId, 'ElementTypeId', true)!,
@@ -664,7 +666,9 @@ export function projectSalaryBasis(value: unknown): OracleFusionHcmSalaryBasis {
 }
 
 /** Projects the allowlisted standard salary component fields; excludes unrelated secured children. */
-export function projectStandardSalaryComponent(value: unknown): OracleFusionHcmStandardSalaryComponent {
+export function projectStandardSalaryComponent(
+  value: unknown
+): OracleFusionHcmStandardSalaryComponent {
   const item = record(value)
   return {
     salaryComponentId: idValue(item.SalaryComponentId, 'SalaryComponentId', true)!,
@@ -819,7 +823,9 @@ export function projectPerformanceDocument(value: unknown): OracleFusionHcmPerfo
 }
 
 /** Projects the allowlisted performance document role fields; excludes unrelated secured children. */
-export function projectPerformanceDocumentRole(value: unknown): OracleFusionHcmPerformanceDocumentRole {
+export function projectPerformanceDocumentRole(
+  value: unknown
+): OracleFusionHcmPerformanceDocumentRole {
   const item = record(value)
   return {
     evalRoleId: idValue(item.EvalRoleId, 'EvalRoleId', true)!,
@@ -830,7 +836,9 @@ export function projectPerformanceDocumentRole(value: unknown): OracleFusionHcmP
 }
 
 /** Projects the allowlisted performance document participant fields; excludes unrelated secured children. */
-export function projectPerformanceDocumentParticipant(value: unknown): OracleFusionHcmPerformanceDocumentParticipant {
+export function projectPerformanceDocumentParticipant(
+  value: unknown
+): OracleFusionHcmPerformanceDocumentParticipant {
   const item = record(value)
   return {
     evalParticipantId: idValue(item.EvalParticipantId, 'EvalParticipantId', true)!,
@@ -845,7 +853,9 @@ export function projectPerformanceDocumentParticipant(value: unknown): OracleFus
 }
 
 /** Projects the allowlisted performance document task fields; excludes unrelated secured children. */
-export function projectPerformanceDocumentTask(value: unknown): OracleFusionHcmPerformanceDocumentTask {
+export function projectPerformanceDocumentTask(
+  value: unknown
+): OracleFusionHcmPerformanceDocumentTask {
   const item = record(value)
   return {
     evalStepId: idValue(item.EvalStepId, 'EvalStepId', true)!,
@@ -900,7 +910,9 @@ export function projectTalentProfileSkill(value: unknown): OracleFusionHcmTalent
 }
 
 /** Projects the allowlisted talent profile certification fields; excludes unrelated secured children. */
-export function projectTalentProfileCertification(value: unknown): OracleFusionHcmTalentProfileCertification {
+export function projectTalentProfileCertification(
+  value: unknown
+): OracleFusionHcmTalentProfileCertification {
   const item = record(value)
   return {
     certificationId: idValue(item.CertificationId, 'CertificationId', true)!,
@@ -974,7 +986,9 @@ export function projectTimeAttribute(value: unknown): OracleFusionHcmTimeAttribu
 }
 
 /** Projects the allowlisted time attribute data source fields; excludes unrelated secured children. */
-export function projectTimeAttributeDataSource(value: unknown): OracleFusionHcmTimeAttributeDataSource {
+export function projectTimeAttributeDataSource(
+  value: unknown
+): OracleFusionHcmTimeAttributeDataSource {
   const item = record(value)
   return {
     dataSourceUsageId: idValue(item.dataSourceUsageId, 'dataSourceUsageId', true)!,
@@ -984,7 +998,9 @@ export function projectTimeAttributeDataSource(value: unknown): OracleFusionHcmT
 }
 
 /** Projects the allowlisted time attribute criteria bind fields; excludes unrelated secured children. */
-export function projectTimeAttributeCriteriaBind(value: unknown): OracleFusionHcmTimeAttributeCriteriaBind {
+export function projectTimeAttributeCriteriaBind(
+  value: unknown
+): OracleFusionHcmTimeAttributeCriteriaBind {
   const item = record(value)
   return {
     bindName: stringValue(item.bindName),
@@ -1006,14 +1022,20 @@ export function projectTimeAttributeValue(value: unknown): OracleFusionHcmTimeAt
 export function projectTimeRecordRequest(value: unknown): OracleFusionHcmTimeRecordRequest {
   const item = record(value)
   return {
-    timeRecordEventRequestId: idValue(item.timeRecordEventRequestId, 'timeRecordEventRequestId', true)!,
+    timeRecordEventRequestId: idValue(
+      item.timeRecordEventRequestId,
+      'timeRecordEventRequestId',
+      true
+    )!,
     processInline: stringValue(item.processInline),
     processMode: stringValue(item.processMode),
   }
 }
 
 /** Projects the allowlisted time record request event fields; excludes unrelated secured children. */
-export function projectTimeRecordRequestEvent(value: unknown): OracleFusionHcmTimeRecordRequestEvent {
+export function projectTimeRecordRequestEvent(
+  value: unknown
+): OracleFusionHcmTimeRecordRequestEvent {
   const item = record(value)
   return {
     timeRecordEventId: idValue(item.timeRecordEventId, 'timeRecordEventId'),
@@ -1036,10 +1058,16 @@ export function projectTimeRecordRequestEvent(value: unknown): OracleFusionHcmTi
 }
 
 /** Projects the allowlisted time record event message fields; excludes unrelated secured children. */
-export function projectTimeRecordEventMessage(value: unknown): OracleFusionHcmTimeRecordEventMessage {
+export function projectTimeRecordEventMessage(
+  value: unknown
+): OracleFusionHcmTimeRecordEventMessage {
   const item = record(value)
   return {
-    timeRecordEventMessageId: idValue(item.timeRecordEventMessageId, 'timeRecordEventMessageId', true)!,
+    timeRecordEventMessageId: idValue(
+      item.timeRecordEventMessageId,
+      'timeRecordEventMessageId',
+      true
+    )!,
     timeRecordId: idValue(item.timeRecordId, 'timeRecordId'),
     timeBldgBlkVersion: numberValue(item.timeBldgBlkVersion),
     messageId: idValue(item.messageId, 'messageId'),

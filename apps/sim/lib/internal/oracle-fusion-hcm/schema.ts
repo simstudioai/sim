@@ -557,7 +557,9 @@ export const oracleFusionHcmPayrollRelationshipSchema = z.object({
   overridingPeriodId: nullableStringSchema,
 })
 
-export type OracleFusionHcmPayrollRelationship = z.output<typeof oracleFusionHcmPayrollRelationshipSchema>
+export type OracleFusionHcmPayrollRelationship = z.output<
+  typeof oracleFusionHcmPayrollRelationshipSchema
+>
 
 export const oracleFusionHcmPayrollAssignmentSchema = z.object({
   payrollAssignmentId: z.string(),
@@ -569,7 +571,9 @@ export const oracleFusionHcmPayrollAssignmentSchema = z.object({
   timeCardRequired: nullableStringSchema,
 })
 
-export type OracleFusionHcmPayrollAssignment = z.output<typeof oracleFusionHcmPayrollAssignmentSchema>
+export type OracleFusionHcmPayrollAssignment = z.output<
+  typeof oracleFusionHcmPayrollAssignmentSchema
+>
 
 export const oracleFusionHcmAssignedPayrollSchema = z.object({
   assignedPayrollId: z.string(),
@@ -599,7 +603,9 @@ export const oracleFusionHcmPayrollDefinitionSchema = z.object({
   reportingName: nullableStringSchema,
 })
 
-export type OracleFusionHcmPayrollDefinition = z.output<typeof oracleFusionHcmPayrollDefinitionSchema>
+export type OracleFusionHcmPayrollDefinition = z.output<
+  typeof oracleFusionHcmPayrollDefinitionSchema
+>
 
 export const oracleFusionHcmPayrollTimePeriodSchema = z.object({
   timePeriodId: nullableStringSchema,
@@ -620,7 +626,9 @@ export const oracleFusionHcmPayrollTimePeriodSchema = z.object({
   effectiveEndDate: nullableStringSchema,
 })
 
-export type OracleFusionHcmPayrollTimePeriod = z.output<typeof oracleFusionHcmPayrollTimePeriodSchema>
+export type OracleFusionHcmPayrollTimePeriod = z.output<
+  typeof oracleFusionHcmPayrollTimePeriodSchema
+>
 
 export const oracleFusionHcmPayrollElementDefinitionSchema = z.object({
   elementTypeId: z.string(),
@@ -637,7 +645,9 @@ export const oracleFusionHcmPayrollElementDefinitionSchema = z.object({
   outputCurrencyCode: nullableStringSchema,
 })
 
-export type OracleFusionHcmPayrollElementDefinition = z.output<typeof oracleFusionHcmPayrollElementDefinitionSchema>
+export type OracleFusionHcmPayrollElementDefinition = z.output<
+  typeof oracleFusionHcmPayrollElementDefinitionSchema
+>
 
 export const oracleFusionHcmPayrollInputValueSchema = z.object({
   inputValueId: z.string(),
@@ -652,7 +662,9 @@ export const oracleFusionHcmPayrollInputValueSchema = z.object({
   displaySequence: nullableNumberSchema,
 })
 
-export type OracleFusionHcmPayrollInputValue = z.output<typeof oracleFusionHcmPayrollInputValueSchema>
+export type OracleFusionHcmPayrollInputValue = z.output<
+  typeof oracleFusionHcmPayrollInputValueSchema
+>
 
 export const oracleFusionHcmElementEntrySchema = z.object({
   elementEntryId: z.string(),
@@ -687,7 +699,9 @@ export const oracleFusionHcmElementEntryValueSchema = z.object({
   displaySequence: nullableNumberSchema,
 })
 
-export type OracleFusionHcmElementEntryValue = z.output<typeof oracleFusionHcmElementEntryValueSchema>
+export type OracleFusionHcmElementEntryValue = z.output<
+  typeof oracleFusionHcmElementEntryValueSchema
+>
 
 export const oracleFusionHcmPersonProcessResultSchema = z.object({
   objectActionId: nullableStringSchema,
@@ -711,7 +725,9 @@ export const oracleFusionHcmPersonProcessResultSchema = z.object({
   legislativeDataGroupId: nullableStringSchema,
 })
 
-export type OracleFusionHcmPersonProcessResult = z.output<typeof oracleFusionHcmPersonProcessResultSchema>
+export type OracleFusionHcmPersonProcessResult = z.output<
+  typeof oracleFusionHcmPersonProcessResultSchema
+>
 
 export const oracleFusionHcmPayrollRunResultSchema = z.object({
   runResultId: z.string(),
@@ -827,7 +843,9 @@ export const oracleFusionHcmStandardSalaryComponentSchema = z.object({
   changeAmountScale: nullableNumberSchema,
 })
 
-export type OracleFusionHcmStandardSalaryComponent = z.output<typeof oracleFusionHcmStandardSalaryComponentSchema>
+export type OracleFusionHcmStandardSalaryComponent = z.output<
+  typeof oracleFusionHcmStandardSalaryComponentSchema
+>
 
 export const oracleFusionHcmSimpleSalaryComponentSchema = z.object({
   simpleSalaryCompntId: z.string(),
@@ -848,7 +866,9 @@ export const oracleFusionHcmSimpleSalaryComponentSchema = z.object({
   overallSalaryAffect: nullableStringSchema,
 })
 
-export type OracleFusionHcmSimpleSalaryComponent = z.output<typeof oracleFusionHcmSimpleSalaryComponentSchema>
+export type OracleFusionHcmSimpleSalaryComponent = z.output<
+  typeof oracleFusionHcmSimpleSalaryComponentSchema
+>
 
 export const oracleFusionHcmRateSalaryComponentSchema = z.object({
   salaryPayComponentId: z.string(),
@@ -869,7 +889,9 @@ export const oracleFusionHcmRateSalaryComponentSchema = z.object({
   rateOverallSalaryFlag: nullableBooleanSchema,
 })
 
-export type OracleFusionHcmRateSalaryComponent = z.output<typeof oracleFusionHcmRateSalaryComponentSchema>
+export type OracleFusionHcmRateSalaryComponent = z.output<
+  typeof oracleFusionHcmRateSalaryComponentSchema
+>
 
 export const oracleFusionHcmGradeRateValueSchema = z.object({
   rateValueId: z.string(),
@@ -953,7 +975,9 @@ export const oracleFusionHcmPerformanceDocumentSchema = z.object({
   managerAssignmentId: nullableStringSchema,
 })
 
-export type OracleFusionHcmPerformanceDocument = z.output<typeof oracleFusionHcmPerformanceDocumentSchema>
+export type OracleFusionHcmPerformanceDocument = z.output<
+  typeof oracleFusionHcmPerformanceDocumentSchema
+>
 
 export const oracleFusionHcmPerformanceDocumentRoleSchema = z.object({
   evalRoleId: z.string(),
@@ -962,7 +986,9 @@ export const oracleFusionHcmPerformanceDocumentRoleSchema = z.object({
   matrixParticipantFlag: nullableBooleanSchema,
 })
 
-export type OracleFusionHcmPerformanceDocumentRole = z.output<typeof oracleFusionHcmPerformanceDocumentRoleSchema>
+export type OracleFusionHcmPerformanceDocumentRole = z.output<
+  typeof oracleFusionHcmPerformanceDocumentRoleSchema
+>
 
 export const oracleFusionHcmPerformanceDocumentParticipantSchema = z.object({
   evalParticipantId: z.string(),
@@ -975,7 +1001,9 @@ export const oracleFusionHcmPerformanceDocumentParticipantSchema = z.object({
   roleTypeCode: nullableStringSchema,
 })
 
-export type OracleFusionHcmPerformanceDocumentParticipant = z.output<typeof oracleFusionHcmPerformanceDocumentParticipantSchema>
+export type OracleFusionHcmPerformanceDocumentParticipant = z.output<
+  typeof oracleFusionHcmPerformanceDocumentParticipantSchema
+>
 
 export const oracleFusionHcmPerformanceDocumentTaskSchema = z.object({
   evalStepId: z.string(),
@@ -986,7 +1014,9 @@ export const oracleFusionHcmPerformanceDocumentTaskSchema = z.object({
   dueDate: nullableStringSchema,
 })
 
-export type OracleFusionHcmPerformanceDocumentTask = z.output<typeof oracleFusionHcmPerformanceDocumentTaskSchema>
+export type OracleFusionHcmPerformanceDocumentTask = z.output<
+  typeof oracleFusionHcmPerformanceDocumentTaskSchema
+>
 
 export const oracleFusionHcmTalentProfileSchema = z.object({
   profileId: z.string(),
@@ -1006,7 +1036,9 @@ export const oracleFusionHcmTalentProfileSectionSchema = z.object({
   sectionContext: nullableStringSchema,
 })
 
-export type OracleFusionHcmTalentProfileSection = z.output<typeof oracleFusionHcmTalentProfileSectionSchema>
+export type OracleFusionHcmTalentProfileSection = z.output<
+  typeof oracleFusionHcmTalentProfileSectionSchema
+>
 
 export const oracleFusionHcmTalentProfileSkillSchema = z.object({
   skillId: z.string(),
@@ -1022,7 +1054,9 @@ export const oracleFusionHcmTalentProfileSkillSchema = z.object({
   sourceType: nullableStringSchema,
 })
 
-export type OracleFusionHcmTalentProfileSkill = z.output<typeof oracleFusionHcmTalentProfileSkillSchema>
+export type OracleFusionHcmTalentProfileSkill = z.output<
+  typeof oracleFusionHcmTalentProfileSkillSchema
+>
 
 export const oracleFusionHcmTalentProfileCertificationSchema = z.object({
   certificationId: z.string(),
@@ -1040,7 +1074,9 @@ export const oracleFusionHcmTalentProfileCertificationSchema = z.object({
   verifiedMeaning: nullableStringSchema,
 })
 
-export type OracleFusionHcmTalentProfileCertification = z.output<typeof oracleFusionHcmTalentProfileCertificationSchema>
+export type OracleFusionHcmTalentProfileCertification = z.output<
+  typeof oracleFusionHcmTalentProfileCertificationSchema
+>
 
 export const oracleFusionHcmTimeRecordSchema = z.object({
   timeRecordId: z.string(),
