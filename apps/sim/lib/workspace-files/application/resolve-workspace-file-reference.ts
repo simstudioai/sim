@@ -26,6 +26,8 @@ interface WorkspaceFileReferenceInput {
   workspaceId: string
   reference: string
   folderId?: string | null
+  /** Trusted internal caller scope; public route contracts do not expose it. */
+  chatId?: string
 }
 
 interface WorkspaceFileReferenceResult {
@@ -53,11 +55,16 @@ const CHAT_UPLOAD_LOOKUP: WorkspaceFileLookupOptions = { includeChatUploads: tru
  * record so the caller needs no second load. Chat uploads are reachable only on opt-in.
  */
 export async function resolveReferencedWorkspaceFileContext(
+  principal: Principal,
   input: WorkspaceFileReferenceInput,
   options?: WorkspaceFileLookupOptions
 ): Promise<ReferencedWorkspaceFileContext> {
+  const chatId =
+    (principal.kind === 'delegated' && principal.serviceId === 'copilot'
+      ? principal.resourceScope?.chatId
+      : undefined) ?? input.chatId
   const file = input.folderId === undefined
-    ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference, options)
+    ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference, chatId === undefined ? options : { ...options, chatId })
     : await getWorkspaceFileByName(input.workspaceId, input.reference, { folderId: input.folderId })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const canonical = await loadActiveWorkspaceFileContext(file.id, options)
@@ -73,8 +80,13 @@ function defineWorkspaceFileReferenceUseCase<const O extends WorkspaceOperation>
 ) {
   return defineAuthorizedWorkspaceFileUseCase({
     operation,
-    resolveContext: ({ input }: { input: WorkspaceFileReferenceInput }) =>
-      resolveReferencedWorkspaceFileContext(input, options),
+    resolveContext: ({
+      principal,
+      input,
+    }: {
+      principal: Principal
+      input: WorkspaceFileReferenceInput
+    }) => resolveReferencedWorkspaceFileContext(principal, input, options),
     async execute({ context }): Promise<WorkspaceFileReferenceResult> {
       return { file: context.file }
     },
@@ -135,8 +147,13 @@ export interface ReadWorkspaceFileReferenceInput
 
 const readWorkspaceFileReferenceUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }: { input: WorkspaceFileReferenceReadInput }) =>
-    resolveReferencedWorkspaceFileContext(input, CHAT_UPLOAD_LOOKUP),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: WorkspaceFileReferenceReadInput
+  }) => resolveReferencedWorkspaceFileContext(principal, input, CHAT_UPLOAD_LOOKUP),
   async execute({ input, context }): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
     return {
       file: context.file,
