@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import { styles } from '#sim-cli/output/presentation'
 import type { Command } from 'commander'
 import { dump } from 'js-yaml'
 import { CliUpdateError } from '#sim-cli/update/install'
@@ -22,7 +22,7 @@ import { createCommandTelemetry } from './telemetry/index'
  */
 function explainFailure(error: unknown, program: Command): number | null {
   if (error instanceof ProfileConfigError || error instanceof CliUpdateError) {
-    console.error(chalk.red(`Error: ${sanitize(error.message)}`))
+    console.error(styles().red(`Error: ${sanitize(error.message)}`))
     return 1
   }
   // `AbortSignal.timeout` keeps firing after `fetch` resolves, so a bound that
@@ -30,7 +30,7 @@ function explainFailure(error: unknown, program: Command): number | null {
   // surfaces here rather than inside the client. A user's own Ctrl-C raises
   // `AbortError` instead, which is deliberately left alone.
   if (isRequestTimeout(error)) {
-    console.error(chalk.red(`Error: the request timed out. ${RAISE_TIMEOUT_HINT}`))
+    console.error(styles().red(`Error: the request timed out. ${RAISE_TIMEOUT_HINT}`))
     return 1
   }
   if (error instanceof SimApiError) {
@@ -51,11 +51,11 @@ function explainFailure(error: unknown, program: Command): number | null {
       process.stderr.write(output === 'json' ? `${JSON.stringify(payload)}\n` : dump(payload))
       return error.exitCode
     }
-    console.error(chalk.red(`Error: ${sanitize(error.message)}`))
-    if (error.code) console.error(chalk.dim(`  code: ${sanitize(error.code)}`))
+    console.error(styles().red(`Error: ${sanitize(error.message)}`))
+    if (error.code) console.error(styles().dim(`  code: ${sanitize(error.code)}`))
     if (error.details !== undefined) {
       for (const line of formatApiErrorDetails(error.details)) {
-        console.error(chalk.dim(sanitize(line)))
+        console.error(styles().dim(sanitize(line)))
       }
     }
     return error.exitCode

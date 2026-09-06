@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import { styles } from '#sim-cli/output/presentation'
 import { Command } from 'commander'
 import {
   configPath,
@@ -144,11 +144,11 @@ export function configureCommand(): Command {
         if (Object.keys(updates).length === 0) {
           const current = readConfigProfile(profile.name)
           if (Object.keys(current).length === 0) {
-            console.log(chalk.dim(`No settings stored for profile "${profile.name}".`))
+            console.log(styles().dim(`No settings stored for profile "${profile.name}".`))
             return
           }
           for (const [key, value] of Object.entries(current)) {
-            console.log(`${chalk.dim(`${key}:`)} ${value}`)
+            console.log(`${styles().dim(`${key}:`)} ${value}`)
           }
           return
         }
@@ -187,10 +187,10 @@ export function configureCommand(): Command {
         })
 
         if (!changed) {
-          console.log(chalk.dim(`No settings stored for profile "${profile.name}".`))
+          console.log(styles().dim(`No settings stored for profile "${profile.name}".`))
           return
         }
-        console.log(chalk.green(`✓ Updated profile "${profile.name}" in ${configPath()}`))
+        console.log(styles().green(`✓ Updated profile "${profile.name}" in ${configPath()}`))
       }
     )
 }
