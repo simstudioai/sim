@@ -93,6 +93,7 @@ import {
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/mothership/request/handlers'
+import { shouldSkipToolCallEvent } from '@/lib/mothership/request/sse-utils'
 import type {
   ExecutionContext,
   StreamEvent,
@@ -519,6 +520,7 @@ describe('sse-handlers tool lifecycle', () => {
     async (lane) => {
       executeTool.mockResolvedValueOnce({ success: true, output: { id: 'created-once' } })
       const handler = lane === 'main' ? sseHandlers.tool : subAgentHandlers.tool
+      context.finalAssistantContent = 'Already delivered answer'
       const event: StreamEvent = {
         type: MothershipStreamV1EventType.tool,
         ...(lane === 'subagent'
@@ -544,9 +546,14 @@ describe('sse-handlers tool lifecycle', () => {
           mode: MothershipStreamV1ToolMode.sync,
           phase: MothershipStreamV1ToolPhase.call,
           status: 'executing',
+          replay: true,
         },
       }
+      expect(shouldSkipToolCallEvent(context, event)).toBe(false)
+      await prePersistClientExecutableToolCall(event, context, { interactive: false }, execContext)
       await handler(event, context, execContext, { interactive: false, timeout: 1000 })
+      expect(context.finalAssistantContent).toBe('Already delivered answer')
+      expect(upsertAsyncToolCall).not.toHaveBeenCalled()
       expect(executeTool).not.toHaveBeenCalled()
       expect(context.pendingToolPromises.size).toBe(0)
       expect(context.toolCalls.get('replayed-cli')?.status).toBe('pending')
@@ -555,14 +562,16 @@ describe('sse-handlers tool lifecycle', () => {
         ...event,
         payload: {
           ...event.payload,
+          replay: undefined,
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
           ui: { simExecutable: true },
         },
       }
+      expect(shouldSkipToolCallEvent(context, handoff)).toBe(false)
       await handler(handoff, context, execContext, { interactive: false, timeout: 1000 })
       await sleep(0)
-      await handler(handoff, context, execContext, { interactive: false, timeout: 1000 })
+      expect(shouldSkipToolCallEvent(context, handoff)).toBe(true)
       expect(executeTool).toHaveBeenCalledTimes(1)
       expect(executeTool.mock.calls[0][0]).toBe('sim_cli')
       expect(context.toolCalls.get('replayed-cli')?.name).toBe('cli_workflows_create')

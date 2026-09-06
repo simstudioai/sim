@@ -846,6 +846,25 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             expect(
               children.find((block) => block.subagentName === 'Check instructions')?.error
             ).toBe(connection === 'child-failed-check' ? 'Independent check failed' : undefined)
+            if (connection !== 'child-failed-check') {
+              const check = children.find((block) => block.subagentName === 'Check instructions')
+              const discovery = result.contentBlocks.filter(
+                (block) => block.type === 'tool_call' && block.toolCall?.id.startsWith('check-cli-')
+              )
+              expect(discovery).toHaveLength(1)
+              expect(discovery[0]).toMatchObject({
+                parentToolCallId: check?.parentToolCallId,
+                toolCall: {
+                  name: 'sim_cli',
+                  params: { args: ['help'] },
+                  status: 'success',
+                  result: {
+                    success: true,
+                    output: { exitCode: 0, stdout: expect.stringContaining('workflows') },
+                  },
+                },
+              })
+            }
             const diagnostic = children.find((block) => block.subagentName === 'Diagnose workflow')
             if (connection === 'child-owner-exit') expect(diagnostic?.error).toMatch(/interrupt/i)
             expect(
