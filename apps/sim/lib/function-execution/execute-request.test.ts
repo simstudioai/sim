@@ -2520,6 +2520,7 @@ describe('Function execution request', () => {
       mockExecuteInSandbox.mockImplementationOnce(
         ({ signal }: { signal: AbortSignal }) =>
           new Promise((_resolve, reject) => {
+            signal.throwIfAborted()
             signal.addEventListener('abort', () => reject(signal.reason), { once: true })
           })
       )
