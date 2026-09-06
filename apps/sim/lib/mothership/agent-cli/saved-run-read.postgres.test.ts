@@ -479,6 +479,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'relay-gap',
         'relay-interrupted',
         'relay-terminal-lost',
+        'child-connected',
+        'child-failed-check',
+        'child-lost-start',
+        'child-partial-start',
       ] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
@@ -496,6 +500,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
             COPILOT_RUN_DEADLINE_MS: '20000',
             MSHIP_PROBE_WORKFLOW_ID: workflowId,
+            MSHIP_PROBE_DELEGATE: connection.startsWith('child-') ? '1' : '0',
+            MSHIP_PROBE_CHECK_FAIL: connection === 'child-failed-check' ? '1' : '0',
             MSHIP_PROBE_PAUSE_REPORT:
               connection.startsWith('live-') || connection.startsWith('relay-') ? '1' : '0',
             ...(connection.startsWith('relay-')
@@ -572,6 +578,25 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             const response = await nativeFetch(input, init)
             if (
+              (connection === 'child-lost-start' || connection === 'child-partial-start') &&
+              !responseDropped &&
+              url.pathname === '/api/mothership'
+            ) {
+              const body = await response.text()
+              responseDropped = true
+              if (connection === 'child-partial-start') {
+                const frames = body.split('\n\n')
+                const start = frames.findIndex((frame) => frame.includes('"type":"span"'))
+                if (start < 0) throw new Error('Expected a live child start')
+                return new Response(
+                  `${frames.slice(0, start + 1).join('\n\n')}\n\ndata: [DONE]\n\n`,
+                  { status: response.status, headers: response.headers }
+                )
+              }
+              throw new TypeError('Local fixture lost the child starts and first tool handoff')
+            }
+
+            if (
               (connection.startsWith('live-') || connection.startsWith('relay-')) &&
               !responseDropped &&
               url.pathname === '/api/tools/resume'
@@ -621,6 +646,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             if (
               connection !== 'connected' &&
+              connection !== 'child-connected' &&
+              connection !== 'child-failed-check' &&
               url.pathname === '/api/tools/resume' &&
               !responseDropped
             ) {
@@ -760,7 +787,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             .from(copilotAsyncToolCalls)
             .where(eq(copilotAsyncToolCalls.runId, run.id))
           expect(calls.length).toBeGreaterThanOrEqual(2)
-          expect(responseDropped).toBe(connection !== 'connected')
+          expect(responseDropped).toBe(
+            connection !== 'connected' &&
+              connection !== 'child-connected' &&
+              connection !== 'child-failed-check'
+          )
           expect(
             calls.find((call) => call.toolCallId.startsWith('execute-saved-workflow-'))
           ).toMatchObject({
@@ -770,6 +801,26 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           for (const call of calls) {
             expect(call.executionStartedAt).toBeInstanceOf(Date)
             expect(call.executionSettledAt).toBeInstanceOf(Date)
+          }
+          if (connection.startsWith('child-')) {
+            const children = result.contentBlocks.filter((block) => block.type === 'subagent')
+            expect(children.map((block) => block.subagentName).sort()).toEqual([
+              'Check instructions',
+              'Diagnose workflow',
+            ])
+            for (const child of children) expect(child.endedAt).toBeTypeOf('number')
+            expect(
+              children.find((block) => block.subagentName === 'Check instructions')?.error
+            ).toBe(connection === 'child-failed-check' ? 'Independent check failed' : undefined)
+            const diagnostic = children.find((block) => block.subagentName === 'Diagnose workflow')
+            expect(
+              result.contentBlocks.some(
+                (block) =>
+                  block.type === 'tool_call' &&
+                  block.parentToolCallId === diagnostic?.parentToolCallId &&
+                  block.toolCall?.name === 'cli_workflows_run'
+              )
+            ).toBe(true)
           }
           expect(executeInSandbox).not.toHaveBeenCalled()
           expect(executeShellInSandbox).not.toHaveBeenCalled()
