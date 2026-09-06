@@ -111,6 +111,29 @@ describe('stream session contract parser', () => {
     expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
   })
 
+  it.each(['run', 'complete'])('validates activity acknowledgement on %s boundaries', (type) => {
+    const payload = type === 'run' ? { kind: 'checkpoint_pause' } : { status: 'complete' }
+    const event = {
+      ...BASE_ENVELOPE,
+      type,
+      payload: { ...payload, activityReceipt: { emitterId: 'owner', sequence: 12 } },
+    }
+    expect(parsePersistedStreamEventEnvelope(event)).toEqual({ ok: true, event })
+    for (const activityReceipt of [
+      null,
+      {},
+      { emitterId: '', sequence: 1 },
+      { emitterId: 'x'.repeat(129), sequence: 1 },
+      { emitterId: 'owner', sequence: -1 },
+      { emitterId: 'owner', sequence: 1.5 },
+      { emitterId: 'owner', sequence: Number.MAX_SAFE_INTEGER + 1 },
+    ]) {
+      expect(
+        parsePersistedStreamEventEnvelope({ ...event, payload: { ...payload, activityReceipt } }).ok
+      ).toBe(false)
+    }
+  })
+
   it('validates the read-only tool replay marker', () => {
     const event = {
       ...BASE_ENVELOPE,

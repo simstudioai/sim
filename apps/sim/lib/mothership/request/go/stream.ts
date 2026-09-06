@@ -416,6 +416,15 @@ export async function runStreamLoop(
         if (handler) {
           await handler(streamEvent, context, execContext, options)
         }
+        if (
+          streamEvent.type === 'complete' ||
+          (streamEvent.type === 'run' && streamEvent.payload.kind === 'checkpoint_pause')
+        ) {
+          /** Only a handled leg boundary acknowledges the activity preceding it. */
+          if (streamEvent.payload.activityReceipt) {
+            context.receivedActivity = streamEvent.payload.activityReceipt
+          }
+        }
         return context.streamComplete || undefined
       } finally {
         const dispatchMs = performance.now() - dispatchStart
