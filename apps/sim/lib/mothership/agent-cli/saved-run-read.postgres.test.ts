@@ -6,7 +6,7 @@
  * MSHIP_WORKER_ROOT additionally runs the real controller with a local scripted worker.
  * CLI, routes, canonical scope, application authorization, SQL and display projection
  * are real. Execution traces and workspace objects live in local files; cache clearing
- * forces physical reads. D4/B1 cases run the companion's canonical oracles; B1 also
+ * forces physical reads. D4/B1/B4 cases run the companion's canonical oracles; B1/B4 also
  * stores and edits actual normalized graphs. Realtime publication is a fixture.
  * Authentication, delegation, membership, saved drafts, workflow admission, billing, ownership
  * and external effects are fixtures. Seeded cases also bypass execution/log writing.
@@ -2057,6 +2057,64 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         )
         expect(runs).toHaveLength(3)
         expect(runs.every((run) => run.status === 'completed')).toBe(true)
+        expect(executeInSandbox).not.toHaveBeenCalled()
+        expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
+    it
+      .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
+      .each(['valid', 'unused'] as const)(
+      'verifies extracted child invocation through the physical parent execution trace: %s',
+      async (mode) => {
+        fixture.permission = 'admin'
+        const parentId = generateId()
+        const childId = generateId()
+        for (const [id, name] of [
+          [parentId, 'Parent extraction'],
+          [childId, `${parentId}-cleanup`],
+        ]) {
+          await db.insert(workflow).values({
+            id,
+            name,
+            workspaceId,
+            userId: 'run-reader',
+            lastSynced: now,
+            createdAt: now,
+            updatedAt: now,
+            isDeployed: false,
+          })
+          fixture.physicalWorkflows.add(id)
+          const state = surgicalState()
+          if (id === childId) {
+            const transform = Object.values(state.blocks).find(
+              (block) => block.name === 'transform'
+            )
+            if (!transform) throw new Error('Missing cleanup fixture terminal')
+            delete state.blocks[transform.id]
+            state.edges = state.edges.filter((edge) => edge.target !== transform.id)
+          }
+          await replaceWorkflowNormalizedState({
+            workflowId: id,
+            workspaceId,
+            attributedUserId: 'run-reader',
+            state,
+          })
+        }
+        await runCompanionOracle({
+          testFile: 'benchmark-workflow-extraction-postgres.test.ts',
+          environmentKey: 'MSHIP_EXTRACTION_FIXTURE',
+          fixture: { workflowId: parentId, childId, mode },
+        })
+        await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+        const runs = await db
+          .select()
+          .from(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.workflowId, parentId))
+        expect(runs).toHaveLength(2)
+        expect(runs.every((run) => run.status === 'completed')).toBe(true)
+        expect(fixture.errors).toEqual([])
         expect(executeInSandbox).not.toHaveBeenCalled()
         expect(executeShellInSandbox).not.toHaveBeenCalled()
       },
