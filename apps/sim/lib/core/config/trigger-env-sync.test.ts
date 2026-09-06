@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchSecretMap } = vi.hoisted(() => ({ mockFetchSecretMap: vi.fn() }))
 
@@ -24,11 +24,6 @@ function byName(vars: { name: string; value: string; isSecret: boolean }[]) {
 describe('resolveTriggerEnvVars', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.SIM_TRIGGER_ENV_SYNC_REQUIRED = undefined
-  })
-
-  afterEach(() => {
-    process.env.SIM_TRIGGER_ENV_SYNC_REQUIRED = undefined
   })
 
   it('reads the secret mapped to the environment', async () => {
@@ -100,7 +95,7 @@ describe('resolveTriggerEnvVars', () => {
   })
 
   it('fails the resolve instead of publishing a partial env when sync is required', async () => {
-    process.env.SIM_TRIGGER_ENV_SYNC_REQUIRED = '1'
+    vi.stubEnv('SIM_TRIGGER_ENV_SYNC_REQUIRED', '1')
 
     await expect(
       resolveTriggerEnvVars('prod', async () => {

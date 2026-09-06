@@ -69,8 +69,10 @@ that list and set it in the secret. The repo still cannot see what else the dash
 
 Two constraints on that list. `syncEnvVars` strips every `TRIGGER_`-prefixed key before it
 publishes, so such a variable can only be set in the dashboard (`assertSyncableKeys` fails the
-build rather than letting one look synced). And a key absent from the secret is left untouched
-rather than blanked, so removing it from the secret does not remove it from a worker.
+build rather than letting one look synced). And the secret is authoritative: after a successful
+read, a key it does not carry — absent, `null`, or blank — is published as `''`, so deleting a
+credential from the secret revokes it in the worker too. Nothing is cleared when the read failed
+or the environment is unmapped, since there is then no authoritative view to clear against.
 
 So before replacing a worker's HTTP call to our own API with an in-process call, ask what env
 that work reads *on the app side*. Anything gated by a `require*Capability` helper is the sharp

@@ -2,6 +2,7 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   additionalFiles,
@@ -110,7 +111,7 @@ export default defineConfig({
           // deploy continue having published nothing — so rejecting is not a
           // way to fail. Only an explicit non-zero exit is, and this path is
           // reached only when SIM_TRIGGER_ENV_SYNC_REQUIRED asked for it.
-          console.error(getErrorMessage(error))
+          createLogger('TriggerConfig').error(getErrorMessage(error))
           process.exit(1)
         }
       }),

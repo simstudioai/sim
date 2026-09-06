@@ -165,8 +165,10 @@ function unavailable(reason: string): SyncedEnvVar[] {
 
 /**
  * Coerces a secret entry to an env var value, matching how container boot
- * hydrates `process.env`. An absent or empty value is treated as unset so a
- * blank secret entry cannot overwrite a working dashboard value with `''`.
+ * hydrates `process.env`. `undefined` means the secret does not configure this
+ * key, which the caller publishes as `''` to clear any value a previous deploy
+ * left in the worker. A blank entry is reported the same way as an absent one,
+ * so blanking a key in the secret revokes it exactly like deleting it.
  */
 function normalizeSecretValue(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined
