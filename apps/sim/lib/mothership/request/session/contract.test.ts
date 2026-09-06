@@ -111,6 +111,27 @@ describe('stream session contract parser', () => {
     expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
   })
 
+  it('validates the read-only tool replay marker', () => {
+    const event = {
+      ...BASE_ENVELOPE,
+      type: 'tool',
+      payload: {
+        phase: 'call',
+        toolCallId: 'saved',
+        toolName: 'sim_cli',
+        executor: 'go',
+        mode: 'sync',
+        replay: true,
+      },
+    }
+    expect(parsePersistedStreamEventEnvelope(event)).toEqual({ ok: true, event })
+    for (const replay of [false, 'true', 1, null]) {
+      expect(
+        parsePersistedStreamEventEnvelope({ ...event, payload: { ...event.payload, replay } }).ok
+      ).toBe(false)
+    }
+  })
+
   it('accepts contract span events', () => {
     const event = {
       ...BASE_ENVELOPE,
