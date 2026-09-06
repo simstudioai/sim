@@ -54,7 +54,6 @@ import {
 } from '@/lib/mothership/chat/sim-key-redaction'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
-import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   isTerminalStreamStatus,
   parsePersistedStreamEventEnvelopeJson,
@@ -139,6 +138,7 @@ import {
   type ReconnectReplaySelection,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
+  toRawPersistedContentBlock,
 } from './message-reconcile'
 import {
   clearQueuedSendHandoffClaim,
@@ -2847,52 +2847,24 @@ export function useChat(
       const traceparent = overrides?.traceparent ?? streamTraceparentRef.current
 
       const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
-      const storedBlocks = sourceBlocks.map((block) => {
-        const timing = {
-          ...(typeof block.timestamp === 'number' ? { timestamp: block.timestamp } : {}),
-          ...(typeof block.endedAt === 'number' ? { endedAt: block.endedAt } : {}),
-        }
-        // Span identity must survive this serializer too (matching
-        // toRawPersistedContentBlock): a stop-persisted turn that loses
-        // spanId/parentSpanId permanently renders through the legacy flat
-        // parser — nested subagents hoist to the top level on every reload.
-        const spanIdentity = {
-          ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
-          ...(block.spanId ? { spanId: block.spanId } : {}),
-          ...(block.parentSpanId ? { parentSpanId: block.parentSpanId } : {}),
-        }
-        if (block.type === 'tool_call' && block.toolCall) {
-          const isCancelled =
-            block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
-          const displayTitle = isCancelled ? 'Stopped by user' : block.toolCall.displayTitle
-          const display = displayTitle ? { title: displayTitle } : undefined
-          return {
-            type: block.type,
-            content: block.content,
-            toolCall: {
-              id: block.toolCall.id,
-              name: block.toolCall.name,
-              state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
-              params: block.toolCall.params,
-              result: block.toolCall.result,
-              ...(display ? { display } : {}),
-              calledBy: block.toolCall.calledBy,
-            },
-            ...spanIdentity,
-            ...timing,
+      const storedBlocks = sourceBlocks
+        .map((block) => {
+          const persisted = toRawPersistedContentBlock(block)
+          if (
+            persisted?.toolCall &&
+            (persisted.toolCall.state === 'executing' || persisted.toolCall.state === 'cancelled')
+          ) {
+            persisted.toolCall = {
+              ...persisted.toolCall,
+              state: 'cancelled',
+              display: { title: 'Stopped by user' },
+            }
           }
-        }
-        return {
-          type: block.type,
-          content: block.content,
-          ...(block.subagent ? { lane: 'subagent' } : {}),
-          ...spanIdentity,
-          ...timing,
-        }
-      })
-
+          return persisted
+        })
+        .filter((block) => block !== null)
       if (storedBlocks.length > 0) {
-        storedBlocks.push({ type: 'stopped', content: undefined })
+        storedBlocks.push({ type: 'complete', status: 'cancelled' })
       }
 
       try {

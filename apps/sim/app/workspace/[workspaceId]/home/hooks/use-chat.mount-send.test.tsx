@@ -63,8 +63,9 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
 
 import type { ApiClientRequest } from '@/lib/api/client/request'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
-import type { CopilotChatAbortBody } from '@/lib/api/contracts/copilot'
+import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contracts/copilot'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   executeRunToolOnClient,
@@ -86,10 +87,11 @@ interface NetworkState {
    * - `accept` — a normal streaming response
    * - `deduped` — the 409 the server returns for an already-claimed send
    */
-  postBehavior: 'hang' | 'accept' | 'deduped' | 'tool'
+  postBehavior: 'hang' | 'accept' | 'deduped' | 'tool' | 'task'
   postBodies: Array<{ message: string; userMessageId?: string }>
   abortSettlements: boolean[]
   abortBodies: CopilotChatAbortBody[]
+  stopBodies: CopilotChatStopBody[]
   abortTraceparents: Array<string | null>
 }
 
@@ -98,6 +100,7 @@ const state: NetworkState = {
   postBodies: [],
   abortSettlements: [],
   abortBodies: [],
+  stopBodies: [],
   abortTraceparents: [],
 }
 
@@ -118,6 +121,10 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     state.abortBodies.push(JSON.parse(String(init?.body)))
     state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
     return Response.json({ aborted: true, settled: state.abortSettlements.shift() ?? true })
+  }
+  if (url.includes('/api/mothership/chat/stop')) {
+    state.stopBodies.push(JSON.parse(String(init?.body)))
+    return Response.json({ success: true })
   }
   if (url.includes('/api/copilot/confirm')) return Response.json({ success: true })
 
@@ -144,6 +151,32 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
       )
     }
     if (state.postBehavior === 'accept') return emptySseResponse()
+    if (state.postBehavior === 'task') {
+      const streamId = state.postBodies.at(-1)?.userMessageId
+      if (!streamId) throw new Error('Missing request identity')
+      const event: MothershipStreamV1EventEnvelope = {
+        v: 1,
+        seq: 1,
+        ts: new Date().toISOString(),
+        type: 'run',
+        stream: { streamId },
+        payload: {
+          kind: 'task_armed',
+          taskId: 'watch-1',
+          taskKind: 'workflow_run',
+          target: { workflowId: 'workflow-1', executionId: 'watched-execution' },
+          note: 'Check the completed invoice run',
+        },
+      }
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    }
     if (state.postBehavior === 'tool') {
       const streamId = state.postBodies.at(-1)?.userMessageId
       if (!streamId) throw new Error('Missing request identity')
@@ -378,6 +411,7 @@ describe('useChat remount send recovery', () => {
     state.postBodies = []
     state.abortSettlements = []
     state.abortBodies = []
+    state.stopBodies = []
     state.abortTraceparents = []
     mockRequestJson.mockResolvedValue({ chats: [] })
     useMothershipQueueStore.setState({ queues: {}, editing: {} })
@@ -394,6 +428,39 @@ describe('useChat remount send recovery', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.clearAllMocks()
+  })
+
+  it('preserves a visible workflow watch when Stop persists the partial response', async () => {
+    state.postBehavior = 'task'
+    const { getResult } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('watch the invoice run')
+    })
+    await waitFor(() =>
+      getResult().messages.some((message) =>
+        message.contentBlocks?.some(
+          (block) => block.type === 'task' && block.task?.taskId === 'watch-1'
+        )
+      )
+    )
+    await act(async () => {
+      await getResult().stopGeneration()
+    })
+    expect(state.stopBodies).toHaveLength(1)
+    const saved = state.stopBodies[0]
+    const restored = normalizeMessage({
+      id: 'saved-assistant',
+      role: 'assistant',
+      content: saved.content,
+      contentBlocks: saved.contentBlocks,
+    })
+    expect(restored.contentBlocks?.find((block) => block.type === 'task')?.task).toEqual({
+      taskId: 'watch-1',
+      kind: 'workflow_run',
+      status: 'pending',
+      target: { workflowId: 'workflow-1', executionId: 'watched-execution' },
+      note: 'Check the completed invoice run',
+    })
   })
 
   it('does not certify an unsettled Stop before the chat ID arrives', async () => {

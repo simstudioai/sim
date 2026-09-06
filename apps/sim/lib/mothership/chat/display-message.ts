@@ -1,3 +1,4 @@
+import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -16,7 +17,7 @@ import {
   ToolCallStatus,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { getMothershipAttachmentPreviewUrl } from './attachment-preview'
-import type { PersistedContentBlock, PersistedMessage } from './persisted-message'
+import type { PersistedMessage } from './persisted-message'
 import { withBlockTiming } from './persisted-message'
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {

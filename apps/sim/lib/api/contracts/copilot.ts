@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -166,47 +167,6 @@ export const copilotChatStreamQuerySchema = z.object({
     .transform((value) => value === 'true'),
 })
 
-const storedToolCallSchema = z
-  .object({
-    id: z.string().optional(),
-    name: z.string().optional(),
-    state: z.string().optional(),
-    params: z.record(z.string(), z.unknown()).optional(),
-    result: z
-      .object({
-        success: z.boolean(),
-        output: z.unknown().optional(),
-        error: z.string().optional(),
-      })
-      .optional(),
-    display: z
-      .object({
-        text: z.string().optional(),
-        title: z.string().optional(),
-        phaseLabel: z.string().optional(),
-      })
-      .optional(),
-    calledBy: z.string().optional(),
-    durationMs: z.number().optional(),
-    error: z.string().optional(),
-  })
-  .nullable()
-
-const copilotContentBlockSchema = z.object({
-  type: z.string(),
-  lane: z.enum(['main', 'subagent']).optional(),
-  content: z.string().optional(),
-  channel: z.enum(['assistant', 'thinking']).optional(),
-  phase: z.enum(['call', 'args_delta', 'result']).optional(),
-  kind: z.enum(['subagent', 'structured_result', 'subagent_result']).optional(),
-  lifecycle: z.enum(['start', 'end']).optional(),
-  status: z.enum(['complete', 'error', 'cancelled']).optional(),
-  parentToolCallId: z.string().optional(),
-  toolCall: storedToolCallSchema.optional(),
-  timestamp: z.number().optional(),
-  endedAt: z.number().optional(),
-})
-
 export const copilotChatStopBodySchema = z.object({
   chatId: z.string(),
   streamId: z.string(),
@@ -216,7 +176,7 @@ export const copilotChatStopBodySchema = z.object({
    * stops 400 and left the turn running detached.
    */
   content: z.string().default(''),
-  contentBlocks: z.array(copilotContentBlockSchema).optional(),
+  contentBlocks: z.array(persistedContentBlockSchema).optional(),
   requestId: z.string().optional(),
 })
 export type CopilotChatStopBody = z.input<typeof copilotChatStopBodySchema>
