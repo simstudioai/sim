@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { format } from 'node:util'
 import type { ResolvedProfile } from './config/profile'
+import type { EmbeddedOutput } from './embed-output'
 
 /**
  * The async-context plumbing for embedded (in-process) CLI runs, split from
@@ -33,8 +35,8 @@ export interface EmbeddedFileSnapshot {
 
 export interface EmbedContext {
   identity: EmbeddedCliIdentity
-  stdout: string[]
-  stderr: string[]
+  stdout: EmbeddedOutput
+  stderr: EmbeddedOutput
   /**
    * Reads bounded structured arguments from the caller's machine on demand.
    * The CLI owns path syntax; the host receives the resolved path without `@`.
@@ -121,7 +123,7 @@ export function installEmbedSinks(): void {
   console.log = (...args: unknown[]) => {
     const ctx = embedStore.getStore()
     if (ctx) {
-      ctx.stdout.push(args.map(String).join(' '))
+      ctx.stdout.write(`${format(...args)}\n`)
       return
     }
     originalLog(...args)
@@ -129,7 +131,7 @@ export function installEmbedSinks(): void {
   console.error = (...args: unknown[]) => {
     const ctx = embedStore.getStore()
     if (ctx) {
-      ctx.stderr.push(args.map(String).join(' '))
+      ctx.stderr.write(`${format(...args)}\n`)
       return
     }
     originalError(...args)
@@ -137,7 +139,11 @@ export function installEmbedSinks(): void {
   process.stdout.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     const ctx = embedStore.getStore()
     if (ctx) {
-      ctx.stdout.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'))
+      const encoding = rest.find((arg) => typeof arg === 'string')
+      ctx.stdout.write(
+        chunk,
+        typeof encoding === 'string' && Buffer.isEncoding(encoding) ? encoding : 'utf8'
+      )
       const callback = rest.find((a) => typeof a === 'function') as (() => void) | undefined
       callback?.()
       return true
@@ -147,7 +153,11 @@ export function installEmbedSinks(): void {
   process.stderr.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     const ctx = embedStore.getStore()
     if (ctx) {
-      ctx.stderr.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'))
+      const encoding = rest.find((arg) => typeof arg === 'string')
+      ctx.stderr.write(
+        chunk,
+        typeof encoding === 'string' && Buffer.isEncoding(encoding) ? encoding : 'utf8'
+      )
       const callback = rest.find((a) => typeof a === 'function') as (() => void) | undefined
       callback?.()
       return true

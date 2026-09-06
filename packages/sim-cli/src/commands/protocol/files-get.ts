@@ -237,6 +237,7 @@ export async function streamToStdout(
       if (!output.write(value)) await once(output, 'drain')
     }
   } finally {
+    await reader.cancel().catch(() => {})
     reader.releaseLock()
   }
 }
@@ -296,10 +297,13 @@ export function attachFileGet(files: Command): void {
 
         if (options.outputFile === undefined || options.outputFile === '-') {
           const contentType = response.headers.get('content-type')
-          if (process.stdout.isTTY && !isTerminalSafeContentType(contentType)) {
+          const embedded = embedStore.getStore()
+          if ((embedded || process.stdout.isTTY) && !isTerminalSafeContentType(contentType)) {
             await response.body.cancel()
             throw new SimApiError(
-              `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
+              embedded
+                ? `Refusing to put ${contentType ?? 'unknown content'} in a text result. Use --output-file <path>.`
+                : `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
               0
             )
           }

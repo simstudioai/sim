@@ -7,6 +7,7 @@ import {
   embedStore,
   installEmbedSinks,
 } from './embed-context'
+import { EmbeddedOutput, EmbeddedOutputLimitError } from './embed-output'
 import {
   formatApiErrorDetails,
   isRequestTimeout,
@@ -87,8 +88,8 @@ export async function runEmbeddedCli(
   const opener = options?.openFile
   const ctx: EmbedContext = {
     identity,
-    stdout: [],
-    stderr: [],
+    stdout: new EmbeddedOutput(),
+    stderr: new EmbeddedOutput(),
     ...(reader
       ? {
           readFile: (path: string) => {
@@ -143,18 +144,27 @@ export async function runEmbeddedCli(
           const file = await opened.catch(() => undefined)
           if (file) {
             await file.dispose().catch(() => {
-              ctx.stderr.push('Warning: temporary upload-file cleanup could not be confirmed.')
+              ctx.stderr.diagnostic(
+                'Warning: temporary upload-file cleanup could not be confirmed.'
+              )
             })
           }
         })
       )
     }
-    return { exitCode, stdout: ctx.stdout.join('\n'), stderr: ctx.stderr.join('\n') }
+    const limitError = ctx.stdout.limitError ?? ctx.stderr.limitError
+    const stderr = ctx.stderr.text()
+    return {
+      exitCode: limitError ? 1 : exitCode,
+      stdout: ctx.stdout.text(),
+      stderr: limitError ? `Error: ${limitError.message}\n${stderr}` : stderr,
+    }
   })
 }
 
 /** Mirrors the installed CLI's top-level error handling (src/index.ts), minus process.exit. */
 function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
+  if (error instanceof EmbeddedOutputLimitError) return 1
   if (error instanceof EmbeddedExit) return error.code
   if (error && typeof error === 'object' && 'exitCode' in error && 'code' in error) {
     // commander's CommanderError from exitOverride: usage/parse errors already
@@ -166,22 +176,24 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     return commander.exitCode || 1
   }
   if (error instanceof ProfileConfigError) {
-    ctx.stderr.push(`Error: ${sanitize(error.message)}`)
+    ctx.stderr.diagnostic(`Error: ${sanitize(error.message)}`)
     return 1
   }
   if (isRequestTimeout(error)) {
-    ctx.stderr.push(`Error: the request timed out. ${RAISE_TIMEOUT_HINT}`)
+    ctx.stderr.diagnostic(`Error: the request timed out. ${RAISE_TIMEOUT_HINT}`)
     return 1
   }
   if (error instanceof SimApiError) {
-    ctx.stderr.push(`Error: ${sanitize(error.message)}`)
-    if (error.code) ctx.stderr.push(`  code: ${sanitize(error.code)}`)
+    ctx.stderr.diagnostic(`Error: ${sanitize(error.message)}`)
+    if (error.code) ctx.stderr.diagnostic(`  code: ${sanitize(error.code)}`)
     if (error.details !== undefined) {
-      for (const line of formatApiErrorDetails(error.details)) ctx.stderr.push(sanitize(line))
+      for (const line of formatApiErrorDetails(error.details)) ctx.stderr.diagnostic(sanitize(line))
     }
     return 1
   }
   // utils-lint-allow: this published standalone CLI cannot import the private @sim/utils package.
-  ctx.stderr.push(`Error: ${sanitize(error instanceof Error ? error.message : String(error))}`)
+  ctx.stderr.diagnostic(
+    `Error: ${sanitize(error instanceof Error ? error.message : String(error))}`
+  )
   return 1
 }
