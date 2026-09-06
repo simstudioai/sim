@@ -1,8 +1,8 @@
 import {
   type OciComputeListWorkRequestsParams,
   type OciComputeResponse,
-  WORK_REQUEST_SUMMARY_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  WORK_REQUEST_SUMMARY_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -63,12 +63,7 @@ export const ociComputeListWorkRequestsTool: InternalToolConfig<
   },
   operation: {
     input: (params) =>
-      ociComputeOperationInput(params, [
-        'compartmentId',
-        'limit',
-        'page',
-        'resourceId',
-      ]),
+      ociComputeOperationInput(params, ['compartmentId', 'limit', 'page', 'resourceId']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },

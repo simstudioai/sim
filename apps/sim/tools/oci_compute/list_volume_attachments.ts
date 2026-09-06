@@ -1,8 +1,8 @@
 import {
   type OciComputeListVolumeAttachmentsParams,
   type OciComputeResponse,
-  VOLUME_ATTACHMENT_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  VOLUME_ATTACHMENT_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 

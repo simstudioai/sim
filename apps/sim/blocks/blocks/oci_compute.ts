@@ -811,10 +811,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       condition: { field: 'operation', value: SHAPE_OPERATIONS },
       required: {
         field: 'operation',
-        value: [
-          'oci_compute_launch_instance',
-          'oci_compute_get_image_shape_compatibility_entry',
-        ],
+        value: ['oci_compute_launch_instance', 'oci_compute_get_image_shape_compatibility_entry'],
       },
     },
     {
@@ -828,10 +825,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       condition: { field: 'operation', value: SHAPE_OPERATIONS },
       required: {
         field: 'operation',
-        value: [
-          'oci_compute_launch_instance',
-          'oci_compute_get_image_shape_compatibility_entry',
-        ],
+        value: ['oci_compute_launch_instance', 'oci_compute_get_image_shape_compatibility_entry'],
       },
     },
     {
@@ -1202,10 +1196,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       condition: { field: 'operation', value: ACTION_OPERATIONS },
       required: {
         field: 'operation',
-        value: [
-          'oci_compute_instance_action',
-          'oci_compute_instance_pool_action',
-        ],
+        value: ['oci_compute_instance_action', 'oci_compute_instance_pool_action'],
       },
     },
     {
@@ -1388,7 +1379,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       placeholder:
         'Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig (ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails (type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields',
       condition: { field: 'operation', value: INSTANCE_DETAILS_OPERATIONS },
-      required: { field: 'operation', value: 'oci_compute_create_instance_configuration', and: { field: 'configurationSource', value: 'NONE' } },
+      required: {
+        field: 'operation',
+        value: 'oci_compute_create_instance_configuration',
+        and: { field: 'configurationSource', value: 'NONE' },
+      },
     },
     {
       id: 'instancePoolIdSelector',
@@ -1477,8 +1472,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       id: 'instanceHostnameFormatter',
       title: 'Instance Hostname Formatter',
       type: 'short-input',
-      placeholder:
-        'Hostname formatter for future pool instances; empty string clears it on update',
+      placeholder: 'Hostname formatter for future pool instances; empty string clears it on update',
       mode: 'advanced',
       condition: { field: 'operation', value: INSTANCE_HOSTNAME_FORMATTER_OPERATIONS },
       required: false,
@@ -1574,10 +1568,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       condition: { field: 'operation', value: SUBNET_ID_OPERATIONS },
       required: {
         field: 'operation',
-        value: [
-          'oci_compute_get_subnet',
-          'oci_compute_launch_instance',
-        ],
+        value: ['oci_compute_get_subnet', 'oci_compute_launch_instance'],
       },
     },
     {
@@ -1590,10 +1581,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
       condition: { field: 'operation', value: SUBNET_ID_OPERATIONS },
       required: {
         field: 'operation',
-        value: [
-          'oci_compute_get_subnet',
-          'oci_compute_launch_instance',
-        ],
+        value: ['oci_compute_get_subnet', 'oci_compute_launch_instance'],
       },
     },
     {
@@ -1714,19 +1702,73 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
           else delete result[field]
         }
         if (params.operation === 'oci_compute_create_instance_pool') {
-          if (result.instanceDisplayNameFormatter === '') result.instanceDisplayNameFormatter = undefined
+          if (result.instanceDisplayNameFormatter === '')
+            result.instanceDisplayNameFormatter = undefined
           if (result.instanceHostnameFormatter === '') result.instanceHostnameFormatter = undefined
         }
-        if (params.operation === 'oci_compute_list_instances' && result.capacityReservationId === '') {
+        if (
+          params.operation === 'oci_compute_list_instances' &&
+          result.capacityReservationId === ''
+        ) {
           result.capacityReservationId = undefined
         }
-        for (const field of ['compartmentId', 'page', 'sortBy', 'sortOrder', 'displayName', 'availabilityDomain', 'lifecycleState', 'instanceId', 'shape', 'sourceMode', 'imageId', 'imageFilter', 'bootVolumeId', 'kmsKeyId', 'freeformTags', 'definedTags', 'retryToken', 'shapeConfig', 'createVnicDetails', 'faultDomain', 'metadata', 'extendedMetadata', 'agentConfig', 'availabilityConfig', 'instanceOptions', 'dedicatedVmHostId', 'ifMatch', 'timeMaintenanceRebootDue', 'updateOperationConstraint', 'action', 'timeScheduled', 'operatingSystem', 'operatingSystemVersion', 'shapeAvailabilities', 'instanceConfigurationId', 'configurationSource', 'instanceDetails', 'instancePoolId', 'placementConfigurations', 'name', 'accessLevel', 'vcnId', 'subnetId', 'vnicId', 'resourceId', 'workRequestId']) {
+        for (const field of [
+          'compartmentId',
+          'page',
+          'sortBy',
+          'sortOrder',
+          'displayName',
+          'availabilityDomain',
+          'lifecycleState',
+          'instanceId',
+          'shape',
+          'sourceMode',
+          'imageId',
+          'imageFilter',
+          'bootVolumeId',
+          'kmsKeyId',
+          'freeformTags',
+          'definedTags',
+          'retryToken',
+          'shapeConfig',
+          'createVnicDetails',
+          'faultDomain',
+          'metadata',
+          'extendedMetadata',
+          'agentConfig',
+          'availabilityConfig',
+          'instanceOptions',
+          'dedicatedVmHostId',
+          'ifMatch',
+          'timeMaintenanceRebootDue',
+          'updateOperationConstraint',
+          'action',
+          'timeScheduled',
+          'operatingSystem',
+          'operatingSystemVersion',
+          'shapeAvailabilities',
+          'instanceConfigurationId',
+          'configurationSource',
+          'instanceDetails',
+          'instancePoolId',
+          'placementConfigurations',
+          'name',
+          'accessLevel',
+          'vcnId',
+          'subnetId',
+          'vnicId',
+          'resourceId',
+          'workRequestId',
+        ]) {
           if (result[field] === '') delete result[field]
         }
         if (params.operation === 'oci_compute_launch_instance') {
           let vnic = result.createVnicDetails
           if (typeof vnic === 'string') vnic = JSON.parse(vnic)
-          if (vnic !== undefined && (vnic === null || typeof vnic !== 'object' || Array.isArray(vnic))) {
+          if (
+            vnic !== undefined &&
+            (vnic === null || typeof vnic !== 'object' || Array.isArray(vnic))
+          ) {
             throw new Error('Primary VNIC settings must be a JSON object')
           }
           result.createVnicDetails = { ...(vnic ?? {}), subnetId: params.subnetId }
@@ -1734,7 +1776,8 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
           if (params.sourceMode !== 'imageFilter') result.imageFilter = undefined
           if (params.sourceMode !== 'bootVolume') result.bootVolumeId = undefined
           if (params.sourceMode === 'bootVolume') {
-            for (const field of ['bootVolumeSizeInGBs', 'bootVolumeVpusPerGB', 'kmsKeyId']) delete result[field]
+            for (const field of ['bootVolumeSizeInGBs', 'bootVolumeVpusPerGB', 'kmsKeyId'])
+              delete result[field]
           }
         }
         if (params.operation === 'oci_compute_create_instance_configuration') {
@@ -1742,7 +1785,8 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
           else result.instanceId = undefined
         }
         if (params.operation === 'oci_compute_instance_action') {
-          if (params.action !== 'RESET' && params.action !== 'SOFTRESET') result.allowDenseRebootMigration = undefined
+          if (params.action !== 'RESET' && params.action !== 'SOFTRESET')
+            result.allowDenseRebootMigration = undefined
           if (params.action !== 'REBOOTMIGRATE') {
             result.deleteLocalStorage = undefined
             result.timeScheduled = undefined
@@ -1756,8 +1800,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     parentCompartmentId: { type: 'string', description: 'Parent for compartment discovery' },
     resourceCompartmentId: {
       type: 'string',
-      description:
-        'Source compartment for resource discovery',
+      description: 'Source compartment for resource discovery',
     },
     oauthCredential: { type: 'string', description: 'Authorized OCI credential ID' },
     region: { type: 'string', description: 'OCI region' },
@@ -1776,18 +1819,15 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     sortOrder: { type: 'string', description: 'Sort direction: ASC or DESC' },
     displayName: {
       type: 'string',
-      description:
-        'Display name; on list operations this is an exact provider filter',
+      description: 'Display name; on list operations this is an exact provider filter',
     },
     availabilityDomain: {
       type: 'string',
-      description:
-        'Exact availability-domain name returned by OCI discovery',
+      description: 'Exact availability-domain name returned by OCI discovery',
     },
     lifecycleState: {
       type: 'string',
-      description:
-        'Exact lifecycle-state filter supported by this resource',
+      description: 'Exact lifecycle-state filter supported by this resource',
     },
     capacityReservationId: {
       type: 'string',
@@ -1818,8 +1858,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     bootVolumeSizeInGBs: {
       type: 'number',
-      description:
-        'Image-source boot volume size in GB, 50–32768; increases storage charges',
+      description: 'Image-source boot volume size in GB, 50–32768; increases storage charges',
     },
     bootVolumeVpusPerGB: {
       type: 'number',
@@ -1828,13 +1867,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     kmsKeyId: {
       type: 'string',
-      description:
-        'Existing Vault key OCID for a newly created image-source boot volume',
+      description: 'Existing Vault key OCID for a newly created image-source boot volume',
     },
     freeformTags: {
       type: 'json',
-      description:
-        'Free-form tags as a string-to-string JSON map',
+      description: 'Free-form tags as a string-to-string JSON map',
     },
     definedTags: {
       type: 'json',
@@ -1858,8 +1895,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     faultDomain: {
       type: 'string',
-      description:
-        'Fault domain within the selected availability domain',
+      description: 'Fault domain within the selected availability domain',
     },
     metadata: {
       type: 'json',
@@ -1883,8 +1919,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     instanceOptions: {
       type: 'json',
-      description:
-        'Instance options: areLegacyImdsEndpointsDisabled',
+      description: 'Instance options: areLegacyImdsEndpointsDisabled',
     },
     dedicatedVmHostId: {
       type: 'string',
@@ -1923,8 +1958,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     timeScheduled: {
       type: 'string',
-      description:
-        'RFC3339 REBOOTMIGRATE timestamp; omit for immediate migration',
+      description: 'RFC3339 REBOOTMIGRATE timestamp; omit for immediate migration',
     },
     preserveBootVolume: {
       type: 'boolean',
@@ -1939,8 +1973,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     operatingSystem: { type: 'string', description: 'Exact image operating-system filter' },
     operatingSystemVersion: {
       type: 'string',
-      description:
-        'Exact image operating-system-version filter',
+      description: 'Exact image operating-system-version filter',
     },
     shapeAvailabilities: {
       type: 'json',
@@ -1981,8 +2014,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     isAutoTerminate: {
       type: 'boolean',
-      description:
-        'Terminate the detached instance (default false)',
+      description: 'Terminate the detached instance (default false)',
     },
     isDecrementSize: {
       type: 'boolean',
@@ -2005,13 +2037,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     vnicId: { type: 'string', description: 'VNIC OCID' },
     resourceId: {
       type: 'string',
-      description:
-        'Filter work requests by affected resource OCID',
+      description: 'Filter work requests by affected resource OCID',
     },
     workRequestId: {
       type: 'string',
-      description:
-        'Work request OCID returned by a supported asynchronous operation',
+      description: 'Work request OCID returned by a supported asynchronous operation',
     },
   },
   outputs: {
@@ -2050,13 +2080,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     compatibilityEntries: {
       type: 'json',
-      description:
-        'OCI fields: imageId, shape, memoryConstraints, ocpuConstraints',
+      description: 'OCI fields: imageId, shape, memoryConstraints, ocpuConstraints',
     },
     compatibilityEntry: {
       type: 'json',
-      description:
-        'OCI fields: imageId, shape, memoryConstraints, ocpuConstraints',
+      description: 'OCI fields: imageId, shape, memoryConstraints, ocpuConstraints',
     },
     capacityReport: {
       type: 'json',
@@ -2096,8 +2124,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     availabilityDomains: { type: 'json', description: 'OCI fields: id, compartmentId, name' },
     faultDomains: {
       type: 'json',
-      description:
-        'OCI fields: id, compartmentId, name, availabilityDomain',
+      description: 'OCI fields: id, compartmentId, name, availabilityDomain',
     },
     compartments: {
       type: 'json',
