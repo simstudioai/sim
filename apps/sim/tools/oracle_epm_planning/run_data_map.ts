@@ -25,7 +25,10 @@ export const oracleEpmPlanningRunDataMapTool: InternalToolConfig<
     jobName: { ...oracleEpmPlanningParamFields.jobName, required: true },
     clearData: { ...oracleEpmPlanningParamFields.clearData, required: true },
     overrideMembersMap: { ...oracleEpmPlanningParamFields.overrideMembersMap, required: false },
-    overrideExclusionMembersMap: { ...oracleEpmPlanningParamFields.overrideExclusionMembersMap, required: false },
+    overrideExclusionMembersMap: {
+      ...oracleEpmPlanningParamFields.overrideExclusionMembersMap,
+      required: false,
+    },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {

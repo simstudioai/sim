@@ -1172,6 +1172,9 @@ describe('Planning operation contracts through the real foundation', () => {
       expect(result.status).toBe(status)
       expect(result.result.success).toBe(false)
       expect(result.result.output.updated).toBeUndefined()
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    }
+  )
   it('accepts only empty 204 as user-variable write confirmation', async () => {
     const entry = CASES.find((item) => item.operation === 'set_user_variable_values')!
     respond(null, 204)
@@ -1180,7 +1183,11 @@ describe('Planning operation contracts through the real foundation', () => {
     expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
   })
   it('returns empty bounded lists without manufacturing completion flags', async () => {
-    for (const operation of ['list_user_variable_values', 'list_planning_units', 'get_planning_unit_history']) {
+    for (const operation of [
+      'list_user_variable_values',
+      'list_planning_units',
+      'get_planning_unit_history',
+    ]) {
       const entry = CASES.find((item) => item.operation === operation)!
       respond({ items: [] })
       const { result } = await invoke(operation, entry.input)
@@ -1190,8 +1197,19 @@ describe('Planning operation contracts through the real foundation', () => {
     }
   })
   it('rejects malformed user-variable values and oversized batches before requests', async () => {
-    for (const userVariableValues of [[], [{ name: 'CurrentEntity' }], Array(1001).fill({ userName: 'planner', name: 'CurrentEntity', dimension: 'Entity', member: 'Marketing' })]) {
-      expect((await invoke('set_user_variable_values', { application: 'Vision', userVariableValues })).status).toBe(400)
+    for (const userVariableValues of [
+      [],
+      [{ name: 'CurrentEntity' }],
+      Array(1001).fill({
+        userName: 'planner',
+        name: 'CurrentEntity',
+        dimension: 'Entity',
+        member: 'Marketing',
+      }),
+    ]) {
+      expect(
+        (await invoke('set_user_variable_values', { application: 'Vision', userVariableValues })).status
+      ).toBe(400)
     }
     expect(mocks.fetch).not.toHaveBeenCalled()
   })
@@ -1199,19 +1217,31 @@ describe('Planning operation contracts through the real foundation', () => {
     const units = CASES.find((item) => item.operation === 'list_planning_units')!
     respond(units.response)
     expect((await invoke(units.operation, units.input)).result.output.planningUnits?.[0]).toMatchObject({
-      name: null, secMember: null, scenarioAlias: null, versionAlias: null, puId: 50410,
+      name: null,
+      secMember: null,
+      scenarioAlias: null,
+      versionAlias: null,
+      puId: 50410,
     })
     const history = CASES.find((item) => item.operation === 'get_planning_unit_history')!
     respond(history.response)
-    expect((await invoke(history.operation, history.input)).result.output.planningUnitHistory?.[0]).toMatchObject({
-      hasHistory: false, logSeq: -1, parentAnntSeq: 1,
+    expect(
+      (await invoke(history.operation, history.input)).result.output.planningUnitHistory?.[0]
+    ).toMatchObject({
+      hasHistory: false,
+      logSeq: -1,
+      parentAnntSeq: 1,
     })
   })
   it('does not confuse approval confirmation with a job or echo unconfirmed input', async () => {
     const entry = CASES.find((item) => item.operation === 'change_planning_unit_status')!
     respond(entry.response)
     expect((await invoke(entry.operation, entry.input)).result.output).toEqual({
-      planningUnitAction: { pmMembers: '"Marketing"', action: 'PROMOTE', comments: '"Ready & reviewed + approved"' },
+      planningUnitAction: {
+        pmMembers: '"Marketing"',
+        action: 'PROMOTE',
+        comments: '"Ready & reviewed + approved"',
+      },
     })
     for (const response of [{}, { links: [] }, { jobId: 42, status: 0 }]) {
       respond(response)
@@ -1219,11 +1249,29 @@ describe('Planning operation contracts through the real foundation', () => {
     }
   })
   it.each([
-    ['https://other.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast/actions', 'POST'],
-    ['https://epm.example.com/HyperionPlanning/rest/v2/applications/Vision/planningunits/Forecast/actions', 'POST'],
-    ['https://epm.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast/actions', 'GET'],
+    [
+      'https://other.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast/actions',
+      'POST',
+    ],
+    [
+      'https://epm.example.com/HyperionPlanning/rest/v2/applications/Vision/planningunits/Forecast/actions',
+      'POST',
+    ],
+    [
+      'https://epm.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast/actions',
+      'GET',
+    ],
   ])('rejects invalid approval confirmation links without replay: %s %s', async (href, action) => {
-    respond({ links: [{ rel: 'self', href, action, data: { pmMembers: 'Marketing', action: 'PROMOTE', comments: '' } }] })
+    respond({
+      links: [
+        {
+          rel: 'self',
+          href,
+          action,
+          data: { pmMembers: 'Marketing', action: 'PROMOTE', comments: '' },
+        },
+      ],
+    })
     const entry = CASES.find((item) => item.operation === 'change_planning_unit_status')!
     expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
@@ -1232,33 +1280,72 @@ describe('Planning operation contracts through the real foundation', () => {
     const entry = CASES.find((item) => item.operation === 'get_insights')!
     respond(entry.response)
     const { result } = await invoke(entry.operation, entry.input)
-    expect(result.output).toMatchObject({ insights: [{ id: '426', outlierValue: 0 }], totalResults: 2, hasMore: true })
+    expect(result.output).toMatchObject({
+      insights: [{ id: '426', outlierValue: 0 }],
+      totalResults: 2,
+      hasMore: true,
+    })
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
     respond({ items: [], totalResults: 0, hasMore: false })
-    expect((await invoke(entry.operation, entry.input)).result.output).toEqual({ insights: [], totalResults: 0, hasMore: false })
+    expect((await invoke(entry.operation, entry.input)).result.output).toEqual({
+      insights: [],
+      totalResults: 0,
+      hasMore: false,
+    })
     respond({ items: [], totalResults: 0 })
     expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
   })
   it('requires the distinct insight slice and an explicit calendar for recomputation', async () => {
     const entry = CASES.find((item) => item.operation === 'get_insights')!
-    expect((await invoke(entry.operation, { ...entry.input, retrievalMode: 'FORCE_RECOMPUTE' })).status).toBe(400)
-    expect((await invoke(entry.operation, { ...entry.input, insightSlice: { pov: [], columns: [], rows: [] } })).status).toBe(400)
+    expect(
+      (await invoke(entry.operation, { ...entry.input, retrievalMode: 'FORCE_RECOMPUTE' })).status
+    ).toBe(400)
+    expect(
+      (
+        await invoke(entry.operation, {
+          ...entry.input,
+          insightSlice: { pov: [], columns: [], rows: [] },
+        })
+      ).status
+    ).toBe(400)
     expect(mocks.fetch).not.toHaveBeenCalled()
     respond(entry.response)
-    await invoke(entry.operation, { ...entry.input, retrievalMode: 'FORCE_RECOMPUTE', calendar: 'Fiscal' })
-    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toMatchObject({ retrievalMode: 'FORCE_RECOMPUTE', calendar: 'Fiscal' })
+    await invoke(entry.operation, {
+      ...entry.input,
+      retrievalMode: 'FORCE_RECOMPUTE',
+      calendar: 'Fiscal',
+    })
+    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toMatchObject({
+      retrievalMode: 'FORCE_RECOMPUTE',
+      calendar: 'Fiscal',
+    })
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
   })
   it('sends only the selected summary mode and always requests text', async () => {
     const get = CASES.find((item) => item.operation === 'get_insights')!
     respond({ summary: 'Variance summary', warnings: [], resolvedNarrative: { ignored: true } })
-    const ids = await invoke('summarize_insights', { ...get.input, summaryInputMode: 'ids', insightIds: ['426'], retrievalMode: 'FORCE_RECOMPUTE', calendar: 'Stale', summarySize: 80 })
+    const ids = await invoke('summarize_insights', {
+      ...get.input,
+      summaryInputMode: 'ids',
+      insightIds: ['426'],
+      retrievalMode: 'FORCE_RECOMPUTE',
+      calendar: 'Stale',
+      summarySize: 80,
+    })
     expect(ids.result.output).toEqual({ summary: 'Variance summary' })
-    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toEqual({ ids: ['426'], format: 'text', size: 80 })
+    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toEqual({
+      ids: ['426'],
+      format: 'text',
+      size: 80,
+    })
     await invoke('summarize_insights', { ...get.input, summaryInputMode: 'slice', insightIds: ['999'] })
     expect(JSON.parse(mocks.fetch.mock.calls[1][2].body)).toEqual({
-      dataSourceType: 'CUBE', location: 'Plan1', slice: get.input.insightSlice,
-      retrievalMode: 'USE_EXISTING', format: 'text', size: 100,
+      dataSourceType: 'CUBE',
+      location: 'Plan1',
+      slice: get.input.insightSlice,
+      retrievalMode: 'USE_EXISTING',
+      format: 'text',
+      size: 100,
     })
   })
   it('rejects incomplete summary inputs and undocumented JSON summaries', async () => {
@@ -1268,14 +1355,27 @@ describe('Planning operation contracts through the real foundation', () => {
       { summaryInputMode: 'slice', cube: 'Plan1' },
       { summaryInputMode: 'slice', insightSlice: {} },
       { summaryInputMode: 'unknown', insightIds: ['426'] },
-    ]) expect((await invoke('summarize_insights', { application: 'Vision', ...input })).status).toBe(400)
+    ])
+      expect((await invoke('summarize_insights', { application: 'Vision', ...input })).status).toBe(400)
     expect(mocks.fetch).not.toHaveBeenCalled()
     respond({ summary: { text: 'Not a documented text result' } })
-    expect((await invoke('summarize_insights', { application: 'Vision', summaryInputMode: 'ids', insightIds: ['426'] })).result.success).toBe(false)
+    expect(
+      (
+        await invoke('summarize_insights', {
+          application: 'Vision',
+          summaryInputMode: 'ids',
+          insightIds: ['426'],
+        })
+      ).result.success
+    ).toBe(false)
   })
   it('rejects oversized insight summaries clearly instead of truncating them', async () => {
     respond({ summary: 'x'.repeat(16 * 1024 * 1024) })
-    const result = await invoke('summarize_insights', { application: 'Vision', summaryInputMode: 'ids', insightIds: ['426'] })
+    const result = await invoke('summarize_insights', {
+      application: 'Vision',
+      summaryInputMode: 'ids',
+      insightIds: ['426'],
+    })
     expect(result.status).toBe(413)
     expect(result.result.success).toBe(false)
     expect(result.result.output.summary).toBeUndefined()

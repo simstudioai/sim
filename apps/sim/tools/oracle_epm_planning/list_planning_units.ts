@@ -31,8 +31,7 @@ export const oracleEpmPlanningListPlanningUnitsTool: InternalToolConfig<
   outputs: {
     planningUnits: {
       type: 'array',
-      description:
-        'One page of owned planning units; numeric puId is not a compound identifier',
+      description: 'One page of owned planning units; numeric puId is not a compound identifier',
       items: {
         type: 'object',
         properties: {

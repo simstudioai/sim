@@ -1862,7 +1862,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         field: 'operation',
         value: ['oracle_epm_planning_get_planning_unit_history'],
       },
-      placeholder: 'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
+      placeholder:
+        'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
     },
     {
       id: 'pmMembers',
@@ -1870,13 +1871,20 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       type: 'short-input',
       condition: {
         field: 'operation',
-        value: ['oracle_epm_planning_get_planning_unit_actions', 'oracle_epm_planning_change_planning_unit_status'],
+        value: [
+          'oracle_epm_planning_get_planning_unit_actions',
+          'oracle_epm_planning_change_planning_unit_status',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['oracle_epm_planning_get_planning_unit_actions', 'oracle_epm_planning_change_planning_unit_status'],
+        value: [
+          'oracle_epm_planning_get_planning_unit_actions',
+          'oracle_epm_planning_change_planning_unit_status',
+        ],
       },
-      placeholder: 'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
+      placeholder:
+        'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
     },
     {
       id: 'actionId',
@@ -1890,7 +1898,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         field: 'operation',
         value: ['oracle_epm_planning_change_planning_unit_status'],
       },
-      placeholder: 'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
+      placeholder:
+        'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
     },
     {
       id: 'comments',
@@ -1925,7 +1934,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         value: ['oracle_epm_planning_get_planning_unit_history'],
       },
       required: false,
-      placeholder: 'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
+      placeholder:
+        'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
       mode: 'advanced',
     },
     {
@@ -1937,7 +1947,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         value: ['oracle_epm_planning_get_planning_unit_history'],
       },
       required: false,
-      placeholder: 'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
+      placeholder:
+        'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
       mode: 'advanced',
     },
     {
@@ -1946,22 +1957,28 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       type: 'code',
       condition: (values) => ({
         field: 'operation',
-        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
-          ? []
-          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        value:
+          values?.operation === 'oracle_epm_planning_summarize_insights' &&
+          values?.summaryInputMode !== 'slice'
+            ? []
+            : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
       }),
       required: (values) => ({
         field: 'operation',
-        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
-          ? []
-          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        value:
+          values?.operation === 'oracle_epm_planning_summarize_insights' &&
+          values?.summaryInputMode !== 'slice'
+            ? []
+            : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
       }),
-      placeholder: 'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
+      placeholder:
+        'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
       language: 'json',
       canvasNoun: 'insight slice',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid. Return ONLY JSON; do not invent names or unsupported fields.',
+        prompt:
+          'Generate only the requested Oracle Planning JSON using supplied tenant names. IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid. Return ONLY JSON; do not invent names or unsupported fields.',
         placeholder: 'Describe the requested insightSlice',
       },
     },
@@ -1971,21 +1988,27 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       type: 'dropdown',
       condition: (values) => ({
         field: 'operation',
-        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
-          ? []
-          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        value:
+          values?.operation === 'oracle_epm_planning_summarize_insights' &&
+          values?.summaryInputMode !== 'slice'
+            ? []
+            : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
       }),
       required: false,
-      placeholder: 'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
+      placeholder:
+        'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
       mode: 'advanced',
       defaultValue: 'USE_EXISTING',
-      options: [{
-        id: 'USE_EXISTING',
-        label: 'Use Existing Insights',
-      }, {
-        id: 'FORCE_RECOMPUTE',
-        label: 'Recompute Insights',
-      }],
+      options: [
+        {
+          id: 'USE_EXISTING',
+          label: 'Use Existing Insights',
+        },
+        {
+          id: 'FORCE_RECOMPUTE',
+          label: 'Recompute Insights',
+        },
+      ],
     },
     {
       id: 'calendar',
@@ -1993,19 +2016,24 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       type: 'short-input',
       condition: (values) => ({
         field: 'operation',
-        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
-          ? []
-          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        value:
+          values?.operation === 'oracle_epm_planning_summarize_insights' &&
+          values?.summaryInputMode !== 'slice'
+            ? []
+            : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
         and: { field: 'retrievalMode', value: 'FORCE_RECOMPUTE' },
       }),
       required: (values) => ({
         field: 'operation',
-        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
-          ? []
-          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        value:
+          values?.operation === 'oracle_epm_planning_summarize_insights' &&
+          values?.summaryInputMode !== 'slice'
+            ? []
+            : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
         and: { field: 'retrievalMode', value: 'FORCE_RECOMPUTE' },
       }),
-      placeholder: 'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
+      placeholder:
+        'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
       mode: 'advanced',
     },
     {
@@ -2017,13 +2045,19 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         value: ['oracle_epm_planning_summarize_insights'],
         and: { field: 'summaryInputMode', value: 'ids' },
       },
-      required: { field: 'operation', value: ['oracle_epm_planning_summarize_insights'], and: { field: 'summaryInputMode', value: 'ids' } },
-      placeholder: '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_summarize_insights'],
+        and: { field: 'summaryInputMode', value: 'ids' },
+      },
+      placeholder:
+        '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
       language: 'json',
       canvasNoun: 'member selections',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. 1–1000 insight ID strings returned by Get Insights; required in ids summary mode. Return ONLY JSON; do not invent names or unsupported fields.',
+        prompt:
+          'Generate only the requested Oracle Planning JSON using supplied tenant names. 1–1000 insight ID strings returned by Get Insights; required in ids summary mode. Return ONLY JSON; do not invent names or unsupported fields.',
         placeholder: 'Describe the requested insightIds',
       },
     },
@@ -2039,15 +2073,19 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         field: 'operation',
         value: ['oracle_epm_planning_summarize_insights'],
       },
-      placeholder: 'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
+      placeholder:
+        'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
       defaultValue: 'ids',
-      options: [{
-        id: 'ids',
-        label: 'Insight IDs',
-      }, {
-        id: 'slice',
-        label: 'Insight Slice',
-      }],
+      options: [
+        {
+          id: 'ids',
+          label: 'Insight IDs',
+        },
+        {
+          id: 'slice',
+          label: 'Insight Slice',
+        },
+      ],
     },
     {
       id: 'summarySize',
@@ -2058,7 +2096,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         value: ['oracle_epm_planning_summarize_insights'],
       },
       required: false,
-      placeholder: 'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
+      placeholder:
+        'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
       mode: 'advanced',
     },
   ],
@@ -2108,19 +2147,23 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
   inputs: {
     clearData: {
       type: 'boolean',
-      description: 'Explicitly clear the target region before copying. Destructive when true; Sim defaults to false, while Oracle defaults to true.',
+      description:
+        'Explicitly clear the target region before copying. Destructive when true; Sim defaults to false, while Oracle defaults to true.',
     },
     overrideMembersMap: {
       type: 'json',
-      description: 'Optional dimension-to-member-selection map, for example {"Period":"ILvl0Descendants(Q1)"}. Values must be strings.',
+      description:
+        'Optional dimension-to-member-selection map, for example {"Period":"ILvl0Descendants(Q1)"}. Values must be strings.',
     },
     overrideExclusionMembersMap: {
       type: 'json',
-      description: 'Optional dimension-to-excluded-member-selection map, for example {"Period":"Jan"}. Values must be strings.',
+      description:
+        'Optional dimension-to-excluded-member-selection map, for example {"Period":"Jan"}. Values must be strings.',
     },
     userVariableValues: {
       type: 'array',
-      description: '1–1000 user-variable values: [{userName, name, dimension, member}]. Names are tenant-specific; do not assume batch atomicity.',
+      description:
+        '1–1000 user-variable values: [{userName, name, dimension, member}]. Names are tenant-specific; do not assume batch atomicity.',
     },
     scenario: {
       type: 'string',
@@ -2132,19 +2175,23 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
     puhIdentifier: {
       type: 'string',
-      description: 'Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode.',
+      description:
+        'Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode.',
     },
     puIdentifier: {
       type: 'string',
-      description: 'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
+      description:
+        'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
     },
     pmMembers: {
       type: 'string',
-      description: 'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
+      description:
+        'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
     },
     actionId: {
       type: 'number',
-      description: 'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
+      description:
+        'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
     },
     comments: {
       type: 'string',
@@ -2156,35 +2203,43 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
     annotSeq: {
       type: 'number',
-      description: 'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
+      description:
+        'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
     },
     logSeq: {
       type: 'number',
-      description: 'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
+      description:
+        'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
     },
     insightSlice: {
       type: 'json',
-      description: 'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
+      description:
+        'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
     },
     retrievalMode: {
       type: 'string',
-      description: 'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
+      description:
+        'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
     },
     calendar: {
       type: 'string',
-      description: 'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
+      description:
+        'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
     },
     insightIds: {
       type: 'array',
-      description: '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
+      description:
+        '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
     },
     summaryInputMode: {
       type: 'string',
-      description: 'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
+      description:
+        'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
     },
     summarySize: {
       type: 'number',
-      description: 'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
+      description:
+        'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
     },
     dataMapName: {
       type: 'string',
@@ -2353,7 +2408,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
     insights: {
       type: 'array',
-      description: 'IPM insights in this response; inspect hasMore before treating the results as complete',
+      description:
+        'IPM insights in this response; inspect hasMore before treating the results as complete',
       condition: {
         field: 'operation',
         value: ['oracle_epm_planning_get_insights'],
@@ -2417,7 +2473,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
     updated: {
       type: 'boolean',
-      description: 'Oracle accepted the variable update request; user-variable batches have no atomicity guarantee',
+      description:
+        'Oracle accepted the variable update request; user-variable batches have no atomicity guarantee',
       condition: { field: 'operation', value: ['oracle_epm_planning_set_substitution_variables', 'oracle_epm_planning_set_user_variable_values'] },
     },
     deleted: {

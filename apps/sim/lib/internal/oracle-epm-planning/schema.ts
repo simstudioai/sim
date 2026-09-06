@@ -216,7 +216,11 @@ export const planningSummarizeInsightsInputSchema = z
   .superRefine((input, context) => {
     if (input.summaryInputMode === 'ids') {
       if (!input.insightIds)
-        context.addIssue({ code: 'custom', path: ['insightIds'], message: 'Insight IDs are required' })
+        context.addIssue({
+          code: 'custom',
+          path: ['insightIds'],
+          message: 'Insight IDs are required',
+        })
     } else {
       if (!input.cube)
         context.addIssue({
@@ -296,7 +300,9 @@ export const planningUnitStatusSchema = z.object({
         rel: z.string(),
         href: z.string(),
         action: z.string(),
-        data: z.object({ pmMembers: z.string(), action: z.string(), comments: z.string() }).optional(),
+        data: z
+          .object({ pmMembers: z.string(), action: z.string(), comments: z.string() })
+          .optional(),
       })
     )
     .max(1000),
@@ -305,7 +311,12 @@ export const insightsSchema = z.object({
   items: z.array(
     z.object({
       id: count.transform(String),
-      type: z.enum(['ANOMALY', 'MOVEMENT_VARIANCE_INSIGHTS', 'HISTORICAL_INSIGHTS', 'FUTURE_INSIGHTS']),
+      type: z.enum([
+        'ANOMALY',
+        'MOVEMENT_VARIANCE_INSIGHTS',
+        'HISTORICAL_INSIGHTS',
+        'FUTURE_INSIGHTS',
+      ]),
       accountName: z.string().optional(),
       sourceAccountName: z.string().optional(),
       planType: z.string().optional(),

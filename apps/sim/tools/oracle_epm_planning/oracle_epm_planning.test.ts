@@ -268,7 +268,11 @@ function operationMatches(
 ): boolean {
   if (value === true || value === undefined) return true
   if (!value) return false
-  if (typeof value === 'function') return operationMatches(value({ operation, summaryInputMode: 'slice', retrievalMode: 'FORCE_RECOMPUTE' }), operation)
+  if (typeof value === 'function')
+    return operationMatches(
+      value({ operation, summaryInputMode: 'slice', retrievalMode: 'FORCE_RECOMPUTE' }),
+      operation
+    )
   return (Array.isArray(value.value) ? value.value : [value.value]).includes(operation)
 }
 describe('Planning integration surface (NetSuite whole-integration precedent)', () => {
