@@ -167,7 +167,7 @@ describe('universal grep', () => {
     expect(peak).toBeLessThanOrEqual(8)
   })
 
-  it('re-reads a file only when its version changes', async () => {
+  it('re-authorizes file text on each invocation even when the listed version is unchanged', async () => {
     const requested: string[] = []
     const file = { id: 'wf_1', name: 'notes.md', folderPath: '/', updatedAt: 't1', size: 12 }
     const responses: Record<string, unknown> = {
@@ -177,10 +177,10 @@ describe('universal grep', () => {
     const runtime = runtimeWith(responses, requested)
     await runEngine('grep', ['alpha'], runtime, { scope: 'files' })
     await runEngine('grep', ['beta'], runtime, { scope: 'files' })
-    expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(1)
+    expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(2)
     responses['/api/v2/files'] = { data: [{ ...file, updatedAt: 't2' }], nextCursor: null }
     await runEngine('grep', ['beta'], runtime, { scope: 'files' })
-    expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(2)
+    expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(3)
   })
 
   it('honours -A and -B as asymmetric context, not only -C', async () => {
