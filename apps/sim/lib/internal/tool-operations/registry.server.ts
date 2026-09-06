@@ -1524,6 +1524,48 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
 })
+registerFamily(
+  handlerLoaders,
+  [
+    'oci_resource_manager_apply',
+    'oci_resource_manager_apply_rollback',
+    'oci_resource_manager_cancel_job',
+    'oci_resource_manager_change_stack_compartment',
+    'oci_resource_manager_create_stack',
+    'oci_resource_manager_delete_stack',
+    'oci_resource_manager_destroy',
+    'oci_resource_manager_detect_drift',
+    'oci_resource_manager_download_configuration',
+    'oci_resource_manager_download_job_logs',
+    'oci_resource_manager_download_plan',
+    'oci_resource_manager_download_state',
+    'oci_resource_manager_get_job',
+    'oci_resource_manager_get_job_logs',
+    'oci_resource_manager_get_stack',
+    'oci_resource_manager_get_work_request',
+    'oci_resource_manager_get_work_request_logs',
+    'oci_resource_manager_import_state',
+    'oci_resource_manager_list_associated_resources',
+    'oci_resource_manager_list_configuration_source_providers',
+    'oci_resource_manager_list_drift_details',
+    'oci_resource_manager_list_job_outputs',
+    'oci_resource_manager_list_jobs',
+    'oci_resource_manager_list_resource_discovery_services',
+    'oci_resource_manager_list_stacks',
+    'oci_resource_manager_list_templates',
+    'oci_resource_manager_list_terraform_versions',
+    'oci_resource_manager_list_work_request_errors',
+    'oci_resource_manager_list_work_requests',
+    'oci_resource_manager_plan',
+    'oci_resource_manager_plan_rollback',
+    'oci_resource_manager_update_job',
+    'oci_resource_manager_update_stack',
+  ],
+  async () => {
+    return (await import('@/lib/internal/oci-resource-manager/execute-tool'))
+      .executeOciResourceManagerTool
+  }
+)
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
 })
