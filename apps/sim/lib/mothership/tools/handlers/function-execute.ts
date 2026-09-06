@@ -14,13 +14,12 @@ import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sand
 import {
   createSandboxMountBudget,
   MAX_INLINE_MOUNT_FILE_BYTES,
-  MAX_INLINE_MOUNT_TOTAL_BYTES,
-  MAX_TOTAL_URL_BYTES,
-  MOUNT_URL_TTL_SECONDS,
   pushSandboxFileMount,
   type SandboxMountBudget,
 } from '@/lib/function-execution/sandbox-mounts'
+import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
 import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegation'
+import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type {
   ToolExecutionContext,
@@ -34,9 +33,7 @@ import {
 } from '@/lib/mothership/tools/secret-mount-materializer.server'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
-import { getTableSnapshotModelMountSafety } from '@/lib/table/rows/secret-provenance'
-import { getTableById, listTables } from '@/lib/table/service'
-import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
+import { readTableSnapshot } from '@/lib/table/application/read-table-snapshot'
 import {
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
@@ -44,11 +41,6 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { importWorkspaceFileSecretProvenanceForRuntime } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import {
-  downloadFile,
-  generatePresignedDownloadUrl,
-  hasCloudStorage,
-} from '@/lib/uploads/core/storage-service'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
@@ -68,7 +60,6 @@ import { executeTool as executeAppTool } from '@/tools'
 const logger = createLogger('CopilotFunctionExecute')
 
 const MAX_FILE_SIZE = MAX_INLINE_MOUNT_FILE_BYTES
-const MAX_TOTAL_SIZE = MAX_INLINE_MOUNT_TOTAL_BYTES
 const MAX_MOUNTED_FILES = 500
 
 async function importMountedWorkspaceFileProvenance(args: {
@@ -245,26 +236,6 @@ function refField(ref: unknown, key: 'path' | 'tableId' | 'sandboxPath'): string
   return undefined
 }
 
-function tableNameFromVfsPath(tableRef: string): string | null {
-  if (!tableRef.startsWith('tables/')) return null
-  const segments = decodeVfsPathSegments(tableRef)
-  const metaIndex = segments.lastIndexOf('meta.json')
-  return segments[metaIndex > 0 ? metaIndex - 1 : segments.length - 1] ?? null
-}
-
-async function resolveTableRef(
-  tableRef: string,
-  tablePathLookup?: Map<string, Awaited<ReturnType<typeof listTables>>[number]>
-) {
-  if (!tableRef.startsWith('tables/')) {
-    return getTableById(tableRef)
-  }
-
-  const tableName = tableNameFromVfsPath(tableRef)
-  if (!tableName) return null
-  return tablePathLookup?.get(tableName) ?? null
-}
-
 /**
  * Locates one `inputs.files[].path`. Chat uploads are absent from the workspace listing
  * by design, so an `uploads/<name>` reference resolves through the read-content
@@ -306,13 +277,18 @@ async function resolveMountableWorkspaceFile(
 }
 
 export async function resolveInputFiles(
-  workspaceId: string,
+  context: ToolExecutionContext,
   inputFiles?: unknown[],
   inputTables?: unknown[],
   inputDirectories?: unknown[],
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
-  filePrincipal?: Principal
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<SandboxFile[]> {
+  const workspaceId = context.workspaceId
+  if (!workspaceId) throw new Error('A workspace is required for input mounts')
+  const filePrincipal =
+    inputFiles?.length || inputDirectories?.length
+      ? resolveCopilotFilePrincipal(context)
+      : undefined
   const sandboxFiles: SandboxFile[] = []
   const mounted = createSandboxMountBudget()
 
@@ -433,83 +409,33 @@ export async function resolveInputFiles(
   }
 
   if (inputTables?.length) {
-    const tableRefId = (tableRef: unknown): string | undefined =>
-      refField(tableRef, 'tableId') ?? refField(tableRef, 'path')
-    const hasTablePathRefs = inputTables.some((tableRef) =>
-      tableRefId(tableRef)?.startsWith('tables/')
-    )
-    const tablePathLookup = hasTablePathRefs
-      ? new Map((await listTables(workspaceId)).map((table) => [table.name, table]))
-      : undefined
     for (const tableRef of inputTables) {
-      const tableId = tableRefId(tableRef)
+      const tableId = refField(tableRef, 'tableId') ?? refField(tableRef, 'path')
       if (!tableId) continue
-      const table = await resolveTableRef(tableId, tablePathLookup)
-      if (!table || table.workspaceId !== workspaceId) {
-        throw new Error(
-          `Input table not found: "${tableId}". Pass the table id (tbl_...) from \`tables list\`, or its tables/<name> path.`
-        )
-      }
-      const mountPath = refField(tableRef, 'sandboxPath') ?? `/home/user/tables/${table.id}.csv`
-
-      const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
       if (!resolvedSecretTraceRegistry) {
         throw new Error(
           `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
         )
       }
-      const mountSafety = await getTableSnapshotModelMountSafety({
-        tableId: table.id,
-        workspaceId,
-        rowsVersion: snapshot.version,
-      })
-      if (mountSafety === 'stale') {
-        throw new Error(`Input table "${tableId}" changed while preparing its snapshot. Retry.`)
-      }
-      if (mountSafety === 'unsafe-provenance') {
-        resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
-      }
-
-      if (hasCloudStorage()) {
-        if (snapshot.size > SNAPSHOT_MAX_BYTES) {
-          throw new Error(
-            `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${SNAPSHOT_MAX_BYTES / 1024 / 1024}MB table mount limit.`
-          )
-        }
-        if (mounted.url + snapshot.size > MAX_TOTAL_URL_BYTES) {
-          throw new Error(
-            `Mounting "${tableId}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024 / 1024}GB total mount limit. Mount fewer or smaller files and tables.`
-          )
-        }
-        const url = await generatePresignedDownloadUrl(
-          snapshot.key,
-          'execution',
-          MOUNT_URL_TTL_SECONDS
-        )
-        sandboxFiles.push({ type: 'url', path: mountPath, url, maxBytes: SNAPSHOT_MAX_BYTES })
-        mounted.url += snapshot.size
-        continue
-      }
-
-      // Local storage: a presigned URL is an app-internal serve path a remote sandbox can't
-      // reach, so fall back to buffering the bytes through the web process (file-mount guards).
-      if (snapshot.size > MAX_FILE_SIZE) {
+      try {
+        const result = await executeCopilotTableUseCase(context, readTableSnapshot, {
+          workspaceId,
+          reference: tableId,
+          sandboxPath: refField(tableRef, 'sandboxPath'),
+          budget: mounted,
+          signal: context.abortSignal,
+        })
+        if (result.unsafeProvenance)
+          resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
+        sandboxFiles.push(result.mount)
+        Object.assign(mounted, result.budget)
+      } catch (error) {
+        context.abortSignal?.throwIfAborted()
+        logger.error('Table input mount failed', { error, tableId })
         throw new Error(
-          `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+          messageForCopilotTableError(error, 'Table input could not be read. Retry the mount.')
         )
       }
-      if (mounted.buffered + snapshot.size > MAX_TOTAL_SIZE) {
-        throw new Error(
-          `Mounting "${tableId}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller tables.`
-        )
-      }
-      const buffer = await downloadFile({
-        key: snapshot.key,
-        context: 'execution',
-        maxBytes: MAX_FILE_SIZE,
-      })
-      mounted.buffered += buffer.length
-      sandboxFiles.push({ path: mountPath, content: buffer.toString('utf-8') })
     }
   }
 
@@ -659,14 +585,11 @@ export async function executeFunctionExecute(
 
       if (inputFiles?.length || inputTables?.length || inputDirectories.length) {
         const resolved = await resolveInputFiles(
-          context.workspaceId,
+          context,
           inputFiles,
           inputTables,
           inputDirectories,
-          mountedRegistry,
-          inputFiles.length > 0 || inputDirectories.length > 0
-            ? resolveCopilotFilePrincipal(context)
-            : undefined
+          mountedRegistry
         )
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
