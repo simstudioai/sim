@@ -57,6 +57,7 @@ import type {
 import {
   bindWorkspaceFileUploadProvenance,
   WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+  type WorkspaceFileUploadSource,
 } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
@@ -197,7 +198,7 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
         workspaceId: string
         principal: Principal
         /** Trusted runtime source classification, never a public upload input. */
-        secretProvenance?: WorkspaceFileSecretProvenance
+        secretProvenance?: WorkspaceFileUploadSource
       }
     | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
     | {
@@ -680,6 +681,8 @@ export async function createUploadPartUrls(params: {
 
 export async function completeUploadSession<T>(params: {
   session: UploadSessionRecord
+  /** Host evidence for the completed byte stream; never sourced from request JSON. */
+  secretProvenance?: WorkspaceFileSecretProvenance
   finalize: (session: UploadSessionRecord) => Promise<{ value: T; completedFileId?: string }>
   loadCompleted?: (session: UploadSessionRecord) => Promise<T>
 }): Promise<{ session: UploadSessionRecord; value: T; alreadyCompleted: boolean }> {
@@ -709,7 +712,14 @@ export async function completeUploadSession<T>(params: {
       params.session.id,
       leaseId,
       recoveringFinalization ? ['finalizing'] : ['uploading', 'completing'],
-      recoveringFinalization ? 'finalizing' : 'completing'
+      recoveringFinalization ? 'finalizing' : 'completing',
+      db,
+      params.session.purpose === 'workspace_file' && params.session.workspaceId
+        ? bindWorkspaceFileUploadProvenance(
+            params.session.workspaceId,
+            params.secretProvenance ?? { status: 'unknown' }
+          )
+        : undefined
     )),
     uploadToken: params.session.uploadToken,
   }
@@ -1142,7 +1152,8 @@ async function claimSession(
   leaseId: string,
   statuses: UploadSessionStatus[],
   nextStatus: UploadSessionStatus = 'completing',
-  database: typeof db = db
+  database: typeof db = db,
+  fileProvenance?: ReturnType<typeof bindWorkspaceFileUploadProvenance>
 ): Promise<UploadSessionRecord> {
   const now = new Date()
   const [row] = await database
@@ -1153,6 +1164,14 @@ async function claimSession(
       processingLeaseExpiresAt: new Date(now.getTime() + PROCESSING_LEASE_MS),
       error: null,
       updatedAt: now,
+      /** Seal once with the completion lease; recovery must retain the first claim's evidence. */
+      ...(fileProvenance
+        ? {
+            metadata: sql`CASE WHEN ${uploadSession.metadata}->${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}->>'pending' = 'true'
+              THEN jsonb_set(${uploadSession.metadata}, ARRAY[${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}]::text[], ${JSON.stringify(fileProvenance)}::jsonb)
+              ELSE ${uploadSession.metadata} END`,
+          }
+        : {}),
     })
     .where(
       and(

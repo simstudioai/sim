@@ -132,7 +132,12 @@ describe('the CLI owns workbench file semantics', () => {
       vi.stubGlobal('fetch', upload)
       const result = await runCli(['files', 'upload', path], { ...IDENTITY, transport }, 'chat')
       expect(result, result.stderr).toMatchObject({ exitCode: 0 })
-      expect(open).toHaveBeenCalledExactlyOnceWith('chat', path.replace(/^@/, ''), undefined)
+      expect(open).toHaveBeenCalledExactlyOnceWith(
+        'chat',
+        path.replace(/^@/, ''),
+        undefined,
+        undefined
+      )
       expect(read).not.toHaveBeenCalled()
       expect(dispose).toHaveBeenCalledTimes(1)
       expect(upload).toHaveBeenCalledTimes(1)
