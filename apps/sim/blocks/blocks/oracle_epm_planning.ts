@@ -2441,12 +2441,18 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     totalResults: {
       type: 'number',
       description: 'Total dimension or insight count reported by Oracle',
-      condition: { field: 'operation', value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_insights'] },
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_insights'],
+      },
     },
     hasMore: {
       type: 'boolean',
       description: 'Additional results exist; insights do not expose a documented pagination input',
-      condition: { field: 'operation', value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_insights'] },
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_insights'],
+      },
     },
     dimension: {
       type: 'json',
@@ -2475,7 +2481,13 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       type: 'boolean',
       description:
         'Oracle accepted the variable update request; user-variable batches have no atomicity guarantee',
-      condition: { field: 'operation', value: ['oracle_epm_planning_set_substitution_variables', 'oracle_epm_planning_set_user_variable_values'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'oracle_epm_planning_set_substitution_variables',
+          'oracle_epm_planning_set_user_variable_values',
+        ],
+      },
     },
     deleted: {
       type: 'boolean',

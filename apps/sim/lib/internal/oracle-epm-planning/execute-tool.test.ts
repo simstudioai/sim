@@ -1208,7 +1208,8 @@ describe('Planning operation contracts through the real foundation', () => {
       }),
     ]) {
       expect(
-        (await invoke('set_user_variable_values', { application: 'Vision', userVariableValues })).status
+        (await invoke('set_user_variable_values', { application: 'Vision', userVariableValues }))
+          .status
       ).toBe(400)
     }
     expect(mocks.fetch).not.toHaveBeenCalled()
@@ -1216,7 +1217,9 @@ describe('Planning operation contracts through the real foundation', () => {
   it('preserves documented null planning-unit metadata and annotation sequences', async () => {
     const units = CASES.find((item) => item.operation === 'list_planning_units')!
     respond(units.response)
-    expect((await invoke(units.operation, units.input)).result.output.planningUnits?.[0]).toMatchObject({
+    expect(
+      (await invoke(units.operation, units.input)).result.output.planningUnits?.[0]
+    ).toMatchObject({
       name: null,
       secMember: null,
       scenarioAlias: null,
@@ -1338,7 +1341,11 @@ describe('Planning operation contracts through the real foundation', () => {
       format: 'text',
       size: 80,
     })
-    await invoke('summarize_insights', { ...get.input, summaryInputMode: 'slice', insightIds: ['999'] })
+    await invoke('summarize_insights', {
+      ...get.input,
+      summaryInputMode: 'slice',
+      insightIds: ['999'],
+    })
     expect(JSON.parse(mocks.fetch.mock.calls[1][2].body)).toEqual({
       dataSourceType: 'CUBE',
       location: 'Plan1',
@@ -1356,7 +1363,9 @@ describe('Planning operation contracts through the real foundation', () => {
       { summaryInputMode: 'slice', insightSlice: {} },
       { summaryInputMode: 'unknown', insightIds: ['426'] },
     ])
-      expect((await invoke('summarize_insights', { application: 'Vision', ...input })).status).toBe(400)
+      expect((await invoke('summarize_insights', { application: 'Vision', ...input })).status).toBe(
+        400
+      )
     expect(mocks.fetch).not.toHaveBeenCalled()
     respond({ summary: { text: 'Not a documented text result' } })
     expect(
