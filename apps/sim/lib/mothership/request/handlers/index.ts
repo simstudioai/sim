@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
+import { isSubagentSpanStreamEvent } from '@/lib/mothership/request/session/contract'
+import type {
+  ExecutionContext,
+  OrchestratorOptions,
+  StreamEvent,
+  StreamingContext,
+} from '@/lib/mothership/request/types'
 import { handleCompleteEvent } from './complete'
 import { handleErrorEvent } from './error'
 import { handlePlanEvent } from './plan'
@@ -34,6 +40,33 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
   [MothershipStreamV1EventType.tool]: (e, c, ec, o) => handleToolEvent(e, c, ec, o, 'subagent'),
   [MothershipStreamV1EventType.run]: handleRunEvent,
   [MothershipStreamV1EventType.span]: handleSpanEvent,
+}
+
+/** Live delivery and saved-prefix restoration share lane attribution and receipt advancement. */
+export async function applyStreamEvent(
+  event: StreamEvent,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options: OrchestratorOptions
+): Promise<void> {
+  if (isSubagentSpanStreamEvent(event)) {
+    await sseHandlers.span?.(event, context, execContext, options)
+    return
+  }
+  if (event.scope?.lane === 'subagent') {
+    if (handleSubagentRouting(event, context)) {
+      await subAgentHandlers[event.type]?.(event, context, execContext, options)
+    }
+    return
+  }
+  await sseHandlers[event.type]?.(event, context, execContext, options)
+  if (
+    event.type === 'complete' ||
+    (event.type === 'run' && event.payload.kind === 'checkpoint_pause')
+  ) {
+    /** Only a handled leg boundary acknowledges its preceding activity. */
+    if (event.payload.activityReceipt) context.receivedActivity = event.payload.activityReceipt
+  }
 }
 
 export function handleSubagentRouting(event: StreamEvent, _context: StreamingContext): boolean {

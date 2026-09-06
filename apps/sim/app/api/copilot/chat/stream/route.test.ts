@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -18,8 +18,8 @@ const { getLatestRunForStream, readEvents, readFilePreviewSessions, checkForRepl
     checkForReplayGap: vi.fn(),
   }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream,
+vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
+  readChatStream: { execute: getLatestRunForStream },
 }))
 
 vi.mock('@/lib/mothership/request/session', () => ({
@@ -46,9 +46,9 @@ vi.mock('@/lib/mothership/request/session', () => ({
   },
 }))
 
-vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
+import { GET as routeGET } from './route'
 
-import { GET } from './route'
+const GET = (request: NextRequest) => routeGET(request, { params: Promise.resolve({}) })
 
 async function readAllChunks(response: Response): Promise<string[]> {
   const reader = response.body?.getReader()
@@ -68,9 +68,9 @@ async function readAllChunks(response: Response): Promise<string[]> {
 describe('copilot chat stream replay route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: 'user-1',
-      isAuthenticated: true,
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
     })
     readEvents.mockResolvedValue([])
     readFilePreviewSessions.mockResolvedValue([])

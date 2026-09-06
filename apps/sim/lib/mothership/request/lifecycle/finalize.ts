@@ -99,9 +99,15 @@ async function handleAborted(
     })
   }
   await publisher.flush()
-  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.cancelled, requestId, {
-    completedAt: new Date(),
-  })
+  await loggedRunStatusUpdate(
+    runId,
+    MothershipStreamV1CompletionStatus.cancelled,
+    requestId,
+    {
+      completedAt: new Date(),
+    },
+    publisher.controllerToken
+  )
 }
 
 async function handleError(
@@ -155,10 +161,16 @@ async function handleError(
     })
   }
   await publisher.flush()
-  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.error, requestId, {
-    completedAt: new Date(),
-    error: errorMessage,
-  })
+  await loggedRunStatusUpdate(
+    runId,
+    MothershipStreamV1CompletionStatus.error,
+    requestId,
+    {
+      completedAt: new Date(),
+      error: errorMessage,
+    },
+    publisher.controllerToken
+  )
 }
 
 async function handleSuccess(
@@ -173,19 +185,26 @@ async function handleSuccess(
     })
   }
   await publisher.flush()
-  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.complete, requestId, {
-    completedAt: new Date(),
-  })
+  await loggedRunStatusUpdate(
+    runId,
+    MothershipStreamV1CompletionStatus.complete,
+    requestId,
+    {
+      completedAt: new Date(),
+    },
+    publisher.controllerToken
+  )
 }
 
 async function loggedRunStatusUpdate(
   runId: string,
   status: Parameters<typeof updateRunStatus>[1],
   requestId: string,
-  updates: Parameters<typeof updateRunStatus>[2] = {}
+  updates: Parameters<typeof updateRunStatus>[2] = {},
+  controllerToken?: string
 ): Promise<void> {
   try {
-    await updateRunStatus(runId, status, updates)
+    await updateRunStatus(runId, status, updates, controllerToken)
   } catch (error) {
     logger.warn(`[${requestId}] Failed to update run status to ${status}`, {
       runId,

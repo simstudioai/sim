@@ -43,6 +43,22 @@ describe('reconcileChatStreamMarkers', () => {
     })
   })
 
+  it('preserves an unfinished recoverable run when its Sim controller lock has expired', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([
+      { chatId: 'chat-recoverable', streamId: 'stream-recoverable' },
+    ])
+    const markers = await reconcileChatStreamMarkers(
+      [{ chatId: 'chat-recoverable', streamId: 'stream-recoverable' }],
+      { repairVerifiedStaleMarkers: true }
+    )
+    expect(markers.get('chat-recoverable')).toEqual({
+      chatId: 'chat-recoverable',
+      streamId: 'stream-recoverable',
+      status: 'active',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('repairs a verified stale persisted stream marker when requested', async () => {
     await reconcileChatStreamMarkers([{ chatId: 'chat-stuck', streamId: 'stream-orphaned' }], {
       repairVerifiedStaleMarkers: true,

@@ -31,6 +31,7 @@ import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
 import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
+import { streamRecoveryConfig } from '@/lib/mothership/request/lifecycle/recovery-config'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/mothership/request/otel'
@@ -40,14 +41,18 @@ import {
   isExplicitStopReason,
   registerActiveStream,
   releasePendingChatStream,
-  resetBuffer,
   StreamWriter,
   scheduleBufferCleanup,
   scheduleFilePreviewSessionCleanup,
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/mothership/request/session'
+import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
+import {
+  assertChatStreamLease,
+  StreamControllerSupersededError,
+} from '@/lib/mothership/request/session/controller-lease'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
@@ -79,6 +84,7 @@ export interface StreamingOrchestrationParams {
    * Pre-started root; child spans bind to it and `finish()` fires on
    * termination. Omit to let the stream start its own root (headless).
    */
+  resumeSeq?: number
   otelRoot?: ReturnType<typeof startCopilotOtelRoot>
 }
 
@@ -118,7 +124,27 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   const abortController = new AbortController()
   registerActiveStream(streamId, abortController)
 
-  const publisher = new StreamWriter({ streamId, chatId, requestId })
+  const lease = chatId ? getLocalChatStreamLease(chatId, streamId) : undefined
+  const assertControllerOwnership = async () => {
+    if (!chatId) return
+    try {
+      if (!lease || abortController.signal.reason instanceof StreamControllerSupersededError) {
+        throw new StreamControllerSupersededError()
+      }
+      await assertChatStreamLease(lease)
+    } catch {
+      const error = new StreamControllerSupersededError()
+      abortController.abort(error)
+      throw error
+    }
+  }
+  const publisher = new StreamWriter({
+    streamId,
+    chatId,
+    requestId,
+    lease,
+    initialSeq: params.resumeSeq,
+  })
 
   // Declared at function scope (same rationale as `cancelReason` below) so the
   // leak backstop in the orchestration's outer finally can always reach them:
@@ -208,10 +234,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               }
             | undefined
 
-          await Promise.all([resetBuffer(streamId), clearFilePreviewSessions(streamId)])
+          await assertControllerOwnership()
+          if (!orchestrateOptions.recovery) await clearFilePreviewSessions(streamId)
 
           try {
-            if (chatId) {
+            if (chatId && !orchestrateOptions.recovery) {
               const run = await createRunSegment({
                 id: runId,
                 executionId,
@@ -224,7 +251,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
                 provider:
                   typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
-                requestContext: { requestId },
+                requestContext: {
+                  requestId,
+                  controllerToken: lease?.value,
+                  recovery: streamRecoveryConfig(orchestrateOptions),
+                },
               })
               if (run.status === 'cancelled') {
                 outcome = RequestTraceV1Outcome.cancelled
@@ -250,11 +281,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             abortPoller = startAbortPoller(streamId, abortController, {
               requestId,
               chatId,
+              lease,
             })
             publisher.startKeepalive()
 
-            if (chatId) {
-              publisher.publish({
+            if (chatId && !orchestrateOptions.recovery) {
+              await publisher.publish({
                 type: MothershipStreamV1EventType.session,
                 payload: {
                   kind: MothershipStreamV1SessionKind.chat,
@@ -286,8 +318,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               simRequestId: requestId,
               otelContext,
               abortSignal: abortController.signal,
+              assertControllerOwnership,
               onEvent: async (event) => {
-                await publisher.publish(event)
+                try {
+                  await publisher.publish(event)
+                } catch (error) {
+                  abortController.abort(new StreamControllerSupersededError())
+                  throw error
+                }
               },
               onAbortObserved: (reason) => {
                 if (!abortController.signal.aborted) {
@@ -322,8 +360,17 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             // A client-disconnect-without-controller-abort still needs
             // to hit `handleAborted` (not `handleError`) so the chat
             // row gets `cancelled` terminal state instead of `error`.
+            await assertControllerOwnership()
             await finalizeStream(result, publisher, runId, outcome, requestId)
           } catch (error) {
+            if (
+              error instanceof StreamControllerSupersededError ||
+              abortController.signal.reason instanceof StreamControllerSupersededError
+            ) {
+              logger.info('Stream controller handed off; leaving its run recoverable', { streamId })
+              return
+            }
+            await assertControllerOwnership()
             // Error-path classification: if the abort signal fired or
             // the client disconnected, treat the thrown error as a
             // cancel (same rationale as the try-path above).
@@ -369,14 +416,16 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 error: getErrorMessage(error),
               })
             }
-            unregisterActiveStream(streamId)
+            unregisterActiveStream(streamId, abortController)
             if (chatId) {
-              await releasePendingChatStream(chatId, streamId)
+              await releasePendingChatStream(chatId, streamId, lease)
             }
             processResourcesReleased = true
-            await scheduleBufferCleanup(streamId)
-            await scheduleFilePreviewSessionCleanup(streamId)
-            await cleanupAbortMarker(streamId)
+            if (!(abortController.signal.reason instanceof StreamControllerSupersededError)) {
+              await scheduleBufferCleanup(streamId)
+              await scheduleFilePreviewSessionCleanup(streamId)
+              await cleanupAbortMarker(streamId)
+            }
 
             rootOutcome = outcome
             if (lifecycleResult?.usage) {
@@ -411,9 +460,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             processResourcesReleased = true
             clearInterval(abortPoller)
             publisher.stopKeepalive()
-            unregisterActiveStream(streamId)
+            unregisterActiveStream(streamId, abortController)
             if (chatId) {
-              await releasePendingChatStream(chatId, streamId)
+              await releasePendingChatStream(chatId, streamId, lease)
             }
           }
           // `finish` is idempotent, so it's safe whether the POST
