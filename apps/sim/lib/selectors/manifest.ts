@@ -86,6 +86,67 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oci-resource-manager.stacks': providerSelector(['ociRegion', 'compartmentId'], {
+    listMode: 'paginated',
+    detail: true,
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    sourceFields: { compartmentId: ['selectorCompartmentId'] },
+  }),
+  'oci-resource-manager.jobs': providerSelector(['ociRegion', 'stackId'], {
+    listMode: 'paginated',
+    detail: true,
+    readiness: { all: ['oauthCredential', 'stackId'] },
+    sourceFields: { stackId: ['stackSelector', 'stackManual'] },
+  }),
+  'oci-resource-manager.plan-jobs': providerSelector(['ociRegion', 'stackId'], {
+    listMode: 'paginated',
+    detail: true,
+    readiness: { all: ['oauthCredential', 'stackId'] },
+    sourceFields: { stackId: ['stackSelector', 'stackManual'] },
+  }),
+  'oci-resource-manager.rollback-plan-jobs': providerSelector(['ociRegion', 'stackId'], {
+    listMode: 'paginated',
+    detail: true,
+    readiness: { all: ['oauthCredential', 'stackId'] },
+    sourceFields: { stackId: ['stackSelector', 'stackManual'] },
+  }),
+  'oci-resource-manager.successful-apply-jobs': providerSelector(['ociRegion', 'stackId'], {
+    listMode: 'paginated',
+    detail: true,
+    readiness: { all: ['oauthCredential', 'stackId'] },
+    sourceFields: { stackId: ['stackSelector', 'stackManual'] },
+  }),
+  'oci-resource-manager.terraform-versions': providerSelector(['ociRegion', 'compartmentId'], {
+    listMode: 'flat',
+    detail: false,
+    readiness: { all: ['oauthCredential'] },
+    sourceFields: { compartmentId: ['selectorCompartmentId'] },
+  }),
+  'oci-resource-manager.configuration-source-providers': providerSelector(
+    ['ociRegion', 'compartmentId'],
+    {
+      listMode: 'paginated',
+      detail: false,
+      readiness: { all: ['oauthCredential', 'compartmentId'] },
+      sourceFields: { compartmentId: ['selectorCompartmentId'] },
+    }
+  ),
+  'oci-resource-manager.templates': providerSelector(['ociRegion', 'compartmentId'], {
+    listMode: 'paginated',
+    detail: false,
+    readiness: { all: ['oauthCredential'] },
+    sourceFields: { compartmentId: ['selectorCompartmentId'] },
+  }),
+  'oci-resource-manager.resource-discovery-services': providerSelector(
+    ['ociRegion', 'compartmentId'],
+    {
+      listMode: 'flat',
+      detail: false,
+      readiness: { all: ['oauthCredential'] },
+      sourceFields: { compartmentId: ['selectorCompartmentId'] },
+    }
+  ),
+
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },

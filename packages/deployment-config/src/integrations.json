@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,157 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_resource_manager",
+      "slug": "oci-resource-manager",
+      "name": "OCI Resource Manager",
+      "description": "Manage Oracle-hosted Terraform stacks and jobs",
+      "longDescription": "Manage OCI Resource Manager stacks, configuration sources, variables, plan/apply/destroy and rollback jobs, logs, outputs, state files, and drift work requests using an OCI API-key service account. Jobs return IDs and status for later inspection. Applying, destroying, importing state, and deleting stacks require explicit confirmation. Files and optional value projections may contain sensitive material. Disable workflow block retries for mutations: a lost response does not prove Oracle rejected the request.",
+      "bgColor": "#C74634",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_resource_manager",
+      "operations": [
+        {
+          "name": "List Stacks",
+          "description": "List one page of stacks in a compartment."
+        },
+        {
+          "name": "Get Stack",
+          "description": "Inspect stack metadata with deliberate variable and source projections."
+        },
+        {
+          "name": "Create Stack",
+          "description": "Create a stack from an existing configuration source without applying it."
+        },
+        {
+          "name": "Update Stack",
+          "description": "Update stack configuration, variables, or metadata without submitting a job."
+        },
+        {
+          "name": "Delete Stack",
+          "description": "Delete a stack and its state file while leaving deployed resources in place."
+        },
+        {
+          "name": "Change Stack Compartment",
+          "description": "Start moving a stack to another compartment and return its work-request ID."
+        },
+        {
+          "name": "List Jobs",
+          "description": "List one page of jobs for a stack."
+        },
+        {
+          "name": "Get Job",
+          "description": "Inspect a job and its status without resubmitting it."
+        },
+        {
+          "name": "Update Job",
+          "description": "Update a job display name or tags."
+        },
+        {
+          "name": "Plan",
+          "description": "Submit an Oracle-managed Terraform plan and return the job status."
+        },
+        {
+          "name": "Apply",
+          "description": "Submit a confirmed apply using an explicit plan or explicit auto-approval."
+        },
+        {
+          "name": "Destroy",
+          "description": "Submit a confirmed destroy job; Oracle only supports AUTO_APPROVED destruction."
+        },
+        {
+          "name": "Import State",
+          "description": "Import an authorized Terraform state file through an Oracle-managed job."
+        },
+        {
+          "name": "Plan Rollback",
+          "description": "Plan rollback toward a successful apply job from the same stack."
+        },
+        {
+          "name": "Apply Rollback",
+          "description": "Apply an explicitly selected successful rollback plan."
+        },
+        {
+          "name": "Cancel Job",
+          "description": "Request cancellation of a job; acceptance does not imply completed cancellation."
+        },
+        {
+          "name": "Get Job Logs",
+          "description": "Read one page of job logs with messages revealed only when requested."
+        },
+        {
+          "name": "Download Job Logs",
+          "description": "Download console or detailed job logs into an authorized stored file."
+        },
+        {
+          "name": "Download Configuration",
+          "description": "Download stack or job Terraform configuration as a stored ZIP file."
+        },
+        {
+          "name": "Download State",
+          "description": "Download sensitive stack or job Terraform state as a stored file."
+        },
+        {
+          "name": "Download Plan",
+          "description": "Download a Terraform plan in binary or JSON format as a stored file."
+        },
+        {
+          "name": "List Job Outputs",
+          "description": "List one page of Terraform output metadata with explicit selected-value disclosure."
+        },
+        {
+          "name": "List Associated Resources",
+          "description": "List resources associated with a stack or job, optionally including attributes."
+        },
+        {
+          "name": "Detect Drift",
+          "description": "Start drift detection and return a work-request identifier."
+        },
+        {
+          "name": "List Drift Details",
+          "description": "Read drift results for a selected or latest completed detection work request."
+        },
+        {
+          "name": "List Work Requests",
+          "description": "List one page of Resource Manager work requests."
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Inspect asynchronous Resource Manager work-request progress."
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List one page of work-request errors with explicit message disclosure."
+        },
+        {
+          "name": "Get Work Request Logs",
+          "description": "Read service or Terraform work-request logs, optionally downloading Terraform logs."
+        },
+        {
+          "name": "List Terraform Versions",
+          "description": "List supported Terraform versions and the default version."
+        },
+        {
+          "name": "List Configuration Source Providers",
+          "description": "List existing configuration source providers without exposing credentials."
+        },
+        {
+          "name": "List Templates",
+          "description": "List available Resource Manager templates."
+        },
+        {
+          "name": "List Resource Discovery Services",
+          "description": "List supported resource-discovery services and discovery scopes."
+        }
+      ],
+      "operationCount": 33,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "automation"]
     },
     {
       "type": "okta",
