@@ -72,6 +72,12 @@ Give the agent a JSON Schema to force structured output. The response is constra
 }
 ```
 
+The schema is checked after generation.
+A response that fails to parse as JSON, violates the schema (including constraints like `enum`, `minLength`, and number bounds), or was cut off at the output token limit counts as a failed generation.
+A block without tools retries once automatically; a block with tools is not retried, because its tools would run again.
+When no valid response remains, the block fails with the validation error instead of silently returning unstructured text.
+Set `"strict": false` in the response format to skip enforcement and accept whatever the model returns.
+
 ### Advanced
 
 Some settings live under advanced, or appear only for models that support them:

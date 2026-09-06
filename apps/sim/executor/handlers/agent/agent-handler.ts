@@ -57,6 +57,12 @@ import {
   buildSkillsSystemPromptSection,
   resolveSkillMetadata,
 } from '@/executor/handlers/agent/skills-resolver'
+import {
+  mergeFailedStructuredAttempt,
+  STRUCTURED_OUTPUT_RETRIES,
+  shouldEnforceStructuredOutput,
+  validateStructuredOutput,
+} from '@/executor/handlers/agent/structured-output'
 import type {
   AgentInputs,
   Message,
@@ -94,7 +100,7 @@ import {
   registerProviderToolInputProvenance,
   registerProviderToolModelInputRegistry,
 } from '@/providers/tool-input-provenance'
-import type { ProviderToolConfig } from '@/providers/types'
+import type { ProviderResponse, ProviderToolConfig } from '@/providers/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { buildJsonSchemaParamShapes, decodeToolParams } from '@/tools/param-shape'
@@ -2585,6 +2591,14 @@ export class AgentBlockHandler implements BlockHandler {
     )
   }
 
+  /**
+   * Executes the provider request and, when a strict response format is
+   * configured, validates the completed output against it — truncation at
+   * the token limit, unparseable JSON, and schema violations all count as
+   * one failure condition. A failed attempt is resampled once (identical
+   * request, tool-free requests only); a second failure fails the block
+   * explicitly instead of silently falling back to the standard format.
+   */
   private async executeProviderRequest(
     ctx: ExecutionContext,
     providerRequest: any,
@@ -2612,58 +2626,114 @@ export class AgentBlockHandler implements BlockHandler {
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
 
-      const response = await executeProviderRequest(
-        providerId,
-        {
-          model,
-          systemPrompt:
-            'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
-          context: 'context' in providerRequest ? providerRequest.context : undefined,
-          tools: providerRequest.tools,
-          temperature: providerRequest.temperature,
-          maxTokens: providerRequest.maxTokens,
-          apiKey: finalApiKey,
-          azureEndpoint: providerRequest.azureEndpoint,
-          azureApiVersion: providerRequest.azureApiVersion,
-          vertexProject: providerRequest.vertexProject,
-          vertexLocation: providerRequest.vertexLocation,
-          bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
-          bedrockSecretKey: providerRequest.bedrockSecretKey,
-          bedrockRegion: providerRequest.bedrockRegion,
-          responseFormat: providerRequest.responseFormat,
-          workflowId: providerRequest.workflowId,
-          workspaceId: ctx.workspaceId,
-          userId: ctx.userId,
-          stream: providerRequest.stream,
-          messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-          environmentVariables: normalizeStringRecord(ctx.environmentVariables),
-          workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-          blockData,
-          blockNameMapping,
-          isDeployedContext: ctx.isDeployedContext,
-          callChain: ctx.callChain,
-          billingAttribution: ctx.metadata.billingAttribution,
-          // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
-          // its own child execution (a custom block) correlates and cancels against
-          // this real run instead of minting a phantom id.
-          executionId: ctx.executionId,
-          reasoningEffort: providerRequest.reasoningEffort,
-          verbosity: providerRequest.verbosity,
-          thinkingLevel: providerRequest.thinkingLevel,
-          promptCaching: providerRequest.promptCaching,
-          // Stable per-block identity; providers use it to route cache lookups.
-          blockId: block.id,
-          previousInteractionId: providerRequest.previousInteractionId,
-          agentEvents: providerRequest.agentEvents,
-          abortSignal: ctx.abortSignal,
-        },
-        {
-          resolvedSecretTraceRegistry: modelRuntimeRegistry,
-          executionContext: ctx,
-        }
-      )
+      const request = {
+        model,
+        systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+        context: 'context' in providerRequest ? providerRequest.context : undefined,
+        tools: providerRequest.tools,
+        temperature: providerRequest.temperature,
+        maxTokens: providerRequest.maxTokens,
+        apiKey: finalApiKey,
+        azureEndpoint: providerRequest.azureEndpoint,
+        azureApiVersion: providerRequest.azureApiVersion,
+        vertexProject: providerRequest.vertexProject,
+        vertexLocation: providerRequest.vertexLocation,
+        bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
+        bedrockSecretKey: providerRequest.bedrockSecretKey,
+        bedrockRegion: providerRequest.bedrockRegion,
+        responseFormat: providerRequest.responseFormat,
+        workflowId: providerRequest.workflowId,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        stream: providerRequest.stream,
+        messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+        environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
+        blockData,
+        blockNameMapping,
+        isDeployedContext: ctx.isDeployedContext,
+        callChain: ctx.callChain,
+        billingAttribution: ctx.metadata.billingAttribution,
+        // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
+        // its own child execution (a custom block) correlates and cancels against
+        // this real run instead of minting a phantom id.
+        executionId: ctx.executionId,
+        reasoningEffort: providerRequest.reasoningEffort,
+        verbosity: providerRequest.verbosity,
+        thinkingLevel: providerRequest.thinkingLevel,
+        promptCaching: providerRequest.promptCaching,
+        // Stable per-block identity; providers use it to route cache lookups.
+        blockId: block.id,
+        previousInteractionId: providerRequest.previousInteractionId,
+        agentEvents: providerRequest.agentEvents,
+        abortSignal: ctx.abortSignal,
+      }
+      const requestOptions = {
+        resolvedSecretTraceRegistry: modelRuntimeRegistry,
+        executionContext: ctx,
+      }
 
-      return this.processProviderResponse(response, block, responseFormat, ctx)
+      const enforceStructuredOutput = shouldEnforceStructuredOutput(responseFormat)
+      // Tools execute inside the provider call, so re-issuing a tool-carrying
+      // request would replay their side effects; those requests fail without
+      // the automatic resample.
+      const hasTools = Array.isArray(providerRequest.tools) && providerRequest.tools.length > 0
+      const retriesAllowed = enforceStructuredOutput && !hasTools ? STRUCTURED_OUTPUT_RETRIES : 0
+      let failedAttempt: ProviderResponse | undefined
+
+      for (let attempt = 0; ; attempt++) {
+        const response = await executeProviderRequest(providerId, request, requestOptions)
+
+        if (
+          !enforceStructuredOutput ||
+          this.isStreamingExecution(response) ||
+          response instanceof ReadableStream
+        ) {
+          return this.processProviderResponse(response, block, responseFormat, ctx)
+        }
+
+        const providerResponse = response as ProviderResponse
+        const verdict = validateStructuredOutput(providerResponse, responseFormat)
+        if (verdict.ok) {
+          if (failedAttempt) {
+            mergeFailedStructuredAttempt(providerResponse, failedAttempt)
+          }
+          return {
+            ...verdict.output,
+            ...this.createResponseMetadata(providerResponse),
+          }
+        }
+
+        const willRetry = attempt < retriesAllowed && ctx.abortSignal?.aborted !== true
+        logger.warn(
+          'Agent structured output failed validation',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            {
+              reason: verdict.reason,
+              content: truncate(providerResponse.content, 200),
+              responseFormat,
+            },
+            {
+              contentLength:
+                typeof providerResponse.content === 'string'
+                  ? providerResponse.content.length
+                  : undefined,
+              attempt,
+              willRetry,
+            }
+          )
+        )
+
+        if (!willRetry) {
+          throw new Error(
+            `Agent structured output failed validation${
+              attempt > 0 ? ' after a retry' : ''
+            }: ${verdict.reason}`
+          )
+        }
+        failedAttempt = providerResponse
+      }
     } catch (error) {
       const errorRegistry = this.createErrorRegistry(providerErrorRegistry, modelRuntimeRegistry)
       ctx.errorResolvedSecretTraceRegistry = errorRegistry
@@ -2864,6 +2934,13 @@ export class AgentBlockHandler implements BlockHandler {
     return this.processStandardResponse(result)
   }
 
+  /**
+   * Lenient structured-response path, reached only when the response format
+   * opts out of enforcement with `"strict": false` (or for streaming
+   * responses, which have no complete content to validate). A parse failure
+   * falls back to the standard format with a warning instead of failing the
+   * block; the strict path lives in `executeProviderRequest`.
+   */
   private processStructuredResponse(
     result: any,
     responseFormat: any,

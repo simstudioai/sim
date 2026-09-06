@@ -148,6 +148,21 @@ vi.mock('@/lib/internal/custom-tools/read-available-by-id-or-title', () => ({
     mockReadAvailableCustomToolByIdOrTitleAsExecutor(...args),
 }))
 
+/**
+ * Provider response whose content satisfies a strict structured response
+ * format, for tests that exercise other behavior alongside a responseFormat.
+ */
+function structuredMockResponse(content: string) {
+  return {
+    content,
+    model: 'mock-model',
+    tokens: { input: 10, output: 20, total: 30 },
+    timing: { total: 100 },
+    toolCalls: [],
+    cost: undefined,
+  }
+}
+
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
@@ -1988,6 +2003,7 @@ describe('AgentBlockHandler', () => {
       mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
         { name: 'UNUSED', plaintext: 'x', encryptedValue: 'encrypted-unused' },
       ])
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('{"answer":"ok"}'))
 
       await handler.execute(mockContext, mockBlock, {
         model: 'gpt-4o',
@@ -2014,6 +2030,7 @@ describe('AgentBlockHandler', () => {
       registry.recordResolvedAtInputPath('DESCRIPTION', 'classified', inputPath)
       registry.recordResolvedInputProjection(inputPath, 'classified', '{{DESCRIPTION}}')
       mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('{"answer":"ok"}'))
 
       await handler.execute(mockContext, mockBlock, {
         model: 'gpt-4o',
@@ -2051,6 +2068,7 @@ describe('AgentBlockHandler', () => {
         projectedResponseFormat
       )
       mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('{"answer":"ok"}'))
 
       await handler.execute(mockContext, mockBlock, {
         model: 'gpt-4o',
@@ -2177,6 +2195,7 @@ describe('AgentBlockHandler', () => {
       registry.recordResolvedAtInputPath('FORMAT_NAME', 'private-schema', inputPath)
       registry.recordResolvedInputProjection(inputPath, 'private-schema', '{{FORMAT_NAME}}')
       mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('{}'))
 
       await handler.execute(mockContext, mockBlock, {
         model: 'gpt-4o',
@@ -2298,6 +2317,7 @@ describe('AgentBlockHandler', () => {
         projectedResponseFormat
       )
       mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('{}'))
 
       await handler.execute(mockContext, mockBlock, {
         model: 'gpt-4o',
@@ -2352,6 +2372,7 @@ describe('AgentBlockHandler', () => {
         projectedResponseFormat
       )
       mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('{"answer":"ok"}'))
       const handlerInputs = {
         model: 'gpt-4o',
         userPrompt: 'Return an answer.',
@@ -2406,6 +2427,140 @@ describe('AgentBlockHandler', () => {
         providerTiming: { total: 100 },
         cost: undefined,
       })
+    })
+
+    it('retries once when a strict structured response fails to parse, then succeeds', async () => {
+      mockExecuteProviderRequest
+        .mockResolvedValueOnce(structuredMockResponse('{"result": "truncated mid'))
+        .mockResolvedValueOnce(structuredMockResponse('{"result": "ok"}'))
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Test context',
+        apiKey: 'test-api-key',
+        responseFormat: '{"type":"object","properties":{"result":{"type":"string"}}}',
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      expect(result).toMatchObject({ result: 'ok' })
+      expect((result as Record<string, unknown>).tokens).toEqual({
+        input: 20,
+        output: 40,
+        total: 60,
+      })
+      expect(mockExecuteProviderRequest.mock.calls[0][1]).toEqual(
+        mockExecuteProviderRequest.mock.calls[1][1]
+      )
+    })
+
+    it('fails the block when the structured response fails validation twice', async () => {
+      mockExecuteProviderRequest
+        .mockResolvedValueOnce(structuredMockResponse('not json at all'))
+        .mockResolvedValueOnce(structuredMockResponse('still not json'))
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Test context',
+          apiKey: 'test-api-key',
+          responseFormat: '{"type":"object","properties":{"result":{"type":"string"}}}',
+        })
+      ).rejects.toThrow('Agent structured output failed validation after a retry')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+    })
+
+    it('rejects schema-violating output that parses as JSON', async () => {
+      mockExecuteProviderRequest
+        .mockResolvedValueOnce(structuredMockResponse('{"status":""}'))
+        .mockResolvedValueOnce(structuredMockResponse('{"status":"open"}'))
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Test context',
+        apiKey: 'test-api-key',
+        responseFormat:
+          '{"type":"object","properties":{"status":{"type":"string","enum":["open","closed"]}},"required":["status"]}',
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      expect(result).toMatchObject({ status: 'open' })
+    })
+
+    it('keeps the lenient fallback when the response format sets strict false', async () => {
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('not json at all'))
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Test context',
+        apiKey: 'test-api-key',
+        responseFormat:
+          '{"name":"response_schema","schema":{"type":"object","properties":{"result":{"type":"string"}}},"strict":false}',
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      expect(result).toMatchObject({
+        content: 'not json at all',
+        _responseFormatWarning: expect.stringContaining('did not adhere'),
+      })
+    })
+
+    it('fails without resampling when the request carries tools', async () => {
+      mockTransformBlockTool.mockReturnValue({
+        id: 'test_tool',
+        name: 'Test Tool',
+        description: 'A test tool',
+        parameters: { type: 'object', properties: {} },
+      })
+      mockExecuteProviderRequest.mockResolvedValueOnce(structuredMockResponse('not json at all'))
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Test context',
+          apiKey: 'test-api-key',
+          responseFormat: '{"type":"object","properties":{"result":{"type":"string"}}}',
+          tools: [{ type: 'test_tool', title: 'Test Tool', params: {}, usageControl: 'auto' }],
+        })
+      ).rejects.toThrow('Agent structured output failed validation:')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('fails a structured response whose final model segment stopped at max_tokens', async () => {
+      const truncatedResponse = () => ({
+        content: '{"result": "parses but was cut short by the cap"}',
+        model: 'mock-model',
+        tokens: { input: 10, output: 20, total: 30 },
+        timing: {
+          startTime: 't0',
+          endTime: 't1',
+          duration: 10,
+          timeSegments: [
+            {
+              type: 'model',
+              name: 'final',
+              startTime: 0,
+              endTime: 1,
+              duration: 1,
+              finishReason: 'max_tokens',
+            },
+          ],
+        },
+        toolCalls: [],
+        cost: undefined,
+      })
+      mockExecuteProviderRequest
+        .mockResolvedValueOnce(truncatedResponse())
+        .mockResolvedValueOnce(truncatedResponse())
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Test context',
+          apiKey: 'test-api-key',
+          responseFormat: '{"type":"object","properties":{"result":{"type":"string"}}}',
+        })
+      ).rejects.toThrow('output token limit')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
     })
 
     it('should handle invalid JSON in responseFormat gracefully', async () => {
