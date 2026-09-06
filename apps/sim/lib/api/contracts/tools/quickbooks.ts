@@ -310,6 +310,9 @@ export const quickBooksCreateBillPaymentBodySchema = quickBooksAuthSchema.extend
   paymentAccountId: requiredQuickBooksId('paymentAccountId'),
   billAllocations: quickBooksBillAllocationsSchema.optional(),
   transactionDate: optionalQuickBooksDate('transactionDate'),
+  apAccountId: optionalQuickBooksId('apAccountId'),
+  currencyCode: optionalQuickBooksText('currencyCode', 8),
+  documentNumber: optionalQuickBooksText('documentNumber', 256),
   privateNote: optionalQuickBooksText('privateNote', 4000),
   requestId: optionalQuickBooksText('requestId', 256),
 })
@@ -407,6 +410,7 @@ export const quickBooksUpdatePurchaseOrderBodySchema = quickBooksAuthSchema.exte
   vendorId: optionalQuickBooksId('vendorId'),
   apAccountId: optionalQuickBooksId('apAccountId'),
   transactionDate: optionalQuickBooksDate('transactionDate'),
+  dueDate: optionalQuickBooksDate('dueDate'),
   documentNumber: optionalQuickBooksText('documentNumber', 256),
   privateNote: optionalQuickBooksText('privateNote', 4000),
 })
