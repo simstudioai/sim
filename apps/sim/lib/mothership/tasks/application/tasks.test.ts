@@ -43,7 +43,10 @@ vi.mock('@/lib/mothership/request/session/abort', () => ({
 }))
 
 import { NextRequest } from 'next/server'
+import { runEmbeddedCli } from 'sim/embed'
+import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
 import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { WorkflowWatchStatus } from '@/lib/mothership/generated/tasks'
 import { POST as watchRoute } from '@/app/api/mothership/tasks/workflow-status/route'
 import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
 import { TASK_DELEGATION_AUDIENCE } from './context'
@@ -90,8 +93,25 @@ describe('durable workflow watches', () => {
         principal,
         input: { chatId: 'chat', executionId: 'exec' },
       })
-    ).toEqual({ status: 'completed', summary: 'Workflow run exec of "Flow" completed' })
+    ).toEqual({
+      workflowId: 'wf',
+      status: 'completed',
+      summary: 'Workflow run exec of "Flow" completed',
+    })
     expect(mocks.execution).toHaveBeenCalledWith({ runId: 'exec', assertedWorkspaceId: 'w' })
+  })
+  it('returns the canonical workflow identity needed to read the completed run', async () => {
+    const status = await readWatchedWorkflowStatus.execute({
+      principal,
+      input: { chatId: 'chat', executionId: 'exec' },
+    })
+    expect(status).toMatchObject({ workflowId: 'wf', status: 'completed' })
+    expect(mocks.status).toHaveBeenCalledExactlyOnceWith({
+      workflowId: 'wf',
+      executionId: 'exec',
+      includeOutput: false,
+      selectedOutputs: [],
+    })
   })
   it.each(['pending', 'paused', 'resuming', 'queued', 'running'])(
     'does not complete a %s execution',
@@ -203,7 +223,39 @@ describe('worker HTTP contracts', () => {
       routeContext
     )
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ status: 'completed' })
+    const watched = WorkflowWatchStatus.parse(await response.json())
+    expect(watched).toMatchObject({ workflowId: 'wf', status: 'completed' })
+    const resultBody = v2GetWorkflowRunContract.response.schema.parse({
+      data: {
+        runId: 'exec',
+        workflowId: 'wf',
+        status: 'completed',
+        trigger: null,
+        startedAt: '2026-09-06T00:00:00.000Z',
+        endedAt: '2026-09-06T00:00:01.000Z',
+        durationMs: 1000,
+        paused: null,
+        cost: null,
+        error: null,
+        output: { report: 'completed result' },
+        blockOutputs: null,
+        files: [],
+      },
+    })
+    const transport = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const read = new Request(url, init)
+      expect(read.method).toBe('GET')
+      expect(new URL(read.url).pathname).toBe('/api/v2/workflows/wf/runs/exec')
+      expect(new URL(read.url).searchParams.get('includeOutput')).toBe('true')
+      return Response.json(resultBody)
+    })
+    const recovered = await runEmbeddedCli(
+      ['workflows', 'runs', 'get', 'exec', '--workflow', watched.workflowId, '--include-output'],
+      { endpoint: 'https://sim.test', apiKey: 'test', workspaceId: 'w', transport }
+    )
+    expect(recovered.exitCode, recovered.stderr).toBe(0)
+    expect(JSON.parse(recovered.stdout)).toEqual(resultBody.data)
+    expect(transport).toHaveBeenCalledTimes(1)
   })
   it('returns retryable conflict without scheduling a busy wake', async () => {
     mocks.acquire.mockResolvedValue(false)
