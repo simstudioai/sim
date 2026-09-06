@@ -9,11 +9,10 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import {
   areStreamToolExecutionsSettled,
-  closeStreamToolAdmission,
   getLatestRunForStream,
   getUnsettledClientWorkflowExecutions,
   getUnsettledStreamSandboxProcesses,
-  stopPendingRequest,
+  requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -107,28 +106,31 @@ export const abortRun = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, input, context }) {
     const { streamId } = input
     const { userId, workspaceId } = context
-    const run = await stopPendingRequest({ streamId, userId, workspaceId })
+    const run = await requestRunStop({
+      streamId,
+      userId,
+      workspaceId,
+      ...(input.chatId ? { chatId: input.chatId } : {}),
+    })
     if (!run) return { aborted: true, settled: true }
     /** Admission can win after context lookup; bind its canonical chat before signalling anything. */
     const { chatId } = await resolveAdmittedRunContext(principal, { ...input, workspaceId }, run)
-    /** A disconnected HTTP leg does not stop the worker. Only tear down after its durable Stop is acknowledged. */
-    const worker = await requestExplicitStreamAbort({
+    /** Push delivers promptly; the worker also reconciles Sim's durable intent after an outage. */
+    const workerStop = requestExplicitStreamAbort({
       streamId,
       userId,
       chatId,
       workspaceId,
       timeoutMs: 3000,
-    })
-    const admissionClosed = await closeStreamToolAdmission(streamId, userId).catch((error) => {
-      logger.warn('Stopped stream tool admission could not be closed', {
+    }).catch((error) => {
+      logger.warn('Stop saved; worker delivery awaits reconciliation', {
         streamId,
         error: getErrorMessage(error),
       })
-      return false
+      return { settled: false }
     })
-    const aborted = await abortActiveStream(streamId)
+    await abortActiveStream(streamId)
     const cancelClientWorkflows = async () => {
-      if (!admissionClosed) return
       const executionIds = await getUnsettledClientWorkflowExecutions(streamId, userId)
       await Promise.all(
         executionIds.map(async (executionId) => {
@@ -139,7 +141,6 @@ export const abortRun = defineAuthorizedWorkspaceUseCase({
       )
     }
     const recoverCommands = async () => {
-      if (!admissionClosed) return
       const signal = AbortSignal.timeout(8000)
       const processes = await getUnsettledStreamSandboxProcesses(streamId, userId).catch(
         (error) => {
@@ -152,8 +153,9 @@ export const abortRun = defineAuthorizedWorkspaceUseCase({
       )
       await recoverSandboxProcesses(processes, signal)
     }
-    const [settled] = await Promise.all([
+    const [settled, worker] = await Promise.all([
       waitForPendingChatStream(chatId, 8000, streamId),
+      workerStop,
       recoverCommands(),
       cancelClientWorkflows().catch((error) => {
         logger.warn('Stopped stream workflow cancellation could not be delivered', {
@@ -165,18 +167,16 @@ export const abortRun = defineAuthorizedWorkspaceUseCase({
     if (!settled) {
       await releasePendingChatStream(chatId, streamId)
       logger.warn('Stopped stream did not settle; released its chat lock', { chatId, streamId })
-      return { aborted, settled: false, forceReleased: true }
+      return { aborted: true, settled: false, forceReleased: true }
     }
-    const toolsSettled =
-      admissionClosed &&
-      (await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {
-        logger.warn('Stopped stream tool settlement could not be verified', {
-          streamId,
-          error: getErrorMessage(error),
-        })
-        return false
-      }))
-    return { aborted, settled: worker.settled && toolsSettled }
+    const toolsSettled = await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {
+      logger.warn('Stopped stream tool settlement could not be verified', {
+        streamId,
+        error: getErrorMessage(error),
+      })
+      return false
+    })
+    return { aborted: true, settled: worker.settled && toolsSettled }
   },
 })
 
