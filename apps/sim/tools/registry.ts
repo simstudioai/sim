@@ -8240,7 +8240,8 @@ export const tools: Record<string, ExecutableToolConfig> = {
   oci_compute_delete_image: ociComputeDeleteImageTool,
   oci_compute_change_image_compartment: ociComputeChangeImageCompartmentTool,
   oci_compute_list_shapes: ociComputeListShapesTool,
-  oci_compute_list_image_shape_compatibility_entries: ociComputeListImageShapeCompatibilityEntriesTool,
+  oci_compute_list_image_shape_compatibility_entries:
+    ociComputeListImageShapeCompatibilityEntriesTool,
   oci_compute_get_image_shape_compatibility_entry: ociComputeGetImageShapeCompatibilityEntryTool,
   oci_compute_create_compute_capacity_report: ociComputeCreateComputeCapacityReportTool,
   oci_compute_list_instance_configurations: ociComputeListInstanceConfigurationsTool,
@@ -8249,7 +8250,8 @@ export const tools: Record<string, ExecutableToolConfig> = {
   oci_compute_update_instance_configuration: ociComputeUpdateInstanceConfigurationTool,
   oci_compute_delete_instance_configuration: ociComputeDeleteInstanceConfigurationTool,
   oci_compute_launch_instance_configuration: ociComputeLaunchInstanceConfigurationTool,
-  oci_compute_change_instance_configuration_compartment: ociComputeChangeInstanceConfigurationCompartmentTool,
+  oci_compute_change_instance_configuration_compartment:
+    ociComputeChangeInstanceConfigurationCompartmentTool,
   oci_compute_list_instance_pools: ociComputeListInstancePoolsTool,
   oci_compute_get_instance_pool: ociComputeGetInstancePoolTool,
   oci_compute_create_instance_pool: ociComputeCreateInstancePoolTool,

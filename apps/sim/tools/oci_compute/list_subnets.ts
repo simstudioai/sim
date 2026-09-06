@@ -1,8 +1,8 @@
 import {
   type OciComputeListSubnetsParams,
   type OciComputeResponse,
-  SUBNET_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  SUBNET_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 

@@ -224,18 +224,40 @@ const placement = z
   })
   .strict()
 
-const common = z.object({
-  oauthCredential: id,
-  region: name.refine((region) => OCI_REGION_IDS.includes(region), 'Unrecognized OCI region'),
-  deliveryIdentity: z.object({ executionId: name, blockId: name, invocationId: name }).strict().optional(),
-}).strict()
-const paging = { limit: z.number().int().min(1).max(100).default(50), page: z.string().min(1).max(4096).optional() }
-const sorting = { sortBy: z.enum(['TIMECREATED', 'DISPLAYNAME']).optional(), sortOrder: z.enum(['ASC', 'DESC']).optional() }
+const common = z
+  .object({
+    oauthCredential: id,
+    region: name.refine((region) => OCI_REGION_IDS.includes(region), 'Unrecognized OCI region'),
+    deliveryIdentity: z
+      .object({ executionId: name, blockId: name, invocationId: name })
+      .strict()
+      .optional(),
+  })
+  .strict()
+const paging = {
+  limit: z.number().int().min(1).max(100).default(50),
+  page: z.string().min(1).max(4096).optional(),
+}
+const sorting = {
+  sortBy: z.enum(['TIMECREATED', 'DISPLAYNAME']).optional(),
+  sortOrder: z.enum(['ASC', 'DESC']).optional(),
+}
 const listing = { compartmentId: id, ...paging }
 const namedListing = { ...listing, ...sorting, displayName: name.optional() }
 const match = { ifMatch: z.string().min(1).max(1024).optional() }
-const token = { retryToken: z.string().min(1).max(64).regex(/^[\x21-\x7e]+$/, 'Retry token must use printable ASCII').optional() }
-const resourceTags = { displayName: name.optional(), freeformTags: json(tags).optional(), definedTags: json(definedTags).optional() }
+const token = {
+  retryToken: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[\x21-\x7e]+$/, 'Retry token must use printable ASCII')
+    .optional(),
+}
+const resourceTags = {
+  displayName: name.optional(),
+  freeformTags: json(tags).optional(),
+  definedTags: json(definedTags).optional(),
+}
 const instance = { instanceId: id }
 const image = { imageId: id }
 const configuration = { instanceConfigurationId: id }
@@ -253,7 +275,12 @@ const source = {
 
 /** Only documented fields belonging to the selected operation are accepted. */
 export const ociComputeSchemas = {
-  list_instances: common.extend({ ...namedListing, availabilityDomain: name.optional(), lifecycleState: name.optional(), capacityReservationId: id.optional() }),
+  list_instances: common.extend({
+    ...namedListing,
+    availabilityDomain: name.optional(),
+    lifecycleState: name.optional(),
+    capacityReservationId: id.optional(),
+  }),
   get_instance: common.extend(instance),
   launch_instance: common.extend({
     compartmentId: id, availabilityDomain: name, shape: name, ...source, ...resourceTags, ...token,

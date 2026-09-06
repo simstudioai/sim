@@ -63,12 +63,7 @@ export const ociComputeChangeInstanceCompartmentTool: InternalToolConfig<
   },
   operation: {
     input: (params) =>
-      ociComputeOperationInput(params, [
-        'instanceId',
-        'ifMatch',
-        'compartmentId',
-        'retryToken',
-      ]),
+      ociComputeOperationInput(params, ['instanceId', 'ifMatch', 'compartmentId', 'retryToken']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },

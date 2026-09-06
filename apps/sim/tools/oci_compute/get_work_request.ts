@@ -1,8 +1,8 @@
 import {
   type OciComputeGetWorkRequestParams,
   type OciComputeResponse,
-  WORK_REQUEST_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  WORK_REQUEST_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 

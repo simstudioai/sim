@@ -1,8 +1,8 @@
 import {
   type OciComputeListInstancePoolInstancesParams,
   type OciComputeResponse,
-  POOL_INSTANCE_SUMMARY_OUTPUT_PROPERTIES,
   ociComputeOperationInput,
+  POOL_INSTANCE_SUMMARY_OUTPUT_PROPERTIES,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
