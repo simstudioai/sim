@@ -424,10 +424,7 @@ export async function markAsyncToolRunning(toolCallId: string, claimedBy: string
 export type SimToolExecutionClaim =
   | { outcome: 'claimed' }
   | { outcome: 'closed' }
-  | {
-      outcome: 'existing'
-      record: Pick<typeof copilotAsyncToolCalls.$inferSelect, 'status' | 'result' | 'error'>
-    }
+  | { outcome: 'existing' }
 
 /** Serializes admission with Stop; a terminal tool result never releases this execution claim. */
 export async function claimSimToolExecution(input: {
@@ -482,11 +479,7 @@ export async function claimSimToolExecution(input: {
           .returning({ id: copilotAsyncToolCalls.id })
         if (claimed) return { outcome: 'claimed' }
         const [record] = await tx
-          .select({
-            status: copilotAsyncToolCalls.status,
-            result: copilotAsyncToolCalls.result,
-            error: copilotAsyncToolCalls.error,
-          })
+          .select({ id: copilotAsyncToolCalls.id })
           .from(copilotAsyncToolCalls)
           .where(
             and(
@@ -495,7 +488,7 @@ export async function claimSimToolExecution(input: {
             )
           )
         if (!record) throw new Error('Tool execution record is unavailable')
-        return { outcome: 'existing', record }
+        return { outcome: 'existing' }
       })
   )
 }
