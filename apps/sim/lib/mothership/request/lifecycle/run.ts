@@ -491,7 +491,7 @@ export async function runCopilotLifecycle(
           context,
           execContext,
           lifecycleOptions,
-          options.recovery ? '/api/tools/resume' : goRoute,
+          goRoute,
           hostedBillingRequest
         )
       }

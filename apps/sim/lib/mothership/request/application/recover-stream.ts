@@ -51,6 +51,15 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
     const saved = run.requestContext as Record<string, unknown> | null
     const config = StreamRecoveryConfigSchema.safeParse(saved?.recovery)
     if (!config.success || typeof saved?.controllerToken !== 'string') return run
+    const intent = config.data.request
+    if (
+      intent.userId !== userId ||
+      intent.workspaceId !== workspaceId ||
+      intent.chatId !== chatId ||
+      intent.messageId !== run.streamId
+    ) {
+      throw new OrchestrationError('validation', 'Saved stream identity does not match its chat')
+    }
     if (!(await acquirePendingChatStream(chatId, run.streamId, 0))) return run
     const lease = getLocalChatStreamLease(chatId, run.streamId)!
     try {
@@ -89,7 +98,7 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
         executionId: run.executionId,
         runId: run.id,
         requestId,
-        requestPayload: { streamId: run.streamId, results: [] },
+        requestPayload: intent,
         currentChat: null,
         isNewChat: false,
         message: '',
