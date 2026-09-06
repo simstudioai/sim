@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import {
   buildPersistedAssistantMessage,
@@ -13,6 +14,42 @@ import {
 } from './persisted-message'
 
 describe('persisted-message', () => {
+  it.each(['', 'partial answer'])(
+    'retains the failure after storage and display projection for %j',
+    (content) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        content,
+        contentBlocks: [],
+        toolCalls: [],
+        error: 'The worker connection was interrupted.',
+      })
+      const restored = normalizeMessage({ ...persisted })
+      const displayed = toDisplayMessage(restored)
+      const blocks = displayed.contentBlocks ?? []
+      expect(restored.content).toBe(content)
+      expect(restored.contentBlocks?.at(-1)?.type).toBe('error')
+      expect(blocks.at(-1)?.content).toBe(
+        '<mothership-error>{"message":"The worker connection was interrupted."}</mothership-error>'
+      )
+      if (content) expect(blocks[0]?.content).toBe(content)
+    }
+  )
+
+  it.each([{ success: true }, { success: false, cancelled: true }])(
+    'does not label a successful or stopped response as failed: %j',
+    (outcome) => {
+      const persisted = buildPersistedAssistantMessage({
+        ...outcome,
+        content: 'saved work',
+        contentBlocks: [],
+        toolCalls: [],
+        errors: ['an earlier recovered failure'],
+      })
+      expect(persisted.contentBlocks?.some((block) => block.type === 'error')).not.toBe(true)
+    }
+  )
+
   it('keeps task and plan blocks through normalizeMessage instead of flattening them to text', () => {
     const normalized = normalizeMessage({
       id: 'm-1',
@@ -102,7 +139,7 @@ describe('persisted-message', () => {
       success: true,
       content: live,
       requestId: 'req-1',
-      contentBlocks: [{ type: 'text', content: live }],
+      contentBlocks: [{ type: 'text', content: live, timestamp: 1_700_000_000_000 }],
       toolCalls: [],
     }
 
@@ -128,7 +165,11 @@ describe('persisted-message', () => {
       success: true,
       content: chunks.join(''),
       requestId: 'req-1',
-      contentBlocks: chunks.map((c) => ({ type: 'text', content: c })),
+      contentBlocks: chunks.map((c) => ({
+        type: 'text',
+        content: c,
+        timestamp: 1_700_000_000_000,
+      })),
       toolCalls: [],
     }
 
@@ -149,6 +190,7 @@ describe('persisted-message', () => {
       contentBlocks: [
         {
           type: 'tool_call',
+          timestamp: 1_700_000_000_000,
           toolCall: {
             id: 'tool-1',
             name: 'generate_api_key',
@@ -183,7 +225,7 @@ describe('persisted-message', () => {
       success: true,
       content: live,
       requestId: 'req-1',
-      contentBlocks: [{ type: 'text', content: live }],
+      contentBlocks: [{ type: 'text', content: live, timestamp: 1_700_000_000_000 }],
       toolCalls: [],
     }
 
@@ -256,28 +298,29 @@ describe('persisted-message', () => {
   })
 
   it('persists the source names a selection chip renders from, but not its payload', () => {
+    const contexts = [
+      {
+        kind: 'file_selection',
+        label: 'notes.md:12-40',
+        fileId: 'f1',
+        fileName: 'notes.md',
+        // Send-time payload: resolved server-side, never re-read for display.
+        text: 'the exact passage',
+        startLine: 12,
+        endLine: 40,
+      },
+      {
+        kind: 'table_selection',
+        label: 'Sales (2 rows)',
+        tableId: 't1',
+        tableName: 'Sales',
+        rowIds: ['r1', 'r2'],
+      },
+    ]
     const msg = buildPersistedUserMessage({
       id: 'user-1',
       content: 'explain this',
-      contexts: [
-        {
-          kind: 'file_selection',
-          label: 'notes.md:12-40',
-          fileId: 'f1',
-          fileName: 'notes.md',
-          // Send-time payload: resolved server-side, never re-read for display.
-          text: 'the exact passage',
-          startLine: 12,
-          endLine: 40,
-        },
-        {
-          kind: 'table_selection',
-          label: 'Sales (2 rows)',
-          tableId: 't1',
-          tableName: 'Sales',
-          rowIds: ['r1', 'r2'],
-        },
-      ],
+      contexts,
     })
 
     // fileName must survive: the label carries a `:12-40` suffix, so the chip's
