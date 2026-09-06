@@ -13,16 +13,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Command } from 'commander'
-import { CLI_CONTRACT } from '#cli/contract/commands'
+import { CLI_CONTRACT } from '#sim-cli/contract/commands'
 import {
   type CommandReference,
   commandReference,
   type ReferenceDocument,
-} from '#cli/contract/reference'
-import { V2_OPERATIONS, type V2OperationName } from '#cli/generated/v2-api'
-import { buildProgram } from '#cli/program'
-import { camel, deriveCommandPath } from '#cli/runtime/derive'
-import { flagNameFor } from '#cli/runtime/request'
+} from '#sim-cli/contract/reference'
+import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
+import { buildProgram } from '#sim-cli/program'
+import { camel, deriveCommandPath } from '#sim-cli/runtime/derive'
+import { flagNameFor } from '#sim-cli/runtime/request'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const HELP_COMMAND = 'help'

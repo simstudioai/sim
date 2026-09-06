@@ -5,12 +5,14 @@ const { read, write, open } = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(),
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   readSessionSandboxFile: read,
   writeSessionSandboxFile: write,
+  resolveSessionPath: (path: string) => `/home/user/${path}`,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
   openSessionFileSnapshot: open,
 }))
 
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { applySink } from '@/lib/mothership/agent-cli/sink'
 
 const IDENTITY = { endpoint: 'https://sim.test', apiKey: 'test', workspaceId: 'workspace' }
 
@@ -21,6 +23,32 @@ describe('the CLI owns workbench file semantics', () => {
     open.mockRejectedValue(new Error('Workbench unavailable'))
   })
   afterEach(() => vi.unstubAllGlobals())
+
+  it.each(['inline', 'saved'] as const)(
+    'preserves terminal escapes in %s file output',
+    async (mode) => {
+      const content = 'build started\r\n\u001b[31mfailed\u001b[0m\tjob=compile\n'
+      const transport = async () =>
+        new Response(content, {
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        })
+      const result = await runCli(['files', 'get', 'build-log'], { ...IDENTITY, transport }, 'chat')
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe(content)
+      expect(read).not.toHaveBeenCalled()
+      expect(write).not.toHaveBeenCalled()
+      expect(open).not.toHaveBeenCalled()
+      if (mode === 'saved') {
+        write.mockResolvedValue({ outcome: 'written', path: '/home/user/build.log' })
+        const saved = await applySink({ kind: 'sandbox-file', path: 'build.log' }, 'chat', result)
+        expect(saved.exitCode).toBe(0)
+        expect(saved.stdout).toContain('stdout written')
+        expect(write).toHaveBeenCalledExactlyOnceWith('chat', 'build.log', content, undefined, {
+          overwrite: true,
+        })
+      }
+    }
+  )
 
   it('does not touch the workbench for literal text, help or invalid commands', async () => {
     const requests: Request[] = []
