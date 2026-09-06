@@ -3825,10 +3825,12 @@ export function useChat(
       return
     }
 
-    const claimOwnerId = writeQueuedSendHandoffClaim(handoff.id)
-    recoveringQueuedSendHandoffRef.current = { id: handoff.id, ownerId: claimOwnerId }
-    void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
-      pendingStop: null,
+    /** Recovered sends join the queue so dispatch, failure and retry have one owner. */
+    useMothershipQueueStore.getState().insertAt(chatHistory.id, 0, {
+      id: handoff.id,
+      content: handoff.message,
+      fileAttachments: handoff.fileAttachments,
+      contexts: handoff.contexts,
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -3836,16 +3838,10 @@ export function useChat(
         userMessageId: handoff.userMessageId,
         ...(handoff.stopRequired ? { stopRequired: true } : {}),
       },
-    }).finally(() => {
-      if (
-        recoveringQueuedSendHandoffRef.current?.id === handoff.id &&
-        recoveringQueuedSendHandoffRef.current.ownerId === claimOwnerId
-      ) {
-        recoveringQueuedSendHandoffRef.current = null
-      }
-      clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     })
-  }, [workspaceId, chatHistory, queuedHandoffRecoveryEpoch, startSendMessage])
+    clearQueuedSendHandoffState(handoff.id)
+    clearQueuedSendHandoffClaim(handoff.id)
+  }, [workspaceId, chatHistory, queuedHandoffRecoveryEpoch])
 
   const stopGeneration = useCallback(
     async (options?: StopGenerationOptions) => {

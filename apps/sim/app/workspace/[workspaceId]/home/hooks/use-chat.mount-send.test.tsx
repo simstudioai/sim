@@ -72,8 +72,12 @@ import {
   isRunToolActiveForId,
   stopRunToolExecutions,
 } from '@/lib/mothership/tools/client/run-tool-execution'
-import { readQueuedSendHandoffState } from '@/app/workspace/[workspaceId]/home/hooks/send-handoff'
+import {
+  readQueuedSendHandoffState,
+  writeQueuedSendHandoffState,
+} from '@/app/workspace/[workspaceId]/home/hooks/send-handoff'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -260,13 +264,17 @@ function renderUseChat(): {
  * pathname has to match: the hook resets a chat-bound surface back to a fresh
  * pending key when it finds itself on the home route.
  */
-function renderUseChatInChat(chatId: string): {
+function renderUseChatInChat(
+  chatId: string,
+  history?: MothershipChatHistory
+): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
 } {
   navigationMocks.usePathname.mockReturnValue(`/workspace/ws-1/chat/${chatId}`)
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (history) queryClient.setQueryData(mothershipChatKeys.detail(chatId), history)
   const container = document.createElement('div')
   const root = createRoot(container)
   mountedRoots.push(root)
@@ -705,6 +713,80 @@ describe('useChat remount send recovery', () => {
       stopRequired: true,
     })
   })
+
+  it.each([false, true])(
+    'the remounted handoff reader requires Stop settlement (settled: %s)',
+    async (settled) => {
+      let settleResponse = settled
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/api/copilot/chat/abort')) {
+          state.abortBodies.push(JSON.parse(String(init?.body)))
+          return Response.json({ aborted: true, settled: settleResponse })
+        }
+        return fetchStub(input, init)
+      })
+      writeQueuedSendHandoffState({
+        id: 'queued-correction',
+        chatId: 'chat-a',
+        workspaceId: 'ws-1',
+        supersededStreamId: 'previous-response',
+        userMessageId: 'prepared-correction-request',
+        message: 'inspect the second invoice instead',
+        stopRequired: true,
+        requestedAt: Date.now(),
+      })
+      const { getResult } = renderUseChatInChat('chat-a', {
+        id: 'chat-a',
+        title: 'Invoice inspection',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      })
+      await waitFor(() => state.abortBodies.length > 0)
+      if (settled) {
+        await waitFor(() => state.postBodies.length === 1)
+        expect(state.postBodies[0]).toMatchObject({
+          userMessageId: 'prepared-correction-request',
+          message: 'inspect the second invoice instead',
+        })
+      } else {
+        await act(async () => {
+          await sleep(40)
+        })
+        expect(state.postBodies).toHaveLength(0)
+        expect(getResult().error).toBe('Previous response is still shutting down.')
+        expect(readQueuedSendHandoffState()).toBeNull()
+        expect(allQueuedMessages()).toEqual([
+          expect.objectContaining({
+            id: 'queued-correction',
+            retryRequired: true,
+            queuedSendHandoff: expect.objectContaining({
+              userMessageId: 'prepared-correction-request',
+              supersededStreamId: 'previous-response',
+              stopRequired: true,
+            }),
+          }),
+        ])
+      }
+      expect(state.abortBodies).toEqual([
+        { streamId: 'previous-response', workspaceId: 'ws-1', chatId: 'chat-a' },
+      ])
+      if (!settled) {
+        settleResponse = true
+        await act(async () => {
+          void getResult().sendNow('queued-correction')
+        })
+        await waitFor(() => state.postBodies.length === 1)
+        expect(state.postBodies[0]).toMatchObject({
+          userMessageId: 'prepared-correction-request',
+          message: 'inspect the second invoice instead',
+        })
+        expect(state.abortBodies).toHaveLength(2)
+        expect(state.abortBodies[1]).toEqual(state.abortBodies[0])
+      }
+    }
+  )
 
   it('does not certify an unsettled Stop before the chat ID arrives', async () => {
     state.abortSettlements = [false, false]
