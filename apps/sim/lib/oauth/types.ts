@@ -104,6 +104,7 @@ export type OAuthProvider =
 
 export type OAuthService =
   | 'oci'
+  | 'oci-notifications'
   | 'google'
   | 'google-email'
   | 'google-drive'
