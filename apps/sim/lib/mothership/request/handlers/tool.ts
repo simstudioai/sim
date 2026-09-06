@@ -14,7 +14,6 @@ import {
 } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
-  type MothershipStreamV1ToolCallDescriptor,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
@@ -27,6 +26,7 @@ import {
   isToolCallStreamEvent,
   isToolResultStreamEvent,
   TOOL_CALL_STATUS,
+  type ToolCallStreamEvent,
 } from '@/lib/mothership/request/session'
 import { markToolResultSeen, wasToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
@@ -215,6 +215,7 @@ export async function prePersistClientExecutableToolCall(
   if (!isToolCallStreamEvent(event)) return
 
   const data = event.payload
+  if (data.replay) return
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
   if (isPartial) return
@@ -376,7 +377,7 @@ export async function handleToolEvent(
     return
   }
 
-  if (!parentToolCallId) {
+  if (!parentToolCallId && !event.payload.replay) {
     context.sawMainToolCall = true
     context.finalAssistantContent = ''
   }
@@ -460,7 +461,7 @@ function stampToolCallBlockEnd(
 }
 
 async function handleCallPhase(
-  data: MothershipStreamV1ToolCallDescriptor,
+  data: ToolCallStreamEvent['payload'],
   context: StreamingContext,
   execContext: ExecutionContext,
   options: OrchestratorOptions,
@@ -542,7 +543,7 @@ async function handleCallPhase(
     )
   }
 
-  if (isPartial) return
+  if (isPartial || data.replay) return
   if (!isSubagent && wasToolResultSeen(context, toolCallId)) return
   if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
     return
