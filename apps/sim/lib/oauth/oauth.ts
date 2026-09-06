@@ -978,6 +978,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracle_fusion_financials: {
+    name: 'Oracle Fusion Cloud Financials',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_financials: {
+        name: 'Oracle Fusion Cloud Financials',
+        description:
+          'Read Payables, manage Receivables transactions and employee expenses, and inspect General Ledger journals and balances with supported journal-batch deletion.',
+        providerId: 'oracle_fusion_financials',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_financials',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
