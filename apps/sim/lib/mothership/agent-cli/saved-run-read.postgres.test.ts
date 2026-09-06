@@ -48,6 +48,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
+import { authMockFns } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
@@ -90,6 +91,7 @@ import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-exec
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import { POST as stopChatRoute } from '@/app/api/mothership/chat/stop/route'
 import { POST as forkChatRoute } from '@/app/api/mothership/chats/[chatId]/fork/route'
 import { GET as fileRoute } from '@/app/api/v2/files/[fileId]/route'
 import { GET as fileTextRoute } from '@/app/api/v2/files/[fileId]/text/route'
@@ -103,6 +105,8 @@ import {
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
 import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
 import { GET as workflowsRoute } from '@/app/api/v2/workflows/route'
+import { toRawPersistedContentBlock } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
+import type { ContentBlock as DisplayContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { getLatestBlock } from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -909,6 +913,105 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(false)
       await settleSimToolExecution(toolCallId)
       expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(true)
+    })
+
+    it('retains Stop snapshot metadata through the HTTP contract and physical chat history', async () => {
+      const chatId = generateId()
+      const streamId = generateId()
+      const taskId = generateId()
+      const watchedExecutionId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: 'run-reader',
+        workspaceId,
+        type: 'mothership',
+        title: 'Stopped watch',
+        conversationId: streamId,
+      })
+      await appendCopilotChatMessages(chatId, [
+        {
+          id: streamId,
+          role: 'user',
+          content: 'Watch this run',
+          timestamp: new Date().toISOString(),
+        },
+      ])
+      const task = {
+        taskId,
+        kind: 'workflow_run' as const,
+        status: 'pending' as const,
+        target: { workflowId, executionId: watchedExecutionId },
+        note: 'Report the invoice result',
+      }
+      const blocks: DisplayContentBlock[] = [
+        { type: 'task', task },
+        { type: 'plan', planItems: [{ step: 'Verify the invoice result', status: 'active' }] },
+        {
+          type: 'subagent_end',
+          subagentName: 'Inspect invoices',
+          error: 'Stopped during inspection',
+          spanId: 'inspection',
+          parentSpanId: 'main',
+          parentToolCallId: 'inspect-call',
+        },
+        {
+          type: 'subagent_text',
+          subagent: 'Inspect invoices',
+          content: 'Found the invoice run.',
+          spanId: 'inspection',
+          parentSpanId: 'main',
+          parentToolCallId: 'inspect-call',
+        },
+      ]
+      authMockFns.mockGetSession.mockResolvedValueOnce({ user: { id: 'run-reader' } })
+      const response = await stopChatRoute(
+        new NextRequest('https://sim.test/api/mothership/chat/stop', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            chatId,
+            streamId,
+            content: '',
+            contentBlocks: blocks.map(toRawPersistedContentBlock),
+          }),
+        }),
+        undefined
+      )
+      expect(response.status).toBe(200)
+      const saved = await loadCopilotChatMessages(chatId)
+      expect(saved).toHaveLength(2)
+      expect(saved[1].contentBlocks).toEqual(
+        expect.arrayContaining([
+          { type: 'task', task },
+          { type: 'plan', planItems: [{ step: 'Verify the invoice result', status: 'active' }] },
+          {
+            type: 'span',
+            kind: 'subagent',
+            lifecycle: 'end',
+            name: 'Inspect invoices',
+            error: 'Stopped during inspection',
+            spanId: 'inspection',
+            parentSpanId: 'main',
+            parentToolCallId: 'inspect-call',
+          },
+          {
+            type: 'text',
+            lane: 'subagent',
+            channel: 'assistant',
+            agent: 'Inspect invoices',
+            content: 'Found the invoice run.',
+            spanId: 'inspection',
+            parentSpanId: 'main',
+            parentToolCallId: 'inspect-call',
+          },
+          { type: 'complete', status: 'cancelled' },
+        ])
+      )
+      const [chat] = await db
+        .select({ streamId: copilotChats.conversationId })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, chatId))
+      expect(chat.streamId).toBeNull()
     })
 
     it('reads actual inbox attachment bytes after chat binding', async () => {
