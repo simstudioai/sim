@@ -3,9 +3,15 @@
  */
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockListCatalogTools } = vi.hoisted(() => ({ mockListCatalogTools: vi.fn() }))
+const { mockListCatalogTools, mockReadBlockCatalog } = vi.hoisted(() => ({
+  mockListCatalogTools: vi.fn(),
+  mockReadBlockCatalog: vi.fn(),
+}))
+vi.mock('@/lib/catalog/application/read-block-catalog', () => ({
+  readBlockCatalog: { execute: mockReadBlockCatalog },
+}))
 vi.mock('@/lib/catalog/application/list-tools', () => ({
   listCatalogTools: { execute: mockListCatalogTools },
 }))
@@ -42,6 +48,29 @@ const CATALOG = {
   '/api/v2/blocks': { data: [{ id: 'slack_v2' }, { id: 'agent' }], nextCursor: null },
   '/api/v2/blocks/slack_v2': { data: SLACK_V2 },
   '/api/v2/blocks/agent': { data: { id: 'agent', name: 'Agent', inputSchema: [{ id: 'model' }] } },
+}
+
+function runtimeWithFilePages(count: number, requested: string[]): AgentCliRuntime {
+  const files = Array.from({ length: count }, (_, i) => ({ id: `f${i}`, name: `f${i}.txt` }))
+  return {
+    ...runtimeWith({}),
+    client: {
+      request: async <T>(
+        path: string,
+        options?: { query?: Record<string, string> }
+      ): Promise<T> => {
+        requested.push(path)
+        if (path === '/api/v2/files') {
+          const offset = Number(options?.query?.cursor ?? 0)
+          return {
+            data: files.slice(offset, offset + 100),
+            nextCursor: offset + 100 < count ? String(offset + 100) : null,
+          } as T
+        }
+        return { data: { text: 'needle', degraded: false, truncated: false } } as T
+      },
+    },
+  }
 }
 
 describe('universal grep', () => {
@@ -117,26 +146,28 @@ describe('universal grep', () => {
     expect(result.stdout).toContain('workflows/Agent runner (wf-1):')
     expect(requested).toContain('/api/v2/workflows/wf-1/state')
     expect(requested).not.toContain('/api/v2/workflows/wf-2/state')
-    // The platform corpus is built once per workspace and reused: a second grep pays no
-    // block detail requests at all.
+    /** A new invocation rechecks the caller’s current catalog. */
     const listed = () => requested.filter((path) => path === '/api/v2/blocks').length
     expect(listed()).toBe(1)
     await runEngine('grep', ['type'], runtime, { scope: 'blocks,workflows', in: 'runner' })
-    expect(listed()).toBe(1)
+    expect(listed()).toBe(2)
   })
 
-  it('shares one build between greps that fan out at the same time', async () => {
-    // Eight concurrent world-wide greps in one dev turn each rebuilt every world and
-    // timed out; concurrent callers now await the build already in flight.
+  it('uses one fresh bulk catalog read per concurrent authorized grep', async () => {
     const requested: string[] = []
-    const runtime = runtimeWith(CATALOG, requested)
-    await Promise.all([
-      runEngine('grep', ['id'], runtime, { scope: 'blocks' }),
-      runEngine('grep', ['name'], runtime, { scope: 'blocks' }),
-      runEngine('grep', ['type'], runtime, { scope: 'blocks' }),
+    const runtime = {
+      ...runtimeWith({}, requested),
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session' } as const,
+    }
+    mockReadBlockCatalog.mockResolvedValue({ blocks: [SLACK_V2] })
+    const results = await Promise.all([
+      runEngine('grep', ['streamOutputs'], runtime, { scope: 'blocks' }),
+      runEngine('grep', ['streamOutputs'], runtime, { scope: 'blocks' }),
+      runEngine('grep', ['streamOutputs'], runtime, { scope: 'blocks' }),
     ])
-    expect(requested.filter((path) => path === '/api/v2/blocks')).toHaveLength(1)
-    expect(requested.filter((path) => path === '/api/v2/blocks/agent')).toHaveLength(1)
+    for (const result of results) expect(result.stdout).toContain('streamOutputs')
+    expect(mockReadBlockCatalog).toHaveBeenCalledTimes(3)
+    expect(requested).toEqual([])
   })
 
   it('bounds the nested requests in flight across the whole process', async () => {
@@ -361,5 +392,245 @@ describe('tools world', () => {
     const result = await runEngine('grep', ['slack_send'], runtime, { scope: 'tools' })
     expect(result.stdout).toContain('tools/slack_send:')
     expect(requested).toContain('/api/v2/tools')
+  })
+})
+
+describe('search authority and completeness', () => {
+  beforeEach(() => mockListCatalogTools.mockReset())
+  it('does not reuse one actor’s catalog for another actor in the same workspace', async () => {
+    const first = {
+      ...runtimeWith({}),
+      principal: { kind: 'session', userId: 'alice', sessionId: 'a' } as const,
+    }
+    const second = {
+      ...runtimeWith({}),
+      workspaceId: first.workspaceId,
+      userId: 'bob',
+      principal: { kind: 'session', userId: 'bob', sessionId: 'b' } as const,
+    }
+    mockListCatalogTools.mockResolvedValueOnce({
+      entries: [{ id: 'private_preview', name: 'ALICE_ONLY' }],
+      hasMore: false,
+    })
+    mockListCatalogTools.mockResolvedValueOnce({ entries: [], hasMore: false })
+    expect((await runEngine('grep', ['ALICE_ONLY'], first, { scope: 'tools' })).stdout).toContain(
+      'ALICE_ONLY'
+    )
+    const result = await runEngine('grep', ['ALICE_ONLY'], second, { scope: 'tools', count: true })
+    expect(result.stdout).toBe('0')
+  })
+
+  it('checks current catalog authority again after a previous successful search', async () => {
+    const runtime = {
+      ...runtimeWith({}),
+      principal: { kind: 'session', userId: 'reader', sessionId: 's' } as const,
+    }
+    mockListCatalogTools.mockResolvedValueOnce({
+      entries: [{ id: 'private_preview', name: 'PREVIEW' }],
+      hasMore: false,
+    })
+    expect((await runEngine('grep', ['PREVIEW'], runtime, { scope: 'tools' })).stdout).toContain(
+      'PREVIEW'
+    )
+    mockListCatalogTools.mockRejectedValueOnce(new Error('Workspace access revoked'))
+    const result = await runEngine('grep', ['PREVIEW'], runtime, { scope: 'tools' })
+    expect(result.exitCode).toBe(1)
+  })
+
+  it('does not report failed file reads as a complete search with zero matches', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'broken', name: 'broken.txt' }], nextCursor: null },
+      }),
+      { scope: 'files' }
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toMatch(/incomplete/i)
+    expect(result.stderr).toContain('broken')
+  })
+
+  it('reports truncated extraction even when a returned prefix has a match', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'short', name: 'long.txt' }], nextCursor: null },
+        '/api/v2/files/short/text': { data: { text: 'needle', degraded: false, truncated: true } },
+      }),
+      { scope: 'files' }
+    )
+    expect(result.stdout).toContain('needle')
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toMatch(/truncated|incomplete/i)
+  })
+
+  it('selects a named file before applying the file-read count limit', async () => {
+    const requested: string[] = []
+    const result = await runEngine('grep', ['needle'], runtimeWithFilePages(301, requested), {
+      scope: 'files',
+      in: 'files/f300',
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('needle')
+    expect(requested.filter((path) => path !== '/api/v2/files')).toEqual([
+      '/api/v2/files/f300/text',
+    ])
+  })
+
+  it('reports file coverage when a broad search reaches the extraction limit', async () => {
+    const requested: string[] = []
+    const result = await runEngine('grep', ['needle'], runtimeWithFilePages(350, requested), {
+      scope: 'files',
+      count: true,
+    })
+    expect(requested.filter((path) => path !== '/api/v2/files')).toHaveLength(300)
+    expect(result.stdout).toBe('300 (files=300)')
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('300 of 350')
+  })
+
+  it('reports all matching lines when the output limit stops displaying later resources', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'one' }, { id: 'two' }], nextCursor: null },
+        '/api/v2/files/one/text': { data: { text: 'needle\nneedle', degraded: false } },
+        '/api/v2/files/two/text': { data: { text: 'needle\nneedle', degraded: false } },
+      }),
+      { scope: 'files', limit: '1' }
+    )
+    expect(result.stdout).toContain('1 of 4 matching lines')
+  })
+})
+
+describe('search lifecycle and coverage', () => {
+  it('settles sibling reads before returning a failed search', async () => {
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const runtime = runtimeWith({})
+    runtime.client = {
+      request: async <T>(path: string): Promise<T> => {
+        if (path === '/api/v2/secrets') throw new Error('Permission lookup failed')
+        started.resolve()
+        await release.promise
+        return { data: [], nextCursor: null } as T
+      },
+    }
+    let settled = false
+    const pending = runEngine('grep', ['x'], runtime, { scope: 'secrets,credentials' }).then(
+      (result) => {
+        settled = true
+        return result
+      }
+    )
+    await started.promise
+    try {
+      await sleep(1)
+      expect(settled).toBe(false)
+    } finally {
+      release.resolve()
+    }
+    expect((await pending).exitCode).toBe(1)
+  })
+  it('does not share in-flight credential reads across actors', async () => {
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const first = runtimeWith({})
+    first.client = {
+      request: async <T>(): Promise<T> => {
+        started.resolve()
+        await release.promise
+        return { data: [{ id: 'alice-private', name: 'ALICE_ONLY' }], nextCursor: null } as T
+      },
+    }
+    const second = {
+      ...runtimeWith({ '/api/v2/credentials': { data: [], nextCursor: null } }),
+      workspaceId: first.workspaceId,
+      userId: 'bob',
+    }
+    const alice = runEngine('grep', ['ALICE_ONLY'], first, { scope: 'credentials' })
+    await started.promise
+    const bob = runEngine('grep', ['ALICE_ONLY'], second, { scope: 'credentials', count: true })
+    release.resolve()
+    const results = await Promise.all([alice, bob])
+    expect(results[0].stdout).toContain('ALICE_ONLY')
+    expect(results[1].stdout).toBe('0')
+  })
+
+  it('settles Stop while queued without starting a read after a slot opens', async () => {
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    let active = 0
+    const blockers = Array.from({ length: 8 }, () => {
+      const runtime = runtimeWith({})
+      runtime.client = {
+        request: async <T>(): Promise<T> => {
+          if (++active === 8) started.resolve()
+          await release.promise
+          return { data: [], nextCursor: null } as T
+        },
+      }
+      return runEngine('grep', ['x'], runtime, { scope: 'credentials' })
+    })
+    await started.promise
+    const controller = new AbortController()
+    const request = vi.fn()
+    let settled = false
+    const stopped = runEngine(
+      'grep',
+      ['x'],
+      { ...runtimeWith({}), client: { request }, signal: controller.signal },
+      { scope: 'credentials' }
+    ).then((result) => {
+      settled = true
+      return result
+    })
+    try {
+      controller.abort(new Error('Stopped'))
+      await sleep(1)
+      expect(settled).toBe(true)
+      expect((await stopped).exitCode).toBe(1)
+      expect(request).not.toHaveBeenCalled()
+    } finally {
+      release.resolve()
+      await Promise.all([...blockers, stopped])
+    }
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('reports a capped listing and lower-bound count', async () => {
+    let calls = 0
+    const runtime = runtimeWith({})
+    runtime.client = {
+      request: async <T>(): Promise<T> => {
+        calls++
+        return { data: [{ name: `KEY_${calls}` }], nextCursor: `page-${calls}` } as T
+      },
+    }
+    const result = await runEngine('grep', ['^name: KEY_'], runtime, {
+      scope: 'secrets',
+      count: true,
+    })
+    expect(calls).toBe(50)
+    expect(result.stdout).toBe('50 (secrets=50)')
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('50 pages')
+  })
+
+  it('preserves a selected unreadable file as a read failure, not an unknown selector', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'broken', name: 'broken.txt' }], nextCursor: null },
+      }),
+      { scope: 'files', in: 'files/broken' }
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('could not read text')
+    expect(result.stderr).not.toContain('Unknown --in')
   })
 })
