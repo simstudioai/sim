@@ -30,9 +30,9 @@ const CHAT_BLOB_COPY_CONCURRENCY = 4
 
 export type ForkableChatFileRow = WorkspaceFileRow
 
-/** One blob byte-copy to run after the fork transaction commits. */
+/** One blob byte-copy to prepare before the fork is published. */
 export interface ChatBlobCopyTask {
-  /** The copied `workspace_files` row's id — used to delete the row if the blob copy fails. */
+  /** The planned row's id, excluded from publication if its blob copy fails. */
   copyId: string
   sourceKey: string
   targetKey: string
@@ -42,11 +42,13 @@ export interface ChatBlobCopyTask {
 }
 
 export interface PlanChatFileCopiesResult {
+  rows: ForkableChatFileRow[]
+  copyRows: (typeof workspaceFiles.$inferInsert)[]
   /** source `workspace_files.id` -> copy id (rewrites view-URLs, attachment ids, resource ids). */
   idMap: Map<string, string>
   /** source storage key -> copy storage key (rewrites serve-URLs, attachment keys). */
   keyMap: Map<string, string>
-  /** Blob duplications to run after the transaction commits. */
+  /** Blob duplications that must finish before publication. */
   blobTasks: ChatBlobCopyTask[]
 }
 
@@ -54,7 +56,6 @@ export interface PlanChatFileCopiesResult {
  * Every live chat-owned file row (no timeline cut): the ghost test set for the
  * resource-chip rewrite and the superset a fork cuts down in memory via
  * {@link filterForkableChatFiles} — one `workspace_files` read serves both.
- * Also used pre-transaction to sum sizes for the storage-quota gate.
  */
 export async function listForkableChatFiles(
   db: DbOrTx,
@@ -89,24 +90,21 @@ export function filterForkableChatFiles(
 }
 
 /**
- * Insert copy rows for the kept chat-owned files under the new chat id (fresh
+ * Plan copy rows for the kept chat-owned files under the new chat id (fresh
  * `wf_` id + fresh storage key; `message_id` carries over verbatim so the copy
  * matches the same message in the forked transcript; display names carry over
  * verbatim because their uniqueness is per-chat and the new chat is an empty
  * namespace). Returns the old->new id/key maps that drive the reference
- * rewrite, plus the blob byte-copies to run post-commit. Runs inside the fork
- * transaction so a failed insert rolls the whole fork back; blob I/O is
- * deferred to {@link executeChatFileBlobCopies}. Modeled on the workspace-fork
- * copy (`lib/workspaces/fork/copy/copy-files.ts`), adapted for chat-scoped rows.
+ * rewrite, plus the blob byte-copies. Files and worker history are prepared before publication;
+ * {@link persistChatFileCopies} inserts these rows in its final transaction.
  */
-export async function planChatFileCopies(params: {
-  tx: DbTransaction
+export function planChatFileCopies(params: {
   rows: ForkableChatFileRow[]
   newChatId: string
   userId: string
   now: Date
-}): Promise<PlanChatFileCopiesResult> {
-  const { tx, rows, newChatId, userId, now } = params
+}): PlanChatFileCopiesResult {
+  const { rows, newChatId, userId, now } = params
   const idMap = new Map<string, string>()
   const keyMap = new Map<string, string>()
   const blobTasks: ChatBlobCopyTask[] = []
@@ -142,13 +140,21 @@ export async function planChatFileCopies(params: {
     })
   }
 
-  // Ids and keys are generated client-side, so one multi-row insert suffices —
-  // no per-row round trips while the fork transaction is held open.
+  return { rows, copyRows, idMap, keyMap, blobTasks }
+}
+
+/** Publishes only copies whose bytes were prepared, alongside the fork's transcript. */
+export async function persistChatFileCopies(
+  tx: DbTransaction,
+  plan: PlanChatFileCopiesResult,
+  failedCopyIds: ReadonlySet<string>
+): Promise<void> {
+  const copyRows = plan.copyRows.filter((row) => row.id && !failedCopyIds.has(row.id))
   if (copyRows.length > 0) {
     await tx.insert(workspaceFiles).values(copyRows)
-    for (const source of rows) {
-      const targetId = idMap.get(source.id)
-      if (!targetId) continue
+    for (const source of plan.rows) {
+      const targetId = plan.idMap.get(source.id)
+      if (!targetId || failedCopyIds.has(targetId)) continue
       await copyWorkspaceFileSecretProvenanceInTx(
         tx,
         {
@@ -160,8 +166,6 @@ export async function planChatFileCopies(params: {
       )
     }
   }
-
-  return { idMap, keyMap, blobTasks }
 }
 
 /**
@@ -171,9 +175,8 @@ export async function planChatFileCopies(params: {
  * ({@link CHAT_BLOB_COPY_CONCURRENCY}) — media-heavy chats must not pay 2N
  * serial storage round-trips, but unbounded fan-out would buffer every file
  * in memory at once. Mothership files remain excluded from workspace storage
- * accounting. Failed tasks' copy-row ids are returned so the caller can delete
- * the dead rows (row exists, blob doesn't) instead of leaving them listed in
- * the VFS and resources with nothing behind them.
+ * accounting. Failed tasks' copy-row ids are excluded from the final transaction
+ * so neither metadata nor resource chips claim missing bytes are available.
  */
 export async function executeChatFileBlobCopies(
   blobTasks: ChatBlobCopyTask[]
@@ -183,19 +186,12 @@ export async function executeChatFileBlobCopies(
 
   const copyOne = async (task: ChatBlobCopyTask): Promise<void> => {
     try {
-      // No replay guard here, unlike the workspace-fork copy this is modeled
-      // on: that path persists its task list in a trigger.dev job payload
-      // (replayable), while these tasks exist only in this request's memory
-      // and target keys are freshly minted per request — a HEAD check could
-      // never find an earlier attempt's object.
       const buffer = await downloadFile({
         key: task.sourceKey,
         context: task.context,
         maxBytes: MAX_FILE_SIZE,
       })
-      // No `metadata` here on purpose: passing it would make uploadFile insert
-      // its own workspace_files row (without chatId), colliding with the row
-      // the transaction already created for this key.
+      /** Metadata is published with the chat only after preparation succeeds. */
       await uploadFile({
         file: buffer,
         fileName: task.fileName,
