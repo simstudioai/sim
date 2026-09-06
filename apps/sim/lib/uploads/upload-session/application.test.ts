@@ -69,6 +69,7 @@ import {
   abortInternalUploadSession,
   completeInternalUploadSession,
   issueInternalUploadPartUrls,
+  completeWorkspaceFileUploadOperation,
   createWorkspaceFileUploadOperation,
   readWorkspaceUploadSession,
 } from '@/lib/uploads/upload-session/application'
@@ -150,6 +151,34 @@ describe('upload session application', () => {
       )
     ).rejects.toThrow('Organization not found')
     expect(mocks.finalizePurpose).not.toHaveBeenCalled()
+  })
+
+  it('authorizes a private completion before forwarding streamed source evidence', async () => {
+    const secretProvenance = { status: 'exact', entries: [] } as const
+    mocks.completeSession.mockResolvedValue({ value: { id: 'file-1' } })
+    await completeWorkspaceFileUploadOperation.execute({
+      principal,
+      input: { uploadId: 'upload-1', uploadToken: 'upload-secret', workspaceId: 'workspace-1' },
+      request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+      secretProvenance,
+    })
+    expect(mocks.reauthorizeWorkspacePurpose).toHaveBeenCalledBefore(mocks.completeSession)
+    expect(mocks.completeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance })
+    )
+  })
+
+  it('does not seal private evidence when upload completion access is revoked', async () => {
+    mocks.reauthorizeWorkspacePurpose.mockRejectedValueOnce(new Error('Access revoked'))
+    await expect(
+      completeWorkspaceFileUploadOperation.execute({
+        principal,
+        input: { uploadId: 'upload-1', uploadToken: 'upload-secret', workspaceId: 'workspace-1' },
+        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+        secretProvenance: { status: 'exact', entries: [] },
+      })
+    ).rejects.toThrow('Access revoked')
+    expect(mocks.completeSession).not.toHaveBeenCalled()
   })
 
   it('preserves the authenticated actor metadata through internal finalization', async () => {
