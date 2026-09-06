@@ -14,12 +14,11 @@ import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
-import type { CopilotChatAbortBody } from '@/lib/api/contracts/copilot'
+import { copilotChatAbortContract } from '@/lib/api/contracts/copilot'
 import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
@@ -4007,36 +4006,19 @@ export function useChat(
           let abortSettled = false
           const postAbortRequest = async (chatId?: string): Promise<boolean> => {
             if (!sid) return true
-            // boundary-raw-fetch: stream-abort endpoint requires propagating the snapshotted traceparent header from the in-flight stream and has no contract authored yet
-            const res = await fetch('/api/mothership/chat/abort', {
-              method: 'POST',
+            const payload = await requestJson(copilotChatAbortContract, {
               signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
               headers: {
-                'Content-Type': 'application/json',
                 ...(stopTraceparentSnapshot ? { traceparent: stopTraceparentSnapshot } : {}),
               },
-              body: JSON.stringify({
+              body: {
                 streamId: sid,
                 workspaceId,
                 ...(chatId ? { chatId } : {}),
-              } satisfies CopilotChatAbortBody),
+              },
             })
-            const payload: unknown = await res.json().catch(() => null)
-            if (isRecordLike(payload) && payload.aborted === true) {
-              abortSucceeded = true
-            }
-            if (!res.ok) {
-              if (isRecordLike(payload) && payload.settled === false) {
-                return false
-              }
-              throw new Error(
-                isRecordLike(payload) && typeof payload.error === 'string'
-                  ? payload.error
-                  : 'Failed to abort previous response'
-              )
-            }
             abortSucceeded = true
-            return isRecordLike(payload) && payload.settled === true
+            return payload.settled
           }
           const abortPromise = sid
             ? postAbortRequest(resolvedChatId).then((settled) => {
@@ -4087,7 +4069,7 @@ export function useChat(
           } catch (err) {
             abortFailure = err
           }
-          if (sid && resolvedChatId && !abortSettled) {
+          if (sid && !abortSettled) {
             try {
               const retrySettled = await postAbortRequest(resolvedChatId)
               abortSettled = retrySettled

@@ -627,6 +627,7 @@ export const deleteCopilotChatContract = defineRouteContract({
 export const copilotChatAbortContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/abort',
+  headers: z.object({ traceparent: z.string().max(512).optional() }),
   body: copilotChatAbortBodySchema.extend({ streamId: z.string().min(1, 'streamId is required') }),
   response: {
     mode: 'json',

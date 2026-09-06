@@ -49,11 +49,21 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-u
   executeWorkflowWithFullLogging: mockExecuteWorkflow,
 }))
 
-vi.mock('@/lib/api/client/request', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/api/client/request')>()),
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api/client/request')>()
+  return {
+    ...actual,
+    requestJson<C extends AnyApiRouteContract>(contract: C, input: ApiClientRequest<C>) {
+      return contract.path === '/api/copilot/chat/abort'
+        ? actual.requestJson(contract, input)
+        : mockRequestJson(contract, input)
+    },
+  }
+})
 
+import type { ApiClientRequest } from '@/lib/api/client/request'
+import type { AnyApiRouteContract } from '@/lib/api/contracts'
+import type { CopilotChatAbortBody } from '@/lib/api/contracts/copilot'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
@@ -67,6 +77,7 @@ import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const DEDUPED_CHAT_ID = 'chat-the-first-attempt-opened'
+const TRACEPARENT = '00-11111111111111111111111111111111-2222222222222222-01'
 
 interface NetworkState {
   /**
@@ -77,9 +88,18 @@ interface NetworkState {
    */
   postBehavior: 'hang' | 'accept' | 'deduped' | 'tool'
   postBodies: Array<{ message: string; userMessageId?: string }>
+  abortSettlements: boolean[]
+  abortBodies: CopilotChatAbortBody[]
+  abortTraceparents: Array<string | null>
 }
 
-const state: NetworkState = { postBehavior: 'hang', postBodies: [] }
+const state: NetworkState = {
+  postBehavior: 'hang',
+  postBodies: [],
+  abortSettlements: [],
+  abortBodies: [],
+  abortTraceparents: [],
+}
 
 /** An SSE response whose stream ends immediately without a terminal event. */
 function emptySseResponse(): Response {
@@ -94,8 +114,10 @@ function emptySseResponse(): Response {
 async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = String(input instanceof Request ? input.url : input)
 
-  if (url.includes('/api/mothership/chat/abort')) {
-    return Response.json({ aborted: true, settled: true })
+  if (url.includes('/api/copilot/chat/abort')) {
+    state.abortBodies.push(JSON.parse(String(init?.body)))
+    state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
+    return Response.json({ aborted: true, settled: state.abortSettlements.shift() ?? true })
   }
   if (url.includes('/api/copilot/confirm')) return Response.json({ success: true })
 
@@ -146,7 +168,7 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
           },
         }),
-        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        { status: 200, headers: { 'Content-Type': 'text/event-stream', traceparent: TRACEPARENT } }
       )
     }
     return new Promise<Response>((_, reject) => {
@@ -354,6 +376,9 @@ describe('useChat remount send recovery', () => {
     navigationMocks.usePathname.mockReturnValue('/workspace/ws-1/home')
     state.postBehavior = 'hang'
     state.postBodies = []
+    state.abortSettlements = []
+    state.abortBodies = []
+    state.abortTraceparents = []
     mockRequestJson.mockResolvedValue({ chats: [] })
     useMothershipQueueStore.setState({ queues: {}, editing: {} })
     useExecutionStore.setState({ workflowExecutions: new Map() })
@@ -369,6 +394,41 @@ describe('useChat remount send recovery', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.clearAllMocks()
+  })
+
+  it('does not certify an unsettled Stop before the chat ID arrives', async () => {
+    state.abortSettlements = [false, false]
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      await expect(getResult().stopGeneration()).rejects.toThrow(
+        'Previous response is still shutting down.'
+      )
+    })
+    expect(state.abortBodies).toHaveLength(2)
+    expect(state.abortBodies[0]).toEqual({
+      streamId: state.postBodies[0].userMessageId,
+      workspaceId: 'ws-1',
+    })
+    expect(state.abortBodies[1]).toEqual(state.abortBodies[0])
+  })
+
+  it('retries unsettled chatless Stop with the same scoped identity and accepts settlement', async () => {
+    state.abortSettlements = [false, true]
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      await getResult().stopGeneration()
+    })
+    expect(state.abortBodies).toHaveLength(2)
+    expect(state.abortBodies[1]).toEqual(state.abortBodies[0])
+    expect(state.abortBodies[0]).not.toHaveProperty('chatId')
   })
 
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {
@@ -424,6 +484,7 @@ describe('useChat remount send recovery', () => {
       await act(async () => {
         await getResult().stopGeneration()
       })
+      expect(state.abortTraceparents).toEqual([TRACEPARENT])
       expect(signals.get('this-chat-workflow')?.aborted).toBe(true)
       expect(signals.get('other-chat-workflow')?.aborted).toBe(false)
       expect(
