@@ -15,6 +15,8 @@
  * instead of undefined behavior.
  */
 
+import { z } from "zod";
+
 export const PROTOCOL_VERSION = 1;
 
 /** Activity acknowledged through a completed leg, scoped to one emitter's lifetime. */
@@ -156,6 +158,25 @@ export interface SteerRequest {
   steeringId?: string | undefined;
   content: string;
 }
+
+/** POST /api/chats/fork — copy a selected conversation snapshot, never live execution. */
+export const ForkChatRequest = z.strictObject({
+  sourceChatId: z.uuid(),
+  newChatId: z.uuid(),
+  workspaceId: z.uuid(),
+  userId: z.string().min(1),
+  upToMessageId: z.string().min(1),
+  includeResponse: z.boolean(),
+  fileIds: z.record(z.string().min(1), z.string().min(1)),
+  fileKeys: z.record(z.string().min(1), z.string().min(1)),
+});
+export type ForkChatRequest = z.infer<typeof ForkChatRequest>;
+
+export const ForkChatResponse = z.strictObject({
+  chatId: z.uuid(),
+  sourceThroughSeq: z.number().int().positive(),
+});
+export type ForkChatResponse = z.infer<typeof ForkChatResponse>;
 
 /** POST /api/generate-chat-title */
 export interface TitleRequest {

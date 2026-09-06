@@ -32,6 +32,7 @@ import {
   executeChatFileBlobCopies,
   type ForkableChatFileRow,
   filterForkableChatFiles,
+  persistChatFileCopies,
   planChatFileCopies,
 } from '@/lib/mothership/chat/fork-chat-files'
 
@@ -76,14 +77,15 @@ describe('planChatFileCopies', () => {
       }),
     }
 
-    const { idMap, keyMap, blobTasks } = await planChatFileCopies({
-      tx: tx as never,
+    const plan = planChatFileCopies({
       rows: [makeRow()],
       newChatId: 'chat-fork',
       userId: 'user-1',
       now: NOW,
     })
 
+    await persistChatFileCopies(tx as never, plan, new Set())
+    const { idMap, keyMap, blobTasks } = plan
     expect(inserted).toHaveLength(1)
     const copy = inserted[0]
     expect(copy.id).not.toBe('wf_source')
@@ -118,14 +120,15 @@ describe('planChatFileCopies', () => {
       }),
     }
 
-    const { idMap, blobTasks } = await planChatFileCopies({
-      tx: tx as never,
+    const plan = planChatFileCopies({
       rows: [makeRow({ workspaceId: null })],
       newChatId: 'chat-fork',
       userId: 'user-1',
       now: NOW,
     })
 
+    await persistChatFileCopies(tx as never, plan, new Set())
+    const { idMap, blobTasks } = plan
     expect(inserted).toHaveLength(0)
     expect(idMap.size).toBe(0)
     expect(blobTasks).toHaveLength(0)

@@ -23,7 +23,7 @@ const {
   mockFetchGo,
   mockPublishStatusChanged,
   mockCaptureServerEvent,
-  mockRemoveChatResources,
+  mockPersistChatFileCopies,
 } = vi.hoisted(() => ({
   // Real (pure) cut semantics so tests drive selection through row.messageId:
   // rows with a NULL/undefined messageId are kept in every fork.
@@ -40,11 +40,7 @@ const {
   mockFetchGo: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
-  mockRemoveChatResources: vi.fn(),
-}))
-
-vi.mock('@/lib/mothership/resources/persistence', () => ({
-  removeChatResources: mockRemoveChatResources,
+  mockPersistChatFileCopies: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
@@ -53,6 +49,7 @@ vi.mock('@/lib/mothership/chat/fork-chat-files', () => ({
   filterForkableChatFiles: mockFilterForkableChatFiles,
   listForkableChatFiles: mockListForkableChatFiles,
   planChatFileCopies: mockPlanChatFileCopies,
+  persistChatFileCopies: mockPersistChatFileCopies,
   executeChatFileBlobCopies: mockExecuteChatFileBlobCopies,
 }))
 
@@ -149,16 +146,19 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: 'ws-1' }])
     mockListForkableChatFiles.mockResolvedValue([])
     mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
-    mockPlanChatFileCopies.mockResolvedValue({
+    mockPlanChatFileCopies.mockReturnValue({
       idMap: new Map(),
       keyMap: new Map(),
       blobTasks: [],
     })
     mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 0, failed: 0, failedCopyIds: [] })
     mockAppendCopilotChatMessages.mockResolvedValue(undefined)
-    mockRemoveChatResources.mockResolvedValue(undefined)
+    mockPersistChatFileCopies.mockResolvedValue(undefined)
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
-    mockFetchGo.mockResolvedValue({ ok: true })
+    mockFetchGo.mockImplementation(async (_url: string, options: { body: string }) => {
+      const request = JSON.parse(options.body)
+      return Response.json({ chatId: request.newChatId, sourceThroughSeq: 3 })
+    })
   })
 
   afterAll(() => {
@@ -259,7 +259,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     mockListForkableChatFiles.mockResolvedValue([
       { size: 100, messageId: 'msg-1', workspaceId: 'ws-1' },
     ])
-    mockPlanChatFileCopies.mockResolvedValue({
+    mockPlanChatFileCopies.mockReturnValue({
       idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
       keyMap: new Map([['workspace/ws-1/old-cat.png', 'workspace/ws-1/new-cat.png']]),
       blobTasks,
@@ -289,6 +289,10 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       newChatId: body.id,
       upToMessageId: 'msg-1',
       userId: 'user-1',
+      workspaceId: 'ws-1',
+      includeResponse: true,
+      fileIds: { [OLD_FILE_ID]: NEW_FILE_ID },
+      fileKeys: { 'workspace/ws-1/old-cat.png': 'workspace/ws-1/new-cat.png' },
     })
 
     expect(mockPublishStatusChanged).toHaveBeenCalledWith({
@@ -304,7 +308,9 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     )
 
     // Forks are titled "Fork | <name>".
-    expect(dbChainMockFns.values.mock.calls[0][0].title).toBe('Fork | Generate Logs')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Fork | Generate Logs' })
+    )
   })
 
   it('repairs legacy page-level browser resources while forking', async () => {
@@ -325,18 +331,22 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
 
     expect(res.status).toBe(200)
-    expect(dbChainMockFns.values.mock.calls[0][0].resources).toEqual([
-      { type: 'browser', id: 'browser-session', title: 'Browser' },
-    ])
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resources: [{ type: 'browser', id: 'browser-session', title: 'Browser' }],
+      })
+    )
   })
 
-  it('still succeeds when the copilot-service clone fails (best-effort)', async () => {
+  it('does not publish a chat when the worker copy fails', async () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(500)
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
   })
 
-  it('surfaces failed blob copies and cleans up their dead rows + resource chips', async () => {
+  it('surfaces failed blob copies and excludes their metadata from publication', async () => {
     mockExecuteChatFileBlobCopies.mockResolvedValue({
       copied: 1,
       failed: 2,
@@ -348,18 +358,12 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
     expect(body.failedFileCopies).toBe(2)
 
-    // The dead rows (committed, but no bytes behind them) are hard-deleted so
-    // they vanish from VFS listings and name resolution…
-    expect(dbChainMockFns.where).toHaveBeenCalledWith({
-      type: 'inArray',
-      column: 'workspaceFiles.id',
-      values: ['wf_dead1', 'wf_dead2'],
-    })
-    // …and their resource chips are dropped from the new chat.
-    expect(mockRemoveChatResources).toHaveBeenCalledWith(body.id, [
-      { type: 'file', id: 'wf_dead1', title: '' },
-      { type: 'file', id: 'wf_dead2', title: '' },
-    ])
+    expect(mockPersistChatFileCopies).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      new Set(['wf_dead1', 'wf_dead2'])
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('omits failedFileCopies and skips cleanup when every blob copies', async () => {
@@ -369,7 +373,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
     expect('failedFileCopies' in (await cleanRes.json())).toBe(false)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(mockRemoveChatResources).not.toHaveBeenCalled()
   })
 
   it('copies pre-cut uploads and drops only post-cut ghosts', async () => {
@@ -397,7 +400,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       { id: 'wf_apple', size: 50, context: 'mothership', messageId: 'msg-1' },
       { id: 'wf_banana', size: 50, context: 'mothership', messageId: 'msg-3' },
     ])
-    mockPlanChatFileCopies.mockResolvedValue({
+    mockPlanChatFileCopies.mockReturnValue({
       idMap: new Map([
         [OLD_FILE_ID, NEW_FILE_ID],
         ['wf_apple', 'wf_apple_copy'],
@@ -414,13 +417,16 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       OLD_FILE_ID,
       'wf_apple',
     ])
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set.mock.calls[0][0].resources).toEqual([
-      { type: 'file', id: NEW_FILE_ID, title: 'cat.png' },
-      { type: 'file', id: 'wf_apple_copy', title: 'apple.png' },
-      { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
-      { type: 'workflow', id: 'wflow-1', title: 'My flow' },
-    ])
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resources: [
+          { type: 'file', id: NEW_FILE_ID, title: 'cat.png' },
+          { type: 'file', id: 'wf_apple_copy', title: 'apple.png' },
+          { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
+          { type: 'workflow', id: 'wflow-1', title: 'My flow' },
+        ],
+      })
+    )
   })
 
   it('drops ghosts even when the fork copies no files at all', async () => {
@@ -439,7 +445,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
 
     expect(res.status).toBe(200)
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set.mock.calls[0][0].resources).toEqual([])
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ resources: [] }))
   })
 })

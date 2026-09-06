@@ -1,19 +1,22 @@
 import { db } from '@sim/db'
-import { copilotChats, workspaceFiles } from '@sim/db/schema'
+import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  type ChatBlobCopyTask,
   executeChatFileBlobCopies,
   filterForkableChatFiles,
   listForkableChatFiles,
+  persistChatFileCopies,
   planChatFileCopies,
 } from '@/lib/mothership/chat/fork-chat-files'
+import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
@@ -21,7 +24,6 @@ import {
   rewriteResourceFileRefs,
 } from '@/lib/mothership/chat/rewrite-file-references'
 import { chatPubSub } from '@/lib/mothership/chat-status'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -30,13 +32,9 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { removeChatResources } from '@/lib/mothership/resources/persistence'
 import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
-import {
-  getMothershipBaseURL,
-  getMothershipSourceEnvHeaders,
-} from '@/lib/mothership/server/agent-url'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -60,6 +58,8 @@ const logger = createLogger('ForkChatAPI')
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
+    let preparedBlobs: ChatBlobCopyTask[] = []
+    let published = false
     try {
       const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
@@ -93,9 +93,9 @@ export const POST = withRouteHandler(
         return createNotFoundResponse('Chat not found')
       }
 
-      if (parent.workspaceId) {
-        await assertActiveWorkspaceAccess(parent.workspaceId, userId)
-      }
+      if (!parent.workspaceId)
+        return createBadRequestResponse('A workspace is required to fork a chat')
+      await assertActiveWorkspaceAccess(parent.workspaceId, userId)
 
       const messages = await loadCopilotChatMessages(chatId)
       const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
@@ -133,7 +133,31 @@ export const POST = withRouteHandler(
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 
-      const result = await db.transaction(async (tx) => {
+      const plan = planChatFileCopies({ rows: sourceFiles, newChatId: newId, userId, now })
+      preparedBlobs = plan.blobTasks
+      const { failed, failedCopyIds } = await executeChatFileBlobCopies(plan.blobTasks)
+      const failedIds = new Set(failedCopyIds)
+      const maps = { fileIds: plan.idMap, fileKeys: plan.keyMap }
+      const newChatResources = rewriteResourceFileRefs(
+        parentResources,
+        maps,
+        chatOwnedFileIds
+      ).filter((resource) => resource.type !== 'file' || !failedIds.has(resource.id))
+      const cutUser = [...forkedMessages].reverse().find((message) => message.role === 'user')
+      if (!cutUser) throw new Error('The fork has no user message')
+      await copyWorkerConversation({
+        sourceChatId: chatId,
+        newChatId: newId,
+        workspaceId: parent.workspaceId,
+        userId,
+        upToMessageId: cutUser.id,
+        includeResponse: forkedMessages.at(-1)?.role === 'assistant',
+        fileIds: Object.fromEntries(plan.idMap),
+        fileKeys: Object.fromEntries(plan.keyMap),
+      })
+
+      /** Publish only after both the file bytes and the worker conversation are prepared. */
+      const newChat = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(copilotChats)
           .values({
@@ -143,7 +167,7 @@ export const POST = withRouteHandler(
             type: parent.type,
             title,
             model: parent.model,
-            resources: parentResources,
+            resources: newChatResources,
             previewYaml: parent.previewYaml,
             config: parent.config,
             conversationId: null,
@@ -151,113 +175,17 @@ export const POST = withRouteHandler(
             lastSeenAt: now,
           })
           .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
-
-        if (!row) return null
-
-        // File rows FK the new chat row, so the plan runs after the insert.
-        const { idMap, keyMap, blobTasks } = await planChatFileCopies({
-          tx,
-          rows: sourceFiles,
-          newChatId: newId,
-          userId,
-          now,
-        })
-
-        const maps = { fileIds: idMap, fileKeys: keyMap }
-        const newChatResources = rewriteResourceFileRefs(parentResources, maps, chatOwnedFileIds)
-        // Skip the redundant update only when the rewrite changed nothing:
-        // no ids re-pointed AND no ghost resources dropped. (idMap and keyMap
-        // are populated in lockstep, so idMap alone decides the first half.)
-        if (idMap.size > 0 || newChatResources.length !== parentResources.length) {
-          await tx
-            .update(copilotChats)
-            .set({ resources: newChatResources })
-            .where(eq(copilotChats.id, newId))
-        }
-
+        if (!row) throw new Error('Failed to create forked chat')
+        await persistChatFileCopies(tx, plan, failedIds)
         await appendCopilotChatMessages(
           newId,
           rewriteMessageFileRefs(forkedMessages, maps),
           { chatModel: parent.model },
           tx
         )
-        return { row, blobTasks }
+        return row
       })
-
-      if (!result) {
-        return createInternalServerErrorResponse('Failed to create forked chat')
-      }
-      const newChat = result.row
-
-      const { copied, failed, failedCopyIds } = await executeChatFileBlobCopies(result.blobTasks)
-      if (failed > 0) {
-        // A failed blob copy leaves a committed row with no bytes behind it.
-        // Cleanly absent beats present-but-broken: hard-delete the dead rows
-        // (they vanish from the VFS listings and name resolution) and drop
-        // their resource chips from the new chat. Inline transcript embeds
-        // can't be healed — those 404 — which is what `failedFileCopies` in
-        // the response warns the user about.
-        try {
-          await db.delete(workspaceFiles).where(inArray(workspaceFiles.id, failedCopyIds))
-          await removeChatResources(
-            newId,
-            failedCopyIds.map((id) => ({ type: 'file' as const, id, title: '' }))
-          )
-        } catch (cleanupError) {
-          logger.error('Failed to clean up dead file rows after blob-copy failure', {
-            newChatId: newId,
-            failedCopyIds,
-            error: cleanupError,
-          })
-        }
-        logger.warn('Some chat file blobs failed to copy during fork', {
-          chatId,
-          newChatId: newId,
-          copied,
-          failed,
-        })
-      }
-
-      // Clone copilot-service conversation state (messages, active_messages, memory files).
-      // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.
-      // The service stamps MessageID only on USER messages (assistant rows carry
-      // Sim-local ids it has never seen), so hand it the kept slice's last user
-      // message — it clones through the end of that turn, matching this route's cut.
-      let goCutMessageId = upToMessageId
-      for (let i = forkedMessages.length - 1; i >= 0; i--) {
-        if (forkedMessages[i].role === 'user') {
-          goCutMessageId = forkedMessages[i].id
-          break
-        }
-      }
-      try {
-        const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (env.COPILOT_API_KEY) {
-          copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
-        }
-        Object.assign(copilotHeaders, getMothershipSourceEnvHeaders())
-        const mothershipBaseURL = await getMothershipBaseURL({ userId })
-        const copilotRes = await fetchGo(`${mothershipBaseURL}/api/chats/fork`, {
-          method: 'POST',
-          headers: copilotHeaders,
-          body: JSON.stringify({
-            sourceChatId: chatId,
-            newChatId: newId,
-            upToMessageId: goCutMessageId,
-            userId,
-          }),
-          spanName: 'sim → go /api/chats/fork',
-          operation: 'fork_chat',
-        })
-        if (!copilotRes.ok) {
-          const text = await copilotRes.text().catch(() => '')
-          logger.warn('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
-        }
-      } catch (err) {
-        // The copilot service may not have a row for this chat if no messages
-        // have been sent yet, or if it's unreachable. Log and continue.
-        logger.warn('Failed to fork copilot-service conversation, skipping', { err })
-      }
+      published = true
 
       if (newChat.workspaceId) {
         chatPubSub?.publishStatusChanged({
@@ -280,6 +208,18 @@ export const POST = withRouteHandler(
         ...(failed > 0 ? { failedFileCopies: failed } : {}),
       })
     } catch (error) {
+      if (!published) {
+        await mapWithConcurrency(preparedBlobs, 4, async (task) => {
+          try {
+            await deleteFile({ key: task.targetKey, context: task.context })
+          } catch (cleanupError) {
+            logger.warn('Failed to clean up an unpublished fork file', {
+              key: task.targetKey,
+              error: cleanupError,
+            })
+          }
+        })
+      }
       if (isWorkspaceAccessDeniedError(error)) {
         return createForbiddenResponse('Workspace access denied')
       }
