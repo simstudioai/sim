@@ -5,14 +5,17 @@
  * SIM_HELPERS_SMOKE=1 also runs the actual service/DAG/Function runtime and log writer.
  * MSHIP_WORKER_ROOT additionally runs the real controller with a local scripted worker.
  * CLI, routes, canonical scope, application authorization, SQL and display projection
- * are real. Execution traces live in local files; cache clearing forces physical reads.
+ * are real. Execution traces and workspace objects live in local files; cache clearing
+ * forces physical reads. The pipeline case runs the companion's canonical D4 oracle.
  * Authentication, delegation, membership, saved drafts, workflow admission, billing, ownership
  * and external effects are fixtures. Seeded cases also bypass execution/log writing.
  * Isolated columns plus required defaults/indexes do not prove migrations or all constraints.
  */
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { createReadStream } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -27,17 +30,24 @@ import {
   organization,
   pausedExecutions,
   resumeQueue,
+  tableJobs,
+  tableRowExecutions,
   usageLog,
   user,
+  userTableDefinitions,
+  userTableRowSecretProvenance,
+  userTableRows,
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowExecutionSnapshots,
   workspace,
+  workspaceFileSecretProvenance,
+  workspaceFiles,
 } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { NextRequest } from 'next/server'
 import type { EmbeddedCliIdentity } from 'sim/embed'
@@ -57,9 +67,18 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
+import { GET as fileRoute } from '@/app/api/v2/files/[fileId]/route'
+import { GET as filesRoute } from '@/app/api/v2/files/route'
 import { GET as logRoute } from '@/app/api/v2/logs/[runId]/route'
+import { GET as logsRoute } from '@/app/api/v2/logs/route'
+import {
+  POST as createRowsRoute,
+  GET as tableRowsRoute,
+} from '@/app/api/v2/tables/[tableId]/rows/route'
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
 import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
+import { GET as workflowsRoute } from '@/app/api/v2/workflows/route'
+import { getLatestBlock } from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -182,6 +201,7 @@ vi.mock('@/lib/internal/principals/executor', async (importOriginal) => ({
   createExecutorPrincipalFromExecutionContext: async ({
     audience,
     context,
+    resourceScope,
   }: CreateExecutorPrincipalFromExecutionContextInput): Promise<DelegatedPrincipal> => ({
     kind: 'delegated',
     serviceId: 'executor',
@@ -191,7 +211,7 @@ vi.mock('@/lib/internal/principals/executor', async (importOriginal) => ({
     audience,
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { executionId: context.executionId },
+    resourceScope: { executionId: context.executionId, ...resourceScope },
   }),
 }))
 vi.mock('@/lib/workflows/custom-blocks/operations', async (importOriginal) => ({
@@ -247,6 +267,42 @@ vi.mock('@/lib/uploads', async (importOriginal) => ({
     },
   },
 }))
+vi.mock('@/lib/uploads/core/storage-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/core/storage-service')>()),
+  uploadFile: async ({ file, customKey }: { file: Buffer; customKey: string }) => {
+    const path = join(fixture.directory, generateId())
+    await writeFile(path, file)
+    fixture.storageKeys.set(customKey, path)
+    return { key: customKey }
+  },
+  downloadFile: async ({ key }: { key: string }) => {
+    const path = fixture.storageKeys.get(key)
+    if (!path) throw new Error('Missing fixture workspace object')
+    fixture.storageReads.push(key)
+    return readFile(path)
+  },
+  downloadFileStream: async ({ key }: { key: string }) => {
+    const path = fixture.storageKeys.get(key)
+    if (!path) throw new Error('Missing fixture workspace stream')
+    fixture.storageReads.push(key)
+    return createReadStream(path)
+  },
+}))
+vi.mock('@/lib/billing/storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/storage')>()),
+  resolveStorageBillingContext: async () => ({ billedAccountUserId: 'run-reader' }),
+  incrementStorageUsageForBillingContextInTx: async () => 0,
+  maybeNotifyStorageLimitForBillingContext: async () => {},
+}))
+vi.mock('@/lib/realtime/notify', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/realtime/notify')>()),
+  mergeEditIntoLiveFileDoc: async () => {},
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+  enqueueWorkspaceFileStorageCleanup: async () => {},
+  processWorkspaceFileStorageCleanupNow: async () => {},
+}))
+vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: async () => {} }))
 vi.mock('@/lib/billing/core/usage-log', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/billing/core/usage-log')>()),
   recordUsage: async () => {},
@@ -302,6 +358,16 @@ const identity = {
     const request = new NextRequest(new Request(url, init))
     expect(request.headers.get('x-api-key')).toBe('local-key')
     fixture.requests.push(request.nextUrl.pathname)
+    if (request.nextUrl.pathname === '/api/v2/workflows') return workflowsRoute(request)
+    if (request.nextUrl.pathname === '/api/v2/files') return filesRoute(request)
+    if (request.nextUrl.pathname === '/api/v2/logs') return logsRoute(request)
+    const file = request.nextUrl.pathname.match(/^\/api\/v2\/files\/([^/]+)$/)
+    if (file) return fileRoute(request, { params: Promise.resolve({ fileId: file[1] }) })
+    const rows = request.nextUrl.pathname.match(/^\/api\/v2\/tables\/([^/]+)\/rows$/)
+    if (rows)
+      return (request.method === 'POST' ? createRowsRoute : tableRowsRoute)(request, {
+        params: Promise.resolve({ tableId: rows[1] }),
+      })
     const execution = request.nextUrl.pathname.match(/^\/api\/v2\/workflows\/([^/]+)\/execute$/)
     if (execution)
       return executeRoute(request, { params: Promise.resolve({ workflowId: execution[1] }) })
@@ -391,6 +457,13 @@ const tables = [
   workflowExecutionLogs,
   pausedExecutions,
   resumeQueue,
+  tableJobs,
+  tableRowExecutions,
+  userTableDefinitions,
+  userTableRowSecretProvenance,
+  userTableRows,
+  workspaceFiles,
+  workspaceFileSecretProvenance,
 ]
 
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
@@ -404,7 +477,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         const config = getTableConfig(table)
         const columns = config.columns.map((column) => {
           const type = column.enumValues?.length ? 'text' : column.getSQLType()
-          return sql`${sql.identifier(column.name)} ${sql.raw(type)}`
+          const defaultValue =
+            column.default === undefined
+              ? sql``
+              : sql` DEFAULT ${is(column.default, SQL) ? column.default : sql.param(column.default, column)}`.inlineParams()
+          return sql`${sql.identifier(column.name)} ${sql.raw(type)}${defaultValue}`
         })
         await db.execute(
           sql`CREATE TABLE ${sql.identifier(config.name)} (${sql.join(columns, sql`, `)})`
@@ -429,6 +506,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       await db.execute(sql`ALTER TABLE copilot_runs ALTER COLUMN started_at SET DEFAULT now()`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_async_tool_calls (tool_call_id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON user_table_rows (id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON user_table_row_secret_provenance (row_id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON workspace_file_secret_provenance (file_id)`)
       await db.insert(user).values({
         id: 'run-reader',
         name: 'Reader',
@@ -1032,6 +1112,123 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       40_000
     )
 
+    it
+      .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
+      .each(['valid', 'empty-probe'] as const)(
+      'runs an idempotent saved table pipeline with physical row and appended-file effects: %s',
+      async (mode) => {
+        fixture.permission = 'write'
+        const tableId = generateId()
+        const workflowId = generateId()
+        await db.insert(workflow).values({
+          id: workflowId,
+          workspaceId,
+          userId: 'run-reader',
+          name: `${tableId}-pending`,
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+        })
+        const fileId = generateId()
+        const fileName = `${tableId}-log.md`
+        const timestamp = new Date(Date.now() - 1000)
+        await db.insert(userTableDefinitions).values({
+          id: tableId,
+          workspaceId,
+          name: `fx_orders_${tableId}`,
+          createdBy: 'run-reader',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          maxRows: 10000,
+          rowCount: 4,
+          schema: {
+            columns: [
+              { id: 'col_order', name: 'order_id', type: 'string' },
+              { id: 'col_status', name: 'status', type: 'string' },
+              { id: 'col_amount', name: 'amount', type: 'number' },
+            ],
+          },
+        })
+        const original = ['pending', 'cancelled', 'pending', 'fulfilled'].map((status, index) => ({
+          id: generateId(),
+          tableId,
+          workspaceId,
+          data: { col_order: generateId(), col_status: status, col_amount: index + 20 },
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          position: index,
+          createdBy: 'run-reader',
+        }))
+        await db.insert(userTableRows).values(original)
+        const key = `workspace/${workspaceId}/${fileId}.md`
+        const path = join(fixture.directory, fileId)
+        await writeFile(path, 'Existing history\n')
+        fixture.storageKeys.set(key, path)
+        await db.insert(workspaceFiles).values({
+          id: fileId,
+          key,
+          userId: 'run-reader',
+          workspaceId,
+          context: 'workspace',
+          originalName: fileName,
+          contentType: 'text/markdown',
+          sizeBytes: 17,
+          uploadedAt: timestamp,
+          updatedAt: timestamp,
+          contentUpdatedAt: timestamp,
+          secretProvenanceVersion: 1,
+        })
+        await db.insert(workspaceFileSecretProvenance).values({
+          fileId,
+          contentUpdatedAt: timestamp,
+          status: 'exact',
+          entries: [],
+          updatedAt: timestamp,
+        })
+        const saved = pipelineState(tableId, fileName)
+        fixture.saved.set(workflowId, structuredClone(saved))
+        await runPipelineOracle(tableId, workflowId, mode)
+        await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+        const rows = await db.select().from(userTableRows).where(eq(userTableRows.tableId, tableId))
+        expect(rows).toHaveLength(7)
+        for (const row of original) {
+          expect(rows.find((item) => item.id === row.id)).toMatchObject({
+            id: row.id,
+            createdAt: row.createdAt,
+            data: {
+              ...row.data,
+              col_status: row.data.col_status === 'pending' ? 'processed' : row.data.col_status,
+            },
+          })
+        }
+        const [file] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+        const storedPath = fixture.storageKeys.get(file.key)
+        if (!storedPath) throw new Error('Appended file bytes are missing')
+        const log = await readFile(storedPath, 'utf8')
+        expect(log.startsWith('Existing history\n')).toBe(true)
+        expect(
+          log
+            .split('\n')
+            .filter(Boolean)
+            .slice(1)
+            .map((line) => line.split(' ')[1])
+        ).toEqual(mode === 'valid' ? ['2', '0', '2', '0'] : ['2', '0'])
+        const runs = await db
+          .select()
+          .from(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.workflowId, workflowId))
+        const count = mode === 'valid' ? 4 : 3
+        expect(runs).toHaveLength(count)
+        expect(new Set(runs.map((run) => run.executionId)).size).toBe(count)
+        expect(runs.every((run) => run.status === 'completed')).toBe(true)
+        if (mode === 'valid') expect(fixture.saved.get(workflowId)).toEqual(saved)
+        expect(executeInSandbox).not.toHaveBeenCalled()
+        expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
     it.skipIf(process.env.SIM_HELPERS_SMOKE !== '1').each(['completed', 'failed'] as const)(
       'executes a saved workflow and reads its %s result from externalized log bytes',
       async (expectedStatus) => {
@@ -1339,4 +1536,128 @@ function runnableState(code: string) {
     loops: {},
     parallels: {},
   }
+}
+
+async function runPipelineOracle(
+  tableId: string,
+  workflowId: string,
+  mode: 'valid' | 'empty-probe'
+): Promise<void> {
+  const workerRoot = process.env.MSHIP_WORKER_ROOT
+  if (!workerRoot) throw new Error('Companion worker checkout is required')
+  let executions = 0
+  const server = createServer(async (incoming, outgoing) => {
+    try {
+      const chunks: Buffer[] = []
+      for await (const chunk of incoming) chunks.push(Buffer.from(chunk))
+      const headers = new Headers()
+      for (const [name, value] of Object.entries(incoming.headers)) {
+        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value)
+      }
+      if (incoming.url?.startsWith(`/api/v2/workflows/${workflowId}/execute`)) {
+        executions++
+        if (executions === 3 && mode === 'empty-probe') {
+          fixture.saved.set(workflowId, runnableState('return "no work performed";'))
+        }
+      }
+      const response = await identity.transport(`${identity.endpoint}${incoming.url}`, {
+        method: incoming.method,
+        headers,
+        ...(chunks.length ? { body: Buffer.concat(chunks).toString('utf8') } : {}),
+      })
+      outgoing.writeHead(response.status, Object.fromEntries(response.headers))
+      outgoing.end(Buffer.from(await response.arrayBuffer()))
+    } catch (error) {
+      fixture.errors.push(error)
+      outgoing.writeHead(500).end(String(error))
+    }
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing local pipeline address')
+  const child = spawn(
+    'bun',
+    ['test', 'apps/server/test/benchmark-table-pipeline-postgres.test.ts'],
+    {
+      cwd: workerRoot,
+      env: {
+        ...process.env,
+        MSHIP_PIPELINE_FIXTURE: JSON.stringify({
+          endpoint: `http://127.0.0.1:${address.port}`,
+          workspaceId,
+          tableId,
+          workflowId,
+          runTag: tableId,
+          mode,
+        }),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 50_000,
+    }
+  )
+  const output: string[] = []
+  child.stdout.on('data', (data: Buffer) => output.push(data.toString()))
+  child.stderr.on('data', (data: Buffer) => output.push(data.toString()))
+  const closed = once(child, 'close')
+  try {
+    const [code] = await closed
+    expect(code, JSON.stringify({ output: output.join(''), errors: fixture.errors })).toBe(0)
+  } finally {
+    child.kill()
+    await closed
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    )
+  }
+}
+
+function pipelineState(tableId: string, fileName: string) {
+  const table = getLatestBlock('table')
+  const file = getLatestBlock('file')
+  if (!table || !file) throw new Error('Pipeline blocks are unavailable')
+  const state = runnableState(
+    'return "processed " + <processorders.updatedCount> + " orders at " + new Date().toISOString() + "\\n";'
+  )
+  state.blocks[blockId].name = 'Summarize orders'
+  state.blocks.process = {
+    id: 'process',
+    type: table.type,
+    name: 'Process orders',
+    position: { x: 0, y: 50 },
+    enabled: true,
+    advancedMode: true,
+    subBlocks: {
+      operation: { id: 'operation', type: 'dropdown', value: 'update_rows_by_filter' },
+      manualTableId: { id: 'manualTableId', type: 'short-input', value: tableId },
+      filter: {
+        id: 'filter',
+        type: 'code',
+        value: JSON.stringify({ field: 'status', op: 'eq', value: 'pending' }),
+      },
+      data: { id: 'data', type: 'code', value: JSON.stringify({ status: 'processed' }) },
+    },
+    outputs: table.outputs,
+  }
+  state.blocks.append = {
+    id: 'append',
+    type: file.type,
+    name: 'Append summary',
+    position: { x: 0, y: 150 },
+    enabled: true,
+    advancedMode: true,
+    subBlocks: {
+      operation: { id: 'operation', type: 'dropdown', value: 'file_append' },
+      appendFileName: { id: 'appendFileName', type: 'short-input', value: fileName },
+      appendContent: { id: 'appendContent', type: 'long-input', value: '<summarizeorders.result>' },
+    },
+    outputs: file.outputs,
+  }
+  state.edges = [
+    { id: 'start-process', source: 'start', target: 'process' },
+    { id: 'process-summary', source: 'process', target: blockId },
+    { id: 'summary-append', source: blockId, target: 'append' },
+  ]
+  return state
 }
