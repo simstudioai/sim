@@ -41,7 +41,17 @@ describe('SubBlockFieldHeader', () => {
 
     expect(container?.textContent).toContain('Response format')
     expect(container?.querySelector('[aria-label="Required"]')).not.toBeNull()
-    expect(container?.querySelector('[aria-label="Switch to manual ID"]')).not.toBeNull()
+    expect(
+      container?.querySelector<HTMLInputElement>('input[type="radio"][aria-label="Selector"]')
+        ?.checked
+    ).toBe(true)
+
+    const variableOption = container?.querySelector<HTMLInputElement>(
+      'input[type="radio"][aria-label="Variable"]'
+    )
+    if (!variableOption) throw new Error('Canonical mode switch did not render')
+    act(() => variableOption.click())
+    expect(onToggle).toHaveBeenCalledOnce()
 
     const copyButton = container?.querySelector<HTMLButtonElement>('[aria-label="Copy value"]')
     if (!copyButton) throw new Error('Copy action did not render')

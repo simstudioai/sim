@@ -6,12 +6,13 @@ import {
   CollapsibleCard,
   type ComboboxOption,
   cn,
+  IconSwitch,
   Label,
-  Tooltip,
 } from '@sim/emcn'
-import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
+import { List, Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
+import { VariableIcon } from '@/components/icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   ReferenceTextarea,
@@ -63,6 +64,11 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
   { label: 'true', value: 'true' },
   { label: 'false', value: 'false' },
 ]
+
+const BOOLEAN_MODE_OPTIONS = [
+  { value: 'selector', label: 'Selector', icon: List },
+  { value: 'manual', label: 'Variable', icon: VariableIcon },
+] as const
 
 /**
  * Values representable by the boolean selector; anything else (e.g. a block
@@ -462,37 +468,20 @@ export function VariablesInput({
                   <div className='flex items-center justify-between'>
                     <Label className='text-small'>Value</Label>
                     {assignment.type === 'boolean' && (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            type='button'
-                            variant='quiet'
-                            size='icon'
-                            onClick={() =>
-                              setManualBooleanModes((prev) => ({
-                                ...prev,
-                                [assignment.id]: !isManualBoolean,
-                              }))
-                            }
-                            disabled={isReadOnly}
-                            aria-label={
-                              isManualBoolean ? 'Switch to selector' : 'Switch to manual value'
-                            }
-                          >
-                            <ArrowLeftRight
-                              className={cn(
-                                'size-[14px]',
-                                isManualBoolean
-                                  ? 'text-[var(--text-primary)]'
-                                  : 'text-[var(--text-secondary)]'
-                              )}
-                            />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>
-                          <p>{isManualBoolean ? 'Switch to selector' : 'Switch to manual value'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                      <IconSwitch
+                        options={BOOLEAN_MODE_OPTIONS}
+                        value={isManualBoolean ? 'manual' : 'selector'}
+                        onValueChange={(mode) =>
+                          setManualBooleanModes((prev) => ({
+                            ...prev,
+                            [assignment.id]: mode === 'manual',
+                          }))
+                        }
+                        disabled={isReadOnly}
+                        showTooltips
+                        aria-label='Boolean input mode'
+                        className='-my-1'
+                      />
                     )}
                   </div>
                   {assignment.type === 'boolean' && !isManualBoolean ? (

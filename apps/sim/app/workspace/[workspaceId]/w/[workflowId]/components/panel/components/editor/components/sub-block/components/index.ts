@@ -1,4 +1,5 @@
 export { BooleanControl } from './boolean-control'
+export { CanonicalModeToggle } from './canonical-mode-toggle'
 export { CheckboxList } from './checkbox-list'
 export { Code } from './code'
 export { ComboBox } from './combobox'
