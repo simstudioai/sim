@@ -3,9 +3,14 @@ import { readFile } from 'node:fs/promises'
 import { parseEnv } from 'node:util'
 import { db } from '@sim/db'
 import {
+  credential,
+  credentialGroup,
   document,
   embedding,
   knowledgeConnector,
+  knowledgeConnectorMember,
+  knowledgeConnectorMemberSyncLog,
+  resourcePolicy,
   user,
   workspace,
   workspaceFiles,
@@ -15,15 +20,24 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { PDFDocument } from 'pdf-lib'
 import sharp from 'sharp'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
-import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
+import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
+import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
+import {
+  seedKnowledgeAclFixture,
+  seedKnowledgeMemberFixture,
+} from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { syncKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
+import { grantKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
@@ -144,6 +158,304 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
     })
     expect(result.results.map((row) => row.documentId)).toContain(created.documentId)
   }, 120000)
+
+  it('recovers unchanged Gmail documents after a real embedding rejection through manual sync', async () => {
+    const previous = {
+      OPENAI_API_KEY: env.OPENAI_API_KEY,
+      GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
+    }
+    const fetchProvider = globalThis.fetch
+    let rejectedEmbeddingRequests = 0
+    let hydratedThreads = 0
+    /** Only Gmail HTTP is a fixture. OpenAI receives real requests and returns real errors/vectors. */
+    const provider = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      if (url.origin === 'https://api.openai.com') {
+        const response = await fetchProvider(input, init)
+        if (response.status === 401) rejectedEmbeddingRequests++
+        return response
+      }
+      if (url.origin !== 'https://gmail.googleapis.com') {
+        throw new Error(`Unexpected recovery fixture request: ${url.origin}${url.pathname}`)
+      }
+      if (url.pathname.endsWith('/labels')) return Response.json({ labels: [] })
+      if (url.pathname.endsWith('/threads'))
+        return Response.json({ threads: [{ id: 'unchanged-recovery-thread' }] })
+      expect(url.pathname.endsWith('/threads/unchanged-recovery-thread')).toBe(true)
+      const metadata = { id: 'unchanged-recovery-thread', historyId: '100' }
+      if (url.searchParams.get('format') === 'minimal') return Response.json(metadata)
+      hydratedThreads++
+      return Response.json({
+        ...metadata,
+        messages: [
+          {
+            id: 'unchanged-recovery-message',
+            threadId: metadata.id,
+            internalDate: '1700000000000',
+            payload: {
+              mimeType: 'text/plain',
+              headers: [{ name: 'Subject', value: 'Kestrel invoice exception approved' }],
+              body: {
+                data: Buffer.from(
+                  'Morgan Ellis approved net-45 payment terms for the Kestrel invoice. Reference KESTREL-RECOVERY-7477.'
+                ).toString('base64url'),
+              },
+            },
+          },
+        ],
+      })
+    })
+    try {
+      Object.assign(env, {
+        GOOGLE_CLIENT_ID: 'gmail-recovery-fixture-client',
+        GOOGLE_CLIENT_SECRET: 'gmail-recovery-fixture-secret',
+      })
+      const fixture = await seedKnowledgeMemberFixture(ids)
+      const policy = await getCredentialGroupProviderAdapter('gmail').getPolicy(undefined, {
+        workspaceId: ids.workspaceId,
+        credentialGroupId: fixture.groupId,
+        credentialGroupOptionId: fixture.optionId,
+      })
+      await db
+        .update(credentialGroup)
+        .set({
+          options: [
+            {
+              id: fixture.optionId,
+              provider: 'gmail',
+              label: 'Gmail recovery fixture',
+              authorizationAppId: policy.authorizationAppId,
+              requiredScopes: policy.requiredScopes,
+              scopeVersion: policy.scopeVersion,
+              required: false,
+              status: 'active',
+            },
+          ],
+        })
+        .where(eq(credentialGroup.id, fixture.groupId))
+      await db
+        .update(knowledgeConnector)
+        .set({
+          connectorType: 'gmail',
+          sourceConfig: { maxThreads: 0 },
+          status: 'active',
+          memberSyncStatus: 'idle',
+          memberSyncLockToken: null,
+        })
+        .where(eq(knowledgeConnector.id, fixture.connectorId))
+      for (const member of fixture.members) {
+        await db
+          .update(credential)
+          .set({
+            providerId: 'google-email',
+            authorizationAppId: policy.authorizationAppId,
+            managedOauthScopeVersion: policy.scopeVersion,
+            grantedScopes: policy.requiredScopes,
+            encryptedOauthTokenSet: await encryptManagedOAuthTokenSet({
+              accessToken: 'gmail-recovery-fixture',
+            }),
+            accessTokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          })
+          .where(eq(credential.id, member.credentialId))
+        await db
+          .update(knowledgeConnectorMember)
+          .set({
+            subjectToken: `s:google-email:fixture-domain:${member.userId}`,
+          })
+          .where(eq(knowledgeConnectorMember.id, member.id))
+      }
+      await db
+        .insert(resourcePolicy)
+        .values({
+          id: generateId(),
+          workspaceId: ids.workspaceId,
+          resourceType: 'credential_group',
+          resourceId: fixture.groupId,
+          document: compileCredentialGroupWorkflowAccessPolicy({
+            credentialGroupId: fixture.groupId,
+            allowedWorkflowIds: [],
+          }),
+          createdBy: ids.aliceId,
+          updatedBy: ids.aliceId,
+        })
+        .onConflictDoNothing()
+      await grantKnowledgeConnectorCredentialAccess(
+        {
+          workspaceId: ids.workspaceId,
+          credentialGroupId: fixture.groupId,
+          credentialGroupOptionId: fixture.optionId,
+          connectorId: fixture.connectorId,
+        },
+        ids.aliceId
+      )
+
+      const documents = () =>
+        db
+          .select()
+          .from(document)
+          .where(eq(document.connectorId, fixture.connectorId))
+          .orderBy(document.id)
+      let runCount = 0
+      async function manualSync() {
+        await syncKnowledgeConnector.execute({
+          principal: {
+            kind: 'session',
+            userId: ids.aliceId,
+            sessionId: 'synthetic-indexing-recovery',
+          },
+          input: {
+            assertedWorkspaceId: ids.workspaceId,
+            connectorId: fixture.connectorId,
+            source: 'ui',
+          },
+        })
+        runCount++
+        await expect
+          .poll(
+            async () => {
+              const logs = await db
+                .select({ status: knowledgeConnectorMemberSyncLog.status })
+                .from(knowledgeConnectorMemberSyncLog)
+                .where(eq(knowledgeConnectorMemberSyncLog.connectorId, fixture.connectorId))
+              return logs.filter((log) => log.status === 'completed').length
+            },
+            { timeout: 60000, interval: 100 }
+          )
+          .toBe(runCount)
+      }
+      const search = () =>
+        searchKnowledge.execute({
+          principal: {
+            kind: 'session',
+            userId: ids.aliceId,
+            sessionId: 'synthetic-indexing-recovery',
+          },
+          input: {
+            workspaceId: ids.workspaceId,
+            knowledgeBaseIds: [ids.knowledgeBaseId],
+            query: 'Who approved the Kestrel invoice payment terms?',
+            topK: 3,
+          },
+        })
+      Object.assign(env, { OPENAI_API_KEY: 'sk-synthetic-invalid-indexing-recovery' })
+      await manualSync()
+      await expect
+        .poll(async () => (await documents()).map((row) => row.processingStatus), {
+          timeout: 60000,
+          interval: 100,
+        })
+        .toEqual(['failed', 'failed'])
+      const failed = await documents()
+      expect(rejectedEmbeddingRequests).toBe(2)
+      expect(failed.every((row) => row.processingError && row.processingAttempts === 1)).toBe(true)
+      expect(
+        await db
+          .select()
+          .from(embedding)
+          .where(
+            inArray(
+              embedding.documentId,
+              failed.map((row) => row.id)
+            )
+          )
+      ).toEqual([])
+      const hydratedBeforeRecovery = hydratedThreads
+
+      Object.assign(env, { OPENAI_API_KEY: previous.OPENAI_API_KEY })
+      expect(
+        (await search()).results.filter((row) => failed.some((item) => item.id === row.documentId))
+      ).toEqual([])
+      await manualSync()
+      expect(
+        (await documents()).map((row) => ({
+          id: row.id,
+          hash: row.contentHash,
+          status: row.processingStatus,
+          attempts: row.processingAttempts,
+        }))
+      ).toEqual(
+        failed.map((row) => ({ id: row.id, hash: row.contentHash, status: 'failed', attempts: 1 }))
+      )
+
+      /** Age only this fixture's document lifecycle timestamps, preserving their order and the unchanged content. */
+      const elapsedGraceMs = QUEUED_DISPATCH_GRACE_MS + 1000
+      for (const row of failed) {
+        const age = (value: Date | null) => value && new Date(value.getTime() - elapsedGraceMs)
+        await db
+          .update(document)
+          .set({
+            uploadedAt: age(row.uploadedAt)!,
+            processingQueuedAt: age(row.processingQueuedAt),
+            processingStartedAt: age(row.processingStartedAt),
+            processingCompletedAt: age(row.processingCompletedAt),
+          })
+          .where(eq(document.id, row.id))
+      }
+      await manualSync()
+      await expect
+        .poll(async () => (await documents()).map((row) => row.processingStatus), {
+          timeout: 60000,
+          interval: 100,
+        })
+        .toEqual(['completed', 'completed'])
+      const recovered = await documents()
+      expect(
+        recovered.map((row) => ({
+          id: row.id,
+          externalId: row.externalId,
+          hash: row.contentHash,
+          storageKey: row.storageKey,
+        }))
+      ).toEqual(
+        failed.map((row) => ({
+          id: row.id,
+          externalId: row.externalId,
+          hash: row.contentHash,
+          storageKey: row.storageKey,
+        }))
+      )
+      expect(
+        recovered.every((row) => row.processingError === null && row.processingAttempts === 0)
+      ).toBe(true)
+      expect(hydratedThreads).toBe(hydratedBeforeRecovery)
+      const vectors = await db
+        .select()
+        .from(embedding)
+        .where(
+          inArray(
+            embedding.documentId,
+            recovered.map((row) => row.id)
+          )
+        )
+      expect(vectors).toHaveLength(2)
+      expect(
+        vectors.every(
+          (row) => row.embedding?.length === 1536 && row.embedding.every(Number.isFinite)
+        )
+      ).toBe(true)
+      const aliceDocument = recovered.find((row) =>
+        row.externalId?.startsWith(`member:${fixture.members[0].id}:`)
+      )!
+      const bobDocument = recovered.find((row) => row.id !== aliceDocument.id)!
+      const results = await search()
+      expect(results.results[0]?.documentId).toBe(aliceDocument.id)
+      expect(results.results.some((row) => row.documentId === bobDocument.id)).toBe(false)
+      logger.info('Real OpenAI indexing recovery through unchanged-source manual sync', {
+        rejectedEmbeddingRequests,
+        retryGraceMs: QUEUED_DISPATCH_GRACE_MS,
+        fixtureLifecycleTimestampsAged: true,
+        completedDocuments: recovered.length,
+        sourceContentUnchanged: true,
+        documentIdsAndStorageUnchanged: true,
+        authorizedDocumentRank: 1,
+        peerDocumentExcluded: true,
+      })
+    } finally {
+      Object.assign(env, previous)
+      provider.mockRestore()
+    }
+  }, 180000)
 
   it('ranks synthetic integration documents with real OpenAI embeddings and excludes private source content', async () => {
     const corpus = [
