@@ -63,13 +63,10 @@ describe('module-graph ratchet', () => {
 describe('guarded entries', () => {
   const entries = discoverEntries()
 
-  /**
-   * The headline win of the catalog projection was cutting the registry edge out
-   * of this tool — ~6,756 modules down to ~1,321. It sat in no guarded subtree,
-   * so nothing held it.
-   */
-  it('guards the Copilot block-metadata tool', () => {
-    expect(entries).toContain('lib/mothership/tools/server/blocks/get-blocks-metadata-tool.ts')
+  /** The CLI replaced the Copilot metadata tool and reads these catalog routes. */
+  it('guards the block catalog surfaces used by the CLI', () => {
+    expect(entries).toContain('app/api/v2/blocks/route.ts')
+    expect(entries).toContain('app/api/v2/blocks/[blockId]/route.ts')
   })
 
   it('guards every catalog projection module rather than a barrel over them', () => {
