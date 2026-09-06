@@ -1794,7 +1794,10 @@ export async function executeOracleFusionHcmListTalentProfiles(
     },
     signal
   )
-  return { success: true as const, output: { talentProfiles: result.items, ...withoutItems(result) } }
+  return {
+    success: true as const,
+    output: { talentProfiles: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-talentpersonprofiles-get.html */
@@ -1983,7 +1986,10 @@ export async function executeOracleFusionHcmListTimeAttributes(
     },
     signal
   )
-  return { success: true as const, output: { timeAttributes: result.items, ...withoutItems(result) } }
+  return {
+    success: true as const,
+    output: { timeAttributes: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timeattributes-timeattributesuniqid-child-datasourceusages-get.html */
@@ -2308,7 +2314,11 @@ async function requireUserEnteredSalaryBasis(
     },
     signal
   )
-  if (result.items.length !== 1 || result.hasMore || result.items[0].salaryBasisId !== salaryBasisId) {
+  if (
+    result.items.length !== 1 ||
+    result.hasMore ||
+    result.items[0].salaryBasisId !== salaryBasisId
+  ) {
     throw new OracleFusionProviderError(
       'Oracle Fusion HCM salary basis could not be uniquely resolved',
       422
@@ -2407,11 +2417,14 @@ async function submitTimeEntry(
             operationType !== 'ADD' && 'timeRecordVersion' in input
               ? input.timeRecordVersion
               : undefined,
-          startTime: operationType !== 'DELETE' && 'startTime' in input ? input.startTime : undefined,
+          startTime:
+            operationType !== 'DELETE' && 'startTime' in input ? input.startTime : undefined,
           stopTime: operationType !== 'DELETE' && 'stopTime' in input ? input.stopTime : undefined,
           measure: operationType !== 'DELETE' && 'measure' in input ? input.measure : undefined,
           referenceDate:
-            operationType !== 'DELETE' && 'referenceDate' in input ? input.referenceDate : undefined,
+            operationType !== 'DELETE' && 'referenceDate' in input
+              ? input.referenceDate
+              : undefined,
           timeRecordEventAttribute: attributes.length ? attributes : undefined,
         }),
       ],

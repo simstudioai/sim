@@ -2087,12 +2087,13 @@ export type OracleFusionHcmGetDevelopmentGoalResponse = z.output<
   typeof oracleFusionHcmGetDevelopmentGoalResponseSchema
 >
 
-export const oracleFusionHcmListPerformanceDocumentsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personId: oracleFusionHcmDecimalIdSchema.optional(),
-  reviewPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPerformanceDocumentsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    personId: oracleFusionHcmDecimalIdSchema.optional(),
+    reviewPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
+    search: z.string().trim().min(1).max(200).optional(),
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListPerformanceDocumentsResponseSchema = successResponse(
   z.object({
@@ -2111,9 +2112,11 @@ export type OracleFusionHcmListPerformanceDocumentsResponse = z.output<
   typeof oracleFusionHcmListPerformanceDocumentsResponseSchema
 >
 
-export const oracleFusionHcmGetPerformanceDocumentBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  evaluationId: oracleFusionHcmDecimalIdSchema,
-})
+export const oracleFusionHcmGetPerformanceDocumentBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    evaluationId: oracleFusionHcmDecimalIdSchema,
+  }
+)
 
 export const oracleFusionHcmGetPerformanceDocumentResponseSchema = successResponse(
   z.object({
@@ -2131,10 +2134,11 @@ export type OracleFusionHcmGetPerformanceDocumentResponse = z.output<
   typeof oracleFusionHcmGetPerformanceDocumentResponseSchema
 >
 
-export const oracleFusionHcmListPerformanceDocumentRolesBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  evaluationId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPerformanceDocumentRolesBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    evaluationId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListPerformanceDocumentRolesResponseSchema = successResponse(
   z.object({
@@ -2153,11 +2157,12 @@ export type OracleFusionHcmListPerformanceDocumentRolesResponse = z.output<
   typeof oracleFusionHcmListPerformanceDocumentRolesResponseSchema
 >
 
-export const oracleFusionHcmListPerformanceDocumentParticipantsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  evaluationId: oracleFusionHcmDecimalIdSchema,
-  evalRoleId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPerformanceDocumentParticipantsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    evaluationId: oracleFusionHcmDecimalIdSchema,
+    evalRoleId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListPerformanceDocumentParticipantsResponseSchema = successResponse(
   z.object({
@@ -2176,12 +2181,13 @@ export type OracleFusionHcmListPerformanceDocumentParticipantsResponse = z.outpu
   typeof oracleFusionHcmListPerformanceDocumentParticipantsResponseSchema
 >
 
-export const oracleFusionHcmListPerformanceDocumentTasksBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  evaluationId: oracleFusionHcmDecimalIdSchema,
-  evalRoleId: oracleFusionHcmDecimalIdSchema,
-  evalParticipantId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPerformanceDocumentTasksBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    evaluationId: oracleFusionHcmDecimalIdSchema,
+    evalRoleId: oracleFusionHcmDecimalIdSchema,
+    evalParticipantId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListPerformanceDocumentTasksResponseSchema = successResponse(
   z.object({
@@ -2243,11 +2249,12 @@ export type OracleFusionHcmGetTalentProfileResponse = z.output<
   typeof oracleFusionHcmGetTalentProfileResponseSchema
 >
 
-export const oracleFusionHcmListTalentProfileSectionsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  profileId: oracleFusionHcmDecimalIdSchema,
-  sectionKind: z.enum(['skill', 'certification']).default('skill'),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTalentProfileSectionsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    profileId: oracleFusionHcmDecimalIdSchema,
+    sectionKind: z.enum(['skill', 'certification']).default('skill'),
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTalentProfileSectionsResponseSchema = successResponse(
   z.object({
@@ -2266,11 +2273,12 @@ export type OracleFusionHcmListTalentProfileSectionsResponse = z.output<
   typeof oracleFusionHcmListTalentProfileSectionsResponseSchema
 >
 
-export const oracleFusionHcmListTalentProfileSkillsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  profileId: oracleFusionHcmDecimalIdSchema,
-  profileSectionId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTalentProfileSkillsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    profileId: oracleFusionHcmDecimalIdSchema,
+    profileSectionId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTalentProfileSkillsResponseSchema = successResponse(
   z.object({
@@ -2289,11 +2297,12 @@ export type OracleFusionHcmListTalentProfileSkillsResponse = z.output<
   typeof oracleFusionHcmListTalentProfileSkillsResponseSchema
 >
 
-export const oracleFusionHcmListTalentProfileCertificationsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  profileId: oracleFusionHcmDecimalIdSchema,
-  profileSectionId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTalentProfileCertificationsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    profileId: oracleFusionHcmDecimalIdSchema,
+    profileSectionId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTalentProfileCertificationsResponseSchema = successResponse(
   z.object({
@@ -2438,10 +2447,11 @@ export type OracleFusionHcmListTimeAttributesResponse = z.output<
   typeof oracleFusionHcmListTimeAttributesResponseSchema
 >
 
-export const oracleFusionHcmListTimeAttributeDataSourcesBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  timeAttributeId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTimeAttributeDataSourcesBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    timeAttributeId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTimeAttributeDataSourcesResponseSchema = successResponse(
   z.object({
@@ -2460,11 +2470,12 @@ export type OracleFusionHcmListTimeAttributeDataSourcesResponse = z.output<
   typeof oracleFusionHcmListTimeAttributeDataSourcesResponseSchema
 >
 
-export const oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  timeAttributeId: oracleFusionHcmDecimalIdSchema,
-  dataSourceUsageId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    timeAttributeId: oracleFusionHcmDecimalIdSchema,
+    dataSourceUsageId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTimeAttributeCriteriaBindsResponseSchema = successResponse(
   z.object({
@@ -2483,29 +2494,30 @@ export type OracleFusionHcmListTimeAttributeCriteriaBindsResponse = z.output<
   typeof oracleFusionHcmListTimeAttributeCriteriaBindsResponseSchema
 >
 
-export const oracleFusionHcmListTimeAttributeValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  dataSourceUsageId: oracleFusionHcmDecimalIdSchema,
-  timeAttributeUsageId: oracleFusionHcmDecimalIdSchema,
-  bindings: z
-    .array(
-      z
-        .object({
-          name: z
-            .string()
-            .regex(/^[A-Za-z][A-Za-z0-9_]*$/)
-            .max(80),
-          value: finderValueSchema,
-        })
-        .strict()
-    )
-    .max(5)
-    .refine(
-      (values) => new Set(values.map((value) => value.name)).size === values.length,
-      'Binding names must be unique'
-    )
-    .optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTimeAttributeValuesBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    dataSourceUsageId: oracleFusionHcmDecimalIdSchema,
+    timeAttributeUsageId: oracleFusionHcmDecimalIdSchema,
+    bindings: z
+      .array(
+        z
+          .object({
+            name: z
+              .string()
+              .regex(/^[A-Za-z][A-Za-z0-9_]*$/)
+              .max(80),
+            value: finderValueSchema,
+          })
+          .strict()
+      )
+      .max(5)
+      .refine(
+        (values) => new Set(values.map((value) => value.name)).size === values.length,
+        'Binding names must be unique'
+      )
+      .optional(),
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTimeAttributeValuesResponseSchema = successResponse(
   z.object({
@@ -2696,10 +2708,11 @@ export type OracleFusionHcmGetTimeRecordRequestResponse = z.output<
   typeof oracleFusionHcmGetTimeRecordRequestResponseSchema
 >
 
-export const oracleFusionHcmListTimeRecordRequestEventsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTimeRecordRequestEventsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTimeRecordRequestEventsResponseSchema = successResponse(
   z.object({
@@ -2718,11 +2731,12 @@ export type OracleFusionHcmListTimeRecordRequestEventsResponse = z.output<
   typeof oracleFusionHcmListTimeRecordRequestEventsResponseSchema
 >
 
-export const oracleFusionHcmListTimeRecordEventMessagesBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
-  timeRecordEventId: oracleFusionHcmDecimalIdSchema,
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListTimeRecordEventMessagesBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
+    timeRecordEventId: oracleFusionHcmDecimalIdSchema,
+    ...paginationBodyShape,
+  })
 
 export const oracleFusionHcmListTimeRecordEventMessagesResponseSchema = successResponse(
   z.object({

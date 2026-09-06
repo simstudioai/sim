@@ -2008,7 +2008,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'boolean',
       description: 'Explicitly clear the element input value',
     },
-    objectActionId: { type: 'string', description: 'Object action ID, as a positive decimal string' },
+    objectActionId: {
+      type: 'string',
+      description: 'Object action ID, as a positive decimal string',
+    },
     salaryId: { type: 'string', description: 'Salary ID, as a positive decimal string' },
     salaryBasisId: { type: 'string', description: 'Salary basis ID, as a positive decimal string' },
     salaryAmount: {
@@ -2023,7 +2026,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       description: 'Component family: standard, simple, or rate; each is independently paginated',
     },
     gradeRateId: { type: 'string', description: 'Grade rate ID, as a positive decimal string' },
-    reviewPeriodId: { type: 'string', description: 'Review period ID, as a positive decimal string' },
+    reviewPeriodId: {
+      type: 'string',
+      description: 'Review period ID, as a positive decimal string',
+    },
     goalPlanId: { type: 'string', description: 'Goal plan ID, as a positive decimal string' },
     goalId: { type: 'string', description: 'Goal ID, as a positive decimal string' },
     evaluationId: { type: 'string', description: 'Evaluation ID, as a positive decimal string' },
@@ -2054,7 +2060,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'string',
       description: 'Time record group ID, as a positive decimal string',
     },
-    timeAttributeId: { type: 'string', description: 'Time attribute ID, as a positive decimal string' },
+    timeAttributeId: {
+      type: 'string',
+      description: 'Time attribute ID, as a positive decimal string',
+    },
     dataSourceUsageId: {
       type: 'string',
       description: 'Data source usage ID, as a positive decimal string',
@@ -2078,7 +2087,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
     },
     payrollTimeType: {
       type: 'string',
-      description: 'PayrollTimeType attribute value discovered for the assignment and effective date',
+      description:
+        'PayrollTimeType attribute value discovered for the assignment and effective date',
     },
     timeAttributes: {
       type: 'json',
@@ -2093,7 +2103,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
     changeReason: { type: 'string', description: 'Tenant-configured audit change reason code' },
     timeRecordVersion: {
       type: 'number',
-      description: 'Current time-record version from get_time_record; required for update and delete',
+      description:
+        'Current time-record version from get_time_record; required for update and delete',
     },
     timeRecordEventRequestId: {
       type: 'string',
@@ -2154,7 +2165,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'json',
       description:
         'Assigned Payroll: assignedPayrollId, payrollId, payrollName, startDate, endDate, effectiveStartDate, effectiveEndDate, lsed, overridingPeriodId, and documented resource details',
-      condition: { field: 'operation', value: ['get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
+      condition: {
+        field: 'operation',
+        value: ['get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'],
+      },
     },
     payrollDefinitions: {
       type: 'json',
@@ -2420,7 +2434,15 @@ export const OracleFusionHcmBlock: BlockConfig = {
     timeRecordRequest: {
       type: 'json',
       description: 'Time Record Request: timeRecordEventRequestId, processInline, processMode',
-      condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry', 'delete_time_entry', 'get_time_record_request'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'create_time_entry',
+          'update_time_entry',
+          'delete_time_entry',
+          'get_time_record_request',
+        ],
+      },
     },
     timeRecordRequestEvents: {
       type: 'json',
