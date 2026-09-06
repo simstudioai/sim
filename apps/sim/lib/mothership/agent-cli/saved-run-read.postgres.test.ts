@@ -3,18 +3,26 @@
  *
  * Opt in with MSHIP_TEST_DATABASE_URL pointing to a local mship_audit_* database.
  * SIM_HELPERS_SMOKE=1 also runs the actual service/DAG/Function runtime and log writer.
+ * MSHIP_WORKER_ROOT additionally runs the real controller with a local scripted worker.
  * CLI, routes, canonical scope, application authorization, SQL and display projection
  * are real. Execution traces live in local files; cache clearing forces physical reads.
- * Authentication, membership, saved drafts, admission, billing, ownership registration
+ * Authentication, delegation, membership, saved drafts, workflow admission, billing, ownership
  * and external effects are fixtures. Seeded cases also bypass execution/log writing.
  * Isolated columns plus required defaults/indexes do not prove migrations or all constraints.
  */
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline'
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  copilotAsyncToolCalls,
+  copilotChats,
+  copilotRequestStops,
+  copilotRuns,
   folder,
   organization,
   pausedExecutions,
@@ -46,13 +54,17 @@ import type { CreateExecutorPrincipalFromExecutionContextInput } from '@/lib/int
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
+import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import { GET as logRoute } from '@/app/api/v2/logs/[runId]/route'
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
 import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const fixture = vi.hoisted(() => ({
   close: async () => {},
+  workerUrl: '',
   permission: 'read' as PermissionType | null,
   requests: [] as string[],
   errors: [] as unknown[],
@@ -120,6 +132,20 @@ vi.mock('@/lib/core/rate-limiter', async (importOriginal) => ({
       return { allowed: true, remaining: 99, resetAt: new Date() }
     }
   },
+}))
+vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/utils/urls')>()),
+  getInternalApiBaseUrl: () => 'https://sim.test',
+}))
+vi.mock('@/lib/mothership/server/agent-url', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/mothership/server/agent-url')>()),
+  getMothershipBaseURL: () => fixture.workerUrl,
+}))
+vi.mock('@/lib/mothership/chat/delegation', () => ({
+  mintDelegationToken: async () => 'local-key',
+}))
+vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
+  resolveEnterpriseByokKey: async () => null,
 }))
 vi.mock('@/lib/logs/cost-ledger', () => ({ buildCostLedger: async () => null }))
 vi.mock('@/lib/core/async-jobs', () => ({
@@ -246,7 +272,7 @@ vi.mock('@/lib/core/telemetry', () => ({
   createOTelSpansForWorkflowExecution: () => {},
 }))
 
-const workspaceId = 'saved-run-workspace'
+const workspaceId = '2afda21d-d08a-46bb-aaf9-7a4a6c741dbd'
 const workflowId = 'saved-run-workflow'
 const blockId = '40109ba4-ac03-4a92-b044-c97f703718bf'
 const now = new Date('2026-09-06T12:00:00.000Z')
@@ -258,7 +284,7 @@ const provenance = {
   scope: { userId: 'run-reader', workspaceId },
 } as const
 
-const identity: EmbeddedCliIdentity = {
+const identity = {
   endpoint: 'https://sim.test',
   apiKey: 'local-key',
   workspaceId,
@@ -279,7 +305,7 @@ const identity: EmbeddedCliIdentity = {
     if (log) return logRoute(request, { params: Promise.resolve({ runId: log[1] }) })
     throw new Error(`Unexpected saved-run request: ${request.method} ${request.nextUrl.pathname}`)
   },
-}
+} satisfies EmbeddedCliIdentity
 
 async function seedRun(status: 'completed' | 'failed', executionData: Record<string, unknown>) {
   const runId = generateId()
@@ -340,6 +366,10 @@ async function readRun(runId: string, ...flags: string[]) {
 const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
 const schemaName = `saved_run_${generateId().replaceAll('-', '')}`
 const tables = [
+  copilotChats,
+  copilotRuns,
+  copilotRequestStops,
+  copilotAsyncToolCalls,
   organization,
   usageLog,
   user,
@@ -380,6 +410,15 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         sql`CREATE UNIQUE INDEX ON workflow_execution_snapshots (workflow_id, state_hash)`
       )
       await db.execute(sql`CREATE UNIQUE INDEX ON workflow_execution_logs (execution_id)`)
+      for (const table of [copilotRuns, copilotAsyncToolCalls]) {
+        const name = sql.identifier(getTableConfig(table).name)
+        await db.execute(sql`ALTER TABLE ${name} ALTER COLUMN id SET DEFAULT gen_random_uuid()`)
+        await db.execute(sql`ALTER TABLE ${name} ALTER COLUMN created_at SET DEFAULT now()`)
+        await db.execute(sql`ALTER TABLE ${name} ALTER COLUMN updated_at SET DEFAULT now()`)
+      }
+      await db.execute(sql`ALTER TABLE copilot_runs ALTER COLUMN started_at SET DEFAULT now()`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON copilot_async_tool_calls (tool_call_id)`)
       await db.insert(user).values({
         id: 'run-reader',
         name: 'Reader',
@@ -425,6 +464,184 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.storageReads.length = 0
       vi.clearAllMocks()
     })
+
+    it
+      .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
+      .each(['connected', 'lost-handoff'] as const)(
+      'returns actual failed-run diagnostics through the controller (%s)',
+      async (connection) => {
+        const workerRoot = process.env.MSHIP_WORKER_ROOT
+        if (!workerRoot)
+          throw new Error('MSHIP_WORKER_ROOT must point to the sibling worker checkout')
+        const child = spawn('bun', ['tools/probes/src/controller-run-read.ts'], {
+          cwd: workerRoot,
+          env: {
+            PATH: process.env.PATH,
+            NODE_ENV: 'test',
+            DATABASE_URL: process.env.MSHIP_TEST_DATABASE_URL,
+            REDIS_URL: 'redis://127.0.0.1:6379/14',
+            ANTHROPIC_API_KEY: 'local-scripted-provider',
+            COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
+            COPILOT_RUN_DEADLINE_MS: '20000',
+            MSHIP_PROBE_WORKFLOW_ID: workflowId,
+          },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
+        const exited = once(child, 'exit')
+        const lines = createInterface({ input: child.stdout })
+        let diagnostics = ''
+        child.stderr.on('data', (chunk: Buffer) => {
+          diagnostics += chunk.toString()
+        })
+        const ready = new Promise<string>((resolve) => {
+          lines.on('line', (line) => {
+            diagnostics += `${line}\n`
+            if (!line.startsWith('{"probe":')) return
+            const message: unknown = JSON.parse(line)
+            if (
+              message &&
+              typeof message === 'object' &&
+              'port' in message &&
+              typeof message.port === 'number'
+            )
+              resolve(`http://127.0.0.1:${message.port}`)
+          })
+        })
+        const startupTimeout = setTimeout(() => child.kill(), 10_000)
+        try {
+          fixture.workerUrl = await Promise.race([
+            ready,
+            exited.then(() => {
+              throw new Error(`Worker probe exited before readiness: ${diagnostics}`)
+            }),
+          ])
+          clearTimeout(startupTimeout)
+          vi.stubEnv('COPILOT_API_KEY', 'local-controller-probe-key')
+          vi.unstubAllGlobals()
+          const nativeFetch = globalThis.fetch
+          const workerRequests: string[] = []
+          let responseDropped = false
+          vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : input)
+            if (url.origin === identity.endpoint) return identity.transport(input, init)
+            if (url.origin !== fixture.workerUrl)
+              throw new Error(`Unexpected external request: ${url.origin}`)
+            workerRequests.push(url.pathname)
+            const response = await nativeFetch(input, init)
+            if (
+              connection === 'lost-handoff' &&
+              url.pathname === '/api/tools/resume' &&
+              !responseDropped
+            ) {
+              await response.text()
+              responseDropped = true
+              throw new TypeError('Local fixture lost the accepted resume response')
+            }
+            return response
+          })
+          fixture.permission = 'write'
+          fixture.saved.set(
+            workflowId,
+            runnableState('throw new Error("Invoice amount must be a number");')
+          )
+          ensureHandlersRegistered()
+          const chatId = generateId()
+          const messageId = generateId()
+          const result = await runCopilotLifecycle(
+            {
+              message:
+                'Run the saved workflow and identify the failing block from its recorded log.',
+              userId: 'run-reader',
+              workspaceId,
+              workflowId,
+              chatId,
+              messageId,
+            },
+            {
+              userId: 'run-reader',
+              workspaceId,
+              workflowId,
+              chatId,
+              goRoute: '/api/mothership',
+              interactive: false,
+              clientToolPickupExpected: false,
+              flushAfterEvent: false,
+              abortSignal: AbortSignal.timeout(20_000),
+              executionContext: {
+                userId: 'run-reader',
+                workspaceId,
+                workflowId,
+                chatId,
+                userPermission: 'write',
+                resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+                  userId: 'run-reader',
+                  workspaceId,
+                }),
+              },
+            }
+          )
+          expect(
+            result.success,
+            JSON.stringify({ result, errors: fixture.errors, diagnostics })
+          ).toBe(true)
+          const report: unknown = JSON.parse(result.content)
+          expect(report).toMatchObject({
+            blockId,
+            blockName: 'Validate invoice',
+            error: expect.stringContaining('Invoice amount must be a number'),
+          })
+          if (
+            !report ||
+            typeof report !== 'object' ||
+            !('runId' in report) ||
+            typeof report.runId !== 'string'
+          )
+            throw new Error('Model report lost the execution identity')
+          const [log] = await db
+            .select()
+            .from(workflowExecutionLogs)
+            .where(eq(workflowExecutionLogs.executionId, report.runId))
+          expect(log?.status).toBe('failed')
+          expect(fixture.requests.filter((path) => path.endsWith('/execute'))).toHaveLength(1)
+          expect(fixture.requests).toContain(`/api/v2/logs/${report.runId}`)
+          expect(workerRequests[0]).toBe('/api/mothership')
+          expect(
+            workerRequests.filter((path) => path === '/api/tools/resume').length
+          ).toBeGreaterThanOrEqual(2)
+          const [run] = await db
+            .select()
+            .from(copilotRuns)
+            .where(eq(copilotRuns.streamId, messageId))
+          expect(run?.status).toBe('complete')
+          const calls = await db
+            .select()
+            .from(copilotAsyncToolCalls)
+            .where(eq(copilotAsyncToolCalls.runId, run.id))
+          expect(calls.length).toBeGreaterThanOrEqual(2)
+          expect(responseDropped).toBe(connection === 'lost-handoff')
+          expect(
+            calls.find((call) => call.toolCallId.startsWith('execute-saved-workflow-'))
+          ).toMatchObject({
+            status: 'failed',
+            result: { exitCode: 1, stdout: expect.stringContaining(report.runId) },
+          })
+          for (const call of calls) {
+            expect(call.executionStartedAt).toBeInstanceOf(Date)
+            expect(call.executionSettledAt).toBeInstanceOf(Date)
+          }
+          expect(executeInSandbox).not.toHaveBeenCalled()
+          expect(executeShellInSandbox).not.toHaveBeenCalled()
+        } finally {
+          clearTimeout(startupTimeout)
+          child.kill()
+          await exited
+          lines.close()
+          vi.unstubAllGlobals()
+          vi.unstubAllEnvs()
+        }
+      },
+      40_000
+    )
 
     it.skipIf(process.env.SIM_HELPERS_SMOKE !== '1').each(['completed', 'failed'] as const)(
       'executes a saved workflow and reads its %s result from externalized log bytes',
