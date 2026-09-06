@@ -4,8 +4,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import { type KnowledgeAccessScope, WORKSPACE_ACCESS_TOKENS } from '@/lib/knowledge/access/types'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
+import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
@@ -21,8 +23,6 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
 const HNSW_MAX_SCAN_TUPLES = '20000'
-/** pgvector's default `hnsw.ef_search`: the candidates a plain scan yields before predicates. */
-const HNSW_DEFAULT_EF_SEARCH = 40
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -32,48 +32,33 @@ let hnswSettingsUnsupportedUntil = 0
 type SearchExecutor = Pick<typeof db, 'select'>
 
 /**
- * Runs a vector leg with pgvector's iterative HNSW scan enabled. A plain scan
- * yields at most `hnsw.ef_search` candidates before the access predicate is
- * applied, so a caller who may see a small share of a base gets fewer rows
- * than asked for; `relaxed_order` keeps scanning until the limit is met. The
- * settings are transaction-local, which needs a transaction: under PgBouncer
- * transaction pooling a bare `SET LOCAL` is a no-op. Servers without the
- * setting (pgvector < 0.8) reject it with 42704; the leg then runs unscoped
- * and the attempt is retried after a while so an upgrade is picked up.
+ * Shared HNSW indexes can be selective on KB scope, access, or tags, even for
+ * small workspace searches. Iterative scans keep looking within a bounded
+ * tuple budget. A transaction keeps the settings local under pooled connections;
+ * older extensions retry without tuning until the compatibility cooldown expires.
  */
 async function withVectorScanSettings<T>(
-  access: KnowledgeAccessScope,
-  limit: number,
   run: (executor: SearchExecutor) => Promise<T>
 ): Promise<T> {
-  /**
-   * A plain index scan yields `hnsw.ef_search` candidates (40 by default)
-   * before the predicates apply. That fills a small limit for the workspace
-   * pair, which matches every row; a personal token set, or a limit past the
-   * pool, needs the iterative scan to keep going until the limit is met.
-   */
-  const needsIterativeScan = hasSubjectTokens(access) || limit > HNSW_DEFAULT_EF_SEARCH
-  if (!needsIterativeScan || Date.now() < hnswSettingsUnsupportedUntil) return run(db)
+  if (Date.now() < hnswSettingsUnsupportedUntil) return run(db)
+  let applyingSettings = false
   try {
     return await db.transaction(async (tx) => {
+      applyingSettings = true
       await tx.execute(
         sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
       )
+      applyingSettings = false
       return run(tx)
     })
   } catch (error) {
-    if (getPostgresErrorCode(error) !== UNDEFINED_OBJECT_SQLSTATE) throw error
+    if (!applyingSettings || getPostgresErrorCode(error) !== UNDEFINED_OBJECT_SQLSTATE) throw error
     hnswSettingsUnsupportedUntil = Date.now() + HNSW_SETTINGS_UNSUPPORTED_RETRY_MS
     logger.warn('pgvector iterative scan is unavailable; vector legs run without it', {
       error: getErrorMessage(error),
     })
     return run(db)
   }
-}
-
-/** Whether the caller holds tokens beyond the workspace pair every document carries. */
-function hasSubjectTokens(access: KnowledgeAccessScope): boolean {
-  return access.kind === 'user' && access.tokens.length > WORKSPACE_ACCESS_TOKENS.length
 }
 
 export interface DocumentMetadata {
@@ -184,6 +169,7 @@ export interface SearchParams {
   /** What the caller may read; every leg applies it. Required so no leg can be written without it. */
   access: KnowledgeAccessScope
   structuredFilters?: StructuredFilter[]
+  filters?: WorkspaceSearchFilters
   queryVector?: KnowledgeQueryVector
   distanceThreshold?: number
 }
@@ -411,7 +397,7 @@ const FTS_CONFIG = 'english'
  * overlaps the caller's tokens. Every leg spreads this helper rather than
  * listing the predicates itself, so no leg can drift from the others.
  */
-function getVisibilityConditions(access: KnowledgeAccessScope) {
+function getVisibilityConditions(access: KnowledgeAccessScope, filters?: WorkspaceSearchFilters) {
   return [
     eq(embedding.enabled, true),
     eq(document.enabled, true),
@@ -420,6 +406,7 @@ function getVisibilityConditions(access: KnowledgeAccessScope) {
     isNull(document.archivedAt),
     isNull(document.deletedAt),
     knowledgeAccessCondition(access),
+    ...workspaceSearchFilterConditions(filters),
   ]
 }
 
@@ -443,54 +430,6 @@ export function getQueryStrategy(kbCount: number, topK: number) {
   }
 }
 
-async function executeTagFilterQuery(
-  knowledgeBaseIds: string[],
-  structuredFilters: StructuredFilter[],
-  access: KnowledgeAccessScope
-): Promise<{ id: string }[]> {
-  const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
-  const kbScope =
-    knowledgeBaseIds.length === 1
-      ? eq(embedding.knowledgeBaseId, knowledgeBaseIds[0])
-      : inArray(embedding.knowledgeBaseId, knowledgeBaseIds)
-
-  return await db
-    .select({ id: embedding.id })
-    .from(embedding)
-    .innerJoin(document, eq(embedding.documentId, document.id))
-    .where(and(kbScope, ...getVisibilityConditions(access), ...tagFilterConditions))
-}
-
-async function executeVectorSearchOnIds(
-  embeddingIds: string[],
-  queryVector: KnowledgeQueryVector,
-  topK: number,
-  distanceThreshold: number,
-  access: KnowledgeAccessScope
-): Promise<SearchResult[]> {
-  if (embeddingIds.length === 0) {
-    return []
-  }
-
-  const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
-  const rows = await withVectorScanSettings(access, topK, (executor) =>
-    executor
-      .select(getSearchResultFields(distance.as('distance')))
-      .from(embedding)
-      .innerJoin(document, eq(embedding.documentId, document.id))
-      .where(
-        and(
-          inArray(embedding.id, embeddingIds),
-          ...getVisibilityConditions(access),
-          sql`${distance} < ${distanceThreshold}`
-        )
-      )
-      .orderBy(distance)
-      .limit(topK)
-  )
-  return rows.sort((a, b) => a.distance - b.distance)
-}
-
 export async function handleTagOnlySearch(params: SearchParams): Promise<SearchResult[]> {
   const { knowledgeBaseIds, topK, structuredFilters, access } = params
 
@@ -512,7 +451,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
-            ...getVisibilityConditions(access),
+            ...getVisibilityConditions(access, params.filters),
             ...tagFilterConditions
           )
         )
@@ -530,7 +469,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-        ...getVisibilityConditions(access),
+        ...getVisibilityConditions(access, params.filters),
         ...tagFilterConditions
       )
     )
@@ -554,7 +493,11 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
-        and(kbScope, ...getVisibilityConditions(access), sql`${distance} < ${distanceThreshold}`)
+        and(
+          kbScope,
+          ...getVisibilityConditions(access, params.filters),
+          sql`${distance} < ${distanceThreshold}`
+        )
       )
       .orderBy(distance)
       .limit(limit)
@@ -565,7 +508,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
    */
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
-    const allResults = await withVectorScanSettings(access, parallelLimit, async (executor) => {
+    const allResults = await withVectorScanSettings(async (executor) => {
       const parallelResults = await Promise.all(
         knowledgeBaseIds.map((kbId) =>
           vectorLeg(executor, eq(embedding.knowledgeBaseId, kbId), parallelLimit)
@@ -575,7 +518,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
     })
     return allResults.sort((a, b) => a.distance - b.distance).slice(0, topK)
   }
-  const rows = await withVectorScanSettings(access, topK, (executor) =>
+  const rows = await withVectorScanSettings((executor) =>
     vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
   )
   return rows.sort((a, b) => a.distance - b.distance)
@@ -589,6 +532,7 @@ export interface KeywordSearchParams {
   /** Query embedding, so keyword-only hits still carry a real cosine distance. */
   queryVector: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
+  filters?: WorkspaceSearchFilters
 }
 
 /**
@@ -631,7 +575,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
   const rankConditions = (kbScope: SQL | undefined) =>
     and(
       kbScope,
-      ...getVisibilityConditions(access),
+      ...getVisibilityConditions(access, params.filters),
       sql`${embedding.contentTsv} @@ ${tsQuery}`,
       ...tagFilterConditions
     )
@@ -673,7 +617,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     )
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
-    .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions(access)))
+    .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions(access, params.filters)))
 
   const rowById = new Map(hydrated.map((row) => [row.id, row]))
   return topIds.map((id) => rowById.get(id)).filter((row): row is SearchResult => row !== undefined)
@@ -772,19 +716,25 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
     throw new Error('Query vector and distance threshold are required for tag and vector search')
   }
 
-  const tagFilteredIds = await executeTagFilterQuery(knowledgeBaseIds, structuredFilters, access)
-
-  if (tagFilteredIds.length === 0) {
-    return []
-  }
-
-  return await executeVectorSearchOnIds(
-    tagFilteredIds.map((r) => r.id),
-    queryVector,
-    topK,
-    distanceThreshold,
-    access
+  const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
+  const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
+  const rows = await withVectorScanSettings((executor) =>
+    executor
+      .select(getSearchResultFields(distance.as('distance')))
+      .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
+      .where(
+        and(
+          inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+          ...getVisibilityConditions(access, params.filters),
+          ...tagFilterConditions,
+          sql`${distance} < ${distanceThreshold}`
+        )
+      )
+      .orderBy(distance)
+      .limit(topK)
   )
+  return rows.sort((a, b) => a.distance - b.distance)
 }
 
 /**
@@ -806,6 +756,7 @@ export interface ExecuteKnowledgeSearchParams {
   /** Required whenever `query` is present. */
   queryVector?: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
+  filters?: WorkspaceSearchFilters
 }
 
 /**
@@ -834,7 +785,13 @@ export async function executeKnowledgeSearch(
     if (!hasFilters) {
       throw new Error('A search query or tag filters are required')
     }
-    return await handleTagOnlySearch({ knowledgeBaseIds, topK, structuredFilters, access })
+    return await handleTagOnlySearch({
+      knowledgeBaseIds,
+      topK,
+      structuredFilters,
+      access,
+      filters: params.filters,
+    })
   }
 
   if (!queryVector) {
@@ -857,6 +814,7 @@ export async function executeKnowledgeSearch(
         queryVector,
         distanceThreshold,
         access,
+        filters: params.filters,
       })
     : handleVectorOnlySearch({
         knowledgeBaseIds,
@@ -864,6 +822,7 @@ export async function executeKnowledgeSearch(
         queryVector,
         distanceThreshold,
         access,
+        filters: params.filters,
       })
 
   if (searchMode === 'vector') {
@@ -882,6 +841,7 @@ export async function executeKnowledgeSearch(
     queryVector,
     structuredFilters,
     access,
+    filters: params.filters,
   }).catch((error) => {
     logger.warn('Keyword search leg failed; falling back to vector-only results', {
       error: getErrorMessage(error, 'Unknown error'),

@@ -3,7 +3,7 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
-import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -30,9 +30,9 @@ async function resolveWorkspaceHostContextForViewer(
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
       : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
   ])
-  const [credentialGroupsAvailable, knowledgeMemberAccessAvailable] = await Promise.all([
+  const [credentialGroupsAvailable, knowledgeAccess] = await Promise.all([
     isCredentialGroupsAvailable({ workspaceId, ownerBilling }),
-    isKnowledgeMemberAccessAvailable({ workspaceId, ownerBilling }),
+    resolveKnowledgeAccessAvailability({ workspaceId, ownerBilling }),
   ])
 
   return {
@@ -53,7 +53,8 @@ async function resolveWorkspaceHostContextForViewer(
     },
     features: {
       credentialGroups: credentialGroupsAvailable,
-      knowledgeMemberAccess: knowledgeMemberAccessAvailable,
+      knowledgeMemberAccess: knowledgeAccess.memberScoped,
+      knowledgeSourceMirroredAccess: knowledgeAccess.sourceMirrored,
     },
     deployment: resolveDeploymentShape(),
   }

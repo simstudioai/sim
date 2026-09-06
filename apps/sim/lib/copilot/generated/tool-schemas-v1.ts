@@ -4686,6 +4686,33 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  read_document: {
+    parameters: {
+      properties: {
+        documentId: {
+          description: 'Canonical document ID returned by search or the selected document context.',
+          type: 'string',
+        },
+        limit: {
+          default: 20,
+          description: 'Maximum number of chunks to read.',
+          maximum: 50,
+          minimum: 1,
+          type: 'integer',
+        },
+        offset: {
+          default: 0,
+          description: 'Number of chunks to skip.',
+          maximum: 5000,
+          minimum: 0,
+          type: 'integer',
+        },
+      },
+      required: ['documentId'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   redeploy: {
     parameters: {
       type: 'object',
@@ -5456,6 +5483,49 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['library_name', 'query'],
+    },
+    resultSchema: undefined,
+  },
+  search_workspace: {
+    parameters: {
+      properties: {
+        documentIds: {
+          description:
+            'Optional document IDs returned by search or selected by the user; narrows retrieval to these documents.',
+          items: {
+            type: 'string',
+          },
+          maxItems: 20,
+          minItems: 1,
+          type: 'array',
+        },
+        modifiedAfter: {
+          description:
+            'Optional ISO datetime; restrict results to documents modified after this time.',
+          format: 'date-time',
+          type: 'string',
+        },
+        query: {
+          description: 'Search query describing the information needed.',
+          maxLength: 2000,
+          minLength: 1,
+          type: 'string',
+        },
+        source: {
+          description:
+            'Optional connector type or upload source; can narrow the selected search scope.',
+          type: 'string',
+        },
+        topK: {
+          default: 20,
+          description: 'Maximum number of matching chunks to return.',
+          maximum: 50,
+          minimum: 1,
+          type: 'integer',
+        },
+      },
+      required: ['query'],
+      type: 'object',
     },
     resultSchema: undefined,
   },

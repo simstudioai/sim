@@ -1,7 +1,14 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
+import {
+  ATLASSIAN_PRODUCTS,
+  getServiceAccountRequiredFields,
+} from '@/lib/credentials/service-account-fields'
 import type { OAuthProvider } from '@/lib/oauth/types'
+
+export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
+export type AtlassianProduct = z.output<typeof atlassianProductSchema>
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -16,12 +23,14 @@ export const workspaceCredentialTypeSchema = z.enum([
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 const creatableWorkspaceCredentialTypeSchema = z.enum([
   'oauth',
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 export const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
 export const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
@@ -37,6 +46,7 @@ export const workspaceCredentialSchema = z.object({
   accountId: z.string().nullable(),
   envKey: z.string().nullable(),
   envOwnerUserId: z.string().nullable(),
+  instanceUrl: z.string().url().optional(),
   createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -136,6 +146,7 @@ export const createCredentialBodySchema = z
     serviceAccountJson: z.string().optional(),
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    atlassianProduct: atlassianProductSchema.optional(),
     /**
      * Client-supplied credential id, honored only for `slack-custom-bot` creates:
      * the setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}`
@@ -188,6 +199,28 @@ export const createCredentialBodySchema = z
       return
     }
 
+    if (data.type === 'personal_token') {
+      if (data.providerId !== 'gitlab')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Personal tokens are supported for GitLab',
+          path: ['providerId'],
+        })
+      if (!data.apiToken || data.apiToken.length > 4096)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a GitLab personal access token',
+          path: ['apiToken'],
+        })
+      if (data.domain && data.domain.length > 255)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'GitLab host is too long',
+          path: ['domain'],
+        })
+      return
+    }
+
     if (data.type === 'service_account') {
       for (const field of getServiceAccountRequiredFields(data.providerId)) {
         if (!data[field]) {
@@ -233,6 +266,7 @@ export const updateCredentialByIdBodySchema = z
     /** Atlassian service-account secret rotation (reconnect). */
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    atlassianProduct: atlassianProductSchema.optional(),
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
@@ -254,6 +288,7 @@ export const updateCredentialByIdBodySchema = z
       data.botToken !== undefined ||
       data.apiToken !== undefined ||
       data.domain !== undefined ||
+      data.atlassianProduct !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
       data.certificateId !== undefined ||
@@ -552,5 +587,42 @@ export const leaveCredentialMembershipContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true) }),
+  },
+})
+
+export const personalCredentialSchema = z.object({
+  id: z.string().min(1).max(255),
+  providerId: z.string().min(1).max(100),
+  displayName: z.string(),
+  type: z.enum(['oauth', 'managed_oauth', 'personal_token']),
+  updatedAt: z.string().datetime(),
+  connectedAt: z.string().datetime(),
+  instanceUrl: z.string().url().optional(),
+})
+export type PersonalCredential = z.output<typeof personalCredentialSchema>
+
+export const listPersonalCredentialsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/credentials/personal',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: { mode: 'json', schema: z.object({ credentials: z.array(personalCredentialSchema) }) },
+})
+
+export const startPersonalCredentialConnectionBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  providerId: z.string().trim().min(1, 'Provider is required').max(100),
+  credentialId: z.string().min(1, 'Credential ID must not be empty').max(255).optional(),
+})
+export type StartPersonalCredentialConnectionBody = z.input<
+  typeof startPersonalCredentialConnectionBodySchema
+>
+
+export const startPersonalCredentialConnectionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credentials/personal/connect',
+  body: startPersonalCredentialConnectionBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ url: z.string().url(), providerId: z.string().min(1).max(100) }),
   },
 })

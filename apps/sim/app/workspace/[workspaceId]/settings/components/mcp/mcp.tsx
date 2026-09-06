@@ -36,7 +36,6 @@ import {
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
-import { useCredentialGroups } from '@/hooks/queries/credential-groups'
 import {
   type McpServer,
   type McpTool,
@@ -77,7 +76,6 @@ interface ServerListItemProps {
   isLoadingTools?: boolean
   isRefreshing?: boolean
   discoveryError?: string | null
-  ownerName?: string
   onViewDetails: () => void
   onAuthorize: () => void
 }
@@ -90,7 +88,6 @@ function ServerListItem({
   isLoadingTools = false,
   isRefreshing = false,
   discoveryError = null,
-  ownerName,
   onViewDetails,
   onAuthorize,
 }: ServerListItemProps) {
@@ -121,7 +118,7 @@ function ServerListItem({
   // Transport rides on the description rather than beside the name — inside the
   // row's truncating title a long name would clip it away entirely.
   const statusText = server.managedConnectorId
-    ? `Managed by ${ownerName ?? 'a Credential Group'}`
+    ? 'Managed by Connected accounts'
     : isConnecting
       ? 'Waiting for authorization...'
       : isRefreshing
@@ -206,9 +203,6 @@ export function MCP() {
     isLoading: serversLoading,
     error: serversError,
   } = useMcpServers(workspaceId)
-  const credentialGroups = useCredentialGroups(
-    workspacePermissions.canAdmin ? workspaceId : undefined
-  )
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId, {
     enabled: selectedServerId !== null,
@@ -290,9 +284,6 @@ export function MCP() {
 
   const filteredServers = (servers || []).filter((server) =>
     server.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-  const credentialGroupNameById = new Map(
-    credentialGroups.data?.credentialGroups.map((group) => [group.id, group.name] as const) ?? []
   )
 
   const handleViewDetails = (serverId: string) => {
@@ -493,11 +484,7 @@ export function MCP() {
             )}
 
             {server.managedConnectorId && (
-              <SettingsField label='Managed by'>
-                {server.credentialGroupId
-                  ? (credentialGroupNameById.get(server.credentialGroupId) ?? 'Credential Group')
-                  : 'Credential Group'}
-              </SettingsField>
+              <SettingsField label='Managed by'>Connected accounts</SettingsField>
             )}
 
             {server.connectionStatus !== 'connected' && (
@@ -731,11 +718,6 @@ export function MCP() {
                   key={server.id}
                   canManage={canEdit}
                   server={server}
-                  ownerName={
-                    server.credentialGroupId
-                      ? credentialGroupNameById.get(server.credentialGroupId)
-                      : undefined
-                  }
                   tools={tools}
                   isConnecting={connectingOauthServers.has(server.id)}
                   isLoadingTools={isLoadingTools}

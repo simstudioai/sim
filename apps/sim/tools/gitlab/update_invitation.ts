@@ -10,6 +10,7 @@ export const gitlabUpdateInvitationTool: ToolConfig<
   GitLabUpdateInvitationResponse
 > = {
   id: 'gitlab_update_invitation',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Update Invitation',
   description: 'Update a pending invitation to a GitLab project or group',
   version: '1.0.0',

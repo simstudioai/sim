@@ -1,20 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Button, Chip, OverflowText } from '@sim/emcn'
-import { FileText } from '@sim/emcn/icons'
-import { formatDate } from '@sim/utils/formatting'
+import { Chip } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
-import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
+import type {
+  WorkspaceKnowledgeSearchResult,
+  WorkspaceSearchFilters,
+} from '@/lib/api/contracts/knowledge'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import { searchedKnowledgeBases } from '@/lib/sim-search/knowledge-bases'
-import {
-  highlightTerms,
-  SOURCE_ROW_CLASSES,
-  SOURCE_ROW_MARK_CLASSES,
-  SourceCard,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
+import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import {
   isHttpUrl,
   type SourceTagData,
@@ -78,14 +74,18 @@ export function indexingSourceNames(
 
 /**
  * A result as the source card renders it: the row's second line names the
- * source app, or the knowledge base for an upload. A document without an
- * http(s) source URL cannot be opened, and a connector-supplied value of any
- * other scheme is never handed to the browser as a link.
+ * source app, or the knowledge base for an upload. Without an HTTP(S) source
+ * URL, the link opens the canonical document in Sim.
  */
-function toSource(result: WorkspaceKnowledgeSearchResult, query: string): SourceTagData | null {
-  if (!isHttpUrl(result.sourceUrl)) return null
+function toSource(
+  result: WorkspaceKnowledgeSearchResult,
+  query: string,
+  workspaceId: string
+): SourceTagData {
   return {
-    url: result.sourceUrl,
+    url: isHttpUrl(result.sourceUrl)
+      ? result.sourceUrl
+      : `${getBaseUrl()}/workspace/${encodeURIComponent(workspaceId)}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`,
     title: result.documentName ?? undefined,
     siteName: result.connectorType
       ? connectorDisplayName(result.connectorType)
@@ -113,53 +113,16 @@ function handleResultsKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
   links[next].focus()
 }
 
-interface UnlinkedResultRowProps {
-  result: WorkspaceKnowledgeSearchResult
-  query: string
-}
-
-/**
- * A document with nowhere to open, such as an upload: the same row as a
- * linked result, with the file mark in place of a brand mark, so the list's
- * columns and the matched passage stay aligned whatever the document is.
- */
-function UnlinkedResultRow({ result, query }: UnlinkedResultRowProps) {
-  const meta = [
-    result.knowledgeBaseName,
-    result.author,
-    result.sourceModifiedAt ? formatDate(new Date(result.sourceModifiedAt)) : null,
-  ].filter((part): part is string => Boolean(part))
-  return (
-    <div className={SOURCE_ROW_CLASSES}>
-      <span className={SOURCE_ROW_MARK_CLASSES}>
-        <FileText className='size-[16px] text-[var(--text-icon)]' />
-      </span>
-      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <OverflowText
-          label={result.documentName ?? 'Untitled document'}
-          className='text-[var(--text-primary)] text-sm'
-        />
-        <OverflowText label={meta.join(' · ')} className='text-[var(--text-muted)] text-caption' />
-        <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
-          {highlightTerms(matchSnippet(result.content, query), query)}
-        </p>
-      </div>
-    </div>
-  )
-}
-
 interface KnowledgeSearchResultsProps {
   workspaceId: string
   query: string
-  /** Asks the agent about one document; the prompt names it and links to it. */
-  onSummarize: (prompt: string) => void
-  /** Asks the agent the query itself, for a prose answer with citations. */
-  onAnswer: (query: string) => void
+  /** Binds the Assistant turn to the selected canonical document. */
+  onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
 }
 
 /**
  * The composer's Search mode: the documents the signed-in person may read that
- * match their query, across every knowledge base in the workspace, as rows
+ * match their query in the canonical Enterprise Search index, as rows
  * that open the source. A header says how many and that the search ran as
  * them; while a connected source is still indexing it says so, and the list
  * grows as documents land. Filters by source and recency appear only once the
@@ -170,21 +133,32 @@ export function KnowledgeSearchResults({
   workspaceId,
   query,
   onSummarize,
-  onAnswer,
 }: KnowledgeSearchResultsProps) {
   const {
     data: knowledgeBases = [],
     isPending: basesPending,
     error: basesError,
   } = useKnowledgeBasesQuery(workspaceId)
-  const knowledgeBaseIds = searchedKnowledgeBases(knowledgeBases, workspaceId).map((kb) => kb.id)
+  const index = knowledgeBases.find(
+    (base) => base.workspaceId === workspaceId && base.isSearchIndex
+  )
+  const knowledgeBaseIds = index ? [index.id] : []
+  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const searchFilters = useMemo<WorkspaceSearchFilters>(() => {
+    const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
+    return {
+      ...(filters.source ? { source: filters.source } : {}),
+      ...(window?.days
+        ? { modifiedAfter: new Date(Date.now() - window.days * DAY_MS).toISOString() }
+        : {}),
+    }
+  }, [filters.source, filters.updated])
   const {
     data: results,
     isPending,
     isFetching,
-    isPlaceholderData,
     error,
-  } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
+  } = useWorkspaceKnowledgeSearch(workspaceId, query, searchFilters)
   /**
    * With per-member access off, member-scoped documents are hidden, so the
    * indexing list is not worth asking for.
@@ -199,28 +173,16 @@ export function KnowledgeSearchResults({
     : EMPTY_MEMBER_CONNECTORS
   const indexing = indexingSourceNames(memberConnectors, knowledgeBaseIds)
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
-  const sourceTypes = useMemo(
-    () => [...new Set(documents.map((result) => result.connectorType ?? UPLOAD_SOURCE))],
-    [documents]
-  )
-  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const sourceTypes = [
+    ...new Set([
+      ...(filters.source ? [filters.source] : []),
+      ...documents.map((result) => result.connectorType ?? UPLOAD_SOURCE),
+    ]),
+  ]
   const filtersActive = filters.source !== null || filters.updated !== 'any'
   /** The controls appear once the list is long and mixed, and stay while a filter from the link is active. */
   const showFilters =
     filtersActive || (documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1)
-  const visible = useMemo(() => {
-    if (!filtersActive) return documents
-    const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
-    const cutoff = window?.days ? Date.now() - window.days * DAY_MS : null
-    return documents.filter((result) => {
-      if (filters.source && (result.connectorType ?? UPLOAD_SOURCE) !== filters.source) return false
-      if (cutoff !== null) {
-        const modified = result.sourceModifiedAt ? Date.parse(result.sourceModifiedAt) : Number.NaN
-        if (Number.isNaN(modified) || modified < cutoff) return false
-      }
-      return true
-    })
-  }, [documents, filtersActive, filters.source, filters.updated])
 
   const failure = basesError ?? error
   if (failure) {
@@ -233,8 +195,7 @@ export function KnowledgeSearchResults({
       </p>
     )
   }
-  /** Kept results belong to the previous query; a new query shows its own state. */
-  if (isPending || isPlaceholderData || (isFetching && !results)) {
+  if (isPending || (isFetching && !results)) {
     return <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
   }
 
@@ -253,9 +214,6 @@ export function KnowledgeSearchResults({
           {' · searched as you'}
           {indexingNote && <span className='block'>{indexingNote}</span>}
         </span>
-        <Button variant='ghost' size='sm' onClick={() => onAnswer(query)}>
-          Answer with Sim
-        </Button>
       </div>
       {showFilters && (
         <div className='flex flex-wrap items-center gap-1.5 px-2 pb-2'>
@@ -289,27 +247,28 @@ export function KnowledgeSearchResults({
           ))}
         </div>
       )}
-      {visible.length === 0 ? (
+      {documents.length === 0 ? (
         <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-          {documents.length === 0
-            ? `No documents you can read match “${query}”.`
-            : 'No documents match these filters.'}
+          {filtersActive
+            ? 'No documents match these filters.'
+            : `No documents you can read match “${query}”.`}
         </p>
       ) : (
         <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
-          {visible.map((result) => {
-            const source = toSource(result, query)
-            return source ? (
+          {documents.map((result) => {
+            const source = toSource(result, query, workspaceId)
+            return (
               <SourceCard
                 key={result.documentId}
                 source={source}
                 query={query}
                 onSummarize={(cited) =>
-                  onSummarize(`Summarize "${cited.title ?? cited.url}" (${cited.url})`)
+                  onSummarize(`Summarize "${cited.title ?? cited.url}"`, {
+                    ...searchFilters,
+                    documentIds: [result.documentId],
+                  })
                 }
               />
-            ) : (
-              <UnlinkedResultRow key={result.documentId} result={result} query={query} />
             )
           })}
         </div>

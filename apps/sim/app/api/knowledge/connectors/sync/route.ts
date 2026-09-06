@@ -8,6 +8,7 @@ import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attr
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CONTENT_ENGINE_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import { dispatchSync } from '@/lib/knowledge/connectors/queue'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
@@ -16,6 +17,7 @@ import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
+import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 
 export const dynamic = 'force-dynamic'
 
@@ -303,8 +305,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
       .where(
         and(
-          inArray(knowledgeConnector.status, ['active', 'error']),
-          eq(knowledgeConnector.accessMode, 'workspace'),
+          inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
+          inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
           lte(knowledgeConnector.nextSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),

@@ -518,11 +518,11 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Credential groups',
+    label: 'Connected accounts',
     icon: GridOffset,
     unified: {
       id: 'credential-groups',
-      description: 'Collect and manage OAuth credentials for people outside this workspace.',
+      description: 'Manage the accounts people connect for Search and workflows.',
       group: 'workspace',
       order: 9,
       requiresEnterprise: true,

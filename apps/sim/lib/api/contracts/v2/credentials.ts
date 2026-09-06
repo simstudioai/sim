@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  atlassianProductSchema,
   quickBooksOAuthClientConfigSchema,
   workspaceCredentialRoleSchema,
 } from '@/lib/api/contracts/credentials'
@@ -230,6 +231,7 @@ export const v2ListCredentialProvidersContract = defineRouteContract({
 })
 
 export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
+  'github-repositories',
   'google-email',
   'google-drive',
   'google-docs',
@@ -413,6 +415,11 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only provider API token.')
       .meta({ writeOnly: true }),
     domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+    atlassianProduct: atlassianProductSchema
+      .optional()
+      .describe(
+        'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.'
+      ),
     signingSecret: z
       .string()
       .trim()
@@ -662,6 +669,11 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only provider API token.')
     .meta({ writeOnly: true }),
   domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+  atlassianProduct: atlassianProductSchema
+    .optional()
+    .describe(
+      'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.'
+    ),
   signingSecret: z
     .string()
     .trim()

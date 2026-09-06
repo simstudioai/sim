@@ -17,6 +17,7 @@ export const POST = defineInternalJsonRoute({
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     connectorType: body.connectorType,
+    connectorId: body.connectorId,
     sourceConfig: body.sourceConfig,
   }),
   useCase: connectSimSearchConnector,

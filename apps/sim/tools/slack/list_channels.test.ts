@@ -17,27 +17,16 @@ function requestUrl(params: SlackListChannelsParams): URL {
 }
 
 describe('Slack list channels', () => {
-  it('includes direct and group DMs only for credential-group OAuth users', () => {
-    expect(requestUrl(BASE_PARAMS).searchParams.get('types')).toBe('public_channel,private_channel')
-    expect(requestUrl({ ...BASE_PARAMS, credentialType: 'oauth' }).searchParams.get('types')).toBe(
-      'public_channel,private_channel'
-    )
-    expect(
-      requestUrl({ ...BASE_PARAMS, credentialType: 'service_account' }).searchParams.get('types')
-    ).toBe('public_channel,private_channel')
-    expect(
-      requestUrl({ ...BASE_PARAMS, credentialType: 'managed_oauth' }).searchParams.get('types')
-    ).toBe('public_channel,private_channel,im,mpim')
-  })
-
-  it('keeps the private-channel toggle independent from managed DM access', () => {
-    const url = requestUrl({
-      ...BASE_PARAMS,
-      credentialType: 'managed_oauth',
-      includePrivate: false,
-    })
-    expect(url.searchParams.get('types')).toBe('public_channel,im,mpim')
-  })
+  it.each([undefined, 'oauth', 'managed_oauth', 'service_account'])(
+    'does not request DM scopes based on credential storage type %s',
+    (credentialType) => {
+      const params = { ...BASE_PARAMS, credentialType }
+      expect(requestUrl(params).searchParams.get('types')).toBe('public_channel,private_channel')
+      expect(requestUrl({ ...params, includePrivate: false }).searchParams.get('types')).toBe(
+        'public_channel'
+      )
+    }
+  )
 
   it('rejects invalid limits and empty cursors before the provider request', () => {
     expect(() => requestUrl({ ...BASE_PARAMS, limit: 0 })).toThrow(

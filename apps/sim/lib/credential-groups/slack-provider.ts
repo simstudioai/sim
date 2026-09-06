@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { credentialGroup } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
+import { and, eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type {
   CredentialGroupProviderAdapter,
@@ -12,6 +15,7 @@ import {
 import { getSlackCredentialGroupConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import {
+  resolveSlackManagedUserScopes,
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
   SLACK_MANAGED_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
@@ -29,6 +33,7 @@ async function getSlackPolicy(params: {
   workspaceId: string
   credentialGroupId: string
   slackBotCredentialId?: string
+  requiredScopes?: readonly string[]
   executor?: DbOrTx
 }): Promise<
   CredentialGroupProviderPolicy & {
@@ -68,7 +73,7 @@ async function getSlackPolicy(params: {
     )
   }
   const service = getCredentialGroupProviderService(PROVIDER)
-  const requiredScopes = [...SLACK_MANAGED_USER_SCOPES]
+  const requiredScopes = resolveSlackManagedUserScopes(params.requiredScopes)
   const scopeVersion = credentialGroupScopePolicyVersion(requiredScopes)
   if (!requiredScopes.every((scope) => managed.scopes.includes(scope))) {
     throw new CredentialGroupProviderConfigurationError(
@@ -111,10 +116,35 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
     if (!context.credentialGroupId) {
       throw new CredentialGroupProviderConfigurationError('Credential Group context is required')
     }
+    if (!option) {
+      const [group] = await (context.executor ?? db)
+        .select({ options: credentialGroup.options })
+        .from(credentialGroup)
+        .where(
+          and(
+            eq(credentialGroup.id, context.credentialGroupId),
+            eq(credentialGroup.workspaceId, context.workspaceId),
+            eq(credentialGroup.status, 'active')
+          )
+        )
+        .limit(1)
+      option = group?.options.find(
+        (candidate) =>
+          candidate.id === context.credentialGroupOptionId &&
+          candidate.provider === PROVIDER &&
+          candidate.status === 'active'
+      )
+      if (!option) {
+        throw new CredentialGroupProviderConfigurationError(
+          'The managed Slack credential option is unavailable'
+        )
+      }
+    }
     const slackBotCredentialId = option?.slackBotCredentialId
     return getSlackPolicy({
       workspaceId: context.workspaceId,
       credentialGroupId: context.credentialGroupId,
+      requiredScopes: option?.requiredScopes,
       ...(slackBotCredentialId ? { slackBotCredentialId } : {}),
       ...(context.executor ? { executor: context.executor } : {}),
     })
@@ -124,6 +154,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
       workspaceId: context.workspaceId,
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
+      requiredScopes: context.option.requiredScopes,
     })
     if (currentPolicy.authorizationAppId !== policy.authorizationAppId) {
       throw new CredentialGroupOAuthError(
@@ -150,6 +181,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
       workspaceId: context.workspaceId,
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
+      requiredScopes: context.option.requiredScopes,
     })
     const redirectUri = `${getBaseUrl()}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`
     if (

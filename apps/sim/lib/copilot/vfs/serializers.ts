@@ -1696,7 +1696,7 @@ export function buildOrganizationReadme(input: {
   }>
   forksMounted: boolean
   permissionGroupsMounted: boolean
-  credentialGroupsMounted: boolean
+  connectedAccountsMounted: boolean
 }): string {
   const lines: string[] = [
     '# Organization',
@@ -1716,9 +1716,9 @@ export function buildOrganizationReadme(input: {
       '- `permission-groups.json` — the admin roster: every group with member count, targeted workspaces, and active restrictions.'
     )
   }
-  if (input.credentialGroupsMounted) {
+  if (input.connectedAccountsMounted) {
     lines.push(
-      '- `credential-groups.json` — managed credential groups: per-provider configuration readiness and enrollment progress. Consumed in workflows via the credential_group block.'
+      '- `connected-accounts.json` — the workspace’s account configuration and provider readiness (workspace admins only). Use the Connected Accounts block in workflows.'
     )
   }
   if (input.forksMounted) {
@@ -1807,51 +1807,28 @@ export function serializePermissionGroupRoster(
   )
 }
 
-/**
- * `organization/credential-groups.json` — managed credential groups with the
- * two facts that decide whether a workflow using them will actually run:
- * per-option configuration readiness and enrollment progress. Enrollee emails
- * are the same privilege as the settings page, so they appear for workspace
- * admins only.
- */
-export function serializeCredentialGroups(
-  groups: Array<{
-    id: string
-    name: string
-    description: string | null
+/** Serializes the singleton account configuration, excluding credentials and enrollee data. */
+export function serializeConnectedAccounts(accounts: {
+  status: 'active' | 'disabled'
+  options: Array<{
+    provider: string
+    label?: string | null
+    required?: boolean
     status: 'active' | 'disabled'
-    options: Array<{
-      provider: string
-      label?: string | null
-      required?: boolean
-      configurationStatus: string
-    }>
-    enrollmentCounts: Record<string, number>
-    enrollmentsTruncated: boolean
-    people?: Array<{ email: string; status: string }>
-  }>,
-  options: { includeEmails: boolean }
-): string {
+    configurationStatus: string
+  }>
+}): string {
   return JSON.stringify(
     {
-      credentialGroups: groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        ...(group.description ? { description: group.description } : {}),
-        status: group.status,
-        options: group.options.map((option) => ({
-          provider: option.provider,
-          ...(option.label ? { label: option.label } : {}),
-          ...(option.required !== undefined ? { required: option.required } : {}),
-          configurationStatus: option.configurationStatus,
-        })),
-        enrollments: {
-          ...group.enrollmentCounts,
-          ...(group.enrollmentsTruncated ? { countsFromFirstPageOnly: true } : {}),
-        },
-        ...(options.includeEmails && group.people ? { people: group.people } : {}),
+      status: accounts.status,
+      options: accounts.options.map((option) => ({
+        provider: option.provider,
+        ...(option.label ? { label: option.label } : {}),
+        ...(option.required !== undefined ? { required: option.required } : {}),
+        status: option.status,
+        configurationStatus: option.configurationStatus,
       })),
-      note: 'A workflow consumes a group through a credential_group block (operation list_credentials -> ForEach over the returned credentialId page). list_credentials returns only ACTIVE credentials of in_progress/completed people — an active group with zero completed enrollments yields an empty loop, not an error. An option at not_configured makes the whole group unusable. Enrollment is admin-driven from the settings UI; invite links cannot be created or read from here.',
+      note: 'Manage these accounts in Settings > Connected accounts. Workflows use the Connected Accounts block in their own workspace; no container selection is required. Search uses each person’s connected account to determine document access. Account configuration does not grant access to another person’s credentials or documents.',
     },
     null,
     2

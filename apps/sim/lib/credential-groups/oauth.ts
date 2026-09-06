@@ -101,13 +101,16 @@ const logger = createLogger('CredentialGroupOAuth')
 /** Builds a provider authorization URL after persisting a provider-bound one-time attempt. */
 export async function startCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
-  invitationToken: string
+  invitationToken: string,
+  options: { completionRedirect?: boolean; returnTo?: 'search' } = {}
 ): Promise<string> {
   const adapter = getOptionAdapter(context)
   const policy = await assertCurrentPolicy(context, adapter)
   const prepared = await adapter.prepareAuthorization(context, policy)
   const { state, nonce } = await createCredentialGroupOAuthAttempt({
     provider: policy.provider,
+    workspaceId: context.workspaceId,
+    email: context.email,
     enrollmentId: context.enrollmentId,
     credentialGroupId: context.credentialGroupId,
     optionId: context.option.id,
@@ -116,6 +119,8 @@ export async function startCredentialGroupOAuth(
     requiredScopes: policy.requiredScopes,
     redirectUri: prepared.redirectUri,
     codeVerifier: prepared.codeVerifier,
+    completionRedirect: options.completionRedirect,
+    returnTo: options.returnTo,
     invitationToken,
   })
   return await prepared.buildAuthorizationUrl({ state, nonce })
@@ -137,11 +142,20 @@ async function persistGrant(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
     )
     const [enrollment] = await tx
-      .select({ status: credentialGroupEnrollment.status })
+      .select({
+        status: credentialGroupEnrollment.status,
+        revokedAt: credentialGroupEnrollment.revokedAt,
+      })
       .from(credentialGroupEnrollment)
-      .where(eq(credentialGroupEnrollment.id, context.enrollmentId))
+      .where(
+        and(
+          eq(credentialGroupEnrollment.id, context.enrollmentId),
+          eq(credentialGroupEnrollment.credentialGroupId, context.credentialGroupId),
+          eq(credentialGroupEnrollment.email, context.email)
+        )
+      )
       .limit(1)
-    if (!enrollment || enrollment.status === 'revoked') {
+    if (!enrollment || enrollment.status === 'revoked' || enrollment.revokedAt) {
       throw new CredentialGroupInvitationUnavailableError()
     }
 
@@ -327,6 +341,8 @@ export async function completeCredentialGroupOAuth(
   code: string
 ): Promise<CredentialGroupOAuthCompletion> {
   if (
+    attempt.workspaceId !== context.workspaceId ||
+    attempt.email !== context.email ||
     attempt.enrollmentId !== context.enrollmentId ||
     attempt.credentialGroupId !== context.credentialGroupId ||
     attempt.optionId !== context.option.id ||

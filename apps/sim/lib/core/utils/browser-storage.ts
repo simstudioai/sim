@@ -1,3 +1,7 @@
+import {
+  type WorkspaceSearchFilters,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
@@ -322,6 +326,7 @@ export interface MothershipHandoff {
   resumeUserMessageId?: string
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 interface StoredHandoff extends MothershipHandoff {
@@ -371,6 +376,7 @@ export class MothershipHandoffStorage {
       ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       workspaceId,
       timestamp: Date.now(),
     })
@@ -427,10 +433,14 @@ export class MothershipHandoffStorage {
       return null
     }
 
+    const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
+    if (!assistantSearch.success) return null
+
     return {
       ...(data.message ? { message: data.message } : {}),
       contexts,
-      ...(data.requestMode === 'ask' ? { requestMode: 'ask' as const } : {}),
+      ...(data.requestMode === 'assistant' ? { requestMode: 'assistant' as const } : {}),
+      ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),

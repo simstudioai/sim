@@ -9,7 +9,7 @@ import { mcpOauthCallbackContract } from '@/lib/api/contracts/mcp'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupMcpOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import {
   consumeCredentialGroupMcpOAuthAttempt,
@@ -97,12 +97,7 @@ async function completeManagedMcpCallback(params: {
     })
   }
   try {
-    const principal = await authenticateCredentialGroupEnrollment(attempt.invitationToken)
-    if (!principal) {
-      return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-        oauth: 'unavailable',
-      })
-    }
+    const principal = credentialGroupOAuthAttemptPrincipal(attempt)
     const result = await completePublicCredentialGroupMcpOAuth.execute({
       principal,
       input: { attempt, code: params.code },

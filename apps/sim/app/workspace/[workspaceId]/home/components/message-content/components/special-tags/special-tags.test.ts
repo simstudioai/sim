@@ -54,6 +54,17 @@ describe('parseCredentialTagBody', () => {
     expect(parseCredentialTagBody(JSON.stringify(secret))).toEqual([secret])
   })
 
+  it('parses provider-only Assistant connection tags while Build still requires a URL', () => {
+    const data: CredentialItemData[] = [{ type: 'link', provider: 'slack' }]
+    expect(
+      parseLastCredentialTag('<credential>{"type":"link","provider":"slack"}</credential>')
+    ).toEqual(data)
+    expect(credentialTagHasVisibleCard(data, true, 'assistant')).toBe(true)
+    expect(credentialTagHasVisibleCard(data, true, 'agent')).toBe(false)
+    expect(parseCredentialTagBody('{"type":"link","provider":" "}')).toBeNull()
+    expect(parseCredentialTagBody('{"type":"link","provider":"slack","value":123}')).toBeNull()
+  })
+
   it('preserves a mixed credential-input batch in one tag', () => {
     expect(parseCredentialTagBody(JSON.stringify([secret, oauth]))).toEqual([secret, oauth])
   })
@@ -122,6 +133,28 @@ describe('parseCredentialTagBody', () => {
     expect(credentialTagHasVisibleCard([oauth], false)).toBe(false)
     expect(credentialTagHasVisibleCard([oauth], true)).toBe(true)
   })
+
+  it('offers personal integration connections to Assistant readers without trusting a model URL', () => {
+    expect(
+      credentialTagHasVisibleCard([{ type: 'link', provider: 'slack' }], false, 'assistant')
+    ).toBe(true)
+    expect(
+      credentialTagHasVisibleCard([{ type: 'link', provider: 'gitlab' }], false, 'assistant')
+    ).toBe(false)
+  })
+
+  it.each(['secret_input', 'service_account', 'sim_key'] as const)(
+    'hides %s setup in Assistant even for a workspace editor',
+    (type) => {
+      expect(
+        credentialTagHasVisibleCard(
+          [{ type, name: 'Secret', provider: 'slack' }],
+          true,
+          'assistant'
+        )
+      ).toBe(false)
+    }
+  )
 })
 
 /**

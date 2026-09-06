@@ -24,6 +24,38 @@ describe('MothershipHandoffStorage', () => {
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts })
   })
 
+  it('retains the selected document and filters when Search hands off to Assistant', () => {
+    const assistantSearch = {
+      source: 'slack',
+      modifiedAfter: '2026-09-01T00:00:00.000Z',
+      documentIds: ['selected-doc'],
+    }
+    MothershipHandoffStorage.store(
+      { message: 'Summarize this', requestMode: 'assistant', assistantSearch },
+      WS
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toEqual({
+      message: 'Summarize this',
+      contexts: [],
+      requestMode: 'assistant',
+      assistantSearch,
+    })
+  })
+
+  it('discards a corrupted scope instead of silently widening the Assistant request', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({
+        message: 'Summarize this',
+        workspaceId: WS,
+        timestamp: Date.now(),
+        requestMode: 'assistant',
+        assistantSearch: { documentIds: [] },
+      })
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toBeNull()
+  })
+
   it('is one-shot — a second consume returns null', () => {
     MothershipHandoffStorage.store({ message: 'fix it' }, WS)
 

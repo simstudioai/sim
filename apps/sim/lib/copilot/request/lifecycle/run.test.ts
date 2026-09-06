@@ -213,6 +213,33 @@ describe('runCopilotLifecycle', () => {
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 
+  it('pins Assistant mode and Search scope over a supplied execution context', async () => {
+    let captured: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+      captured = context
+    })
+    const scope = { source: 'slack', documentIds: ['doc-1'] }
+    await runCopilotLifecycle(
+      { message: 'Summarize', mode: 'assistant', assistantSearch: scope },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          workflowId: '',
+          requestMode: 'agent',
+          secretActorUserId: 'billing-owner',
+        },
+      }
+    )
+    expect(captured).toMatchObject({
+      requestMode: 'assistant',
+      assistantSearch: scope,
+      secretActorUserId: null,
+    })
+  })
+
   it.each([
     { interactive: true, expected: 'interactive' as const },
     { interactive: false, expected: 'headless' as const },
@@ -356,7 +383,9 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1', {
+      includeSecrets: true,
+    })
     expect(JSON.parse(capturedRequestBody)).toMatchObject({
       message: 'Use runtime-secret',
     })

@@ -22,6 +22,7 @@ import {
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
@@ -818,6 +819,7 @@ interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
   messageId?: string
+  requestMode?: 'agent' | 'assistant'
   isStreaming: boolean
   /**
    * True for the last message in the transcript. The last turn keeps a
@@ -848,6 +850,7 @@ function MessageContentInner({
   blocks,
   fallbackContent,
   messageId,
+  requestMode,
   isStreaming = false,
   isLast = false,
   questionAnswers,
@@ -860,9 +863,13 @@ function MessageContentInner({
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const cited = useMemo(
+    () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),
+    [blocks, fallbackContent, requestMode]
+  )
   const parsed = useMemo(
-    () => (blocks.length > 0 ? parseBlocks(blocks) : []),
-    [blocks, blockOverlayVersion]
+    () => (cited.blocks.length > 0 ? parseBlocks(cited.blocks) : []),
+    [cited.blocks, blockOverlayVersion]
   )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
@@ -883,10 +890,10 @@ function MessageContentInner({
     () =>
       parsed.length > 0
         ? parsed
-        : fallbackContent?.trim()
-          ? [{ type: 'text', id: 'text-fallback', content: fallbackContent }]
+        : cited.fallbackContent?.trim()
+          ? [{ type: 'text', id: 'text-fallback', content: cited.fallbackContent }]
           : [],
-    [parsed, fallbackContent]
+    [parsed, cited.fallbackContent]
   )
   /**
    * Collected from the segments that render, not the raw blocks: that is the
@@ -976,6 +983,7 @@ function MessageContentInner({
                   key={segment.id}
                   content={segment.content}
                   messageId={messageId}
+                  requestMode={requestMode}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,
                     segmentIndex: i,

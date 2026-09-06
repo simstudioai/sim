@@ -457,6 +457,11 @@ export const env = createEnv({
     KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
     KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Concurrent document-processing task runs (Trigger.dev queue depth)
     KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    /** Deployment operating budgets shared by every caller using the same provider credential. */
+    KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
+    KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
+    KB_CONFIG_OCR_REQUESTS_PER_MINUTE:       z.number().positive().optional().default(60),
+    KB_CONFIG_RERANK_REQUESTS_PER_MINUTE:    z.number().positive().optional().default(60),
     KB_CONFIG_DOCUMENT_CONCURRENCY:        z.number().optional().default(4),       // Concurrent documents in the in-process (non-Trigger) path
     KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(2000),    // Chunks to process per embedding batch
     KB_CONFIG_DOCUMENT_BATCH_SIZE:         z.number().optional().default(10),      // Documents per batch in the in-process (non-Trigger) path
@@ -479,6 +484,8 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET:                  z.string().optional(),                  // Google OAuth client secret
     GITHUB_CLIENT_ID:                      z.string().optional(),                  // GitHub OAuth client ID for GitHub integration
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
+    GITHUB_APP_CLIENT_ID: z.string().optional(),
+    GITHUB_APP_CLIENT_SECRET: z.string().optional(),
     DISABLE_GOOGLE_AUTH:                   z.boolean().optional(),                 // Disable Google OAuth login even when credentials are configured
     DISABLE_GITHUB_AUTH:                   z.boolean().optional(),                 // Disable GitHub OAuth login even when credentials are configured
     DISABLE_MICROSOFT_AUTH:               z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured

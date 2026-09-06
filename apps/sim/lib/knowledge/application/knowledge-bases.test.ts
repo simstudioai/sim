@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
   resolveArchivedKnowledgeBase: vi.fn(),
   resolvePermission: vi.fn(),
+  resolveAccess: vi.fn(),
+  attachConnectors: vi.fn(),
   resolveFolderPath: vi.fn(),
   createRecord: vi.fn(),
   updateRecord: vi.fn(),
@@ -47,6 +49,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
     )
   },
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+
+vi.mock('@/lib/knowledge/access/scope', () => ({
+  resolveKnowledgeAccessScope: mocks.resolveAccess,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -87,6 +93,7 @@ vi.mock('@/lib/knowledge/service', () => ({
   getLegacyPersonalKnowledgeBases: mocks.listLegacyPersonalRecords,
   listWorkspaceAndLegacyKnowledgeBases: mocks.listVisibleRecords,
   getWorkspaceKnowledgeBases: mocks.listRecords,
+  attachKnowledgeBaseConnectors: mocks.attachConnectors,
 }))
 
 vi.mock('@/lib/knowledge/orchestration', () => ({
@@ -141,12 +148,15 @@ const knowledgeBase = {
 describe('knowledge base application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.resolveAccess.mockResolvedValue({ kind: 'workspace', tokens: ['workspace', 'public'] })
+    mocks.attachConnectors.mockImplementation(async (kb) => kb)
     mocks.resolveWorkspace.mockResolvedValue(context)
     mocks.loadAuthorizationWorkspace.mockResolvedValue(context)
     mocks.resolveKnowledgeBase.mockResolvedValue({
       ...context,
       knowledgeBaseId: knowledgeBase.id,
       knowledgeBase,
+      access: { get: mocks.resolveAccess },
     })
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveFolderPath.mockResolvedValue({
@@ -224,7 +234,12 @@ describe('knowledge base application use cases', () => {
       undefined,
       { forUpdate: undefined }
     )
-    expect(mocks.listVisibleRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+    expect(mocks.listVisibleRecords).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'archived',
+      expect.objectContaining({ kind: 'workspace' })
+    )
     expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
   })
 
@@ -244,7 +259,12 @@ describe('knowledge base application use cases', () => {
       })
     ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
 
-    expect(mocks.listVisibleRecords).toHaveBeenCalledWith('org-admin-1', 'workspace-1', 'active')
+    expect(mocks.listVisibleRecords).toHaveBeenCalledWith(
+      'org-admin-1',
+      'workspace-1',
+      'active',
+      expect.objectContaining({ kind: 'workspace' })
+    )
   })
 
   it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {
@@ -639,6 +659,7 @@ describe('knowledge base application use cases', () => {
     })
 
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived', {
+      access: expect.objectContaining({ kind: 'workspace' }),
       folderId: undefined,
       search: 'docs',
       sortBy: 'updatedAt',

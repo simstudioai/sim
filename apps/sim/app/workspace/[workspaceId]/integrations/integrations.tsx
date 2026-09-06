@@ -164,7 +164,10 @@ export function Integrations() {
   useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   const oauthCredentials = useMemo(
-    () => credentials.filter((c) => c.type === 'oauth' || c.type === 'service_account'),
+    () =>
+      credentials.filter(
+        (c) => c.type === 'oauth' || c.type === 'service_account' || c.type === 'personal_token'
+      ),
     [credentials]
   )
 

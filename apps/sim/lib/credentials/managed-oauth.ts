@@ -153,6 +153,7 @@ async function getManagedCredential(exec: DbOrTx, credentialId: string, workspac
       refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
       credentialGroupId: credentialGroupEnrollment.credentialGroupId,
       credentialGroupEnrollmentId: credentialGroupEnrollment.id,
+      credentialGroupOptionId: credential.credentialGroupOptionId,
     })
     .from(credential)
     .innerJoin(
@@ -213,7 +214,7 @@ async function assertManagedCredentialUsable(
       401
     )
   }
-  if (!row.authorizationAppId || !row.encryptedOauthTokenSet || !row.grantedScopes?.length) {
+  if (!row.authorizationAppId || !row.encryptedOauthTokenSet || !row.grantedScopes) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_INVALID_TOKEN_SET',
       'Managed credential metadata is incomplete',
@@ -227,6 +228,7 @@ async function assertManagedCredentialUsable(
     policy = await adapter.getPolicy(undefined, {
       workspaceId: row.workspaceId,
       credentialGroupId: row.credentialGroupId,
+      credentialGroupOptionId: row.credentialGroupOptionId ?? undefined,
       authorizationAppId: row.authorizationAppId,
     })
   } catch (error) {
@@ -248,7 +250,11 @@ async function assertManagedCredentialUsable(
     )
   }
 
-  if (!adapter.hasRequiredScopes(row.grantedScopes, requiredScopes)) {
+  if (
+    (row.grantedScopes.length === 0 && policy.requiredScopes.length > 0) ||
+    !adapter.hasRequiredScopes(policy.requiredScopes, requiredScopes) ||
+    !adapter.hasRequiredScopes(row.grantedScopes, requiredScopes)
+  ) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE',
       'Managed credential is missing one or more required scopes',
@@ -274,6 +280,68 @@ async function markManagedCredentialNeedsReauth(
     .update(credential)
     .set({ managedOauthStatus: 'needs_reauth', updatedAt })
     .where(and(eq(credential.id, credentialId), eq(credential.managedOauthStatus, 'active')))
+}
+
+/** Rechecks rejected tokens through refresh when possible; a concurrent reconnect wins the conditional write. */
+export async function rejectManagedOAuthToken(input: {
+  credentialId: string
+  workspaceId: string
+  expectedProviderId: string
+  requiredScopes: string[]
+  rejectedAccessToken: string
+}): Promise<boolean> {
+  const current = await getManagedCredential(db, input.credentialId, input.workspaceId)
+  if (
+    !current ||
+    current.providerId !== input.expectedProviderId ||
+    current.managedOauthStatus !== 'active' ||
+    !current.encryptedOauthTokenSet
+  )
+    return false
+  const tokenSet = await decryptManagedOAuthTokenSet(current.encryptedOauthTokenSet)
+  if (tokenSet.accessToken !== input.rejectedAccessToken) return false
+  const updated = await db
+    .update(credential)
+    .set({
+      ...(tokenSet.refreshToken
+        ? { accessTokenExpiresAt: new Date(0) }
+        : { managedOauthStatus: 'needs_reauth' }),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(credential.id, current.id),
+        eq(credential.workspaceId, input.workspaceId),
+        eq(credential.providerId, input.expectedProviderId),
+        eq(credential.managedOauthStatus, 'active'),
+        eq(credential.encryptedOauthTokenSet, current.encryptedOauthTokenSet)
+      )
+    )
+    .returning({ id: credential.id })
+  if (updated.length === 0) return false
+  if (!tokenSet.refreshToken) return true
+  try {
+    await resolveManagedOAuthToken({
+      credentialId: input.credentialId,
+      workspaceId: input.workspaceId,
+      expectedProviderId: input.expectedProviderId,
+      requiredScopes: input.requiredScopes,
+    })
+    return false
+  } catch (error) {
+    if (
+      error instanceof ManagedOAuthCredentialError &&
+      (error.code === 'MANAGED_CREDENTIAL_NEEDS_REAUTH' ||
+        error.code === 'MANAGED_CREDENTIAL_REVOKED')
+    )
+      return true
+    if (
+      error instanceof ManagedOAuthCredentialError &&
+      error.code === 'MANAGED_CREDENTIAL_REFRESH_FAILED'
+    )
+      return false
+    throw error
+  }
 }
 
 /** Resolves a managed credential ID into a usable token without exposing it to list APIs. */

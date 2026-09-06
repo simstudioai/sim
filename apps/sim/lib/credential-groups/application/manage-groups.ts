@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { getPostgresErrorCode } from '@sim/utils/errors'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { workspaceAccountsSettingsDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupSettingsAvailable,
   resolveCredentialGroupSettingsContext,
@@ -9,7 +9,6 @@ import {
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
-  validateCreateCredentialGroupInput,
   validateCredentialGroupEnrollmentPage,
   validateUpdateCredentialGroupInput,
 } from '@/lib/credential-groups/application/validation'
@@ -17,77 +16,56 @@ import {
   CredentialGroupEnrollmentError,
   listCredentialGroupEnrollments,
 } from '@/lib/credential-groups/enrollments'
-import { clearCredentialGroupMcpOAuthAttempts } from '@/lib/credential-groups/mcp-oauth-state'
 import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import {
-  createCredentialGroup,
-  deleteCredentialGroup,
+  ensureWorkspaceAccountsGroup,
   getCredentialGroup,
-  listCredentialGroups,
+  getWorkspaceAccountsGroup,
   updateCredentialGroup,
 } from '@/lib/credential-groups/service'
-import type {
-  CreateCredentialGroupInput,
-  UpdateCredentialGroupInput,
-} from '@/lib/credential-groups/types'
-import { evictMcpServerConnections } from '@/lib/mcp/connection-pool'
-import { mcpService } from '@/lib/mcp/service'
+import type { UpdateCredentialGroupInput } from '@/lib/credential-groups/types'
 
-function throwCredentialGroupConflict(error: unknown): never {
-  if (getPostgresErrorCode(error) === '23505') {
-    throw new OrchestrationError('conflict', 'A credential group with this name already exists')
-  }
-  throw error
-}
-
-export interface ListCredentialGroupSettingsInput {
+export interface WorkspaceAccountsSettingsInput {
   workspaceId: string
 }
 
-export const listCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
-  operation: credentialGroupOperations.listSettings,
-  resolveContext: ({ input }: { input: ListCredentialGroupSettingsInput }) =>
+export const getWorkspaceAccountsSettings = defineAuthorizedWorkspaceUseCase({
+  operation: credentialGroupOperations.workspaceSettings,
+  resolveContext: ({ input }: { input: WorkspaceAccountsSettingsInput }) =>
     resolveCredentialGroupWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: workspaceAccountsSettingsDelegationPolicy },
   async execute({ context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
     return {
-      credentialGroups: await listCredentialGroups(context.workspaceId),
+      credentialGroup: await getWorkspaceAccountsGroup(context.workspaceId),
       availableProviders: listConfiguredCredentialGroupProviders(),
     }
   },
 })
 
-export interface CreateCredentialGroupSettingsInput {
-  workspaceId: string
-  credentialGroup: CreateCredentialGroupInput
-}
-
-export const createCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
-  operation: credentialGroupOperations.create,
-  resolveContext: ({ input }: { input: CreateCredentialGroupSettingsInput }) =>
+export const ensureWorkspaceAccounts = defineAuthorizedWorkspaceUseCase({
+  operation: credentialGroupOperations.ensureWorkspaceAccounts,
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
     resolveCredentialGroupWorkspaceContext(input.workspaceId),
   authorizationOptions: {},
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
-    try {
-      const credentialGroup = await createCredentialGroup(
-        context.workspaceId,
-        principal.userId,
-        validateCreateCredentialGroupInput(input.credentialGroup)
-      )
-      return { credentialGroup }
-    } catch (error) {
-      throwCredentialGroupConflict(error)
-    }
+    const { created, ...credentialGroup } = await ensureWorkspaceAccountsGroup(
+      context.workspaceId,
+      principal.userId
+    )
+    return { credentialGroup, created }
   },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.CREDENTIAL_GROUP_UPDATED,
-    resourceType: AuditResourceType.CREDENTIAL_GROUP,
-    resourceId: result.credentialGroup.id,
-    resourceName: result.credentialGroup.name,
-    description: 'Created a Credential Group',
-  }),
+  projectAudit: ({ result }) =>
+    result.created
+      ? {
+          action: AuditAction.CREDENTIAL_GROUP_UPDATED,
+          resourceType: AuditResourceType.CREDENTIAL_GROUP,
+          resourceId: result.credentialGroup.id,
+          resourceName: result.credentialGroup.name,
+          description: 'Set up connected accounts',
+        }
+      : [],
 })
 
 interface CredentialGroupSettingsTargetInput {
@@ -139,67 +117,21 @@ export const updateCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   async execute({ input, context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
-    try {
-      const result = await updateCredentialGroup(
-        context.workspaceId,
-        context.credentialGroupId,
-        validateUpdateCredentialGroupInput(input.update)
-      )
-      if (!result) {
-        throw new OrchestrationError('not_found', 'Credential group not found')
-      }
-      return result
-    } catch (error) {
-      throwCredentialGroupConflict(error)
+    const credentialGroup = await updateCredentialGroup(
+      context.workspaceId,
+      context.credentialGroupId,
+      validateUpdateCredentialGroupInput(input.update)
+    )
+    if (!credentialGroup) {
+      throw new OrchestrationError('not_found', 'Connected accounts not found')
     }
+    return { credentialGroup }
   },
   projectAudit: ({ result }) => ({
     action: AuditAction.CREDENTIAL_GROUP_UPDATED,
     resourceType: AuditResourceType.CREDENTIAL_GROUP,
     resourceId: result.credentialGroup.id,
     resourceName: result.credentialGroup.name,
-    description: 'Updated a Credential Group',
+    description: 'Updated connected accounts',
   }),
-  afterSuccess: ({ result }) =>
-    Promise.all(
-      result.retiredMcpConnectionIds.map((connectionId) =>
-        evictMcpServerConnections(connectionId, 'credential_group_mcp_unlinked')
-      )
-    ).then(() => undefined),
-})
-
-export const deleteCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
-  operation: credentialGroupOperations.delete,
-  resolveContext: ({ input }: { input: CredentialGroupSettingsTargetInput }) =>
-    resolveCredentialGroupSettingsContext(input.credentialGroupId, input.assertedWorkspaceId),
-  authorizationOptions: {},
-  async execute({ context }) {
-    await requireCredentialGroupSettingsAvailable(context.workspaceId)
-    const result = await deleteCredentialGroup(context.workspaceId, context.credentialGroupId)
-    if (!result.deleted) throw new OrchestrationError('not_found', 'Credential group not found')
-    return {
-      success: true as const,
-      retiredMcpConnectionIds: result.retiredMcpConnectionIds,
-      retiredMcpServerIds: result.retiredMcpServerIds,
-    }
-  },
-  projectAudit: ({ context }) => ({
-    action: AuditAction.CREDENTIAL_GROUP_UPDATED,
-    resourceType: AuditResourceType.CREDENTIAL_GROUP,
-    resourceId: context.credentialGroupId,
-    resourceName: context.name,
-    description: 'Deleted a Credential Group',
-  }),
-  async afterSuccess({ context, result }) {
-    await mcpService.clearCache(context.workspaceId)
-    await clearCredentialGroupMcpOAuthAttempts(result.retiredMcpServerIds)
-    await Promise.all([
-      ...result.retiredMcpServerIds.map((serverId) =>
-        evictMcpServerConnections(serverId, 'credential_group_deleted')
-      ),
-      ...result.retiredMcpConnectionIds.map((connectionId) =>
-        evictMcpServerConnections(connectionId, 'credential_group_deleted')
-      ),
-    ])
-  },
 })

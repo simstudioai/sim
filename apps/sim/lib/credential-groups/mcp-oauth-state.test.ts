@@ -56,6 +56,8 @@ describe('Credential Group MCP OAuth state', () => {
     const state = 'mcp_cg_state-1'
     await createCredentialGroupMcpOAuthAttempt({
       state,
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       mcpServerId: 'mcp-server-1',
@@ -69,6 +71,8 @@ describe('Credential Group MCP OAuth state', () => {
     expect(stored).not.toContain('invitation-token')
     await expect(consumeCredentialGroupMcpOAuthAttempt(state)).resolves.toMatchObject({
       state,
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       mcpServerId: 'mcp-server-1',
@@ -84,6 +88,8 @@ describe('Credential Group MCP OAuth state', () => {
     await expect(
       createCredentialGroupMcpOAuthAttempt({
         state: 'mcp_cg_state-1',
+        workspaceId: 'workspace-1',
+        email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
         mcpServerId: 'mcp-server-1',
@@ -97,6 +103,8 @@ describe('Credential Group MCP OAuth state', () => {
     await expect(
       createCredentialGroupMcpOAuthAttempt({
         state: 'ordinary-state',
+        workspaceId: 'workspace-1',
+        email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
         mcpServerId: 'mcp-server-1',
@@ -106,4 +114,50 @@ describe('Credential Group MCP OAuth state', () => {
     ).rejects.toThrow('invalid prefix')
     expect(mockRedis.set).not.toHaveBeenCalled()
   })
+  it('keeps parallel MCP attempts pinned to their original enrollment when the invitation rotates', async () => {
+    const params = {
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      mcpServerId: 'mcp-server-1',
+      codeVerifier: 'verifier',
+      invitationToken: 'first-invitation',
+    }
+    await createCredentialGroupMcpOAuthAttempt({ ...params, state: 'mcp_cg_first' })
+    await createCredentialGroupMcpOAuthAttempt({
+      ...params,
+      state: 'mcp_cg_second',
+      invitationToken: 'rotated-invitation',
+    })
+    expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_first')).toMatchObject(params)
+    expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_second')).toMatchObject({
+      ...params,
+      invitationToken: 'rotated-invitation',
+    })
+    expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_first')).toBeNull()
+  })
+  it.each(['workspaceId', 'email'])(
+    'rejects missing pinned %s in stored MCP state',
+    async (field) => {
+      await createCredentialGroupMcpOAuthAttempt({
+        state: 'mcp_cg_attempt',
+        workspaceId: 'workspace-1',
+        email: 'person@example.com',
+        enrollmentId: 'enrollment-1',
+        credentialGroupId: 'group-1',
+        mcpServerId: 'mcp-server-1',
+        codeVerifier: 'verifier',
+        invitationToken: 'token',
+      })
+      const [key, value] = [...values.entries()][0]
+      const stored = JSON.parse(value)
+      delete stored[field]
+      values.set(key, JSON.stringify(stored))
+      await expect(consumeCredentialGroupMcpOAuthAttempt('mcp_cg_attempt')).rejects.toThrow(
+        'malformed'
+      )
+      expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_attempt')).toBeNull()
+    }
+  )
 })

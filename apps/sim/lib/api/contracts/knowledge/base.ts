@@ -188,6 +188,7 @@ export const knowledgeBaseDataSchema = z
     id: z.string(),
     userId: z.string(),
     name: z.string(),
+    isSearchIndex: z.boolean().optional(),
     description: z.string().nullable(),
     tokenCount: z.number(),
     embeddingModel: z.string(),
@@ -200,7 +201,7 @@ export const knowledgeBaseDataSchema = z
     folderId: z.string().nullable(),
     docCount: z.number().optional(),
     connectorTypes: z.array(z.string()).optional(),
-    hasMemberScopedConnector: z.boolean().optional(),
+    hasPermissionScopedConnector: z.boolean().optional(),
   })
   .passthrough()
 export type KnowledgeBaseData = z.output<typeof knowledgeBaseDataSchema>

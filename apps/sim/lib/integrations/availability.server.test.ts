@@ -18,6 +18,7 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import {
+  getOAuthServiceAvailability,
   isIntegrationDeploymentAvailable,
   isIntegrationDeploymentAvailableForVisibility,
 } from '@/lib/integrations/availability.server'
@@ -40,6 +41,12 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
+  it('does not infer GitHub repository OAuth readiness from its API-key workflow block', () => {
+    expect(availabilityFor('github_v2')).toMatchObject({ state: 'ready', oauthAvailable: false })
+    expect(
+      getOAuthServiceAvailability([{ providerId: 'github-repositories', authType: 'oauth' }])
+    ).toEqual([{ providerId: 'github-repositories', available: false }])
+  })
   it('marks a configured OAuth integration ready', () => {
     expect(
       availabilityFor('slack_v2', {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Chip, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
+import { Chip, ChipCombobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -153,12 +153,9 @@ export function CredentialSelector({
     [isAllCredentials, allWorkspaceCredentials, selectedId]
   )
 
-  const isServiceAccount = useMemo(
-    () =>
-      selectedCredential?.type === 'service_account' ||
-      selectedAllCredential?.type === 'service_account',
-    [selectedCredential, selectedAllCredential]
-  )
+  const isServiceAccount =
+    selectedCredential?.type === 'service_account' ||
+    selectedAllCredential?.type === 'service_account'
 
   const { data: inaccessibleCredential } = useWorkspaceCredential(
     selectedId || undefined,
@@ -170,12 +167,11 @@ export function CredentialSelector({
   )
   const inaccessibleCredentialName = inaccessibleCredential?.displayName ?? null
 
-  const resolvedLabel = useMemo(() => {
-    if (selectedAllCredential) return selectedAllCredential.displayName
-    if (selectedCredential) return selectedCredential.name
-    if (inaccessibleCredentialName) return inaccessibleCredentialName
-    return ''
-  }, [selectedAllCredential, selectedCredential, inaccessibleCredentialName])
+  const resolvedLabel = selectedAllCredential
+    ? selectedAllCredential.displayName
+    : selectedCredential
+      ? selectedCredential.name
+      : inaccessibleCredentialName || ''
 
   const displayValue = isEditing ? editingValue : resolvedLabel
 
@@ -449,7 +445,7 @@ export function CredentialSelector({
 
   return (
     <div>
-      <Combobox
+      <ChipCombobox
         options={comboboxOptions}
         groups={comboboxGroups}
         value={displayValue}
@@ -472,7 +468,7 @@ export function CredentialSelector({
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center text-caption'>
-            <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
+            <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-[var(--caution)]' />
             {dataversePolicy.message}
           </div>
           {!dataversePolicy.hasInvalidEnvironment && (
@@ -563,6 +559,9 @@ export function CredentialSelector({
           onOpenChange={setShowSetupModal}
           workspaceId={workspaceId}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          atlassianProduct={
+            serviceAccountService?.providerId === 'confluence' ? 'confluence' : 'jira'
+          }
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
           onCreated={(newCredentialId) => {

@@ -11,6 +11,7 @@ export {
   toOllamaEmbeddingModelId,
 } from '@/lib/embeddings/catalog'
 export {
+  assertKnowledgeEmbeddingCapacity,
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
   EmbeddingOutputLimitError,

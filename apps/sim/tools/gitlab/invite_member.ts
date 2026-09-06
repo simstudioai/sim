@@ -7,6 +7,7 @@ export const gitlabInviteMemberTool: ToolConfig<
   GitLabInviteMemberResponse
 > = {
   id: 'gitlab_invite_member',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Invite Member',
   description: 'Invite a person to a GitLab project or group by email address',
   version: '1.0.0',

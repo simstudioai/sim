@@ -61,6 +61,13 @@ export const integrationAvailabilitySchema = z.object({
 
 export type IntegrationAvailabilityResponse = z.output<typeof integrationAvailabilitySchema>
 
+export const oauthServiceAvailabilitySchema = z.object({
+  providerId: z.string().min(1).max(200),
+  available: z.boolean(),
+})
+
+export type OAuthServiceAvailabilityResponse = z.output<typeof oauthServiceAvailabilitySchema>
+
 export const getAllowedIntegrationsContract = defineRouteContract({
   method: 'GET',
   path: '/api/settings/allowed-integrations',
@@ -71,6 +78,7 @@ export const getAllowedIntegrationsContract = defineRouteContract({
       // array narrows the visible integrations.
       allowedIntegrations: z.array(z.string()).nullable(),
       integrationAvailability: z.array(integrationAvailabilitySchema),
+      oauthServiceAvailability: z.array(oauthServiceAvailabilitySchema).max(1000),
     }),
   },
 })

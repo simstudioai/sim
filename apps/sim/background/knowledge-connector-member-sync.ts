@@ -19,20 +19,31 @@ export type MemberSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'faile
 export function classifyMemberSyncResult(result: MemberSyncResult): MemberSyncTaskOutcome {
   if (result.skipReason) return 'skipped'
   if (result.error) return 'failed'
-  if (result.membersFailed > 0 || result.docsFailed > 0 || result.processingDispatch.failed > 0) {
+  if (
+    result.listingIncomplete ||
+    result.membersIncomplete > 0 ||
+    result.membersRemaining ||
+    result.membersFailed > 0 ||
+    result.docsFailed > 0 ||
+    result.processingDispatch.failed > 0
+  ) {
     return 'partial'
   }
   return 'completed'
 }
 
 export async function executeMemberSyncJob(payload: unknown) {
-  const { connectorId, requestId, billingAttribution, dispatchToken } =
+  const { connectorId, requestId, billingAttribution, dispatchToken, forceContentRefresh } =
     assertMemberSyncPayload(payload)
 
   logger.info(`[${requestId}] Starting member sync: ${connectorId}`)
 
   try {
-    const result = await executeMemberSync(connectorId, { billingAttribution, dispatchToken })
+    const result = await executeMemberSync(connectorId, {
+      billingAttribution,
+      dispatchToken,
+      forceContentRefresh,
+    })
     const outcome = classifyMemberSyncResult(result)
 
     logger.info(`[${requestId}] Member sync completed`, {

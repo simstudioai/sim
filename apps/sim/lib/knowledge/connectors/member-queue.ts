@@ -20,6 +20,7 @@ import {
 import {
   connectorIsLive,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+  RUNNABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
@@ -40,6 +41,7 @@ export interface MemberSyncPayload {
   billingAttribution: BillingAttributionSnapshot
   /** The queue entry this task is allowed to consume; see `ConnectorSyncPayload.dispatchToken`. */
   dispatchToken?: string
+  forceContentRefresh?: boolean
 }
 
 export interface DispatchMemberSyncOptions {
@@ -49,6 +51,8 @@ export interface DispatchMemberSyncOptions {
   /** Skip automatic work unless the connector is idle or recovering from an error. */
   requireRunnable?: boolean
   requestId?: string
+  /** Defaults to true for explicit dispatch and false for automatic dispatch. */
+  forceContentRefresh?: boolean
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -66,6 +70,9 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
   if (value.dispatchToken !== undefined && !isNonEmptyString(value.dispatchToken)) {
     throw new Error('Member sync payload dispatchToken must be a string when provided')
   }
+  if (value.forceContentRefresh !== undefined && typeof value.forceContentRefresh !== 'boolean') {
+    throw new Error('Member sync payload forceContentRefresh must be a boolean when provided')
+  }
   if (value.billingAttribution === undefined) {
     throw new Error('Member sync payload requires billing attribution')
   }
@@ -74,6 +81,7 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
     requestId: value.requestId,
     billingAttribution: assertBillingAttributionSnapshot(value.billingAttribution),
     dispatchToken: value.dispatchToken as string | undefined,
+    forceContentRefresh: value.forceContentRefresh as boolean | undefined,
   }
 }
 
@@ -212,6 +220,7 @@ export async function dispatchMemberSync(
     connectorId,
     requestId,
     billingAttribution: options.billingAttribution,
+    forceContentRefresh: options.forceContentRefresh ?? !options.requireRunnable,
   })
 
   const [row] = await db
@@ -337,6 +346,7 @@ export async function dispatchMemberSync(
 
   executeMemberSync(connectorId, {
     billingAttribution: payload.billingAttribution,
+    forceContentRefresh: payload.forceContentRefresh,
     dispatchToken,
   }).catch(async (error) => {
     logger.error(`Member sync failed for connector ${connectorId}`, {
@@ -369,7 +379,7 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
         isNull(knowledgeBase.deletedAt),
         eq(knowledgeConnector.accessMode, 'members'),
         eq(knowledgeConnector.credentialGroupOptionId, input.credentialGroupOptionId),
-        inArray(knowledgeConnector.status, ['active', 'error']),
+        inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )

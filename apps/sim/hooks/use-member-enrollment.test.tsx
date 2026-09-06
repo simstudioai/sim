@@ -37,6 +37,7 @@ type Enrollment = ReturnType<typeof useMemberEnrollment>
 let latest: Enrollment | null = null
 let root: Root | null = null
 let container: HTMLDivElement | null = null
+let enrollmentTab: { location: { href: string }; closed: boolean; close: () => void }
 
 function Harness({ connected }: { connected: ReadonlySet<string> }) {
   latest = useMemberEnrollment({ membershipQueryKeys: [], connectedConnectorIds: connected })
@@ -58,10 +59,13 @@ function enrollment(): Enrollment {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'open').mockReturnValue({
+  vi.useFakeTimers()
+  enrollmentTab = {
     location: { href: '' },
+    closed: false,
     close: vi.fn(),
-  } as unknown as Window)
+  }
+  vi.spyOn(window, 'open').mockReturnValue(enrollmentTab as unknown as Window)
 })
 
 afterEach(() => {
@@ -70,6 +74,7 @@ afterEach(() => {
   root = null
   container = null
   latest = null
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -114,6 +119,36 @@ describe('useMemberEnrollment', () => {
     act(() => handlers.onSuccess({ url: 'https://example.test/enroll' }))
 
     expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(enrollment().isAwaitingSource('google_drive')).toBe(false)
+  })
+
+  it('allows retrying and stops polling after the enrollment tab closes', () => {
+    mount()
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    const [, handlers] = mocks.enrollmentMutate.mock.calls[0]
+    act(() => handlers.onSuccess({ url: 'https://example.test/enroll' }))
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+
+    enrollmentTab.closed = true
+    act(() => vi.advanceTimersByTime(4_000))
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+
+    mocks.invalidateQueries.mockClear()
+    act(() => vi.advanceTimersByTime(12_000))
+    expect(mocks.invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it('does not navigate or await a tab closed before the enrollment request completes', () => {
+    mount()
+    act(() => enrollment().connectSource('workspace-1', 'google_drive'))
+    enrollmentTab.closed = true
+    const [, handlers] = mocks.sourceConnectionMutate.mock.calls[0]
+    act(() =>
+      handlers.onSuccess({ url: 'https://example.test/enroll', connectorId: 'connector-1' })
+    )
+
+    expect(enrollmentTab.location.href).toBe('')
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
     expect(enrollment().isAwaitingSource('google_drive')).toBe(false)
   })
 })

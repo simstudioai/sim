@@ -2,6 +2,8 @@ import { ConfluenceIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const confluenceConnectorMeta: ConnectorMeta = {
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/confluence',
   id: 'confluence',
   name: 'Confluence',
   description: 'Sync pages from a Confluence space',
@@ -20,6 +22,21 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       'search:confluence',
       'offline_access',
     ],
+    /** Mirroring also reads ancestor restrictions, space roles, and user/group identities. */
+    serviceAccountScopes: [
+      'read:confluence-content.all',
+      'read:page:confluence',
+      'read:blogpost:confluence',
+      'read:space:confluence',
+      'read:label:confluence',
+      'search:confluence',
+      'read:confluence-space.summary',
+      'read:content.metadata:confluence',
+      'read:space.permission:confluence',
+      'read:confluence-user',
+      'read:user:confluence',
+      'read:group:confluence',
+    ],
   },
 
   /**
@@ -33,6 +50,15 @@ export const confluenceConnectorMeta: ConnectorMeta = {
 
   /** CQL search under a member's token returns only content that member may view. */
   permissionScopedListing: { capFieldIds: ['maxPages'] },
+
+  /**
+   * Space permissions and page restrictions are both readable, so one crawl
+   * under an administrative credential can mirror them. Unlike Drive they come
+   * back per page rather than with the listing, which is what
+   * `getDocumentAcls` exists for.
+   */
+  mirrorsSourceAcls: true,
+  requiresMemberIdentity: true,
 
   configFields: [
     {

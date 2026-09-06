@@ -8,9 +8,11 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { adapter } = vi.hoisted(() => ({
+const { adapter, createAttempt } = vi.hoisted(() => ({
+  createAttempt: vi.fn(),
   adapter: {
     provider: 'gmail' as const,
     requiresRefreshToken: true,
@@ -23,6 +25,10 @@ const { adapter } = vi.hoisted(() => ({
   },
 }))
 
+vi.mock('@/lib/credential-groups/oauth-state', () => ({
+  createCredentialGroupOAuthAttempt: createAttempt,
+}))
+
 vi.mock('@/lib/credential-groups/provider-registry', () => ({
   getCredentialGroupProviderAdapter: () => adapter,
 }))
@@ -32,7 +38,14 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
   encryptManagedOAuthTokenSet: vi.fn().mockResolvedValue('encrypted-token-set'),
 }))
 
-import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
+  dispatchMemberSyncsForCredentialOption: vi.fn().mockResolvedValue(undefined),
+}))
+
+import {
+  completeCredentialGroupOAuth,
+  startCredentialGroupOAuth,
+} from '@/lib/credential-groups/oauth'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 
 const POLICY = {
@@ -93,6 +106,36 @@ describe('credential group OAuth persistence', () => {
     })
   })
 
+  it('pins Search return context with the same canonical option, identity and provider policy', async () => {
+    const buildAuthorizationUrl = vi.fn().mockReturnValue('https://provider.test/authorize')
+    adapter.prepareAuthorization.mockResolvedValue({
+      redirectUri: 'https://sim.ai/callback',
+      buildAuthorizationUrl,
+    })
+    createAttempt.mockResolvedValue({ state: 'state', nonce: 'nonce' })
+    await expect(
+      startCredentialGroupOAuth(CONTEXT, 'invitation', { returnTo: 'search' })
+    ).resolves.toBe('https://provider.test/authorize')
+    expect(createAttempt).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        workspaceId: CONTEXT.workspaceId,
+        enrollmentId: CONTEXT.enrollmentId,
+        email: CONTEXT.email,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        returnTo: 'search',
+        invitationToken: 'invitation',
+      })
+    )
+    expect(buildAuthorizationUrl).toHaveBeenCalledExactlyOnceWith({
+      state: 'state',
+      nonce: 'nonce',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('does not reactivate a credential after its enrollment is revoked', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'revoked' }])
 
@@ -103,6 +146,8 @@ describe('credential group OAuth persistence', () => {
           state: 'state-1',
           provider: 'gmail',
           nonceHash: 'nonce-hash',
+          workspaceId: CONTEXT.workspaceId,
+          email: CONTEXT.email,
           enrollmentId: CONTEXT.enrollmentId,
           credentialGroupId: CONTEXT.credentialGroupId,
           optionId: CONTEXT.option.id,
@@ -137,6 +182,8 @@ describe('credential group OAuth persistence', () => {
         state: 'state-1',
         provider: 'gmail',
         nonceHash: 'nonce-hash',
+        workspaceId: CONTEXT.workspaceId,
+        email: CONTEXT.email,
         enrollmentId: CONTEXT.enrollmentId,
         credentialGroupId: CONTEXT.credentialGroupId,
         optionId: CONTEXT.option.id,
@@ -184,6 +231,8 @@ describe('credential group OAuth persistence', () => {
         state: 'state-1',
         provider: 'gmail',
         nonceHash: 'nonce-hash',
+        workspaceId: CONTEXT.workspaceId,
+        email: CONTEXT.email,
         enrollmentId: CONTEXT.enrollmentId,
         credentialGroupId: CONTEXT.credentialGroupId,
         optionId: CONTEXT.option.id,
@@ -242,6 +291,8 @@ describe('credential group OAuth persistence', () => {
           state: 'state-1',
           provider: 'gmail',
           nonceHash: 'nonce-hash',
+          workspaceId: CONTEXT.workspaceId,
+          email: CONTEXT.email,
           enrollmentId: CONTEXT.enrollmentId,
           credentialGroupId: CONTEXT.credentialGroupId,
           optionId: CONTEXT.option.id,
@@ -266,6 +317,37 @@ describe('credential group OAuth persistence', () => {
       }
     )
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+  it('refuses a retained revocation timestamp and locks the original email/group identity', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'in_progress', revokedAt: new Date() }])
+    await expect(
+      completeCredentialGroupOAuth(
+        CONTEXT,
+        {
+          state: 'state',
+          provider: 'gmail',
+          workspaceId: CONTEXT.workspaceId,
+          email: CONTEXT.email,
+          nonceHash: 'nonce',
+          enrollmentId: CONTEXT.enrollmentId,
+          credentialGroupId: CONTEXT.credentialGroupId,
+          optionId: CONTEXT.option.id,
+          authorizationAppId: POLICY.authorizationAppId,
+          scopeVersion: POLICY.scopeVersion,
+          requiredScopes: POLICY.requiredScopes,
+          redirectUri: 'https://sim.ai/callback',
+          invitationToken: 'invitation',
+          createdAt: Date.now(),
+        },
+        'code'
+      )
+    ).rejects.toBeInstanceOf(CredentialGroupInvitationUnavailableError)
+    expect(eq).toHaveBeenCalledWith(
+      schemaMock.credentialGroupEnrollment.credentialGroupId,
+      CONTEXT.credentialGroupId
+    )
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.email, CONTEXT.email)
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

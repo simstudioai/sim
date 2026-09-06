@@ -194,6 +194,7 @@ export async function performUpdateKnowledgeBase(
 }
 
 export interface PerformDeleteKnowledgeBaseParams extends KnowledgeOperationContext {
+  allowSearchIndexDelete?: boolean
   knowledgeBase: { id: string; name: string; workspaceId: string | null }
   assertedWorkspaceId?: string
 }
@@ -216,6 +217,7 @@ export async function performDeleteKnowledgeBase(
   try {
     await deleteKnowledgeBase(knowledgeBase.id, requestId, {
       assertedWorkspaceId: params.assertedWorkspaceId,
+      allowSearchIndexDelete: params.allowSearchIndexDelete,
     })
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete knowledge base ${knowledgeBase.id}`)

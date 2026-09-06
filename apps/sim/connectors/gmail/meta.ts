@@ -4,10 +4,13 @@ import type { ConnectorMeta } from '@/connectors/types'
 export const DEFAULT_MAX_THREADS = 500
 
 export const gmailConnectorMeta: ConnectorMeta = {
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/gmail',
+  memberSetupHint: 'Each teammate connects their Gmail account. Only they can search their email.',
   id: 'gmail',
   name: 'Gmail',
   description: 'Sync email threads from Gmail',
-  version: '1.0.0',
+  version: '1.1.0',
   icon: GmailIcon,
 
   auth: {
@@ -23,12 +26,13 @@ export const gmailConnectorMeta: ConnectorMeta = {
       title: 'Labels',
       type: 'selector',
       selectorKey: 'gmail.labels',
+      hideInMemberMode: true,
       canonicalParamId: 'label',
       mode: 'basic',
       multi: true,
       placeholder: 'Select one or more labels',
       required: false,
-      description: 'Only sync emails matching any of these labels. Leave empty for all mail.',
+      description: 'Sync threads matching any selected label. Leave empty to use all labels.',
     },
     {
       id: 'label',
@@ -37,9 +41,9 @@ export const gmailConnectorMeta: ConnectorMeta = {
       canonicalParamId: 'label',
       mode: 'advanced',
       multi: true,
-      placeholder: 'e.g. INBOX, IMPORTANT (comma-separated; commas in label names not supported)',
+      placeholder: 'e.g. INBOX, Engineering (comma-separated)',
       required: false,
-      description: 'Only sync emails matching any of these labels. Leave empty for all mail.',
+      description: 'Use label names or system IDs such as INBOX. Leave empty to use all labels.',
     },
     {
       id: 'dateRange',

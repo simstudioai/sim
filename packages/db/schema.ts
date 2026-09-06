@@ -44,21 +44,59 @@ export const bytea = customType<{
   },
 })
 
-export const user = pgTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  normalizedEmail: text('normalized_email').unique(),
-  emailVerified: boolean('email_verified').notNull(),
-  image: text('image'),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull(),
-  stripeCustomerId: text('stripe_customer_id'),
-  role: text('role').default('user'),
-  banned: boolean('banned').default(false),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires'),
-})
+/**
+ * An email address reduced to the identity it names, in SQL. The one expression
+ * every comparison of an address by identity must use — and the exact expression
+ * `user_email_lower_idx` indexes, so a predicate written any other way silently
+ * becomes a sequential scan. The TypeScript twin is `normalizeEmail` in
+ * `@sim/utils/string`; the two must agree, and both are trim-and-lowercase.
+ */
+export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
+  return sql<string>`lower(btrim(${column}))`
+}
+
+export const user = pgTable(
+  'user',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    /**
+     * Unique byte-for-byte only. The identity an address names is
+     * `foldedEmail(email)`, which `user_email_lower_idx` indexes.
+     */
+    email: text('email').notNull().unique(),
+    /**
+     * Legacy signup normalization strips Gmail dots and tags and must never be
+     * used for identity. Retained for Better Auth and full-row readers that
+     * still select this column; removal needs a separate projection migration.
+     */
+    normalizedEmail: text('normalized_email').unique(),
+    emailVerified: boolean('email_verified').notNull(),
+    image: text('image'),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    role: text('role').default('user'),
+    banned: boolean('banned').default(false),
+    banReason: text('ban_reason'),
+    banExpires: timestamp('ban_expires'),
+  },
+  (table) => ({
+    /**
+     * The folded address, which is how every identity binding by email
+     * compares — credential-group enrollments, the `u:` document access token,
+     * the ambiguity check access resolution runs on every read. Without it
+     * each of those is a sequential scan of `user`.
+     *
+     * Not unique. `email` is unique byte-for-byte only, and a small number of
+     * historical accounts collide once folded; access resolution refuses to
+     * bind an ambiguous address rather than let either account read the
+     * other's documents. Follow-up, after those accounts are merged: promote to
+     * UNIQUE so the state cannot arise at all.
+     */
+    emailLowerIdx: index('user_email_lower_idx').on(foldedEmail(table.email)),
+  })
+)
 
 export const session = pgTable(
   'session',
@@ -1454,6 +1492,7 @@ export const rateLimitBucket = pgTable('rate_limit_bucket', {
   key: text('key').primaryKey(),
   tokens: decimal('tokens').notNull(),
   lastRefillAt: timestamp('last_refill_at').notNull(),
+  blockedUntil: timestamp('blocked_until'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -2688,6 +2727,8 @@ export const knowledgeBase = pgTable(
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
+    /** The workspace search index retains its identity when renamed or moved. */
+    isSearchIndex: boolean('is_search_index').notNull().default(false),
 
     // Token tracking for usage
     tokenCount: integer('token_count').notNull().default(0),
@@ -2724,6 +2765,9 @@ export const knowledgeBase = pgTable(
     workspaceNameActiveUnique: uniqueIndex('kb_workspace_name_active_unique')
       .on(table.workspaceId, table.name)
       .where(sql`${table.deletedAt} IS NULL`),
+    workspaceSearchIndexUnique: uniqueIndex('kb_workspace_search_index_unique')
+      .on(table.workspaceId)
+      .where(sql`${table.isSearchIndex} = true AND ${table.deletedAt} IS NULL`),
   })
 )
 
@@ -2831,8 +2875,14 @@ export const document = pgTable(
      * connector materialises it from `knowledge_document_observation`.
      */
     acl: text('acl').array().notNull().default(sql`'{ws}'::text[]`),
+    /** Additional OR clauses, all of which must match; preserves source permission intersections. */
+    aclRequirements: jsonb('acl_requirements').$type<string[][]>().notNull().default([]),
+    /** Last authoritative source ACL evidence; NULL fails closed for mirrored permissions. */
+    aclVerifiedAt: timestamp('acl_verified_at'),
     /** Source last-modified time when the connector reports one; NULL for uploads. */
     sourceModifiedAt: timestamp('source_modified_at'),
+    /** Start of the durable source-listing cycle that last observed this document. */
+    sourceSeenAt: timestamp('source_seen_at'),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -2870,8 +2920,15 @@ export const document = pgTable(
     connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
       .on(table.connectorId, table.externalId)
       .where(sql`${table.deletedAt} IS NULL`),
-    // Sync engine: load all active docs for a connector
-    connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    /** Source lookups include historical documents that may reappear. */
+    connectorSourceLookupIdx: index('doc_connector_source_lookup_idx').on(
+      table.connectorId,
+      table.externalId
+    ),
+    /** Ordered absence reconciliation includes tombstones and skips excluded or archived rows. */
+    connectorReconciliationIdx: index('doc_connector_reconciliation_idx')
+      .on(table.connectorId, sql`COALESCE(${table.sourceSeenAt}, '-infinity'::timestamp)`, table.id)
+      .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
     activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
       .on(table.knowledgeBaseId, table.tokenCount)
       .where(
@@ -2888,13 +2945,13 @@ export const document = pgTable(
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
     // Text tag indexes
-    tag1Idx: index('doc_tag1_idx').on(table.tag1),
-    tag2Idx: index('doc_tag2_idx').on(table.tag2),
-    tag3Idx: index('doc_tag3_idx').on(table.tag3),
-    tag4Idx: index('doc_tag4_idx').on(table.tag4),
-    tag5Idx: index('doc_tag5_idx').on(table.tag5),
-    tag6Idx: index('doc_tag6_idx').on(table.tag6),
-    tag7Idx: index('doc_tag7_idx').on(table.tag7),
+    tag1Idx: index('doc_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
+    tag2Idx: index('doc_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
+    tag3Idx: index('doc_kb_tag3_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag3})`),
+    tag4Idx: index('doc_kb_tag4_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag4})`),
+    tag5Idx: index('doc_kb_tag5_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag5})`),
+    tag6Idx: index('doc_kb_tag6_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag6})`),
+    tag7Idx: index('doc_kb_tag7_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag7})`),
     // Number tag indexes (5 slots)
     number1Idx: index('doc_number1_idx').on(table.number1),
     number2Idx: index('doc_number2_idx').on(table.number2),
@@ -3108,13 +3165,13 @@ export const embedding = pgTable(
       }),
 
     // Text tag indexes
-    tag1Idx: index('emb_tag1_idx').on(table.tag1),
-    tag2Idx: index('emb_tag2_idx').on(table.tag2),
-    tag3Idx: index('emb_tag3_idx').on(table.tag3),
-    tag4Idx: index('emb_tag4_idx').on(table.tag4),
-    tag5Idx: index('emb_tag5_idx').on(table.tag5),
-    tag6Idx: index('emb_tag6_idx').on(table.tag6),
-    tag7Idx: index('emb_tag7_idx').on(table.tag7),
+    tag1Idx: index('emb_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
+    tag2Idx: index('emb_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
+    tag3Idx: index('emb_kb_tag3_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag3})`),
+    tag4Idx: index('emb_kb_tag4_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag4})`),
+    tag5Idx: index('emb_kb_tag5_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag5})`),
+    tag6Idx: index('emb_kb_tag6_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag6})`),
+    tag7Idx: index('emb_kb_tag7_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag7})`),
     // Number tag indexes (5 slots)
     number1Idx: index('emb_number1_idx').on(table.number1),
     number2Idx: index('emb_number2_idx').on(table.number2),
@@ -4258,6 +4315,7 @@ export const credentialTypeEnum = pgEnum('credential_type', [
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 
 export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential_status', [
@@ -4302,6 +4360,8 @@ export const credential = pgTable(
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
+    /** Encrypted provider token bound immutably to createdBy, providerSubjectId, and providerTenantId. */
+    encryptedPersonalToken: text('encrypted_personal_token'),
     authorizationAppId: text('authorization_app_id'),
     credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
       (): AnyPgColumn => credentialGroupEnrollment.id,
@@ -4354,6 +4414,35 @@ export const credential = pgTable(
     workspacePersonalEnvUnique: uniqueIndex('credential_workspace_personal_env_unique')
       .on(table.workspaceId, table.type, table.envKey, table.envOwnerUserId)
       .where(sql`type = 'env_personal'`),
+    personalTokenIdentityUnique: uniqueIndex('credential_personal_token_identity_unique')
+      .on(
+        table.workspaceId,
+        table.createdBy,
+        table.providerId,
+        table.providerTenantId,
+        table.providerSubjectId
+      )
+      .where(sql`type = 'personal_token'`),
+    personalTokenSourceConstraint: check(
+      'credential_personal_token_source_check',
+      sql`(type::text <> 'personal_token') OR (
+        created_by IS NOT NULL
+        AND provider_id IS NOT NULL
+        AND provider_id = 'gitlab'
+        AND provider_subject_id IS NOT NULL
+        AND provider_tenant_id IS NOT NULL
+        AND encrypted_personal_token IS NOT NULL
+        AND granted_scopes IS NOT NULL
+        AND cardinality(granted_scopes) > 0
+        AND account_id IS NULL
+        AND env_key IS NULL
+        AND env_owner_user_id IS NULL
+        AND authorization_app_id IS NULL
+        AND encrypted_oauth_token_set IS NULL
+        AND encrypted_service_account_key IS NULL
+        AND unredacted = false
+      )`
+    ),
     oauthSourceConstraint: check(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
@@ -4367,7 +4456,6 @@ export const credential = pgTable(
         AND provider_subject_id IS NOT NULL
         AND managed_oauth_status IS NOT NULL
         AND granted_scopes IS NOT NULL
-        AND cardinality(granted_scopes) > 0
         AND encrypted_oauth_token_set IS NOT NULL
         AND granted_at IS NOT NULL
       )`
@@ -4458,14 +4546,7 @@ export const credentialGroup = pgTable(
   },
   (table) => ({
     publicIdUnique: uniqueIndex('credential_group_public_id_unique').on(table.publicId),
-    workspaceStatusIdx: index('credential_group_workspace_status_idx').on(
-      table.workspaceId,
-      table.status
-    ),
-    workspaceNameUnique: uniqueIndex('credential_group_workspace_name_unique').on(
-      table.workspaceId,
-      sql`lower(${table.name})`
-    ),
+    workspaceUnique: uniqueIndex('credential_group_workspace_unique').on(table.workspaceId),
   })
 )
 
@@ -4773,8 +4854,9 @@ export const knowledgeConnector = pgTable(
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
     connectorType: text('connector_type').notNull(),
     /**
-     * The credential a workspace-mode connector syncs as. NULL for a
-     * members-mode connector, whose members are the credentials. Not yet a
+     * The credential used to index content. In members mode it is optional:
+     * NULL indexes the union of members' listings; a dedicated credential
+     * indexes content while members only establish document visibility. Not yet a
      * foreign key: rows written before the `credential` table existed may
      * still hold a raw `account.id`, which script migration 0011 remaps.
      * contract-pending(after 0011 has run in production): add the reference to
@@ -4788,9 +4870,10 @@ export const knowledgeConnector = pgTable(
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
     /**
      * How document access is derived. `workspace`: every synced document is
-     * `{ws}`. `members`: the source is crawled once per credential-group
-     * member with their own token and a document's ACL is the members whose
-     * crawl returned it. `admin` is reserved for the service-account mirror.
+     * `{ws}`. `members`: a document's ACL is the members whose own listing
+     * returned it, optionally with a dedicated credential for content.
+     * `admin`: source permissions and identity groups are mirrored independently
+     * of content changes.
      */
     accessMode: text('access_mode').notNull().default('workspace'),
     /** Members mode: the credential group whose option supplies the member credentials. */
@@ -4832,7 +4915,12 @@ export const knowledgeConnector = pgTable(
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),
     lastSyncDocCount: integer('last_sync_doc_count'),
+    /** Durable content-listing progress; contains cursors and counters, never credentials. */
+    listingCheckpoint: jsonb('listing_checkpoint').$type<Record<string, unknown>>(),
+    /** Member account enumeration resumes independently of the content listing. */
+    directoryCheckpoint: jsonb('directory_checkpoint').$type<Record<string, unknown>>(),
     nextSyncAt: timestamp('next_sync_at'),
+    nextDirectorySyncAt: timestamp('next_directory_sync_at').notNull().defaultNow(),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     /**
      * Identifies the sync run that currently holds this connector's lock.
@@ -4877,6 +4965,9 @@ export const knowledgeConnector = pgTable(
     memberSyncDueIdx: index('kc_member_sync_due_idx')
       .on(table.memberSyncStatus, table.nextMemberSyncAt)
       .where(sql`${table.accessMode} = 'members' AND ${table.deletedAt} IS NULL`),
+    directorySyncDueIdx: index('kc_directory_sync_due_idx')
+      .on(table.nextDirectorySyncAt, table.id)
+      .where(sql`${table.accessMode} = 'admin' AND ${table.deletedAt} IS NULL`),
     accessModeCheck: check(
       'kc_access_mode_check',
       sql`${table.accessMode} IN ('workspace', 'members', 'admin')`
@@ -4938,7 +5029,7 @@ export const knowledgeConnectorMember = pgTable(
     lastCompleteListingAt: timestamp('last_complete_listing_at'),
     lastListedCount: integer('last_listed_count'),
     lastError: text('last_error'),
-    /** Incremental watermark; advances only on a complete, non-suspect full listing. */
+    /** Authorization watermark: complete nonsuspect full listing or completely drained change feed. */
     memberSyncedThrough: timestamp('member_synced_through'),
     /**
      * Where the member's change feed resumes. Opened just before a full listing
@@ -4947,6 +5038,8 @@ export const knowledgeConnectorMember = pgTable(
      * has to be reopened.
      */
     changeCursor: text('change_cursor'),
+    /** Durable full-listing progress, separate from the provider's incremental change token. */
+    listingCheckpoint: jsonb('listing_checkpoint').$type<Record<string, unknown>>(),
     suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -5000,6 +5093,117 @@ export const knowledgeDocumentObservation = pgTable(
   })
 )
 
+/** Shared refresh ownership and complete-pass evidence for a workspace/provider/tenant directory. */
+export const knowledgeExternalDirectory = pgTable(
+  'knowledge_external_directory',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    syncLockToken: text('sync_lock_token'),
+    syncLockLeaseAt: timestamp('sync_lock_lease_at'),
+    /** A newer attempt invalidates cached completion until that whole pass succeeds. */
+    lastStartedAt: timestamp('last_started_at'),
+    /** Complete directory enumeration, including empty directories; independent of individual group freshness. */
+    lastCompleteSyncAt: timestamp('last_complete_sync_at'),
+  },
+  (table) => ({
+    identity: primaryKey({
+      name: 'ked_identity_pk',
+      columns: [table.workspaceId, table.providerId, table.tenantId],
+    }),
+  })
+)
+
+/**
+ * A group in an external directory, as an admin-mode crawl names it.
+ *
+ * Scoped by workspace, provider and tenant rather than by connector: two Drive
+ * connectors over the same Google Workspace domain grant the same groups, and
+ * resolving that domain's directory once per connector would multiply the
+ * Admin SDK traffic by the number of knowledge bases.
+ *
+ * `externalGroupId` is whatever the source's permissions API names a group by —
+ * a group email in Drive, a group id in Confluence — canonicalised by
+ * `canonicalGroupId`, exactly as `groupToken` spells it. Keying the directory
+ * by the same identifier the grant carries is what lets a token resolve to
+ * membership with no lookup in between.
+ */
+export const knowledgeExternalGroup = pgTable(
+  'knowledge_external_group',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    /** Matches the provider segment of the `g:` token, e.g. `google-drive`. */
+    providerId: text('provider_id').notNull(),
+    /** The directory this group belongs to: a Workspace domain for Google, a site's cloud id for Confluence. */
+    tenantId: text('tenant_id').notNull(),
+    externalGroupId: text('external_group_id').notNull(),
+    /**
+     * When this group's membership was last enumerated in full, and the only
+     * thing that decides whether it still grants access.
+     *
+     * A failed or partial enumeration writes nothing at all — not the
+     * membership, not this column — which is what makes a transient directory
+     * outage harmless. It is also why the column has to exist: without an age
+     * bound, a group whose sync stopped running would keep granting forever
+     * from membership nobody has checked since. A group unconfirmed for longer
+     * than `EXTERNAL_GROUP_STALE_AFTER_MS` grants nothing.
+     */
+    lastSyncedAt: timestamp('last_synced_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
+    workspaceFk: foreignKey({
+      name: 'keg_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    identityUnique: uniqueIndex('keg_identity_unique').on(
+      table.workspaceId,
+      table.providerId,
+      table.tenantId,
+      table.externalGroupId
+    ),
+    /** The read path's freshness filter: a workspace's groups confirmed within the staleness window. */
+    workspaceSyncedIdx: index('keg_workspace_synced_idx').on(
+      table.workspaceId,
+      table.lastSyncedAt.asc().nullsFirst()
+    ),
+  })
+)
+
+/**
+ * External group membership keyed by canonical identity tokens: verified
+ * addresses (`u:`) or provider account identities (`s:`). Provider identities
+ * preserve permissions when a directory hides email addresses. Nested groups
+ * are flattened by directory sync, without requiring members to have Sim accounts.
+ */
+export const knowledgeExternalGroupMember = pgTable(
+  'knowledge_external_group_member',
+  {
+    groupId: text('group_id').notNull(),
+    /** Includes `u:*@<domain>` for directory-wide grants; source account IDs retain their case. */
+    subjectToken: text('subject_token').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.subjectToken] }),
+    /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
+    groupFk: foreignKey({
+      name: 'kegm_group_fk',
+      columns: [table.groupId],
+      foreignColumns: [knowledgeExternalGroup.id],
+    }).onDelete('cascade'),
+    /** The read path: every group matching the actor's verified identities. */
+    subjectTokenIdx: index('kegm_subject_token_idx').on(table.subjectToken),
+  })
+)
+
 /**
  * Audit trail for members-mode runs; the content sync log is untouched. The
  * row id doubles as the run's lease token so the scheduler can tell an
@@ -5044,7 +5248,7 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
       .where(sql`${table.status} = 'started'`),
     statusCheck: check(
       'kcmsl_status_check',
-      sql`${table.status} IN ('started', 'completed', 'failed')`
+      sql`${table.status} IN ('started', 'partial', 'completed', 'failed')`
     ),
   })
 )
@@ -5068,6 +5272,8 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
     docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
+    /** Complete listing-cycle size; per-worker counters may cover only its last page batch. */
+    listedCount: integer('listed_count'),
     errorMessage: text('error_message'),
   },
   (table) => ({

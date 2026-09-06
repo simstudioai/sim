@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockListWorkflows = vi.hoisted(() => vi.fn())
 const mockFetchOpenRouterEmbeddingModelCatalog = vi.hoisted(() => vi.fn())
+const mockGetWorkspaceAccountsSettings = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/credential-groups/application/manage-groups', () => ({
+  getWorkspaceAccountsSettings: { execute: mockGetWorkspaceAccountsSettings },
+}))
 
 vi.mock('@/lib/workflows/application/list-workflows', () => ({
   listWorkflows: { execute: mockListWorkflows },
@@ -33,6 +38,45 @@ function workflowArgs(): ExecuteServerSelectorArgs {
     protectedValues: createSelectorProtectedValues(),
   }
 }
+
+describe('workspace.credentialGroupProviders selector', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('uses active options from the workspace container without a group selection', async () => {
+    mockGetWorkspaceAccountsSettings.mockResolvedValue({
+      credentialGroup: {
+        options: [
+          { provider: 'gmail', status: 'active' },
+          { provider: 'slack', status: 'disabled' },
+        ],
+      },
+    })
+    const args: ExecuteServerSelectorArgs = {
+      ...workflowArgs(),
+      selectorKey: 'workspace.credentialGroupProviders',
+    }
+    await expect(
+      internalSelectorAttachments['workspace.credentialGroupProviders'].execute(args)
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'google-email', label: 'Gmail' }],
+    })
+    expect(mockGetWorkspaceAccountsSettings).toHaveBeenCalledWith({
+      principal: args.principal,
+      input: { workspaceId: 'workspace-1' },
+    })
+  })
+
+  it('returns an empty list when the workspace has no container', async () => {
+    mockGetWorkspaceAccountsSettings.mockResolvedValue({ credentialGroup: null })
+    await expect(
+      internalSelectorAttachments['workspace.credentialGroupProviders'].execute({
+        ...workflowArgs(),
+        selectorKey: 'workspace.credentialGroupProviders',
+      })
+    ).resolves.toEqual({ kind: 'list', items: [] })
+  })
+})
 
 describe('workspace.secretNames selector', () => {
   beforeEach(() => {

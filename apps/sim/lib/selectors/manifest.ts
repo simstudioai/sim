@@ -368,8 +368,7 @@ export const selectorManifest = {
     staleTime: 0,
   }),
   'workspace.credentialProviders': internalSelector([], { detail: true }),
-  'workspace.credentialGroups': internalSelector([], { detail: true }),
-  'workspace.credentialGroupProviders': internalSelector(['credentialGroupId'], {
+  'workspace.credentialGroupProviders': internalSelector([], {
     detail: true,
   }),
   'workspace.secretNames': internalSelector(),

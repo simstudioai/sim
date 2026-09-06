@@ -105,6 +105,7 @@ interface ConnectOAuthModalBaseProps {
    */
   serviceName?: string
   serviceIcon?: ServiceIcon
+  docsUrl?: string
   /** Used to resolve display metadata and the provider id when not supplied directly. */
   provider?: OAuthProvider
   serviceId?: string
@@ -163,7 +164,7 @@ export type ConnectOAuthModalProps =
  * context written here.
  */
 export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
-  const { open, onOpenChange, mode } = props
+  const { open, onOpenChange, mode, docsUrl } = props
   const isConnect = mode === 'connect'
 
   const declaredProviderId = useMemo(
@@ -623,6 +624,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalFooter
         onCancel={handleClose}
         cancelDisabled={isPending}
+        secondaryActions={
+          docsUrl
+            ? [
+                {
+                  label: 'Setup guide',
+                  onClick: () => window.open(docsUrl, '_blank', 'noopener,noreferrer'),
+                },
+              ]
+            : undefined
+        }
         primaryAction={{
           label: isPending ? 'Connecting...' : 'Connect',
           onClick: handleConnect,

@@ -151,6 +151,19 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           secret: false,
           multiline: false,
         },
+        {
+          id: 'atlassianProduct',
+          label: 'Product',
+          placeholder: 'jira',
+          required: false,
+          secret: false,
+          multiline: false,
+          options: [
+            { value: 'jira', label: 'Jira' },
+            { value: 'confluence', label: 'Confluence' },
+          ],
+          hint: 'Select the product this token can access. Defaults to Jira.',
+        },
       ],
     }
   }
@@ -216,7 +229,8 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
 
 export async function listCredentialProviderCatalog(
   principal: Principal,
-  context: CredentialProviderCatalogContext
+  context: CredentialProviderCatalogContext,
+  oauthType: 'oauth' | 'managed_oauth' = 'oauth'
 ): Promise<CredentialProviderCatalogEntry[]> {
   const userId = principalUserId(principal)
   const [allowedIntegrations, blockVisibility] = await Promise.all([
@@ -257,7 +271,10 @@ export async function listCredentialProviderCatalog(
       name: service.name,
       description: service.description,
       providerFamily: service.baseProvider,
-      available: visibility.isOAuthServiceVisible(service),
+      available:
+        oauthType === 'managed_oauth'
+          ? visibility.isCredentialVisible({ providerId: service.providerId, type: oauthType })
+          : visibility.isOAuthServiceVisible(service),
       supportsReconnect: true,
       authorizationOptions,
       fields: (service.clientConfiguration?.fields ?? []).map((field) => ({

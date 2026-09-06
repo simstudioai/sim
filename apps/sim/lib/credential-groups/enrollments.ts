@@ -12,7 +12,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail, truncate } from '@sim/utils/string'
-import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
@@ -41,7 +41,7 @@ import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DELIVERY_CONCURRENCY = 5
 const MAX_ENROLLMENT_PAGE_SIZE = 100
-const CONNECTION_SUMMARIES_PER_ENROLLMENT = CREDENTIAL_GROUP_PROVIDER_IDS.length * 3
+const CONNECTION_SUMMARIES_PER_ENROLLMENT = (CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3
 
 type EnrollmentRow = typeof credentialGroupEnrollment.$inferSelect
 
@@ -230,11 +230,8 @@ function metadataString(metadata: object | null, key: string): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-async function resolvePublicEnrollmentRowByIdentity(
-  identity: Pick<PublicCredentialGroupEnrollmentIdentity, 'invitationTokenHash'> & {
-    enrollmentId?: string
-  }
-) {
+async function loadLiveEnrollmentRow(scope: SQL | undefined) {
+  if (!scope) throw new Error('Enrollment lookup requires a scope')
   const [row] = await db
     .select({
       enrollment: credentialGroupEnrollment,
@@ -251,23 +248,35 @@ async function resolvePublicEnrollmentRowByIdentity(
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
     .innerJoin(workspace, eq(workspace.id, credentialGroup.workspaceId))
     .leftJoin(user, eq(user.id, credentialGroupEnrollment.createdBy))
-    .where(
-      and(
-        eq(credentialGroupEnrollment.invitationTokenHash, identity.invitationTokenHash),
-        identity.enrollmentId ? eq(credentialGroupEnrollment.id, identity.enrollmentId) : undefined
-      )
-    )
+    .where(scope)
     .limit(1)
 
   if (!row || row.groupStatus !== 'active') return null
-  if (row.enrollment.status === 'revoked' || row.enrollment.status === 'delivery_failed')
+  if (
+    row.enrollment.status === 'revoked' ||
+    row.enrollment.status === 'delivery_failed' ||
+    row.enrollment.revokedAt
+  )
     return null
-  if (row.enrollment.invitationExpiresAt.getTime() <= Date.now()) return null
 
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(row.workspaceId)
   if (!(await isCredentialGroupsAvailable({ workspaceId: row.workspaceId, ownerBilling })))
     return null
   return row
+}
+
+async function resolvePublicEnrollmentRowByIdentity(
+  identity: Pick<PublicCredentialGroupEnrollmentIdentity, 'invitationTokenHash'> & {
+    enrollmentId?: string
+  }
+) {
+  const row = await loadLiveEnrollmentRow(
+    and(
+      eq(credentialGroupEnrollment.invitationTokenHash, identity.invitationTokenHash),
+      identity.enrollmentId ? eq(credentialGroupEnrollment.id, identity.enrollmentId) : undefined
+    )
+  )
+  return row && row.enrollment.invitationExpiresAt.getTime() > Date.now() ? row : null
 }
 
 function identityForPublicEnrollmentRow(
@@ -327,6 +336,7 @@ function toCredentialGroupEnrollment(row: EnrollmentRow): CredentialGroupEnrollm
 function toCredentialGroupConnectionProvider(
   providerId: string | null
 ): CredentialGroupEnrollmentConnection['provider'] {
+  if (providerId === 'gitlab') return 'gitlab'
   if (!providerId) throw new Error('Managed credential provider is missing')
   return getCredentialGroupProviderFromProviderId(providerId)
 }
@@ -340,7 +350,8 @@ function toCredentialGroupConnectionStatus(
 
 async function getInvitationContext(
   workspaceId: string,
-  groupId: string
+  groupId: string,
+  requireAccountType = true
 ): Promise<InvitationContext> {
   const [row] = await db
     .select({
@@ -360,7 +371,7 @@ async function getInvitationContext(
   if (row.groupStatus !== 'active') {
     throw new CredentialGroupEnrollmentError('Credential group is disabled', 409)
   }
-  if (!row.options.some((option) => option.status === 'active')) {
+  if (requireAccountType && !row.options.some((option) => option.status === 'active')) {
     const [linkedMcpServer] = await db
       .select({ id: mcpServers.id })
       .from(mcpServers)
@@ -620,29 +631,37 @@ export async function listCredentialGroupEnrollments(
   const pageRows = hasNextPage ? rows.slice(0, limit) : rows
   const enrollmentIds = pageRows.map(({ enrollment }) => enrollment.id)
   const connectionSummaryLimit = enrollmentIds.length * CONNECTION_SUMMARIES_PER_ENROLLMENT
+  const connectionStatus = sql<'active' | 'needs_reauth' | 'revoked'>`CASE
+    WHEN ${credential.type} = 'personal_token' THEN CASE
+      WHEN ${credential.revokedAt} IS NOT NULL THEN 'revoked'
+      WHEN ${credential.accessTokenExpiresAt} <= now() THEN 'needs_reauth'
+      ELSE 'active' END
+    ELSE ${credential.managedOauthStatus}::text END`
   const connectionRows =
-    enrollmentIds.length === 0 || activeOptionIds.length === 0
+    enrollmentIds.length === 0
       ? []
       : await db
           .select({
             enrollmentId: credential.credentialGroupEnrollmentId,
             providerId: credential.providerId,
-            status: credential.managedOauthStatus,
+            status: connectionStatus,
             count: count(credential.id),
           })
           .from(credential)
           .where(
             and(
-              eq(credential.type, 'managed_oauth'),
+              eq(credential.workspaceId, workspaceId),
               inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
-              inArray(credential.credentialGroupOptionId, activeOptionIds)
+              or(
+                and(
+                  eq(credential.type, 'managed_oauth'),
+                  inArray(credential.credentialGroupOptionId, activeOptionIds)
+                ),
+                eq(credential.type, 'personal_token')
+              )
             )
           )
-          .groupBy(
-            credential.credentialGroupEnrollmentId,
-            credential.providerId,
-            credential.managedOauthStatus
-          )
+          .groupBy(credential.credentialGroupEnrollmentId, credential.providerId, connectionStatus)
           .limit(connectionSummaryLimit + 1)
   if (connectionRows.length > connectionSummaryLimit) {
     throw new Error('Managed credential connection summaries exceed the supported provider states')
@@ -790,6 +809,22 @@ export async function inviteCredentialGroupEnrollment(
   })
 }
 
+/** A verified workspace member may enroll before saving a personal token, without an OAuth option. */
+export async function createCredentialGroupSelfEnrollmentLink(
+  workspaceId: string,
+  groupId: string,
+  email: string
+): Promise<CredentialGroupInvitationLink> {
+  const context = await getInvitationContext(workspaceId, groupId, false)
+  const issued = await issueInvitation(context, undefined, normalizeEmail(email), {
+    revokedEnrollment: 'reject',
+  })
+  return {
+    enrollment: toCredentialGroupEnrollment(issued.enrollment),
+    invitationLink: issued.invitationLink,
+  }
+}
+
 export async function createCredentialGroupInvitationLink(
   workspaceId: string,
   groupId: string,
@@ -897,16 +932,18 @@ export async function getPublicCredentialGroupEnrollment(
 }
 
 export async function getAuthorizedPublicCredentialGroupEnrollment(
-  identity: PublicCredentialGroupEnrollmentIdentity
+  identity: PublicCredentialGroupEnrollmentIdentity,
+  projection?: { optionId: string }
 ): Promise<PublicCredentialGroupEnrollment | null> {
   const row = await resolveAuthorizedPublicEnrollmentRow(identity)
   if (!row) return null
 
-  return buildPublicCredentialGroupEnrollment(row)
+  return buildPublicCredentialGroupEnrollment(row, projection)
 }
 
 async function buildPublicCredentialGroupEnrollment(
-  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>
+  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
+  projection?: { optionId: string }
 ): Promise<PublicCredentialGroupEnrollment> {
   const [connectionRows, linkedMcpServers, mcpConnectionRows] = await Promise.all([
     db
@@ -966,13 +1003,18 @@ async function buildPublicCredentialGroupEnrollment(
       return [connection.mcpServerId, connection] as const
     })
   )
+  const options = projection
+    ? row.options.filter(
+        (option) => option.id === projection.optionId && option.status === 'active'
+      )
+    : row.options
 
   return {
     inviterName: row.inviterName,
     workspaceName: row.workspaceName,
     credentialGroupName: row.groupName,
     options: await Promise.all(
-      row.options.map(async (option) => {
+      options.map(async (option) => {
         if (!isCredentialGroupProvider(option.provider)) {
           throw new Error(`Unsupported Credential Group provider: ${option.provider}`)
         }
@@ -1018,7 +1060,7 @@ async function buildPublicCredentialGroupEnrollment(
         }
       })
     ),
-    mcpServers: linkedMcpServers.map((server) => {
+    mcpServers: (projection ? [] : linkedMcpServers).map((server) => {
       if (!server.managedConnectorId) {
         throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
       }
@@ -1152,12 +1194,61 @@ export async function getAuthorizedCredentialGroupOAuthContext(
   return credentialGroupOAuthContextFromRow(row, option)
 }
 
+function loadEnrollmentRowForIdentity(
+  identity: Pick<
+    PublicCredentialGroupEnrollmentIdentity,
+    'workspaceId' | 'credentialGroupId' | 'enrollmentId' | 'email'
+  >
+) {
+  return loadLiveEnrollmentRow(
+    and(
+      eq(credentialGroupEnrollment.id, identity.enrollmentId),
+      eq(credentialGroupEnrollment.email, identity.email),
+      eq(credentialGroup.id, identity.credentialGroupId),
+      eq(credentialGroup.workspaceId, identity.workspaceId)
+    )
+  )
+}
+
+/** Resolves current enrollment authority established by a session or consumed OAuth attempt. */
+export async function getCredentialGroupOAuthContextForEnrollment(
+  identity: Pick<
+    PublicCredentialGroupEnrollmentIdentity,
+    'workspaceId' | 'credentialGroupId' | 'enrollmentId' | 'email'
+  >,
+  optionId: string
+): Promise<CredentialGroupOAuthContext | null> {
+  const row = await loadEnrollmentRowForIdentity(identity)
+  if (!row) return null
+  const option = row.options.find((candidate) => candidate.id === optionId)
+  if (!option || option.status !== 'active') return null
+  return credentialGroupOAuthContextFromRow(row, option)
+}
+
 export async function getAuthorizedCredentialGroupMcpOAuthContext(
   identity: PublicCredentialGroupEnrollmentIdentity,
   mcpServerId: string
 ): Promise<CredentialGroupMcpOAuthContext | null> {
   const row = await resolveAuthorizedPublicEnrollmentRow(identity)
-  if (!row) return null
+  return row ? credentialGroupMcpOAuthContextFromRow(row, mcpServerId) : null
+}
+
+/** Resolves a consumed MCP attempt against its current enrollment and linked server. */
+export async function getCredentialGroupMcpOAuthContextForEnrollment(
+  identity: Pick<
+    PublicCredentialGroupEnrollmentIdentity,
+    'workspaceId' | 'credentialGroupId' | 'enrollmentId' | 'email'
+  >,
+  mcpServerId: string
+): Promise<CredentialGroupMcpOAuthContext | null> {
+  const row = await loadEnrollmentRowForIdentity(identity)
+  return row ? credentialGroupMcpOAuthContextFromRow(row, mcpServerId) : null
+}
+
+async function credentialGroupMcpOAuthContextFromRow(
+  row: NonNullable<Awaited<ReturnType<typeof loadLiveEnrollmentRow>>>,
+  mcpServerId: string
+): Promise<CredentialGroupMcpOAuthContext | null> {
   const [server] = await db
     .select({
       id: mcpServers.id,

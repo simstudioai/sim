@@ -36,7 +36,6 @@ export const selectorContextKeys = [
   'customObjectTypeId',
   'pipelineId',
   'environmentType',
-  'credentialGroupId',
   'language',
   'host',
   'port',

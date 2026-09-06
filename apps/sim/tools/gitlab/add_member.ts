@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMemberResponse> = {
   id: 'gitlab_add_member',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Add Member',
   description: 'Add an existing GitLab user to a project or group at a given access level',
   version: '1.0.0',

@@ -5,6 +5,7 @@ import type { ToolConfig } from '@/tools/types'
 export const gitlabSearchUsersTool: ToolConfig<GitLabSearchUsersParams, GitLabSearchUsersResponse> =
   {
     id: 'gitlab_search_users',
+    personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     name: 'GitLab Search Users',
     description:
       'Search for GitLab users by name, username, or email. Email matches must be exact; private emails match only with an admin token. Use this to resolve an email to a user ID before adding a member.',

@@ -3,7 +3,9 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
@@ -61,6 +63,51 @@ describe('persisted-message', () => {
         content: 'done',
       },
     ])
+  })
+
+  it('preserves Assistant mode and verified citations through save, compaction, and reload', () => {
+    const result: OrchestratorResult = {
+      success: true,
+      requestId: 'request',
+      toolCalls: [],
+      content: 'Answer <source>{"id":"document:doc"}</source>',
+      contentBlocks: [
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'retrieval',
+            name: 'read_document',
+            status: 'success',
+            result: {
+              success: true,
+              output: {
+                success: true,
+                data: {
+                  citationId: 'document:doc',
+                  citationUrl: 'https://source.test/doc',
+                  documentName: 'Title',
+                  chunks: [{ content: 'large passage' }],
+                },
+              },
+            },
+          },
+        },
+      ],
+    }
+    const persisted = stripToolResultOutput(
+      buildPersistedAssistantMessage(result, undefined, 'assistant')
+    )
+    const normalized = normalizeMessage(persisted as unknown as Record<string, unknown>)
+    const displayed = toDisplayMessage(normalized)
+    expect(displayed.requestMode).toBe('assistant')
+    expect(JSON.stringify(persisted)).not.toContain('large passage')
+    const citations = resolveMessageCitations(
+      displayed.contentBlocks ?? [],
+      displayed.content,
+      true
+    )
+    expect(citations.fallbackContent).toContain('https://source.test/doc')
+    expect(citations.fallbackContent).toContain('Title')
   })
 
   it('prefers an explicit persisted request ID override', () => {

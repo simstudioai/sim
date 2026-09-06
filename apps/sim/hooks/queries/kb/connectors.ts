@@ -19,9 +19,11 @@ import {
   getKnowledgeConnectorContract,
   listKnowledgeConnectorDocumentsContract,
   listKnowledgeConnectorsContract,
+  listSearchSourcesContract,
   listWorkspaceMemberConnectorsContract,
   type MemberSyncLogData,
   patchKnowledgeConnectorDocumentsContract,
+  type SearchSourceSummary,
   type StartKnowledgeConnectorMemberEnrollmentData,
   type SyncLogData,
   startKnowledgeConnectorMemberEnrollmentContract,
@@ -32,10 +34,17 @@ import {
   type ViewerConnectorMembership,
   type WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge'
+import {
+  type ConnectorAccessMode,
+  type PrepareSearchSourceBody,
+  prepareSearchSourceContract,
+} from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
+import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 export type {
+  SearchSourceSummary,
   ViewerConnectorMembership,
   WorkspaceMemberConnector,
   ConnectorData,
@@ -116,7 +125,6 @@ export function useConnectorList(knowledgeBaseId?: string) {
     queryFn: ({ signal }) => fetchConnectors(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: CONNECTOR_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const connectors = query.state.data
       if (!connectors?.length) return false
@@ -245,7 +253,7 @@ interface CreateConnectorParams {
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes?: number
-  accessMode?: 'workspace' | 'members'
+  accessMode?: ConnectorAccessMode
   credentialGroupId?: string
   credentialGroupOptionId?: string
 }
@@ -262,6 +270,13 @@ async function createConnector({
   return result.data
 }
 
+function invalidateConnectorAccounts(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspaces() }),
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
+  ])
+}
+
 export function useCreateConnector() {
   const queryClient = useQueryClient()
 
@@ -276,6 +291,8 @@ export function useCreateConnector() {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      void invalidateConnectorAccounts(queryClient)
     },
   })
 }
@@ -327,6 +344,7 @@ export function useUpdateConnector() {
     },
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
     },
   })
 }
@@ -365,6 +383,31 @@ async function startConnectorMemberEnrollment({
   return response.data
 }
 
+export const searchSourceKeys = {
+  all: ['search-sources'] as const,
+  lists: () => [...searchSourceKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...searchSourceKeys.lists(), workspaceId ?? ''] as const,
+}
+
+export function useSearchSources(workspaceId?: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: searchSourceKeys.list(workspaceId),
+    queryFn: async ({ signal }): Promise<SearchSourceSummary[]> =>
+      (
+        await requestJson(listSearchSourcesContract, {
+          query: { workspaceId: workspaceId as string },
+          signal,
+        })
+      ).data,
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    staleTime: CONNECTOR_LIST_STALE_TIME,
+    refetchInterval: (query) =>
+      query.state.data?.some((source) => source.isSyncing)
+        ? CONNECTOR_SYNC_POLL_INTERVAL_MS
+        : false,
+  })
+}
+
 export const memberConnectorKeys = {
   all: ['member-connectors'] as const,
   lists: () => [...memberConnectorKeys.all, 'list'] as const,
@@ -386,7 +429,7 @@ async function fetchWorkspaceMemberConnectors(
   return response.data
 }
 
-/** Every per-member connector in the workspace and where the viewer stands with each. */
+/** Workspace sources that let the viewer connect their own account. */
 export function useWorkspaceMemberConnectors(
   workspaceId?: string,
   options?: { enabled?: boolean }
@@ -410,7 +453,15 @@ export function useWorkspaceMemberConnectors(
 
 /** Mints the viewer's enrollment link for a per-member connector; the caller navigates to it. */
 export function useStartConnectorMemberEnrollment() {
-  return useMutation({ mutationFn: startConnectorMemberEnrollment })
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: startConnectorMemberEnrollment,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
+        queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+      ]),
+  })
 }
 
 /**
@@ -436,6 +487,9 @@ export function useUpdateConnectorAccess() {
       /** The base list says whether any connector syncs per member, and the Search tab lists them. */
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
+      void invalidateConnectorAccounts(queryClient)
     },
   })
 }
@@ -471,6 +525,7 @@ export function useDeleteConnector() {
     onSettled: (_data, _error, { knowledgeBaseId, deleteDocuments }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
@@ -486,6 +541,7 @@ export function useDeleteConnector() {
         queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
       }
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
     },
   })
 }
@@ -523,7 +579,15 @@ export function useTriggerSync() {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) }),
         queryClient.cancelQueries({ queryKey: memberConnectorKeys.lists() }),
+        queryClient.cancelQueries({ queryKey: searchSourceKeys.lists() }),
       ])
+      queryClient.setQueriesData<SearchSourceSummary[]>(
+        { queryKey: searchSourceKeys.lists() },
+        (sources) =>
+          sources?.map((source) =>
+            source.connectorId === connectorId ? { ...source, isSyncing: true } : source
+          )
+      )
       return optimisticallyQueueSync(queryClient, knowledgeBaseId, connectorId)
     },
     /**
@@ -531,6 +595,7 @@ export function useTriggerSync() {
      * refused sync does not leave the row spinning.
      */
     onError: (_error, { knowledgeBaseId, connectorId }, previous) => {
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       if (previous) {
         setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
       }
@@ -637,6 +702,7 @@ function invalidateConnectorDocumentChange(
   })
   queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
   queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId), exact: true })
+  queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
 
   /**
    * One pass over the cache rather than one per id — `documentIds` reaches
@@ -651,6 +717,7 @@ function invalidateConnectorDocumentChange(
     queryKey: documentDetailsPrefix,
     predicate: (query) => affected.has(query.queryKey[documentDetailsPrefix.length] as string),
   })
+  queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
 }
 
 async function excludeConnectorDocuments({
@@ -719,7 +786,25 @@ export function useConnectSimSearchConnector() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      void invalidateConnectorAccounts(queryClient)
     },
+  })
+}
+
+export function usePrepareSearchSource() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: PrepareSearchSourceBody) =>
+      (await requestJson(prepareSearchSourceContract, { body })).data,
+    onSuccess: (_data, body) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: searchSourceKeys.list(body.workspaceId) }),
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.workspace(body.workspaceId),
+        }),
+      ]),
   })
 }

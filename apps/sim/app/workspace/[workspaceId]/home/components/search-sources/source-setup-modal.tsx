@@ -22,6 +22,7 @@ interface SourceSetupModalProps {
  * a space. Everyone after the first person clicks straight through.
  */
 export function SourceSetupModal({ connector, onClose, onConnect }: SourceSetupModalProps) {
+  const docsUrl = connector.meta.searchDocsUrl
   const fields = connector.setupFields
   const [values, setValues] = useState<Record<string, string>>({})
   const complete = fields.every((field) => values[field.id]?.trim())
@@ -75,6 +76,16 @@ export function SourceSetupModal({ connector, onClose, onConnect }: SourceSetupM
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        secondaryActions={
+          docsUrl
+            ? [
+                {
+                  label: 'Setup guide',
+                  onClick: () => window.open(docsUrl, '_blank', 'noopener,noreferrer'),
+                },
+              ]
+            : undefined
+        }
         primaryAction={{ label: 'Connect', onClick: submit, disabled: !complete }}
       />
     </ChipModal>

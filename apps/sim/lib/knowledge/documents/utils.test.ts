@@ -1,6 +1,9 @@
 /**
  * @vitest-environment node
  */
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { Agent, fetch as nativeFetch } from 'undici'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
@@ -11,7 +14,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithValidation: mockSecureFetchWithValidation,
 }))
 
-import { secureFetchWithRetry } from './secure-fetch.server'
+import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   fetchWithRetry,
   getRetryAfterMs,
@@ -22,7 +25,7 @@ import {
   readBoundedHttpErrorPayload,
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
-} from './utils'
+} from '@/lib/knowledge/documents/utils'
 
 /** Case-insensitive header reader over a plain lowercase-keyed record. */
 function headers(entries: Record<string, string>) {
@@ -423,6 +426,7 @@ describe('fetchWithRetry rate-limit handling', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -436,6 +440,164 @@ describe('fetchWithRetry rate-limit handling', () => {
       text: async () => 'body',
     } as unknown as Response
   }
+
+  it('bounds a stalled request when no retry options are supplied', async () => {
+    vi.useFakeTimers()
+    let requestSignal: AbortSignal | null | undefined
+    let finishRequest: ((response: Response) => void) | undefined
+    globalThis.fetch = vi.fn((_url, options) => {
+      requestSignal = options?.signal
+      return new Promise<Response>((resolve) => {
+        finishRequest = resolve
+      })
+    })
+    const result = fetchWithRetry('https://api.github.com/repos/example/private').catch(
+      (error: unknown) => error
+    )
+
+    try {
+      await vi.advanceTimersByTimeAsync(150_001)
+      expect(requestSignal?.aborted).toBe(true)
+      await expect(result).resolves.toMatchObject({ name: 'TimeoutError' })
+    } finally {
+      finishRequest?.(new Response(null, { status: 200 }))
+      await result
+    }
+  })
+
+  it('aborts the underlying fetch when the retry budget expires', async () => {
+    vi.useFakeTimers()
+    let requestSignal: AbortSignal | null | undefined
+    let finishRequest: ((response: Response) => void) | undefined
+    globalThis.fetch = vi.fn((_url, options) => {
+      requestSignal = options?.signal
+      return new Promise<Response>((resolve) => {
+        finishRequest = resolve
+      })
+    })
+    const result = fetchWithRetry(
+      'https://api.github.com/repos/example/private',
+      {},
+      { retryBudgetMs: 100 }
+    ).catch((error: unknown) => error)
+
+    try {
+      await vi.advanceTimersByTimeAsync(100)
+      await expect(result).resolves.toMatchObject({ name: 'TimeoutError' })
+      expect(requestSignal?.aborted).toBe(true)
+    } finally {
+      finishRequest?.(new Response(null, { status: 200 }))
+      await result
+    }
+  })
+
+  it('keeps the remaining deadline active while consuming a response body after a retry', async () => {
+    vi.useFakeTimers()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+      const controller = new AbortController()
+      setTimeout(
+        () => controller.abort(new DOMException('Request exceeded its deadline', 'TimeoutError')),
+        milliseconds
+      )
+      return controller.signal
+    })
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/plain' })
+      response.write('partial')
+    })
+    const dispatcher = new Agent()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    globalThis.fetch = vi
+      .fn(async (_url, options) => {
+        return (await nativeFetch(url, {
+          dispatcher,
+          signal: options?.signal,
+        })) as unknown as Response
+      })
+      .mockResolvedValueOnce(response(429, { 'retry-after': '0.06' }))
+
+    try {
+      const pending = fetchWithRetry(url, {}, { retryBudgetMs: 100 })
+      await vi.advanceTimersByTimeAsync(60)
+      const response = await pending
+      const reader = response.body!.getReader()
+      expect(new TextDecoder().decode((await reader.read()).value)).toBe('partial')
+      const result = reader.read().catch((error: unknown) => error)
+
+      expect(timeout).toHaveBeenNthCalledWith(1, 100)
+      expect(timeout).toHaveBeenNthCalledWith(2, 40)
+      await vi.advanceTimersByTimeAsync(40)
+      await expect(result).resolves.toMatchObject({ name: 'TimeoutError' })
+    } finally {
+      await dispatcher.destroy()
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
+  it.each(['request', 'retry'] as const)(
+    'honors the %s signal when both callers supply cancellation',
+    async (cancelledBy) => {
+      vi.useFakeTimers()
+      const requestController = new AbortController()
+      const retryController = new AbortController()
+      let requestSignal: AbortSignal | null | undefined
+      globalThis.fetch = vi.fn((_url, options) => {
+        requestSignal = options?.signal
+        return new Promise<Response>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+            once: true,
+          })
+        })
+      })
+      const result = fetchWithRetry(
+        'https://api.github.com/repos/example/private',
+        { signal: requestController.signal },
+        { signal: retryController.signal }
+      )
+      const rejected = expect(result).rejects.toMatchObject({ name: 'AbortError' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      const controller = cancelledBy === 'request' ? requestController : retryController
+      controller.abort()
+
+      await rejected
+      expect(requestSignal?.aborted).toBe(true)
+      expect(globalThis.fetch).toHaveBeenCalledOnce()
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
+
+  it('cancels a provider retry wait from the request signal without another attempt', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    globalThis.fetch = vi.fn().mockResolvedValue(response(503))
+    const result = fetchWithRetry('https://api.github.com/repos/example/private', {
+      signal: controller.signal,
+    })
+    const rejected = expect(result).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    controller.abort()
+
+    await rejected
+    expect(globalThis.fetch).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('preserves the default retry-wait ceiling when adding a request deadline', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(response(429, { 'retry-after': '31' }))
+
+    await expect(
+      fetchWithRetry('https://api.github.com/repos/example/private')
+    ).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 31_000,
+    })
+
+    expect(globalThis.fetch).toHaveBeenCalledOnce()
+  })
 
   it('retries a rate-limit 403 (x-ratelimit-remaining: 0) and succeeds', async () => {
     const fetchMock = vi
@@ -705,6 +867,27 @@ describe('retryWithExponentialBackoff retry budget', () => {
     await vi.advanceTimersByTimeAsync(1)
     await expect(result).resolves.toBe('ok')
     expect(operation).toHaveBeenCalledTimes(2)
+  })
+
+  it('aborts provider work at one deadline across attempts', async () => {
+    vi.useFakeTimers()
+    let attempts = 0
+    const operation = vi.fn(async (signal?: AbortSignal) => {
+      attempts++
+      if (attempts === 1)
+        throw Object.assign(new Error('rate limited'), { status: 429, retryAfterMs: 60 })
+      return new Promise<never>((_resolve, reject) =>
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      )
+    })
+    const result = retryWithExponentialBackoff(operation, { maxRetries: 3, retryBudgetMs: 100 })
+    const rejected = expect(result).rejects.toMatchObject({ name: 'TimeoutError' })
+    await vi.advanceTimersByTimeAsync(99)
+    expect(operation).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+    expect(operation).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('does not retry when the server delay exceeds the operation budget', async () => {

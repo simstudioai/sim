@@ -26,7 +26,7 @@ const MODE_LABELS: Record<MothershipMode, string> = {
 }
 
 interface ModeSwitcherProps {
-  onLeaveSearch?: () => void
+  onModeChange?: () => void
 }
 
 /**
@@ -36,14 +36,14 @@ interface ModeSwitcherProps {
  * round controls — opening a menu that checks the active mode, as
  * `ChipDropdown` does.
  */
-export const ModeSwitcher = memo(function ModeSwitcher({ onLeaveSearch }: ModeSwitcherProps) {
+export const ModeSwitcher = memo(function ModeSwitcher({ onModeChange }: ModeSwitcherProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
   const [mode, setMode] = useMothershipMode()
 
   const handleSelect = (next: MothershipMode) => {
     if (next === mode) return
-    if (mode === 'search' && next !== 'search') onLeaveSearch?.()
+    onModeChange?.()
     void setMode(next)
     captureEvent(posthog, 'chat_mode_changed', { workspace_id: workspaceId, mode: next })
   }

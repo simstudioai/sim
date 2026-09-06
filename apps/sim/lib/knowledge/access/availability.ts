@@ -2,6 +2,7 @@ import {
   getWorkspaceOwnerSubscriptionAccess,
   type WorkspaceOwnerSubscriptionAccess,
 } from '@/lib/billing/core/workspace-access'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
@@ -22,23 +23,64 @@ export interface KnowledgeMemberAccessContext {
 }
 
 /**
- * Whether permission-aware knowledge is on for this workspace: the
- * `knowledge-member-access` flag, and Credential Groups available to the
- * workspace, which members mode enrolls people through. Every gate the
- * feature has checks this one function — creating and switching connectors,
- * the member engine, the member tokens a reader is granted, and the
- * workspace host context the UI reads — so they can never disagree. When it
- * turns off, member-scoped documents are hidden on the next read, members-mode
- * connectors wait rather than change anything, and search returns to the
- * semantic-only default; nothing is deleted.
+ * Source mirroring and managed identities have independent gates. Mirrored
+ * email and domain grants work without Connected accounts. Provider-subject
+ * grants, including Confluence directory memberships with hidden emails,
+ * also require managed identities to remain available.
+ */
+export interface KnowledgeAccessAvailability {
+  /** Mirroring source ACLs and resolving their verified email and directory-group grants. */
+  sourceMirrored: boolean
+  /** Managed identities used by member sync and by subject-based source ACLs and groups. */
+  memberScoped: boolean
+}
+
+export async function resolveKnowledgeAccessAvailability(
+  context: KnowledgeMemberAccessContext
+): Promise<KnowledgeAccessAvailability> {
+  if (!(await isFeatureEnabled('knowledge-member-access', context))) {
+    return { sourceMirrored: false, memberScoped: false }
+  }
+  const ownerBilling =
+    context.ownerBilling ?? (await getWorkspaceOwnerSubscriptionAccess(context.workspaceId))
+
+  /** Mirroring remains independent of the additional managed-identity feature gate. */
+  const sourceMirrored = !isHosted || ownerBilling.isEnterprise
+  return {
+    sourceMirrored,
+    memberScoped: await isCredentialGroupsAvailable({
+      workspaceId: context.workspaceId,
+      ownerBilling,
+    }),
+  }
+}
+
+/**
+ * Whether members mode is on for this workspace: the `knowledge-member-access`
+ * flag, and Credential Groups available to the workspace, which members mode
+ * enrolls people through. The members-mode gates — creating and switching
+ * connectors, the member engine, the workspace host context the UI reads —
+ * check this; the reader's tokens come from `resolveKnowledgeAccessAvailability`
+ * directly, which this is the `memberScoped` half of, so they can never
+ * disagree. When it turns off, member-scoped documents are hidden on the next
+ * read, members-mode connectors wait rather than change anything, and search
+ * returns to the semantic-only default; nothing is deleted.
  */
 export async function isKnowledgeMemberAccessAvailable(
   context: KnowledgeMemberAccessContext
 ): Promise<boolean> {
-  if (!(await isFeatureEnabled('knowledge-member-access', context))) return false
-  const ownerBilling =
-    context.ownerBilling ?? (await getWorkspaceOwnerSubscriptionAccess(context.workspaceId))
-  return isCredentialGroupsAvailable({ workspaceId: context.workspaceId, ownerBilling })
+  return (await resolveKnowledgeAccessAvailability(context)).memberScoped
+}
+
+/** Refuses with the one message every source-mirroring gate uses when the feature is off. */
+export async function requireSourceMirroredAccessAvailable(
+  context: KnowledgeMemberAccessContext
+): Promise<void> {
+  if ((await resolveKnowledgeAccessAvailability(context)).sourceMirrored) return
+  throw new OrchestrationError(
+    'validation',
+    'Administrator access is not available for this workspace'
+  )
 }
 
 /** Refuses with the one message every members-mode gate uses when the feature is off for the workspace. */

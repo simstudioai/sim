@@ -30,6 +30,21 @@ describe('getCredentialActorContext', () => {
     resetDbChainMock()
   })
 
+  it.each(['owner', 'admin', 'shared-user'])(
+    'personal token authority is exactly the immutable owner, regardless of workspace or membership admin',
+    async (userId) => {
+      queueTableRows(credential, [
+        { id: 'token', workspaceId: 'ws', type: 'personal_token', createdBy: 'owner' },
+      ])
+      queueTableRows(credentialMember, [{ role: 'admin' }])
+      mockCheckWorkspaceAccess.mockResolvedValue(workspaceAdminAccess)
+      const result = await getCredentialActorContext('token', userId)
+      expect(result.isAdmin).toBe(userId === 'owner')
+      expect(Boolean(result.credential)).toBe(userId === 'owner')
+      expect(result.member).toBeNull()
+    }
+  )
+
   it('treats an explicit credential admin membership as admin', async () => {
     queueTableRows(credential, [{ id: 'c1', workspaceId: 'ws', type: 'oauth' }])
     queueTableRows(credentialMember, [{ role: 'admin' }])

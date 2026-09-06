@@ -36,6 +36,9 @@ export const slackSetStatusTool: ToolConfig<SlackSetStatusParams, SlackSetStatus
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
+    /** Slack accepts only bot tokens for this app-owned operation. */
+    personalTokenSupported: false,
   },
 
   params: {

@@ -1,6 +1,27 @@
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { effectiveConnectorSyncIntervalMinutes } from '@/lib/knowledge/connectors/access-modes'
+
 /** Under the account picker of a per-member connector, whose account only browses. */
 export const BROWSE_WITH_HINT =
-  'Only used to pick folders and spaces below. The connector syncs as each member, not as this account.'
+  'Only used to choose what to sync below. It does not change who indexes documents or who can read them.'
+
+/** Explain when permission refresh requires a more frequent pass than content indexing. */
+export function connectorSyncFrequencyHint(
+  accessMode: ConnectorAccessMode,
+  syncInterval: number,
+  hasContentCredential: boolean
+): string | undefined {
+  if (accessMode === 'workspace') return undefined
+  if (syncInterval === 0) {
+    return 'Content and permissions update only when you sync. Documents become unavailable after 24 hours without a successful permission check.'
+  }
+  if (effectiveConnectorSyncIntervalMinutes(accessMode, syncInterval) === syncInterval) {
+    return 'Permissions are checked on every sync.'
+  }
+  return accessMode === 'members' && hasContentCredential
+    ? 'Content follows this schedule. Member permissions are checked every hour.'
+    : 'Source permissions require a sync every hour, even when a longer interval is selected. Unchanged documents are not re-indexed.'
+}
 
 export const SYNC_INTERVALS = [
   { label: 'Live', value: 5, requiresMax: true },

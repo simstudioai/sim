@@ -7,6 +7,7 @@ import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { verifyGitHubRepositoriesIdentity } from '@/lib/oauth/github-repositories'
 import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
@@ -68,6 +69,7 @@ export interface ManagedOAuthConnectorConfig {
   verifyIdentity(params: {
     tokens: OAuth2Tokens
     clientId: string
+    expectedEmail?: string
   }): Promise<ManagedOAuthConnectorIdentity>
   hasRequiredScopes(grantedScopes: string[], requiredScopes: string[]): boolean
   isTerminalRefreshError(errorCode: string | undefined): boolean
@@ -237,7 +239,7 @@ export function createAtlassianManagedOAuthConnector(
       return requiredScopes.every((scope) => granted.has(scope))
     },
     isTerminalRefreshError(errorCode) {
-      return errorCode === 'invalid_grant'
+      return errorCode === 'invalid_grant' || errorCode === 'unauthorized_client'
     },
   }
 }
@@ -975,6 +977,29 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
   ],
   ['attio', createAttioManagedOAuthConnector],
   ['bitbucket', createBitbucketManagedOAuthConnector],
+  [
+    'github-repositories',
+    () => ({
+      additionalScopes: [],
+      requiresRefreshToken: true,
+      pkce: true,
+      scopeless: true,
+      nonceVerification: 'state_only',
+      includeLoginHint: false,
+      getAuthorizationAppId(clientId) {
+        return `github-repositories:${createHash('sha256').update(clientId).digest('hex')}`
+      },
+      verifyIdentity({ tokens, expectedEmail }) {
+        return verifyGitHubRepositoriesIdentity(tokens.accessToken ?? '', expectedEmail)
+      },
+      hasRequiredScopes(_grantedScopes, requiredScopes) {
+        return requiredScopes.length === 0
+      },
+      isTerminalRefreshError(errorCode) {
+        return isTerminalRefreshError(errorCode)
+      },
+    }),
+  ],
   [
     'hubspot',
     () =>

@@ -7,6 +7,7 @@ export const gitlabRemoveMemberTool: ToolConfig<
   GitLabRemoveMemberResponse
 > = {
   id: 'gitlab_remove_member',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Remove Member',
   description: 'Remove a member from a GitLab project or group',
   version: '1.0.0',

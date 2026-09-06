@@ -45,6 +45,30 @@ describe('copilot tool executor fallback', () => {
     getToolEntry.mockReturnValue(undefined)
   })
 
+  it.each(['run_workflow', 'read', 'manage_knowledge_base', 'mcp_remote_tool', 'unknown_tool'])(
+    'refuses %s in Assistant even for an admin and forged handler',
+    async (toolId) => {
+      isKnownTool.mockReturnValue(true)
+      isSimExecuted.mockReturnValue(true)
+      const handler = vi.fn()
+      registerHandler(toolId, handler)
+      const result = await executeTool(
+        toolId,
+        {},
+        {
+          userId: 'person',
+          workspaceId: 'workspace',
+          workflowId: '',
+          userPermission: 'admin',
+          requestMode: 'assistant',
+        }
+      )
+      expect(result.success).toBe(false)
+      expect(handler).not.toHaveBeenCalled()
+      expect(executeAppTool).not.toHaveBeenCalled()
+    }
+  )
+
   it('enforces catalog-required permissions before dispatch and fails closed when absent', async () => {
     getToolEntry.mockReturnValue({ requiredPermission: 'write' })
     isKnownTool.mockReturnValue(true)

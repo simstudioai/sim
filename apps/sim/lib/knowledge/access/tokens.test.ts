@@ -4,9 +4,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCESS_TOKEN_PATTERN,
+  groupToken,
   isAccessToken,
+  isIdentityToken,
+  MAX_ACL_TOKENS,
   sortAccessTokens,
   subjectToken,
+  userToken,
+  validateAcl,
 } from '@/lib/knowledge/access/tokens'
 
 describe('access token shape', () => {
@@ -91,5 +96,85 @@ describe('sortAccessTokens', () => {
 
   it('never uses locale ordering', () => {
     expect(sortAccessTokens(['s:x:-:b', 's:x:-:B'])).toEqual(['s:x:-:B', 's:x:-:b'])
+  })
+})
+
+describe('userToken', () => {
+  it('folds case and surrounding whitespace so one person is one token', () => {
+    expect(userToken('  Alice@Corp.com ')).toBe('u:alice@corp.com')
+  })
+
+  it('refuses to invent an identity for a principal with no address', () => {
+    expect(userToken(null)).toBeNull()
+    expect(userToken(undefined)).toBeNull()
+    expect(userToken('   ')).toBeNull()
+    expect(userToken('not-an-email')).toBeNull()
+  })
+})
+
+describe('groupToken', () => {
+  it('folds the group identifier, which sources spell inconsistently', () => {
+    expect(
+      groupToken({ providerId: 'google-drive', tenantId: 'C01', groupId: ' Sales@Corp.com' })
+    ).toBe('g:google-drive:C01:sales@corp.com')
+  })
+
+  it('stands in a placeholder for a provider that reports no tenant', () => {
+    expect(groupToken({ providerId: 'confluence', tenantId: null, groupId: 'engineering' })).toBe(
+      'g:confluence:-:engineering'
+    )
+  })
+
+  it('refuses segments that would be mistaken for the separator', () => {
+    expect(groupToken({ providerId: 'a:b', tenantId: null, groupId: 'g' })).toBeNull()
+    expect(groupToken({ providerId: 'p', tenantId: 'T:1', groupId: 'g' })).toBeNull()
+  })
+
+  it('refuses a group it cannot name', () => {
+    expect(groupToken({ providerId: 'p', tenantId: null, groupId: '' })).toBeNull()
+  })
+})
+
+describe('validateAcl', () => {
+  it('returns the canonical sorted, de-duplicated form', () => {
+    expect(validateAcl(['ws', 'pub', 'ws'])).toEqual({ valid: true, acl: ['pub', 'ws'] })
+  })
+
+  it('names the token the database would have rejected', () => {
+    expect(validateAcl(['ws', 'u:NOT-FOLDED@corp.com'])).toEqual({
+      valid: false,
+      reason: 'malformed_token',
+      sample: 'u:NOT-FOLDED@corp.com',
+    })
+  })
+
+  it('refuses an ACL past the ceiling, and accepts one exactly at it', () => {
+    const at = Array.from({ length: MAX_ACL_TOKENS }, (_u, i) => `u:p${i}@corp.com`)
+    expect(validateAcl(at).valid).toBe(true)
+    expect(validateAcl([...at, 'u:extra@corp.com'])).toEqual({
+      valid: false,
+      reason: 'too_many_tokens',
+    })
+  })
+})
+
+describe('directory identity tokens', () => {
+  it.each(['u:alice@corp.com', 'u:*@corp.com', 's:confluence:-:557058:MixedCase'])(
+    'accepts %s without changing its identity',
+    (token) => {
+      expect(isIdentityToken(token)).toBe(true)
+    }
+  )
+  it.each([
+    'ws',
+    'pub',
+    'link',
+    'g:confluence:cloud:group',
+    'alice@corp.com',
+    'u:Alice@corp.com',
+    'u: alice@corp.com ',
+    's:confluence:missing',
+  ])('rejects noncanonical member %s', (token) => {
+    expect(isIdentityToken(token)).toBe(false)
   })
 })

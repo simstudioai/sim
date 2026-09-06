@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
-  Button,
+  Chip,
   ChipConfirmModal,
   type ChipConfirmTextSegment,
   ChipDatePicker,
@@ -16,7 +16,6 @@ import {
   cellIconNodeClass,
   chipContentGap,
   chipContentLabelClass,
-  chipVariants,
   cn,
   FloatingTooltip,
   isTextClipped,
@@ -101,6 +100,7 @@ import {
   kbDocumentSortParams,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -432,6 +432,7 @@ export function KnowledgeBase({
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
+  const canDeleteBase = canDeleteKnowledgeBase(knowledgeBase, userPermissions)
 
   const { data: connectors = EMPTY_CONNECTORS, isLoading: isLoadingConnectors } =
     useConnectorList(id)
@@ -588,9 +589,6 @@ export function KnowledgeBase({
     )
   }
 
-  /**
-   * Handles retrying a failed document processing
-   */
   const handleRetryDocument = (docId: string) => {
     updateDocument(docId, {
       processingStatus: 'pending',
@@ -736,7 +734,7 @@ export function KnowledgeBase({
    * Handles deleting the entire knowledge base
    */
   const handleDeleteKnowledgeBase = () => {
-    if (!knowledgeBase) return
+    if (!knowledgeBase || !canDeleteBase) return
 
     deleteKnowledgeBaseMutation(
       { knowledgeBaseId: id },
@@ -981,13 +979,10 @@ export function KnowledgeBase({
                       disabled: !userPermissions.canEdit,
                       onClick: () => setShowTagsModal(true),
                     },
-                    {
-                      label: 'Delete',
-                      icon: Trash,
-                      disabled: !userPermissions.canEdit,
-                      onClick: () => setShowDeleteDialog(true),
-                    },
                   ]
+                : []),
+              ...(canDeleteBase
+                ? [{ label: 'Delete', icon: Trash, onClick: () => setShowDeleteDialog(true) }]
                 : []),
             ],
           },
@@ -1008,6 +1003,7 @@ export function KnowledgeBase({
       kbRename.startRename,
       userPermissions.canEdit,
       userPermissions.isLoading,
+      canDeleteBase,
     ]
   )
 
@@ -1067,20 +1063,18 @@ export function KnowledgeBase({
     () => (
       <AutoWidthPanel>
         <div className='flex flex-col gap-2'>
-          <div className='flex h-5 items-center justify-between'>
+          <div className='flex items-center justify-between'>
             <span className={FILTER_SECTION_LABEL_CLASS}>Status</span>
             {enabledFilter !== 'all' && (
-              <Button
-                variant='ghost'
+              <Chip
                 onClick={() => {
                   setEnabledFilter('all')
                   setSelectedDocuments(new Set())
                   setIsSelectAllMode(false)
                 }}
-                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
               >
                 Clear
-              </Button>
+              </Chip>
             )}
           </div>
           <ChipDropdown
@@ -1119,35 +1113,34 @@ export function KnowledgeBase({
           const ConnectorIcon = def?.icon
           const syncInFlight = isConnectorSyncingOrPending(connector)
           return (
-            <button
+            <Chip
               key={connector.id}
-              type='button'
               onClick={() => setShowConnectorsModal(true)}
-              className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
+              className='max-w-[180px]'
+              leftAdornment={
+                <span className='relative flex size-[14px] shrink-0 items-center justify-center'>
+                  {syncInFlight ? (
+                    <Loader className='size-[14px]' animate />
+                  ) : (
+                    ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
+                  )}
+                  {connector.status !== 'active' && !syncInFlight && (
+                    <span
+                      className={cn(
+                        '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
+                        connector.status === 'error'
+                          ? 'bg-[var(--text-error)]'
+                          : connector.status === 'disabled'
+                            ? 'bg-[var(--caution)]'
+                            : 'bg-[var(--text-muted)]'
+                      )}
+                    />
+                  )}
+                </span>
+              }
             >
-              <span className='relative flex size-[14px] shrink-0 items-center justify-center'>
-                {syncInFlight ? (
-                  <Loader className='size-[14px]' animate />
-                ) : (
-                  ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
-                )}
-                {connector.status !== 'active' && !syncInFlight && (
-                  <span
-                    className={cn(
-                      '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
-                      connector.status === 'error'
-                        ? 'bg-[var(--text-error)]'
-                        : connector.status === 'disabled'
-                          ? 'bg-[var(--caution)]'
-                          : 'bg-[var(--text-muted)]'
-                    )}
-                  />
-                )}
-              </span>
-              <span className='truncate text-[var(--text-body)]'>
-                {def?.name || connector.connectorType}
-              </span>
-            </button>
+              {def?.name || connector.connectorType}
+            </Chip>
           )
         })}
       </>
@@ -1259,7 +1252,7 @@ export function KnowledgeBase({
                 </span>
               ),
             },
-            size: { label: formatFileSize(doc.fileSize) },
+            size: { label: formatFileSize(doc.fileSize, { includeBytes: true }) },
             tokens: {
               label:
                 doc.processingStatus === 'completed'
@@ -1454,13 +1447,14 @@ export function KnowledgeBase({
         chunkingConfig={knowledgeBase?.chunkingConfig}
       />
 
-      {showAddConnectorModal && (
+      {showAddConnectorModal && knowledgeBase && (
         <AddConnectorModal
           open
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={updateAddConnectorParam}
           knowledgeBaseId={id}
           initialConnectorType={addConnectorType || undefined}
+          isSearchIndex={knowledgeBase?.isSearchIndex}
         />
       )}
 
@@ -1498,6 +1492,7 @@ export function KnowledgeBase({
             workspaceId={workspaceId}
             knowledgeBaseId={id}
             connectors={connectors}
+            isSearchIndex={knowledgeBase?.isSearchIndex}
             isLoading={isLoadingConnectors}
             canEdit={userPermissions.canEdit}
             className='mt-0'
@@ -1551,6 +1546,13 @@ export function KnowledgeBase({
         onViewTags={
           contextMenuDocument && selectedDocumentCount === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
+            : undefined
+        }
+        onRetry={
+          contextMenuDocument?.processingStatus === 'failed' &&
+          selectedDocumentCount === 1 &&
+          userPermissions.canEdit
+            ? () => handleRetryDocument(contextMenuDocument.id)
             : undefined
         }
         onDelete={
@@ -1768,17 +1770,9 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
 
   return (
     <div className='mt-3 border-[var(--border-1)] border-t pt-3'>
-      <div className='flex h-5 items-center justify-between'>
+      <div className='flex items-center justify-between'>
         <span className={FILTER_SECTION_LABEL_CLASS}>Filter by tags</span>
-        {activeCount > 0 && (
-          <Button
-            variant='ghost'
-            className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
-            onClick={() => onChange([])}
-          >
-            Clear all
-          </Button>
-        )}
+        {activeCount > 0 && <Chip onClick={() => onChange([])}>Clear all</Chip>}
       </div>
 
       <div
@@ -1825,14 +1819,11 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                     />
                   )}
                 </div>
-                <Button
-                  variant='ghost'
-                  className='relative size-[30px] shrink-0 p-0 text-[var(--text-muted)] before:absolute before:inset-[-5px] before:content-[""] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-error)]'
+                <Chip
                   onClick={() => removeFilter(entry.id)}
                   aria-label='Remove tag filter'
-                >
-                  <X className='size-[14px]' />
-                </Button>
+                  leftIcon={X}
+                />
               </div>
               {entry.tagSlot && (
                 <TagFilterValueControl
@@ -1845,14 +1836,11 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
         })}
       </div>
 
-      <Button
-        variant='ghost'
-        onClick={addFilter}
-        className='mt-2 h-[30px] w-full justify-start gap-2 px-2 text-[var(--text-secondary)] text-caption hover-hover:text-[var(--text-primary)]'
-      >
-        <Plus className='size-[14px]' />
-        Add filter
-      </Button>
+      <div className='mt-2'>
+        <Chip fullWidth leftIcon={Plus} onClick={addFilter}>
+          Add filter
+        </Chip>
+      </div>
     </div>
   )
 }

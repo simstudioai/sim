@@ -19,6 +19,7 @@ export interface InternalToolOperationContext {
   executorDelegationOrigin?: ExecutorDelegationOrigin
   copilotToolExecution?: boolean
   copilotInteractionMode?: 'interactive' | 'headless'
+  requestMode?: string
   chatId?: string
   toolCallId?: string
   billingAttribution?: BillingAttributionSnapshot

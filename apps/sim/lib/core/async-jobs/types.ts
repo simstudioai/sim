@@ -48,6 +48,7 @@ export type JobType =
   | 'cleanup-table-row-ttl'
   | 'cleanup-tasks'
   | 'run-data-drain'
+  | 'knowledge-connector-directory-sync'
 
 export type AsyncExecutionCorrelationSource =
   | 'workflow'

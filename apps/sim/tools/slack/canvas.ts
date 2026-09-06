@@ -12,6 +12,7 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['canvases:write'],
   },
 
   params: {

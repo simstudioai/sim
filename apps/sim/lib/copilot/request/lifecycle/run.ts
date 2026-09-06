@@ -5,6 +5,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -147,7 +148,9 @@ async function ensureModelEgressRegistry(
   if (!registry) {
     const environmentContext =
       options.environmentContext ??
-      (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId))
+      (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId, {
+        includeSecrets: execContext.requestMode !== 'assistant',
+      }))
     registry = environmentContext.resolvedSecretTraceRegistry
     execContext.resolvedSecretTraceRegistry = registry
   }
@@ -319,6 +322,13 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  if (typeof requestPayload.mode === 'string') execContext.requestMode = requestPayload.mode
+  if (execContext.requestMode === 'assistant') {
+    execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
+      requestPayload.assistantSearch ?? {}
+    )
+    execContext.secretActorUserId = null
+  }
   execContext.copilotInteractionMode =
     lifecycleOptions.interactive === true ? 'interactive' : 'headless'
   if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
@@ -1344,7 +1354,7 @@ async function buildExecutionContext(
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
 
   let execContext: ExecutionContext
-  if (workflowId) {
+  if (workflowId && requestMode !== 'assistant') {
     execContext = await prepareExecutionContext(userId, workflowId, chatId, {
       workspaceId,
       billingAttribution,
@@ -1352,7 +1362,10 @@ async function buildExecutionContext(
     })
   } else {
     const activeEnvironmentContext =
-      environmentContext ?? (await prepareCopilotEnvironmentContext(userId, workspaceId))
+      environmentContext ??
+      (await prepareCopilotEnvironmentContext(userId, workspaceId, {
+        includeSecrets: requestMode !== 'assistant',
+      }))
     execContext = {
       userId,
       workflowId: '',
@@ -1366,6 +1379,12 @@ async function buildExecutionContext(
   if (userTimezone) execContext.userTimezone = userTimezone
   execContext.copilotToolExecution = true
   if (requestMode) execContext.requestMode = requestMode
+  if (requestMode === 'assistant') {
+    execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
+      requestPayload?.assistantSearch ?? {}
+    )
+    execContext.secretActorUserId = null
+  }
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
     typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : undefined

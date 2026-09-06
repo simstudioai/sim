@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/server/routes'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { searchKnowledge } from '@/lib/knowledge/application/search'
+import { searchWorkspaceKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 
 export const POST = defineInternalJsonRoute({
@@ -17,13 +17,15 @@ export const POST = defineInternalJsonRoute({
     reason: 'A person typing queries; the embedding call is metered against their workspace',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.search,
-  mapInput: ({ body }) => ({
+  mapInput: ({ body }, { request }) => ({
     workspaceId: body.workspaceId,
-    knowledgeBaseIds: body.knowledgeBaseIds,
+    filters: body.filters,
     query: body.query,
     topK: body.topK,
+    surface: 'dashboard' as const,
+    signal: request.signal,
   }),
-  useCase: searchKnowledge,
+  useCase: searchWorkspaceKnowledge,
   present: ({ results, knowledgeBases }, { input }) => {
     const knowledgeBaseNames = new Map(knowledgeBases.map((kb) => [kb.id, kb.name]))
     return {

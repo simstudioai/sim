@@ -14,6 +14,7 @@ import {
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
+  GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
   GoogleBigQueryIcon,
@@ -79,6 +80,10 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import {
+  GITHUB_TOKEN_URL,
+  parseGitHubRepositoriesTokenResponse,
+} from '@/lib/oauth/github-repositories'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
@@ -106,6 +111,21 @@ export function getSlackApprovalGatedScopes(enabled: boolean): readonly string[]
 const SLACK_APPROVAL_GATED_SCOPES = getSlackApprovalGatedScopes(isSlackExtendedScopesEnabled)
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  'github-repositories': {
+    name: 'GitHub',
+    icon: GithubIcon,
+    services: {
+      'github-repositories': {
+        name: 'GitHub',
+        description: 'Search repository files through your GitHub App access.',
+        providerId: 'github-repositories',
+        icon: GithubIcon,
+        baseProviderIcon: GithubIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'github-repositories',
+  },
   'claude-platform': {
     name: 'Claude Platform',
     icon: ClaudeIcon,
@@ -652,6 +672,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:content.metadata:confluence',
           'read:user:confluence',
           'read:confluence-user',
+          'read:group:confluence',
           'read:task:confluence',
           'write:task:confluence',
           'write:space:confluence',
@@ -1667,6 +1688,21 @@ function getProviderAuthConfig(
         supportsRefreshTokenRotation: true,
       }
     }
+    case 'github-repositories': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'github-repositories',
+        'GITHUB_APP_CLIENT_ID',
+        'GITHUB_APP_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: GITHUB_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        additionalHeaders: { Accept: 'application/json' },
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'notion': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'notion',
@@ -2328,7 +2364,10 @@ export async function refreshOAuthToken(
       return { ok: false, message: 'Invalid OAuth token refresh response' }
     }
 
-    if (data.ok === false) {
+    if (
+      data.ok === false ||
+      (provider === 'github-repositories' && typeof data.error === 'string')
+    ) {
       const errorCode = safeOAuthErrorCode(data, exactSecrets)
       logger.error('Token refresh failed:', {
         status: response.status,
@@ -2344,6 +2383,17 @@ export async function refreshOAuthToken(
         ok: false,
         errorCode,
         message: `Failed to refresh token: ${OAUTH_RESPONSE_OMITTED}`,
+      }
+    }
+
+    if (provider === 'github-repositories') {
+      const tokens = parseGitHubRepositoriesTokenResponse(data)
+      return {
+        ok: true,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in,
+        refreshTokenExpiresIn: tokens.refresh_token_expires_in,
       }
     }
 

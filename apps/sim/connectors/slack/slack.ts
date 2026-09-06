@@ -1,34 +1,38 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { isPlainRecord } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  fetchWithRetry,
+  isRateLimitError,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_MESSAGES, slackConnectorMeta } from '@/connectors/slack/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  ConnectorFileTooLargeError,
+  parseDefaultedUnlimitedSafeInteger,
   parseMultiValue,
   parseTagDate,
 } from '@/connectors/utils'
 
 const logger = createLogger('SlackConnector')
-
 const SLACK_API_BASE = 'https://slack.com/api'
-const MESSAGES_PER_PAGE = 200
-/** Page size for `conversations.list`; Slack recommends staying well under its 1000 maximum. */
-const CHANNELS_PER_PAGE = 200
-/** The conversation kinds a channel listing walks; DMs need scopes the connector does not request. */
-const LISTED_CHANNEL_TYPES = 'public_channel,private_channel'
-/** `syncContext` key holding this run's listing token when the engine supplies no run id. */
-const LISTING_TOKEN_KEY = '_slackListingToken'
+const PAGE_SIZE = 200
+const MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+const MAX_CURSOR_BYTES = 256 * 1024
+const MAX_THREAD_PAGES = 200
+const MAX_USERNAME_CACHE_ENTRIES = 2000
+const CHANNEL_TYPES = 'public_channel,private_channel'
+const TIMESTAMP_PATTERN = /^\d{1,16}\.\d{1,6}$/
+const CHANNEL_ID_PATTERN = /^[CG][A-Z0-9]+$/
+const TEAM_ID_PATTERN = /^T[A-Z0-9]+$/
 
-/**
- * Message subtypes that carry no user-authored text (channel events, bot
- * lifecycle, etc.). Per https://api.slack.com/events/message every other
- * subtype — `bot_message`, `file_share`, `me_message`, `thread_broadcast`,
- * `reminder_add`, `file_comment`, etc. — can carry meaningful content.
- */
 const SLACK_NOISE_SUBTYPES = new Set([
   'channel_join',
   'channel_leave',
@@ -48,19 +52,21 @@ const SLACK_NOISE_SUBTYPES = new Set([
   'unpinned_item',
   'bot_add',
   'bot_remove',
+  'message_deleted',
+  'tombstone',
+  'ekm_access_denied',
 ])
 
 interface SlackMessage {
   type: string
   user?: string
   username?: string
-  bot_id?: string
   text?: string
   ts: string
+  thread_ts?: string
   subtype?: string
-  edited?: { ts: string; user?: string }
-  latest_reply?: string
   reply_count?: number
+  edited?: { ts: string }
   attachments?: Record<string, unknown>[]
   blocks?: Record<string, unknown>[]
 }
@@ -68,211 +74,277 @@ interface SlackMessage {
 interface SlackChannel {
   id: string
   name: string
-  topic?: { value: string }
-  purpose?: { value: string }
-  num_members?: number
+  is_archived?: boolean
 }
 
-interface SlackUser {
-  id: string
-  real_name?: string
-  name: string
-  profile?: {
-    display_name?: string
-    real_name?: string
-  }
+interface SlackListingCursor {
+  version: 4
+  teamId: string
+  latest: string
+  channels: SlackChannel[]
+  channelsComplete: boolean
+  channelCursor?: string
+  historyCursor?: string
+  scanned: number
 }
 
-/**
- * Actionable hints for the Slack error codes a sync realistically hits. Without
- * them a failed sync surfaces only the raw code (e.g. `not_in_channel`), which
- * does not tell the user the fix is to invite the app to the channel.
- * Codes are documented per method, e.g.
- * https://docs.slack.dev/reference/methods/conversations.history/
- */
-const SLACK_ERROR_HINTS: Record<string, string> = {
-  not_in_channel: 'invite the Sim app to this channel',
-  channel_not_found: 'the channel does not exist or the app cannot see it',
-  is_archived: 'the channel is archived',
-  missing_scope: 'the Slack credential is missing a required scope; reconnect it',
-  invalid_auth: 'the Slack credential is no longer valid; reconnect it',
-  account_inactive: 'the Slack credential is no longer valid; reconnect it',
-  token_revoked: 'the Slack credential is no longer valid; reconnect it',
-  ratelimited: 'Slack rate limit exceeded',
-}
-
-/**
- * Error thrown for a Slack `ok: false` envelope, carrying the machine-readable
- * `error` code so callers can branch on `channel_not_found` without string
- * matching.
- */
+/** Slack's HTTP-200 errors still retain their machine-readable provider code. */
 class SlackApiError extends Error {
+  readonly rateLimited: boolean
   constructor(
     readonly code: string,
-    readonly method: string
+    readonly method: string,
+    readonly headers?: Headers
   ) {
-    const hint = SLACK_ERROR_HINTS[code]
-    super(`Slack API error on ${method}: ${code}${hint ? ` — ${hint}` : ''}`)
+    super(`Slack ${method} failed: ${code}`)
     this.name = 'SlackApiError'
+    this.rateLimited = code === 'ratelimited'
   }
 }
 
-/**
- * Calls a Slack Web API method via GET with query params.
- * Slack returns HTTP 200 even for errors, so we check the `ok` field.
- */
 async function slackApiGet(
   method: string,
   accessToken: string,
   params: Record<string, string>,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<Record<string, unknown>> {
-  const queryParams = new URLSearchParams(params)
-  const url = `${SLACK_API_BASE}/${method}?${queryParams.toString()}`
-
   const response = await fetchWithRetry(
-    url,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    },
+    `${SLACK_API_BASE}/${method}?${new URLSearchParams(params).toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
     retryOptions
   )
-
-  if (!response.ok) {
-    throw new Error(`Slack API HTTP error: ${response.status}`)
+  if (!response.ok) throw new Error(`Slack ${method} failed with HTTP ${response.status}`)
+  const data = await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_RESPONSE_BYTES,
+    label: `Slack ${method} response`,
+  })
+  if (!isPlainRecord(data) || typeof data.ok !== 'boolean') {
+    throw new Error(`Slack ${method} returned an invalid response`)
   }
-
-  const data = (await response.json()) as Record<string, unknown>
-
-  if (!data.ok) {
-    throw new SlackApiError((data.error as string) || 'unknown_error', method)
-  }
-
+  if (!data.ok)
+    throw new SlackApiError(
+      typeof data.error === 'string' ? data.error : 'unknown_error',
+      method,
+      response.headers
+    )
   return data
 }
 
-/**
- * Resolves the configured message window, falling back to the default for
- * missing, non-numeric, or non-positive values.
- *
- * `validateConfig` rejects those inputs, but a config saved before validation
- * tightened (or edited out-of-band) would otherwise produce `NaN`/`0` here,
- * making `fetchChannelMessages` return zero messages. An empty document is
- * dropped from the listing, and the sync engine hard-deletes stored documents
- * absent from a listing — silently wiping every indexed channel.
- */
-function resolveMaxMessages(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_MESSAGES
+function readChannels(value: unknown): SlackChannel[] {
+  if (!Array.isArray(value) || value.length > PAGE_SIZE) {
+    throw new Error('Slack returned an invalid channel page')
+  }
+  return value.map((channel) => {
+    if (
+      !isPlainRecord(channel) ||
+      typeof channel.id !== 'string' ||
+      !CHANNEL_ID_PATTERN.test(channel.id) ||
+      typeof channel.name !== 'string'
+    ) {
+      throw new Error('Slack returned an invalid channel')
+    }
+    return { id: channel.id, name: channel.name, is_archived: channel.is_archived === true }
+  })
 }
 
-/**
- * Resolves a user ID to a display name, using a cache stored in syncContext.
- */
+function readMessages(value: unknown): SlackMessage[] {
+  if (!Array.isArray(value) || value.length > PAGE_SIZE) {
+    throw new Error('Slack returned an invalid message page')
+  }
+  return value.map((message) => {
+    if (
+      !isPlainRecord(message) ||
+      typeof message.ts !== 'string' ||
+      !TIMESTAMP_PATTERN.test(message.ts) ||
+      message.type !== 'message'
+    ) {
+      throw new Error('Slack returned an invalid message')
+    }
+    if (
+      message.thread_ts !== undefined &&
+      (typeof message.thread_ts !== 'string' || !TIMESTAMP_PATTERN.test(message.thread_ts))
+    ) {
+      throw new Error('Slack returned an invalid thread timestamp')
+    }
+    return {
+      type: 'message',
+      ts: message.ts,
+      text: typeof message.text === 'string' ? message.text : undefined,
+      user: typeof message.user === 'string' ? message.user : undefined,
+      username: typeof message.username === 'string' ? message.username : undefined,
+      subtype: typeof message.subtype === 'string' ? message.subtype : undefined,
+      thread_ts: typeof message.thread_ts === 'string' ? message.thread_ts : undefined,
+      reply_count: typeof message.reply_count === 'number' ? message.reply_count : undefined,
+      edited:
+        isPlainRecord(message.edited) && typeof message.edited.ts === 'string'
+          ? { ts: message.edited.ts }
+          : undefined,
+      attachments: Array.isArray(message.attachments)
+        ? message.attachments.filter(isPlainRecord)
+        : undefined,
+      blocks: Array.isArray(message.blocks) ? message.blocks.filter(isPlainRecord) : undefined,
+    }
+  })
+}
+
+/** A missing collection/cursor must never be mistaken for a successful empty listing. */
+function nextCursor(data: Record<string, unknown>, previous?: string): string | undefined {
+  const metadata = data.response_metadata
+  if (metadata !== undefined && !isPlainRecord(metadata)) {
+    throw new Error('Slack returned invalid pagination metadata')
+  }
+  const raw = isPlainRecord(metadata) ? metadata.next_cursor : undefined
+  if (raw !== undefined && typeof raw !== 'string')
+    throw new Error('Slack returned an invalid cursor')
+  const cursor = typeof raw === 'string' ? raw.trim() || undefined : undefined
+  if (cursor && (cursor === previous || cursor.length > 8192)) {
+    throw new Error('Slack pagination did not advance')
+  }
+  if (data.has_more === true && !cursor) throw new Error('Slack omitted a continuation cursor')
+  return cursor
+}
+
+function readStartDate(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error('Earliest message date must be YYYY-MM-DD')
+  }
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error('Earliest message date must be a valid calendar date')
+  }
+  return String(date.getTime() / 1000)
+}
+
+function includeArchived(sourceConfig: Record<string, unknown>): boolean {
+  const value = sourceConfig.includeArchived
+  if (value === undefined || value === null || value === '' || value === true || value === 'true')
+    return true
+  if (value === false || value === 'false') return false
+  throw new Error('Archived channels must be Include or Exclude')
+}
+
+function channelMatches(channel: SlackChannel, values: string[]): boolean {
+  return values.some(
+    (value) =>
+      value.trim().replace(/^#/, '') === channel.id ||
+      value.trim().replace(/^#/, '') === channel.name
+  )
+}
+
+function channelIncluded(channel: SlackChannel, sourceConfig: Record<string, unknown>): boolean {
+  const included = parseMultiValue(sourceConfig.channel)
+  return (
+    (includeArchived(sourceConfig) || !channel.is_archived) &&
+    (included.length === 0 || channelMatches(channel, included)) &&
+    !channelMatches(channel, parseMultiValue(sourceConfig.excludeChannels))
+  )
+}
+
+async function resolveTeamId(
+  accessToken: string,
+  syncContext?: Record<string, unknown>
+): Promise<string> {
+  const cached = syncContext?._slackTeamId
+  if (typeof cached === 'string' && TEAM_ID_PATTERN.test(cached)) return cached
+  const data = await slackApiGet('auth.test', accessToken, {})
+  if (typeof data.team_id !== 'string' || !TEAM_ID_PATTERN.test(data.team_id)) {
+    throw new Error('Slack did not identify the workspace for this credential')
+  }
+  if (syncContext) syncContext._slackTeamId = data.team_id
+  return data.team_id
+}
+
+function encodeCursor(state: SlackListingCursor): string {
+  const json = JSON.stringify(state)
+  if (Buffer.byteLength(json) > MAX_CURSOR_BYTES)
+    throw new Error('Slack listing cursor is too large')
+  return Buffer.from(json).toString('base64url')
+}
+
+function decodeCursor(cursor: string): SlackListingCursor {
+  if (cursor.length > MAX_CURSOR_BYTES * 2) throw new Error('Slack listing cursor is too large')
+  const value: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
+  if (
+    !isPlainRecord(value) ||
+    value.version !== 4 ||
+    typeof value.teamId !== 'string' ||
+    !TEAM_ID_PATTERN.test(value.teamId) ||
+    typeof value.latest !== 'string' ||
+    !/^\d+(\.\d+)?$/.test(value.latest) ||
+    typeof value.channelsComplete !== 'boolean' ||
+    typeof value.scanned !== 'number' ||
+    !Number.isSafeInteger(value.scanned) ||
+    value.scanned < 0 ||
+    (value.channelCursor !== undefined && typeof value.channelCursor !== 'string') ||
+    (value.historyCursor !== undefined && typeof value.historyCursor !== 'string')
+  ) {
+    throw new Error('Invalid Slack listing cursor; restart the sync')
+  }
+  return {
+    version: 4,
+    teamId: value.teamId,
+    latest: value.latest,
+    channels: readChannels(value.channels),
+    channelsComplete: value.channelsComplete,
+    channelCursor: value.channelCursor,
+    historyCursor: value.historyCursor,
+    scanned: value.scanned,
+  }
+}
+
+function finishPage(
+  state: SlackListingCursor,
+  documents: ExternalDocument[]
+): ExternalDocumentList {
+  const hasMore = state.channels.length > 0 || !state.channelsComplete
+  return { documents, hasMore, nextCursor: hasMore ? encodeCursor(state) : undefined }
+}
+
+/** A new listing nonce forces reply hydration, because root metadata omits reply edits. */
+function listingToken(syncContext?: Record<string, unknown>): string {
+  if (typeof syncContext?.syncRunId === 'string') return syncContext.syncRunId
+  if (typeof syncContext?._slackListingToken === 'string') return syncContext._slackListingToken
+  const token = generateId()
+  if (syncContext) syncContext._slackListingToken = token
+  return token
+}
+
+function documentId(teamId: string, channelId: string, ts: string): string {
+  return `slack:v4:${teamId}:${channelId}:${ts}`
+}
+
+function messageTitle(channel: SlackChannel, message: SlackMessage): string {
+  const text = extractMessageContent(message).replace(/\s+/g, ' ').trim()
+  return `#${channel.name}: ${truncate(text || 'Thread', 160)}`
+}
+
 async function resolveUserName(
   accessToken: string,
   userId: string,
   syncContext?: Record<string, unknown>
 ): Promise<string> {
-  const cacheKey = '_slackUserCache'
-  if (syncContext) {
-    const cache = (syncContext[cacheKey] as Record<string, string>) ?? {}
-    if (!syncContext[cacheKey]) {
-      syncContext[cacheKey] = cache
-    }
-    if (cache[userId]) {
-      return cache[userId]
-    }
-  }
-
+  const cache = syncContext?._slackUserCache
+  if (cache instanceof Map && cache.has(userId)) return cache.get(userId) as string
   try {
     const data = await slackApiGet('users.info', accessToken, { user: userId })
-    const user = data.user as SlackUser | undefined
-    const displayName = user?.profile?.display_name || user?.real_name || user?.name || userId
-
+    const user = isPlainRecord(data.user) ? data.user : {}
+    const profile = isPlainRecord(user.profile) ? user.profile : {}
+    const name = [profile.display_name, user.real_name, user.name].find(
+      (value) => typeof value === 'string' && value
+    )
+    const result = typeof name === 'string' ? name : userId
     if (syncContext) {
-      const cache = syncContext[cacheKey] as Record<string, string>
-      cache[userId] = displayName
+      const names = cache instanceof Map ? cache : new Map<string, string>()
+      if (names.size < MAX_USERNAME_CACHE_ENTRIES) names.set(userId, result)
+      syncContext._slackUserCache = names
     }
-
-    return displayName
+    return result
   } catch (error) {
-    logger.warn('Failed to resolve Slack user name', {
-      userId,
-      error: toError(error).message,
-    })
-    /**
-     * Negative-cache only permanently unresolvable users. A deleted user
-     * (`user_not_found`) can author hundreds of messages, each otherwise
-     * costing another Tier 4 `users.info` request. Transient failures are not
-     * cached so a later message can still resolve the real name.
-     */
-    if (syncContext && error instanceof SlackApiError && error.code === 'user_not_found') {
-      const cache = syncContext[cacheKey] as Record<string, string>
-      cache[userId] = userId
-    }
+    if (isRateLimitError(error)) throw error
+    logger.warn('Failed to resolve Slack author', { userId, error: getErrorMessage(error) })
     return userId
   }
-}
-
-/**
- * Formats a Slack timestamp (e.g. "1234567890.123456") into an ISO datetime string.
- */
-function formatSlackTimestamp(ts: string): string {
-  const seconds = Number.parseFloat(ts)
-  return new Date(seconds * 1000).toISOString()
-}
-
-/**
- * Fetches messages from a channel, newest first, up to `maxMessages`.
- *
- * `conversations.history` returns only top-level messages; replies inside a
- * thread are served by `conversations.replies` and are therefore NOT indexed —
- * threaded discussion content is missing from the synced document.
- */
-async function fetchChannelMessages(
-  accessToken: string,
-  channelId: string,
-  maxMessages: number
-): Promise<{ messages: SlackMessage[]; lastActivityTs?: string; oldestTs?: string }> {
-  const allMessages: SlackMessage[] = []
-  let cursor: string | undefined
-  let lastActivityTs: string | undefined
-
-  while (allMessages.length < maxMessages) {
-    const limit = Math.min(MESSAGES_PER_PAGE, maxMessages - allMessages.length)
-    const params: Record<string, string> = {
-      channel: channelId,
-      limit: String(limit),
-    }
-    if (cursor) {
-      params.cursor = cursor
-    }
-
-    const data = await slackApiGet('conversations.history', accessToken, params)
-    const messages = (data.messages as SlackMessage[]) || []
-
-    if (messages.length === 0) break
-
-    if (!lastActivityTs && messages.length > 0) {
-      lastActivityTs = messages[0].ts
-    }
-
-    allMessages.push(...messages)
-
-    const responseMeta = data.response_metadata as { next_cursor?: string } | undefined
-    const nextCursor = responseMeta?.next_cursor
-    if (!nextCursor) break
-    cursor = nextCursor
-  }
-
-  const trimmed = allMessages.slice(0, maxMessages)
-  const oldestTs = trimmed.length > 0 ? trimmed[trimmed.length - 1].ts : undefined
-  return { messages: trimmed, lastActivityTs, oldestTs }
 }
 
 /**
@@ -382,487 +454,283 @@ function walkBlockText(node: unknown, out: string[]): void {
 }
 
 /**
- * Converts fetched messages into a single document content string.
- * Each entry: "[ISO timestamp] username: message text" (text may span lines
- * when the message has rich attachment/block content).
+ * One history page per call keeps permission discovery bounded. The caller's
+ * complete listing proves access to each root; no other member's channel
+ * inventory is reused. A selected date is a root-date scope, not an activity
+ * filter: replies to a root before that date remain outside the source.
  */
-/**
- * Appends the messages to the transcript oldest first. The transcript keeps
- * its newest messages when the window does not fit, so a message is skipped
- * only when it cannot fit on its own.
- */
-async function appendMessages(
+async function listDocuments(
   accessToken: string,
-  lines: BoundedLines,
-  messages: SlackMessage[],
+  sourceConfig: Record<string, unknown>,
+  cursor?: string,
   syncContext?: Record<string, unknown>
-): Promise<void> {
-  /** Slack returns newest first; the transcript reads oldest first. */
-  const chronological = [...messages].reverse()
-
-  for (const msg of chronological) {
-    /**
-     * Drop only known noise subtypes (channel join/leave/topic events,
-     * bot add/remove, etc.). Per https://api.slack.com/events/message any
-     * subtype with user-authored text — `thread_broadcast`, `me_message`,
-     * `bot_message`, `file_share`, `reminder_add`, etc. — should be kept.
-     */
-    if (msg.subtype && SLACK_NOISE_SUBTYPES.has(msg.subtype)) continue
-
-    const content = extractMessageContent(msg)
-    if (!content) continue
-
-    const timestamp = formatSlackTimestamp(msg.ts)
-    const userName = msg.user
-      ? await resolveUserName(accessToken, msg.user, syncContext)
-      : msg.username || 'unknown'
-
-    lines.push(`[${timestamp}] ${userName}: ${content}`)
-  }
-}
-
-/**
- * Resolves a channel name or ID to a channel ID and metadata.
- */
-async function resolveChannel(
-  accessToken: string,
-  channelInput: string
-): Promise<SlackChannel | null> {
-  const trimmed = channelInput.trim().replace(/^#/, '')
-
-  // If it looks like a channel ID (public C / private G), try direct lookup.
-  // DMs (D...) and MPIMs require im:*/mpim:* scopes, which we do not request.
-  if (/^[CG][A-Z0-9]+$/.test(trimmed)) {
-    try {
-      const data = await slackApiGet('conversations.info', accessToken, { channel: trimmed })
-      return data.channel as SlackChannel
-    } catch (error) {
-      /**
-       * Only an unknown channel justifies the name-based fallback. Rethrowing
-       * everything else (auth failures, `missing_scope`, exhausted rate-limit
-       * retries) avoids walking the full `conversations.list` just to report a
-       * misleading "Channel not found" for a channel that does exist.
-       */
-      if (!(error instanceof SlackApiError) || error.code !== 'channel_not_found') {
-        throw error
-      }
-    }
-  }
-
-  // Search by name through conversations.list (include private channels the bot is in)
-  let cursor: string | undefined
-  do {
-    const params: Record<string, string> = {
-      types: 'public_channel,private_channel',
-      limit: '200',
-      exclude_archived: 'true',
-    }
-    if (cursor) {
-      params.cursor = cursor
-    }
-
-    const data = await slackApiGet('conversations.list', accessToken, params)
-    const channels = (data.channels as SlackChannel[]) || []
-
-    const match = channels.find((ch) => ch.name === trimmed)
-    if (match) return match
-
-    const responseMeta = data.response_metadata as { next_cursor?: string } | undefined
-    cursor = responseMeta?.next_cursor || undefined
-  } while (cursor)
-
-  return null
-}
-
-/**
- * Resolves the Slack team ID for the current token, caching the result on
- * `syncContext._slackTeamId` to avoid repeated `auth.test` calls. The team ID
- * is stable per token, so caching for the lifetime of a sync is safe.
- */
-async function resolveTeamId(
-  accessToken: string,
-  syncContext?: Record<string, unknown>
-): Promise<string | undefined> {
-  const cacheKey = '_slackTeamId'
-  if (syncContext && typeof syncContext[cacheKey] === 'string') {
-    return syncContext[cacheKey] as string
-  }
-
-  try {
-    const authData = await slackApiGet('auth.test', accessToken, {})
-    const teamId = authData.team_id as string | undefined
-    if (teamId && syncContext) {
-      syncContext[cacheKey] = teamId
-    }
-    return teamId
-  } catch (error) {
-    logger.warn('Failed to resolve Slack team ID', {
-      error: toError(error).message,
-    })
-    return undefined
-  }
-}
-
-function channelUrl(channel: SlackChannel, teamId: string | undefined): string {
-  return teamId
-    ? `https://app.slack.com/client/${teamId}/${channel.id}`
-    : `https://app.slack.com/client/${channel.id}`
-}
-
-/**
- * A token that is stable for one sync run and different on the next. A channel
- * listing carries no signal of new messages (`conversations.list` returns no
- * last-message timestamp, and reading one per channel would cost a Tier 3 call
- * per channel per listing), so every listed channel is hydrated each run and
- * the real hash `getDocument` computes decides whether anything is re-indexed:
- * an unchanged channel costs one history page and no embedding. The member
- * engine sets `syncRunId` on every member's context, so members listing the
- * same channel agree on its stub.
- */
-function listingToken(syncContext?: Record<string, unknown>): string {
-  const runId = syncContext?.syncRunId
-  if (typeof runId === 'string' && runId) return runId
-  const cached = syncContext?.[LISTING_TOKEN_KEY]
-  if (typeof cached === 'string') return cached
-  const token = generateId()
-  if (syncContext) syncContext[LISTING_TOKEN_KEY] = token
-  return token
-}
-
-/** The deferred listing stub for a channel; its transcript is fetched in `getDocument`. */
-function channelToStub(
-  channel: SlackChannel,
-  teamId: string | undefined,
-  syncContext?: Record<string, unknown>
-): ExternalDocument {
-  return {
-    externalId: channel.id,
-    title: `#${channel.name}`,
-    content: '',
-    contentDeferred: true,
-    estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
-    mimeType: 'text/plain',
-    sourceUrl: channelUrl(channel, teamId),
-    contentHash: `slack-listing:${channel.id}:${listingToken(syncContext)}`,
-    metadata: {
-      channelName: channel.name,
-      topic: channel.topic?.value,
-      purpose: channel.purpose?.value,
-    },
-  }
-}
-
-/** One page of every unarchived channel the token can read. */
-async function listChannelsPage(
-  accessToken: string,
-  cursor: string | undefined
-): Promise<{ channels: SlackChannel[]; nextCursor: string | undefined }> {
-  const params: Record<string, string> = {
-    types: LISTED_CHANNEL_TYPES,
-    limit: String(CHANNELS_PER_PAGE),
-    exclude_archived: 'true',
-  }
-  if (cursor) params.cursor = cursor
-  const data = await slackApiGet('conversations.list', accessToken, params)
-  const responseMeta = data.response_metadata as { next_cursor?: string } | undefined
-  return {
-    channels: (data.channels as SlackChannel[]) || [],
-    nextCursor: responseMeta?.next_cursor || undefined,
-  }
-}
-
-/**
- * Builds a channel's document: a header naming the channel, its topic and its
- * purpose, then the newest `maxMessages` messages oldest first. The header
- * means a channel with no messages in the window is still a live document, so
- * the sync engine never mistakes an empty channel for a deleted one.
- *
- * The `contentHash` is derived from stable Slack metadata — channel ID, the
- * newest message `ts`, and the message count — rather than the formatted text.
- * This keeps the hash deterministic across calls even though the formatted
- * content depends on the user-name cache state and the sliding message window.
- *
- * Each Slack message has a unique, stable `ts` per channel
- * (https://api.slack.com/methods/conversations.history), so `lastActivityTs`
- * uniquely identifies the newest message included in the document.
- */
-async function buildSlackChannelDocument(
-  accessToken: string,
-  channel: SlackChannel,
-  maxMessages: number,
-  syncContext?: Record<string, unknown>
-): Promise<{
-  content: string
-  contentHash: string
-  messageCount: number
-  lastActivityTs?: string
-}> {
-  const { messages, lastActivityTs, oldestTs } = await fetchChannelMessages(
-    accessToken,
-    channel.id,
-    maxMessages
+): Promise<ExternalDocumentList> {
+  const oldest = readStartDate(sourceConfig.startDate)
+  const archives = includeArchived(sourceConfig)
+  const maxMessages = parseDefaultedUnlimitedSafeInteger(
+    sourceConfig.maxMessages,
+    DEFAULT_MAX_MESSAGES,
+    'Max messages must be a non-negative safe integer'
   )
+  const teamId = await resolveTeamId(accessToken, syncContext)
+  const state: SlackListingCursor = cursor
+    ? decodeCursor(cursor)
+    : {
+        version: 4,
+        teamId,
+        latest: String(Date.now() / 1000),
+        channels: [],
+        channelsComplete: false,
+        scanned: 0,
+      }
+  if (state.teamId !== teamId) throw new Error('Slack listing cursor belongs to another workspace')
 
-  const header = [`Channel: #${channel.name}`]
-  const topic = channel.topic?.value?.trim()
-  if (topic) header.push(`Topic: ${topic}`)
-  const purpose = channel.purpose?.value?.trim()
-  if (purpose) header.push(`Purpose: ${purpose}`)
-
-  /** The newest messages survive when the window does not fit; the header always does. */
-  const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
-  lines.pin(...header, '')
-  await appendMessages(accessToken, lines, messages, syncContext)
-  const messageCount = lines.count
-
-  /**
-   * Edit/thread fingerprint: max(edited.ts) and max(latest_reply) across the
-   * window. `ts` is immutable for messages, so without these signals an
-   * in-place edit (chat.update) or a new threaded reply would not change the
-   * channel hash. Slack returns `edited.ts` only when a message was edited
-   * and `latest_reply` only when threaded replies exist.
-   */
-  let maxEditTs = ''
-  let maxReplyTs = ''
-  let totalReplies = 0
-  for (const m of messages) {
-    if (m.edited?.ts && m.edited.ts > maxEditTs) maxEditTs = m.edited.ts
-    if (m.latest_reply && m.latest_reply > maxReplyTs) maxReplyTs = m.latest_reply
-    if (typeof m.reply_count === 'number') totalReplies += m.reply_count
+  if (state.channels.length === 0 && !state.channelsComplete) {
+    const page = await slackApiGet('conversations.list', accessToken, {
+      types: CHANNEL_TYPES,
+      limit: String(PAGE_SIZE),
+      exclude_archived: String(!archives),
+      ...(state.channelCursor ? { cursor: state.channelCursor } : {}),
+    })
+    const continuation = nextCursor(page, state.channelCursor)
+    state.channels = readChannels(page.channels).filter((channel) =>
+      channelIncluded(channel, sourceConfig)
+    )
+    state.channelCursor = continuation
+    state.channelsComplete = !continuation
+  }
+  const channel = state.channels[0]
+  if (!channel) return finishPage(state, [])
+  if (maxMessages > 0 && state.scanned >= maxMessages) {
+    throw new Error('Invalid Slack listing cursor; restart the sync')
   }
 
-  /**
-   * `latest_reply` alone misses reply edits and deletes. Folding `reply_count`
-   * in catches deletes (count drops) but still cannot detect reply edits
-   * without fetching `conversations.replies` for each parent.
-   *
-   * The header is digested into the hash because it is part of the document:
-   * renaming a channel or editing its topic changes the indexed text without
-   * touching a single message, and the sync engine drops a refresh whose hash
-   * matches the stored one. A digest keeps the hash bounded and free of the
-   * delimiter collisions raw topic text would bring.
-   *
-   * The `slack-v3` prefix forces a one-time re-index of channels indexed
-   * before the document gained its header and size ceiling; `slack-v2` did the
-   * same when attachment and Block Kit content started being extracted.
-   * Per-message `ts` and the window are unchanged by either, so without the
-   * bump the hash would match and the richer content would never be embedded.
-   */
-  const headerDigest = createHash('sha256').update(header.join('\n')).digest('hex').slice(0, 16)
-  const contentHash = `slack-v3:${channel.id}:${headerDigest}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messages.length}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
+  let history: Record<string, unknown>
+  try {
+    history = await slackApiGet('conversations.history', accessToken, {
+      channel: channel.id,
+      limit: String(maxMessages > 0 ? Math.min(PAGE_SIZE, maxMessages - state.scanned) : PAGE_SIZE),
+      latest: state.latest,
+      ...(oldest ? { oldest, inclusive: 'true' } : {}),
+      ...(state.historyCursor ? { cursor: state.historyCursor } : {}),
+    })
+  } catch (error) {
+    if (
+      !(error instanceof SlackApiError) ||
+      !['channel_not_found', 'not_in_channel', 'channel_is_limited_access'].includes(error.code)
+    )
+      throw error
+    /** Earlier pages must not survive as a complete observation after access was lost mid-channel. */
+    if (state.scanned > 0) throw error
+    /** Losing an as-yet-unread channel is an authoritative removal for this caller. */
+    state.channels.shift()
+    state.scanned = 0
+    state.historyCursor = undefined
+    return finishPage(state, [])
+  }
+  const messages = readMessages(history.messages)
+  const continuation = nextCursor(history, state.historyCursor)
+  if (history.is_limited === true) {
+    /** Retention/API restrictions provide only a partial view; do not infer deletions from it. */
+    if (syncContext) syncContext.listingCapped = true
+  }
+  const seen = new Set<string>()
+  const documents: ExternalDocument[] = []
+  for (const message of messages) {
+    if (message.subtype && SLACK_NOISE_SUBTYPES.has(message.subtype)) continue
+    /** A broadcast reply is indexed with its original root, not as a second copy of the thread. */
+    if (message.thread_ts && message.thread_ts !== message.ts) continue
+    if (!extractMessageContent(message) && !(message.reply_count && message.reply_count > 0))
+      continue
+    if (oldest && Number(message.ts) < Number(oldest)) continue
+    const externalId = documentId(teamId, channel.id, message.ts)
+    if (seen.has(externalId)) continue
+    seen.add(externalId)
+    documents.push({
+      externalId,
+      title: messageTitle(channel, message),
+      content: '',
+      contentDeferred: true,
+      estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+      mimeType: 'text/plain',
+      contentHash: `slack-listing:v4:${externalId}:${listingToken(syncContext)}`,
+      metadata: { channelName: channel.name, channelId: channel.id, rootTs: message.ts, teamId },
+    })
+  }
+  state.scanned += messages.length
+  const capped = maxMessages > 0 && state.scanned >= maxMessages && Boolean(continuation)
+  if (capped && syncContext) syncContext.listingCapped = true
+  if (!continuation || capped) {
+    state.channels.shift()
+    state.scanned = 0
+    state.historyCursor = undefined
+  } else {
+    state.historyCursor = continuation
+  }
+  return finishPage(state, documents)
+}
 
-  return { content: lines.join(), contentHash, messageCount, lastActivityTs }
+/**
+ * Hydrates every message in a thread. Root latest_reply/reply_count cannot
+ * detect an edit to an existing reply; every listed thread is reread, and the
+ * text hash decides whether its embeddings need replacing. Partial failures
+ * throw rather than publishing a root while silently dropping its replies.
+ */
+async function getDocument(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  externalId: string,
+  syncContext?: Record<string, unknown>
+): Promise<ExternalDocument | null> {
+  const match = /^slack:v4:(T[A-Z0-9]+):([CG][A-Z0-9]+):(\d{1,16}\.\d{1,6})$/.exec(externalId)
+  /** Legacy channel documents are retired through the next successful listing reconciliation. */
+  if (!match) return null
+  const [, teamId, channelId, rootTs] = match
+  if ((await resolveTeamId(accessToken, syncContext)) !== teamId) {
+    throw new Error('Slack document belongs to another workspace')
+  }
+  const oldest = readStartDate(sourceConfig.startDate)
+  if (oldest && Number(rootTs) < Number(oldest)) return null
+  try {
+    const info = await slackApiGet('conversations.info', accessToken, { channel: channelId })
+    const channel = readChannels([info.channel])[0]
+    if (!channelIncluded(channel, sourceConfig)) return null
+    const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+    lines.pin(`Channel: #${channel.name}`, '')
+    let cursor: string | undefined
+    let root: SlackMessage | undefined
+    let lastActivity = rootTs
+    let previousTs: string | undefined
+    let exhausted = false
+    for (let page = 0; page < MAX_THREAD_PAGES; page += 1) {
+      const response = await slackApiGet('conversations.replies', accessToken, {
+        channel: channelId,
+        ts: rootTs,
+        limit: String(PAGE_SIZE),
+        ...(cursor ? { cursor } : {}),
+      })
+      const messages = readMessages(response.messages)
+      if (response.is_limited === true) throw new Error('Slack returned only part of this thread')
+      if (!root) {
+        root = messages.find((message) => message.ts === rootTs)
+        if (!root && messages.length > 0) throw new Error('Slack thread response omitted its root')
+      }
+      for (const message of messages) {
+        if (message.ts !== rootTs && message.thread_ts !== rootTs) {
+          throw new Error('Slack returned a message from a different thread')
+        }
+        if (previousTs && Number(message.ts) <= Number(previousTs)) {
+          throw new Error('Slack thread pagination returned duplicate or unordered messages')
+        }
+        previousTs = message.ts
+        if (Number(message.ts) > Number(lastActivity)) lastActivity = message.ts
+        if (message.edited?.ts && Number(message.edited.ts) > Number(lastActivity))
+          lastActivity = message.edited.ts
+        if (message.subtype && SLACK_NOISE_SUBTYPES.has(message.subtype)) continue
+        const content = extractMessageContent(message)
+        if (!content) continue
+        const author = message.user
+          ? await resolveUserName(accessToken, message.user, syncContext)
+          : message.username || 'unknown'
+        if (
+          !lines.push(
+            `[${new Date(Number(message.ts) * 1000).toISOString()}] ${author}: ${content}`
+          )
+        ) {
+          throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+        }
+      }
+      const continuation = nextCursor(response, cursor)
+      if (!continuation) {
+        exhausted = true
+        break
+      }
+      cursor = continuation
+    }
+    if (!exhausted) throw new Error(`Slack thread exceeds ${MAX_THREAD_PAGES} reply pages`)
+    if (!root || lines.count === 0) return null
+    const link = await slackApiGet('chat.getPermalink', accessToken, {
+      channel: channelId,
+      message_ts: rootTs,
+    })
+    if (typeof link.permalink !== 'string' || !link.permalink.startsWith('https://')) {
+      throw new Error('Slack did not return a message permalink')
+    }
+    const content = lines.join()
+    return {
+      externalId,
+      title: messageTitle(channel, root),
+      content,
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: link.permalink,
+      contentHash: `slack-content:v4:${createHash('sha256').update(content).digest('hex')}`,
+      metadata: {
+        channelName: channel.name,
+        channelId,
+        rootTs,
+        teamId,
+        messageCount: lines.count,
+        lastActivity: new Date(Number(lastActivity) * 1000).toISOString(),
+      },
+    }
+  } catch (error) {
+    if (
+      error instanceof SlackApiError &&
+      [
+        'channel_not_found',
+        'not_in_channel',
+        'channel_is_limited_access',
+        'thread_not_found',
+        'message_not_found',
+      ].includes(error.code)
+    )
+      return null
+    throw error
+  }
 }
 
 export const slackConnector: ConnectorConfig = {
+  isCredentialInvalidError: (error) =>
+    error instanceof SlackApiError &&
+    ['invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'].includes(error.code),
+  isListingCursorInvalidError: (error) =>
+    error instanceof SlackApiError && error.code === 'invalid_cursor',
   ...slackConnectorMeta,
-
-  /**
-   * Lists the configured channels, or, when none are configured, every channel
-   * the token can read. A members-mode crawl clears the channel selection, so
-   * each member's listing is their whole view of the workspace. Listing stubs
-   * are deferred: the transcript is fetched in `getDocument`, once per channel
-   * per run, however many members list it.
-   */
-  listDocuments: async (
-    accessToken: string,
-    sourceConfig: Record<string, unknown>,
-    cursor?: string,
-    syncContext?: Record<string, unknown>
-  ): Promise<ExternalDocumentList> => {
-    const channelInputs = parseMultiValue(sourceConfig.channel)
-    const teamId = await resolveTeamId(accessToken, syncContext)
-
-    if (channelInputs.length === 0) {
-      logger.info('Listing every readable Slack channel', { hasCursor: Boolean(cursor) })
-      const page = await listChannelsPage(accessToken, cursor)
-      return {
-        documents: page.channels.map((channel) => channelToStub(channel, teamId, syncContext)),
-        nextCursor: page.nextCursor,
-        hasMore: page.nextCursor !== undefined,
-      }
-    }
-
-    logger.info('Listing configured Slack channels', { channels: channelInputs })
-    const documents: ExternalDocument[] = []
-    for (const channelInput of channelInputs) {
-      const channel = await resolveChannel(accessToken, channelInput)
-      if (!channel) {
-        /**
-         * Fail loudly rather than silently skipping. A configured channel that
-         * suddenly stops resolving (bot removed, channel archived, renamed)
-         * would otherwise have its previously-indexed document orphaned and
-         * deleted by the sync engine with no error surfaced. Matches the MS
-         * Teams connector's behaviour.
-         */
-        throw new Error(`Channel not found: ${channelInput}`)
-      }
-      documents.push(channelToStub(channel, teamId, syncContext))
-    }
-
-    /**
-     * Configured channels are listed in one call — the multi-select UI keeps
-     * the count small, and each channel is an independent document with its
-     * own `externalId` and `contentHash`.
-     */
-    return { documents, hasMore: false }
-  },
-
-  getDocument: async (
-    accessToken: string,
-    sourceConfig: Record<string, unknown>,
-    externalId: string,
-    syncContext?: Record<string, unknown>
-  ): Promise<ExternalDocument | null> => {
-    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
-
+  listDocuments,
+  getDocument,
+  validateConfig: async (accessToken, sourceConfig) => {
     try {
-      const data = await slackApiGet('conversations.info', accessToken, { channel: externalId })
-      const channel = data.channel as SlackChannel
-
-      const { content, contentHash, messageCount, lastActivityTs } =
-        await buildSlackChannelDocument(accessToken, channel, maxMessages, syncContext)
-      const teamId = await resolveTeamId(accessToken, syncContext)
-
-      return {
-        externalId: channel.id,
-        title: `#${channel.name}`,
-        content,
-        mimeType: 'text/plain',
-        sourceUrl: channelUrl(channel, teamId),
-        contentHash,
-        metadata: {
-          channelName: channel.name,
-          messageCount,
-          lastActivity: lastActivityTs ? formatSlackTimestamp(lastActivityTs) : undefined,
-          topic: channel.topic?.value,
-          purpose: channel.purpose?.value,
+      readStartDate(sourceConfig.startDate)
+      includeArchived(sourceConfig)
+      parseDefaultedUnlimitedSafeInteger(
+        sourceConfig.maxMessages,
+        DEFAULT_MAX_MESSAGES,
+        'Max messages must be a non-negative safe integer'
+      )
+      await slackApiGet(
+        'conversations.list',
+        accessToken,
+        {
+          types: CHANNEL_TYPES,
+          limit: '1',
+          exclude_archived: String(!includeArchived(sourceConfig)),
         },
-      }
+        VALIDATE_RETRY_OPTIONS
+      )
+      return { valid: true }
     } catch (error) {
-      /**
-       * `null` means "gone" to the sync engine, so only a deleted channel maps
-       * to it. Auth, scope and transport failures are rethrown so they surface
-       * as a failed document rather than a silent drop.
-       */
-      if (error instanceof SlackApiError && error.code === 'channel_not_found') {
-        return null
+      return {
+        valid: false,
+        error: getErrorMessage(error, 'Failed to validate Slack configuration'),
       }
-      throw error
     }
   },
-
-  validateConfig: async (
-    accessToken: string,
-    sourceConfig: Record<string, unknown>
-  ): Promise<{ valid: boolean; error?: string }> => {
-    const channelInputs = parseMultiValue(sourceConfig.channel)
-    const maxMessages = sourceConfig.maxMessages as string | undefined
-
-    if (channelInputs.length === 0) {
-      return { valid: false, error: 'At least one channel is required' }
-    }
-
-    if (maxMessages && (Number.isNaN(Number(maxMessages)) || Number(maxMessages) <= 0)) {
-      return { valid: false, error: 'Max messages must be a positive number' }
-    }
-
-    try {
-      /**
-       * Validate every selected channel. ID-shaped inputs use `conversations.info`
-       * directly; name-shaped inputs are resolved by paginating `conversations.list`
-       * once and matching all remaining names against the same pages — this avoids
-       * walking the full channel list once per name.
-       */
-      const nameLookups: string[] = []
-      for (const input of channelInputs) {
-        const trimmed = input.trim().replace(/^#/, '')
-
-        if (/^[CG][A-Z0-9]+$/.test(trimmed)) {
-          try {
-            await slackApiGet(
-              'conversations.info',
-              accessToken,
-              { channel: trimmed },
-              VALIDATE_RETRY_OPTIONS
-            )
-          } catch (error) {
-            /**
-             * Only an unknown channel is reported as missing. A scope, auth or
-             * transport failure falls through to the outer catch and keeps its
-             * own message — otherwise the user re-picks a channel that exists
-             * instead of reconnecting the credential.
-             */
-            if (error instanceof SlackApiError && error.code === 'channel_not_found') {
-              return { valid: false, error: `Channel not found: ${input}` }
-            }
-            throw error
-          }
-        } else {
-          nameLookups.push(trimmed)
-        }
-      }
-
-      if (nameLookups.length === 0) {
-        return { valid: true }
-      }
-
-      const remaining = new Set(nameLookups)
-      let cursor: string | undefined
-      do {
-        const params: Record<string, string> = {
-          types: 'public_channel,private_channel',
-          limit: '200',
-          exclude_archived: 'true',
-        }
-        if (cursor) {
-          params.cursor = cursor
-        }
-
-        const data = await slackApiGet(
-          'conversations.list',
-          accessToken,
-          params,
-          VALIDATE_RETRY_OPTIONS
-        )
-        const channels = (data.channels as SlackChannel[]) || []
-
-        for (const ch of channels) {
-          if (remaining.has(ch.name)) {
-            remaining.delete(ch.name)
-          }
-        }
-
-        if (remaining.size === 0) return { valid: true }
-
-        const responseMeta = data.response_metadata as { next_cursor?: string } | undefined
-        cursor = responseMeta?.next_cursor || undefined
-      } while (cursor)
-
-      const missing = Array.from(remaining)
-      return { valid: false, error: `Channel(s) not found: ${missing.join(', ')}` }
-    } catch (error) {
-      const message = toError(error).message || 'Failed to validate configuration'
-      return { valid: false, error: message }
-    }
-  },
-
-  mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
-    const result: Record<string, unknown> = {}
-
-    if (typeof metadata.channelName === 'string') {
-      result.channelName = metadata.channelName
-    }
-
-    if (typeof metadata.messageCount === 'number') {
-      result.messageCount = metadata.messageCount
-    }
-
-    const lastActivity = parseTagDate(metadata.lastActivity)
-    if (lastActivity) {
-      result.lastActivity = lastActivity
-    }
-
-    return result
-  },
+  mapTags: (metadata) => ({
+    ...(typeof metadata.channelName === 'string' ? { channelName: metadata.channelName } : {}),
+    ...(typeof metadata.messageCount === 'number' ? { messageCount: metadata.messageCount } : {}),
+    ...(parseTagDate(metadata.lastActivity)
+      ? { lastActivity: parseTagDate(metadata.lastActivity) }
+      : {}),
+  }),
 }

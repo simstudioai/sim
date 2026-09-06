@@ -5,7 +5,10 @@ import {
   isCredentialGroupsAvailable,
   resolveCredentialGroupsAvailability,
 } from '@/lib/credential-groups/availability'
-import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
+import {
+  loadCredentialGroupCredentialListContext,
+  loadWorkspaceAccountsCredentialListContext,
+} from '@/lib/credential-groups/credentials'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export async function requireCredentialGroupsAvailable(workspaceId: string): Promise<void> {
@@ -39,6 +42,15 @@ export async function resolveCredentialGroupContext(
   const group = await loadCredentialGroupCredentialListContext(credentialGroupId)
   if (!group) throw new OrchestrationError('not_found', 'Credential group not found')
   return { ...(await resolveCredentialGroupWorkspaceContext(group.workspaceId)), ...group }
+}
+
+export async function resolveWorkspaceAccountsContext(
+  workspaceId: string
+): Promise<CredentialGroupApplicationContext> {
+  const workspace = await resolveCredentialGroupWorkspaceContext(workspaceId)
+  const group = await loadWorkspaceAccountsCredentialListContext(workspaceId)
+  if (!group) throw new OrchestrationError('not_found', 'Connected accounts are not configured')
+  return { ...workspace, ...group }
 }
 
 export async function resolveCredentialGroupSettingsContext(

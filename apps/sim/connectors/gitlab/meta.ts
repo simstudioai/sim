@@ -2,20 +2,25 @@ import { GitLabIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const gitlabConnectorMeta: ConnectorMeta = {
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/gitlab',
   id: 'gitlab',
   name: 'GitLab',
   description:
-    'Sync repository files, wiki pages, and issues from a GitLab project into your knowledge base',
-  version: '1.1.0',
+    'Sync repository files, wiki pages, issues, merge requests, and their non-internal comments from a GitLab project',
+  version: '1.3.0',
+  mirrorsSourceAcls: true,
+  adminSetupHint:
+    'Use a self-managed GitLab instance administrator token with read_api access (and admin_mode when required). Enter your instance host.',
   icon: GitLabIcon,
 
   /**
-   * Incremental sync applies to issues only (via the `updated_after` filter
-   * derived from lastSyncAt). Wikis and repository files lack a change timestamp
-   * on listing, so they are always re-listed in full and reconciled by content
-   * hash (wiki: content digest, file: git blob SHA) — unchanged docs are skipped.
+   * Comment edits/deletes have their own timestamps; the provider does not
+   * promise to advance the parent issue/MR timestamp for every change. Full
+   * listings and deferred comment hydration keep both content and permissions
+   * current. Content hashes avoid embedding unchanged documents.
    */
-  supportsIncrementalSync: true,
+  supportsIncrementalSync: false,
 
   auth: {
     mode: 'apiKey',
@@ -46,15 +51,16 @@ export const gitlabConnectorMeta: ConnectorMeta = {
       type: 'dropdown',
       required: false,
       options: [
-        { label: 'Code, Wiki & Issues', id: 'all' },
+        { label: 'Code, Wiki, Issues & Merge Requests', id: 'all' },
         { label: 'Code (repository files) only', id: 'repo' },
         { label: 'Wiki only', id: 'wiki' },
         { label: 'Issues only', id: 'issues' },
+        { label: 'Merge Requests only', id: 'merge_requests' },
         { label: 'Wiki & Issues', id: 'both' },
       ],
       placeholder: 'Wiki & Issues',
       description:
-        'Which content to index. "Code" syncs repository files (READMEs, docs, source). Defaults to Wiki & Issues when left unset.',
+        'Issues and merge requests include non-internal comments. "Code" syncs text repository files. Defaults to Wiki & Issues when left unset.',
     },
     {
       id: 'ref',

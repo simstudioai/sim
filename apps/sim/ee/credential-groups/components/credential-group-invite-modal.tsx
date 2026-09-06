@@ -21,6 +21,11 @@ interface CredentialGroupInviteModalProps {
   groupId: string
 }
 
+function validateEmail(email: string): string | null {
+  const result = quickValidateEmail(email)
+  return result.isValid ? null : (result.reason ?? 'Invalid email')
+}
+
 export function CredentialGroupInviteModal({
   open,
   onOpenChange,
@@ -31,11 +36,6 @@ export function CredentialGroupInviteModal({
   const [emails, setEmails] = useState<string[]>([])
   const [deliveryError, setDeliveryError] = useState<string | null>(null)
   const canSubmit = emails.length > 0 && !invite.isPending
-
-  const validateEmail = useCallback((email: string): string | null => {
-    const result = quickValidateEmail(email)
-    return result.isValid ? null : (result.reason ?? 'Invalid email')
-  }, [])
 
   const handleEmailsChange = useCallback((next: string[]) => {
     setEmails(next)
@@ -64,7 +64,9 @@ export function CredentialGroupInviteModal({
       const failures = result.results.filter((item) => !item.success)
       if (failures.length === 0) {
         toast.success(
-          result.sentCount === 1 ? 'Invitation sent' : `${result.sentCount} invitations sent`
+          result.sentCount === 1
+            ? 'Connection request sent'
+            : `${result.sentCount} connection requests sent`
         )
         handleOpenChange(false)
         return
@@ -85,10 +87,12 @@ export function CredentialGroupInviteModal({
     <ChipModal
       open={open}
       onOpenChange={handleOpenChange}
-      srTitle='Invite users'
+      srTitle='Request account connections'
       dismissDisabled={invite.isPending}
     >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>Invite users</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>
+        Request account connections
+      </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'
@@ -97,6 +101,7 @@ export function CredentialGroupInviteModal({
           onChange={handleEmailsChange}
           validate={validateEmail}
           placeholder='Enter emails'
+          hint='Each person receives a link to connect their accounts. They can connect and leave without joining Sim. To give someone access to Search in Sim, invite them from Teammates.'
           disabled={invite.isPending}
         />
         <ChipModalError>
@@ -108,7 +113,7 @@ export function CredentialGroupInviteModal({
         onCancel={() => handleOpenChange(false)}
         cancelDisabled={invite.isPending}
         primaryAction={{
-          label: invite.isPending ? 'Sending...' : 'Send invites',
+          label: invite.isPending ? 'Sending...' : 'Send requests',
           onClick: handleSubmit,
           disabled: !canSubmit,
         }}

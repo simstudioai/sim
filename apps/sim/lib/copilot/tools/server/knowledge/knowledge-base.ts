@@ -449,7 +449,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               knowledgeBaseIds: [args.knowledgeBaseId],
               query: modelQuery,
               topK,
+              surface: 'copilot',
               resultSecretRegistry: context.resolvedSecretTraceRegistry,
+              signal: context.abortSignal,
             }),
             /**
              * Whether to ask for a citation is a presentation choice, and it is

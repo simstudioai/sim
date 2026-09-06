@@ -45,15 +45,15 @@ export type MothershipMode = (typeof MOTHERSHIP_MODES)[number]
 
 /**
  * `mode` is the composer's mode, so a refresh, back, forward, or shared link
- * lands in the same mode, as Glean's separate Search and Assistant routes do.
- * Build is the default and the clean URL. A view change rather than a
- * destination, so it replaces the history entry.
+ * lands in the same mode. A missing value falls back to the latest user turn;
+ * an explicit Build selection stays in the URL to distinguish it from that fallback.
  */
 export const modeParam = {
   key: 'mode',
-  parser: parseAsStringLiteral(MOTHERSHIP_MODES)
-    .withDefault('build')
-    .withOptions({ history: 'replace', clearOnDefault: true }),
+  parser: parseAsStringLiteral(MOTHERSHIP_MODES).withOptions({
+    history: 'replace',
+    clearOnDefault: true,
+  }),
 } as const
 
 /** The recency windows a search can be narrowed to. */

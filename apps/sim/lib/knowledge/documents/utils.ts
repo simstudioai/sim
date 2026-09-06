@@ -46,7 +46,7 @@ export interface RetryOptions {
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
-  /** Total wall-clock budget available to waits between retry attempts. */
+  /** Total wall-clock budget for admission, attempts, response bodies, and retry waits. */
   retryBudgetMs?: number
   /** Longest individual server-stated wait this operation will admit. */
   maxRetryAfterMs?: number
@@ -56,6 +56,7 @@ export interface RetryOptions {
 
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
 const HTTP_ERROR_BODY_OMITTED = '[response body omitted]'
+const DEFAULT_FETCH_RETRY_BUDGET_MS = 150_000
 
 /**
  * Reads an upstream error body without allowing a provider or proxy error page
@@ -356,6 +357,7 @@ export async function createRetryableHttpError(
  * Default retry condition for rate limiting errors
  */
 export function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error && 'retryable' in error && error.retryable === false) return false
   if (!isRetryableErrorType(error)) return false
 
   /**
@@ -430,7 +432,7 @@ export function isRetryableError(error: unknown): boolean {
  * Executes a function with exponential backoff retry logic
  */
 export async function retryWithExponentialBackoff<T>(
-  operation: () => Promise<T>,
+  operation: (signal: AbortSignal, deadlineAt: number) => Promise<T>,
   options: RetryOptions = {}
 ): Promise<T> {
   const {
@@ -463,88 +465,131 @@ export async function retryWithExponentialBackoff<T>(
   const effectiveRetryBudgetMs = retryBudgetMs ?? maxRetries * Math.max(maxDelayMs, maxRetryAfterMs)
   const retryDeadlineMs = Date.now() + effectiveRetryBudgetMs
 
-  let lastError: Error | undefined
-  let delay = initialDelayMs
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    signal?.throwIfAborted()
-    try {
-      logger.debug(`Executing operation attempt ${attempt + 1}/${maxRetries + 1}`)
-      const result = await operation()
-
-      if (attempt > 0) {
-        logger.info(`Operation succeeded after ${attempt + 1} attempts`)
-      }
-
-      return result
-    } catch (error) {
-      lastError = toError(error)
-      const retryableError = error as RetryableError
-      const safeError = {
-        error: truncate(redactSensitiveValues(lastError.message), MAX_HTTP_ERROR_DIAGNOSTIC_CHARS),
-        ...(hasStatus(retryableError) ? { status: retryableError.status } : {}),
-      }
-      logger.warn(`Operation failed on attempt ${attempt + 1}`, safeError)
-
-      if (attempt === maxRetries) {
-        logger.error(`Operation failed after ${maxRetries + 1} attempts`, safeError)
-        throw lastError
-      }
-
-      if (!retryCondition(error as RetryableError)) {
-        logger.warn('Error is not retryable, throwing immediately', safeError)
-        throw lastError
-      }
-
-      /**
-       * Use the server-stated wait (Retry-After, or the rate-limit reset
-       * header) when present, otherwise exponential backoff.
-       *
-       * A server-stated wait is authoritative when it fits inside the remaining
-       * operation budget. It is never shortened into an early request that the
-       * provider explicitly told us not to make.
-       */
-      const retryAfterMs = (lastError as HTTPError)?.retryAfterMs
-
-      const remainingBudgetMs = Math.max(0, retryDeadlineMs - Date.now())
-      if (retryAfterMs && retryAfterMs > maxRetryAfterMs) {
-        logger.warn(
-          `Server-stated retry wait ${retryAfterMs}ms exceeds per-wait ceiling ${maxRetryAfterMs}ms — ending this retry cycle`
+  const controller = new AbortController()
+  const operationSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+  const timeout =
+    retryBudgetMs === undefined
+      ? undefined
+      : setTimeout(
+          () =>
+            controller.abort(
+              new DOMException('Provider operation exceeded its retry budget', 'TimeoutError')
+            ),
+          effectiveRetryBudgetMs
         )
-        throw lastError
-      }
-      if (retryAfterMs && retryAfterMs > remainingBudgetMs) {
-        logger.warn(
-          `Server-stated retry wait ${retryAfterMs}ms exceeds remaining retry budget ${remainingBudgetMs}ms — ending this retry cycle`
+  try {
+    let lastError: Error | undefined
+    let delay = initialDelayMs
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      operationSignal.throwIfAborted()
+      try {
+        logger.debug(`Executing operation attempt ${attempt + 1}/${maxRetries + 1}`)
+        const result = await new Promise<T>((resolve, reject) => {
+          const onAbort = () => {
+            cleanup()
+            reject(operationSignal.reason)
+          }
+          const cleanup = () => operationSignal.removeEventListener('abort', onAbort)
+          operationSignal.addEventListener('abort', onAbort, { once: true })
+          Promise.resolve()
+            .then(() => {
+              operationSignal.throwIfAborted()
+              return operation(operationSignal, retryDeadlineMs)
+            })
+            .then(
+              (value) => {
+                cleanup()
+                resolve(value)
+              },
+              (error: unknown) => {
+                cleanup()
+                reject(error)
+              }
+            )
+        })
+        operationSignal.throwIfAborted()
+
+        if (attempt > 0) {
+          logger.info(`Operation succeeded after ${attempt + 1} attempts`)
+        }
+
+        return result
+      } catch (error) {
+        operationSignal.throwIfAborted()
+        lastError = toError(error)
+        const retryableError = error as RetryableError
+        const safeError = {
+          error: truncate(
+            redactSensitiveValues(lastError.message),
+            MAX_HTTP_ERROR_DIAGNOSTIC_CHARS
+          ),
+          ...(hasStatus(retryableError) ? { status: retryableError.status } : {}),
+        }
+        logger.warn(`Operation failed on attempt ${attempt + 1}`, safeError)
+
+        if (attempt === maxRetries) {
+          logger.error(`Operation failed after ${maxRetries + 1} attempts`, safeError)
+          throw lastError
+        }
+
+        if (!retryCondition(error as RetryableError)) {
+          logger.warn('Error is not retryable, throwing immediately', safeError)
+          throw lastError
+        }
+
+        /**
+         * Use the server-stated wait (Retry-After, or the rate-limit reset
+         * header) when present, otherwise exponential backoff.
+         *
+         * A server-stated wait is authoritative when it fits inside the remaining
+         * operation budget. It is never shortened into an early request that the
+         * provider explicitly told us not to make.
+         */
+        const retryAfterMs = (lastError as HTTPError)?.retryAfterMs
+
+        const remainingBudgetMs = Math.max(0, retryDeadlineMs - Date.now())
+        if (retryAfterMs && retryAfterMs > maxRetryAfterMs) {
+          logger.warn(
+            `Server-stated retry wait ${retryAfterMs}ms exceeds per-wait ceiling ${maxRetryAfterMs}ms — ending this retry cycle`
+          )
+          throw lastError
+        }
+        if (retryAfterMs && retryAfterMs > remainingBudgetMs) {
+          logger.warn(
+            `Server-stated retry wait ${retryAfterMs}ms exceeds remaining retry budget ${remainingBudgetMs}ms — ending this retry cycle`
+          )
+          throw lastError
+        }
+
+        const jitter = randomFloat() * 0.1 * delay
+        const actualDelay = retryAfterMs ? retryAfterMs : Math.min(delay + jitter, maxDelayMs)
+
+        if (actualDelay > remainingBudgetMs) {
+          logger.warn(
+            `Retry delay ${Math.round(actualDelay)}ms exceeds remaining retry budget ${Math.round(remainingBudgetMs)}ms — ending this retry cycle`
+          )
+          throw lastError
+        }
+
+        logger.info(
+          `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${retryAfterMs ? ' (server-stated)' : ''}`
         )
-        throw lastError
-      }
 
-      const jitter = randomFloat() * 0.1 * delay
-      const actualDelay = retryAfterMs ? retryAfterMs : Math.min(delay + jitter, maxDelayMs)
+        await interruptibleSleep(actualDelay, operationSignal)
+        operationSignal.throwIfAborted()
 
-      if (actualDelay > remainingBudgetMs) {
-        logger.warn(
-          `Retry delay ${Math.round(actualDelay)}ms exceeds remaining retry budget ${Math.round(remainingBudgetMs)}ms — ending this retry cycle`
-        )
-        throw lastError
-      }
-
-      logger.info(
-        `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${retryAfterMs ? ' (server-stated)' : ''}`
-      )
-
-      await interruptibleSleep(actualDelay, signal)
-      signal?.throwIfAborted()
-
-      // Exponential backoff (skip if we used Retry-After)
-      if (!retryAfterMs) {
-        delay = Math.min(delay * backoffMultiplier, maxDelayMs)
+        // Exponential backoff (skip if we used Retry-After)
+        if (!retryAfterMs) {
+          delay = Math.min(delay * backoffMultiplier, maxDelayMs)
+        }
       }
     }
-  }
 
-  throw lastError || new Error('Retry operation failed')
+    throw lastError || new Error('Retry operation failed')
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 /**
@@ -558,20 +603,46 @@ export const VALIDATE_RETRY_OPTIONS: RetryOptions = {
 }
 
 /**
- * Wrapper for fetch requests with retry logic
+ * Bounds requests and response bodies within one retry budget.
  */
 export async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
   retryOptions: RetryOptions = {}
 ): Promise<Response> {
-  return retryWithExponentialBackoff(async () => {
-    const response = await fetch(url, options)
+  const callerSignal = options.signal
+    ? retryOptions.signal
+      ? AbortSignal.any([options.signal, retryOptions.signal])
+      : options.signal
+    : retryOptions.signal
 
-    if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      throw await createRetryableHttpError(response)
+  return retryWithExponentialBackoff(
+    async (signal, deadlineAt) => {
+      /** The fetch deadline stays active while callers consume the returned response body. */
+      const requestSignal = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(Math.max(0, Math.ceil(deadlineAt - Date.now()))),
+      ])
+      const response = await fetch(url, { ...options, signal: requestSignal })
+
+      if (
+        !response.ok &&
+        isRetryableError({ status: response.status, headers: response.headers })
+      ) {
+        throw await createRetryableHttpError(response)
+      }
+
+      return response
+    },
+    {
+      ...retryOptions,
+      retryBudgetMs: retryOptions.retryBudgetMs ?? DEFAULT_FETCH_RETRY_BUDGET_MS,
+      maxRetryAfterMs:
+        retryOptions.maxRetryAfterMs ??
+        retryOptions.retryBudgetMs ??
+        retryOptions.maxDelayMs ??
+        30_000,
+      signal: callerSignal,
     }
-
-    return response
-  }, retryOptions)
+  )
 }

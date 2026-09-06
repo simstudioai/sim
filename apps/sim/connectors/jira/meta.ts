@@ -2,9 +2,13 @@ import { JiraIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const jiraConnectorMeta: ConnectorMeta = {
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/jira',
+  memberSetupHint:
+    'Each teammate connects their Jira account to search issue titles, descriptions, and tags they can access.',
   id: 'jira',
   name: 'Jira',
-  description: 'Sync issues from a Jira project',
+  description: 'Search issue titles and descriptions from Jira projects',
   version: '1.0.0',
   icon: JiraIcon,
 
