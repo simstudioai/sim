@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,65 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_vision",
+      "slug": "oci-vision",
+      "name": "OCI Vision",
+      "description": "Analyze images and manage Vision batch jobs",
+      "longDescription": "Analyze JPEG and PNG images for labels, objects, English scene text, and faces using OCI Vision. Use pretrained or existing active custom models, discover projects and models, submit batches, read or cancel jobs, and retrieve output files. Images are limited to 5,000,000 bytes and 32–10,000 pixels per dimension; Sim files are validated before upload. OCI validates referenced images. Batch requests accept up to 2,000 Object Storage references and 500,000 bytes of JSON. Analysis and unkeyed job creation use one request attempt. Enabling block retries may repeat paid requests; a stable caller-supplied job retry token provides bounded provider deduplication. Status reads do not wait for completion. Output listing uses the job’s returned bucket and prefix, which may also contain other objects when reused. Downloads return one UserFile, capped at 50 MiB; batch file contents are not parsed. Requires an OCI signing-key service account, Vision permissions, input-object access and, for batches, output-write access; reading output files also requires Object Storage list/read permissions. Document extraction, video, face recognition, model training, and automatic image staging are excluded.",
+      "bgColor": "#C74634",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_vision",
+      "operations": [
+        {
+          "name": "Analyze Image",
+          "description": "Analyze one JPEG or PNG for labels, objects, scene text, and faces. Uses one request attempt; enabled block retries may repeat paid analysis."
+        },
+        {
+          "name": "Create Image Job",
+          "description": "Submit up to 2000 OCI images for batch analysis and return a job immediately. Reuse a retry token to protect repeated submissions; unkeyed block retries can create duplicate paid jobs."
+        },
+        {
+          "name": "Get Image Job",
+          "description": "Read an image job status once. FAILED and CANCELED remain valid status results; no automatic polling or resubmission."
+        },
+        {
+          "name": "Cancel Image Job",
+          "description": "Request cancellation of a batch image job. Check status separately; cancellation may leave output files and incurred charges."
+        },
+        {
+          "name": "List Projects",
+          "description": "List one bounded page of Vision projects in a compartment."
+        },
+        {
+          "name": "Get Project",
+          "description": "Read selected metadata and lifecycle state for a Vision project."
+        },
+        {
+          "name": "List Models",
+          "description": "List one bounded page of existing Vision models, optionally within a project."
+        },
+        {
+          "name": "Get Model",
+          "description": "Read a Vision model type, version, project, and lifecycle state without training or modifying it."
+        },
+        {
+          "name": "List Image Job Outputs",
+          "description": "List one page of objects under a job output prefix. Reused prefixes can contain other jobs’ files; results are not parsed."
+        },
+        {
+          "name": "Download Image Job Output",
+          "description": "Download one object under a job output prefix as a UserFile, at most 50 MiB. Does not parse results, unpack ZIPs, or restore archived objects."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["cloud", "automation"]
     },
     {
       "type": "okta",

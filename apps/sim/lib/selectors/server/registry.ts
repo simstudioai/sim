@@ -21,6 +21,7 @@ import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/m
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
+import { ociVisionSelectorAttachments } from '@/lib/selectors/server/providers/oci-vision'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
 import { sharepointSelectorAttachments } from '@/lib/selectors/server/providers/sharepoint'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
@@ -54,6 +55,7 @@ export const serverSelectorRegistry = {
   ...microsoftSelectorAttachments,
   ...mondaySelectorAttachments,
   ...netsuiteSelectorAttachments,
+  ...ociVisionSelectorAttachments,
   ...notionSelectorAttachments,
   ...pipedriveSelectorAttachments,
   ...sharepointSelectorAttachments,

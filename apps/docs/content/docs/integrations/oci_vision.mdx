@@ -1,0 +1,321 @@
+---
+title: OCI Vision
+description: Analyze images and manage Vision batch jobs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_vision"
+  color="#C74634"
+/>
+
+## Usage Instructions
+
+Analyze JPEG and PNG images for labels, objects, English scene text, and faces using OCI Vision. Use pretrained or existing active custom models, discover projects and models, submit batches, read or cancel jobs, and retrieve output files. Images are limited to 5,000,000 bytes and 32–10,000 pixels per dimension; Sim files are validated before upload. OCI validates referenced images. Batch requests accept up to 2,000 Object Storage references and 500,000 bytes of JSON. Analysis and unkeyed job creation use one request attempt. Enabling block retries may repeat paid requests; a stable caller-supplied job retry token provides bounded provider deduplication. Status reads do not wait for completion. Output listing uses the job’s returned bucket and prefix, which may also contain other objects when reused. Downloads return one UserFile, capped at 50 MiB; batch file contents are not parsed. Requires an OCI signing-key service account, Vision permissions, input-object access and, for batches, output-write access; reading output files also requires Object Storage list/read permissions. Document extraction, video, face recognition, model training, and automatic image staging are excluded.
+
+
+
+## Actions
+
+### OCI Vision Analyze Image
+
+Analyze one JPEG or PNG for labels, objects, scene text, and faces. Uses one request attempt; enabled block retries may repeat paid analysis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `features` | json | Yes | Array of IMAGE_CLASSIFICATION, OBJECT_DETECTION, TEXT_DETECTION, FACE_DETECTION; select each feature at most once |
+| `compartmentId` | string | No | Compartment OCID for image analysis or job creation |
+| `classificationModelId` | string | No | Active custom IMAGE_CLASSIFICATION model OCID; omit for pretrained classification |
+| `objectDetectionModelId` | string | No | Active custom OBJECT_DETECTION model OCID; omit for pretrained object detection |
+| `classificationMaxResults` | number | No | Classification labels requested, 1–1000 \(Sim limit\); defaults to 5 |
+| `objectDetectionMaxResults` | number | No | Objects requested, 1–1000 \(Sim limit\); defaults to 5 |
+| `faceMaxResults` | number | No | Faces requested, 1–1000 \(Sim limit\); defaults to 50 |
+| `shouldReturnLandmarks` | boolean | No | Include the five documented facial landmark positions; defaults to false |
+| `language` | string | No | Optional ENG language hint for scene-text OCR; only English is documented |
+| `source` | string | Yes | file or object_storage |
+| `file` | file | No | Authorized uploaded JPEG or PNG, at most 5,000,000 bytes; required for file source |
+| `namespaceName` | string | No | OCI namespace; required for object_storage source |
+| `bucketName` | string | No | OCI bucket; required for object_storage source |
+| `objectName` | string | No | Exact OCI object name; required for object_storage source |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `labels` | array | labels output from the tool |
+| `objects` | array | objects output from the tool |
+| `faces` | array | faces output from the tool |
+|   ↳ `qualityScore` | number | Face quality from 0 to 1 |
+|   ↳ `landmarks` | array | landmarks output from the tool |
+|     ↳ `type` | string | type output from the tool |
+|     ↳ `x` | number | x output from the tool |
+|     ↳ `y` | number | y output from the tool |
+| `words` | array | words output from the tool |
+| `lines` | array | lines output from the tool |
+|   ↳ `wordIndexes` | array | Indexes into the returned words array |
+|   ↳ `wordIndexesTruncated` | boolean | Some associated words were omitted by output limits |
+| `ontologyClasses` | array | ontologyClasses output from the tool |
+|   ↳ `name` | string | name output from the tool |
+|   ↳ `parentNames` | array | parentNames output from the tool |
+|   ↳ `synonymNames` | array | synonymNames output from the tool |
+| `errors` | array | Verified processing errors for this single image |
+|   ↳ `code` | string | code output from the tool |
+|   ↳ `message` | string | message output from the tool |
+| `modelVersions` | object | modelVersions output from the tool |
+| `counts` | object | counts output from the tool |
+| `truncated` | boolean | At least one collection or string was limited by Sim |
+
+### OCI Vision Create Image Job
+
+Submit up to 2000 OCI images for batch analysis and return a job immediately. Reuse a retry token to protect repeated submissions; unkeyed block retries can create duplicate paid jobs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `features` | json | Yes | Array of IMAGE_CLASSIFICATION, OBJECT_DETECTION, TEXT_DETECTION, FACE_DETECTION; select each feature at most once |
+| `compartmentId` | string | No | Compartment OCID for image analysis or job creation |
+| `classificationModelId` | string | No | Active custom IMAGE_CLASSIFICATION model OCID; omit for pretrained classification |
+| `objectDetectionModelId` | string | No | Active custom OBJECT_DETECTION model OCID; omit for pretrained object detection |
+| `classificationMaxResults` | number | No | Classification labels requested, 1–1000 \(Sim limit\); defaults to 5 |
+| `objectDetectionMaxResults` | number | No | Objects requested, 1–1000 \(Sim limit\); defaults to 5 |
+| `faceMaxResults` | number | No | Faces requested, 1–1000 \(Sim limit\); defaults to 50 |
+| `shouldReturnLandmarks` | boolean | No | Include the five documented facial landmark positions; defaults to false |
+| `language` | string | No | Optional ENG language hint for scene-text OCR; only English is documented |
+| `objectLocations` | json | Yes | Array of \{namespaceName,bucketName,objectName\}; 1–2000 JPEG/PNG objects, at most 5 MB each; serialized job body at most 500,000 bytes |
+| `outputNamespaceName` | string | Yes | Namespace for batch output files |
+| `outputBucketName` | string | Yes | Bucket for batch output files; OCI must have write access |
+| `outputPrefix` | string | Yes | Nonempty dedicated output prefix; reusing a prefix can mix files from different jobs |
+| `displayName` | string | No | Optional job display name |
+| `isZipOutputEnabled` | boolean | No | Request ZIP output; defaults to false |
+| `retryToken` | string | No | Stable token, at most 64 ASCII characters. Reuse only for the same submission; enables at most two request attempts. Oracle normally retains tokens for 24 hours. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Image job status; FAILED may carry PARTIALLY_SUCCEEDED lifecycle details |
+|   ↳ `id` | string | id output from the tool |
+|   ↳ `compartmentId` | string | compartmentId output from the tool |
+|   ↳ `lifecycleState` | string | lifecycleState output from the tool |
+|   ↳ `percentComplete` | number | percentComplete output from the tool |
+|   ↳ `timeAccepted` | string | timeAccepted output from the tool |
+|   ↳ `outputLocation` | object | outputLocation output from the tool |
+|     ↳ `namespaceName` | string | namespaceName output from the tool |
+|     ↳ `bucketName` | string | bucketName output from the tool |
+|     ↳ `prefix` | string | prefix output from the tool |
+|   ↳ `isZipOutputEnabled` | boolean | isZipOutputEnabled output from the tool |
+
+### OCI Vision Get Image Job
+
+Read an image job status once. FAILED and CANCELED remain valid status results; no automatic polling or resubmission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `imageJobId` | string | Yes | Image job OCID returned by Create Image Job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Image job status; FAILED may carry PARTIALLY_SUCCEEDED lifecycle details |
+|   ↳ `id` | string | id output from the tool |
+|   ↳ `compartmentId` | string | compartmentId output from the tool |
+|   ↳ `lifecycleState` | string | lifecycleState output from the tool |
+|   ↳ `percentComplete` | number | percentComplete output from the tool |
+|   ↳ `timeAccepted` | string | timeAccepted output from the tool |
+|   ↳ `outputLocation` | object | outputLocation output from the tool |
+|     ↳ `namespaceName` | string | namespaceName output from the tool |
+|     ↳ `bucketName` | string | bucketName output from the tool |
+|     ↳ `prefix` | string | prefix output from the tool |
+|   ↳ `isZipOutputEnabled` | boolean | isZipOutputEnabled output from the tool |
+| `etag` | string | Job ETag for an If-Match cancellation |
+
+### OCI Vision Cancel Image Job
+
+Request cancellation of a batch image job. Check status separately; cancellation may leave output files and incurred charges.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `imageJobId` | string | Yes | Image job OCID returned by Create Image Job |
+| `ifMatch` | string | No | Optional ETag precondition |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `imageJobId` | string | Image job requested for cancellation |
+| `cancellationRequested` | boolean | Oracle accepted the cancellation request; not a terminal-state guarantee |
+
+### OCI Vision List Projects
+
+List one bounded page of Vision projects in a compartment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `compartmentId` | string | Yes | Compartment OCID to list |
+| `limit` | number | No | Items per page, 1–100 \(Sim limit\); defaults to 10 |
+| `page` | string | No | Opaque nextPage from the preceding Vision list response |
+| `displayName` | string | No | Exact display-name filter |
+| `lifecycleState` | string | No | CREATING, UPDATING, ACTIVE, DELETING, DELETED, or FAILED |
+| `id` | string | No | Exact resource OCID filter |
+| `sortBy` | string | No | Sort by timeCreated or displayName |
+| `sortOrder` | string | No | ASC or DESC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | projects output from the tool |
+|   ↳ `id` | string | id output from the tool |
+|   ↳ `compartmentId` | string | compartmentId output from the tool |
+|   ↳ `lifecycleState` | string | lifecycleState output from the tool |
+|   ↳ `timeCreated` | string | timeCreated output from the tool |
+| `nextPage` | string | Pass as page to retrieve the next Vision page |
+
+### OCI Vision Get Project
+
+Read selected metadata and lifecycle state for a Vision project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `projectId` | string | Yes | Vision project OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | id output from the tool |
+|   ↳ `compartmentId` | string | compartmentId output from the tool |
+|   ↳ `lifecycleState` | string | lifecycleState output from the tool |
+|   ↳ `timeCreated` | string | timeCreated output from the tool |
+
+### OCI Vision List Models
+
+List one bounded page of existing Vision models, optionally within a project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `compartmentId` | string | Yes | Compartment OCID to list |
+| `limit` | number | No | Items per page, 1–100 \(Sim limit\); defaults to 10 |
+| `page` | string | No | Opaque nextPage from the preceding Vision list response |
+| `displayName` | string | No | Exact display-name filter |
+| `lifecycleState` | string | No | CREATING, UPDATING, ACTIVE, DELETING, DELETED, or FAILED |
+| `id` | string | No | Exact resource OCID filter |
+| `sortBy` | string | No | Sort by timeCreated or displayName |
+| `sortOrder` | string | No | ASC or DESC |
+| `projectId` | string | No | Optional Vision project OCID filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `models` | array | models output from the tool |
+|   ↳ `projectId` | string | projectId output from the tool |
+|   ↳ `modelType` | string | modelType output from the tool |
+|   ↳ `modelVersion` | string | modelVersion output from the tool |
+| `nextPage` | string | Pass as page to retrieve the next Vision page |
+
+### OCI Vision Get Model
+
+Read a Vision model type, version, project, and lifecycle state without training or modifying it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `modelId` | string | Yes | Vision model OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `model` | object | model output from the tool |
+|   ↳ `projectId` | string | projectId output from the tool |
+|   ↳ `modelType` | string | modelType output from the tool |
+|   ↳ `modelVersion` | string | modelVersion output from the tool |
+
+### OCI Vision List Image Job Outputs
+
+List one page of objects under a job output prefix. Reused prefixes can contain other jobs’ files; results are not parsed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `imageJobId` | string | Yes | Image job OCID returned by Create Image Job |
+| `limit` | number | No | Objects per page, 1–100; defaults to 10 |
+| `start` | string | No | Object Storage nextStartWith from the preceding page; distinct from Vision page tokens |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `outputLocation` | object | outputLocation output from the tool |
+|   ↳ `namespaceName` | string | namespaceName output from the tool |
+|   ↳ `bucketName` | string | bucketName output from the tool |
+|   ↳ `prefix` | string | prefix output from the tool |
+| `imageJobId` | string | imageJobId output from the tool |
+| `objects` | array | objects output from the tool |
+|   ↳ `name` | string | name output from the tool |
+|   ↳ `size` | number | size output from the tool |
+| `nextStartWith` | string | Pass as start to retrieve the next object page |
+
+### OCI Vision Download Image Job Output
+
+Download one object under a job output prefix as a UserFile, at most 50 MiB. Does not parse results, unpack ZIPs, or restore archived objects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | Vision region in the credential realm; defaults to the credential region |
+| `imageJobId` | string | Yes | Image job OCID returned by Create Image Job |
+| `objectName` | string | Yes | Exact object name from List Image Job Outputs, including its prefix |
+| `ifMatch` | string | No | Optional object ETag from the listing to guard against replacement |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `imageJobId` | string | imageJobId output from the tool |
+| `objectName` | string | objectName output from the tool |
+| `etag` | string | etag output from the tool |
+| `contentType` | string | contentType output from the tool |
+| `size` | number | Downloaded bytes |
+| `file` | file | Downloaded output stored as a Sim UserFile |
+
+

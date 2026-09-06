@@ -2,6 +2,8 @@ import type { ComponentType } from 'react'
 
 export const selectorContextKeys = [
   'oauthCredential',
+  'region',
+  'compartmentId',
   'domain',
   'teamId',
   'projectId',

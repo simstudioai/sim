@@ -1038,6 +1038,19 @@ const GOOGLE_DRIVE_TOOL_IDS = [
 
 const STAGEHAND_TOOL_IDS = ['stagehand_agent', 'stagehand_extract'] as const
 
+const OCI_VISION_TOOL_IDS = [
+  'oci_vision_analyze_image',
+  'oci_vision_cancel_image_job',
+  'oci_vision_create_image_job',
+  'oci_vision_download_image_job_output',
+  'oci_vision_get_image_job',
+  'oci_vision_get_model',
+  'oci_vision_get_project',
+  'oci_vision_list_image_job_outputs',
+  'oci_vision_list_models',
+  'oci_vision_list_projects',
+] as const
+
 const VISION_TOOL_IDS = ['vision_tool', 'vision_tool_v2'] as const
 
 const GITHUB_TOOL_IDS = [
@@ -1616,6 +1629,9 @@ registerFamily(handlerLoaders, GOOGLE_DRIVE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, STAGEHAND_TOOL_IDS, async () => {
   return (await import('@/lib/internal/stagehand/execute-tool')).executeStagehandTool
+})
+registerFamily(handlerLoaders, OCI_VISION_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-vision/execute-tool')).executeOciVisionTool
 })
 registerFamily(handlerLoaders, VISION_TOOL_IDS, async () => {
   return (await import('@/lib/internal/vision/execute-tool')).executeVisionTool
