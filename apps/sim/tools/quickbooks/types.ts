@@ -8,6 +8,13 @@ export interface QuickBooksReference {
   name?: string
 }
 
+/**
+ * Intuit: "Method in which tax is applied. Allowed values are: TaxExcluded,
+ * TaxInclusive, and NotApplicable. Not applicable to US companies; required for
+ * non-US companies."
+ */
+export type QuickBooksGlobalTaxCalculation = 'TaxExcluded' | 'TaxInclusive' | 'NotApplicable'
+
 export interface QuickBooksAddress {
   Id?: string
   Line1?: string
@@ -670,6 +677,8 @@ export interface QuickBooksDepositLineInput {
 export interface QuickBooksCreateJournalEntryParams extends QuickBooksAuthParams {
   lines: QuickBooksJournalLineInput[]
   confirmPosting: boolean
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   documentNumber?: string
   privateNote?: string
@@ -688,6 +697,8 @@ export interface QuickBooksUpdateJournalEntryParams extends QuickBooksAuthParams
 export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
   depositAccountId: string
   lines: QuickBooksDepositLineInput[]
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   privateNote?: string
   requestId?: string
@@ -696,7 +707,7 @@ export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateDepositParams extends QuickBooksAuthParams {
   depositId: string
   syncToken: string
-  depositAccountId: string
+  depositAccountId?: string
   transactionDate?: string
   privateNote?: string
 }
@@ -736,7 +747,10 @@ export interface QuickBooksCreatePurchaseOrderParams extends QuickBooksAuthParam
   vendorId: string
   apAccountId: string
   lines: QuickBooksPurchasingLineInput[]
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
+  dueDate?: string
   documentNumber?: string
   privateNote?: string
   requestId?: string
@@ -748,6 +762,7 @@ export interface QuickBooksUpdatePurchaseOrderParams extends QuickBooksAuthParam
   vendorId?: string
   apAccountId?: string
   transactionDate?: string
+  dueDate?: string
   documentNumber?: string
   privateNote?: string
 }
@@ -756,6 +771,8 @@ export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
   vendorId: string
   lines: QuickBooksBillLineInput[]
   apAccountId?: string
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   dueDate?: string
   documentNumber?: string
@@ -782,7 +799,10 @@ export interface QuickBooksCreateBillPaymentParams extends QuickBooksAuthParams 
   paymentType: QuickBooksBillPaymentType
   paymentAccountId: string
   billAllocations?: QuickBooksBillAllocationInput[]
+  apAccountId?: string
+  currencyCode?: string
   transactionDate?: string
+  documentNumber?: string
   privateNote?: string
   requestId?: string
 }
@@ -799,6 +819,8 @@ export interface QuickBooksCreateVendorCreditParams extends QuickBooksAuthParams
   vendorId: string
   lines: QuickBooksPurchasingLineInput[]
   apAccountId?: string
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   documentNumber?: string
   privateNote?: string
@@ -822,6 +844,8 @@ export interface QuickBooksCreatePurchaseParams extends QuickBooksAuthParams {
   paymentAccountId: string
   lines: QuickBooksPurchasingLineInput[]
   vendorId?: string
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   paymentReference?: string
   privateNote?: string
