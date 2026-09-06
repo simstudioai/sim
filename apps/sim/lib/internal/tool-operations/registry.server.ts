@@ -783,6 +783,46 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+const ORACLE_EPM_PLANNING_TOOL_IDS = [
+  'oracle_epm_planning_add_member',
+  'oracle_epm_planning_change_planning_unit_status',
+  'oracle_epm_planning_clear_data_slice',
+  'oracle_epm_planning_delete_file',
+  'oracle_epm_planning_delete_substitution_variable',
+  'oracle_epm_planning_download_file',
+  'oracle_epm_planning_export_application_data',
+  'oracle_epm_planning_export_data_slice',
+  'oracle_epm_planning_export_form_data',
+  'oracle_epm_planning_get_dimension',
+  'oracle_epm_planning_get_insights',
+  'oracle_epm_planning_get_job_details',
+  'oracle_epm_planning_get_job',
+  'oracle_epm_planning_get_member',
+  'oracle_epm_planning_get_planning_unit_actions',
+  'oracle_epm_planning_get_planning_unit_history',
+  'oracle_epm_planning_get_substitution_variable',
+  'oracle_epm_planning_import_application_data',
+  'oracle_epm_planning_import_data_slice',
+  'oracle_epm_planning_list_applications',
+  'oracle_epm_planning_list_cubes',
+  'oracle_epm_planning_list_dimensions',
+  'oracle_epm_planning_list_files',
+  'oracle_epm_planning_list_job_definitions',
+  'oracle_epm_planning_list_planning_units',
+  'oracle_epm_planning_list_substitution_variables',
+  'oracle_epm_planning_list_user_variable_values',
+  'oracle_epm_planning_refresh_cube',
+  'oracle_epm_planning_run_data_map',
+  'oracle_epm_planning_run_job',
+  'oracle_epm_planning_run_rule',
+  'oracle_epm_planning_run_ruleset',
+  'oracle_epm_planning_set_administration_mode',
+  'oracle_epm_planning_set_substitution_variables',
+  'oracle_epm_planning_set_user_variable_values',
+  'oracle_epm_planning_summarize_insights',
+  'oracle_epm_planning_upload_file',
+  'oracle_epm_planning_wait_for_job',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1427,6 +1467,10 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_PLANNING_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-planning/execute-tool'))
+    .executeOracleEpmPlanningTool
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
