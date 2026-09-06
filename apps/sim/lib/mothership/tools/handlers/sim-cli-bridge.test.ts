@@ -123,7 +123,8 @@ describe('sim-cli handler executes the worker-built request', () => {
       'mothership-chat:chat-1',
       'trace.json',
       'BIG OUTPUT',
-      undefined
+      undefined,
+      { overwrite: true, observe: expect.any(Function) }
     )
     const output = result.output as { stdout: string }
     expect(output.stdout).toContain('written to /home/user/trace.json')
@@ -147,7 +148,8 @@ describe('sim-cli handler executes the worker-built request', () => {
       'mothership-chat:chat-1',
       'sliced.json',
       'SLICED',
-      undefined
+      undefined,
+      { overwrite: true, observe: expect.any(Function) }
     )
     const output = result.output as { stdout: string }
     expect(output.stdout).toContain('written to /home/user/sliced.json')
