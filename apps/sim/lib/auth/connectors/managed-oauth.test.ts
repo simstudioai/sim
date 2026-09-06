@@ -115,6 +115,19 @@ describe('Atlassian managed OAuth connector', () => {
     expect(jira.isTerminalRefreshError('invalid_grant')).toBe(true)
     expect(jira.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
   })
+
+  it.each(['jira', 'confluence'] as const)(
+    'requires reconnect after %s rejects a revoked refresh grant',
+    (provider) => {
+      const connector = createAtlassianManagedOAuthConnector(provider)
+      expect(connector.isTerminalRefreshError('invalid_grant')).toBe(true)
+      expect(connector.isTerminalRefreshError('unauthorized_client')).toBe(true)
+      expect(connector.isTerminalRefreshError('invalid_client')).toBe(false)
+      expect(connector.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
+      expect(connector.isTerminalRefreshError('server_error')).toBe(false)
+      expect(connector.isTerminalRefreshError(undefined)).toBe(false)
+    }
+  )
 })
 
 describe('userinfo-backed managed OAuth connectors', () => {

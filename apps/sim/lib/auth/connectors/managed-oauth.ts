@@ -239,7 +239,7 @@ export function createAtlassianManagedOAuthConnector(
       return requiredScopes.every((scope) => granted.has(scope))
     },
     isTerminalRefreshError(errorCode) {
-      return errorCode === 'invalid_grant'
+      return errorCode === 'invalid_grant' || errorCode === 'unauthorized_client'
     },
   }
 }

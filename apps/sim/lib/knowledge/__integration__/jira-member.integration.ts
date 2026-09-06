@@ -99,6 +99,7 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
   const failures = new Map<string, 400 | 401>()
   const requests: { token: string; page: string | null }[] = []
   const refreshAttempts: string[] = []
+  let refreshError: 'invalid_grant' | 'unauthorized_client' = 'invalid_grant'
   let billing: Awaited<ReturnType<typeof resolveBillingAttribution>>
   const actor = (userId: string): Principal => ({
     kind: 'session',
@@ -126,10 +127,7 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
         if (!person || failures.get(person.accessToken) !== 401)
           throw new Error('Unexpected Jira fixture token refresh')
         refreshAttempts.push(person.userId)
-        return Response.json(
-          { error: 'invalid_grant', error_description: 'Unknown or invalid refresh token.' },
-          { status: 403 }
-        )
+        return Response.json({ error: refreshError }, { status: 403 })
       }
       const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : {}))
       const token = headers.get('Authorization')?.replace(/^Bearer /, '') ?? ''
@@ -262,6 +260,7 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
   })
 
   beforeEach(async () => {
+    refreshError = 'invalid_grant'
     failures.clear()
     requests.length = 0
     refreshAttempts.length = 0
@@ -526,20 +525,27 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
     await assertAccess(alice, ['1', '2'])
   })
 
-  it('marks a provider-rejected credential for reconnect and immediately hides that member corpus', async () => {
-    failures.set(alice.accessToken, 401)
-    const result = await sync()
-    expect(result.membersFailed).toBe(1)
-    expect(refreshAttempts).toEqual([alice.userId])
-    const [saved] = await db.select().from(credential).where(eq(credential.id, alice.credentialId))
-    expect(saved.managedOauthStatus).toBe('needs_reauth')
-    await assertAccess(alice, [])
-    await assertAccess(bob, ['1', '3'])
-    expect(
-      await db
+  it.each(['invalid_grant', 'unauthorized_client'] as const)(
+    'marks a %s refresh rejection for reconnect and immediately hides that member corpus',
+    async (errorCode) => {
+      refreshError = errorCode
+      failures.set(alice.accessToken, 401)
+      const result = await sync()
+      expect(result.membersFailed).toBe(1)
+      expect(refreshAttempts).toEqual([alice.userId])
+      const [saved] = await db
         .select()
-        .from(document)
-        .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
-    ).toHaveLength(4)
-  })
+        .from(credential)
+        .where(eq(credential.id, alice.credentialId))
+      expect(saved.managedOauthStatus).toBe('needs_reauth')
+      await assertAccess(alice, [])
+      await assertAccess(bob, ['1', '3'])
+      expect(
+        await db
+          .select()
+          .from(document)
+          .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
+      ).toHaveLength(4)
+    }
+  )
 })

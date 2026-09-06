@@ -56,8 +56,8 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
 
   beforeAll(async () => {
     const selected = parseEnv(await readFile(credentialsFile!, 'utf8'))
-    if (!selected.OPENAI_API_KEY || !selected.MISTRAL_API_KEY) {
-      throw new Error('Live provider tests require explicitly configured OpenAI and Mistral keys')
+    if (!selected.OPENAI_API_KEY) {
+      throw new Error('Live embedding tests require an explicitly configured OpenAI key')
     }
     Object.assign(env, {
       OPENAI_API_KEY: selected.OPENAI_API_KEY,
@@ -218,6 +218,187 @@ Location: Room A
 Description: Review North American database storage growth and capacity forecasts. Finance and platform teams will compare infrastructure costs for next quarter.`,
       },
       {
+        key: 'gmail-export',
+        title: 'Larch customer archive — CSV delivery decision',
+        content: `Subject: Larch data export request
+From: customer-success@example.com
+Customer Larch needs an offline archive of their account before the end of the quarter. Daniel Wu approved a CSV export, encrypted with the customer-provided public key, delivered through their SFTP server. Delivery is due October 22. Do not send the archive as an email attachment.`,
+      },
+      {
+        key: 'jira-export-ui',
+        title: 'DATA-731: Larch export button progress indicator',
+        content: `Issue: DATA-731
+The Larch export button should display a progress spinner while the export job runs. This frontend issue adds polling and a completion toast. It does not decide the archive file format, encryption, delivery channel, or customer deadline.`,
+      },
+      {
+        key: 'gmail-retention',
+        title: 'Aster audit records — retention exception approved',
+        content: `Subject: Aster audit-log retention exception
+From: compliance@example.com
+Nadia Brooks approved keeping Aster audit records for 400 days instead of the standard 90. The exception applies only to audit-log metadata, not message bodies. Legal will review the exception next April.`,
+      },
+      {
+        key: 'github-retention',
+        title: 'audit-service/README.md — standard retention configuration',
+        content: `Repository: audit-service
+The default audit-log retention is 90 days. Set AUDIT_RETENTION_DAYS to change the deployment default. Customer-specific exceptions require a compliance approval recorded separately. Aster is mentioned in the integration-test fixtures but the fixture is not an approved policy.`,
+      },
+      {
+        key: 'gmail-incident',
+        title: 'Juniper outage follow-up — customer notification owner',
+        content: `Subject: Juniper outage customer follow-up
+From: incident-command@example.com
+The Juniper ingestion outage has ended. Elena Park will send affected customers the incident summary by 17:00 UTC on October 12. The message must explain that delayed records have been replayed and no records were lost. Infrastructure remediation is tracked separately.`,
+      },
+      {
+        key: 'calendar-incident',
+        title: 'Juniper incident retrospective',
+        content: `Event: Juniper incident retrospective
+Start: October 14, 2026 at 15:00 UTC
+Location: Video room J
+Review the ingestion outage timeline and infrastructure remediation. This internal retrospective occurs after customer notifications and does not assign the person sending them.`,
+      },
+      {
+        key: 'jira-session',
+        title: 'AUTH-2196: Signing out leaves a usable session cookie',
+        content: `Issue: AUTH-2196
+Type: Security bug
+Assignee: Mateo Cruz
+After a user signs out, replaying their old session cookie still grants access. Invalidate the server-side session row on logout. Acceptance: the same cookie must receive HTTP 401 after logout, including on a second browser tab.`,
+      },
+      {
+        key: 'gmail-session',
+        title: 'Sign-in copy review and expired-session messaging',
+        content: `Subject: Sign-in screen wording
+Product design is revising the message shown when a session expires naturally after inactivity. This review is about the login page text, not invalidating sessions when a person actively signs out.`,
+      },
+      {
+        key: 'jira-accessibility',
+        title: 'UI-6402: Keyboard focus escapes the source setup dialog',
+        content: `Issue: UI-6402
+Type: Accessibility bug
+Assignee: Imani Reed
+When the source setup dialog is open, pressing Tab reaches controls behind the modal. Keep keyboard focus inside the dialog; Escape closes it and returns focus to the original Add source button. Screen-reader labels must remain intact.`,
+      },
+      {
+        key: 'calendar-accessibility',
+        title: 'Source setup visual design review',
+        content: `Event: Source setup visual design review
+The designer will review the source dialog button spacing, typography, and empty-state illustrations. Focus trapping and keyboard navigation are tracked in the accessibility backlog. This calendar invite is not the implementation ticket.`,
+      },
+      {
+        key: 'jira-calendar-dst',
+        title: 'CAL-3188: Recurring meetings shift after daylight saving',
+        content: `Issue: CAL-3188
+Assignee: Theo Martin
+Weekly meetings created at 09:00 Europe/London move an hour after the daylight-saving transition. Preserve the IANA time-zone identifier when expanding recurring events. Acceptance: local wall-clock start stays at nine in the morning across the clock change.`,
+      },
+      {
+        key: 'github-calendar-format',
+        title: 'calendar-ui/src/format-time.ts — event display formatting',
+        content: `Repository: calendar-ui
+Path: src/format-time.ts
+formatEventTime chooses a user's twelve-hour or twenty-four-hour clock presentation. It accepts already expanded occurrence timestamps. It does not calculate recurring occurrences or fix daylight-saving expansion.`,
+      },
+      {
+        key: 'github-signature',
+        title: 'gateway/src/security/verify-signature.ts',
+        content: `Repository: gateway
+Path: src/security/verify-signature.ts
+verifyDeliverySignature computes an HMAC SHA-256 digest over the raw webhook request bytes and compares it with the supplied signature using timingSafeEqual. Reject invalid signatures before JSON parsing or event dispatch. The shared signing secret comes from the credential resolver, never the payload.`,
+      },
+      {
+        key: 'jira-signature-ui',
+        title: 'WEB-1882: Show webhook signature failures on the deliveries page',
+        content: `Issue: WEB-1882
+The deliveries page should display signature-verification failures with a helpful error message and timestamp. This UI ticket reads the error recorded by gateway. The cryptographic verification function already exists in the gateway security code.`,
+      },
+      {
+        key: 'github-rollback',
+        title: 'deploy/runbooks/restore-release.md — Finch rollback',
+        content: `Repository: deploy
+Path: runbooks/restore-release.md
+For the Finch deployment, run restoreFinchRelease to disable the new-checkout flag, restore the previous container image digest, and verify the /healthz endpoint. Do not reverse the additive database migration. Escalate if error rates remain above the rollback threshold.`,
+      },
+      {
+        key: 'gmail-rollback',
+        title: 'Finch launch announcement draft',
+        content: `Subject: Finch launch announcement
+Marketing is preparing the Finch release announcement. The draft describes faster checkout and a refreshed purchase confirmation screen. If engineering rolls the deployment back, delay publication; engineering's rollback commands are documented in the deployment repository.`,
+      },
+      {
+        key: 'github-pagination',
+        title: 'directory/src/paging/cursor.ts',
+        content: `Repository: directory
+Path: src/paging/cursor.ts
+encodeDirectoryCursor serializes the last seen created_at and id tuple into an opaque cursor. The next page uses a strict tuple comparison, ordered by created_at then id, so equal timestamps do not duplicate or skip directory entries. Do not use an offset against a changing directory.`,
+      },
+      {
+        key: 'jira-pagination',
+        title: 'DIR-770: Directory table pagination button alignment',
+        content: `Issue: DIR-770
+Align the Previous and Next buttons under the directory table and show the current page label. This layout issue does not implement the opaque cursor encoding or database ordering used by the directory service.`,
+      },
+      {
+        key: 'calendar-rotation',
+        title: 'Cobalt signing-key rotation rehearsal',
+        content: `Event: Cobalt signing-key rotation rehearsal
+Start: Tuesday, October 20, 2026 at 14:00 UTC
+Location: Security room B
+Organizer: Security Engineering
+Practice publishing the new signing key, running both public keys during the overlap period, and retiring the old key. This is a sandbox rehearsal. Bring the key-rotation checklist.`,
+      },
+      {
+        key: 'gmail-rotation',
+        title: 'Cobalt key inventory review',
+        content: `Subject: Cobalt signing-key inventory
+Security is collecting the list of services that verify Cobalt signatures. Reply with each service owner and its key cache lifetime. The signing-key rotation rehearsal has a separate calendar invitation with the meeting time and room.`,
+      },
+      {
+        key: 'calendar-workshop',
+        title: 'Larch customer archive handoff workshop',
+        content: `Event: Larch customer archive handoff workshop
+Start: Wednesday, October 21, 2026 at 09:30 UTC
+Location: Customer lab 2
+Description: Customer success and data engineering will verify that Larch can decrypt the archive and connect to the SFTP delivery host. Bring a test public key. The workshop occurs before the archive delivery deadline.`,
+      },
+      {
+        key: 'github-sftp',
+        title: 'archive-worker/docs/sftp-delivery.md',
+        content: `Repository: archive-worker
+Path: docs/sftp-delivery.md
+Archive delivery uploads encrypted files to the configured SFTP host. Set the remote directory and use the customer public key for encryption. This implementation guide includes Larch as a synthetic test tenant; it does not schedule the customer handoff workshop.`,
+      },
+      {
+        key: 'calendar-freeze',
+        title: 'Aster production change freeze approval',
+        content: `Event: Aster production change freeze approval
+Start: Friday, October 23, 2026 at 16:30 UTC
+Location: Operations bridge
+Description: Release managers will decide whether to freeze Aster production changes for the annual audit. Bring the open-change list and the audit readiness checklist. This meeting concerns release scheduling, not the audit-log retention exception.`,
+      },
+      {
+        key: 'jira-freeze',
+        title: 'OPS-909: Add the Aster change-freeze banner',
+        content: `Issue: OPS-909
+Show a banner in the deployment UI while an Aster production change freeze is active. The release managers decide when the freeze starts in their approval meeting. This ticket implements the banner and does not schedule that meeting.`,
+      },
+      {
+        key: 'private-bluebird',
+        title: 'PRIVATE-BB-916 Bluebird confidential settlement',
+        content: `PRIVATE-BB-916. A confidential Bluebird settlement uses net-120 payment terms approved by Morgan Stone. This is a restricted legal settlement, not the public annual subscription renewal approved on net-60 terms. Only Alice may see this synthetic record.`,
+      },
+      {
+        key: 'private-auth',
+        title: 'PRIVATE-AUTH-228 signing out session exploit details',
+        content: `PRIVATE-AUTH-228 is a restricted incident report about exploiting a session cookie after logout. It records a confidential customer incident, separate from the shared AUTH-2196 implementation ticket. The incident handler is Casey Hall. Only Alice may see this synthetic record.`,
+      },
+      {
+        key: 'private-finance',
+        title: 'PRIVATE-VEGA-540 confidential Vega acquisition meeting',
+        content: `PRIVATE-VEGA-540. A confidential Vega acquisition negotiation meets on October 8 at 10:00 UTC in Finance room D. This meeting is unrelated to the shared European database switchover rehearsal. Only Alice may see this synthetic record.`,
+      },
+      {
         key: 'private-acquisition',
         title: 'INTERNAL-RAVEN-973 confidential acquisition closing plan',
         content: `INTERNAL-RAVEN-973 is the confidential acquisition closing plan. The Raven acquisition signing is scheduled for November 9. The legal team must complete the restricted merger checklist before the signing meeting. This synthetic document is available only to Alice.`,
@@ -255,7 +436,7 @@ Description: Review North American database storage growth and capacity forecast
       await processDocumentAsync(ids.knowledgeBaseId, created.documentId, created, {}, billing)
       acls.set(
         externalId,
-        item.key === 'private-acquisition'
+        item.key.startsWith('private-')
           ? [`u:${ids.aliceId}@fixture.test`]
           : [`u:${ids.aliceId}@fixture.test`, `u:${ids.bobId}@fixture.test`]
       )
@@ -321,6 +502,114 @@ Description: Review North American database storage growth and capacity forecast
       { key: 'jira-duplicate', mode: 'hybrid', maxRank: 1, query: 'PAY-4821' },
       { key: 'github-idempotency', mode: 'hybrid', maxRank: 1, query: 'reserveWebhookEvent' },
       { key: 'calendar-rehearsal', mode: 'hybrid', maxRank: 1, query: 'Vega EU cutover rehearsal' },
+      {
+        key: 'gmail-export',
+        mode: 'vector',
+        maxRank: 3,
+        query: 'Who signed off on the Larch archive delivery format and how should we send it?',
+      },
+      {
+        key: 'gmail-retention',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Who allowed Aster to keep its audit history longer than three months, and for how long?',
+      },
+      {
+        key: 'gmail-incident',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Who will tell Juniper customers that the delayed ingestion records have been recovered?',
+      },
+      {
+        key: 'jira-session',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Which security ticket makes an old browser cookie stop working after the user logs out?',
+      },
+      {
+        key: 'jira-accessibility',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Find the bug for keyboard navigation reaching the page behind the add-source popup.',
+      },
+      {
+        key: 'jira-calendar-dst',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Which issue keeps weekly London meetings at the same local hour when the clocks change?',
+      },
+      {
+        key: 'github-signature',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Where is the function that checks a webhook message really came from its sender before decoding JSON?',
+      },
+      {
+        key: 'github-rollback',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Find the engineering runbook for undoing the Finch rollout while leaving its database migration in place.',
+      },
+      {
+        key: 'github-pagination',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'Which code builds directory page tokens so rows with identical creation times are neither repeated nor missed?',
+      },
+      {
+        key: 'calendar-rotation',
+        mode: 'vector',
+        maxRank: 3,
+        query: 'When and where are we practicing replacement of the Cobalt signing key?',
+      },
+      {
+        key: 'calendar-workshop',
+        mode: 'vector',
+        maxRank: 3,
+        query: 'Where is the session for checking that Larch can decrypt and download its archive?',
+      },
+      {
+        key: 'calendar-freeze',
+        mode: 'vector',
+        maxRank: 3,
+        query:
+          'When do release managers meet to decide whether Aster deployments should stop during the audit?',
+      },
+      { key: 'gmail-export', mode: 'hybrid', maxRank: 1, query: 'Larch CSV delivery decision' },
+      { key: 'gmail-retention', mode: 'hybrid', maxRank: 1, query: 'Aster retention 400 days' },
+      { key: 'gmail-incident', mode: 'hybrid', maxRank: 1, query: 'Juniper Elena Park 17:00' },
+      { key: 'jira-session', mode: 'hybrid', maxRank: 1, query: 'AUTH-2196' },
+      { key: 'jira-accessibility', mode: 'hybrid', maxRank: 1, query: 'UI-6402' },
+      { key: 'jira-calendar-dst', mode: 'hybrid', maxRank: 1, query: 'CAL-3188' },
+      { key: 'github-signature', mode: 'hybrid', maxRank: 1, query: 'verifyDeliverySignature' },
+      { key: 'github-rollback', mode: 'hybrid', maxRank: 1, query: 'restoreFinchRelease' },
+      { key: 'github-pagination', mode: 'hybrid', maxRank: 1, query: 'encodeDirectoryCursor' },
+      {
+        key: 'calendar-rotation',
+        mode: 'hybrid',
+        maxRank: 1,
+        query: 'Cobalt signing-key rotation rehearsal',
+      },
+      {
+        key: 'calendar-workshop',
+        mode: 'hybrid',
+        maxRank: 1,
+        query: 'Larch archive handoff workshop',
+      },
+      {
+        key: 'calendar-freeze',
+        mode: 'hybrid',
+        maxRank: 1,
+        query: 'Aster production change freeze approval',
+      },
     ] as const
     const search = async (query: string, searchMode: 'vector' | 'hybrid', userId = ids.bobId) =>
       searchKnowledge.execute({
@@ -335,38 +624,87 @@ Description: Review North American database storage growth and capacity forecast
           tagFilters: [{ tagName: 'Fixture', operator: 'eq', value: 'retrieval-quality' }],
         },
       })
-    const observations: { key: string; mode: string; rank: number | null }[] = []
+    const keysByDocumentId = new Map([...documentIds].map(([key, id]) => [id, key]))
+    const privateItems = corpus.filter((item) => item.key.startsWith('private-'))
+    const privateIds = privateItems.map((item) => documentIds.get(item.key)!)
+    const observations: {
+      key: string
+      mode: string
+      query: string
+      rank: number | null
+      top3: { key: string | undefined; similarity: number }[]
+    }[] = []
     for (const item of queries) {
       const result = await search(item.query, item.mode)
       const rankedIds = [...new Set(result.results.map((row) => row.documentId))]
       const rank = rankedIds.indexOf(documentIds.get(item.key)!) + 1
-      observations.push({ key: item.key, mode: item.mode, rank: rank || null })
-      expect(rankedIds).not.toContain(documentIds.get('private-acquisition'))
-      expect(rank, `${item.mode}: ${item.query}`).toBeGreaterThan(0)
-      expect(rank, `${item.mode}: ${item.query}`).toBeLessThanOrEqual(item.maxRank)
+      observations.push({
+        key: item.key,
+        mode: item.mode,
+        query: item.query,
+        rank: rank || null,
+        top3: rankedIds.slice(0, 3).map((id) => ({
+          key: keysByDocumentId.get(id),
+          similarity: result.results.find((row) => row.documentId === id)!.similarity,
+        })),
+      })
+      expect(rankedIds.filter((id) => privateIds.includes(id))).toEqual([])
+      expect.soft(rank, `${item.mode}: ${item.query}`).toBeGreaterThan(0)
+      expect.soft(rank, `${item.mode}: ${item.query}`).toBeLessThanOrEqual(item.maxRank)
     }
-    for (const mode of ['vector', 'hybrid'] as const) {
-      const privateQuery = 'INTERNAL-RAVEN-973 confidential acquisition closing plan'
-      const blocked = await search(privateQuery, mode)
-      expect(blocked.results.map((row) => row.documentId)).not.toContain(
-        documentIds.get('private-acquisition')
-      )
-      const allowed = await search(privateQuery, mode, ids.aliceId)
-      expect(allowed.results[0]?.documentId).toBe(documentIds.get('private-acquisition'))
+    for (const item of privateItems) {
+      for (const mode of ['vector', 'hybrid'] as const) {
+        const blocked = await search(item.title, mode)
+        expect(blocked.results.filter((row) => privateIds.includes(row.documentId))).toEqual([])
+        const allowed = await search(item.title, mode, ids.aliceId)
+        expect
+          .soft(allowed.results[0]?.documentId, `${mode}: ${item.key}`)
+          .toBe(documentIds.get(item.key))
+      }
+    }
+    const negativeObservations = []
+    /** Retrieval is not an answerability classifier; record false-positive candidates without inventing an empty-result guarantee. */
+    for (const query of [
+      'What is the recipe and baking temperature for sourdough rye bread?',
+      'Who won the 1986 football World Cup final and what was the score?',
+      'How many moons orbit the planet Neptune?',
+      'ZEBRA-UNKNOWN-990017 nonexistent project record',
+    ]) {
+      for (const mode of ['vector', 'hybrid'] as const) {
+        const result = await search(query, mode)
+        expect(result.results.filter((row) => privateIds.includes(row.documentId))).toEqual([])
+        negativeObservations.push({
+          query,
+          mode,
+          returnedDocuments: new Set(result.results.map((row) => row.documentId)).size,
+          top3: result.results.slice(0, 3).map((row) => ({
+            key: keysByDocumentId.get(row.documentId),
+            similarity: row.similarity,
+          })),
+        })
+      }
     }
     const report = {
       embeddingModel: 'text-embedding-3-small',
       corpusDocuments: corpus.length,
+      privateDocuments: privateItems.length,
       publicQueries: observations.length,
       top1: observations.filter((row) => row.rank === 1).length,
       top3: observations.filter((row) => row.rank !== null && row.rank <= 3).length,
+      precisionAt1: observations.filter((row) => row.rank === 1).length / observations.length,
+      meanReciprocalRankAt10:
+        observations.reduce((sum, row) => sum + (row.rank ? 1 / row.rank : 0), 0) /
+        observations.length,
       observations,
+      negativeObservations,
       privateDocumentExcludedInBothModes: true,
     }
-    logger.info('Small synthetic integration retrieval benchmark', report)
-  }, 120000)
+    logger.info('Expanded synthetic integration retrieval benchmark', report)
+  }, 180000)
 
   it('extracts a raster-only PDF through Mistral and embeds the recovered text', async () => {
+    if (!env.MISTRAL_API_KEY)
+      throw new Error('Live OCR tests require an explicitly configured Mistral key')
     const png = await rasterFixture()
     const pdf = await PDFDocument.create()
     const image = await pdf.embedPng(png)
@@ -398,6 +736,8 @@ Description: Review North American database storage growth and capacity forecast
     expect(embedded.embeddings[0]).toHaveLength(1536)
   }, 120000)
   it('extracts a PNG image through the real Mistral image endpoint', async () => {
+    if (!env.MISTRAL_API_KEY)
+      throw new Error('Live OCR tests require an explicitly configured Mistral key')
     const bytes = await rasterFixture()
     const result = await runWithKnowledgeModelInputProvenance(
       undefined,
