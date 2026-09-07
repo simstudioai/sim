@@ -132,8 +132,10 @@ import {
   resolveInputFiles,
 } from '@/lib/mothership/tools/handlers/function-execute'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import {
   POST as addChatResourceRoute,
@@ -2222,7 +2224,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
 
     it
       .skipIf(!process.env.MSHIP_LOCAL_COMPUTE_IMAGE || !process.env.MSHIP_WORKER_ROOT)
-      .each(['returned-value', 'sandbox-file', 'mixed-files', 'missing-table'] as const)(
+      .each([
+        'returned-value',
+        'sandbox-file',
+        'mixed-files',
+        'missing-table',
+        'partial-files',
+      ] as const)(
       'composes attachment computation, table replacement, durable export and fresh-chat re-import: %s',
       async (mode) => {
         fixture.permission = 'write'
@@ -2360,6 +2368,15 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(prepared.storedAttachments).toHaveLength(1)
           await vi.mocked(executeShellInSandbox).withImplementation(compute, async () => {
             const callContext = context(chatId)
+            if (mode === 'partial-files') {
+              await writeCopilotWorkspaceFileByPath(callContext, {
+                workspaceId,
+                target: { path: `files/existing-${exportName}`, mode: 'create' },
+                buffer: Buffer.from('Existing report must survive'),
+                inferredMimeType: 'text/csv',
+                secretProvenance: { status: 'exact', entries: [] },
+              })
+            }
             const params = {
               language: 'shell',
               timeout: 30,
@@ -2376,6 +2393,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                   ...(mode === 'mixed-files'
                     ? [{ path: `files/raw-${exportName}`, sandboxPath: '/home/user/totals.csv' }]
                     : []),
+                  ...(mode === 'partial-files' ? [{ path: `files/existing-${exportName}` }] : []),
                 ],
               },
               outputTable: mode === 'missing-table' ? generateId() : tableId,
@@ -2383,9 +2401,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             let result = await executeFunctionExecute(params, callContext)
             expect(result.success, JSON.stringify(result)).toBe(true)
             result = await maybeWriteOutputToFile('run_function', params, result, callContext)
-            expect(result.success, JSON.stringify(result)).toBe(true)
+            expect(result.success, JSON.stringify(result)).toBe(mode !== 'partial-files')
             result = await maybeWriteOutputToTable('run_function', params, result, callContext)
-            if (mode === 'missing-table') {
+            if (mode === 'missing-table' || mode === 'partial-files') {
               expect(result.success).toBe(false)
               expect(result.error).toContain('already written')
               expect(result.output).toMatchObject({
@@ -2414,7 +2432,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               .from(userTableRows)
               .where(eq(userTableRows.tableId, tableId))
             const expectedRows =
-              mode === 'missing-table'
+              mode === 'missing-table' || mode === 'partial-files'
                 ? []
                 : [
                     { col_account: 'alpha', col_total: 22 },
@@ -2443,6 +2461,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               sandboxSession: 'created',
             })
             expect(sessions.size).toBe(2)
+            if (mode === 'partial-files') {
+              const existing = await readWorkspaceFileArtifact.execute({
+                principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+                input: { workspaceId, reference: `files/existing-${exportName}`, maxBytes: 1024 },
+              })
+              expect(existing.buffer.toString('utf8')).toBe('Existing report must survive')
+            }
           })
         } finally {
           setEnvFlags({ isMothershipSandboxEnabled: previousWorkbenchEnabled })

@@ -243,6 +243,54 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.resources).toContainEqual(existingResource)
   })
 
+  it.each(['before-write', 'after-first-write', 'after-sandbox-export'] as const)(
+    'reports only committed files when export fails: %s',
+    async (failurePoint) => {
+      const receipt = { fileId: 'file-1', fileName: 'report.csv', vfsPath: 'files/report.csv' }
+      if (failurePoint === 'after-first-write') {
+        mockWriteWorkspaceFileByPath.mockResolvedValueOnce({
+          id: 'file-1',
+          name: 'report.csv',
+          vfsPath: 'files/report.csv',
+          mode: 'create',
+        })
+      }
+      mockWriteWorkspaceFileByPath.mockRejectedValueOnce(new Error('Destination already exists'))
+      const result = await maybeWriteOutputToFile(
+        RunFunction.id,
+        {
+          outputs: {
+            files: [
+              { path: 'files/report.csv' },
+              ...(failurePoint === 'after-first-write' ? [{ path: 'files/second.csv' }] : []),
+            ],
+          },
+        },
+        {
+          success: true,
+          output: {
+            result: [{ name: 'Ada' }],
+            stdout: '1 row',
+            ...(failurePoint === 'after-sandbox-export' ? { exported: { files: [receipt] } } : {}),
+          },
+        },
+        buildContext()
+      )
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Destination already exists')
+      if (failurePoint === 'before-write') {
+        expect(result.output).toBeUndefined()
+        expect(result.error).not.toContain('already written')
+      } else {
+        expect(result.error).toContain('already written')
+        expect(result.output).toMatchObject({ files: [expect.objectContaining(receipt)] })
+      }
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(
+        failurePoint === 'after-first-write' ? 2 : 1
+      )
+    }
+  )
+
   it('classifies large structured output from its serialized bytes instead of its object count', async () => {
     const registry = new ResolvedSecretTraceRegistry(
       [
