@@ -421,6 +421,40 @@ const NEO4J_TOOL_IDS = [
   'neo4j_introspect',
 ] as const
 
+const OCI_OBJECT_STORAGE_NATIVE_TOOL_IDS = [
+  'oci_object_storage_native_abort_multipart_upload',
+  'oci_object_storage_native_batch_delete_objects',
+  'oci_object_storage_native_commit_multipart_upload',
+  'oci_object_storage_native_copy_object',
+  'oci_object_storage_native_create_bucket',
+  'oci_object_storage_native_create_multipart_upload',
+  'oci_object_storage_native_create_preauthenticated_request',
+  'oci_object_storage_native_delete_bucket',
+  'oci_object_storage_native_delete_lifecycle_policy',
+  'oci_object_storage_native_delete_object',
+  'oci_object_storage_native_delete_preauthenticated_request',
+  'oci_object_storage_native_download_object',
+  'oci_object_storage_native_get_bucket',
+  'oci_object_storage_native_get_lifecycle_policy',
+  'oci_object_storage_native_get_namespace',
+  'oci_object_storage_native_get_preauthenticated_request',
+  'oci_object_storage_native_get_work_request',
+  'oci_object_storage_native_head_object',
+  'oci_object_storage_native_list_buckets',
+  'oci_object_storage_native_list_multipart_parts',
+  'oci_object_storage_native_list_multipart_uploads',
+  'oci_object_storage_native_list_object_versions',
+  'oci_object_storage_native_list_objects',
+  'oci_object_storage_native_list_preauthenticated_requests',
+  'oci_object_storage_native_put_lifecycle_policy',
+  'oci_object_storage_native_rename_object',
+  'oci_object_storage_native_restore_object',
+  'oci_object_storage_native_update_bucket',
+  'oci_object_storage_native_update_object_storage_tier',
+  'oci_object_storage_native_upload_object',
+  'oci_object_storage_native_upload_part',
+] as const
+
 const S3_TOOL_IDS = [
   's3_copy_object',
   's3_create_bucket',
@@ -1446,6 +1480,13 @@ registerFamily(handlerLoaders, MONGODB_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, NEO4J_TOOL_IDS, async () => {
   return (await import('@/lib/internal/neo4j/execute-tool')).executeNeo4jTool
 })
+registerFamily(handlerLoaders, OCI_OBJECT_STORAGE_NATIVE_TOOL_IDS, async () => {
+  const { executeOciObjectStorageNativeTool } = await import(
+    '@/lib/internal/oci-object-storage-native/execute-tool'
+  )
+  return executeOciObjectStorageNativeTool
+})
+
 registerFamily(handlerLoaders, S3_TOOL_IDS, async () => {
   return (await import('@/lib/internal/s3/execute-tool')).executeS3Tool
 })

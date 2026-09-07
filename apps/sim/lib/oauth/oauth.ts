@@ -1032,6 +1032,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oci_object_storage_native: {
+    name: 'OCI Object Storage (Native)',
+    icon: NetSuiteIcon,
+    services: {
+      oci_object_storage_native: {
+        name: 'OCI Object Storage (Native)',
+        description: 'Native OCI Object Storage using API signing-key service accounts',
+        providerId: 'oci_object_storage_native',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci_object_storage_native',
+  },
   oci: {
     name: 'Oracle Cloud Infrastructure',
     icon: OracleIcon,

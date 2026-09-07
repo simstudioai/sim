@@ -16180,6 +16180,149 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_object_storage_native",
+      "slug": "oci-object-storage-native",
+      "name": "OCI Object Storage (Native)",
+      "description": "Manage OCI buckets, objects, versions, lifecycle policies, multipart uploads and access grants",
+      "longDescription": "Use native OCI API signing-key credentials to discover namespaces and buckets, read and write objects, manage versions and archive restoration, replace lifecycle policies, complete multipart uploads, and deliberately grant or revoke pre-authenticated access. File transfers are limited to 100 MiB. Inline text must fit within the 8 MiB JSON request budget, including escaping and other fields. JSON responses are limited to 8 MiB and listings to one page of at most 1000 items. Bucket creation is private. Copy is asynchronous and returns a work-request ID. This integration coexists with the S3-compatible OCI integration and does not use Customer Secret Keys.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_object_storage_native",
+      "operations": [
+        {
+          "name": "Abort Multipart Upload",
+          "description": "Abort an unfinished multipart upload and discard its uploaded parts. Requires OBJECT_DELETE."
+        },
+        {
+          "name": "Batch Delete Objects",
+          "description": "Delete up to 1000 explicitly named current objects. Preserve individual failures even when OCI returns HTTP 200. Version IDs are not supported by this API. Requires OBJECT_DELETE."
+        },
+        {
+          "name": "Commit Multipart Upload",
+          "description": "Commit an explicit manifest of up to 10000 unique partNum/etag entries, with optional non-overlapping exclusions. Requires BUCKET_READ, OBJECT_CREATE, OBJECT_READ and OBJECT_OVERWRITE."
+        },
+        {
+          "name": "Copy Object",
+          "description": "Start an asynchronous native object copy and return its work-request ID. Requires source OBJECT_READ, destination OBJECT_CREATE/OBJECT_OVERWRITE, and regional Object Storage service permissions."
+        },
+        {
+          "name": "Create Bucket",
+          "description": "Create a private bucket. Requires BUCKET_CREATE. Versioning defaults to Disabled."
+        },
+        {
+          "name": "Create Multipart Upload",
+          "description": "Initiate a native multipart upload. Save uploadId for uploading parts and committing or aborting. Requires OBJECT_CREATE and OBJECT_OVERWRITE."
+        },
+        {
+          "name": "Create Pre-Authenticated Request",
+          "description": "Grant unauthenticated access to an object, prefix, or bucket until an explicit expiry. Anyone holding accessUrl receives the chosen access. Listing defaults to Deny. Requires PAR_MANAGE and the creator permissions for the granted access."
+        },
+        {
+          "name": "Delete Bucket",
+          "description": "Delete an empty bucket. Remove all versions, multipart uploads, and pre-authenticated requests first. Requires BUCKET_DELETE."
+        },
+        {
+          "name": "Delete Lifecycle Policy",
+          "description": "Delete the complete lifecycle policy. Requires BUCKET_UPDATE."
+        },
+        {
+          "name": "Delete Object",
+          "description": "Delete the current object or permanently delete an explicit version. Versioned current-object deletion creates a delete marker. Requires OBJECT_DELETE; explicit versions require OBJECT_VERSION_DELETE."
+        },
+        {
+          "name": "Delete Pre-Authenticated Request",
+          "description": "Revoke a pre-authenticated request and its access URL. Requires PAR_MANAGE."
+        },
+        {
+          "name": "Download Object",
+          "description": "Download at most 100 MiB into a normal workflow file. Requires OBJECT_READ. Archived objects must be restored first."
+        },
+        {
+          "name": "Get Bucket",
+          "description": "Get bucket configuration and approximate object count and size. Requires BUCKET_READ."
+        },
+        {
+          "name": "Get Lifecycle Policy",
+          "description": "Read the complete bucket lifecycle policy. Requires BUCKET_READ."
+        },
+        {
+          "name": "Get Namespace",
+          "description": "Get the Object Storage namespace. A compartment query requires OBJECTSTORAGE_NAMESPACE_READ."
+        },
+        {
+          "name": "Get Pre-Authenticated Request",
+          "description": "Get a pre-authenticated request summary; its secret access URL cannot be retrieved again. Requires PAR_MANAGE or BUCKET_READ."
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Poll a work request once. Copy status completes with COMPLETED or FAILED; this tool does not wait. Requires permission to read the affected resource."
+        },
+        {
+          "name": "Head Object",
+          "description": "Read object metadata and custom headers without downloading bytes. Requires OBJECT_READ or OBJECT_INSPECT."
+        },
+        {
+          "name": "List Buckets",
+          "description": "List one page of buckets in a compartment. Requires BUCKET_INSPECT."
+        },
+        {
+          "name": "List Multipart Parts",
+          "description": "List one page of uploaded parts and their ETags. Requires OBJECT_INSPECT."
+        },
+        {
+          "name": "List Multipart Uploads",
+          "description": "List one page of active multipart uploads. Requires BUCKET_READ."
+        },
+        {
+          "name": "List Object Versions",
+          "description": "List one page of object versions and delete markers. Continue with nextPage as page. Requires OBJECT_INSPECT."
+        },
+        {
+          "name": "List Objects",
+          "description": "List one page of objects and prefixes. Pass nextStartWith into start for the next page. Requires OBJECT_INSPECT."
+        },
+        {
+          "name": "List Pre-Authenticated Requests",
+          "description": "List one page of pre-authenticated request summaries. Access URLs are returned only at creation. Requires PAR_MANAGE or BUCKET_READ."
+        },
+        {
+          "name": "Put Lifecycle Policy",
+          "description": "Replace the entire lifecycle policy with up to 1000 rules. An empty array clears its rules. Requires BUCKET_UPDATE, OBJECT_CREATE, OBJECT_DELETE and regional service permissions for rule actions."
+        },
+        {
+          "name": "Rename Object",
+          "description": "Rename the current object in the same bucket. Previous versions cannot be renamed. Requires OBJECT_CREATE and OBJECT_OVERWRITE."
+        },
+        {
+          "name": "Restore Object",
+          "description": "Request temporary access to an archived object for 1–240 hours (default 24). Restoration is asynchronous. Requires OBJECT_RESTORE."
+        },
+        {
+          "name": "Update Bucket",
+          "description": "Update bucket settings. Versioning can be Enabled or Suspended, never Disabled after enabling. Requires BUCKET_UPDATE."
+        },
+        {
+          "name": "Update Object Storage Tier",
+          "description": "Change an object or version to Standard, InfrequentAccess, or Archive. Requires OBJECT_UPDATE_TIER."
+        },
+        {
+          "name": "Upload Object",
+          "description": "Upload exactly one file up to 100 MiB or UTF-8 text within the 8 MiB JSON request limit. Empty text is supported. Requires OBJECT_CREATE or OBJECT_OVERWRITE."
+        },
+        {
+          "name": "Upload Part",
+          "description": "Upload one part numbered 1–10000 from a file up to 100 MiB or UTF-8 text within the 8 MiB JSON request limit. Save the returned ETag for commit. Requires OBJECT_CREATE and OBJECT_OVERWRITE."
+        }
+      ],
+      "operationCount": 31,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["automation", "cloud"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
