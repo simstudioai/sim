@@ -209,7 +209,7 @@ export async function saveToFile(
       embedded.identity.signal?.throwIfAborted()
       if (!embedded.writeFile) {
         throw new SimApiError(
-          `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or pipe a text command with | to-sandbox <name>.`,
+          `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or use a client with filesystem access to download it.`,
           0
         )
       }

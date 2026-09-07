@@ -78,59 +78,6 @@ describe('runEmbeddedCli', () => {
     expect(transport).toHaveBeenCalledTimes(3)
   })
 
-  it('workbench discovery describes its supplied identity without teaching interactive setup', async () => {
-    const transport = vi.fn()
-    const identity = { ...IDENTITY, transport }
-    const help = await runEmbeddedCli(['--help'], identity, { workbench: true })
-    expect(help.exitCode).toBe(0)
-    expect(help.stdout).toContain('This chat supplies')
-    expect(help.stdout).toContain('--async')
-    expect(help.stdout).not.toContain('--profile')
-    expect(help.stdout).not.toContain('sim login')
-    expect(help.stdout).not.toContain('configure')
-    for (const args of [['login'], ['configure'], ['workflows', 'list', '--workspace', 'other']]) {
-      expect((await runEmbeddedCli(args, identity, { workbench: true })).exitCode).toBe(1)
-    }
-    expect(transport).not.toHaveBeenCalled()
-    const hostHelp = await runEmbeddedCli(['--help'], identity)
-    expect(hostHelp.stdout).toContain('sim login')
-    expect(hostHelp.stdout).toContain('--profile')
-  })
-  it.each([
-    ['workflows', 'run', IDENTITY.workspaceId],
-    ['workflows', 'run', IDENTITY.workspaceId, '--async', '--manual'],
-    ['workflows', 'run', IDENTITY.workspaceId, '--async', '--follow'],
-    ['workflows', 'run', IDENTITY.workspaceId, '--async', '--trigger', 'trigger'],
-    ['workflows', 'runs', 'wait', 'run-id', '--workflow', IDENTITY.workspaceId],
-    ['logs', 'follow'],
-  ])('workbench refuses blocking execution before issuing a request: %j', async (...args) => {
-    const transport = vi.fn()
-    const result = await runEmbeddedCli(args, { ...IDENTITY, transport }, { workbench: true })
-    expect(result.exitCode).toBe(1)
-    expect(result.stderr).toContain('watch')
-    expect(transport).not.toHaveBeenCalled()
-  })
-
-  it('workbench starts asynchronous work without waiting and preserves draft execution in the host', async () => {
-    const transport = vi.fn().mockResolvedValue(jsonResponse({ runId: 'r1', status: 'queued' }))
-    const result = await runEmbeddedCli(
-      ['workflows', 'run', IDENTITY.workspaceId, '--async'],
-      { ...IDENTITY, transport },
-      { workbench: true }
-    )
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('r1')
-    expect(transport).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(transport.mock.calls[0]?.[1]?.body)).toMatchObject({ async: true })
-    transport.mockResolvedValueOnce(jsonResponse({ runId: 'r2', status: 'completed' }))
-    const draft = await runEmbeddedCli(['workflows', 'run', IDENTITY.workspaceId, '--manual'], {
-      ...IDENTITY,
-      transport,
-    })
-    expect(draft.exitCode).toBe(0)
-    expect(draft.stdout).toContain('r2')
-  })
-
   it('cancels only the selected embedded invocation and refuses new requests after Stop', async () => {
     const controller = new AbortController()
     let started!: () => void

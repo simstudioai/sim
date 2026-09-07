@@ -5,7 +5,6 @@ import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { attachSecretCommands } from './commands/secrets'
 import { OUTPUT_FORMATS } from './config/index'
-import { SimApiError } from './http/client'
 import {
   assertNoReservedProgramFlags,
   buildGeneratedCommands,
@@ -16,14 +15,6 @@ import { cliVersion } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
-
-const WORKBENCH_HELP_EPILOGUE = `
-This chat supplies the Sim endpoint, identity and workspace. Files are on the
-workbench; relative paths start at /home/user. Save durable artifacts in workspace files.
-
-Start deployed workflows with sim workflows run <id> --async. Use sim_cli for
-synchronous draft tests and watch for workflow completion.
-`
 
 export const HELP_EPILOGUE = `
 Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
@@ -134,26 +125,30 @@ function addVersionOption(program: Command): void {
  * and the emitted pages must not carry a version that goes stale on every
  * release.
  */
-export function buildProgram(options: { version?: boolean; workbench?: boolean } = {}): Command {
-  const program = new Command()
+export function buildProgram(
+  options: { version?: boolean; helpText?: string; program?: Command } = {}
+): Command {
+  const program = options.program ?? new Command()
 
   program.name('sim').description(PROGRAM_DESCRIPTION)
 
   if (options.version !== false) addVersionOption(program)
 
-  if (!options.workbench) {
-    program
-      .option('-P, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
-      .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
-      .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')
-  }
-  program.addOption(
-    new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
-  )
-  const authCommands = options.workbench
-    ? [whoamiCommand]
-    : [loginCommand, logoutCommand, whoamiCommand, profilesCommand, configureCommand]
-  for (const command of authCommands) program.addCommand(command())
+  program
+    .option('-P, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
+    .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
+    .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')
+    .addOption(
+      new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
+    )
+  for (const command of [
+    loginCommand,
+    logoutCommand,
+    whoamiCommand,
+    profilesCommand,
+    configureCommand,
+  ])
+    program.addCommand(command())
 
   for (const command of buildGeneratedCommands()) {
     program.addCommand(command)
@@ -163,45 +158,7 @@ export function buildProgram(options: { version?: boolean; workbench?: boolean }
   attachProtocolCommands(program)
   attachSecretCommands(program)
 
-  if (options.workbench) {
-    program.commands
-      .find((command) => command.name() === 'workflows')
-      ?.commands.find((command) => command.name() === 'run')
-      ?.description(
-        'Start a deployed workflow with --async; use sim_cli for draft tests and watch for completion'
-      )
-    program.hook('preAction', (_root, command) => {
-      const path: string[] = []
-      for (let current: Command | null = command; current?.parent; current = current.parent) {
-        path.unshift(current.name())
-      }
-      const name = path.join(' ')
-      const flags = command.optsWithGlobals()
-      if (
-        name === 'workflows run' &&
-        (flags.async !== true ||
-          flags.follow === true ||
-          flags.manual === true ||
-          flags.trigger ||
-          flags.mockPayload === true ||
-          flags.fromBlock ||
-          flags.run)
-      ) {
-        throw new SimApiError(
-          'Workbench workflow runs must use --async against a deployment. Use sim_cli for synchronous draft tests; use watch with the returned execution id for completion.',
-          0
-        )
-      }
-      if (name === 'workflows runs wait' || name === 'logs follow' || path[0] === 'chat') {
-        throw new SimApiError(
-          'This command waits for remote work. Use watch for workflow completion, or read a current snapshot with workflows runs get / logs list.',
-          0
-        )
-      }
-    })
-  }
-
-  program.addHelpText('after', options.workbench ? WORKBENCH_HELP_EPILOGUE : HELP_EPILOGUE)
+  program.addHelpText('after', options.helpText ?? HELP_EPILOGUE)
 
   program.hook('preAction', () => announceUpdateIfAvailable())
 

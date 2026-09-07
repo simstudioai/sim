@@ -11,7 +11,7 @@
   },
   "scripts": {
     "prebuild": "bun run clean",
-    "build": "bun build src/index.ts src/workbench.ts --target=node --format=esm --packages=bundle --reject-unresolved --outdir=dist",
+    "build": "bun build src/index.ts src/runtime.ts --target=node --format=esm --packages=bundle --reject-unresolved --outdir=dist && tsc -p tsconfig.types.json",
     "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
@@ -65,6 +65,10 @@
     "./embed": {
       "types": "./src/embed.ts",
       "default": "./src/embed.ts"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
     }
   }
 }

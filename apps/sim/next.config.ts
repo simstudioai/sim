@@ -147,7 +147,7 @@ const nextConfig: NextConfig = {
     '/*': [
       './lib/execution/sandbox/bundles/*.cjs',
       './node_modules/ws/**/*',
-      '../../packages/sim-cli/dist/workbench.js',
+      '../../packages/sim-cli/dist/runtime.js',
     ],
   },
   experimental: {

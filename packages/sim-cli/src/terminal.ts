@@ -14,9 +14,9 @@ import { buildProgram } from './program'
  * error keeps its stack trace — that is a bug in the CLI, and hiding it behind a
  * friendly message would make it unreportable.
  */
-export async function runTerminalCli(options: { workbench?: boolean } = {}): Promise<void> {
+export async function runTerminalCli(program = buildProgram()): Promise<void> {
   try {
-    await buildProgram(options).parseAsync(process.argv)
+    await program.parseAsync(process.argv)
   } catch (error) {
     if (error instanceof ProfileConfigError) {
       console.error(styles().red(`Error: ${sanitize(error.message)}`))

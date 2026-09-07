@@ -94,7 +94,11 @@ function fakeSandbox(id: string): { handle: SandboxHandle; calls: FakeSandboxCal
             : createHash('sha256')
                 .update(typeof content === 'string' ? content : new Uint8Array(content))
                 .digest('hex')
-        return { stdout: '', stderr: '', exitCode: hash === options.envs?.SIM_CLI_SHA256 ? 0 : 10 }
+        return {
+          stdout: '',
+          stderr: '',
+          exitCode: hash === JSON.parse(options.envs?.SIM_CLI_ARTIFACTS ?? '{}')[cliPath] ? 0 : 10,
+        }
       }
       const stage = options.envs?.SIM_FILE_STAGE
       const target = options.envs?.SIM_FILE_TARGET

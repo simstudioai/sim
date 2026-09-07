@@ -54,7 +54,7 @@ export interface EmbedContext {
   softExitCode?: number
   /**
    * Where a download lands when embedded: the host writes to the caller's own machine
-   * (the chat's sandbox), never to the server's disk. Resolves only after publication;
+   * (through its file adapter), never to the server's disk. Resolves only after publication;
    * a refused or uncertain write throws. The host consumes or cancels the stream;
    * it must not buffer the complete download. Overwrite policy must hold atomically.
    */

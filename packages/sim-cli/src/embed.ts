@@ -77,7 +77,6 @@ export async function runEmbeddedCli(
     readFile?: EmbedContext['readFile']
     openFile?: EmbedContext['openFile']
     writeFile?: EmbedContext['writeFile']
-    workbench?: boolean
   }
 ): Promise<EmbeddedCliResult> {
   installEmbedSinks()
@@ -128,7 +127,7 @@ export async function runEmbeddedCli(
     let exitCode = 0
     try {
       identity.signal?.throwIfAborted()
-      const program = buildProgram({ workbench: options?.workbench })
+      const program = buildProgram()
       program.exitOverride()
       await program.parseAsync(argv, { from: 'user' })
       // Commands that soft-fail (a failed run outcome, wait timeout) report through the

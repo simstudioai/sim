@@ -106,6 +106,36 @@ async function fixture() {
 }
 
 describe('versioned workbench CLI installation', () => {
+  it('installs and verifies the runtime before activating the private entrypoint', async () => {
+    const f = await fixture()
+    const original = f.session('paired')
+    const runtime = {
+      path: join(dirname(original.cli.path), 'runtime.mjs'),
+      content: 'export const result = "public-runtime";',
+    }
+    const session = {
+      ...original,
+      cli: {
+        ...original.cli,
+        content:
+          '#!/usr/bin/env node\nimport { result } from "./runtime.mjs"; console.log(result);\n',
+        runtime,
+      },
+    }
+    await f.ensure(session)
+    expect((await exec('sim', [], { env: f.environment(session) })).stdout.trim()).toBe(
+      'public-runtime'
+    )
+    const writes = f.writes.length
+    await f.ensure(session)
+    expect(f.writes).toHaveLength(writes)
+    await writeFile(runtime.path, 'damaged-runtime')
+    await f.ensure(session)
+    expect((await exec('sim', [], { env: f.environment(session) })).stdout.trim()).toBe(
+      'public-runtime'
+    )
+  })
+
   it('runs the installed CLI and reuses complete bytes without rewriting or relinking', async () => {
     const f = await fixture()
     const session = f.session('one')

@@ -5,19 +5,20 @@ import type { SandboxHandle, SandboxSessionRequest } from '@/lib/execution/remot
 
 /** A valid release is reused; activation repairs only its own versioned launcher. */
 const CHECK_CLI_COMMAND = `python3 - <<'SIM_SESSION_CLI'
-import hashlib, os, stat, sys, tempfile
+import hashlib, json, os, stat, sys, tempfile
 path = os.environ['SIM_CLI_PATH']
-if os.path.islink(path):
-    sys.exit(10)
-try:
+for artifact, expected in json.loads(os.environ['SIM_CLI_ARTIFACTS']).items():
+    if os.path.islink(artifact):
+        sys.exit(10)
     digest = hashlib.sha256()
-    with open(path, 'rb') as source:
-        for chunk in iter(lambda: source.read(65536), b''):
-            digest.update(chunk)
-except FileNotFoundError:
-    sys.exit(10)
-if digest.hexdigest() != os.environ['SIM_CLI_SHA256']:
-    sys.exit(10)
+    try:
+        with open(artifact, 'rb') as source:
+            for chunk in iter(lambda: source.read(65536), b''):
+                digest.update(chunk)
+    except FileNotFoundError:
+        sys.exit(10)
+    if digest.hexdigest() != expected:
+        sys.exit(10)
 if stat.S_IMODE(os.stat(path).st_mode) != 0o755:
     os.chmod(path, 0o755)
 launcher = os.path.join(os.path.dirname(path), 'sim')
@@ -53,7 +54,14 @@ export async function ensureSessionCli(
     const result = await sandbox.runCommand(CHECK_CLI_COMMAND, {
       envs: {
         SIM_CLI_PATH: cli.path,
-        SIM_CLI_SHA256: createHash('sha256').update(cli.content).digest('hex'),
+        SIM_CLI_ARTIFACTS: JSON.stringify(
+          Object.fromEntries(
+            [cli, ...(cli.runtime ? [cli.runtime] : [])].map(({ path, content }) => [
+              path,
+              createHash('sha256').update(content).digest('hex'),
+            ])
+          )
+        ),
       },
       timeoutMs: Math.min(30_000, remainingMs()),
       maxOutputBytes: 64 * 1024,
@@ -70,18 +78,20 @@ export async function ensureSessionCli(
     )
   }
   if (await check()) return
-  await withSandboxFilePublication(
-    sandbox,
-    cli.path,
-    {
-      overwrite: true,
-      followSymlinks: false,
-      executable: true,
-      rootUser: false,
-      signal,
-      timeoutMs: remainingMs(),
-    },
-    (staged) => sandbox.writeFile(staged, cli.content)
-  )
+  for (const artifact of [...(cli.runtime ? [cli.runtime] : []), cli]) {
+    await withSandboxFilePublication(
+      sandbox,
+      artifact.path,
+      {
+        overwrite: true,
+        followSymlinks: false,
+        executable: artifact === cli,
+        rootUser: false,
+        signal,
+        timeoutMs: remainingMs(),
+      },
+      (staged) => sandbox.writeFile(staged, artifact.content)
+    )
+  }
   if (!(await check())) throw new Error('Workbench CLI installation could not be verified')
 }
