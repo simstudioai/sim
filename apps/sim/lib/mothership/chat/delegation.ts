@@ -1,10 +1,13 @@
-import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { createApiKey } from '@/lib/api-key/auth'
 import { decryptApiKey, hashApiKey } from '@/lib/api-key/crypto'
+import {
+  traceMothershipQuery,
+  traceMothershipTransaction,
+} from '@/lib/mothership/observability/database'
 
 const logger = createLogger('MothershipDelegation')
 
@@ -30,21 +33,25 @@ export async function mintDelegationToken(params: {
   userId: string
 }): Promise<string | null> {
   try {
-    return await db.transaction(async (tx) => {
+    return await traceMothershipTransaction('delegation', async (tx) => {
       const name = delegationName(params.userId)
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${name}, 0))`)
-      const [existing] = await tx
-        .select({ id: apiKey.id, key: apiKey.key, expiresAt: apiKey.expiresAt })
-        .from(apiKey)
-        .where(
-          and(
-            eq(apiKey.userId, params.userId),
-            eq(apiKey.name, name),
-            eq(apiKey.type, 'personal'),
-            gt(apiKey.expiresAt, new Date(Date.now() + MIN_REMAINING_MS))
+      await traceMothershipQuery('advisory_lock', 'api_key', () =>
+        tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${name}, 0))`)
+      )
+      const [existing] = await traceMothershipQuery('SELECT', 'api_key', () =>
+        tx
+          .select({ id: apiKey.id, key: apiKey.key, expiresAt: apiKey.expiresAt })
+          .from(apiKey)
+          .where(
+            and(
+              eq(apiKey.userId, params.userId),
+              eq(apiKey.name, name),
+              eq(apiKey.type, 'personal'),
+              gt(apiKey.expiresAt, new Date(Date.now() + MIN_REMAINING_MS))
+            )
           )
-        )
-        .limit(1)
+          .limit(1)
+      )
       if (existing) {
         const { decrypted } = await decryptApiKey(existing.key)
         return decrypted
@@ -54,23 +61,31 @@ export async function mintDelegationToken(params: {
       const stored = encryptedKey ?? plainKey
       const now = new Date()
       const expiresAt = new Date(now.getTime() + DELEGATION_TTL_MS)
-      await tx
-        .delete(apiKey)
-        .where(
-          and(eq(apiKey.userId, params.userId), eq(apiKey.name, name), eq(apiKey.type, 'personal'))
-        )
-      await tx.insert(apiKey).values({
-        id: generateShortId(),
-        userId: params.userId,
-        createdBy: params.userId,
-        name,
-        key: stored,
-        keyHash: hashApiKey(plainKey),
-        type: 'personal',
-        createdAt: now,
-        updatedAt: now,
-        expiresAt,
-      })
+      await traceMothershipQuery('DELETE', 'api_key', () =>
+        tx
+          .delete(apiKey)
+          .where(
+            and(
+              eq(apiKey.userId, params.userId),
+              eq(apiKey.name, name),
+              eq(apiKey.type, 'personal')
+            )
+          )
+      )
+      await traceMothershipQuery('INSERT', 'api_key', () =>
+        tx.insert(apiKey).values({
+          id: generateShortId(),
+          userId: params.userId,
+          createdBy: params.userId,
+          name,
+          key: stored,
+          keyHash: hashApiKey(plainKey),
+          type: 'personal',
+          createdAt: now,
+          updatedAt: now,
+          expiresAt,
+        })
+      )
       return plainKey
     })
   } catch (error) {

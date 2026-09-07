@@ -11,6 +11,8 @@
 
 export const TraceEvent = {
   ContextTransform: 'context.transform',
+  CopilotDbTransactionBodyComplete: 'copilot.db.transaction.body_complete',
+  CopilotDbTransactionReady: 'copilot.db.transaction.ready',
   CopilotOutputFileError: 'copilot.output_file.error',
   CopilotSseFirstEvent: 'copilot.sse.first_event',
   CopilotSseIdleGapExceeded: 'copilot.sse.idle_gap_exceeded',
@@ -34,6 +36,8 @@ export type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
 /** Readonly sorted list of every canonical event name. */
 export const TraceEventValues: readonly TraceEventValue[] = [
   'context.transform',
+  'copilot.db.transaction.body_complete',
+  'copilot.db.transaction.ready',
   'copilot.output_file.error',
   'copilot.sse.first_event',
   'copilot.sse.idle_gap_exceeded',
