@@ -18,7 +18,6 @@ import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
 import {
   connectorSearchParam,
@@ -33,6 +32,7 @@ import {
 } from '@/hooks/queries/kb/connectors'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import {
   CONNECTABLE_MEMBERSHIPS,
   describeMembership,
@@ -123,13 +123,11 @@ export function Search() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
-  const { features } = useWorkspaceHostContext()
   /**
-   * Judged by the workspace, as the server judges it: with per-member access
-   * off, every connect is refused, so the rows say so instead of offering
-   * one and the memberships are not fetched.
+   * With per-member access off, every connect is refused, so the rows say so
+   * and the memberships are not fetched.
    */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
   /** The first connect of a source turns it on for the workspace, which takes an admin. */
   const canCreate = workspacePermissions?.viewer?.isAdmin ?? false

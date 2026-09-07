@@ -41,6 +41,7 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_click',
   'browser_click_at',
   'browser_type',
+  'browser_fill_form',
   'browser_insert_text',
   'browser_press_key',
   'browser_scroll',

@@ -438,14 +438,114 @@ describe('RouterBlockHandler', () => {
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
-  it('should throw error if target block is missing', async () => {
-    const inputs = { prompt: 'Test' }
-    mockContext.workflow!.blocks = [mockBlock, mockTargetBlock2]
+  it.each([true, false])(
+    'rejects a missing target before choosing another route when an enabled sibling exists: %s',
+    async (hasEnabledSibling) => {
+      mockContext.workflow!.blocks = hasEnabledSibling ? [mockBlock, mockTargetBlock2] : [mockBlock]
 
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'Target block target-block-1 not found'
-    )
-    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+      await expect(
+        handler.execute(mockContext, mockBlock, { prompt: 'Test', model: 'sim-auto' })
+      ).rejects.toThrow('Target block target-block-1 not found')
+      expect(mockGenerateRouterPrompt).not.toHaveBeenCalled()
+      expect(mockResolveAutoModel).not.toHaveBeenCalled()
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps targets enabled by default for older serialized workflows', async () => {
+    Reflect.deleteProperty(mockTargetBlock1, 'enabled')
+
+    const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
+
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
+      expect.objectContaining({ id: 'target-block-1' }),
+      expect.objectContaining({ id: 'target-block-2' }),
+    ])
+    expect(result).toMatchObject({ selectedRoute: 'target-block-1' })
+  })
+
+  it('preserves existing error-edge routing candidates and decisions', async () => {
+    mockContext.workflow!.connections = [
+      { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'source-right' },
+      { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'error' },
+    ]
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: 'target-block-2',
+      model: 'mock-model',
+    })
+
+    const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
+
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
+      expect.objectContaining({ id: 'target-block-1' }),
+      expect.objectContaining({ id: 'target-block-2' }),
+    ])
+    expect(result).toMatchObject({
+      selectedRoute: 'target-block-2',
+      selectedPath: {
+        blockId: 'target-block-2',
+        blockType: 'target',
+        blockTitle: 'Option B',
+      },
+    })
+  })
+
+  it.each([true, false])(
+    'preserves a disabled routing decision when the other target enabled state is %s',
+    async (otherTargetEnabled) => {
+      mockTargetBlock1.enabled = false
+      mockTargetBlock2.enabled = otherTargetEnabled
+
+      const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
+
+      expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
+        expect.objectContaining({ id: 'target-block-1' }),
+        expect.objectContaining({ id: 'target-block-2' }),
+      ])
+      expect(result).toMatchObject({
+        selectedRoute: 'target-block-1',
+        selectedPath: {
+          blockId: 'target-block-1',
+          blockType: 'target',
+          blockTitle: 'Option A',
+        },
+      })
+      expect(result).not.toHaveProperty('error')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('resolves sim-auto and preserves provider billing with existing routing candidates', async () => {
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: 'target-block-2',
+      model: 'fireworks/glm-5.2',
+      tokens: { input: 100, output: 20, total: 120 },
+      cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+    })
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+      model: 'sim-auto',
+    })
+
+    expect(mockResolveAutoModel).toHaveBeenCalledWith({
+      ctx: mockContext,
+      blockId: mockBlock.id,
+      signals: expect.objectContaining({
+        lastMessage: 'Choose the best option.',
+        hasResponseFormat: false,
+      }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+    expect(providerRequestBody()).toMatchObject({
+      model: 'fireworks/glm-5.2',
+      systemPrompt: 'Sim auto system preamble\n\nGenerated System Prompt',
+    })
+    expect(result).toMatchObject({
+      model: 'sim-auto',
+      selectedRoute: 'target-block-2',
+      cost: { input: 0.001, output: 0.0005, routing: 0.002, total: 0.0035 },
+    })
   })
 
   it('should throw error if LLM response is not a valid target block ID', async () => {

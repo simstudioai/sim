@@ -1,9 +1,14 @@
 import type {
+  AccessKeyMetadata,
   AttachedPolicy,
+  ContextEntry,
   Group,
   Policy,
   PolicyScopeType,
+  ResourceSpecificResult,
   Role,
+  Statement,
+  StatusType,
   User,
 } from '@aws-sdk/client-iam'
 import {
@@ -18,9 +23,11 @@ import {
   DeleteUserCommand,
   DetachRolePolicyCommand,
   DetachUserPolicyCommand,
+  GetPolicyCommand,
   GetRoleCommand,
   GetUserCommand,
   IAMClient,
+  ListAccessKeysCommand,
   ListAttachedRolePoliciesCommand,
   ListAttachedUserPoliciesCommand,
   ListGroupsCommand,
@@ -29,8 +36,9 @@ import {
   ListUsersCommand,
   RemoveUserFromGroupCommand,
   SimulatePrincipalPolicyCommand,
+  UpdateAccessKeyCommand,
 } from '@aws-sdk/client-iam'
-import type { IAMConnectionConfig } from '@/tools/iam/types'
+import type { IAMConnectionConfig, IAMSimulateContextEntry } from '@/tools/iam/types'
 
 export function createIAMClient(config: IAMConnectionConfig): IAMClient {
   return new IAMClient({
@@ -266,7 +274,7 @@ export async function detachRolePolicy(
 
 export async function listPolicies(
   client: IAMClient,
-  scope?: string | null,
+  scope?: PolicyScopeType | null,
   onlyAttached?: boolean | null,
   pathPrefix?: string | null,
   maxItems?: number | null,
@@ -274,7 +282,7 @@ export async function listPolicies(
   signal?: AbortSignal
 ) {
   const command = new ListPoliciesCommand({
-    ...(scope ? { Scope: scope as PolicyScopeType } : {}),
+    ...(scope ? { Scope: scope } : {}),
     ...(onlyAttached != null ? { OnlyAttached: onlyAttached } : {}),
     ...(pathPrefix ? { PathPrefix: pathPrefix } : {}),
     ...(maxItems ? { MaxItems: maxItems } : {}),
@@ -291,7 +299,6 @@ export async function listPolicies(
     isAttachable: policy.IsAttachable ?? false,
     createDate: policy.CreateDate?.toISOString() ?? null,
     updateDate: policy.UpdateDate?.toISOString() ?? null,
-    description: policy.Description ?? null,
     defaultVersionId: policy.DefaultVersionId ?? null,
     permissionsBoundaryUsageCount: policy.PermissionsBoundaryUsageCount ?? 0,
   }))
@@ -452,32 +459,69 @@ export async function listAttachedUserPolicies(
   }
 }
 
+function mapMatchedStatements(statements: Statement[] | undefined) {
+  return (statements ?? []).map((s) => ({
+    sourcePolicyId: s.SourcePolicyId ?? '',
+    sourcePolicyType: s.SourcePolicyType ?? '',
+  }))
+}
+
+/**
+ * Projects the per-resource half of a simulation result. AWS reports one
+ * `EvaluationResult` per action no matter how many resource ARNs were supplied, so this
+ * is the only place a caller can learn what was decided for an individual ARN. When
+ * concrete `ResourceArns` are supplied, missing context values are reported here rather
+ * than on the aggregate result.
+ */
+function mapResourceSpecificResults(results: ResourceSpecificResult[] | undefined) {
+  return (results ?? []).map((r) => ({
+    evalResourceName: r.EvalResourceName ?? '',
+    evalResourceDecision: r.EvalResourceDecision ?? '',
+    matchedStatements: mapMatchedStatements(r.MatchedStatements),
+    missingContextValues: (r.MissingContextValues ?? []).map((v) => String(v)),
+    permissionsBoundaryAllowed:
+      r.PermissionsBoundaryDecisionDetail?.AllowedByPermissionsBoundary ?? null,
+  }))
+}
+
+export interface SimulatePrincipalPolicyOptions {
+  policySourceArn: string
+  actionNames: string
+  resourceArns?: string | null
+  contextEntries?: IAMSimulateContextEntry[] | null
+  maxResults?: number | null
+  marker?: string | null
+}
+
 export async function simulatePrincipalPolicy(
   client: IAMClient,
-  policySourceArn: string,
-  actionNames: string,
-  resourceArns?: string | null,
-  maxResults?: number | null,
-  marker?: string | null,
+  options: SimulatePrincipalPolicyOptions,
   signal?: AbortSignal
 ) {
-  const actions = actionNames
+  const actions = options.actionNames
     .split(',')
     .map((a) => a.trim())
     .filter(Boolean)
-  const resources = resourceArns
-    ? resourceArns
+  const resources = options.resourceArns
+    ? options.resourceArns
         .split(',')
         .map((r) => r.trim())
         .filter(Boolean)
     : ['*']
 
+  const contextEntries: ContextEntry[] = (options.contextEntries ?? []).map((entry) => ({
+    ContextKeyName: entry.contextKeyName,
+    ContextKeyValues: entry.contextKeyValues,
+    ContextKeyType: entry.contextKeyType,
+  }))
+
   const command = new SimulatePrincipalPolicyCommand({
-    PolicySourceArn: policySourceArn,
+    PolicySourceArn: options.policySourceArn,
     ActionNames: actions,
     ResourceArns: resources,
-    ...(maxResults ? { MaxItems: maxResults } : {}),
-    ...(marker ? { Marker: marker } : {}),
+    ...(contextEntries.length > 0 ? { ContextEntries: contextEntries } : {}),
+    ...(options.maxResults ? { MaxItems: options.maxResults } : {}),
+    ...(options.marker ? { Marker: options.marker } : {}),
   })
 
   const response = await client.send(command, { abortSignal: signal })
@@ -485,11 +529,11 @@ export async function simulatePrincipalPolicy(
     evalActionName: r.EvalActionName ?? '',
     evalResourceName: r.EvalResourceName ?? '',
     evalDecision: r.EvalDecision ?? '',
-    matchedStatements: (r.MatchedStatements ?? []).map((s) => ({
-      sourcePolicyId: s.SourcePolicyId ?? '',
-      sourcePolicyType: s.SourcePolicyType ?? '',
-    })),
+    matchedStatements: mapMatchedStatements(r.MatchedStatements),
     missingContextValues: (r.MissingContextValues ?? []).map((v) => String(v)),
+    permissionsBoundaryAllowed:
+      r.PermissionsBoundaryDecisionDetail?.AllowedByPermissionsBoundary ?? null,
+    resourceSpecificResults: mapResourceSpecificResults(r.ResourceSpecificResults),
   }))
 
   return {
@@ -498,4 +542,69 @@ export async function simulatePrincipalPolicy(
     marker: response.Marker ?? null,
     count: evaluationResults.length,
   }
+}
+
+export async function getPolicy(client: IAMClient, policyArn: string, signal?: AbortSignal) {
+  const command = new GetPolicyCommand({ PolicyArn: policyArn })
+  const response = await client.send(command, { abortSignal: signal })
+  const policy = response.Policy
+
+  return {
+    policyName: policy?.PolicyName ?? '',
+    policyId: policy?.PolicyId ?? '',
+    arn: policy?.Arn ?? '',
+    path: policy?.Path ?? '',
+    attachmentCount: policy?.AttachmentCount ?? 0,
+    isAttachable: policy?.IsAttachable ?? false,
+    createDate: policy?.CreateDate?.toISOString() ?? null,
+    updateDate: policy?.UpdateDate?.toISOString() ?? null,
+    description: policy?.Description ?? null,
+    defaultVersionId: policy?.DefaultVersionId ?? null,
+    permissionsBoundaryUsageCount: policy?.PermissionsBoundaryUsageCount ?? 0,
+    tags: policy?.Tags?.map((t) => ({ key: t.Key ?? '', value: t.Value ?? '' })) ?? [],
+  }
+}
+
+export async function listAccessKeys(
+  client: IAMClient,
+  userName?: string | null,
+  maxItems?: number | null,
+  marker?: string | null,
+  signal?: AbortSignal
+) {
+  const command = new ListAccessKeysCommand({
+    ...(userName ? { UserName: userName } : {}),
+    ...(maxItems ? { MaxItems: maxItems } : {}),
+    ...(marker ? { Marker: marker } : {}),
+  })
+
+  const response = await client.send(command, { abortSignal: signal })
+  const accessKeys = (response.AccessKeyMetadata ?? []).map((key: AccessKeyMetadata) => ({
+    accessKeyId: key.AccessKeyId ?? '',
+    userName: key.UserName ?? '',
+    status: key.Status ?? '',
+    createDate: key.CreateDate?.toISOString() ?? null,
+  }))
+
+  return {
+    accessKeys,
+    isTruncated: response.IsTruncated ?? false,
+    marker: response.Marker ?? null,
+    count: accessKeys.length,
+  }
+}
+
+export async function updateAccessKey(
+  client: IAMClient,
+  accessKeyIdToUpdate: string,
+  status: StatusType,
+  userName?: string | null,
+  signal?: AbortSignal
+) {
+  const command = new UpdateAccessKeyCommand({
+    AccessKeyId: accessKeyIdToUpdate,
+    Status: status,
+    ...(userName ? { UserName: userName } : {}),
+  })
+  await client.send(command, { abortSignal: signal })
 }

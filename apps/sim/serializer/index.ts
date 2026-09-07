@@ -194,6 +194,7 @@ export class Serializer {
     return {
       version: '1.0',
       blocks: serializedBlocks,
+      /** Legacy handleless branches infer route IDs from edge order, including missing targets. */
       connections: edges
         .filter((edge) => !droppedBlockIds.has(edge.source) && !droppedBlockIds.has(edge.target))
         .map((edge) => ({

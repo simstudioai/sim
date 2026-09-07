@@ -1,4 +1,5 @@
 import JSZip from 'jszip'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 /**
  * Pulls the reusable design material out of an OOXML document (.pptx/.docx):
@@ -370,6 +371,11 @@ export async function extractDocAssets(
   binary: Buffer,
   format: 'pptx' | 'docx'
 ): Promise<ExtractedDocAssets> {
+  // The media loop below inflates every entry into a retained Buffer, so an
+  // attacker-supplied archive has to be bounded from its central directory first —
+  // the same guard `extractDocumentStyle` and the document parsers already apply.
+  assertOoxmlArchiveWithinLimits(binary)
+
   const zip = await JSZip.loadAsync(binary)
   const prefix = format === 'pptx' ? 'ppt' : 'word'
 

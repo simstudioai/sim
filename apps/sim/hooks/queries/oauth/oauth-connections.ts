@@ -189,6 +189,17 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      if (providerId === 'quickbooks') {
+        if (!draftId) {
+          throw new Error('QuickBooks authorization requires a credential connection draft.')
+        }
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('draftId', draftId)
+        authorizeUrl.searchParams.set('callbackURL', callbackURL)
+        window.location.href = authorizeUrl.toString()
+        return { success: true }
+      }
+
       const stateCallbackUrl = new URL(callbackURL)
       if (draftId) {
         stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)

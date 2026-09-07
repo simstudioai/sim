@@ -46,6 +46,9 @@ vi.mock('@/lib/credentials/oauth-accounts', () => ({
   OAuthDisconnectPartialFailureError: class OAuthDisconnectPartialFailureError extends Error {
     credentials: unknown[] = []
   },
+  OAuthDisconnectLimitError: class OAuthDisconnectLimitError extends Error {},
+  OAuthDisconnectConfigurationError: class OAuthDisconnectConfigurationError extends Error {},
+  OAuthProviderRevocationError: class OAuthProviderRevocationError extends Error {},
 }))
 
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'

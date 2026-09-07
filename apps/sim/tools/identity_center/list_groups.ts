@@ -42,7 +42,7 @@ export const listGroupsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of groups to return',
+      description: 'Maximum number of groups to return (1-100)',
     },
     nextToken: {
       type: 'string',
@@ -80,8 +80,27 @@ export const listGroupsTool: InternalToolConfig<
 
   outputs: {
     groups: {
-      type: 'json',
-      description: 'List of groups with groupId, displayName, description',
+      type: 'array',
+      description: 'Groups in the Identity Store',
+      items: {
+        type: 'object',
+        properties: {
+          groupId: { type: 'string', description: 'Identity Store group ID (use as principalId)' },
+          displayName: { type: 'string', description: 'Group display name', nullable: true },
+          description: { type: 'string', description: 'Group description', nullable: true },
+          externalIds: {
+            type: 'array',
+            description: 'External identity provider IDs linked to the group',
+            items: {
+              type: 'object',
+              properties: {
+                issuer: { type: 'string', description: 'Identity provider that issued the ID' },
+                id: { type: 'string', description: 'Identifier at the issuer' },
+              },
+            },
+          },
+        },
+      },
     },
     nextToken: {
       type: 'string',

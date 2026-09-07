@@ -166,6 +166,30 @@ const MarkdownTable = Table.extend({
   },
 })
 
+/** Whether a code span contains a pipe after an odd run of literal backslashes. */
+function hasAmbiguousCodePipe(value: string): boolean {
+  let backslashes = 0
+  for (const character of value) {
+    if (character === '\\') {
+      backslashes++
+      continue
+    }
+    if (character === '|' && backslashes % 2 === 1) return true
+    backslashes = 0
+  }
+  return false
+}
+
+/** Whether inline cell content can be represented without ambiguity in a GFM pipe table. */
+function isGfmCellContent(content: JSONContent[] | undefined): boolean {
+  return !(content ?? []).some(
+    (node) =>
+      node.type === 'text' &&
+      node.marks?.some((mark) => mark.type === 'code') &&
+      hasAmbiguousCodePipe(node.text ?? '')
+  )
+}
+
 /** A GFM table has a single header, uniform columns, inline cell content, and column-level alignment. */
 function isGfmTable(node: JSONContent): boolean {
   const rows = node.content ?? []
@@ -183,10 +207,18 @@ function isGfmTable(node: JSONContent): boolean {
             cell.attrs?.colwidth == null &&
             (cell.attrs?.align ?? null) === (header[column].attrs?.align ?? null) &&
             cell.content?.length === 1 &&
-            cell.content[0].type === 'paragraph'
+            cell.content[0].type === 'paragraph' &&
+            isGfmCellContent(cell.content[0].content)
         )
     )
   )
+}
+
+/** Escape pipes that belong to cell content while leaving the structural delimiters to the renderer. */
+function escapeGfmCellPipes(value: string): string {
+  const escaped: string[] = []
+  for (const character of value) escaped.push(character === '|' ? '\\|' : character)
+  return escaped.join('')
 }
 
 /**
@@ -197,10 +229,7 @@ function isGfmTable(node: JSONContent): boolean {
 function renderGfmTable(node: JSONContent, helpers: MarkdownRendererHelpers): string {
   const rows = (node.content ?? []).map((row) =>
     (row.content ?? []).map((cell) =>
-      helpers
-        .renderChildren(cell.content ?? [])
-        .replace(/\|/g, '\\|')
-        .replace(/\r?\n/g, '<br>')
+      escapeGfmCellPipes(helpers.renderChildren(cell.content ?? [])).replace(/\r?\n/g, '<br>')
     )
   )
   const widths = rows[0].map(() => 3)

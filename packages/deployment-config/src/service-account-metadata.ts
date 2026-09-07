@@ -1,4 +1,9 @@
-import { SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID } from './service-account-providers.generated'
+import {
+  CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS,
+  SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID,
+} from './service-account-providers.generated'
+
+export { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS }
 
 type DeploymentRequirement = 'preview-gated' | 'oauth-client'
 type ServiceAccountOAuthServiceId = keyof typeof SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID

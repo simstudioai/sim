@@ -125,6 +125,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   openid: 'Standard authentication',
   profile: 'Access profile information',
   email: 'Access email address',
+  'com.intuit.quickbooks.accounting':
+    'Access and manage accounting data in the connected QuickBooks Online company',
 
   // Notion scopes
   'database.read': 'Read database',
@@ -553,6 +555,7 @@ export function getAllOAuthServices(): OAuthServiceMetadata[] {
         name: service.name,
         description: service.description,
         baseProvider: baseProviderId,
+        clientConfiguration: service.clientConfiguration,
         authType: service.authType ?? 'oauth',
       })
     }
@@ -621,6 +624,10 @@ export function getServiceConfigByProviderId(providerId: string): OAuthServiceCo
   }
 
   return null
+}
+
+export function usesCredentialConfiguredOAuthClient(providerId: string): boolean {
+  return Boolean(getServiceConfigByProviderId(providerId)?.clientConfiguration)
 }
 
 export function getServiceAccountProviderForProviderId(providerId: string): string | undefined {

@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { EDGE } from '@/executor/constants'
-import type { DAG, DAGNode } from '@/executor/dag/builder'
+import { BlockType, EDGE } from '@/executor/constants'
+import { type DAG, DAGBuilder, type DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
-import type { SerializedBlock } from '@/serializer/types'
-import { EdgeManager } from './edge-manager'
+import { EdgeManager } from '@/executor/execution/edge-manager'
+import type { NormalizedBlockOutput } from '@/executor/types'
+import {
+  buildBranchNodeId,
+  buildParallelSentinelEndId,
+  buildParallelSentinelStartId,
+  buildSentinelEndId,
+  buildSentinelStartId,
+} from '@/executor/utils/subflow-utils'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 function createMockBlock(id: string): SerializedBlock {
   return {
@@ -45,6 +53,188 @@ function createMockDAG(nodes: Map<string, DAGNode>): DAG {
 }
 
 describe('EdgeManager', () => {
+  describe('Dead-end routing regressions', () => {
+    it.each(['loop', 'parallel'] as const)(
+      'keeps an independently activated join waiting until the enclosing %s exits',
+      (subflowType) => {
+        const workflow: SerializedWorkflow = {
+          version: '1',
+          blocks: [
+            { ...createMockBlock('trigger'), metadata: { id: BlockType.STARTER } },
+            {
+              ...createMockBlock('subflow'),
+              metadata: { id: subflowType === 'loop' ? BlockType.LOOP : BlockType.PARALLEL },
+            },
+            { ...createMockBlock('condition'), metadata: { id: BlockType.CONDITION } },
+            createMockBlock('skipped'),
+            createMockBlock('independent'),
+            createMockBlock('join'),
+          ],
+          connections: [
+            { source: 'trigger', target: 'subflow' },
+            { source: 'trigger', target: 'independent' },
+            {
+              source: 'subflow',
+              target: 'condition',
+              sourceHandle: subflowType === 'loop' ? 'loop-start-source' : 'parallel-start-source',
+            },
+            { source: 'condition', target: 'skipped', sourceHandle: 'condition-if' },
+            {
+              source: 'subflow',
+              target: 'join',
+              sourceHandle: subflowType === 'loop' ? 'loop-end-source' : 'parallel-end-source',
+            },
+            { source: 'independent', target: 'join' },
+          ],
+          loops:
+            subflowType === 'loop'
+              ? { subflow: { id: 'subflow', nodes: ['condition', 'skipped'], iterations: 2 } }
+              : {},
+          parallels:
+            subflowType === 'parallel'
+              ? {
+                  subflow: {
+                    id: 'subflow',
+                    nodes: ['condition', 'skipped'],
+                    count: 2,
+                    parallelType: 'count',
+                  },
+                }
+              : {},
+        }
+        const dag = new DAGBuilder().build(workflow, { triggerBlockId: 'trigger' })
+        const edgeManager = new EdgeManager(dag)
+        const sentinelStartId =
+          subflowType === 'loop'
+            ? buildSentinelStartId('subflow')
+            : buildParallelSentinelStartId('subflow')
+        const sentinelEndId =
+          subflowType === 'loop'
+            ? buildSentinelEndId('subflow')
+            : buildParallelSentinelEndId('subflow')
+        const conditionId = subflowType === 'loop' ? 'condition' : buildBranchNodeId('condition', 0)
+
+        edgeManager.processOutgoingEdges(dag.nodes.get('trigger')!, {})
+        expect(edgeManager.processOutgoingEdges(dag.nodes.get('independent')!, {})).toEqual([])
+        edgeManager.processOutgoingEdges(dag.nodes.get(sentinelStartId)!, { sentinelStart: true })
+
+        expect(
+          edgeManager.processOutgoingEdges(dag.nodes.get(conditionId)!, { selectedOption: 'else' })
+        ).toEqual([sentinelEndId])
+        expect(edgeManager.isNodeReady(dag.nodes.get('join')!)).toBe(false)
+
+        expect(
+          edgeManager.processOutgoingEdges(dag.nodes.get(sentinelEndId)!, {
+            selectedRoute: subflowType === 'loop' ? EDGE.LOOP_CONTINUE : EDGE.PARALLEL_CONTINUE,
+          })
+        ).toEqual([sentinelStartId])
+        expect(edgeManager.isNodeReady(dag.nodes.get('join')!)).toBe(false)
+
+        expect(
+          edgeManager.processOutgoingEdges(dag.nodes.get(sentinelEndId)!, {
+            selectedRoute: subflowType === 'loop' ? EDGE.LOOP_EXIT : EDGE.PARALLEL_EXIT,
+          })
+        ).toEqual(['join'])
+      }
+    )
+
+    it.each([
+      { handle: 'condition-else', output: { selectedOption: 'if' } },
+      { handle: 'router-other', output: { selectedRoute: 'selected' } },
+    ])('releases an activated join after cascading through $handle', ({ handle, output }) => {
+      const condition = createMockNode('decision', [{ target: 'skipped', sourceHandle: handle }])
+      const skipped = createMockNode('skipped', [{ target: 'join' }], ['decision'])
+      const independent = createMockNode('independent', [{ target: 'join' }])
+      const join = createMockNode('join', [], ['skipped', 'independent'])
+      const dag = createMockDAG(
+        new Map([
+          ['decision', condition],
+          ['skipped', skipped],
+          ['independent', independent],
+          ['join', join],
+        ])
+      )
+      const edgeManager = new EdgeManager(dag)
+
+      expect(edgeManager.processOutgoingEdges(independent, {})).toEqual([])
+      expect(edgeManager.processOutgoingEdges(condition, output as NormalizedBlockOutput)).toEqual([
+        'join',
+      ])
+      expect(edgeManager.hasActivatedEdge('skipped')).toBe(false)
+    })
+
+    it('releases an activated join when another branch remains executable', () => {
+      const decision = createMockNode('decision', [
+        { target: 'skipped', sourceHandle: 'condition-else' },
+        { target: 'selected', sourceHandle: 'condition-if' },
+      ])
+      const skipped = createMockNode('skipped', [{ target: 'join' }], ['decision'])
+      const selected = createMockNode('selected', [], ['decision'])
+      const independent = createMockNode('independent', [{ target: 'join' }])
+      const join = createMockNode('join', [], ['skipped', 'independent'])
+      const dag = createMockDAG(
+        new Map([
+          ['decision', decision],
+          ['skipped', skipped],
+          ['selected', selected],
+          ['independent', independent],
+          ['join', join],
+        ])
+      )
+      const edgeManager = new EdgeManager(dag)
+
+      expect(edgeManager.processOutgoingEdges(independent, {})).toEqual([])
+      expect(edgeManager.processOutgoingEdges(decision, { selectedOption: 'if' })).toEqual([
+        'selected',
+        'join',
+      ])
+    })
+
+    it.each(['loop', 'parallel'] as const)(
+      'releases an independently activated join when an entire downstream %s is skipped',
+      (subflowType) => {
+        const decision = createMockNode('decision', [
+          { target: 'subflow-start', sourceHandle: 'condition-if' },
+        ])
+        const start = createMockNode('subflow-start', [{ target: 'body' }], ['decision'])
+        const body = createMockNode('body', [{ target: 'subflow-end' }], ['subflow-start'])
+        const end = createMockNode(
+          'subflow-end',
+          [
+            {
+              target: 'subflow-start',
+              sourceHandle: subflowType === 'loop' ? EDGE.LOOP_CONTINUE : EDGE.PARALLEL_CONTINUE,
+            },
+            {
+              target: 'join',
+              sourceHandle: subflowType === 'loop' ? EDGE.LOOP_EXIT : EDGE.PARALLEL_EXIT,
+            },
+          ],
+          ['body']
+        )
+        end.metadata = {
+          isSentinel: true,
+          sentinelType: 'end',
+          subflowType,
+          subflowId: 'skipped-subflow',
+        }
+        const independent = createMockNode('independent', [{ target: 'join' }])
+        const join = createMockNode('join', [], ['subflow-end', 'independent'])
+        const edgeManager = new EdgeManager(
+          createMockDAG(
+            new Map([decision, start, body, end, independent, join].map((node) => [node.id, node]))
+          )
+        )
+
+        expect(edgeManager.processOutgoingEdges(independent, {})).toEqual([])
+        expect(edgeManager.processOutgoingEdges(decision, { selectedOption: 'else' })).toEqual([
+          'join',
+        ])
+        expect(edgeManager.hasActivatedEdge(start.id)).toBe(false)
+      }
+    )
+  })
+
   describe('Happy path - basic workflows', () => {
     it('should handle simple linear flow (A → B → C)', () => {
       const blockAId = 'block-a'

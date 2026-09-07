@@ -7,6 +7,8 @@ import {
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
   setEnvFlags,
 } from '@sim/testing'
 import { eq, ne } from 'drizzle-orm'
@@ -45,11 +47,13 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
 }))
 
 const {
+  mockGetQuickBooksWebhookCredential,
   mockGetSlackBotCredential,
   mockResolveOAuthAccountId,
   mockRefreshAccessTokenIfNeeded,
   mockFetchSlackTeamId,
 } = vi.hoisted(() => ({
+  mockGetQuickBooksWebhookCredential: vi.fn(),
   mockGetSlackBotCredential: vi.fn(),
   mockResolveOAuthAccountId: vi.fn(),
   mockRefreshAccessTokenIfNeeded: vi.fn(),
@@ -63,6 +67,10 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   fetchSlackTeamId: mockFetchSlackTeamId,
 }))
+vi.mock('@/lib/webhooks/quickbooks-credentials', () => ({
+  buildQuickBooksWebhookRoutingKey: (appKey: string, realmId: string) => `${appKey}:${realmId}`,
+  getQuickBooksWebhookClientConfigByCredentialId: mockGetQuickBooksWebhookCredential,
+}))
 
 import {
   buildProviderConfig,
@@ -71,11 +79,14 @@ import {
   resolveWebhookConfigForBlock,
 } from '@/lib/webhooks/deploy'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
+import { getProviderHandler } from '@/lib/webhooks/providers'
+import { quickBooksHandler } from '@/lib/webhooks/providers/quickbooks'
 import { getBlock } from '@/blocks'
 import { getTrigger } from '@/triggers'
 
 afterAll(() => {
   resetDbChainMock()
+  resetEnvMock()
   resetEnvFlagsMock()
 })
 
@@ -143,7 +154,11 @@ function makeBlock(
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  setEnv({ SLACK_SIGNING_SECRET: 'test-secret' })
   setEnvFlags({ isSlackExtendedScopesEnabled: true })
+  ;(getProviderHandler as unknown as Mock).mockImplementation((provider: string) =>
+    provider === 'quickbooks' ? quickBooksHandler : {}
+  )
 })
 
 describe('buildProviderConfig canonical collapse', () => {
@@ -290,8 +305,9 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     })
   }
 
-  it('routes a custom bot credential by credential id on the slack provider', async () => {
+  it('routes a custom bot credential without the native app signing secret', async () => {
     setEnvFlags({ isSlackExtendedScopesEnabled: false })
+    setEnv({ SLACK_SIGNING_SECRET: undefined })
     mockGetSlackBotCredential.mockResolvedValue({
       workspaceId: 'ws-1',
       botToken: 'xoxb-token',
@@ -386,6 +402,24 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     if (result?.success) throw new Error('expected failure')
     expect(result?.error).toEqual({
       message: 'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+      status: 400,
+    })
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+    expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+
+  it('rejects a Sim-app credential when its signing secret is not configured', async () => {
+    setEnv({ SLACK_SIGNING_SECRET: undefined })
+    mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+
+    const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_oauth_1' })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error).toEqual({
+      message:
+        'The Sim Slack app trigger is not configured for this deployment. Configure its signing secret or select a custom bot.',
       status: 400,
     })
     expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
@@ -653,6 +687,90 @@ describe('resolveWebhookConfigForBlock — TikTok routing', () => {
     expect(result?.success).toBe(false)
     if (result?.success) throw new Error('expected failure')
     expect(result?.error.message).toContain('Reconnect')
+  })
+})
+
+describe('resolveWebhookConfigForBlock — QuickBooks routing', () => {
+  const quickBooksTriggerDef = {
+    provider: 'quickbooks',
+    name: 'QuickBooks Invoice Events',
+    subBlocks: [
+      {
+        id: 'triggerCredentials',
+        mode: 'trigger',
+        serviceId: 'quickbooks',
+        required: true,
+      },
+    ],
+  }
+
+  function resolveQuickBooks(
+    credentialReference: string,
+    workflow: Record<string, unknown> = { workspaceId: 'ws-1' }
+  ) {
+    ;(getBlock as unknown as Mock).mockReturnValue({ category: 'tools' })
+    ;(getTrigger as unknown as Mock).mockReturnValue(quickBooksTriggerDef)
+    const block = makeBlock('quickbooks', {
+      selectedTriggerId: 'quickbooks_invoice_events',
+      triggerCredentials: credentialReference,
+    })
+    block.triggerMode = true
+    return resolveWebhookConfigForBlock({
+      block,
+      blocks: {},
+      workflow,
+      userId: 'deployer-1',
+      requestId: 'req-1',
+    })
+  }
+
+  it('routes a workspace-owned credential by its stored QuickBooks realm ID', async () => {
+    queueTableRows(credential, [{ id: 'cred-qb-1' }])
+    mockGetQuickBooksWebhookCredential.mockResolvedValue({
+      clientConfig: { webhookVerifierToken: 'verifier' },
+      identity: { appKey: 'app-key', realmId: '9341456000000000' },
+    })
+
+    const result = await resolveQuickBooks('cred-qb-1')
+
+    expect(result?.success).toBe(true)
+    if (!result?.success) throw new Error('expected success')
+    expect(result.config.provider).toBe('quickbooks')
+    expect(result.config.routingKey).toBe('app-key:9341456000000000')
+    expect(result.config.triggerPath).toBeNull()
+    expect(result.config.providerConfig.credentialId).toBe('cred-qb-1')
+    expect(result.config.providerConfig.quickBooksWebhookAppKey).toBe('app-key')
+  })
+
+  it('rejects a QuickBooks credential outside the workflow workspace', async () => {
+    const result = await resolveQuickBooks('cred-foreign')
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error?.message).toContain('not available in this workspace')
+    expect(mockGetQuickBooksWebhookCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed stored QuickBooks company identity', async () => {
+    queueTableRows(credential, [{ id: 'cred-qb-1' }])
+    mockGetQuickBooksWebhookCredential.mockResolvedValue(null)
+
+    const result = await resolveQuickBooks('cred-qb-1')
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error?.message).toContain('Reconnect it and try again')
+  })
+
+  it('reports an unexpected credential lookup failure as a server error', async () => {
+    queueTableRows(credential, [{ id: 'cred-qb-1' }])
+    mockGetQuickBooksWebhookCredential.mockRejectedValue(new Error('database unavailable'))
+
+    const result = await resolveQuickBooks('cred-qb-1')
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error.status).toBe(500)
   })
 })
 

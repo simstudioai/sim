@@ -139,7 +139,7 @@ See [Security](/platform/self-hosting/security) for the full secret inventory, w
 
 ## Calling the chart from Terraform
 
-If you already run Terraform, the chart is the resource to wrap — not something to reimplement. It is not published to a Helm repository or an OCI registry, so there is no `repository` to point at: vendor this repo as a submodule, a release tarball, or a `git clone` in your pipeline, and give `chart` the local path.
+If you already run Terraform, the chart is the resource to wrap — not something to reimplement. Point `repository` at the OCI registry and pin `version`; there is no need to vendor the repo.
 
 ```hcl
 resource "helm_release" "sim" {
@@ -147,8 +147,15 @@ resource "helm_release" "sim" {
   namespace        = "sim"
   create_namespace = true
 
-  # Local path, not a repository. Pin the git ref you vendor from.
-  chart = "${path.module}/sim/helm/sim"
+  # Always pin `version`. Without it Terraform resolves the newest published
+  # chart at apply time, which is how an unplanned apply moves Sim to a new
+  # release with new migrations.
+  repository = "oci://ghcr.io/simstudioai/charts"
+  chart      = "sim"
+  version    = "1.9.5"
+
+  # Or the classic repository, if your tooling does not speak OCI:
+  #   repository = "https://charts.sim.ai"
 
   # Your own values file. The examples under helm/sim/examples/ carry
   # placeholder secrets and are starting points, not deployable as-is.
@@ -172,6 +179,6 @@ resource "helm_release" "sim" {
   The example values files ship literal placeholders such as `your-secure-production-auth-secret-here`. That includes `postgresql.auth.password`. The chart only rejects empty values and its own `CHANGE-ME` strings, so a deployment that inherits those placeholders installs cleanly with a publicly known session-signing secret and database password. Override every secret, or use External Secrets and set none of them inline.
 </Callout>
 
-Because the chart is local, `version` does nothing — what pins it is the git ref you vendor from, and `helm/sim/Chart.yaml` tells you which chart release that ref carries. Pin that ref, and pin the image tags separately, or an unplanned `terraform apply` can move Sim to a new release with new migrations. See [Upgrades](/platform/self-hosting/upgrades).
+Pin `version` above, and pin the image tags separately — the chart version and the application version move independently, so pinning one does not pin the other. See [Upgrades](/platform/self-hosting/upgrades).
 
 Once the infrastructure exists, follow [Kubernetes](/platform/self-hosting/kubernetes) for the install itself, then the [pre-launch checklist](/platform/self-hosting/security) and the [verification checklist](/platform/self-hosting/verify).

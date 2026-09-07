@@ -25,6 +25,7 @@ const {
   mockCreateKnowledgeConnector,
   mockCreateKnowledgeTag,
   mockListKnowledgeTags,
+  mockIsKnowledgeMemberAccessAvailable,
   knowledgeOperations,
 } = vi.hoisted(() => {
   const defineOperation = (id: string, minimumRole: 'read' | 'write') =>
@@ -58,6 +59,7 @@ const {
     mockCreateKnowledgeConnector: vi.fn(),
     mockCreateKnowledgeTag: vi.fn(),
     mockListKnowledgeTags: vi.fn(),
+    mockIsKnowledgeMemberAccessAvailable: vi.fn(),
     knowledgeOperations: {
       addWorkspaceFiles: defineOperation('knowledge.documents.add_workspace_files', 'write'),
       bulkDelete: defineOperation('knowledge.bulk_delete', 'write'),
@@ -98,6 +100,9 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 vi.mock('@/lib/knowledge/application/operations', () => ({ knowledgeOperations }))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mockIsKnowledgeMemberAccessAvailable,
+}))
 vi.mock('@/lib/knowledge/application/add-workspace-files', () => ({
   addWorkspaceFilesToKnowledgeBase: {
     operation: knowledgeOperations.addWorkspaceFiles,
@@ -260,6 +265,7 @@ describe('manage_knowledge_base trusted application delegation', () => {
       ],
       failed: [],
     })
+    mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
     mockSearchKnowledge.mockResolvedValue({
       results: [],
       query: 'query',
@@ -405,6 +411,42 @@ describe('manage_knowledge_base trusted application delegation', () => {
       resultSecretRegistry: registry,
     })
     expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
+  })
+
+  it('asks for citations where per-member access is on', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },
+      { ...CONTEXT, resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+    )
+
+    expect(result.message).toContain('<source>')
+    expect(mockIsKnowledgeMemberAccessAvailable).toHaveBeenCalledWith({
+      workspaceId: 'workspace-paid',
+    })
+  })
+
+  it('asks for no citation where the workspace cannot render one', async () => {
+    mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(false)
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },
+      { ...CONTEXT, resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+    )
+
+    expect(result).toMatchObject({ success: true })
+    expect(result.message).toBe('Found 0 result(s) for query "query".')
+  })
+
+  it('answers without citations when the eligibility lookup fails, rather than failing the query', async () => {
+    mockIsKnowledgeMemberAccessAvailable.mockRejectedValueOnce(new Error('billing unavailable'))
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },
+      { ...CONTEXT, resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+    )
+
+    expect(result).toMatchObject({ success: true })
+    expect(result.message).toBe('Found 0 result(s) for query "query".')
   })
 
   it('returns a safe model result for search infrastructure failures', async () => {

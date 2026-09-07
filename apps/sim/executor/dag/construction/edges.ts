@@ -75,6 +75,8 @@ export class EdgeConstructor {
     const routerV2ConfigMap = new Map<string, RouterV2RouteConfig[]>()
 
     for (const block of workflow.blocks) {
+      if (block.enabled === false) continue
+
       const blockType = block.metadata?.id ?? ''
       blockTypeMap.set(block.id, blockType)
 

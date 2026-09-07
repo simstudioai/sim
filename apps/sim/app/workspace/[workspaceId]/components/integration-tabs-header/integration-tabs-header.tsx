@@ -1,6 +1,9 @@
+'use client'
+
 import type { ReactNode } from 'react'
 import { ChipLink, cn } from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 interface IntegrationTabsHeaderProps {
   active: 'integrations' | 'skills' | 'search'
@@ -17,6 +20,11 @@ interface IntegrationTabsHeaderProps {
  * because every page owns it equally; its former home made Skills reach across
  * into a sibling feature for its own chrome.
  *
+ * Search appears only where per-member access is on, matching the page it links
+ * to, which 404s otherwise. A client component so the three pages and their
+ * Suspense fallbacks all read that one judgement from the workspace host
+ * context rather than each resolving it again on the server.
+ *
  * The `gap-1` is explicit because chips carry no outer margin — the parent owns the
  * space between them.
  */
@@ -25,6 +33,8 @@ export function IntegrationTabsHeader({
   workspaceId,
   rightSlot,
 }: IntegrationTabsHeaderProps) {
+  const memberAccessAvailable = useMemberAccessAvailable()
+
   return (
     <div className={cn(PAGE_HEADER_BAR, 'gap-1')}>
       <ChipLink href={`/workspace/${workspaceId}/integrations`} active={active === 'integrations'}>
@@ -33,9 +43,11 @@ export function IntegrationTabsHeader({
       <ChipLink href={`/workspace/${workspaceId}/skills`} active={active === 'skills'}>
         Skills
       </ChipLink>
-      <ChipLink href={`/workspace/${workspaceId}/search`} active={active === 'search'}>
-        Search
-      </ChipLink>
+      {memberAccessAvailable && (
+        <ChipLink href={`/workspace/${workspaceId}/search`} active={active === 'search'}>
+          Search
+        </ChipLink>
+      )}
       {rightSlot && <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>{rightSlot}</div>}
     </div>
   )

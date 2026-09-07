@@ -22,22 +22,22 @@
 # render it twice. That override also CHANGES where the chart pulls from, to
 # `<your-registry>/nvidia/k8s-device-plugin` — mirror the device plugin there
 # instead of to the `mirror` path listed below, or the pull fails.
-appVersion: v0.8.18
+appVersion: v0.8.24
 images:
   - source: busybox:1.36
     mirror: busybox:1.36
   - source: curlimages/curl:8.5.0
     mirror: curlimages/curl:8.5.0
-  - source: ghcr.io/simstudioai/copilot:v0.8.18
-    mirror: simstudioai/copilot:v0.8.18
-  - source: ghcr.io/simstudioai/migrations:v0.8.18
-    mirror: simstudioai/migrations:v0.8.18
-  - source: ghcr.io/simstudioai/pii:v0.8.18
-    mirror: simstudioai/pii:v0.8.18
-  - source: ghcr.io/simstudioai/realtime:v0.8.18
-    mirror: simstudioai/realtime:v0.8.18
-  - source: ghcr.io/simstudioai/simstudio:v0.8.18
-    mirror: simstudioai/simstudio:v0.8.18
+  - source: ghcr.io/simstudioai/copilot:v0.8.24
+    mirror: simstudioai/copilot:v0.8.24
+  - source: ghcr.io/simstudioai/migrations:v0.8.24
+    mirror: simstudioai/migrations:v0.8.24
+  - source: ghcr.io/simstudioai/pii:v0.8.24
+    mirror: simstudioai/pii:v0.8.24
+  - source: ghcr.io/simstudioai/realtime:v0.8.24
+    mirror: simstudioai/realtime:v0.8.24
+  - source: ghcr.io/simstudioai/simstudio:v0.8.24
+    mirror: simstudioai/simstudio:v0.8.24
   - source: nvcr.io/nvidia/k8s-device-plugin:v0.18.2
     mirror: nvcr.io/nvidia/k8s-device-plugin:v0.18.2
   - source: ollama/ollama:0.23.2

@@ -28,7 +28,7 @@ describe('OAuth Disconnect API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    dbChainMockFns.where.mockResolvedValue([])
+    dbChainMockFns.limit.mockResolvedValue([])
     mockGetUserOrganization.mockResolvedValue(null)
   })
 
@@ -102,7 +102,7 @@ describe('OAuth Disconnect API Route', () => {
       session: { id: 'session-1' },
     })
 
-    dbChainMockFns.where.mockRejectedValueOnce(new Error('Database error'))
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('Database error'))
 
     const req = createMockRequest('POST', {
       provider: 'google',

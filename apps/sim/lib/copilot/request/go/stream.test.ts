@@ -193,11 +193,36 @@ describe('copilot go stream helpers', () => {
     expect(extractEditContent('{"content":"tab\\tvalue"}')).toBe('tab\tvalue')
   })
 
-  it('emits full snapshots for append (sidebar viewer uses replace mode; no delta merge)', () => {
+  /**
+   * Append extends its own text, so it deltas like `update` does.
+   *
+   * It forced a snapshot per emission until the only consumer that could not merge a
+   * delta was gone — `apply-file-preview-phase.ts` has accumulated them since #4923.
+   * Because an append preview is `existingContent + streamed`, a snapshot per chunk
+   * re-sent the whole file on every streamed token, which is `O(file x tokens)` into
+   * the stream buffer: one 250 KB file cost gigabytes of Redis.
+   */
+  it('emits deltas for append when the preview extends the previous text', () => {
     expect(buildPreviewContentUpdate('hello', 'hello world', 100, 200, 'append')).toEqual({
-      content: 'hello world',
+      content: ' world',
+      contentMode: 'delta',
+      lastSnapshotAt: 100,
+    })
+  })
+
+  it('still snapshots an append whose base changed underneath it', () => {
+    expect(buildPreviewContentUpdate('hello', 'HELLO world', 100, 200, 'append')).toEqual({
+      content: 'HELLO world',
       contentMode: 'snapshot',
       lastSnapshotAt: 200,
+    })
+  })
+
+  it('still checkpoints an append with a full snapshot on the interval', () => {
+    expect(buildPreviewContentUpdate('hello', 'hello world', 0, 1_000, 'append')).toEqual({
+      content: 'hello world',
+      contentMode: 'snapshot',
+      lastSnapshotAt: 1_000,
     })
   })
 

@@ -22,8 +22,10 @@ vi.mock('@/lib/internal/iam/client', () => ({
   deleteUser: vi.fn(),
   detachRolePolicy: vi.fn(),
   detachUserPolicy: vi.fn(),
+  getPolicy: vi.fn(),
   getRole: vi.fn(),
   getUser: vi.fn(),
+  listAccessKeys: vi.fn(),
   listAttachedRolePolicies: vi.fn(),
   listAttachedUserPolicies: vi.fn(),
   listGroups: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock('@/lib/internal/iam/client', () => ({
   listUsers: mockListUsers,
   removeUserFromGroup: vi.fn(),
   simulatePrincipalPolicy: vi.fn(),
+  updateAccessKey: vi.fn(),
 }))
 
 import { executeIamListUsers } from '@/lib/internal/iam/operations'

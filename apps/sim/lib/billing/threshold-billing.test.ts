@@ -246,7 +246,7 @@ describe('checkAndBillOverageThreshold', () => {
     })
   })
 
-  it('fails before calculating overage when the frozen period is no longer current', async () => {
+  it('requires reconciliation before calculating overage for an elapsed frozen period', async () => {
     await expect(
       checkAndBillOverageThreshold('user-1', undefined, {
         onError: 'throw',
@@ -257,8 +257,8 @@ describe('checkAndBillOverageThreshold', () => {
       })
     ).rejects.toMatchObject({
       name: ThresholdSettlementError.name,
-      code: 'billing_period_mismatch',
-      retryable: true,
+      code: 'billing_period_elapsed',
+      retryable: false,
     })
 
     expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
@@ -276,9 +276,42 @@ describe('checkAndBillOverageThreshold', () => {
       })
     ).rejects.toMatchObject({
       name: ThresholdSettlementError.name,
-      code: 'billing_period_mismatch',
-      retryable: true,
+      code: 'billing_period_elapsed',
+      retryable: false,
     })
+  })
+
+  it.each([
+    ['2026-05-15T00:00:00.000Z', '2026-06-15T00:00:00.000Z'],
+    ['2026-06-01T00:00:00.000Z', '2026-07-01T00:00:00.000Z'],
+  ])('keeps overlapping or future period mismatches retryable (%s)', async (start, end) => {
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod: { start: new Date(start), end: new Date(end) },
+      })
+    ).rejects.toMatchObject({ code: 'billing_period_mismatch', retryable: true })
+    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('requires reconciliation for an elapsed organization period without charging it again', async () => {
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
+    await expect(
+      checkAndBillPayerOverageThreshold(
+        { type: 'organization', id: 'org-1' },
+        {
+          onError: 'throw',
+          expectedBillingPeriod: {
+            start: new Date('2026-03-01T00:00:00.000Z'),
+            end: new Date('2026-04-01T00:00:00.000Z'),
+          },
+        }
+      )
+    ).rejects.toMatchObject({ code: 'billing_period_elapsed', retryable: false })
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
   it('fails retryably when an above-threshold modern settlement lacks payment state', async () => {

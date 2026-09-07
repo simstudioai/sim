@@ -77,7 +77,10 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   // Force a DB-backed session read (bypass the cookie cache) so a revoked
   // browser session goes to login instead of starting a doomed link flow.
   const hdrs = await headers()
-  const session = await auth.api.getSession({ headers: hdrs, query: { disableCookieCache: true } })
+  const session = await auth.api.getSession({
+    headers: hdrs,
+    query: { disableCookieCache: true },
+  })
   if (!session?.user) {
     redirect(
       `/login?callbackUrl=${encodeURIComponent(
@@ -127,6 +130,13 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
     if (credentialId) {
       authorize.searchParams.set('credentialId', credentialId)
     }
+    redirect(authorize.toString())
+  }
+
+  if (providerId === 'quickbooks' && draftId) {
+    const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
+    authorize.searchParams.set('draftId', draftId)
+    authorize.searchParams.set('callbackURL', buildConnectCompleteUrl(state, port))
     redirect(authorize.toString())
   }
 

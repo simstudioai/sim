@@ -15,8 +15,10 @@ const mockOperations = vi.hoisted(() => ({
   executeIamDeleteUser: vi.fn(),
   executeIamDetachRolePolicy: vi.fn(),
   executeIamDetachUserPolicy: vi.fn(),
+  executeIamGetPolicy: vi.fn(),
   executeIamGetRole: vi.fn(),
   executeIamGetUser: vi.fn(),
+  executeIamListAccessKeys: vi.fn(),
   executeIamListAttachedRolePolicies: vi.fn(),
   executeIamListAttachedUserPolicies: vi.fn(),
   executeIamListGroups: vi.fn(),
@@ -25,6 +27,7 @@ const mockOperations = vi.hoisted(() => ({
   executeIamListUsers: vi.fn(),
   executeIamRemoveUserFromGroup: vi.fn(),
   executeIamSimulatePrincipalPolicy: vi.fn(),
+  executeIamUpdateAccessKey: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/iam/operations', () => mockOperations)
@@ -93,8 +96,28 @@ const TOOL_CASES = [
   },
   {
     toolId: 'iam_delete_access_key',
-    input: { ...CONNECTION, accessKeyIdToDelete: 'AKIADELETE' },
+    input: { ...CONNECTION, accessKeyIdToDelete: 'AKIAIOSFODNN7EXAMPLE' },
     operation: mockOperations.executeIamDeleteAccessKey,
+  },
+  {
+    toolId: 'iam_get_policy',
+    input: { ...CONNECTION, policyArn: 'arn:aws:iam::aws:policy/ReadOnlyAccess' },
+    operation: mockOperations.executeIamGetPolicy,
+  },
+  {
+    toolId: 'iam_list_access_keys',
+    input: { ...CONNECTION, userName: 'test-user' },
+    operation: mockOperations.executeIamListAccessKeys,
+  },
+  {
+    toolId: 'iam_update_access_key',
+    input: {
+      ...CONNECTION,
+      accessKeyIdToUpdate: 'AKIAIOSFODNN7EXAMPLE',
+      status: 'Inactive',
+      userName: 'test-user',
+    },
+    operation: mockOperations.executeIamUpdateAccessKey,
   },
   {
     toolId: 'iam_delete_role',

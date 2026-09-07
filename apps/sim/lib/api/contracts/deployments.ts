@@ -221,6 +221,21 @@ export const deploymentVersionsResponseSchema = z.object({
 
 export type DeploymentVersionsResponse = z.output<typeof deploymentVersionsResponseSchema>
 
+/**
+ * Zod's default strip, deliberately not `.passthrough()`.
+ *
+ * The route builder responds with `schema.parse(body)`, so stripping is what
+ * holds this `read`-level status response to its narrow projection: a presenter
+ * that later widens it into the admin-gated detail fields cannot put them on
+ * the wire. `.strict()` would instead throw, and since `requestJson` parses with
+ * this same schema, a new bundle reading an older pod's wider payload mid
+ * rollout would take the whole chat tab down with it.
+ *
+ * Stripping is silent, so it is the last line rather than the only one:
+ * `WorkflowChatDeploymentStatus` types the projection at its source, and
+ * widening it needs a cast the boundary audit already refuses. See
+ * `readWorkflowChatDeploymentStatus` for why the projection is this narrow.
+ */
 export const chatDeploymentStatusSchema = z.object({
   isDeployed: z.boolean(),
   deployment: z
@@ -228,7 +243,6 @@ export const chatDeploymentStatusSchema = z.object({
       id: z.string(),
       identifier: z.string(),
     })
-    .passthrough()
     .nullable(),
 })
 

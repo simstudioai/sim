@@ -9,6 +9,12 @@ import { parseRequest } from '@/lib/api/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { env } from '@/lib/core/config/env'
+import {
+  enforceIpRateLimitWithIndependentBackstop,
+  enforceResourceRateLimit,
+  type TokenBucketConfig,
+} from '@/lib/core/rate-limiter'
+import { RATE_LIMITS } from '@/lib/core/rate-limiter/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -48,6 +54,56 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const CHAT_MAX_REQUEST_BYTES = Number.parseInt(env.CHAT_MAX_REQUEST_BYTES, 10) || 220 * 1024 * 1024
+
+/** A sustained per-minute rate, with the 2x burst allowance the plan buckets use. */
+function executionsPerMinute(perMinute: number): TokenBucketConfig {
+  return { maxTokens: perMinute * 2, refillRate: perMinute, refillIntervalMs: 60_000 }
+}
+
+/**
+ * What one deployed chat may spend of its owner's workspace allowance.
+ *
+ * A chat execution debits the workspace `sync` counter, which is the same
+ * counter the owner's API, webhook and scheduled runs draw from. So this
+ * ceiling only does its job while it sits *below* that counter: above it, a
+ * flood empties the shared budget before this bucket ever refuses, and the
+ * billing attack becomes an availability attack on unrelated production
+ * workloads.
+ *
+ * Derived from the plan table rather than picked, because no fixed number holds
+ * that invariant — the rates differ per plan and every one is operator
+ * overridable through `RATE_LIMIT_*_SYNC`. A fraction of the smallest
+ * configured rate keeps a public chat under the shared budget on every plan and
+ * cannot drift if one of those defaults changes.
+ *
+ * The floor is deliberately shared by all plans for now. Sizing the slice to
+ * the *payer's* own plan needs the subscription, which `preprocessExecution`
+ * resolves a few lines after this runs, not here.
+ *
+ * A configured rate of `1` is the one value where this lands equal to the plan
+ * rather than under it, because no positive integer is below 1. It is inert:
+ * a workspace allowed one execution per minute has no capacity left to starve,
+ * and the two buckets then exhaust together rather than one masking the other.
+ */
+const CHAT_EXECUTION_RATE_PER_MINUTE = Math.max(
+  1,
+  Math.floor(Math.min(...Object.values(RATE_LIMITS).map((plan) => plan.sync.refillRate)) * 0.8)
+)
+
+const CHAT_EXECUTION_LIMIT = executionsPerMinute(CHAT_EXECUTION_RATE_PER_MINUTE)
+
+/**
+ * Executions one client IP may drive against a single deployed chat.
+ *
+ * Half the per-deployment rate, so a single source can never consume the whole
+ * allowance and leave the rest of the audience with none. It is above one
+ * person's chat cadence but not above a busy office behind one NAT — which
+ * costs little in practice, since traffic that heavy from one address would
+ * meet the per-deployment ceiling moments later anyway.
+ */
+const CHAT_EXECUTION_IP_LIMIT = executionsPerMinute(
+  Math.max(1, Math.floor(CHAT_EXECUTION_RATE_PER_MINUTE / 2))
+)
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
@@ -168,6 +224,23 @@ export const POST = withRouteHandler(
       if (!input && (!files || files.length === 0)) {
         return createErrorResponse('No input provided', 400)
       }
+
+      // Both buckets apply regardless of the chat's auth type: an email or SSO
+      // visitor is still not the payer.
+      const ipLimited = await enforceIpRateLimitWithIndependentBackstop(
+        'chat-execute',
+        request,
+        CHAT_EXECUTION_IP_LIMIT,
+        deployment.id
+      )
+      if (ipLimited) return ipLimited
+
+      const deploymentLimited = await enforceResourceRateLimit(
+        'chat-execute',
+        deployment.id,
+        CHAT_EXECUTION_LIMIT
+      )
+      if (deploymentLimited) return deploymentLimited
 
       const executionId = generateId()
 

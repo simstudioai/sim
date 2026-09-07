@@ -97,4 +97,54 @@ describe('legacy table preservation through the server converter', () => {
       shared.destroy()
     }
   })
+
+  it('uses lossless HTML when a code span has a backslash immediately before a pipe', () => {
+    const document: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableHeader',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'value' }] }],
+                },
+              ],
+            },
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableCell',
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [{ type: 'text', text: '\\|', marks: [{ type: 'code' }] }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    const shared = prosemirrorJSONToYDoc(
+      getSchema(createMarkdownContentExtensions()),
+      document,
+      COLLAB_DOC_FIELD
+    )
+    try {
+      const markdown = yDocToMarkdown(shared).trim()
+      expect(markdown).toContain('<table')
+      expect(markdown).toContain('<code>\\|</code>')
+      expect(parseMarkdownToDoc(markdown).content?.[0].type).toBe('rawHtmlBlock')
+      expect(serializeMarkdownDocument(markdown).trim()).toBe(markdown)
+    } finally {
+      shared.destroy()
+    }
+  })
 })

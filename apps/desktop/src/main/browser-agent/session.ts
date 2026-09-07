@@ -1196,6 +1196,7 @@ export async function importAgentCookies(
       failed += 1
     }
   }
+  if (imported > 0) await jar.flushStore()
   return { imported, failed }
 }
 

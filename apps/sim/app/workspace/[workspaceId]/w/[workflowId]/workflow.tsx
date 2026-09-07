@@ -46,6 +46,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
+import { usesCredentialConfiguredOAuthClient } from '@/lib/oauth/utils'
 import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_HORIZONTAL_SPACING,
@@ -343,6 +344,9 @@ const WorkflowContent = React.memo(
       requiredScopes: string[]
       newScopes?: string[]
     } | null>(null)
+    const oauthModalRequiresDraft = oauthModal
+      ? usesCredentialConfiguredOAuthClient(oauthModal.provider)
+      : false
 
     const params = useParams()
     const router = useRouter()
@@ -589,16 +593,18 @@ const WorkflowContent = React.memo(
         const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
         if (!detail) return
 
-        writeOAuthReturnContext({
-          origin: 'workflow',
-          workflowId: workflowIdParam,
-          displayName: detail.providerName,
-          providerId: detail.providerId,
-          preCount: 0,
-          workspaceId,
-          reconnect: true,
-          requestedAt: Date.now(),
-        })
+        if (!usesCredentialConfiguredOAuthClient(detail.providerId)) {
+          writeOAuthReturnContext({
+            origin: 'workflow',
+            workflowId: workflowIdParam,
+            displayName: detail.providerName,
+            providerId: detail.providerId,
+            preCount: 0,
+            workspaceId,
+            reconnect: true,
+            requestedAt: Date.now(),
+          })
+        }
 
         setOauthModal({
           provider: detail.providerId as OAuthProvider,
@@ -5342,7 +5348,26 @@ const WorkflowContent = React.memo(
 
         {!embedded && <Panel />}
 
-        {!embedded && oauthModal && (
+        {!embedded && oauthModal && oauthModalRequiresDraft && (
+          <ConnectOAuthModal
+            mode='connect'
+            origin='workflow'
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                setOauthModal(null)
+              }
+            }}
+            provider={oauthModal.provider}
+            providerId={oauthModal.provider}
+            serviceId={oauthModal.serviceId}
+            requiredScopes={oauthModal.requiredScopes}
+            workspaceId={workspaceId}
+            workflowId={workflowIdParam}
+          />
+        )}
+
+        {!embedded && oauthModal && !oauthModalRequiresDraft && (
           <ConnectOAuthModal
             mode='reauthorize'
             open={true}

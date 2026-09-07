@@ -635,6 +635,7 @@ const TOOL_TITLES: Record<string, string> = {
 
   browser_drag: 'Dragging element',
   browser_select_option: 'Selecting option',
+  browser_fill_form: 'Filling form',
   browser_set_checked: 'Updating control',
   browser_hover: 'Hovering element',
   browser_zoom: 'Changing page zoom',
@@ -1332,6 +1333,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Extracting: 'Extracted',
   Fading: 'Faded',
   Finding: 'Found',
+  Filling: 'Filled',
   Gathering: 'Gathered',
   Generating: 'Generated',
   Going: 'Went',

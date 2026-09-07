@@ -1,46 +1,62 @@
 import { z } from 'zod'
+import {
+  iamActionNamesSchema,
+  iamConnectionShape,
+  iamContextEntriesSchema,
+  iamMarkerSchema,
+  iamMaxItemsSchema,
+  iamPaginationResponseShape,
+  iamPolicySourceArnSchema,
+  iamResourceArnsSchema,
+} from '@/lib/api/contracts/tools/aws/iam-shared'
 import type {
   ContractBody,
   ContractBodyInput,
   ContractJsonResponse,
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
 const Schema = z.object({
-  region: z
-    .string()
-    .min(1, 'AWS region is required')
-    .refine((v) => validateAwsRegion(v).isValid, {
-      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
-    }),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  policySourceArn: z.string().min(1, 'Policy source ARN is required'),
-  actionNames: z.string().min(1, 'Action names are required'),
-  resourceArns: z.string().optional().nullable(),
-  maxResults: z.number().int().min(1).max(1000).optional().nullable(),
-  marker: z.string().optional().nullable(),
+  ...iamConnectionShape,
+  policySourceArn: iamPolicySourceArnSchema,
+  actionNames: iamActionNamesSchema,
+  resourceArns: iamResourceArnsSchema.optional().nullable(),
+  contextEntries: iamContextEntriesSchema.optional().nullable(),
+  maxResults: iamMaxItemsSchema.optional().nullable(),
+  marker: iamMarkerSchema.optional().nullable(),
+})
+
+const MatchedStatementSchema = z.object({
+  sourcePolicyId: z.string(),
+  sourcePolicyType: z.string(),
+})
+
+/**
+ * The decision for one concrete resource ARN. AWS returns a single evaluation result per
+ * action no matter how many resource ARNs were simulated, so per-ARN truth lives only
+ * here — and when concrete ARNs are supplied, so do the missing context values.
+ */
+const ResourceSpecificResultSchema = z.object({
+  evalResourceName: z.string(),
+  evalResourceDecision: z.string(),
+  matchedStatements: z.array(MatchedStatementSchema),
+  missingContextValues: z.array(z.string()),
+  permissionsBoundaryAllowed: z.boolean().nullable(),
+})
+
+const EvaluationResultSchema = z.object({
+  evalActionName: z.string(),
+  evalResourceName: z.string(),
+  evalDecision: z.string(),
+  matchedStatements: z.array(MatchedStatementSchema),
+  missingContextValues: z.array(z.string()),
+  permissionsBoundaryAllowed: z.boolean().nullable(),
+  resourceSpecificResults: z.array(ResourceSpecificResultSchema),
 })
 
 const SimulatePrincipalPolicyResponseSchema = z.object({
-  evaluationResults: z.array(
-    z.object({
-      evalActionName: z.string(),
-      evalResourceName: z.string(),
-      evalDecision: z.string(),
-      matchedStatements: z.array(
-        z.object({
-          sourcePolicyId: z.string(),
-          sourcePolicyType: z.string(),
-        })
-      ),
-      missingContextValues: z.array(z.string()),
-    })
-  ),
-  isTruncated: z.boolean(),
-  marker: z.string().nullable(),
-  count: z.number(),
+  evaluationResults: z.array(EvaluationResultSchema),
+  ...iamPaginationResponseShape,
 })
 
 export const awsIamSimulatePrincipalPolicyContract = defineRouteContract({

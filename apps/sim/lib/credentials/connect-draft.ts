@@ -5,9 +5,14 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, gt, lt } from 'drizzle-orm'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
+import {
+  encryptQuickBooksOAuthClientConfig,
+  type QuickBooksOAuthClientConfig,
+} from '@/lib/oauth/quickbooks-client-config'
 import { credentialProviderMatchesService, getAllOAuthServices } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectDraft')
+const MAX_CONNECT_DRAFT_CREDENTIAL_NAMES = 10_000
 
 export type ConnectDraft = typeof pendingCredentialDraft.$inferSelect
 
@@ -29,8 +34,21 @@ export async function createConnectDraft(params: {
   /** Reconnect only: the credential's actual name, so audit records stay accurate. */
   displayName?: string
   description?: string
+  oauthClientConfig?: QuickBooksOAuthClientConfig
 }): Promise<CreatedConnectDraft> {
   const { userId, workspaceId, providerId, credentialId } = params
+
+  if (providerId === 'quickbooks' && !params.oauthClientConfig) {
+    throw new Error(
+      'QuickBooks requires an OAuth client ID, client secret, environment, and webhook verifier token'
+    )
+  }
+  if (providerId !== 'quickbooks' && params.oauthClientConfig) {
+    throw new Error(`OAuth client configuration is not supported for provider ${providerId}`)
+  }
+  const oauthConfig = params.oauthClientConfig
+    ? await encryptQuickBooksOAuthClientConfig(params.oauthClientConfig)
+    : null
 
   let displayName = params.displayName
   if (!displayName) {
@@ -54,6 +72,10 @@ export async function createConnectDraft(params: {
       .select({ displayName: credential.displayName })
       .from(credential)
       .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
+      .limit(MAX_CONNECT_DRAFT_CREDENTIAL_NAMES + 1)
+    if (rows.length > MAX_CONNECT_DRAFT_CREDENTIAL_NAMES) {
+      throw new Error('Workspace has too many OAuth credentials to generate a default name')
+    }
     const takenNames = new Set(rows.map((credentialRow) => credentialRow.displayName.toLowerCase()))
 
     displayName = defaultCredentialDisplayName(userName, serviceName, takenNames)
@@ -77,6 +99,7 @@ export async function createConnectDraft(params: {
       displayName,
       description: params.description?.trim() || null,
       credentialId: credentialId ?? null,
+      oauthConfig,
       expiresAt,
       createdAt: now,
     })
@@ -96,6 +119,7 @@ export async function createConnectDraft(params: {
         displayName,
         description: params.description?.trim() || null,
         credentialId: credentialId ?? null,
+        oauthConfig,
         expiresAt,
         createdAt: now,
       },

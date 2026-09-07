@@ -120,6 +120,8 @@ const oauthTokenResponseSchema = z.object({
   apiDomain: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
+  realmId: z.string().optional(),
+  quickBooksEnvironment: z.enum(['sandbox', 'production']).optional(),
   authStyle: z.enum(['x-api-token']).optional(),
 })
 
@@ -278,6 +280,31 @@ export const instagramCallbackContract = defineRouteContract({
   response: { mode: 'redirect' },
 })
 
+export const quickBooksCallbackQuerySchema = z
+  .object({
+    code: z
+      .string()
+      .min(1, 'Authorization code cannot be empty')
+      .max(MAX_OAUTH_CODE_LENGTH, 'Authorization code is too long')
+      .optional(),
+    state: z.string().min(1, 'OAuth state cannot be empty').max(4096, 'OAuth state is too long'),
+    realmId: z
+      .string()
+      .min(1, 'QuickBooks company identity cannot be empty')
+      .max(64, 'QuickBooks company identity is too long')
+      .optional(),
+    error: z.string().min(1).max(MAX_OAUTH_ERROR_LENGTH).optional(),
+    error_description: z.string().min(1).max(MAX_OAUTH_ERROR_LENGTH).optional(),
+  })
+  .strip()
+
+export const quickBooksCallbackContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth2/callback/quickbooks',
+  query: quickBooksCallbackQuerySchema,
+  response: { mode: 'redirect' },
+})
+
 export const authorizeOAuth2QuerySchema = z
   .object({
     draftId: oauthCredentialDraftIdSchema.optional(),
@@ -288,7 +315,7 @@ export const authorizeOAuth2QuerySchema = z
   })
   .superRefine((data, ctx) => {
     if (data.draftId) {
-      for (const field of ['providerId', 'workspaceId', 'callbackURL', 'credentialId'] as const) {
+      for (const field of ['providerId', 'workspaceId', 'credentialId'] as const) {
         if (data[field] !== undefined) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,

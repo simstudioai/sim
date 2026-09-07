@@ -10,6 +10,7 @@ import {
 } from '@/lib/core/admission/transient-failure'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { describeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('UsageReservation')
@@ -426,7 +427,7 @@ export type ReserveExecutionSlotResult =
     }
 
 /**
- * Records connection state alongside a failed slot operation.
+ * Records connection state and classifies transient Redis refresh failures.
  *
  * These three functions are the first Redis calls a queued workflow makes, so
  * when the connection is not usable they are where it surfaces — as an
@@ -449,6 +450,16 @@ async function withReservationDiagnostics<T>(
       error: toError(error).message,
       redis: describeRedisConnection(),
     })
+    /** ioredis commandTimeout rejects with an uncoded Error; match it only at the Redis boundary. */
+    if (
+      isRetryableInfrastructureError(error) ||
+      (error instanceof Error && error.name === 'Error' && error.message === 'Command timed out')
+    ) {
+      throw new UsageReservationUnavailableError(
+        'Usage reservation refresh is temporarily unavailable. Please retry.',
+        error
+      )
+    }
     throw error
   }
 }

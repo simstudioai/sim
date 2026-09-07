@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { resolveCredentialDisplay } from '@/lib/integrations'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -211,7 +212,9 @@ export function ConnectedCredentialDetail({
             onClick={
               credential.type === 'service_account'
                 ? () => setReconnectOpen(true)
-                : handleReconnectOAuth
+                : credential.providerId === 'quickbooks'
+                  ? () => setReconnectOpen(true)
+                  : handleReconnectOAuth
             }
             disabled={
               connectOAuthService.isPending ||
@@ -352,6 +355,24 @@ export function ConnectedCredentialDetail({
           credentialId={credential.id}
           credentialDisplayName={credential.displayName}
           credentialDescription={credential.description ?? undefined}
+        />
+      )}
+
+      {credential.type === 'oauth' && credential.providerId === 'quickbooks' && (
+        <ConnectOAuthModal
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          mode='reauthorize'
+          providerId={credential.providerId}
+          serviceName={display?.familyName || serviceConfig?.name || credential.displayName}
+          serviceIcon={display?.icon as ComponentType<{ className?: string }>}
+          toolName='QuickBooks'
+          requiredScopes={serviceConfig?.scopes ?? []}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: credential.id,
+            displayName: credential.displayName,
+          }}
         />
       )}
     </>

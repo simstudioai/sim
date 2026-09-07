@@ -140,6 +140,7 @@ describe('listCredentialProviderCatalog', () => {
         }
       }
       if (serviceId === 'trello') return {}
+      if (serviceId === 'quickbooks') return {}
       return null
     })
   })
@@ -156,6 +157,7 @@ describe('listCredentialProviderCatalog', () => {
         providerFamily: 'salesforce',
         available: true,
         supportsReconnect: true,
+        fields: [],
         authorizationOptions: [
           { providerId: 'salesforce', label: 'Production' },
           { providerId: 'salesforce-sandbox', label: 'Sandbox' },
@@ -169,6 +171,7 @@ describe('listCredentialProviderCatalog', () => {
         providerFamily: 'trello',
         available: false,
         supportsReconnect: true,
+        fields: [],
         authorizationOptions: [{ providerId: 'trello', label: 'Trello' }],
       },
       {
@@ -218,6 +221,70 @@ describe('listCredentialProviderCatalog', () => {
     expect(mocks.createVisibility).toHaveBeenCalledWith(
       expect.objectContaining({ allowedIntegrationTypes: new Set(['salesforce', 'trello']) })
     )
+  })
+
+  it('projects QuickBooks app credentials as write-only OAuth setup fields', async () => {
+    mocks.getAllOAuthServices.mockReturnValue([
+      {
+        serviceId: 'quickbooks',
+        providerId: 'quickbooks',
+        name: 'QuickBooks',
+        description: 'Connect QuickBooks.',
+        baseProvider: 'quickbooks',
+        authType: 'oauth',
+        clientConfiguration: {
+          fields: [
+            {
+              id: 'clientId',
+              label: 'Client ID',
+              placeholder: 'Enter client ID',
+              secret: false,
+            },
+            {
+              id: 'clientSecret',
+              label: 'Client secret',
+              placeholder: 'Enter client secret',
+              secret: true,
+            },
+            {
+              id: 'environment',
+              label: 'Environment',
+              placeholder: 'Select environment',
+              secret: false,
+              options: [
+                { label: 'Sandbox', value: 'sandbox' },
+                { label: 'Production', value: 'production' },
+              ],
+            },
+          ],
+        },
+      },
+    ])
+    mocks.createVisibility.mockReturnValue({
+      isOAuthServiceVisible: () => true,
+      isCredentialVisible: () => false,
+    })
+
+    const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
+
+    expect(catalog[0]).toMatchObject({
+      type: 'oauth',
+      serviceId: 'quickbooks',
+      available: true,
+      fields: [
+        { id: 'clientId', required: true, secret: false },
+        { id: 'clientSecret', required: true, secret: true },
+        {
+          id: 'environment',
+          required: true,
+          secret: false,
+          options: [
+            { label: 'Sandbox', value: 'sandbox' },
+            { label: 'Production', value: 'production' },
+          ],
+        },
+      ],
+    })
   })
 
   it('fails fast when a multi-server provider lacks complete labels', async () => {

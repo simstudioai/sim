@@ -16,6 +16,10 @@ const mockOperations = vi.hoisted(() => ({
   executeIdentityCenterCheckAssignmentStatus: vi.fn(),
   executeIdentityCenterCheckAssignmentDeletionStatus: vi.fn(),
   executeIdentityCenterListAccountAssignments: vi.fn(),
+  executeIdentityCenterListAssignmentsForAccount: vi.fn(),
+  executeIdentityCenterDescribeUser: vi.fn(),
+  executeIdentityCenterDescribeGroup: vi.fn(),
+  executeIdentityCenterListGroupMemberships: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/identity-center/operations', () => mockOperations)
@@ -28,6 +32,13 @@ const CONNECTION = {
   accessKeyId: 'access-key',
   secretAccessKey: 'secret-key',
 }
+
+const INSTANCE_ARN = 'arn:aws:sso:::instance/ssoins-1234567890abcdef'
+const PERMISSION_SET_ARN = 'arn:aws:sso:::permissionSet/ssoins-1234567890abcdef/ps-1234567890abcdef'
+const IDENTITY_STORE_ID = 'd-1234567890'
+const USER_PRINCIPAL_ID = '9067b2d8-8021-70f8-1234-5c6d7e8f9012'
+const GROUP_PRINCIPAL_ID = '1234567890-a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'
+const REQUEST_ID = '11111111-2222-3333-4444-555555555555'
 
 function createRequest(
   overrides: Partial<InternalToolOperationCall> = {}
@@ -65,33 +76,33 @@ const TOOL_CASES = [
   },
   {
     toolId: 'identity_center_list_permission_sets',
-    input: { ...CONNECTION, instanceArn: 'arn:aws:sso:::instance/ssoins-test' },
+    input: { ...CONNECTION, instanceArn: INSTANCE_ARN },
     operation: mockOperations.executeIdentityCenterListPermissionSets,
   },
   {
     toolId: 'identity_center_get_user',
-    input: { ...CONNECTION, identityStoreId: 'd-test', email: 'user@example.com' },
+    input: { ...CONNECTION, identityStoreId: IDENTITY_STORE_ID, email: 'user@example.com' },
     operation: mockOperations.executeIdentityCenterGetUser,
   },
   {
     toolId: 'identity_center_get_group',
-    input: { ...CONNECTION, identityStoreId: 'd-test', displayName: 'Engineering' },
+    input: { ...CONNECTION, identityStoreId: IDENTITY_STORE_ID, displayName: 'Engineering' },
     operation: mockOperations.executeIdentityCenterGetGroup,
   },
   {
     toolId: 'identity_center_list_groups',
-    input: { ...CONNECTION, identityStoreId: 'd-test' },
+    input: { ...CONNECTION, identityStoreId: IDENTITY_STORE_ID },
     operation: mockOperations.executeIdentityCenterListGroups,
   },
   {
     toolId: 'identity_center_create_account_assignment',
     input: {
       ...CONNECTION,
-      instanceArn: 'arn:aws:sso:::instance/ssoins-test',
+      instanceArn: INSTANCE_ARN,
       accountId: '123456789012',
-      permissionSetArn: 'arn:aws:sso:::permissionSet/ssoins-test/ps-test',
+      permissionSetArn: PERMISSION_SET_ARN,
       principalType: 'USER',
-      principalId: 'user-1',
+      principalId: USER_PRINCIPAL_ID,
     },
     operation: mockOperations.executeIdentityCenterCreateAccountAssignment,
   },
@@ -99,11 +110,11 @@ const TOOL_CASES = [
     toolId: 'identity_center_delete_account_assignment',
     input: {
       ...CONNECTION,
-      instanceArn: 'arn:aws:sso:::instance/ssoins-test',
+      instanceArn: INSTANCE_ARN,
       accountId: '123456789012',
-      permissionSetArn: 'arn:aws:sso:::permissionSet/ssoins-test/ps-test',
+      permissionSetArn: PERMISSION_SET_ARN,
       principalType: 'GROUP',
-      principalId: 'group-1',
+      principalId: GROUP_PRINCIPAL_ID,
     },
     operation: mockOperations.executeIdentityCenterDeleteAccountAssignment,
   },
@@ -111,8 +122,8 @@ const TOOL_CASES = [
     toolId: 'identity_center_check_assignment_status',
     input: {
       ...CONNECTION,
-      instanceArn: 'arn:aws:sso:::instance/ssoins-test',
-      requestId: 'request-1',
+      instanceArn: INSTANCE_ARN,
+      requestId: REQUEST_ID,
     },
     operation: mockOperations.executeIdentityCenterCheckAssignmentStatus,
   },
@@ -120,8 +131,8 @@ const TOOL_CASES = [
     toolId: 'identity_center_check_assignment_deletion_status',
     input: {
       ...CONNECTION,
-      instanceArn: 'arn:aws:sso:::instance/ssoins-test',
-      requestId: 'request-1',
+      instanceArn: INSTANCE_ARN,
+      requestId: REQUEST_ID,
     },
     operation: mockOperations.executeIdentityCenterCheckAssignmentDeletionStatus,
   },
@@ -129,11 +140,48 @@ const TOOL_CASES = [
     toolId: 'identity_center_list_account_assignments',
     input: {
       ...CONNECTION,
-      instanceArn: 'arn:aws:sso:::instance/ssoins-test',
+      instanceArn: INSTANCE_ARN,
       principalType: 'USER',
-      principalId: 'user-1',
+      principalId: USER_PRINCIPAL_ID,
     },
     operation: mockOperations.executeIdentityCenterListAccountAssignments,
+  },
+  {
+    toolId: 'identity_center_list_assignments_for_account',
+    input: {
+      ...CONNECTION,
+      instanceArn: INSTANCE_ARN,
+      accountId: '123456789012',
+      permissionSetArn: PERMISSION_SET_ARN,
+    },
+    operation: mockOperations.executeIdentityCenterListAssignmentsForAccount,
+  },
+  {
+    toolId: 'identity_center_describe_user',
+    input: {
+      ...CONNECTION,
+      identityStoreId: IDENTITY_STORE_ID,
+      userId: USER_PRINCIPAL_ID,
+    },
+    operation: mockOperations.executeIdentityCenterDescribeUser,
+  },
+  {
+    toolId: 'identity_center_describe_group',
+    input: {
+      ...CONNECTION,
+      identityStoreId: IDENTITY_STORE_ID,
+      groupId: GROUP_PRINCIPAL_ID,
+    },
+    operation: mockOperations.executeIdentityCenterDescribeGroup,
+  },
+  {
+    toolId: 'identity_center_list_group_memberships',
+    input: {
+      ...CONNECTION,
+      identityStoreId: IDENTITY_STORE_ID,
+      groupId: GROUP_PRINCIPAL_ID,
+    },
+    operation: mockOperations.executeIdentityCenterListGroupMemberships,
   },
 ] as const
 
@@ -179,6 +227,18 @@ describe('executeIdentityCenterTool', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Failed to list Identity Center instances: AWS rejected credentials',
     })
+  })
+
+  it.each([
+    ['a malformed instance ARN', { ...CONNECTION, instanceArn: 'ssoins-test' }],
+    ['a truncated request ID', { ...CONNECTION, instanceArn: INSTANCE_ARN, requestId: 'req-1' }],
+  ])('rejects %s before provider work', async (_label, input) => {
+    const response = await executeIdentityCenterTool(
+      createRequest({ toolId: 'identity_center_check_assignment_status', input })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeIdentityCenterCheckAssignmentStatus).not.toHaveBeenCalled()
   })
 
   it('propagates cancellation without starting provider work', async () => {

@@ -616,26 +616,33 @@ describe('importChromePasswords', () => {
     expect(importCredentials).toHaveBeenCalledWith([expect.any(Object)], 'replace')
   })
 
-  it('keeps credentials from one password store when the other is unreadable', async () => {
-    const localPath = '/arc/Default/Login Data'
-    const accountPath = '/arc/Default/Login Data For Account'
-    const deps = createDeps({
-      listProfiles: async () => [
-        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
-      ],
-      readPasswords: async (path) => {
-        if (path === accountPath) {
-          throw new ImportFailure('unsupported-schema', 'unknown account-store schema')
-        }
-        return readPasswords()
-      },
-    })
+  it.each(['local', 'account'])(
+    'reports a partial import when the %s password store is unreadable',
+    async (failedStore) => {
+      const localPath = '/arc/Default/Login Data'
+      const accountPath = '/arc/Default/Login Data For Account'
+      const deps = createDeps({
+        listProfiles: async () => [
+          { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+        ],
+        readPasswords: async (path) => {
+          if (path === (failedStore === 'local' ? localPath : accountPath)) {
+            throw new ImportFailure('unsupported-schema', 'unknown account-store schema')
+          }
+          return readPasswords()
+        },
+      })
 
-    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toMatchObject({
-      passwordsAdded: 1,
-      passwordsSkipped: 0,
-    })
-  })
+      await expect(importChromeData('arc:Default', 'replace', deps)).resolves.toMatchObject({
+        cookies: { cookiesImported: 1 },
+        passwords: {
+          passwordsAdded: 1,
+          passwordsSkipped: 0,
+          error: 'unsupported-schema',
+        },
+      })
+    }
+  )
 
   it('surfaces a failed password store when the other store only has unreadable rows', async () => {
     const localPath = '/arc/Default/Login Data'

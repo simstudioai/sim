@@ -423,6 +423,15 @@ describe('OAuth Token Refresh', () => {
         providerId: 'bitbucket',
         endpoint: 'https://bitbucket.org/site/oauth2/access_token',
       },
+      {
+        name: 'QuickBooks',
+        providerId: 'quickbooks',
+        endpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        clientOverride: {
+          clientId: 'quickbooks_client_id',
+          clientSecret: 'quickbooks_client_secret',
+        },
+      },
       { name: 'X (Twitter)', providerId: 'x', endpoint: 'https://api.x.com/2/oauth2/token' },
       {
         name: 'Confluence',
@@ -453,14 +462,16 @@ describe('OAuth Token Refresh', () => {
       },
     ]
 
-    basicAuthProviders.forEach(({ name, providerId, endpoint }) => {
+    basicAuthProviders.forEach(({ name, providerId, endpoint, clientOverride }) => {
       it.concurrent(
         `should send ${name} request with Basic Auth header and no credentials in body`,
         async () => {
           const mockFetch = createMockFetch(defaultOAuthResponse)
           const refreshToken = 'test_refresh_token'
 
-          await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, refreshToken))
+          await withMockFetch(mockFetch, () =>
+            refreshOAuthToken(providerId, refreshToken, clientOverride)
+          )
 
           expect(mockFetch).toHaveBeenCalledWith(
             endpoint,
@@ -500,6 +511,58 @@ describe('OAuth Token Refresh', () => {
           expect(bodyParams.get('client_secret')).toBeNull()
         }
       )
+    })
+
+    it('preserves Intuit refresh-token lifetime metadata', async () => {
+      const mockFetch = createMockFetch({
+        ok: true,
+        json: {
+          access_token: 'new-access-token',
+          expires_in: 3600,
+          refresh_token: 'new-refresh-token',
+          x_refresh_token_expires_in: 8_726_400,
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('quickbooks', 'old-refresh-token', {
+          clientId: 'quickbooks-client-id',
+          clientSecret: 'quickbooks-client-secret',
+          environment: 'sandbox',
+        })
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'new-access-token',
+        expiresIn: 3600,
+        refreshToken: 'new-refresh-token',
+        refreshTokenExpiresIn: 8_726_400,
+      })
+    })
+
+    it('rejects a QuickBooks refresh response that omits its rotated refresh token', async () => {
+      const mockFetch = createMockFetch({
+        ok: true,
+        json: {
+          access_token: 'new-access-token',
+          expires_in: 3600,
+          x_refresh_token_expires_in: 8_726_400,
+        },
+      })
+
+      await expect(
+        withMockFetch(mockFetch, () =>
+          refreshOAuthToken('quickbooks', 'old-refresh-token', {
+            clientId: 'quickbooks-client-id',
+            clientSecret: 'quickbooks-client-secret',
+            environment: 'sandbox',
+          })
+        )
+      ).resolves.toEqual({
+        ok: false,
+        message: 'Invalid QuickBooks token refresh response',
+      })
     })
   })
 

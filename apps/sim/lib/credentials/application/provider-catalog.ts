@@ -54,6 +54,7 @@ export interface OAuthCredentialProviderCatalogEntry extends CredentialProviderC
   type: 'oauth'
   supportsReconnect: boolean
   authorizationOptions: CredentialProviderAuthorizationOption[]
+  fields: CredentialProviderField[]
 }
 
 export interface ServiceAccountCredentialProviderCatalogEntry
@@ -259,6 +260,16 @@ export async function listCredentialProviderCatalog(
       available: visibility.isOAuthServiceVisible(service),
       supportsReconnect: true,
       authorizationOptions,
+      fields: (service.clientConfiguration?.fields ?? []).map((field) => ({
+        id: field.id,
+        label: field.label,
+        placeholder: field.placeholder,
+        required: true,
+        secret: field.secret,
+        multiline: false,
+        ...(field.options ? { options: [...field.options] } : {}),
+        ...(field.hint ? { hint: field.hint } : {}),
+      })),
     }
   })
 

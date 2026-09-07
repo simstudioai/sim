@@ -165,9 +165,9 @@ export async function clearCredentialRefs(
 /**
  * Deactivates app-level trigger webhooks bound to this credential so inbound
  * events stop routing once the account is disconnected. Native Slack and
- * TikTok rows reference it via `providerConfig.credentialId`; custom-bot Slack
- * rows use `routingKey` = the bot credential id. Neither is a foreign key, so
- * neither is covered by CASCADE.
+ * QuickBooks and TikTok rows reference it via `providerConfig.credentialId`;
+ * custom-bot Slack rows use `routingKey` = the bot credential id. None is a
+ * foreign key, so none is covered by CASCADE.
  */
 async function deactivateCredentialBoundWebhooks(credentialId: string): Promise<void> {
   await db
@@ -183,6 +183,10 @@ async function deactivateCredentialBoundWebhooks(credentialId: string): Promise<
           ),
           and(
             eq(schema.webhook.provider, 'tiktok'),
+            sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
+          ),
+          and(
+            eq(schema.webhook.provider, 'quickbooks'),
             sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
           ),
           and(eq(schema.webhook.provider, 'slack'), eq(schema.webhook.routingKey, credentialId))

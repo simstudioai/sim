@@ -302,13 +302,71 @@ export const workspaceCredentialMemberSchema = z.object({
 
 export type WorkspaceCredentialMember = z.output<typeof workspaceCredentialMemberSchema>
 
-export const createCredentialDraftBodySchema = z.object({
-  workspaceId: z.string().min(1),
-  providerId: z.string().min(1),
-  displayName: z.string().min(1),
-  description: z.string().trim().max(500).optional(),
-  credentialId: z.string().min(1).optional(),
-})
+export const quickBooksOAuthClientConfigSchema = z
+  .object({
+    clientId: z
+      .string({ error: 'QuickBooks client ID is required' })
+      .trim()
+      .min(1, 'QuickBooks client ID is required')
+      .max(255, 'QuickBooks client ID must be at most 255 characters')
+      .describe('Client ID for the caller-managed Intuit OAuth application.'),
+    clientSecret: z
+      .string({ error: 'QuickBooks client secret is required' })
+      .trim()
+      .min(1, 'QuickBooks client secret is required')
+      .max(512, 'QuickBooks client secret must be at most 512 characters')
+      .describe('Write-only client secret for the caller-managed Intuit OAuth application.')
+      .meta({ writeOnly: true }),
+    environment: z
+      .enum(['sandbox', 'production'], {
+        error: 'QuickBooks environment must be sandbox or production',
+      })
+      .describe('Intuit company environment used for authorization and API requests.'),
+    webhookVerifierToken: z
+      .string({ error: 'QuickBooks webhook verifier token is required' })
+      .trim()
+      .min(1, 'QuickBooks webhook verifier token is required')
+      .max(512, 'QuickBooks webhook verifier token must be at most 512 characters')
+      .describe('Write-only verifier token for webhook signatures from the caller-managed app.')
+      .meta({ writeOnly: true }),
+  })
+  .strict()
+
+export type QuickBooksOAuthClientConfigInput = z.input<typeof quickBooksOAuthClientConfigSchema>
+
+export function refineOAuthClientConfigForProvider(
+  value: {
+    providerId: string
+    oauthClientConfig?: QuickBooksOAuthClientConfigInput
+  },
+  ctx: z.RefinementCtx
+): void {
+  if (value.providerId === 'quickbooks' && !value.oauthClientConfig) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['oauthClientConfig'],
+      message: 'oauthClientConfig is required for QuickBooks',
+    })
+  }
+  if (value.providerId !== 'quickbooks' && value.oauthClientConfig) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['oauthClientConfig'],
+      message: 'oauthClientConfig is only supported for QuickBooks',
+    })
+  }
+}
+
+export const createCredentialDraftBodySchema = z
+  .object({
+    workspaceId: z.string().min(1),
+    providerId: z.string().min(1),
+    displayName: z.string().min(1),
+    description: z.string().trim().max(500).optional(),
+    credentialId: z.string().min(1).optional(),
+    oauthClientConfig: quickBooksOAuthClientConfigSchema.optional(),
+  })
+  .superRefine(refineOAuthClientConfigForProvider)
 
 export const upsertWorkspaceCredentialMemberBodySchema = z.object({
   userId: z.string().min(1),

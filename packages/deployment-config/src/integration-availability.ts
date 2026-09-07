@@ -2,6 +2,7 @@ import type { EnvCapabilityValues } from './env-capabilities'
 import { inspectOAuthClientCapability, resolveOAuthClientCapabilityId } from './env-capabilities'
 import integrationsJson from './integrations.json'
 import { getServiceAccountMetadata } from './service-account-metadata'
+import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from './service-account-providers.generated'
 
 export type IntegrationAvailabilityState = 'ready' | 'limited' | 'unavailable' | 'misconfigured'
 
@@ -25,6 +26,7 @@ interface DeploymentIntegration {
 }
 
 const integrations = integrationsJson.integrations as readonly DeploymentIntegration[]
+const credentialConfiguredOAuthServiceIds = new Set<string>(CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS)
 const deploymentGatedIntegrationTypes = new Set(
   integrations
     .filter((integration) => integration.authType === 'oauth')
@@ -84,6 +86,17 @@ function resolveOAuthIntegrationAvailability(
   const serviceAccount = getServiceAccountMetadata(oauthServiceId)
 
   if (!capabilityId) {
+    if (credentialConfiguredOAuthServiceIds.has(oauthServiceId)) {
+      return {
+        type: integration.type,
+        slug: integration.slug,
+        name: integration.name,
+        state: 'ready',
+        oauthAvailable: true,
+        serviceAccountAvailable: false,
+        missingFields: [],
+      }
+    }
     throw new Error(
       `OAuth integration ${integration.slug} has no OAuth client capability definition`
     )

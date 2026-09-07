@@ -21,12 +21,14 @@ import {
   projectDesiredWebhookProviderConfig,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
 import {
   prepareStableWebhookRegistrations,
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
+import { getSlackNativeSigningSecret } from '@/lib/webhooks/slack-native-config'
 import {
   isSlackStreamResponseRequested,
   normalizeSlackStreamResponseConfig,
@@ -516,6 +518,16 @@ export async function resolveWebhookConfigForBlock(input: {
           },
         }
       }
+      if (!getSlackNativeSigningSecret()) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The Sim Slack app trigger is not configured for this deployment. Configure its signing secret or select a custom bot.',
+            status: 400,
+          },
+        }
+      }
       if (isSlackStreamResponseRequested(providerConfig)) {
         return {
           success: false,
@@ -677,6 +689,30 @@ export async function resolveWebhookConfigForBlock(input: {
 
     effectivePath = null
     routingKey = openId
+  }
+
+  const handler = getProviderHandler(triggerDef.provider)
+  if (handler?.prepareDeploymentConfig) {
+    try {
+      const prepared = await handler.prepareDeploymentConfig({
+        credentialId,
+        providerConfig,
+        requestId: input.requestId,
+        triggerId,
+      })
+      effectiveProvider = prepared.provider ?? effectiveProvider
+      Object.assign(providerConfig, prepared.providerConfigUpdates)
+      if (prepared.triggerPath !== undefined) effectivePath = prepared.triggerPath
+      if (prepared.routingKey !== undefined) routingKey = prepared.routingKey
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
+          status: error instanceof WebhookDeploymentConfigurationError ? 400 : 500,
+        },
+      }
+    }
   }
 
   return {

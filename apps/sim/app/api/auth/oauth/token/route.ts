@@ -17,6 +17,7 @@ import { getCredential, getOAuthToken } from '@/lib/oauth/credential-service'
 import {
   completeOAuthCredentialToken,
   resolveCredentialAccessToken,
+  validateOAuthCredentialContext,
 } from '@/lib/oauth/token-resolution'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -194,6 +195,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    const contextValidation = validateOAuthCredentialContext(credential)
+    if (!contextValidation.ok) {
+      return NextResponse.json({ error: contextValidation.error }, { status: 401 })
     }
 
     if (!credential.accessToken) {

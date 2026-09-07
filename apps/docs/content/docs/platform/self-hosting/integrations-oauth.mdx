@@ -196,6 +196,8 @@ Webhook triggers receive callbacks from the provider and must be able to verify 
 | `SLACK_SIGNING_SECRET` | Verifying Slack event and slash-command signatures |
 | `SLACK_EXTENDED_SCOPES` / `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` | Enabling the native Sim-app trigger and its broader Slack scope set; set both to the same value |
 
+When enabling the native Sim Slack trigger, configure all three variables together. Enable the extended-scope flags only after Slack approves the app for `assistant:write`, `app_mentions:read`, and `im:history`; otherwise Slack rejects OAuth authorization. Slack OAuth actions can use `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET` without enabling the native trigger or supplying a signing secret.
+
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 
 <FAQ items={[

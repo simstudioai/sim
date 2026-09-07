@@ -96,6 +96,22 @@ export interface PollingConfigContext {
   persistProviderConfig?(providerConfig: Record<string, unknown>): Promise<boolean>
 }
 
+/** Context for provider-owned routing/config resolution during deployment. */
+export interface DeploymentConfigContext {
+  credentialId?: string
+  providerConfig: Record<string, unknown>
+  requestId: string
+  triggerId: string
+}
+
+/** Provider-owned updates to the canonical webhook registration. */
+export interface DeploymentConfigResult {
+  provider?: string
+  providerConfigUpdates?: Record<string, unknown>
+  triggerPath?: string | null
+  routingKey?: string | null
+}
+
 /**
  * Strategy interface for provider-specific webhook behavior.
  * Each provider implements only the methods it needs — all methods are optional.
@@ -177,6 +193,9 @@ export interface WebhookProviderHandler {
 
   /** Post-process input to handle file uploads before execution. */
   processInputFiles?(ctx: ProcessFilesContext): Promise<void>
+
+  /** Resolve provider-specific routing and persisted config after generic credential validation. */
+  prepareDeploymentConfig?(ctx: DeploymentConfigContext): Promise<DeploymentConfigResult>
 
   /** Create an external webhook subscription (e.g., register with Telegram, Airtable, etc.). */
   createSubscription?(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined>

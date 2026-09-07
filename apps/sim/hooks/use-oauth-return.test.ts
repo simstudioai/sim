@@ -21,7 +21,11 @@ vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
 }))
 
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
-import { resolveOAuthMessage } from '@/hooks/use-oauth-return'
+import {
+  buildKnowledgeBaseOAuthReturnUrl,
+  resolveOAuthCallbackError,
+  resolveOAuthMessage,
+} from '@/hooks/use-oauth-return'
 
 const context: OAuthReturnContext = {
   origin: 'integrations',
@@ -95,5 +99,36 @@ describe('resolveOAuthMessage', () => {
       kind: 'error',
       text: 'We couldn’t verify the "New Gmail" connection. Try again.',
     })
+  })
+})
+
+describe('resolveOAuthCallbackError', () => {
+  it('prevents a provider rejection from being reported as reconnect success', () => {
+    expect(
+      resolveOAuthCallbackError(
+        'https://sim.ai/workspace/workspace-1/integrations?error=quickbooks_access_denied',
+        context
+      )
+    ).toEqual({
+      kind: 'error',
+      text: 'The "New Gmail" connection didn’t finish. Try again.',
+    })
+  })
+
+  it('returns no error for a successful callback URL', () => {
+    expect(
+      resolveOAuthCallbackError(
+        'https://sim.ai/workspace/workspace-1/integrations?connected=true',
+        context
+      )
+    ).toBeNull()
+  })
+})
+
+describe('buildKnowledgeBaseOAuthReturnUrl', () => {
+  it('preserves the connector picker on both successful and failed OAuth returns', () => {
+    expect(buildKnowledgeBaseOAuthReturnUrl('workspace-1', 'kb-1', 'google_drive')).toBe(
+      '/workspace/workspace-1/knowledge/kb-1?addConnector=google_drive'
+    )
   })
 })

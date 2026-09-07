@@ -5,8 +5,17 @@ import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { BlockType } from '@/executor/constants'
+import { DAGBuilder } from '@/executor/dag/builder'
+import { EdgeManager } from '@/executor/execution/edge-manager'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
-import type { BlockState, ExecutionContext } from '@/executor/types'
+import type { BlockState, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import {
+  buildBranchNodeId,
+  buildParallelSentinelEndId,
+  buildParallelSentinelStartId,
+  buildSentinelEndId,
+  buildSentinelStartId,
+} from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/tools', () => ({
@@ -457,6 +466,204 @@ describe('ConditionBlockHandler', () => {
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       `Target block ${mockTargetBlock1.id} not found`
+    )
+    expect(mockExecuteTool).toHaveBeenCalledOnce()
+    expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
+  })
+
+  it('preserves routing metadata when the target block is disabled', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+    const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
+    const inputs = { conditions: JSON.stringify(conditions) }
+
+    mockTargetBlock1.enabled = false
+
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(result).toEqual({
+      value: 10,
+      text: 'hello',
+      conditionResult: true,
+      selectedOption: 'cond1',
+      selectedPath: {
+        blockId: mockTargetBlock1.id,
+        blockType: 'target',
+        blockTitle: 'Target Block 1',
+      },
+    })
+    expect(mockExecuteTool).toHaveBeenCalledOnce()
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
+  })
+
+  describe('Dead-end routing through the DAG', () => {
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'true' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    it('does not activate the else branch when the matching target is disabled', async () => {
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+      mockTargetBlock1.enabled = false
+      const workflow: SerializedWorkflow = {
+        ...mockContext.workflow!,
+        version: '1',
+        loops: {},
+      }
+      const dag = new DAGBuilder().build(workflow, { triggerBlockId: mockSourceBlock.id })
+      const edgeManager = new EdgeManager(dag)
+
+      const output = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(conditions),
+      })
+      const readyNodes = edgeManager.processOutgoingEdges(
+        dag.nodes.get(mockBlock.id)!,
+        output as NormalizedBlockOutput
+      )
+
+      expect(dag.nodes.has(mockTargetBlock1.id)).toBe(false)
+      expect(readyNodes).toEqual([])
+      expect(edgeManager.hasActivatedEdge(mockTargetBlock2.id)).toBe(false)
+      expect(output).toMatchObject({
+        selectedOption: 'cond1',
+        selectedPath: { blockId: mockTargetBlock1.id },
+      })
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('records a disabled else branch without evaluating an expression', async () => {
+      mockTargetBlock2.enabled = false
+
+      const output = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify([conditions[1]]),
+      })
+
+      expect(output).toMatchObject({
+        conditionResult: true,
+        selectedOption: 'else1',
+        selectedPath: { blockId: mockTargetBlock2.id },
+      })
+      expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
+      expect(mockExecuteTool).not.toHaveBeenCalled()
+    })
+
+    it.each(['loop', 'parallel'] as const)(
+      'completes the enclosing %s when the selected target is disabled',
+      async (subflowType) => {
+        mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+        mockTargetBlock1.enabled = false
+        const subflowId = 'enclosing-subflow'
+        const subflowBlock: SerializedBlock = {
+          ...mockSourceBlock,
+          id: subflowId,
+          metadata: { id: subflowType === 'loop' ? BlockType.LOOP : BlockType.PARALLEL },
+        }
+        const nodes = [mockBlock.id, mockTargetBlock1.id, mockTargetBlock2.id]
+        const workflow: SerializedWorkflow = {
+          version: '1',
+          blocks: [...mockContext.workflow!.blocks, subflowBlock],
+          connections: [
+            { source: mockSourceBlock.id, target: subflowId },
+            {
+              source: subflowId,
+              target: mockBlock.id,
+              sourceHandle: subflowType === 'loop' ? 'loop-start-source' : 'parallel-start-source',
+            },
+            ...mockContext.workflow!.connections.filter((edge) => edge.source === mockBlock.id),
+          ],
+          loops:
+            subflowType === 'loop' ? { [subflowId]: { id: subflowId, nodes, iterations: 2 } } : {},
+          parallels:
+            subflowType === 'parallel'
+              ? { [subflowId]: { id: subflowId, nodes, count: 2, parallelType: 'count' } }
+              : {},
+        }
+        mockContext.workflow = workflow
+        const dag = new DAGBuilder().build(workflow, { triggerBlockId: mockSourceBlock.id })
+        const edgeManager = new EdgeManager(dag)
+        const conditionNodeId =
+          subflowType === 'loop' ? mockBlock.id : buildBranchNodeId(mockBlock.id, 0)
+        const sentinelStartId =
+          subflowType === 'loop'
+            ? buildSentinelStartId(subflowId)
+            : buildParallelSentinelStartId(subflowId)
+        const sentinelEndId =
+          subflowType === 'loop'
+            ? buildSentinelEndId(subflowId)
+            : buildParallelSentinelEndId(subflowId)
+        const conditionNode = dag.nodes.get(conditionNodeId)!
+        mockContext.currentVirtualBlockId = conditionNodeId
+        edgeManager.processOutgoingEdges(dag.nodes.get(mockSourceBlock.id)!, {})
+        const readyAfterStart = edgeManager.processOutgoingEdges(
+          dag.nodes.get(sentinelStartId)!,
+          {}
+        )
+
+        const output = await handler.execute(mockContext, conditionNode.block, {
+          conditions: JSON.stringify(conditions),
+        })
+        const readyAfterCondition = edgeManager.processOutgoingEdges(
+          conditionNode,
+          output as NormalizedBlockOutput
+        )
+
+        expect(readyAfterStart).toContain(conditionNodeId)
+        expect(readyAfterCondition).toEqual([sentinelEndId])
+        expect(mockContext.decisions.condition.get(conditionNodeId)).toBe('cond1')
+        expect(output).toMatchObject({
+          selectedOption: 'cond1',
+          selectedPath: { blockId: mockTargetBlock1.id },
+        })
+      }
+    )
+
+    it.each(['before', 'after'] as const)(
+      'releases a join whose independent path completes %s the dead-end condition',
+      async (independentPathOrder) => {
+        mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+        mockTargetBlock1.enabled = false
+        const independentBlock: SerializedBlock = { ...mockSourceBlock, id: 'independent' }
+        const joinBlock: SerializedBlock = { ...mockTargetBlock2, id: 'join' }
+        const workflow: SerializedWorkflow = {
+          version: '1',
+          loops: {},
+          blocks: [...mockContext.workflow!.blocks, independentBlock, joinBlock],
+          connections: [
+            ...mockContext.workflow!.connections,
+            { source: mockSourceBlock.id, target: independentBlock.id },
+            { source: independentBlock.id, target: joinBlock.id },
+            { source: mockTargetBlock2.id, target: joinBlock.id },
+          ],
+        }
+        mockContext.workflow = workflow
+        const dag = new DAGBuilder().build(workflow, { triggerBlockId: mockSourceBlock.id })
+        const edgeManager = new EdgeManager(dag)
+        edgeManager.processOutgoingEdges(dag.nodes.get(mockSourceBlock.id)!, {})
+        const readyNodes: string[] = []
+        if (independentPathOrder === 'before') {
+          readyNodes.push(
+            ...edgeManager.processOutgoingEdges(dag.nodes.get(independentBlock.id)!, {})
+          )
+        }
+
+        const output = await handler.execute(mockContext, mockBlock, {
+          conditions: JSON.stringify(conditions),
+        })
+        readyNodes.push(
+          ...edgeManager.processOutgoingEdges(
+            dag.nodes.get(mockBlock.id)!,
+            output as NormalizedBlockOutput
+          )
+        )
+        if (independentPathOrder === 'after') {
+          readyNodes.push(
+            ...edgeManager.processOutgoingEdges(dag.nodes.get(independentBlock.id)!, {})
+          )
+        }
+
+        expect(readyNodes).toEqual([joinBlock.id])
+        expect(edgeManager.hasActivatedEdge(mockTargetBlock2.id)).toBe(false)
+      }
     )
   })
 

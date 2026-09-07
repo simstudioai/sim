@@ -171,6 +171,13 @@ export const credentialOperations = {
     capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
+  completeConnection: defineWorkspaceOperation({
+    id: 'credentials.connections.complete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session'],
+  }),
   useManagedOAuth: defineWorkspaceOperation({
     id: 'credentials.managed_oauth.use',
     minimumRole: 'read',

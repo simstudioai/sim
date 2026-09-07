@@ -8,6 +8,7 @@ import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/c
 import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
 import { ComparisonCards } from '@/app/(landing)/comparisons/components/comparison-cards'
 import { ComparisonTable } from '@/app/(landing)/comparisons/components/comparison-table'
+import { ProseText } from '@/app/(landing)/comparisons/components/prose-text'
 import {
   ALL_COMPETITORS,
   buildBottomLine,
@@ -173,6 +174,11 @@ export default async function ComparisonProviderPage({
             >
               Sim vs {competitor.name}
             </h1>
+            {competitor.leadAnswer ? (
+              <p className='max-w-[720px] text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+                <ProseText prose={competitor.leadAnswer} />
+              </p>
+            ) : null}
             <p className='max-w-[720px] text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
               Sim is the open-source AI workspace where teams build, deploy, and manage AI agents
               visually, conversationally, or with code. Here is how Sim compares to{' '}
@@ -201,6 +207,22 @@ export default async function ComparisonProviderPage({
 
         <div className='mx-auto w-full max-w-[1446px]'>
           <div className='mx-12 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+            {competitor.betterThanAnswer ? (
+              <>
+                <section aria-labelledby='better-than-heading' className='px-6 py-10'>
+                  <h2
+                    id='better-than-heading'
+                    className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                  >
+                    Is Sim better than {competitor.name}?
+                  </h2>
+                  <p className='max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                    <ProseText prose={competitor.betterThanAnswer} />
+                  </p>
+                </section>
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            ) : null}
             <div className='grid grid-cols-1 sm:grid-cols-2'>
               <section
                 aria-labelledby='what-is-sim-heading'
@@ -240,15 +262,44 @@ export default async function ComparisonProviderPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='comparison-table-heading' className='px-6 py-10'>
+            <section aria-labelledby='comparison-table-heading' className='px-6 pt-10 pb-4'>
               <h2
                 id='comparison-table-heading'
                 className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
               >
                 Sim vs {competitor.name}: feature-by-feature comparison
               </h2>
-              <ComparisonTable sim={simProfile} competitor={competitor} />
+              <p className='max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                The sections below compare Sim and {competitor.name} across platform and deployment,
+                pricing, security and compliance, AI capabilities, integrations, observability, and
+                support.
+              </p>
             </section>
+
+            {COMPARISON_SECTIONS.map((section) => {
+              const sectionIntro = competitor.sectionIntros?.[section.group]
+
+              return (
+                <section
+                  key={section.group}
+                  aria-labelledby={`comparison-section-${section.group}-heading`}
+                  className='px-6 pb-10'
+                >
+                  <h2
+                    id={`comparison-section-${section.group}-heading`}
+                    className='mb-3 text-[18px] text-[var(--text-primary)] leading-snug tracking-[-0.01em]'
+                  >
+                    {section.title}
+                  </h2>
+                  {sectionIntro ? (
+                    <p className='mb-4 max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                      <ProseText prose={sectionIntro} />
+                    </p>
+                  ) : null}
+                  <ComparisonTable sim={simProfile} competitor={competitor} section={section} />
+                </section>
+              )
+            })}
 
             <div className='h-px w-full bg-[var(--border)]' />
 

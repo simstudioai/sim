@@ -16,6 +16,7 @@ const {
   mockEndScopedExecution,
   mockExecute,
   mockExecuteFromBlock,
+  mockFindStartBlock,
   mockFetch,
   mockHandleExecutionCancelledConsole,
   mockHandleExecutionErrorConsole,
@@ -101,6 +102,7 @@ const {
     mockEndScopedExecution: vi.fn(() => true),
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
+    mockFindStartBlock: vi.fn(() => ({ blockId: 'start' })),
     mockFetch: vi.fn(),
     mockHandleExecutionCancelledConsole: vi.fn(),
     mockHandleExecutionErrorConsole: vi.fn(),
@@ -180,7 +182,7 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
     EXTERNAL_TRIGGER: 'external-trigger',
   },
   TriggerUtils: {
-    findStartBlock: () => ({ blockId: 'start' }),
+    findStartBlock: mockFindStartBlock,
     getTriggerValidationMessage: () => 'Missing trigger',
   },
 }))
@@ -1097,6 +1099,7 @@ describe('useWorkflowExecution attachment uploads', () => {
     }
     executionStoreState.getLastExecutionSnapshot.mockReturnValueOnce(sourceSnapshot)
     workflowStoreState.edges.push({ source: 'start', target: 'function-1' } as never)
+    workflowStoreState.edges.push({ source: 'function-1', target: 'disabledBranch' } as never)
     const currentBlocks = {
       ...workflowBlocks,
       'function-1': {
@@ -1105,6 +1108,18 @@ describe('useWorkflowExecution attachment uploads', () => {
         name: 'Function 1',
         enabled: true,
         subBlocks: { code: { value: 'return "current editor state"' } },
+      },
+      disabledBranch: {
+        id: 'disabledBranch',
+        type: 'slack',
+        name: 'Disabled Branch',
+        enabled: false,
+        subBlocks: {},
+      },
+      disabledTrigger: {
+        ...workflowBlocks.start,
+        id: 'disabledTrigger',
+        enabled: false,
       },
     }
     workflowStoreState.getWorkflowState.mockReturnValueOnce({
@@ -1147,10 +1162,23 @@ describe('useWorkflowExecution attachment uploads', () => {
         ...workflowBlocks.start,
         subBlocks: { inputFormat: { value: 'current-editor-state' } },
       },
+      disabledBranch: {
+        id: 'disabledBranch',
+        type: 'slack',
+        name: 'Disabled Branch',
+        enabled: false,
+        subBlocks: {},
+      },
+      disabledTrigger: {
+        ...workflowBlocks.start,
+        id: 'disabledTrigger',
+        enabled: false,
+      },
     }
+    const currentEdges = [{ source: 'start', target: 'disabledBranch' }]
     workflowStoreState.getWorkflowState.mockReturnValueOnce({
       blocks: currentBlocks,
-      edges: [],
+      edges: currentEdges,
       loops: {},
       parallels: {},
     })
@@ -1181,11 +1209,15 @@ describe('useWorkflowExecution attachment uploads', () => {
         isClientSession: true,
         workflowStateOverride: {
           blocks: currentBlocks,
-          edges: [],
+          edges: currentEdges,
           loops: {},
           parallels: {},
         },
       })
+    )
+    expect(mockResolveStartCandidates).toHaveBeenCalledWith(
+      { start: currentBlocks.start },
+      { execution: 'manual' }
     )
     expect(mockExecute.mock.calls[0]?.[0]).not.toHaveProperty('sourceSnapshot')
     expect(mockExecuteFromBlock).not.toHaveBeenCalled()
@@ -1276,4 +1308,103 @@ describe('useWorkflowExecution attachment uploads', () => {
 
     unmount()
   })
+})
+
+describe('useWorkflowExecution workflow state override', () => {
+  beforeEach(() => {
+    resetWorkflowExecutionTestState()
+    vi.stubGlobal('fetch', mockFetch)
+    const startCandidate = {
+      blockId: 'start',
+      block: workflowBlocks.start,
+      path: 'legacy-starter',
+    }
+    mockResolveStartCandidates.mockReturnValue([startCandidate])
+    mockSelectBestTrigger.mockReturnValue([startCandidate])
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it.each(['manual', 'chat', 'run-until'] as const)(
+    'keeps disabled blocks and edges in %s payloads while excluding disabled triggers',
+    async (triggerType) => {
+      const blocks = {
+        ...workflowBlocks,
+        condition1: {
+          id: 'condition1',
+          type: 'condition',
+          name: 'Check',
+          enabled: true,
+          subBlocks: {},
+        },
+        disabledBranch: {
+          id: 'disabledBranch',
+          type: 'slack',
+          name: 'Send Empty',
+          enabled: false,
+          subBlocks: {},
+        },
+        disabledTrigger: {
+          ...workflowBlocks.start,
+          id: 'disabledTrigger',
+          enabled: false,
+        },
+      }
+      const edges = [
+        {
+          id: 'edge-1',
+          source: 'condition1',
+          target: 'disabledBranch',
+          sourceHandle: 'condition-else1',
+        },
+      ]
+      workflowStoreState.getWorkflowState.mockReturnValueOnce({
+        blocks: { ...blocks, layout: { id: 'layout' } },
+        edges,
+        loops: {},
+        parallels: {},
+      })
+      const { result, unmount } = renderWorkflowExecutionHook()
+
+      await act(async () => {
+        if (triggerType === 'run-until') {
+          await result().handleRunUntilBlock('condition1', 'workflow-1')
+          return
+        }
+        const runResult = await result().handleRunWorkflow(
+          triggerType === 'chat'
+            ? {
+                input: 'go',
+                conversationId: 'conversation-1',
+              }
+            : undefined
+        )
+        await drainStream(runResult)
+      })
+
+      expect(mockExecute).toHaveBeenCalledTimes(1)
+      const { workflowStateOverride } = mockExecute.mock.calls[0][0]
+      const sentBlockIds = new Set(Object.keys(workflowStateOverride.blocks))
+
+      expect(workflowStateOverride.blocks).toEqual(blocks)
+      expect(workflowStateOverride.edges).toEqual(edges)
+      expect(sentBlockIds.has('disabledBranch')).toBe(true)
+      for (const edge of workflowStateOverride.edges) {
+        expect(sentBlockIds.has(edge.source)).toBe(true)
+        expect(sentBlockIds.has(edge.target)).toBe(true)
+      }
+      const enabledBlocks = { start: blocks.start, condition1: blocks.condition1 }
+      if (triggerType === 'chat') {
+        expect(mockFindStartBlock).toHaveBeenCalledWith(enabledBlocks, 'chat')
+      } else {
+        expect(mockResolveStartCandidates).toHaveBeenCalledWith(enabledBlocks, {
+          execution: 'manual',
+        })
+      }
+
+      unmount()
+    }
+  )
 })

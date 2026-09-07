@@ -58,6 +58,32 @@ export interface IdentityCenterListAccountAssignmentsParams extends IdentityCent
   nextToken?: string | null
 }
 
+export interface IdentityCenterListAssignmentsForAccountParams
+  extends IdentityCenterConnectionConfig {
+  instanceArn: string
+  accountId: string
+  permissionSetArn: string
+  maxResults?: number | null
+  nextToken?: string | null
+}
+
+export interface IdentityCenterDescribeUserParams extends IdentityCenterConnectionConfig {
+  identityStoreId: string
+  userId: string
+}
+
+export interface IdentityCenterDescribeGroupParams extends IdentityCenterConnectionConfig {
+  identityStoreId: string
+  groupId: string
+}
+
+export interface IdentityCenterListGroupMembershipsParams extends IdentityCenterConnectionConfig {
+  identityStoreId: string
+  groupId: string
+  maxResults?: number | null
+  nextToken?: string | null
+}
+
 export interface IdentityCenterListGroupsParams extends IdentityCenterConnectionConfig {
   identityStoreId: string
   maxResults?: number | null
@@ -196,6 +222,42 @@ export interface IdentityCenterDescribeAccountResponse extends ToolResponse {
     email: string
     status: string
     joinedTimestamp: string | null
+  }
+  error?: string
+}
+
+export interface IdentityCenterDescribeUserResponse extends ToolResponse {
+  output: {
+    userId: string
+    userName: string
+    displayName: string | null
+    email: string | null
+    userStatus: string | null
+    title: string | null
+    externalIds: Array<{ issuer: string; id: string }>
+  }
+  error?: string
+}
+
+export interface IdentityCenterDescribeGroupResponse extends ToolResponse {
+  output: {
+    groupId: string
+    displayName: string | null
+    description: string | null
+    externalIds: Array<{ issuer: string; id: string }>
+  }
+  error?: string
+}
+
+export interface IdentityCenterListGroupMembershipsResponse extends ToolResponse {
+  output: {
+    memberships: Array<{
+      membershipId: string
+      groupId: string
+      userId: string | null
+    }>
+    nextToken: string | null
+    count: number
   }
   error?: string
 }
