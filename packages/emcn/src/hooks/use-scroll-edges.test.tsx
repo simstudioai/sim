@@ -122,6 +122,32 @@ describe('useScrollEdges', () => {
     expect(element.hasAttribute('data-scroll-fade-bottom')).toBe(true)
   })
 
+  it('reads the left and right edges of a sideways region', () => {
+    function Strip() {
+      const ref = useRef<HTMLDivElement>(null)
+      const edges = useScrollEdges(ref, { axis: 'x' })
+      return <div ref={ref} {...scrollFadeAttributes(edges)} />
+    }
+    act(() => {
+      root.render(<Strip />)
+    })
+    const element = host.querySelector<HTMLDivElement>('div')
+    if (!element) throw new Error('strip did not mount')
+    for (const [key, value] of Object.entries({
+      scrollLeft: 0,
+      scrollWidth: 300,
+      clientWidth: 100,
+    })) {
+      Object.defineProperty(element, key, { configurable: true, value })
+    }
+    act(() => {
+      element.dispatchEvent(new Event('scroll'))
+    })
+    expect(element.hasAttribute('data-scroll-fade-left')).toBe(false)
+    expect(element.hasAttribute('data-scroll-fade-right')).toBe(true)
+    expect(element.hasAttribute('data-scroll-fade-bottom')).toBe(false)
+  })
+
   it('reads no edge while disabled', () => {
     enabled = false
     mountWith({ scrollTop: 100, scrollHeight: 300, clientHeight: 100 })

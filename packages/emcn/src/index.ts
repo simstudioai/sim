@@ -19,8 +19,10 @@ export {
 export {
   SCROLL_FADE_BAND_PX,
   type ScrollEdges,
+  type ScrollEdgesX,
   scrollFadeAttributes,
   scrollFadeClass,
+  scrollFadeXClass,
 } from './components/scroll-fade/scroll-fade'
 /**
  * `Table` exists in BOTH `./components` (data-table element) and `./icons`

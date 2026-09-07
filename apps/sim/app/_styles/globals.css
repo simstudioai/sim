@@ -725,6 +725,9 @@ html[data-sim-desktop-title-bar="inset"]
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
+    /* Progress and completion — the checked step, the done state. Deeper and
+       quieter than --selection, which stays the interactive highlight. */
+    --brand-blue: #3b6fe0;
     --selection: #1a5cf6;
     --selection-muted: #1a5cf647;
     --warning: #ea580c;
@@ -886,6 +889,8 @@ html[data-sim-desktop-title-bar="inset"]
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
+    /* Lifted for contrast on dark surfaces, the same step --selection takes. */
+    --brand-blue: #5b8def;
     --selection: #4b83f7;
     --selection-muted: #4b83f759;
     --warning: #ff6600;

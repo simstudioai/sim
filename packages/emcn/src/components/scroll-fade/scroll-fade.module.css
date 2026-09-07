@@ -37,3 +37,39 @@
   --scroll-fade-bottom-start: calc(100% - var(--scroll-fade-band));
   --scroll-fade-bottom-end: 100%;
 }
+
+/*
+ * The same fade for a region that scrolls sideways — a tab row, a chip strip.
+ * Same band, same rest state; the stops run left to right instead.
+ */
+.rootX {
+  --scroll-fade-band: 12px;
+  --scroll-fade-left-start: 0px;
+  --scroll-fade-left-end: 0px;
+  --scroll-fade-right-start: 100%;
+  --scroll-fade-right-end: 100%;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent var(--scroll-fade-left-start),
+    black var(--scroll-fade-left-end),
+    black var(--scroll-fade-right-start),
+    transparent var(--scroll-fade-right-end)
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent var(--scroll-fade-left-start),
+    black var(--scroll-fade-left-end),
+    black var(--scroll-fade-right-start),
+    transparent var(--scroll-fade-right-end)
+  );
+}
+
+.rootX[data-scroll-fade-left] {
+  --scroll-fade-left-start: 0px;
+  --scroll-fade-left-end: var(--scroll-fade-band);
+}
+
+.rootX[data-scroll-fade-right] {
+  --scroll-fade-right-start: calc(100% - var(--scroll-fade-band));
+  --scroll-fade-right-end: 100%;
+}

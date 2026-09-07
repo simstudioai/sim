@@ -74,7 +74,7 @@ Headings inherit their weight. Tailwind preflight resets `h1`–`h6` to `font-we
 
 ## Color Tokens
 
-Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; neutral borders and dividers `--border` (`--border-1` and `--border-muted` are legacy aliases resolving to it; `--divider` is retired); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
+Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; progress and completion (a checked step, a done state) `--brand-blue` — `--selection` stays the interactive highlight; neutral borders and dividers `--border` (`--border-1` and `--border-muted` are legacy aliases resolving to it; `--divider` is retired); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
 
 ### Line weight
 

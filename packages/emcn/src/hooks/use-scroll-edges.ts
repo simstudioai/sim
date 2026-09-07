@@ -1,5 +1,5 @@
 import { type RefObject, useEffect, useState } from 'react'
-import type { ScrollEdges } from '../components/scroll-fade/scroll-fade'
+import type { ScrollEdges, ScrollEdgesX } from '../components/scroll-fade/scroll-fade'
 
 /**
  * Sub-pixel scroll positions and rounding leave `scrollTop` or the remaining
@@ -8,6 +8,7 @@ import type { ScrollEdges } from '../components/scroll-fade/scroll-fade'
 const EDGE_TOLERANCE_PX = 1
 
 const AT_REST: ScrollEdges = { top: false, bottom: false }
+const AT_REST_X: ScrollEdgesX = { left: false, right: false }
 
 interface UseScrollEdgesOptions {
   /**
@@ -18,15 +19,26 @@ interface UseScrollEdgesOptions {
   contentRef?: RefObject<HTMLElement | null>
   /** Set false while the region is not on screen; both edges then read false. */
   enabled?: boolean
+  /** The direction the region scrolls. Vertical unless told otherwise. */
+  axis?: 'x' | 'y'
+}
+
+/** The hidden-content test for one axis, read off the region's scroll metrics. */
+function readEdges(container: HTMLElement, axis: 'x' | 'y'): [start: boolean, end: boolean] {
+  const position = axis === 'x' ? container.scrollLeft : container.scrollTop
+  const size = axis === 'x' ? container.scrollWidth : container.scrollHeight
+  const viewport = axis === 'x' ? container.clientWidth : container.clientHeight
+  return [position > EDGE_TOLERANCE_PX, size - viewport - position > EDGE_TOLERANCE_PX]
 }
 
 /**
- * Whether a scroll region hides content beyond its top or bottom edge. Tracks
- * scrolling and resizes of the region and its content, so the answer stays right
- * as rows arrive, leave, or the viewport changes.
+ * Whether a scroll region hides content beyond its edges. Tracks scrolling and
+ * resizes of the region and its content, so the answer stays right as rows
+ * arrive, leave, or the viewport changes.
  *
- * Drives both the edge fade ({@link scrollFadeClass}) and any divider that should
- * appear only once rows are hidden behind it.
+ * Drives both the edge fade ({@link scrollFadeClass}, or {@link scrollFadeXClass}
+ * for a sideways region) and any divider that should appear only once content is
+ * hidden behind it.
  *
  * `target` is the region as a ref, or as the element itself. Pass the element
  * (held in state from a callback ref) when the region mounts later than the
@@ -36,24 +48,28 @@ interface UseScrollEdgesOptions {
  */
 export function useScrollEdges(
   target: RefObject<HTMLElement | null> | HTMLElement | null,
-  { contentRef, enabled = true }: UseScrollEdgesOptions = {}
-): ScrollEdges {
-  const [edges, setEdges] = useState<ScrollEdges>(AT_REST)
+  options: UseScrollEdgesOptions & { axis: 'x' }
+): ScrollEdgesX
+export function useScrollEdges(
+  target: RefObject<HTMLElement | null> | HTMLElement | null,
+  options?: UseScrollEdgesOptions & { axis?: 'y' }
+): ScrollEdges
+export function useScrollEdges(
+  target: RefObject<HTMLElement | null> | HTMLElement | null,
+  { contentRef, enabled = true, axis = 'y' }: UseScrollEdgesOptions = {}
+): ScrollEdges | ScrollEdgesX {
+  const [edges, setEdges] = useState<[start: boolean, end: boolean]>([false, false])
 
   useEffect(() => {
     const container = target instanceof HTMLElement ? target : target?.current
     if (!enabled || !container) {
-      setEdges(AT_REST)
+      setEdges([false, false])
       return
     }
 
     const update = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const top = scrollTop > EDGE_TOLERANCE_PX
-      const bottom = scrollHeight - clientHeight - scrollTop > EDGE_TOLERANCE_PX
-      setEdges((current) =>
-        current.top === top && current.bottom === bottom ? current : { top, bottom }
-      )
+      const [start, end] = readEdges(container, axis)
+      setEdges((current) => (current[0] === start && current[1] === end ? current : [start, end]))
     }
 
     update()
@@ -68,7 +84,9 @@ export function useScrollEdges(
       container.removeEventListener('scroll', update)
       observer?.disconnect()
     }
-  }, [target, contentRef, enabled])
+  }, [target, contentRef, enabled, axis])
 
-  return edges
+  const [start, end] = edges
+  if (axis === 'x') return start || end ? { left: start, right: end } : AT_REST_X
+  return start || end ? { top: start, bottom: end } : AT_REST
 }

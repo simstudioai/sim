@@ -1,9 +1,15 @@
 import styles from './scroll-fade.module.css'
 
-/** Which edges of a scroll region currently hide content beyond them. */
+/** Which edges of a vertical scroll region currently hide content beyond them. */
 export interface ScrollEdges {
   top: boolean
   bottom: boolean
+}
+
+/** Which edges of a horizontal scroll region currently hide content beyond them. */
+export interface ScrollEdgesX {
+  left: boolean
+  right: boolean
 }
 
 /** Height of the fade band at an active edge, in pixels. */
@@ -25,13 +31,27 @@ export const SCROLL_FADE_BAND_PX = 12
  */
 export const scrollFadeClass = styles.root
 
+/**
+ * The same fade for a region that scrolls sideways — a tab row or chip strip.
+ * Pair it with `useScrollEdges(ref, { axis: 'x' })`.
+ */
+export const scrollFadeXClass = styles.rootX
+
 type ScrollFadeAttributes = {
   'data-scroll-fade-top'?: true
   'data-scroll-fade-bottom'?: true
+  'data-scroll-fade-left'?: true
+  'data-scroll-fade-right'?: true
 }
 
-/** Data attributes that switch {@link scrollFadeClass}'s edges on. */
-export function scrollFadeAttributes(edges: ScrollEdges): ScrollFadeAttributes {
+/** Data attributes that switch {@link scrollFadeClass} or {@link scrollFadeXClass}'s edges on. */
+export function scrollFadeAttributes(edges: ScrollEdges | ScrollEdgesX): ScrollFadeAttributes {
+  if ('left' in edges) {
+    return {
+      'data-scroll-fade-left': edges.left || undefined,
+      'data-scroll-fade-right': edges.right || undefined,
+    }
+  }
   return {
     'data-scroll-fade-top': edges.top || undefined,
     'data-scroll-fade-bottom': edges.bottom || undefined,
