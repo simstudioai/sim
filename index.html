@@ -5,81 +5,157 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sim Helm charts</title>
 <meta name="description" content="Helm chart repository for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents.">
+<link rel="icon" href="https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/logo/primary/primary.svg">
 <style>
+  /*
+   * Tokens copied from apps/sim/app/_styles/globals.css (the `:root, .light`
+   * block). This page is served from the gh-pages branch and cannot import the
+   * app's stylesheet, so the values are inlined. Light mode only, deliberately:
+   * there is no theme switcher here to honour a preference with.
+   */
   :root {
-    color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #18181b;
-    --muted: #52525b;
-    --line: #e4e4e7;
-    --code-bg: #f4f4f5;
-    --link: #2563eb;
+    color-scheme: light;
+
+    --bg: #fefefe;
+    --surface-2: #ffffff;
+    --surface-3: #f7f7f7;
+    --surface-5: #f3f3f3;
+
+    --text-primary: #1a1a1a;
+    --text-secondary: #525252;
+    --text-body: #434343;
+    --text-muted: #7a7a7a;
+
+    --border: #d8d8d8;
+    --brand-agent: #6f3dfa;
+
+    --radius: 0.5rem;
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --text-caption: 12px;
+    --text-small: 13px;
+    --text-base: 15px;
+
+    --font-body:
+      ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, "Apple Color Emoji", Arial,
+      sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+    --font-mono:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+      monospace;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0a0a0b;
-      --fg: #fafafa;
-      --muted: #a1a1aa;
-      --line: #27272a;
-      --code-bg: #18181b;
-      --link: #60a5fa;
-    }
-  }
+
   * { box-sizing: border-box; }
+
   body {
     margin: 0;
-    padding: 3rem 1.25rem 5rem;
+    padding: 4rem 1.25rem 6rem;
     background: var(--bg);
-    color: var(--fg);
-    font: 15px/1.65 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text-body);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  main { max-width: 42rem; margin: 0 auto; }
-  h1 { font-size: 1.5rem; letter-spacing: -0.02em; margin: 0 0 .4rem; }
-  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2.5rem 0 .75rem; font-weight: 600; }
-  p { margin: 0 0 1rem; color: var(--muted); }
-  a { color: var(--link); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+
+  main { max-width: 44rem; margin: 0 auto; }
+
+  h1 {
+    margin: 0 0 0.5rem;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.018em;
+  }
+
+  h2 {
+    margin: 2.75rem 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  p { margin: 0 0 1rem; }
+
+  a { color: var(--brand-agent); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+  .lede { color: var(--text-secondary); }
+
   pre {
-    background: var(--code-bg);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: .85rem 1rem;
-    overflow-x: auto;
     margin: 0 0 1rem;
+    padding: 0.875rem 1rem;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-x: auto;
   }
-  code { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  p code { background: var(--code-bg); border-radius: 4px; padding: .1rem .35rem; }
-  ul { padding-left: 1.1rem; margin: 0; color: var(--muted); }
-  li { margin-bottom: .35rem; }
-  footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: var(--text-small);
+    line-height: 1.65;
+  }
+
+  p code, li code {
+    padding: 0.1rem 0.35rem;
+    background: var(--surface-5);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-caption);
+  }
+
+  ul { margin: 0; padding-left: 1.1rem; }
+  li { margin-bottom: 0.4rem; }
+
+  .note {
+    padding: 0.875rem 1rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: var(--text-small);
+  }
+  .note :last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-small);
+  }
+  footer a { color: var(--text-muted); }
 </style>
 </head>
 <body>
 <main>
   <h1>Sim Helm charts</h1>
-  <p>
+  <p class="lede">
     Chart repository for <a href="https://sim.ai">Sim</a> — the open-source AI
     workspace where teams build, deploy, and manage AI agents.
   </p>
 
-  <h2>OCI registry (recommended)</h2>
-  <p>Signed and carries build provenance. Requires Helm 3.8 or newer.</p>
+  <h2>OCI registry</h2>
+  <p>The recommended path. Signed with Sigstore and carrying build provenance. Requires Helm 3.8 or newer.</p>
 <pre><code>helm install sim oci://ghcr.io/simstudioai/charts/sim \
   --version &lt;version&gt; --namespace sim --create-namespace</code></pre>
 
   <h2>Helm repository</h2>
-  <p>For clusters and tooling that expect <code>helm repo add</code>.</p>
+  <p>The same chart, for clusters and tooling that expect <code>helm repo add</code>.</p>
 <pre><code>helm repo add sim https://charts.sim.ai
 helm repo update
 helm install sim sim/sim --version &lt;version&gt; --namespace sim --create-namespace</code></pre>
 
-  <p>
-    Always pass <code>--version</code>. Without it Helm resolves the newest
-    published chart at install time, so the same command produces different
-    deployments on different days. List what is available with
-    <code>helm search repo sim/sim --versions</code>.
-  </p>
+  <div class="note">
+    <p>
+      Always pass <code>--version</code>. Without it Helm resolves the newest
+      published chart at install time, so the same command produces different
+      deployments on different days. List what is available with
+      <code>helm search repo sim/sim --versions</code>.
+    </p>
+  </div>
 
   <h2>Documentation</h2>
   <ul>
