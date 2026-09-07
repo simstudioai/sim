@@ -690,6 +690,8 @@ async function executeToolAndReportInner(
     if (parentRegistry && toolRegistry) parentRegistry.mergeToolCallRegistry(toolRegistry)
   }
 
+  let committedCompletion: AsyncCompletionSignal
+  let publishResult: () => Promise<void>
   try {
     ensureHandlersRegistered()
     let result = await executeToolWithWatchdog(toolCall, toolExecutionContext, lifetime)
@@ -828,68 +830,62 @@ async function executeToolAndReportInner(
       ...(terminalData !== undefined ? { result: terminalData } : {}),
       error: modelSucceeded ? null : terminalMessage,
     })
-    publishTerminalToolConfirmation({
-      toolCallId: toolCall.id,
+    committedCompletion = buildCompletionSignal({
       status: terminalStatus,
       message: terminalMessage,
       ...(terminalData !== undefined ? { data: terminalData } : {}),
     })
-
-    if (abortRequested(context, execContext, options)) {
-      markToolCallCancelled('Request aborted before tool result delivery')
-      endToolSpan('cancelled', { cancelReason: 'abort_before_tool_result_delivery' })
-      return cancelledCompletion('Request aborted before tool result delivery')
-    }
-
-    // A newly generated API key is intentionally included only in this
-    // live/replay client event. Model-facing results and long-term chat records stay redacted.
-    const clientEventOutput =
-      toolCall.name === GenerateApiKey.id && modelSucceeded && hasOutputValue(copilotResult)
-        ? copilotResult.output
-        : terminalData
-    const resultEvent: StreamEvent = {
-      type: MothershipStreamV1EventType.tool,
-      payload: {
+    publishResult = async () => {
+      publishTerminalToolConfirmation({
         toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.result,
-        success: modelSucceeded,
-        output: clientEventOutput,
-        ...(modelSucceeded
-          ? { status: MothershipStreamV1ToolOutcome.success }
-          : { status: MothershipStreamV1ToolOutcome.error, error: terminalMessage }),
-      },
-    }
-    await options?.onEvent?.(resultEvent)
+        status: terminalStatus,
+        message: terminalMessage,
+        ...(terminalData !== undefined ? { data: terminalData } : {}),
+      })
 
-    if (abortRequested(context, execContext, options)) {
-      markToolCallCancelled('Request aborted before resource persistence')
-      endToolSpan('cancelled', { cancelReason: 'abort_before_resource_persistence' })
-      return cancelledCompletion('Request aborted before resource persistence')
-    }
+      if (abortRequested(context, execContext, options)) {
+        return
+      }
 
-    if (result.success && execContext.chatId && !abortRequested(context, execContext, options)) {
-      await handleResourceSideEffects(
-        toolCall.name,
-        toolCall.params,
-        result,
-        copilotResult,
-        execContext.chatId,
-        options?.onEvent,
-        () => abortRequested(context, execContext, options)
-      )
+      // A newly generated API key is intentionally included only in this
+      // live/replay client event. Model-facing results and long-term chat records stay redacted.
+      const clientEventOutput =
+        toolCall.name === GenerateApiKey.id && modelSucceeded && hasOutputValue(copilotResult)
+          ? copilotResult.output
+          : terminalData
+      const resultEvent: StreamEvent = {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          success: modelSucceeded,
+          output: clientEventOutput,
+          ...(modelSucceeded
+            ? { status: MothershipStreamV1ToolOutcome.success }
+            : { status: MothershipStreamV1ToolOutcome.error, error: terminalMessage }),
+        },
+      }
+      await options?.onEvent?.(resultEvent)
+
+      if (abortRequested(context, execContext, options)) {
+        return
+      }
+
+      if (result.success && execContext.chatId && !abortRequested(context, execContext, options)) {
+        await handleResourceSideEffects(
+          toolCall.name,
+          toolCall.params,
+          result,
+          copilotResult,
+          execContext.chatId,
+          options?.onEvent,
+          () => abortRequested(context, execContext, options)
+        )
+      }
     }
-    endToolSpan(modelSucceeded ? 'ok' : 'error', {
-      resultSuccess: modelSucceeded,
-      ...(modelSucceeded ? {} : { error: terminalMessage }),
-    })
-    return buildCompletionSignal({
-      status: terminalStatus,
-      message: terminalMessage,
-      ...(terminalData !== undefined ? { data: terminalData } : {}),
-    })
   } catch (error) {
     const thrownMessage = enrichOpaqueToolError(
       toError(error).message,
@@ -929,33 +925,49 @@ async function executeToolAndReportInner(
       result: { error: toolCall.error },
       error: toolCall.error,
     })
-    publishTerminalToolConfirmation({
-      toolCallId: toolCall.id,
+    committedCompletion = buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.error,
       message: toolCall.error,
       data: { error: toolCall.error },
     })
-
-    const errorEvent: StreamEvent = {
-      type: MothershipStreamV1EventType.tool,
-      payload: {
+    publishResult = async () => {
+      publishTerminalToolConfirmation({
         toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.result,
         status: MothershipStreamV1ToolOutcome.error,
-        success: false,
-        error: toolCall.error,
-        output: { error: toolCall.error },
-      },
+        message: toolCall.error,
+        data: { error: toolCall.error },
+      })
+
+      const errorEvent: StreamEvent = {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          status: MothershipStreamV1ToolOutcome.error,
+          success: false,
+          error: toolCall.error,
+          output: { error: toolCall.error },
+        },
+      }
+      await options?.onEvent?.(errorEvent)
     }
-    await options?.onEvent?.(errorEvent)
-    endToolSpan('error', { error: safeThrownMessage })
-    return buildCompletionSignal({
-      status: MothershipStreamV1ToolOutcome.error,
-      message: toolCall.error,
-      data: { error: toolCall.error },
+  }
+
+  /** The durable result is final. Presentation failures cannot turn performed work into a retry. */
+  try {
+    await publishResult()
+  } catch (error) {
+    logger.warn('Committed tool result could not be published to the stream', {
+      toolCallId: toolCall.id,
+      error: toError(error).message,
     })
   }
+  endToolSpan(committedCompletion.status === 'success' ? 'ok' : 'error', {
+    resultSuccess: committedCompletion.status === 'success',
+    ...(committedCompletion.status === 'error' ? { error: committedCompletion.message } : {}),
+  })
+  return committedCompletion
 }

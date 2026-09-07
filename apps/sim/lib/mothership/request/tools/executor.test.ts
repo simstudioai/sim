@@ -303,6 +303,43 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(settleSimToolExecution).toHaveBeenCalledOnce()
   })
 
+  it.each([false, true])(
+    'preserves the committed tool result when publication fails (controller abort: %s)',
+    async (abortController) => {
+      const tool = buildPendingToolCall()
+      const controller = new AbortController()
+      executeTool.mockResolvedValue({ success: true, output: { created: true } })
+      let savedStatus: string | undefined
+      completeAsyncToolCall.mockImplementation(async (input) => {
+        if (savedStatus) throw new Error('Terminal receipt cannot be replaced')
+        savedStatus = input.status
+      })
+      const publish = vi.fn(async (event) => {
+        if (event.payload?.phase === 'result') {
+          if (abortController) controller.abort(new Error('Stream controller lost ownership'))
+          throw new Error('Stream publication unavailable')
+        }
+      })
+      const result = await executeToolAndReport(
+        tool.id,
+        buildStreamingContext(tool),
+        {
+          abortSignal: controller.signal,
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+        },
+        { onEvent: publish }
+      )
+      expect(savedStatus).toBe('completed')
+      expect(result.status).toBe('success')
+      expect(result.data).toEqual({ created: true })
+      expect(completeAsyncToolCall).toHaveBeenCalledOnce()
+      expect(executeTool).toHaveBeenCalledOnce()
+    }
+  )
+
   it('returns an interrupted result when ownership rejects a late successful handler receipt', async () => {
     const tool = buildPendingToolCall()
     executeTool.mockResolvedValue({ success: true, output: { created: true } })
