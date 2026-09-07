@@ -188,7 +188,10 @@ export const ociQueueSchema = ociQueueSummarySchema.extend({
   timeoutInSeconds: z.number().int(),
   deadLetterQueueDeliveryCount: z.number().int(),
   channelConsumptionLimit: z.number().int().optional(),
-  customEncryptionKeyId: z.string().optional(),
+  customEncryptionKeyId: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
 })
 
 const messageId = z.string().regex(/^-?\d+$/)

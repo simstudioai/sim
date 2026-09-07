@@ -104,6 +104,23 @@ describe('OCI Queue operation contracts', () => {
     await expect(run('list_queues')).rejects.toThrow('invalid response')
   })
 
+  it.each([undefined, null, 'customer-key'])(
+    'projects optional customer encryption keys from queue details: %s',
+    async (customEncryptionKeyId) => {
+      request.mockResolvedValue(
+        response({ ...queue, lifecycleDetails: null, customEncryptionKeyId })
+      )
+      expect((await run('get_queue')).queue?.customEncryptionKeyId).toBe(
+        customEncryptionKeyId ?? undefined
+      )
+    }
+  )
+
+  it('rejects malformed customer encryption keys', async () => {
+    request.mockResolvedValue(response({ ...queue, customEncryptionKeyId: 42 }))
+    await expect(run('get_queue')).rejects.toThrow('invalid response')
+  })
+
   it('coerces active workflow inputs while preserving zero, receipts, and key removal', () => {
     const map = OciQueueBlock.tools.config!.params!
     const receive = map({
