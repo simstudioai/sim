@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 1;
 
@@ -73,6 +74,7 @@ const WorkspaceInventorySchema = z.object({
 });
 
 export const ChatPayloadSchema = z.strictObject({
+  simConnection: SimConnection.optional(),
   message: z.string().min(1),
   ...ResponseReceiptSchema.shape,
   userId: z.string().min(1),
@@ -139,6 +141,7 @@ export interface StreamToolReplay {
 
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
+  simConnection?: SimConnection | undefined;
   message: string;
   userId: string;
   /** Bump-gated (S43): senders include it; the worker 426s on mismatch. */
