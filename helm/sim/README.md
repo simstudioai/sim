@@ -22,7 +22,7 @@ export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 
 # Install from the registry
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.1 \
+  --version 1.9.2 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -106,10 +106,10 @@ immutable once published.
 
 ```bash
 # List the published versions
-helm show chart oci://ghcr.io/simstudioai/charts/sim --version 1.9.1
+helm show chart oci://ghcr.io/simstudioai/charts/sim --version 1.9.2
 
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.1 \
+  --version 1.9.2 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -126,8 +126,8 @@ To mirror the chart into an internal registry — the usual requirement for an
 air-gapped or internal-only cluster:
 
 ```bash
-helm pull oci://ghcr.io/simstudioai/charts/sim --version 1.9.1
-helm push sim-1.9.1.tgz oci://registry.internal.example.com/charts
+helm pull oci://ghcr.io/simstudioai/charts/sim --version 1.9.2
+helm push sim-1.9.2.tgz oci://registry.internal.example.com/charts
 ```
 
 The container images the chart references are listed in
@@ -177,12 +177,12 @@ the registry next to the chart so they survive a mirror.
 
 ```bash
 # The signature: proves this chart was signed by a GitHub Actions run in this repo
-cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.1 \
+cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 \
   --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # The provenance: proves which workflow, commit, and runner produced it
-gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.1 --repo simstudioai/sim
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 --repo simstudioai/sim
 ```
 
 There is no GPG `.prov` file — signing is Sigstore-only, so there is no

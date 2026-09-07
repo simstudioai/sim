@@ -36,7 +36,7 @@ POSTGRES_PASSWORD=$(openssl rand -hex 24)
 
 # Install
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.1 \
+  --version 1.9.2 \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -63,11 +63,11 @@ helm install sim oci://ghcr.io/simstudioai/charts/sim \
 Every published version is signed with Sigstore keyless signing and carries a SLSA build-provenance attestation. Both live in the registry alongside the chart, so they survive a mirror into an internal registry.
 
 ```bash
-cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.1 \
+cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 \
   --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.1 --repo simstudioai/sim
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 --repo simstudioai/sim
 ```
 
 Signing is Sigstore-only — there is no GPG `.prov` file, so `helm install --verify` does not apply.
@@ -88,7 +88,7 @@ SIM_RELEASE=v0.8.24
 curl -fsSLO "https://raw.githubusercontent.com/simstudioai/sim/$SIM_RELEASE/helm/sim/examples/values-aws.yaml"
 
 helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.1 \
+  --version 1.9.2 \
   --values values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -209,7 +209,7 @@ kubectl port-forward deployment/sim-app 3000:3000 -n simstudio
 kubectl logs -l app.kubernetes.io/component=app -n simstudio --tail=100
 
 # Upgrade (always pin the target chart version)
-helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.1 --namespace simstudio
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.2 --namespace simstudio
 
 # Uninstall
 helm uninstall sim --namespace simstudio
