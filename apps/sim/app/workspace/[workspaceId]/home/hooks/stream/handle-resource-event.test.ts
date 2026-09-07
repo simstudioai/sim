@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   invalidateResourceQueries: vi.fn(),
   removeWorkflowFromActiveCache: vi.fn(),
+  notifyWorkflowExternalUpdate: vi.fn(),
+}))
+vi.mock('@/lib/workflows/external-update', () => ({
+  notifyWorkflowExternalUpdate: mocks.notifyWorkflowExternalUpdate,
 }))
 
 vi.mock(
@@ -64,9 +68,49 @@ describe('handleResourceEvent removal', () => {
     vi.clearAllMocks()
   })
 
-  it.each(['upsert', 'remove'] as const)(
-    'replayed worker %s refreshes saved panels without mutating user choices',
-    (op) => {
+  it('refreshes a collection without fabricating a tab or changing focus', () => {
+    const deps = makeStreamLoopDeps()
+    const event: ResourceEvent = {
+      ...removeEvent('file', 'unused'),
+      payload: { op: 'refresh', resource: { type: 'file' } },
+    }
+    handleResourceEvent({ deps } as StreamLoopContext, event)
+    expect(mocks.invalidateResourceQueries).toHaveBeenCalledWith(
+      deps.queryClient,
+      'ws-1',
+      'file',
+      undefined
+    )
+    expect(deps.setResources).not.toHaveBeenCalled()
+    expect(deps.addResource).not.toHaveBeenCalled()
+    expect(deps.setActiveResourceId).not.toHaveBeenCalled()
+  })
+
+  it('shows a committed table/view immediately without a second persistence request', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({ onResourceEventRef: { current: onResourceEvent } })
+    const event: ResourceEvent = {
+      ...removeEvent('file', 'unused'),
+      payload: {
+        op: 'upsert',
+        effectId: 'run:tool:0',
+        resource: { type: 'table', id: 'table', title: 'Contacts', viewId: 'active' },
+      },
+    }
+    handleResourceEvent({ deps } as StreamLoopContext, event)
+    expect(deps.addResource).not.toHaveBeenCalled()
+    expect(deps.setResources).toHaveBeenCalled()
+    expect(onResourceEvent).toHaveBeenCalledWith('table', { tableViewId: 'active' })
+  })
+
+  it.each([
+    { op: 'upsert', effectId: 's:tool:0' },
+    { op: 'remove', effectId: 's:tool:0' },
+    { op: 'upsert', effectId: undefined },
+    { op: 'remove', effectId: undefined },
+  ] as const)(
+    'replayed $op (worker receipt: $effectId) refreshes saved panels without mutating user choices',
+    ({ op, effectId }) => {
       const onResourceEvent = vi.fn()
       const deps = makeStreamLoopDeps({
         chatIdRef: { current: 'chat' },
@@ -81,7 +125,7 @@ describe('handleResourceEvent removal', () => {
         stream: { streamId: 's' },
         payload: {
           op,
-          effectId: 's:tool:0',
+          effectId,
           resource: { type: 'workflow', id: 'wf', title: 'Workflow' },
         },
       }
@@ -194,6 +238,28 @@ describe('handleResourceEvent saved-view pins', () => {
     vi.clearAllMocks()
     useTableViewPinStore.getState().reset()
   })
+
+  it.each(['deleted-view', 'newer-view'])(
+    'clears only the matching pending pin when the current pin is %s',
+    (viewId) => {
+      useTableViewPinStore.getState().pin('tbl-1', viewId)
+      const deps = makeStreamLoopDeps()
+      const event: ResourceEvent = {
+        ...removeEvent('file', 'unused'),
+        payload: {
+          op: 'clear_view',
+          resource: { type: 'table', id: 'tbl-1', viewId: 'deleted-view' },
+        },
+      }
+
+      handleResourceEvent({ deps } as StreamLoopContext, event)
+
+      expect(useTableViewPinStore.getState().pins['tbl-1']?.viewId).toBe(
+        viewId === 'deleted-view' ? undefined : 'newer-view'
+      )
+      expect(deps.addResource).not.toHaveBeenCalled()
+    }
+  )
 
   it('opens a closed table on the view and leaves a pin for the table to consume', () => {
     const onResourceEvent = vi.fn()

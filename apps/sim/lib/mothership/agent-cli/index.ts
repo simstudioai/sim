@@ -8,6 +8,7 @@ import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
+import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
@@ -15,6 +16,7 @@ import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
+import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
@@ -57,19 +59,24 @@ export async function executeAgentCliRequest(
     ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
     ...(files ? { trackDownload: files.trackDownload } : {}),
   })
+  const resources: ResourceChange[] = []
   const identity: EmbeddedCliIdentity = {
     endpoint,
     apiKey,
     workspaceId: context.workspaceId,
-    transport: files
-      ? createFileUploadTransport({
-          endpoint,
-          workspaceId: context.workspaceId,
-          userId: context.userId,
-          fallback: reads,
-          uploadProvenance: files.uploadProvenance,
-        })
-      : reads,
+    transport: createResourceEffectTransport(
+      endpoint,
+      files
+        ? createFileUploadTransport({
+            endpoint,
+            workspaceId: context.workspaceId,
+            userId: context.userId,
+            fallback: reads,
+            uploadProvenance: files.uploadProvenance,
+          })
+        : reads,
+      resources
+    ),
     ...(context.signal ? { signal: context.signal } : {}),
   }
 
@@ -106,6 +113,7 @@ export async function executeAgentCliRequest(
       )
     }
   }
+  if (resources.length) result = { ...result, resources }
   return sink
     ? withCopilotSpan(TraceSpan.CopilotCliSink, undefined, () =>
         applySink(sink, sessionKey, result, context.signal, files?.observeOutput)

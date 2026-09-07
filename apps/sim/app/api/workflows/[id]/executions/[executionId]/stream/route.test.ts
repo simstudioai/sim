@@ -122,7 +122,7 @@ describe('execution stream reconnect route', () => {
     expect(mockReadExecutionEventsState).toHaveBeenNthCalledWith(2, 'exec-1', 3)
   })
 
-  it('fails closed when terminal metadata has no terminal event to replay', async () => {
+  it('leaves a missing terminal event as a transport error rather than a workflow failure', async () => {
     mockReadExecutionMetaState
       .mockResolvedValueOnce({
         status: 'found',
@@ -147,11 +147,9 @@ describe('execution stream reconnect route', () => {
     })
 
     expect(response.status).toBe(200)
-    const body = await response.text()
-
-    expect(body).toContain('"type":"execution:error"')
-    expect(body).toContain('its final event could not be recovered')
-    expect(body).toContain('data: [DONE]')
+    await expect(response.text()).rejects.toThrow(
+      'Execution terminal event is no longer available in the replay buffer'
+    )
   })
 
   it('allows replay event id gaps from reserved but unused writer ids', async () => {

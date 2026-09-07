@@ -72,7 +72,7 @@ describe('copilot chat stop route', () => {
     expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
   })
 
-  it('preserves task, plan and subagent identity through the partial-response contract', async () => {
+  it('preserves task and subagent identity through the partial-response contract', async () => {
     mockReads({
       chat: { workspaceId: 'ws-1', conversationId: 'stream-1', model: null },
       last: { messageId: 'stream-1', role: 'user' },
@@ -88,7 +88,6 @@ describe('copilot chat stop route', () => {
           note: 'Watch invoice run',
         },
       },
-      { type: 'plan', planItems: [{ step: 'Check the result', status: 'active' }] },
       {
         type: 'span',
         kind: 'subagent',
