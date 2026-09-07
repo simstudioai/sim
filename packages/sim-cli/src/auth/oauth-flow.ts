@@ -22,7 +22,7 @@ import { USER_AGENT } from '../version'
  * path for a terminal whose browser cannot reach it (SSH, containers).
  */
 
-/** The client id migration `0322_oauth_provider` seeds; a public client, no secret. */
+/** The client id migration `0323_oauth_provider` seeds; a public client, no secret. */
 export const OAUTH_CLIENT_ID = 'sim-cli'
 
 /**
