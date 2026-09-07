@@ -13,6 +13,27 @@ function parseOperations(operations: unknown[]) {
 }
 
 describe('parseGroupPatch', () => {
+  it('lets the last operation naming a member win', () => {
+    expect(
+      parseGroupPatch([
+        { op: 'add', path: 'members', value: [{ value: 'u1' }] },
+        { op: 'remove', path: 'members[value eq "u1"]' },
+      ])
+    ).toEqual({ kind: 'incremental', add: [], remove: ['u1'] })
+    expect(
+      parseGroupPatch([
+        { op: 'remove', path: 'members[value eq "u1"]' },
+        { op: 'add', path: 'members', value: [{ value: 'u1' }] },
+      ])
+    ).toEqual({ kind: 'incremental', add: ['u1'], remove: [] })
+  })
+
+  it('refuses a non-string externalId instead of clearing it', () => {
+    expect(() => parseGroupPatch([{ op: 'replace', path: 'externalId', value: 42 }])).toThrow(
+      'externalId must be a string'
+    )
+  })
+
   it('reads Okta’s filtered member removal', () => {
     const patch = parseGroupPatch(
       parseOperations([{ op: 'remove', path: 'members[value eq "u1"]' }])

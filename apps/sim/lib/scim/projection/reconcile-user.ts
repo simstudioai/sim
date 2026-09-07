@@ -1,10 +1,12 @@
 import { db } from '@sim/db'
 import {
+  member,
   type ScimConnectionSettings,
   scimGroupMapping,
   scimGroupMember,
   scimProjectionGrant,
   scimUser,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
@@ -100,9 +102,26 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
 }
 
 /**
- * Applies one grant. Returns false when the grant describes nothing this server
- * can apply, so the caller records provenance only for what actually happened.
+ * What applying a grant did. `unchanged` means the person already held it by
+ * some other route — a manual grant — and nothing was written.
  */
+type GrantApplication = 'applied' | 'unchanged' | 'skipped'
+
+/** Whether a mapped workspace still belongs to the organization the directory serves. */
+async function workspaceBelongsToOrganization(
+  tx: DbOrTx,
+  workspaceId: string,
+  organizationId: string
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), eq(workspace.organizationId, organizationId)))
+    .limit(1)
+  return Boolean(row)
+}
+
+/** Applies one grant. `skipped` means the grant describes nothing this server can apply. */
 async function applyGrant(
   tx: DbOrTx,
   params: {
@@ -112,11 +131,23 @@ async function applyGrant(
     /** The level a previous pass set on a workspace, when lowering it. */
     previousPermission?: PermissionType
   }
-): Promise<boolean> {
+): Promise<GrantApplication> {
   const { grant } = params
   switch (grant.targetKind) {
-    case 'workspace':
-      if (!grant.permissionType) return false
+    case 'workspace': {
+      if (!grant.permissionType) return 'skipped'
+      /**
+       * A workspace can be moved to another organization after it was mapped.
+       * The mapping row survives, and following it would hand this
+       * organization's members access in a tenant the directory does not serve.
+       */
+      if (!(await workspaceBelongsToOrganization(tx, grant.targetId, params.organizationId))) {
+        logger.warn('Skipped a SCIM mapping whose workspace is no longer in the organization', {
+          workspaceId: grant.targetId,
+          organizationId: params.organizationId,
+        })
+        return 'skipped'
+      }
       if (
         params.previousPermission &&
         permissionRank(params.previousPermission) > permissionRank(grant.permissionType)
@@ -127,26 +158,29 @@ async function applyGrant(
           from: params.previousPermission,
           to: grant.permissionType,
         })
-        return true
+        return 'applied'
       }
-      await grantWorkspaceAccessTx(tx, {
+      const outcome = await grantWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,
         userId: params.userId,
         permission: grant.permissionType,
       })
-      return true
-    case 'org_role':
-      if (grant.targetId !== 'admin') return false
+      return outcome === 'unchanged' ? 'unchanged' : 'applied'
+    }
+    case 'org_role': {
+      if (grant.targetId !== 'admin') return 'skipped'
       return setOrganizationRole(tx, params.organizationId, params.userId, 'admin')
-    case 'permission_group':
-      await addPermissionGroupMemberTx(tx, {
+    }
+    case 'permission_group': {
+      const outcome = await addPermissionGroupMemberTx(tx, {
         organizationId: params.organizationId,
         groupId: grant.targetId,
         userId: params.userId,
         assignedBy: null,
         lockTimeoutAlreadyBounded: true,
       })
-      return true
+      return outcome === 'already-member' ? 'unchanged' : 'applied'
+    }
   }
 }
 
@@ -163,21 +197,21 @@ async function setOrganizationRole(
   organizationId: string,
   userId: string,
   role: 'admin' | 'member'
-): Promise<boolean> {
+): Promise<GrantApplication> {
   try {
-    await changeMemberRoleTx(tx, { organizationId, userId, role })
-    return true
+    const change = await changeMemberRoleTx(tx, { organizationId, userId, role })
+    return change.changed ? 'applied' : 'unchanged'
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'conflict') {
       logger.warn('Skipped an organization role mapping for the owner', { organizationId, userId })
-      return false
+      return 'skipped'
     }
     if (error instanceof OrchestrationError && error.code === 'not_found') {
       logger.warn('Skipped an organization role mapping for a user who is no longer a member', {
         organizationId,
         userId,
       })
-      return false
+      return 'skipped'
     }
     throw error
   }
@@ -292,6 +326,18 @@ export async function reconcileUserProjection(
     organizationIds: [params.organizationId],
   })
 
+  /**
+   * Checked under the lock. A deprovisioning removes the membership and deletes
+   * the SCIM row in separate commits; a pass that lands between them must not
+   * grant workspace access to someone who has already left.
+   */
+  const [membership] = await tx
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, params.organizationId), eq(member.userId, record.userId)))
+    .limit(1)
+  if (!membership) return EMPTY_DELTA
+
   const desired = resolveDesiredGrants(
     await loadMappingRows(tx, params.scimUserId),
     params.settings.defaultWorkspaceGrants ?? []
@@ -323,7 +369,7 @@ export async function reconcileUserProjection(
   }
 
   for (const { grant, previousPermission } of plan.apply) {
-    let applied: boolean
+    let applied: GrantApplication
     try {
       applied = await applyGrant(tx, {
         organizationId: params.organizationId,
@@ -357,7 +403,14 @@ export async function reconcileUserProjection(
       }
       throw error
     }
-    if (!applied) continue
+    if (applied === 'skipped') continue
+    /**
+     * Access the person already held by hand is theirs, not the directory's.
+     * Recording it as a directory grant would let a later group change revoke a
+     * deliberate manual decision. Only when the organization has made the
+     * directory the source of truth does the directory take ownership of it.
+     */
+    if (applied === 'unchanged' && !lockManualMembership && !previousPermission) continue
 
     await tx
       .insert(scimProjectionGrant)

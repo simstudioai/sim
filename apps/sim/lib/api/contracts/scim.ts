@@ -7,7 +7,11 @@ import {
   SCIM_MAX_PATCH_OPERATIONS,
   SCIM_PATCH_OP_SCHEMA,
 } from '@/lib/scim/protocol/constants'
-import { normalizeScimBoolean, unwrapSingleElement } from '@/lib/scim/protocol/normalize'
+import {
+  canonicalizeAttributeNames,
+  normalizeScimBoolean,
+  unwrapSingleElement,
+} from '@/lib/scim/protocol/normalize'
 
 /**
  * Wire schemas for the SCIM 2.0 surface.
@@ -63,18 +67,32 @@ const scimEnterpriseSchema = z.looseObject({
  * keeps the credential out of the parsed request object and therefore out of
  * every log line and error detail downstream.
  */
-export const scimUserWriteSchema = z
-  .looseObject({
-    schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
-    userName: z.string().trim().min(1, 'userName must not be empty').max(320),
-    externalId: z.string().trim().max(256).optional(),
-    active: scimBoolean.optional(),
-    displayName: z.string().max(256).optional(),
-    name: scimNameSchema.optional(),
-    emails: z.array(scimEmailSchema).max(20).optional(),
-    [SCIM_ENTERPRISE_USER_SCHEMA]: scimEnterpriseSchema.optional(),
-  })
-  .transform(({ password: _password, ...rest }) => rest)
+const USER_WRITE_ATTRIBUTES = [
+  'schemas',
+  'userName',
+  'externalId',
+  'active',
+  'displayName',
+  'name',
+  'emails',
+  SCIM_ENTERPRISE_USER_SCHEMA,
+] as const
+
+export const scimUserWriteSchema = z.preprocess(
+  (body) => canonicalizeAttributeNames(body, USER_WRITE_ATTRIBUTES),
+  z
+    .looseObject({
+      schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
+      userName: z.string().trim().min(1, 'userName must not be empty').max(320),
+      externalId: z.string().trim().max(256).optional(),
+      active: scimBoolean.optional(),
+      displayName: z.string().max(256).optional(),
+      name: scimNameSchema.optional(),
+      emails: z.array(scimEmailSchema).max(20).optional(),
+      [SCIM_ENTERPRISE_USER_SCHEMA]: scimEnterpriseSchema.optional(),
+    })
+    .transform(({ password: _password, ...rest }) => rest)
+)
 /** What a client may send. */
 export type ScimUserWrite = z.input<typeof scimUserWriteSchema>
 /** What the route receives after parsing, which is what the canonicalizer reads. */
@@ -86,12 +104,17 @@ const scimGroupMemberSchema = z.looseObject({
   type: z.string().max(64).optional(),
 })
 
-export const scimGroupWriteSchema = z.looseObject({
-  schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
-  displayName: z.string().trim().min(1, 'displayName must not be empty').max(256),
-  externalId: z.string().trim().max(256).optional(),
-  members: z.array(scimGroupMemberSchema).max(SCIM_MAX_GROUP_MEMBERS).optional(),
-})
+const GROUP_WRITE_ATTRIBUTES = ['schemas', 'displayName', 'externalId', 'members'] as const
+
+export const scimGroupWriteSchema = z.preprocess(
+  (body) => canonicalizeAttributeNames(body, GROUP_WRITE_ATTRIBUTES),
+  z.looseObject({
+    schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
+    displayName: z.string().trim().min(1, 'displayName must not be empty').max(256),
+    externalId: z.string().trim().max(256).optional(),
+    members: z.array(scimGroupMemberSchema).max(SCIM_MAX_GROUP_MEMBERS).optional(),
+  })
+)
 export type ScimGroupWrite = z.input<typeof scimGroupWriteSchema>
 export type ScimGroupWriteParsed = z.output<typeof scimGroupWriteSchema>
 

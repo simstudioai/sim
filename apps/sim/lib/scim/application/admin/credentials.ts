@@ -34,43 +34,52 @@ export const issueScimCredential = defineAuthorizedScimAdminUseCase({
   operation: scimAdminOperations.issueCredential,
   async execute({ input, context }: ScimAdminUseCaseArgs<IssueScimCredentialInput>) {
     const connection = await requireConnection(context.organizationId)
-
-    const [active] = await db
-      .select({ value: count() })
-      .from(scimCredential)
-      .where(activeCredentialCondition(connection.id))
-    if ((active?.value ?? 0) >= MAX_ACTIVE_CREDENTIALS) {
-      throw new OrchestrationError(
-        'conflict',
-        `At most ${MAX_ACTIVE_CREDENTIALS} credentials may be active at once. Revoke one before issuing another.`
-      )
-    }
-
     const { secret, hash, prefix } = generateScimToken()
     const scopes = input.scopes ?? [...SCIM_SCOPES]
     const expiresAt = input.expiresInDays
       ? new Date(Date.now() + input.expiresInDays * DAY_MS)
       : null
 
-    const [created] = await db
-      .insert(scimCredential)
-      .values({
-        id: generateId(),
-        connectionId: connection.id,
-        tokenHash: hash,
-        tokenPrefix: prefix,
-        scopes,
-        expiresAt,
-        createdBy: context.actorUserId,
-      })
-      .returning({
-        id: scimCredential.id,
-        tokenPrefix: scimCredential.tokenPrefix,
-        scopes: scimCredential.scopes,
-        expiresAt: scimCredential.expiresAt,
-        lastUsedAt: scimCredential.lastUsedAt,
-        createdAt: scimCredential.createdAt,
-      })
+    const created = await db.transaction(async (tx) => {
+      /** The connection row is the lock, so two issue requests cannot both see one free slot. */
+      await tx
+        .select({ id: scimConnection.id })
+        .from(scimConnection)
+        .where(eq(scimConnection.id, connection.id))
+        .for('update')
+
+      const [active] = await tx
+        .select({ value: count() })
+        .from(scimCredential)
+        .where(activeCredentialCondition(connection.id))
+      if ((active?.value ?? 0) >= MAX_ACTIVE_CREDENTIALS) {
+        throw new OrchestrationError(
+          'conflict',
+          `At most ${MAX_ACTIVE_CREDENTIALS} credentials may be active at once. Revoke one before issuing another.`
+        )
+      }
+
+      const [row] = await tx
+        .insert(scimCredential)
+        .values({
+          id: generateId(),
+          connectionId: connection.id,
+          tokenHash: hash,
+          tokenPrefix: prefix,
+          scopes,
+          expiresAt,
+          createdBy: context.actorUserId,
+        })
+        .returning({
+          id: scimCredential.id,
+          tokenPrefix: scimCredential.tokenPrefix,
+          scopes: scimCredential.scopes,
+          expiresAt: scimCredential.expiresAt,
+          lastUsedAt: scimCredential.lastUsedAt,
+          createdAt: scimCredential.createdAt,
+        })
+      return row
+    })
 
     return { secret, credential: toCredentialView(created), connectionId: connection.id }
   },

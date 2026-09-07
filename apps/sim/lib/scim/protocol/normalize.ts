@@ -77,6 +77,28 @@ export function normalizeAttributePath(path: string): string {
 export const ENTRA_LEGACY_GROUP_SCHEMA =
   'http://schemas.microsoft.com/2006/11/ResourceManagement/ADSCIM/2.0/Group'
 
+/**
+ * Restores canonical casing on top-level attribute names.
+ *
+ * RFC 7643 makes attribute names case-insensitive and Entra sends `username`
+ * where the schema says `userName`. Only the names given are touched; anything
+ * else passes through so unknown attributes still round-trip as sent.
+ */
+export function canonicalizeAttributeNames(
+  body: unknown,
+  canonicalNames: readonly string[]
+): unknown {
+  if (!isRecord(body)) return body
+  const byLower = new Map(canonicalNames.map((name) => [name.toLowerCase(), name]))
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(body)) {
+    const canonical = byLower.get(key.toLowerCase())
+    if (canonical && !(canonical in body) && !(canonical in result)) result[canonical] = value
+    else result[key] = value
+  }
+  return result
+}
+
 /** Drops schema URNs that are provider markers rather than real extensions. */
 export function stripProviderSchemaMarkers(schemas: readonly string[]): string[] {
   return schemas.filter((schema) => schema !== ENTRA_LEGACY_GROUP_SCHEMA)

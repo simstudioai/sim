@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { scimGroup } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   defineAuthorizedScimUseCase,
@@ -164,6 +165,12 @@ export const createScimGroup = defineAuthorizedScimUseCase({
   }: ScimUseCaseArgs<CreateScimGroupInput>): Promise<ScimGroupWriteResult> {
     const { group } = input
     return db.transaction(async (tx) => {
+      /**
+       * Group writes serialize on the organization lock, which also heads the
+       * documented lock order, so two full-membership PATCHes cannot both compute
+       * from the same stale membership and keep members from both.
+       */
+      await acquireOrganizationMutationLock(tx, context.organizationId)
       await assertDisplayNameAvailable(tx, {
         connectionId: context.connection.id,
         displayName: group.displayName,
@@ -226,6 +233,12 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
     context,
   }: ScimUseCaseArgs<ReplaceScimGroupInput>): Promise<ScimGroupWriteResult> {
     return db.transaction(async (tx) => {
+      /**
+       * Group writes serialize on the organization lock, which also heads the
+       * documented lock order, so two full-membership PATCHes cannot both compute
+       * from the same stale membership and keep members from both.
+       */
+      await acquireOrganizationMutationLock(tx, context.organizationId)
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
@@ -321,6 +334,12 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
     const patch = parseGroupPatch(input.operations)
 
     return db.transaction(async (tx) => {
+      /**
+       * Group writes serialize on the organization lock, which also heads the
+       * documented lock order, so two full-membership PATCHes cannot both compute
+       * from the same stale membership and keep members from both.
+       */
+      await acquireOrganizationMutationLock(tx, context.organizationId)
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
@@ -431,6 +450,12 @@ export const deleteScimGroup = defineAuthorizedScimUseCase({
   operation: scimOperations.deleteGroup,
   async execute({ input, context }: ScimUseCaseArgs<DeleteScimGroupInput>) {
     return db.transaction(async (tx) => {
+      /**
+       * Group writes serialize on the organization lock, which also heads the
+       * documented lock order, so two full-membership PATCHes cannot both compute
+       * from the same stale membership and keep members from both.
+       */
+      await acquireOrganizationMutationLock(tx, context.organizationId)
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 

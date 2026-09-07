@@ -73,8 +73,13 @@ describe('parseUserFilter', () => {
     expect(scimTypeOf(() => parseUserFilter('nickName eq "Ada"'))).toBe('invalidFilter')
   })
 
+  it('accepts the unquoted booleans RFC 7644 writes for active', () => {
+    expect(parseUserFilter('active eq true')).toEqual([{ field: 'active', value: 'true' }])
+    expect(parseUserFilter('active eq false')).toEqual([{ field: 'active', value: 'false' }])
+  })
+
   it('refuses an unquoted value', () => {
-    expect(scimTypeOf(() => parseUserFilter('active eq true'))).toBe('invalidFilter')
+    expect(scimTypeOf(() => parseUserFilter('userName eq ada'))).toBe('invalidFilter')
   })
 
   it('refuses more than ten joined expressions', () => {

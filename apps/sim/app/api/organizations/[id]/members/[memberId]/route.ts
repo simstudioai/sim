@@ -11,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import {
+  acquireOrganizationUserMutationLocks,
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
   WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
@@ -214,23 +215,20 @@ export const PUT = withRouteHandler(
       }
 
       /**
-       * When the organization has made its identity provider the source of
-       * truth for membership, a role set here is reverted by the next sync.
-       * Refusing says so instead of letting the change quietly disappear.
+       * The member is re-read under the organization's mutation lock, so a
+       * concurrent promotion to owner — or a directory provisioning this very
+       * member — cannot slip between the checks and the write. When the
+       * organization has made its identity provider the source of truth, a role
+       * set here is reverted by the next sync; refusing says so.
        */
-      await assertMembershipNotScimManaged({
-        organizationId,
-        userId: memberId,
+      const roleChange = await db.transaction(async (tx) => {
+        await acquireOrganizationUserMutationLocks(tx, {
+          userId: memberId,
+          organizationIds: [organizationId],
+        })
+        await assertMembershipNotScimManaged({ organizationId, userId: memberId, executor: tx })
+        return changeMemberRoleTx(tx, { organizationId, userId: memberId, role })
       })
-
-      /**
-       * The shared primitive re-reads the member under the organization's
-       * mutation lock, so a concurrent promotion to owner cannot slip between
-       * the check above and the write.
-       */
-      const roleChange = await db.transaction((tx) =>
-        changeMemberRoleTx(tx, { organizationId, userId: memberId, role })
-      )
 
       /**
        * The audit row and analytics event fire whether or not the role actually

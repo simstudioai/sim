@@ -53,6 +53,8 @@ export interface ProvisionScimUserResult {
   createdAccount: boolean
   /** False when the account was already a member and only the SCIM link was new. */
   joinedOrganization: boolean
+  /** The subscription seats were validated against, so the post-commit seat sync targets the same one. */
+  subscriptionId: string | undefined
   organizationId: string
   resource: ReturnType<typeof toUserResource>
 }
@@ -179,7 +181,11 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       await deleteScimUser(db, existing.id)
     }
 
-    let provisioned: { scimUserId: string; joinedOrganization: boolean }
+    let provisioned: {
+      scimUserId: string
+      joinedOrganization: boolean
+      subscriptionId: string | undefined
+    }
     try {
       provisioned = await db.transaction(async (tx) => {
         const seatPolicy = await resolveSeatPolicy(tx, context.organizationId)
@@ -231,7 +237,11 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           scimUserId: inserted.id,
           settings: context.connection.settings,
         })
-        return { scimUserId: inserted.id, joinedOrganization: !membership.alreadyMember }
+        return {
+          scimUserId: inserted.id,
+          joinedOrganization: !membership.alreadyMember,
+          subscriptionId: seatPolicy.organizationSubscriptionId,
+        }
       })
     } catch (error) {
       /**
@@ -253,7 +263,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       }
       throw error
     }
-    const { scimUserId, joinedOrganization } = provisioned
+    const { scimUserId, joinedOrganization, subscriptionId } = provisioned
 
     const record = await findScimUserById(db, context.connection.id, scimUserId)
     if (!record) throw new ScimError(500, undefined, 'The provisioned user could not be read back')
@@ -263,6 +273,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       userId,
       createdAccount,
       joinedOrganization,
+      subscriptionId,
       organizationId: context.organizationId,
       resource: toUserResource(toUserResourceRow(record, []), context.baseUrl),
     }
@@ -303,6 +314,8 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       await reconcileOrganizationSeats({
         organizationId: context.organizationId,
         reason: 'scim-member-added',
+        /** The subscription admission was validated against, not whichever is newest now. */
+        ...(result.subscriptionId ? { subscriptionId: result.subscriptionId } : {}),
       })
     } catch (error) {
       logger.error('Failed to reconcile seats after directory provisioning', { error })

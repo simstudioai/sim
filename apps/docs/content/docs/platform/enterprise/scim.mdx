@@ -6,13 +6,14 @@ description: Create, update, and deactivate Sim members automatically from your 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { FAQ } from '@/components/ui/faq'
 
 Directory provisioning connects your identity provider to Sim over SCIM 2.0. Your provider creates members when someone joins, updates them when their details change, and deactivates them the moment they leave — without anyone touching Sim.
 
 It pairs with [SSO](/platform/enterprise/sso). SSO proves who someone is when they sign in. Directory provisioning decides who exists and what they can reach, before and after that.
 
 <Callout type="info">
-  Enterprise plans. Requires at least one [verified domain](/platform/enterprise/verified-domains) for your organization.
+  Enterprise plans. Requires at least one [verified domain](/platform/enterprise/verified-domains) for your organization. Self-hosted deployments turn it on with `SCIM_ENABLED=true` and `NEXT_PUBLIC_SCIM_ENABLED=true`, alongside the [SSO variables](/platform/enterprise/sso#self-hosted-setup).
 </Callout>
 
 ## What it does

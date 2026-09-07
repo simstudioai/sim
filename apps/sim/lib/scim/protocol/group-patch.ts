@@ -53,9 +53,30 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
     removeMembers: [],
   }
 
+  /**
+   * Membership is a set, so the final state of each member is decided by the
+   * last operation naming them; an earlier delta is dropped when a later one
+   * contradicts it, and a wholesale replace supersedes every delta before it.
+   */
+  const addMember = (id: string) => {
+    const removedAt = remove.indexOf(id)
+    if (removedAt !== -1) remove.splice(removedAt, 1)
+    if (!add.includes(id)) add.push(id)
+  }
+  const removeMember = (id: string) => {
+    const addedAt = add.indexOf(id)
+    if (addedAt !== -1) add.splice(addedAt, 1)
+    if (!remove.includes(id)) remove.push(id)
+  }
   const applyFullMembers = (ids: string[]) => {
     incremental = false
+    add.length = 0
+    remove.length = 0
     full.members = ids
+  }
+  const readExternalId = (value: unknown): string | null => {
+    if (typeof value !== 'string') throw invalidValue('externalId must be a string')
+    return value.trim() || null
   }
 
   for (const operation of operations) {
@@ -77,7 +98,7 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
           }
           full.displayName = nested.trim()
         } else if (key === 'externalid') {
-          full.externalId = typeof nested === 'string' && nested.trim() ? nested.trim() : null
+          full.externalId = readExternalId(nested)
         } else if (key === 'members') {
           applyFullMembers(readMemberList(nested))
         } else if (key === 'id' || key === 'schemas' || key.startsWith('meta')) {
@@ -100,7 +121,7 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         throw invalidPath('A filtered members path is only supported for remove')
       }
       const id = filtered.groups.value.trim()
-      if (id && !remove.includes(id)) remove.push(id)
+      if (id) removeMember(id)
       continue
     }
 
@@ -115,9 +136,10 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         applyFullMembers([])
         continue
       }
-      const ids = readMemberList(operation.value ?? [])
-      const target = operation.op === 'add' ? add : remove
-      for (const id of ids) if (!target.includes(id)) target.push(id)
+      for (const id of readMemberList(operation.value ?? [])) {
+        if (operation.op === 'add') addMember(id)
+        else removeMember(id)
+      }
       continue
     }
 
@@ -133,10 +155,7 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
 
     if (key === 'externalid') {
       incremental = false
-      full.externalId =
-        operation.op === 'remove' || typeof operation.value !== 'string'
-          ? null
-          : operation.value.trim() || null
+      full.externalId = operation.op === 'remove' ? null : readExternalId(operation.value)
       continue
     }
 

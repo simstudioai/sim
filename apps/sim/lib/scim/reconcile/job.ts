@@ -70,6 +70,16 @@ async function acquireLease(connectionId: string, runId: string): Promise<boolea
   return claimed.length > 0
 }
 
+/** Whether this run still holds the connection; a run past the TTL may have been superseded. */
+async function holdsLease(connectionId: string, runId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ token: scimConnection.reconcileLockToken })
+    .from(scimConnection)
+    .where(eq(scimConnection.id, connectionId))
+    .limit(1)
+  return row?.token === runId
+}
+
 async function releaseLease(connectionId: string, runId: string): Promise<void> {
   await db
     .update(scimConnection)
@@ -117,6 +127,18 @@ export async function reconcileConnection(connection: {
   const runId = generateId()
   if (!(await acquireLease(connection.id, runId))) return null
 
+  /**
+   * Settings are read after the lease is held, not from the row the due query
+   * returned: an administrator may have changed them in between, and projecting
+   * with the old settings would then stamp the connection as reconciled.
+   */
+  const [fresh] = await db
+    .select({ settings: scimConnection.settings })
+    .from(scimConnection)
+    .where(eq(scimConnection.id, connection.id))
+    .limit(1)
+  const settings = fresh?.settings ?? connection.settings
+
   const report: ScimReconcileReport = {
     connectionId: connection.id,
     reconciledUsers: 0,
@@ -133,6 +155,12 @@ export async function reconcileConnection(connection: {
         limit: BATCH_SIZE,
       })
       if (page.length === 0) break
+      if (!(await holdsLease(connection.id, runId))) {
+        logger.warn('Directory reconciliation stopped: the lease was taken over', {
+          connectionId: connection.id,
+        })
+        break
+      }
 
       await db.transaction(async (tx) => {
         for (const row of page) {
@@ -140,7 +168,7 @@ export async function reconcileConnection(connection: {
             connectionId: connection.id,
             organizationId: connection.organizationId,
             scimUserId: row.id,
-            settings: connection.settings,
+            settings,
           })
           report.reconciledUsers += 1
           report.grantsAdded += delta.added.length + delta.raised.length
