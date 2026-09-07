@@ -189,15 +189,17 @@ const streamKey = (name: string) => `${STREAM_PREFIX}${name}`
 /**
  * Unfolded delta bytes a compaction could actually reclaim right now.
  *
- * Only entries at or before `room.lastId` count: a fold trims to that boundary, so bytes past it
- * would survive the trim and re-arm the trigger immediately, forcing a full snapshot append per
- * publish that reclaims nothing. They stay in `pendingDeltas` and start counting once the tailer
- * has integrated them.
+ * Only entries strictly before `room.lastId` count. A fold trims with `MINID upTo`, which is
+ * inclusive, so everything from `upTo` onward survives it; counting those would re-arm the trigger
+ * the moment a fold finished and force a full snapshot append per publish that reclaims nothing.
+ * They stay in `pendingDeltas` and start counting once the tailer has moved past them.
  */
 function foldableDeltaBytes(room: StoreRoom): number {
   let bytes = 0
   for (const delta of room.pendingDeltas) {
-    if (!isAfterStreamId(delta.id, room.lastId)) bytes += delta.bytes
+    // Strictly before the boundary: MINID is inclusive, so the entry AT `lastId` survives the
+    // trim and folding cannot reclaim it.
+    if (isAfterStreamId(room.lastId, delta.id)) bytes += delta.bytes
   }
   return bytes
 }
@@ -835,7 +837,9 @@ export class FileDocStore {
         // MINID and its bytes are still in Redis, so it stays counted; dropping it would disarm the
         // trigger while the stream kept growing. Done after the trim, so a failed fold changes
         // nothing and leaves the trigger armed.
-        room.pendingDeltas = room.pendingDeltas.filter((delta) => isAfterStreamId(delta.id, upTo))
+        // `MINID upTo` is inclusive — it keeps the entry whose id EQUALS `upTo`, so that entry's
+        // bytes are still in Redis and must stay counted. Keeps exactly what survived the trim.
+        room.pendingDeltas = room.pendingDeltas.filter((delta) => !isAfterStreamId(upTo, delta.id))
       } finally {
         await this.releaseLock(key, token)
       }

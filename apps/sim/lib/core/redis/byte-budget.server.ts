@@ -202,25 +202,32 @@ end
 }
 
 /**
- * Releases an owner's whole reservation when its data is deleted rather than expired.
+ * Lua that releases an owner's whole reservation, for data that is deleted rather than
+ * left to expire.
  *
- * The owner counter is dropped and the user counter credited by exactly what the owner
- * held, in one script — crediting the user from a separately read value would let a
- * concurrent write land in between and be released twice.
+ * Rendered into the caller's own script, the same way {@link renderRedisBudgetLua} is, so
+ * the release commits together with the delete it accounts for. Releasing in a second
+ * round trip would let a concurrent write land in between and keep its bytes stored with
+ * its reservation already erased.
  *
- * KEYS: [ownerKey] or [ownerKey, userKey], as {@link getRedisBudgetKeys} returns them.
+ * Contract: budget keys are the **last** one or two entries of `KEYS`, in the order
+ * {@link getRedisBudgetKeys} returns them, and `baseKeyCount` is how many precede them.
  */
-export const REDIS_BUDGET_RELEASE_SCRIPT = `
-local owner_bytes = tonumber(redis.call('GET', KEYS[1]) or '0')
-redis.call('DEL', KEYS[1])
-if #KEYS >= 2 and owner_bytes > 0 then
-  local user_next = redis.call('DECRBY', KEYS[2], owner_bytes)
+export function renderRedisBudgetReleaseLua(baseKeyCount: number): string {
+  const ownerKey = `KEYS[${baseKeyCount + 1}]`
+  const userKey = `KEYS[${baseKeyCount + 2}]`
+
+  return `
+local owner_bytes = tonumber(redis.call('GET', ${ownerKey}) or '0')
+redis.call('DEL', ${ownerKey})
+if #KEYS >= ${baseKeyCount + 2} and owner_bytes > 0 then
+  local user_next = redis.call('DECRBY', ${userKey}, owner_bytes)
   if user_next <= 0 then
-    redis.call('DEL', KEYS[2])
+    redis.call('DEL', ${userKey})
   end
 end
-return owner_bytes
 `
+}
 
 /** Parses the `{0, resource, current}` refusal a guarded script returns. */
 export function parseRedisBudgetRefusal(

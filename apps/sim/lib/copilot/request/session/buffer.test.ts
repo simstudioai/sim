@@ -66,16 +66,29 @@ const createRedisStub = () => {
     }),
     get: vi.fn().mockImplementation((key: string) => Promise.resolve(values.get(key) ?? null)),
     /**
-     * Stands in for `APPEND_EVENTS_SCRIPT`. It reproduces the script's observable
+     * Stands in for both Lua scripts, dispatching on the leading `DEL` that only
+     * `CLEAR_BUFFER_SCRIPT` has. It reproduces their observable
      * effects — dedupe, zadd, rank-trim, seq — so the read-path tests still exercise
      * real data, and exposes `budgetRefusal` so the refusal branch can be driven
      * without reimplementing the budget arithmetic here.
      */
     budgetRefusal: null as null | [number, string, number],
     eval: vi.fn().mockImplementation((...args: unknown[]) => {
+      const script = String(args[0])
       const numKeys = Number(args[1])
       const keys = args.slice(2, 2 + numKeys) as string[]
       const argv = args.slice(2 + numKeys) as Array<string | number>
+
+      // CLEAR_BUFFER_SCRIPT is the only one that opens with a DEL.
+      if (script.trimStart().startsWith("redis.call('DEL'")) {
+        for (const key of keys) {
+          values.delete(key)
+          sortedSets.delete(key)
+          counters.delete(key)
+        }
+        return Promise.resolve(1)
+      }
+
       if (api.budgetRefusal) return Promise.resolve(api.budgetRefusal)
 
       const [eventsKey, seqKey] = keys
@@ -404,18 +417,19 @@ describe('mothership-stream-outbox', () => {
     // retry that reuses the same streamId against bytes that no longer exist anywhere.
     await clearBuffer('stream-1', 'clear_outbox', { streamId: 'stream-1', userId: 'user-1' })
 
-    expect(mockRedis.del).toHaveBeenCalled()
+    // One script, so a concurrent append cannot land between the delete and the release and
+    // keep its events stored with its reservation already erased.
     const evalCall = mockRedis.eval.mock.calls.at(-1)
-    expect(evalCall?.[1]).toBe(2)
-    expect(evalCall?.[2]).toBe('execution:redis-budget:copilot_stream:stream-1')
-    expect(evalCall?.[3]).toBe('execution:redis-budget:user:user-1')
+    expect(evalCall?.[1]).toBe(5)
+    expect(evalCall?.[5]).toBe('execution:redis-budget:copilot_stream:stream-1')
+    expect(evalCall?.[6]).toBe('execution:redis-budget:user:user-1')
   })
 
   it('releases only the owner counter when no user is in scope', async () => {
     await clearBuffer('stream-1')
 
     const evalCall = mockRedis.eval.mock.calls.at(-1)
-    expect(evalCall?.[1]).toBe(1)
-    expect(evalCall?.[2]).toBe('execution:redis-budget:copilot_stream:stream-1')
+    expect(evalCall?.[1]).toBe(4)
+    expect(evalCall?.[5]).toBe('execution:redis-budget:copilot_stream:stream-1')
   })
 })

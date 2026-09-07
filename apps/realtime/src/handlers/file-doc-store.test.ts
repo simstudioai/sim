@@ -128,6 +128,28 @@ vi.mock('redis', () => ({ createClient: () => makeClient() }))
 import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
 
 const REDIS_URL = 'redis://fake'
+
+interface StoreRoomInternals {
+  lastId: string
+  pendingDeltas: Array<{ id: string; bytes: number }>
+  realEdited: boolean
+  publishes: number
+  doc: Y.Doc
+  seededObserved: boolean
+}
+
+interface FileDocStoreInternals {
+  rooms: Map<string, StoreRoomInternals>
+  appendUpdate(name: string, update: Uint8Array, agent?: boolean): Promise<void>
+  write: { xTrim: (...args: unknown[]) => Promise<unknown> }
+  maybeCompact(name: string, force?: boolean): Promise<void>
+}
+
+/** Reaches the private state these tests assert on, without `any`. */
+function internals(store: object): FileDocStoreInternals {
+  return store as unknown as FileDocStoreInternals
+}
+
 const COMPACT_THRESHOLD_ENTRIES = 400
 const NAME = 'workspace-file-doc:file-1'
 
@@ -339,14 +361,15 @@ describe('FileDocStore', () => {
     const a = await newStore()
     // This task has integrated only up to entry 400 (all no-ops) — its local doc is empty and lags the
     // two peer entries. Inject that lagging room directly (a real edit was integrated → realEdited).
-    ;(a as any).rooms.set(NAME, {
+    internals(a).rooms.set(NAME, {
       doc: new Y.Doc(),
       lastId: '400-0',
       publishes: 0,
+      pendingDeltas: [],
       seededObserved: true,
       realEdited: true,
     })
-    await (a as any).maybeCompact(NAME)
+    await internals(a).maybeCompact(NAME)
 
     // A fresh catch-up must still reconstruct the peer content — compaction must not have trimmed 401/402.
     const doc = new Y.Doc()
@@ -392,11 +415,11 @@ describe('FileDocStore', () => {
     const a = await newStore()
     const doc = new Y.Doc()
     await a.attachRoom(NAME, doc)
-    const room = (a as any).rooms.get(NAME)
+    const room = internals(a).rooms.get(NAME)!
     expect(room.realEdited).toBe(false)
     // Kick off a real (non-agent) append but do NOT await it: realEdited must already be true before the
     // xAdd/expire awaits resolve, so any compaction racing on the awaits sees the real edit.
-    const pending = (a as any).appendUpdate(NAME, updateFor('real user edit'))
+    const pending = internals(a).appendUpdate(NAME, updateFor('real user edit'))
     expect(room.realEdited).toBe(true)
     await pending
     doc.destroy()
@@ -474,16 +497,16 @@ describe('FileDocStore', () => {
     const a = await newStore()
     const doc = new Y.Doc()
     await a.attachRoom(NAME, doc)
-    const room = (a as any).rooms.get(NAME)
+    const room = internals(a).rooms.get(NAME)!
     room.pendingDeltas = [{ id: '1-0', bytes: 9 * 1024 * 1024 }]
     room.realEdited = true
 
-    const write = (a as any).write
+    const write = internals(a).write
     const original = write.xTrim.bind(write)
     write.xTrim = async () => {
       throw new Error('redis blip')
     }
-    await (a as any).maybeCompact(NAME, true)
+    await internals(a).maybeCompact(NAME, true)
     write.xTrim = original
 
     // A failed fold must not disarm the trigger — otherwise the stream stays oversized until
@@ -496,19 +519,24 @@ describe('FileDocStore', () => {
     const a = await newStore()
     const doc = new Y.Doc()
     await a.attachRoom(NAME, doc)
-    const room = (a as any).rooms.get(NAME)
+    const room = internals(a).rooms.get(NAME)!
     room.realEdited = true
-    // The tailer has integrated up to 5-0, so MINID retains 9-0. Its bytes are still in Redis,
-    // and dropping them would disarm the byte trigger while the stream kept growing.
+    // The tailer has integrated up to 5-0, so `MINID 5-0` retains both 5-0 (the boundary is
+    // INCLUSIVE) and 9-0. Their bytes are still in Redis, and dropping them would disarm the
+    // byte trigger while the stream kept growing.
     room.lastId = '5-0'
     room.pendingDeltas = [
       { id: '3-0', bytes: 4 * 1024 * 1024 },
+      { id: '5-0', bytes: 6 * 1024 * 1024 },
       { id: '9-0', bytes: 7 * 1024 * 1024 },
     ]
 
-    await (a as any).maybeCompact(NAME, true)
+    await internals(a).maybeCompact(NAME, true)
 
-    expect(room.pendingDeltas).toEqual([{ id: '9-0', bytes: 7 * 1024 * 1024 }])
+    expect(room.pendingDeltas).toEqual([
+      { id: '5-0', bytes: 6 * 1024 * 1024 },
+      { id: '9-0', bytes: 7 * 1024 * 1024 },
+    ])
     doc.destroy()
   })
 
@@ -525,14 +553,15 @@ describe('FileDocStore', () => {
     state.backing!.seq = 400
 
     const a = await newStore()
-    ;(a as any).rooms.set(NAME, {
+    internals(a).rooms.set(NAME, {
       doc: agentDoc,
       lastId: '400-0',
       publishes: 0,
+      pendingDeltas: [],
       seededObserved: true,
       realEdited: false,
     })
-    await (a as any).maybeCompact(NAME)
+    await internals(a).maybeCompact(NAME)
 
     // The snapshot must carry the AGENT marker, NOT the snapshot marker, so a peer catch-up applies it as
     // REDIS_AGENT_ORIGIN and never marks the doc edited — the no-persist guarantee survives compaction.
@@ -691,21 +720,23 @@ describe('FileDocStore', () => {
     const b = await newStore()
     const docA = new Y.Doc()
     Y.applyUpdate(docA, peerUpdates[0]) // A integrated up to 401
-    ;(a as any).rooms.set(NAME, {
+    internals(a).rooms.set(NAME, {
       doc: docA,
       lastId: '401-0',
       publishes: 0,
+      pendingDeltas: [],
       seededObserved: true,
       realEdited: true,
     })
-    ;(b as any).rooms.set(NAME, {
+    internals(b).rooms.set(NAME, {
       doc: new Y.Doc(),
       lastId: '400-0',
       publishes: 0,
+      pendingDeltas: [],
       seededObserved: true,
       realEdited: true,
     })
-    await Promise.all([(a as any).maybeCompact(NAME), (b as any).maybeCompact(NAME)])
+    await Promise.all([internals(a).maybeCompact(NAME), internals(b).maybeCompact(NAME)])
 
     const doc = new Y.Doc()
     Y.applyUpdate(doc, (await a.getStreamState(NAME))!)

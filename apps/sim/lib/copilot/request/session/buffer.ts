@@ -8,9 +8,9 @@ import {
   getRedisBudgetLimits,
   logRedisBudgetRefusal,
   parseRedisBudgetRefusal,
-  REDIS_BUDGET_RELEASE_SCRIPT,
   type RedisBudgetRefusal,
   renderRedisBudgetLua,
+  renderRedisBudgetReleaseLua,
 } from '@/lib/core/redis/byte-budget.server'
 import {
   type PersistedStreamEventEnvelope,
@@ -103,6 +103,13 @@ export async function allocateCursor(streamId: string): Promise<{
   return { seq, cursor: String(seq) }
 }
 
+/** Deletes a stream's buffer and releases its reservation together. KEYS: [events, seq, abort, budget...]. */
+const CLEAR_BUFFER_SCRIPT = `
+redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
+${renderRedisBudgetReleaseLua(3)}
+return 1
+`
+
 export async function resetBuffer(streamId: string, scope?: StreamBudgetScope): Promise<void> {
   await clearBuffer(streamId, 'reset_outbox', scope)
 }
@@ -112,19 +119,27 @@ export async function clearBuffer(
   operation = 'clear_outbox',
   scope?: StreamBudgetScope
 ): Promise<void> {
+  /*
+    Delete and release in ONE script. The counter outlives the data it accounts for
+    unless it is released here — these keys are deleted rather than expired, so a retry
+    reusing the same streamId would be refused against bytes that no longer exist. Doing
+    it in a second round trip would be its own hole: a concurrent append landing between
+    the two would keep its events stored with its reservation already erased.
+  */
+  const budgetKeys = getRedisBudgetKeys({
+    kind: 'copilot_stream',
+    id: streamId,
+    ...(scope?.userId ? { userId: scope.userId } : {}),
+  })
   await withRedisRetry({ operation, streamId }, async (redis) => {
-    await redis.del(getEventsKey(streamId), getSeqKey(streamId), getAbortKey(streamId))
-    /*
-      The counter outlives the data it accounts for unless it is released here: the keys
-      above are deleted rather than expired, so without this a retry reusing the same
-      streamId would be refused against bytes that no longer exist anywhere.
-    */
-    const budgetKeys = getRedisBudgetKeys({
-      kind: 'copilot_stream',
-      id: streamId,
-      ...(scope?.userId ? { userId: scope.userId } : {}),
-    })
-    await redis.eval(REDIS_BUDGET_RELEASE_SCRIPT, budgetKeys.length, ...budgetKeys)
+    await redis.eval(
+      CLEAR_BUFFER_SCRIPT,
+      3 + budgetKeys.length,
+      getEventsKey(streamId),
+      getSeqKey(streamId),
+      getAbortKey(streamId),
+      ...budgetKeys
+    )
   })
 }
 
