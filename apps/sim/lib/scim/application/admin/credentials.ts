@@ -111,7 +111,11 @@ export const revokeScimCredential = defineAuthorizedScimAdminUseCase({
           )`
         )
       )
-      .returning({ id: scimCredential.id, tokenPrefix: scimCredential.tokenPrefix })
+      .returning({
+        id: scimCredential.id,
+        tokenPrefix: scimCredential.tokenPrefix,
+        connectionId: scimCredential.connectionId,
+      })
 
     if (!revoked) throw new OrchestrationError('not_found', 'Credential not found')
     return { success: true as const, revoked }
@@ -119,7 +123,7 @@ export const revokeScimCredential = defineAuthorizedScimAdminUseCase({
   projectAudit: ({ result }) => ({
     action: AuditAction.SCIM_CREDENTIAL_REVOKED,
     resourceType: AuditResourceType.SCIM_CONNECTION,
-    resourceId: result.revoked.id,
-    metadata: { tokenPrefix: result.revoked.tokenPrefix },
+    resourceId: result.revoked.connectionId,
+    metadata: { credentialId: result.revoked.id, tokenPrefix: result.revoked.tokenPrefix },
   }),
 })

@@ -6,8 +6,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
-import { isScimEnabled } from '@/lib/core/config/env-flags'
+import { isScimEntitledForOrganization } from '@/lib/scim/entitlement'
 import { ScimError } from '@/lib/scim/protocol/errors'
 
 const logger = createLogger('ScimAuthenticate')
@@ -128,7 +127,7 @@ export async function authenticateScimRequest(
    * created. An organization that lapses stops accepting directory writes rather
    * than continuing to provision members it is no longer paying for.
    */
-  if (!(await isOrganizationFeatureEntitled(row.organizationId, isScimEnabled))) {
+  if (!(await isScimEntitledForOrganization(row.organizationId))) {
     throw unauthorized()
   }
 

@@ -22,7 +22,7 @@ It pairs with [SSO](/platform/enterprise/sso). SSO proves who someone is when th
 | --- | --- |
 | Assigns a person to the Sim app | Creates their account and adds them to your organization as a Member |
 | Updates their name or email | Updates the Sim account, and ends their sessions if the address changed |
-| Deactivates them | Blocks sign-in and stops their API keys. Everything they own, and every grant they hold, is left untouched |
+| Deactivates them | Blocks sign-in and stops their personal API keys. Everything they own, and every grant they hold, is left untouched; shared workspace keys keep working |
 | Reactivates them | Restores access exactly as it was |
 | Removes them from the app | Removes their organization membership and reassigns what they owned |
 | Adds them to a group | Grants whatever that group maps to |
@@ -156,7 +156,7 @@ Sim also re-applies every group mapping on a schedule, so drift cannot persist. 
 <FAQ items={[
   {
     question: "What happens to someone's workflows when they are deactivated?",
-    answer: "Nothing. A deactivation blocks sign-in and stops their API keys, and leaves every workspace, workflow, and credential they own exactly as it was. Reactivating them restores access. Only a removal — which your provider sends explicitly — reassigns what they owned. A deactivated member also keeps their seat until they are removed."
+    answer: "Nothing. A deactivation blocks sign-in and stops their personal API keys, and leaves every workspace, workflow, and credential they own exactly as it was. Reactivating them restores access. Only a removal — which your provider sends explicitly — reassigns what they owned. A deactivated member also keeps their seat until they are removed."
   },
   {
     question: "Can the directory provision someone outside our verified domains?",
@@ -176,7 +176,7 @@ Sim also re-applies every group mapping on a schedule, so drift cannot persist. 
   },
   {
     question: "Does a deactivation sign someone out immediately?",
-    answer: "Their sessions are deleted at once and their API keys stop authenticating immediately. A browser tab holding a cached session cookie can survive up to five minutes; enabling a session policy shortens that window."
+    answer: "Their sessions are deleted at once and their personal API keys stop authenticating immediately. The organization's security version changes at the same time, so a browser still holding a cached session cookie is re-checked on its next request and refused."
   },
   {
     question: "Can we still invite people manually?",

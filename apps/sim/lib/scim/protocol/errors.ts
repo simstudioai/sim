@@ -1,4 +1,4 @@
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { SCIM_ERROR_SCHEMA } from '@/lib/scim/protocol/constants'
 
 /**
@@ -144,19 +144,20 @@ export function toScimError(error: unknown): ScimError {
     return new ScimError(409, 'uniqueness', 'A resource with the same identifier already exists')
   }
 
-  if (error instanceof OrchestrationError) {
-    switch (error.code) {
+  const orchestration = asOrchestrationError(error)
+  if (orchestration) {
+    switch (orchestration.code) {
       case 'not_found':
-        return new ScimError(404, undefined, error.message)
+        return new ScimError(404, undefined, orchestration.message)
       /** A conflict that is not a duplicate carries no `scimType`; `uniqueness` is reserved for duplicates. */
       case 'conflict':
-        return new ScimError(409, undefined, error.message)
+        return new ScimError(409, undefined, orchestration.message)
       case 'forbidden':
-        return new ScimError(403, undefined, error.message)
+        return new ScimError(403, undefined, orchestration.message)
       case 'validation':
-        return new ScimError(400, 'invalidValue', error.message)
+        return new ScimError(400, 'invalidValue', orchestration.message)
       case 'locked':
-        return new ScimError(503, undefined, error.message, { 'Retry-After': '5' })
+        return new ScimError(503, undefined, orchestration.message, { 'Retry-After': '5' })
       default:
         return new ScimError(500, undefined, 'Internal server error')
     }

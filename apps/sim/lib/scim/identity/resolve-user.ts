@@ -1,7 +1,7 @@
 import { member, type ScimUserAttributes, scimUserTombstone, ssoDomain, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
-import { normalizeEmail } from '@sim/utils/string'
+import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { primaryEmail } from '@/lib/scim/protocol/canonical'
@@ -50,7 +50,9 @@ export async function assertDomainOwned(
   email: string
 ): Promise<void> {
   const domain = normalizeSSODomain(email)
-  if (!domain) throw invalidValue(`${email} is not a usable email address`)
+  if (!domain || !isValidEmailSyntax(email)) {
+    throw invalidValue(`${email} is not a usable email address`)
+  }
   const verified = await listVerifiedDomains(tx, organizationId)
   /**
    * `invalidValue` rather than `uniqueness`. Nothing is duplicated here; the

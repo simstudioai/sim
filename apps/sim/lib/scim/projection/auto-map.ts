@@ -1,6 +1,6 @@
 import { permissionGroup, scimGroupMapping } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
 /**
@@ -15,6 +15,11 @@ import type { DbOrTx } from '@/lib/db/types'
  *
  * The adopted group is moved to explicit membership so the directory removing
  * its last member narrows it to nobody instead of widening it to everyone.
+ *
+ * Automatic mappings are the ones with no author. A rename drops the automatic
+ * mapping the old name earned, so members do not keep access to a group whose
+ * name the directory no longer carries; mappings an administrator made by hand
+ * are theirs and are left alone.
  */
 export async function autoMapPermissionGroupByName(
   tx: DbOrTx,
@@ -31,6 +36,17 @@ export async function autoMapPermissionGroupByName(
       )
     )
     .limit(1)
+
+  await tx
+    .delete(scimGroupMapping)
+    .where(
+      and(
+        eq(scimGroupMapping.groupId, params.scimGroupId),
+        eq(scimGroupMapping.targetKind, 'permission_group'),
+        isNull(scimGroupMapping.createdBy),
+        ...(target ? [ne(scimGroupMapping.permissionGroupId, target.id)] : [])
+      )
+    )
   if (!target) return 'no-match'
 
   const [existing] = await tx
@@ -53,12 +69,17 @@ export async function autoMapPermissionGroupByName(
       .where(eq(permissionGroup.id, target.id))
   }
 
-  await tx.insert(scimGroupMapping).values({
-    id: generateId(),
-    groupId: params.scimGroupId,
-    targetKind: 'permission_group',
-    permissionGroupId: target.id,
-    createdBy: null,
-  })
-  return 'mapped'
+  /** The unique index is the arbiter when an administrator maps the same pair concurrently. */
+  const inserted = await tx
+    .insert(scimGroupMapping)
+    .values({
+      id: generateId(),
+      groupId: params.scimGroupId,
+      targetKind: 'permission_group',
+      permissionGroupId: target.id,
+      createdBy: null,
+    })
+    .onConflictDoNothing()
+    .returning({ id: scimGroupMapping.id })
+  return inserted.length > 0 ? 'mapped' : 'already-mapped'
 }

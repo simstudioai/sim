@@ -327,9 +327,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   } else {
     if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
-        <SettingsEmptyState>
-          Only the user who configured SSO can manage these settings.
-        </SettingsEmptyState>
+        <>
+          <SettingsEmptyState>
+            Only the user who configured SSO can manage these settings.
+          </SettingsEmptyState>
+          <ScimSection organizationId={organizationId} />
+        </>
       )
     }
   }

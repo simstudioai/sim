@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { type ScimUserAttributes, subscription, user } from '@sim/db/schema'
+import { type ScimUserAttributes, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { and, desc, eq, inArray } from 'drizzle-orm'
@@ -15,7 +15,10 @@ import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
-import { suspendMemberTx } from '@/lib/organizations/members/lifecycle'
+import {
+  invalidateAfterSessionRevocation,
+  suspendMemberTx,
+} from '@/lib/organizations/members/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   defineAuthorizedScimUseCase,
@@ -40,6 +43,7 @@ import {
   insertScimUser,
   toUserResourceRow,
 } from '@/lib/scim/repository/users'
+import { deleteUserAccount } from '@/lib/users/account-deletion'
 
 const logger = createLogger('ScimProvisionUser')
 
@@ -251,15 +255,12 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
        * directory's retry starts from a clean slate instead of a half-state.
        */
       if (createdAccount) {
-        await db
-          .delete(user)
-          .where(eq(user.id, userId))
-          .catch((cleanupError) =>
-            logger.error('Failed to remove an account after provisioning was refused', {
-              userId,
-              cleanupError,
-            })
-          )
+        await deleteUserAccount(userId).catch((cleanupError) =>
+          logger.error('Failed to remove an account after provisioning was refused', {
+            userId,
+            cleanupError,
+          })
+        )
       }
       throw error
     }
@@ -305,6 +306,13 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
    * that is already committed and already correct.
    */
   afterSuccess: async ({ result, context }) => {
+    /** A member provisioned already inactive had their sessions revoked inside the transaction. */
+    if (!result.resource.active) {
+      invalidateAfterSessionRevocation({
+        userId: result.userId,
+        organizationId: context.organizationId,
+      })
+    }
     try {
       await applySessionPolicyToNewMember(result.userId, context.organizationId)
     } catch (error) {

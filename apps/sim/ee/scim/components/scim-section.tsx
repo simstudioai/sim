@@ -26,7 +26,10 @@ import type {
 } from '@/lib/api/contracts/organization-scim'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -523,10 +526,27 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
  */
 export function ScimSection({ organizationId }: ScimSectionProps) {
   const { features } = useDeploymentShape()
-  const { data, isLoading } = useScimConnection(organizationId, features.scim)
+  const { data, isLoading, isError, error, isFetching, refetch } = useScimConnection(
+    organizationId,
+    features.scim
+  )
   const configure = useConfigureScimConnection()
 
   if (!features.scim) return null
+
+  if (isError) {
+    return (
+      <SettingsSection label='Directory provisioning'>
+        <SettingsQueryErrorState
+          error={error}
+          fallback='Failed to load directory provisioning settings'
+          isRetrying={isFetching}
+          onRetry={() => void refetch()}
+          variant='inline'
+        />
+      </SettingsSection>
+    )
+  }
 
   const connection = data?.connection ?? null
   const enabled = connection?.status === 'active'

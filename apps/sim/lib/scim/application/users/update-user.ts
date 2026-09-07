@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import type { ScimUserAttributes } from '@sim/db/schema'
+import { member, type ScimUserAttributes } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
+import { and, eq } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
@@ -147,6 +148,19 @@ async function loadUserForUpdate(
   })
   const current = await findScimUserById(tx, context.connection.id, scimUserId)
   if (!current) throw notFound('SCIM User not found')
+  /**
+   * A row can outlive the membership it describes when someone is removed by
+   * hand. Writing to that account would reach into whichever organization the
+   * person joined next, so the resource is reported gone instead.
+   */
+  const [membership] = await tx
+    .select({ id: member.id })
+    .from(member)
+    .where(
+      and(eq(member.organizationId, context.organizationId), eq(member.userId, current.userId))
+    )
+    .limit(1)
+  if (!membership) throw notFound('SCIM User not found')
   return current
 }
 

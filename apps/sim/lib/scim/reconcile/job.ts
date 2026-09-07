@@ -3,8 +3,7 @@ import { scimConnection } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
-import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
-import { isScimEnabled } from '@/lib/core/config/env-flags'
+import { isScimEntitledForOrganization } from '@/lib/scim/entitlement'
 import { reconcileUserProjection } from '@/lib/scim/projection/reconcile-user'
 import { listScimUserIds } from '@/lib/scim/repository/users'
 import { pruneScimRequestLog } from '@/lib/scim/request-log'
@@ -80,10 +79,19 @@ async function holdsLease(connectionId: string, runId: string): Promise<boolean>
   return row?.token === runId
 }
 
-async function releaseLease(connectionId: string, runId: string): Promise<void> {
+/** Releases the lease; the watermark advances only when the pass finished, so a failed batch is retried next hour. */
+async function releaseLease(
+  connectionId: string,
+  runId: string,
+  completed: boolean
+): Promise<void> {
   await db
     .update(scimConnection)
-    .set({ reconcileLockToken: null, reconcileLeaseAt: null, reconciledAt: new Date() })
+    .set({
+      reconcileLockToken: null,
+      reconcileLeaseAt: null,
+      ...(completed ? { reconciledAt: new Date() } : {}),
+    })
     .where(and(eq(scimConnection.id, connectionId), eq(scimConnection.reconcileLockToken, runId)))
 }
 
@@ -122,22 +130,10 @@ export async function reconcileConnection(connection: {
    * A lapsed organization's credentials are refused at authentication; its
    * projection must not keep being re-applied by the scheduler either.
    */
-  if (!(await isOrganizationFeatureEntitled(connection.organizationId, isScimEnabled))) return null
+  if (!(await isScimEntitledForOrganization(connection.organizationId))) return null
 
   const runId = generateId()
   if (!(await acquireLease(connection.id, runId))) return null
-
-  /**
-   * Settings are read after the lease is held, not from the row the due query
-   * returned: an administrator may have changed them in between, and projecting
-   * with the old settings would then stamp the connection as reconciled.
-   */
-  const [fresh] = await db
-    .select({ settings: scimConnection.settings })
-    .from(scimConnection)
-    .where(eq(scimConnection.id, connection.id))
-    .limit(1)
-  const settings = fresh?.settings ?? connection.settings
 
   const report: ScimReconcileReport = {
     connectionId: connection.id,
@@ -146,7 +142,20 @@ export async function reconcileConnection(connection: {
     grantsRemoved: 0,
   }
 
+  let completed = false
   try {
+    /**
+     * Settings are read after the lease is held, not from the row the due query
+     * returned: an administrator may have changed them in between, and projecting
+     * with the old settings would then stamp the connection as reconciled.
+     */
+    const [fresh] = await db
+      .select({ settings: scimConnection.settings })
+      .from(scimConnection)
+      .where(eq(scimConnection.id, connection.id))
+      .limit(1)
+    const settings = fresh?.settings ?? connection.settings
+
     let cursor: string | undefined
     for (;;) {
       const page = await listScimUserIds(db, {
@@ -159,7 +168,7 @@ export async function reconcileConnection(connection: {
         logger.warn('Directory reconciliation stopped: the lease was taken over', {
           connectionId: connection.id,
         })
-        break
+        return null
       }
 
       await db.transaction(async (tx) => {
@@ -178,13 +187,14 @@ export async function reconcileConnection(connection: {
       cursor = page[page.length - 1].orderKey
     }
 
+    completed = true
     await pruneScimRequestLog(connection.id)
     if (report.grantsAdded > 0 || report.grantsRemoved > 0) {
       logger.warn('Directory reconciliation corrected drift', report)
     }
     return report
   } finally {
-    await releaseLease(connection.id, runId)
+    await releaseLease(connection.id, runId, completed)
   }
 }
 

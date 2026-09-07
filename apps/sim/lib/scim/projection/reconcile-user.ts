@@ -11,7 +11,7 @@ import {
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
@@ -107,18 +107,24 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
  */
 type GrantApplication = 'applied' | 'unchanged' | 'skipped'
 
-/** Whether a mapped workspace still belongs to the organization the directory serves. */
-async function workspaceBelongsToOrganization(
+/**
+ * Mapped workspaces that no longer belong to the organization the directory
+ * serves. A workspace can be moved to another tenant after it was mapped; the
+ * mapping row survives, and following it in either direction would reach into
+ * that tenant — granting members access there, or deleting rows it now owns.
+ */
+async function findForeignWorkspaces(
   tx: DbOrTx,
-  workspaceId: string,
+  workspaceIds: string[],
   organizationId: string
-): Promise<boolean> {
-  const [row] = await tx
+): Promise<Set<string>> {
+  if (workspaceIds.length === 0) return new Set()
+  const rows = await tx
     .select({ id: workspace.id })
     .from(workspace)
-    .where(and(eq(workspace.id, workspaceId), eq(workspace.organizationId, organizationId)))
-    .limit(1)
-  return Boolean(row)
+    .where(and(inArray(workspace.id, workspaceIds), eq(workspace.organizationId, organizationId)))
+  const owned = new Set(rows.map((row) => row.id))
+  return new Set(workspaceIds.filter((id) => !owned.has(id)))
 }
 
 /** Applies one grant. `skipped` means the grant describes nothing this server can apply. */
@@ -136,18 +142,6 @@ async function applyGrant(
   switch (grant.targetKind) {
     case 'workspace': {
       if (!grant.permissionType) return 'skipped'
-      /**
-       * A workspace can be moved to another organization after it was mapped.
-       * The mapping row survives, and following it would hand this
-       * organization's members access in a tenant the directory does not serve.
-       */
-      if (!(await workspaceBelongsToOrganization(tx, grant.targetId, params.organizationId))) {
-        logger.warn('Skipped a SCIM mapping whose workspace is no longer in the organization', {
-          workspaceId: grant.targetId,
-          organizationId: params.organizationId,
-        })
-        return 'skipped'
-      }
       if (
         params.previousPermission &&
         permissionRank(params.previousPermission) > permissionRank(grant.permissionType)
@@ -229,11 +223,14 @@ async function withdrawGrant(
     userId: string
     grant: ProjectionGrant
     lockManualMembership: boolean
+    foreignWorkspaceIds: Set<string>
   }
 ): Promise<boolean> {
   const { grant } = params
   switch (grant.targetKind) {
     case 'workspace': {
+      /** The workspace belongs to another tenant now; its access is theirs to manage. Forget the grant. */
+      if (params.foreignWorkspaceIds.has(grant.targetId)) return true
       /**
        * A grant raised by hand above what the directory set is left alone. The
        * directory said "at least write"; someone deliberately made it admin, and
@@ -338,11 +335,28 @@ export async function reconcileUserProjection(
     .limit(1)
   if (!membership) return EMPTY_DELTA
 
-  const desired = resolveDesiredGrants(
+  const current = await currentGrants(tx, params.scimUserId)
+  const mapped = resolveDesiredGrants(
     await loadMappingRows(tx, params.scimUserId),
     params.settings.defaultWorkspaceGrants ?? []
   )
-  const plan = planGrantChanges(desired, await currentGrants(tx, params.scimUserId))
+  const foreignWorkspaceIds = await findForeignWorkspaces(
+    tx,
+    [...mapped, ...current]
+      .filter((grant) => grant.targetKind === 'workspace')
+      .map((grant) => grant.targetId),
+    params.organizationId
+  )
+  if (foreignWorkspaceIds.size > 0) {
+    logger.warn('Ignoring SCIM workspace mappings whose workspace left the organization', {
+      connectionId: params.connectionId,
+      workspaceIds: [...foreignWorkspaceIds],
+    })
+  }
+  const desired = mapped.filter(
+    (grant) => grant.targetKind !== 'workspace' || !foreignWorkspaceIds.has(grant.targetId)
+  )
+  const plan = planGrantChanges(desired, current)
 
   const delta: ProjectionDelta = { added: [], removed: [], raised: [] }
   const lockManualMembership = params.settings.lockManualMembership === true
@@ -354,6 +368,7 @@ export async function reconcileUserProjection(
       userId: record.userId,
       grant,
       lockManualMembership,
+      foreignWorkspaceIds,
     })
     if (!withdrawn) continue
     await tx

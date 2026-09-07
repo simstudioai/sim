@@ -73,55 +73,64 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
       await assertWorkspaceInOrganization(context.organizationId, grant.workspaceId)
     }
 
-    const [existing] = await db
-      .select({
-        id: scimConnection.id,
-        settings: scimConnection.settings,
-        status: scimConnection.status,
-      })
-      .from(scimConnection)
-      .where(eq(scimConnection.organizationId, context.organizationId))
-      .limit(1)
+    /**
+     * Read, merge, and write under the row lock, so two administrators changing
+     * different settings at once both land instead of the later write carrying
+     * a stale copy of the earlier one's field.
+     */
+    const { created, status } = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({
+          id: scimConnection.id,
+          settings: scimConnection.settings,
+          status: scimConnection.status,
+        })
+        .from(scimConnection)
+        .where(eq(scimConnection.organizationId, context.organizationId))
+        .limit(1)
+        .for('update')
 
-    const nextSettings: ScimConnectionSettings = {
-      /**
-       * Locking manual membership defaults on for a new connection. Once a
-       * directory owns membership, a change made only in Sim is reverted by the
-       * next sync, so a member edited by hand looks like it worked and then
-       * silently does not.
-       */
-      lockManualMembership: true,
-      ...(existing?.settings ?? {}),
-      ...(input.settings ?? {}),
-    }
+      const nextSettings: ScimConnectionSettings = {
+        /**
+         * Locking manual membership defaults on for a new connection. Once a
+         * directory owns membership, a change made only in Sim is reverted by
+         * the next sync, so a member edited by hand looks like it worked and
+         * then silently does not.
+         */
+        lockManualMembership: true,
+        ...(existing?.settings ?? {}),
+        ...(input.settings ?? {}),
+      }
+      const nextStatus = input.status ?? existing?.status ?? 'active'
 
-    const connectionId = existing?.id ?? generateId()
-    const nextStatus = input.status ?? existing?.status ?? 'active'
-
-    if (existing) {
-      await db
-        .update(scimConnection)
-        .set({
+      if (existing) {
+        await tx
+          .update(scimConnection)
+          .set({
+            status: nextStatus,
+            settings: nextSettings,
+            ...(input.ssoProviderId !== undefined ? { ssoProviderId: input.ssoProviderId } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(scimConnection.id, existing.id))
+      } else {
+        await tx.insert(scimConnection).values({
+          id: generateId(),
+          organizationId: context.organizationId,
+          ssoProviderId: input.ssoProviderId ?? null,
           status: nextStatus,
           settings: nextSettings,
-          ...(input.ssoProviderId !== undefined ? { ssoProviderId: input.ssoProviderId } : {}),
-          updatedAt: new Date(),
+          createdBy: context.actorUserId,
         })
-        .where(eq(scimConnection.id, existing.id))
-    } else {
-      await db.insert(scimConnection).values({
-        id: connectionId,
-        organizationId: context.organizationId,
-        ssoProviderId: input.ssoProviderId ?? null,
-        status: nextStatus,
-        settings: nextSettings,
-        createdBy: context.actorUserId,
-      })
-    }
+      }
+      return { created: !existing, status: nextStatus }
+    })
 
     const view = await loadConnectionView(context.organizationId)
-    if (!view) throw new OrchestrationError('internal', 'The connection could not be read back')
-    return { connection: view, created: !existing }
+    if (!view || view.status !== status) {
+      throw new OrchestrationError('internal', 'The connection could not be read back')
+    }
+    return { connection: view, created }
   },
   projectAudit: ({ result }) => ({
     action:

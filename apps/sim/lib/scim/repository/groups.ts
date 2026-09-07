@@ -1,12 +1,15 @@
 import { scimGroup, scimGroupMember, scimUser } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, count, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { invalidValue } from '@/lib/scim/protocol/errors'
 import type { ScimFilterTerm, ScimGroupFilterField } from '@/lib/scim/protocol/filter'
 import { buildOrderKey } from '@/lib/scim/repository/users'
 
 /** Reads and writes of the provisioned Group table, always anchored to a connection. */
+
+/** What a member is called in a Group response: the same display name the User resource shows. */
+const memberDisplayName = sql<string>`coalesce(${scimUser.attributes} ->> 'displayName', ${scimUser.userName})`
 
 export interface ScimGroupRecord {
   id: string
@@ -91,7 +94,7 @@ export interface ScimGroupMemberRow {
 /** Members of one group, ordered so a response is stable between reads. */
 export async function loadGroupMembers(tx: DbOrTx, groupId: string): Promise<ScimGroupMemberRow[]> {
   const rows = await tx
-    .select({ scimUserId: scimGroupMember.scimUserId, displayName: scimUser.userName })
+    .select({ scimUserId: scimGroupMember.scimUserId, displayName: memberDisplayName })
     .from(scimGroupMember)
     .innerJoin(scimUser, eq(scimUser.id, scimGroupMember.scimUserId))
     .where(eq(scimGroupMember.groupId, groupId))
@@ -110,7 +113,7 @@ export async function loadGroupMembersForGroups(
     .select({
       groupId: scimGroupMember.groupId,
       scimUserId: scimGroupMember.scimUserId,
-      displayName: scimUser.userName,
+      displayName: memberDisplayName,
     })
     .from(scimGroupMember)
     .innerJoin(scimUser, eq(scimUser.id, scimGroupMember.scimUserId))

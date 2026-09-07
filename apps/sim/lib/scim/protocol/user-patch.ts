@@ -286,6 +286,15 @@ export function userAttributesEqual(left: ScimUserAttributes, right: ScimUserAtt
   return comparisonKey(left) === comparisonKey(right)
 }
 
+/**
+ * Orders `name.formatted` after the name parts it would otherwise be derived
+ * from, so an explicit formatted name wins regardless of JSON property order.
+ */
+function sortFormattedLast(entries: [string, unknown][]): [string, unknown][] {
+  const isFormatted = ([key]: [string, unknown]) => key.toLowerCase().endsWith('formatted')
+  return [...entries.filter((entry) => !isFormatted(entry)), ...entries.filter(isFormatted)]
+}
+
 export function applyUserPatch(
   current: ScimUserAttributes,
   operations: readonly ScimPatchOperation[]
@@ -307,7 +316,7 @@ export function applyUserPatch(
        * keyed by dotted attribute paths, so each key is dispatched as if it had
        * arrived as its own operation.
        */
-      for (const [attribute, nested] of Object.entries(value)) {
+      for (const [attribute, nested] of sortFormattedLast(Object.entries(value))) {
         /**
          * RFC 7644's canonical form nests complex attributes — `{"name": {"givenName": …}}`
          * and the enterprise extension keyed by its URN — so each sub-attribute is
@@ -315,7 +324,7 @@ export function applyUserPatch(
          */
         const normalized = normalizeAttributePath(attribute).toLowerCase()
         if (isRecord(nested) && (normalized === 'name' || normalized === 'enterprise')) {
-          for (const [sub, subValue] of Object.entries(nested)) {
+          for (const [sub, subValue] of sortFormattedLast(Object.entries(nested))) {
             applyOperation(next, operation.op, `${normalized}.${sub}`, subValue)
           }
           continue

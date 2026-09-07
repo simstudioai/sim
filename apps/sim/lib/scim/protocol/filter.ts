@@ -160,8 +160,10 @@ function parseTerm(term: string): { attribute: string; value: string } {
   }
 
   const raw = rawValue.trim()
-  /** RFC 7644 writes boolean comparisons unquoted: `active eq true`. */
-  if (raw === 'true' || raw === 'false') return { attribute, value: raw }
+  /** RFC 7644 writes boolean comparisons unquoted, and only `active` is boolean here. */
+  if (attribute.toLowerCase() === 'active' && (raw === 'true' || raw === 'false')) {
+    return { attribute, value: raw }
+  }
   if (!raw.startsWith('"') || !raw.endsWith('"') || raw.length < 2) {
     throw invalidFilter('Filter values must be quoted strings')
   }

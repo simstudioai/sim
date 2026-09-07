@@ -28,6 +28,18 @@ describe('parseGroupPatch', () => {
     ).toEqual({ kind: 'incremental', add: ['u1'], remove: [] })
   })
 
+  it('treats a path-less add of members as a delta, not a replacement', () => {
+    expect(parseGroupPatch([{ op: 'add', value: { members: [{ value: 'u9' }] } }])).toEqual({
+      kind: 'full',
+      addMembers: ['u9'],
+      removeMembers: [],
+    })
+  })
+
+  it('refuses an add to members with no value', () => {
+    expect(() => parseGroupPatch([{ op: 'add', path: 'members' }])).toThrow('requires a value')
+  })
+
   it('refuses a non-string externalId instead of clearing it', () => {
     expect(() => parseGroupPatch([{ op: 'replace', path: 'externalId', value: 42 }])).toThrow(
       'externalId must be a string'

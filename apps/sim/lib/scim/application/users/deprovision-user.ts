@@ -3,7 +3,10 @@ import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import {
+  acquireOrganizationUserMutationLocks,
+  removeUserFromOrganization,
+} from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import {
   invalidateAfterSessionRevocation,
@@ -90,13 +93,25 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
     }
 
     await db.transaction(async (tx) => {
-      await revokeUserSessionsTx(tx, {
+      /** Serializes with a concurrent PATCH, which re-reads the row under the same locks. */
+      await acquireOrganizationUserMutationLocks(tx, {
         userId: current.userId,
-        organizationId: context.organizationId,
+        organizationIds: [context.organizationId],
       })
-      await revokePersonalApiKeysTx(tx, { userId: current.userId })
-      /** A suspension the directory applied has no meaning once membership ends. */
-      await unsuspendMemberTx(tx, { userId: current.userId, source: 'scim' })
+      /**
+       * Account-wide effects belong only to the removal this request performed.
+       * A stale row for someone who already left — and may since have joined
+       * another organization — must not sign them out or revoke their keys there.
+       */
+      if (membership) {
+        await revokeUserSessionsTx(tx, {
+          userId: current.userId,
+          organizationId: context.organizationId,
+        })
+        await revokePersonalApiKeysTx(tx, { userId: current.userId })
+        /** A suspension the directory applied has no meaning once membership ends. */
+        await unsuspendMemberTx(tx, { userId: current.userId, source: 'scim' })
+      }
 
       if (current.externalId) {
         await upsertTombstone(tx, {
@@ -136,10 +151,12 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
   ],
 
   afterSuccess: async ({ result, context }) => {
-    invalidateAfterSessionRevocation({
-      userId: result.userId,
-      organizationId: context.organizationId,
-    })
+    if (result.removedFromOrganization) {
+      invalidateAfterSessionRevocation({
+        userId: result.userId,
+        organizationId: context.organizationId,
+      })
+    }
     try {
       await reconcileOrganizationSeats({
         organizationId: context.organizationId,

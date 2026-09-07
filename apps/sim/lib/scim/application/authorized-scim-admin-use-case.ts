@@ -3,11 +3,10 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
-import { isScimEnabled } from '@/lib/core/config/env-flags'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import type { ScimAdminOperation, ScimAdminPrincipal } from '@/lib/scim/application/operations'
+import { isScimEntitledForOrganization } from '@/lib/scim/entitlement'
 
 /**
  * The authorized wrapper for administering a connection from the settings UI.
@@ -97,7 +96,7 @@ export function defineAuthorizedScimAdminUseCase<
           'Organization admin or owner role required'
         )
       }
-      if (!(await isOrganizationFeatureEntitled(input.organizationId, isScimEnabled))) {
+      if (!(await isScimEntitledForOrganization(input.organizationId))) {
         throw new ForbiddenOperationError(
           'ENTERPRISE_PLAN_REQUIRED',
           'Directory provisioning requires an active enterprise subscription'

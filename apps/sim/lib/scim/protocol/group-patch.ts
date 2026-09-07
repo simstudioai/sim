@@ -100,7 +100,9 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         } else if (key === 'externalid') {
           full.externalId = readExternalId(nested)
         } else if (key === 'members') {
-          applyFullMembers(readMemberList(nested))
+          /** A path-less `add` contributes members; only a `replace` sets the whole list. */
+          if (operation.op === 'add') for (const id of readMemberList(nested)) addMember(id)
+          else applyFullMembers(readMemberList(nested))
         } else if (key === 'id' || key === 'schemas' || key.startsWith('meta')) {
           /**
            * Okta echoes the group's `id` inside a path-less rename. Read-only
@@ -135,6 +137,9 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         /** A remove with no value clears the membership entirely. */
         applyFullMembers([])
         continue
+      }
+      if (operation.op === 'add' && operation.value === undefined) {
+        throw invalidValue('An add to members requires a value')
       }
       for (const id of readMemberList(operation.value ?? [])) {
         if (operation.op === 'add') addMember(id)

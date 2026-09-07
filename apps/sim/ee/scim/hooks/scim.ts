@@ -16,8 +16,9 @@ import {
 
 export const SCIM_CONNECTION_STALE_TIME = 30 * 1000
 export const SCIM_MAPPINGS_STALE_TIME = 30 * 1000
-/** Activity is a debugging surface; a short window keeps it close to live. */
+/** Activity is a debugging surface; it polls while mounted so a sync in progress shows up without a reload. */
 export const SCIM_ACTIVITY_STALE_TIME = 10 * 1000
+export const SCIM_ACTIVITY_REFETCH_INTERVAL = 15 * 1000
 
 export const scimKeys = {
   all: ['scim'] as const,
@@ -69,6 +70,7 @@ export function useScimActivity(organizationId?: string, enabled = true) {
     },
     enabled: Boolean(organizationId) && enabled,
     staleTime: SCIM_ACTIVITY_STALE_TIME,
+    refetchInterval: SCIM_ACTIVITY_REFETCH_INTERVAL,
   })
 }
 

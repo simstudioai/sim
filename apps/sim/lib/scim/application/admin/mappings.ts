@@ -12,6 +12,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, sql } from 'drizzle-orm'
 import type { ScimGroupMappingView } from '@/lib/api/contracts/organization-scim'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   assertWorkspaceInOrganization,
   requireConnection,
@@ -143,9 +144,17 @@ async function requireGroup(connectionId: string, groupId: string) {
   return group
 }
 
-async function assertPermissionGroupTarget(organizationId: string, permissionGroupId: string) {
-  const [target] = await db
-    .select({ id: permissionGroup.id, membershipMode: permissionGroup.membershipMode })
+async function assertPermissionGroupTarget(
+  tx: DbOrTx,
+  organizationId: string,
+  permissionGroupId: string
+) {
+  const [target] = await tx
+    .select({
+      id: permissionGroup.id,
+      membershipMode: permissionGroup.membershipMode,
+      isDefault: permissionGroup.isDefault,
+    })
     .from(permissionGroup)
     .where(
       and(
@@ -160,13 +169,20 @@ async function assertPermissionGroupTarget(organizationId: string, permissionGro
       'That permission group does not belong to this organization'
     )
   }
+  /** The default group governs by not having members; a membership mapping onto it would do nothing. */
+  if (target.isDefault) {
+    throw new OrchestrationError(
+      'validation',
+      'The organization default permission group cannot be a mapping target'
+    )
+  }
   /**
    * A directory-managed group must govern exactly its members. Left in
    * `inherit` mode, the directory removing the last person would widen it
    * from "these people" to "everyone in these workspaces".
    */
   if (target.membershipMode !== 'explicit') {
-    await db
+    await tx
       .update(permissionGroup)
       .set({ membershipMode: 'explicit', updatedAt: new Date() })
       .where(eq(permissionGroup.id, target.id))
@@ -189,10 +205,7 @@ export const upsertScimGroupMapping = defineAuthorizedScimAdminUseCase({
   async execute({ input, context }: ScimAdminUseCaseArgs<UpsertScimGroupMappingInput>) {
     const connection = await requireConnection(context.organizationId)
     const group = await requireGroup(connection.id, input.groupId)
-
-    if (input.targetKind === 'permission_group') {
-      await assertPermissionGroupTarget(context.organizationId, input.permissionGroupId)
-    } else if (input.targetKind === 'workspace') {
+    if (input.targetKind === 'workspace') {
       await assertWorkspaceInOrganization(context.organizationId, input.workspaceId)
     }
 
@@ -208,31 +221,39 @@ export const upsertScimGroupMapping = defineAuthorizedScimAdminUseCase({
     }
 
     /**
-     * Selected, then inserted or updated, rather than an upsert. The uniqueness
-     * index is on a `coalesce` of the three target columns, which is an
-     * expression rather than a column list and so cannot be named as a conflict
-     * target.
+     * The target check, the insert, and the fallback update commit together, so
+     * a refused insert cannot leave a permission group switched to explicit
+     * mode with no mapping. The uniqueness index is on a `coalesce` of the three
+     * target columns — an expression, not a column list — so it cannot be named
+     * as a conflict target; a concurrent insert of the same pair loses on the
+     * index and the row that won is updated instead.
      */
     const targetId = values.permissionGroupId ?? values.workspaceId ?? values.role
-    const [existingMapping] = await db
-      .select({ id: scimGroupMapping.id })
-      .from(scimGroupMapping)
-      .where(
-        and(
-          eq(scimGroupMapping.groupId, group.id),
-          eq(scimGroupMapping.targetKind, input.targetKind),
-          sql`coalesce(${scimGroupMapping.permissionGroupId}, ${scimGroupMapping.workspaceId}, ${scimGroupMapping.role}) = ${targetId}`
-        )
-      )
-      .limit(1)
+    const mapping = await db.transaction(async (tx) => {
+      if (input.targetKind === 'permission_group') {
+        await assertPermissionGroupTarget(tx, context.organizationId, input.permissionGroupId)
+      }
+      const [inserted] = await tx
+        .insert(scimGroupMapping)
+        .values(values)
+        .onConflictDoNothing()
+        .returning(MAPPING_COLUMNS)
+      if (inserted) return inserted
 
-    const [mapping] = existingMapping
-      ? await db
-          .update(scimGroupMapping)
-          .set({ permissionType: values.permissionType })
-          .where(eq(scimGroupMapping.id, existingMapping.id))
-          .returning(MAPPING_COLUMNS)
-      : await db.insert(scimGroupMapping).values(values).returning(MAPPING_COLUMNS)
+      const [updated] = await tx
+        .update(scimGroupMapping)
+        .set({ permissionType: values.permissionType })
+        .where(
+          and(
+            eq(scimGroupMapping.groupId, group.id),
+            eq(scimGroupMapping.targetKind, input.targetKind),
+            sql`coalesce(${scimGroupMapping.permissionGroupId}, ${scimGroupMapping.workspaceId}, ${scimGroupMapping.role}) = ${targetId}`
+          )
+        )
+        .returning(MAPPING_COLUMNS)
+      if (!updated) throw new OrchestrationError('internal', 'The mapping could not be written')
+      return updated
+    })
 
     const reconciledUsers = await reconcileGroupMembers({
       connectionId: connection.id,

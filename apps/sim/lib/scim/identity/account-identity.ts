@@ -16,14 +16,21 @@ export async function syncAccountIdentityTx(
   tx: DbOrTx,
   params: { userId: string; email?: string; name: string }
 ): Promise<void> {
+  let emailChanged = false
   if (params.email !== undefined) {
-    await assertEmailAvailable(tx, params.email, params.userId)
+    const [current] = await tx
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, params.userId))
+      .limit(1)
+    emailChanged = normalizeEmail(current?.email ?? '') !== normalizeEmail(params.email)
+    if (emailChanged) await assertEmailAvailable(tx, params.email, params.userId)
   }
   await tx
     .update(user)
     .set({
       name: params.name,
-      ...(params.email !== undefined
+      ...(params.email !== undefined && emailChanged
         ? {
             email: params.email,
             normalizedEmail: normalizeEmail(params.email),

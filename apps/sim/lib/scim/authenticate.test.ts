@@ -9,8 +9,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsEntitled } = vi.hoisted(() => ({ mockIsEntitled: vi.fn() }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mockIsEntitled,
+vi.mock('@/lib/scim/entitlement', () => ({
+  isScimEntitledForOrganization: mockIsEntitled,
 }))
 
 import { authenticateScimRequest, generateScimToken } from '@/lib/scim/authenticate'
@@ -108,7 +108,7 @@ describe('authenticateScimRequest', () => {
     queueTableRows(scimCredential, [credentialRow()])
     mockIsEntitled.mockResolvedValue(false)
     await expectUnauthorized(requestWithToken('sim_scim_secret'))
-    expect(mockIsEntitled).toHaveBeenCalledWith('org-1', expect.anything())
+    expect(mockIsEntitled).toHaveBeenCalledWith('org-1')
   })
 
   it('accepts a credential that expires in the future', async () => {

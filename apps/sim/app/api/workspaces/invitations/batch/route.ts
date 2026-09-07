@@ -40,13 +40,6 @@ function batchErrorResponse(error: unknown) {
     return NextResponse.json({ error: error.message }, { status: 403 })
   }
 
-  if (error instanceof ForbiddenOperationError) {
-    return NextResponse.json(
-      { error: error.message, details: { code: error.detailCode } },
-      { status: 403 }
-    )
-  }
-
   logger.error('Error creating workspace invitation batch:', error)
   return NextResponse.json({ error: 'Failed to create invitation batch' }, { status: 500 })
 }
@@ -105,6 +98,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       } catch (error) {
         if (error instanceof WorkspaceInvitationError) {
           failed.push({ email: error.email ?? normalizedEmail, error: error.message })
+          continue
+        }
+        /** A directory-managed address is refused with its reason, like any other per-email refusal. */
+        if (error instanceof ForbiddenOperationError) {
+          failed.push({ email: normalizedEmail, error: error.message })
           continue
         }
 
