@@ -46,6 +46,25 @@ describe('setup coherence checks', () => {
     })
   })
 
+  it('treats a whitespace-only Slack signing secret as missing', async () => {
+    const findings = await runChecks(
+      rootContext({
+        SLACK_EXTENDED_SCOPES: 'true',
+        NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: 'true',
+        SLACK_SIGNING_SECRET: '   ',
+      }),
+      ['coherence']
+    )
+
+    expect(findings).toContainEqual({
+      group: 'coherence',
+      status: 'fail',
+      message:
+        'SLACK_EXTENDED_SCOPES is on but SLACK_SIGNING_SECRET is not set — native Slack triggers will fail at runtime',
+      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
+    })
+  })
+
   it('does not require a signing secret for outbound-only Slack OAuth', async () => {
     const findings = await runChecks(
       rootContext({

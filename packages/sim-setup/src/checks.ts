@@ -482,7 +482,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   ]
   for (const rule of featureRules) {
     if (!isTruthy(sim.vars.get(rule.flag))) continue
-    const missing = rule.needs.filter((key) => !sim.vars.get(key))
+    const missing = rule.needs.filter((key) => !sim.vars.get(key)?.trim())
     if (missing.length > 0) {
       findings.push({
         group: 'coherence',
