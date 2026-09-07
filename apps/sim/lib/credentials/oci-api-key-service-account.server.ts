@@ -98,7 +98,7 @@ function normalizePrivateKey(value: unknown): string {
     ? normalized.slice(0, -'\nOCI_API_KEY'.length).trimEnd()
     : normalized
   if (
-    !/^-----BEGIN (PRIVATE KEY|RSA PRIVATE KEY|ENCRYPTED PRIVATE KEY)-----\n[\s\S]+\n-----END \1-----$/.test(
+    !/^-----BEGIN (PRIVATE KEY|RSA PRIVATE KEY|ENCRYPTED PRIVATE KEY)-----\n(?:(?!-----BEGIN |-----END )[\s\S])+\n-----END \1-----$/.test(
       pem
     )
   ) {

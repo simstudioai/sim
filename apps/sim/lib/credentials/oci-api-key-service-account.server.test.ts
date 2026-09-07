@@ -129,6 +129,8 @@ describe('OCI API-key credential setup', () => {
       'extra\nOCI_API_KEY',
       'OCI_API_KEY\nOCI_API_KEY',
       '\u0000OCI_API_KEY',
+      privateKey,
+      `extra\n-----END PRIVATE KEY-----`,
     ]) {
       await expect(
         verifyAndEncryptOciApiKeyCredential(fields({ privateKey: `${privateKey}${suffix}` }))
