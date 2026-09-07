@@ -500,6 +500,11 @@ const identity = {
     if (request.nextUrl.pathname === '/api/v2/workflows') return workflowsRoute(request)
     if (request.nextUrl.pathname === '/api/v2/files') return filesRoute(request)
     if (request.nextUrl.pathname === '/api/v2/logs') return logsRoute(request)
+    const fileText = request.nextUrl.pathname.match(/^\/api\/v2\/files\/([^/]+)\/text$/)
+    if (fileText)
+      return fileTextRoute(request, {
+        params: Promise.resolve({ fileId: decodeURIComponent(fileText[1]!) }),
+      })
     const file = request.nextUrl.pathname.match(/^\/api\/v2\/files\/([^/]+)$/)
     if (file) return fileRoute(request, { params: Promise.resolve({ fileId: file[1] }) })
     const rows = request.nextUrl.pathname.match(/^\/api\/v2\/tables\/([^/]+)\/rows$/)
@@ -629,6 +634,69 @@ const tables = [
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
   'saved-run evidence through the real CLI',
   () => {
+    it('reads attached workspace file and folder references through the current CLI', async () => {
+      const folderId = generateId()
+      const fileId = generateId()
+      const folderName = `reference_${folderId}`
+      const fileName = 'context-note.md'
+      const text = 'Canonical attachment file bytes'
+      const timestamp = new Date()
+      const key = `workspace/${workspaceId}/${fileId}.md`
+      const path = join(fixture.directory, fileId)
+      await writeFile(path, text)
+      fixture.storageKeys.set(key, path)
+      await db.insert(folder).values({
+        id: folderId,
+        workspaceId,
+        resourceType: 'file',
+        name: folderName,
+        userId: 'run-reader',
+      })
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        folderId,
+        key,
+        userId: 'run-reader',
+        workspaceId,
+        context: 'workspace',
+        originalName: fileName,
+        contentType: 'text/markdown',
+        sizeBytes: text.length,
+        uploadedAt: timestamp,
+        updatedAt: timestamp,
+        contentUpdatedAt: timestamp,
+        secretProvenanceVersion: 1,
+      })
+      await db.insert(workspaceFileSecretProvenance).values({
+        fileId,
+        contentUpdatedAt: timestamp,
+        status: 'exact',
+        entries: [],
+        updatedAt: timestamp,
+      })
+      const fileContext = await resolveActiveResourceContext(
+        'file',
+        fileId,
+        workspaceId,
+        'run-reader'
+      )
+      expect(fileContext?.path).toBe(`files/${folderName}/${fileName}`)
+      const fileRead = await runCli(['files', 'read', fileContext!.path!], identity, null)
+      expect(fileRead.exitCode, fileRead.stderr).toBe(0)
+      expect(fileRead.stdout).toContain(text)
+      const folderContext = await resolveActiveResourceContext(
+        'filefolder',
+        folderId,
+        workspaceId,
+        'run-reader'
+      )
+      expect(folderContext).not.toBeNull()
+      const reference = folderContext!.path ?? JSON.parse(folderContext!.content).folderPath
+      const listing = await runCli(['files', 'list', '--folder', reference], identity, null)
+      expect(listing.exitCode, listing.stderr).toBe(0)
+      expect(listing.stdout).toContain(fileId)
+    })
+
     it('resolves saved table view context from physical storage with current access', async () => {
       const tableId = generateId()
       const otherTableId = generateId()

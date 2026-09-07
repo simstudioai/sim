@@ -308,9 +308,8 @@ export async function processContextsServer(
           type: ctx.kind,
           tag: ctx.label ? `@${ctx.label}` : '@',
           content: path
-            ? ''
+            ? folderReferenceContent(path)
             : 'The attached folder could not be resolved in this workspace. Do not guess its contents or substitute a similarly named folder.',
-          ...(path ? { path } : {}),
         }
       }
       if (ctx.kind === 'docs') {
@@ -813,7 +812,9 @@ export async function resolveActiveResourceContext(
           resourceId,
           resourceType === 'filefolder'
         )
-        return path ? { type: resourceType, tag: '@active_resource', content: '', path } : null
+        return path
+          ? { type: 'active_resource', tag: '@active_resource', content: folderReferenceContent(path) }
+          : null
       }
       default:
         return null
@@ -823,6 +824,21 @@ export async function resolveActiveResourceContext(
     return null
   }
 }
+/** Presents an authorized folder pointer as the canonical CLI domain and path. */
+function folderReferenceContent(pointer: string): string {
+  const separator = pointer.indexOf('/')
+  const root = pointer.slice(0, separator)
+  const resourceTypes: Readonly<Record<string, string>> = {
+    workflows: 'workflow',
+    tables: 'table',
+    knowledgebases: 'knowledge_base',
+    files: 'file',
+  }
+  const resourceType = resourceTypes[root]
+  if (!resourceType) throw new Error('Unsupported folder resource domain')
+  return JSON.stringify({ resourceType, folderPath: pointer.slice(separator) })
+}
+
 async function resolveTableResource(
   tableId: string,
   workspaceId: string,
