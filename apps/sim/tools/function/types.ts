@@ -1,5 +1,6 @@
 import type { CodeLanguage } from '@/lib/execution/languages'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
+import type { SandboxExportReceipt } from '@/lib/function-execution/output'
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -91,6 +92,8 @@ export interface CodeExecutionOutput extends ToolResponse {
     stdout: string
     /** Files harvested from the sandbox output directory, already persisted. */
     files: UserFile[]
+    /** Explicit workspace exports survive adapter projection for Mothership post-processing. */
+    exported?: SandboxExportReceipt
     cost?: {
       input: number
       output: number

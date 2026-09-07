@@ -159,7 +159,7 @@ describe('maybeWriteOutputToFile', () => {
     expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
   })
 
-  it('does not deny a read-only principal when no workspace write occurs (sandbox export active)', async () => {
+  it('passes through sandbox-only receipts without attempting another workspace write', async () => {
     const exportedResult = {
       success: true,
       output: {
@@ -175,7 +175,13 @@ describe('maybeWriteOutputToFile', () => {
 
     const result = await maybeWriteOutputToFile(
       RunFunction.id,
-      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      {
+        outputs: {
+          files: [
+            { path: 'files/report.csv', mode: 'overwrite', sandboxPath: '/home/user/report.csv' },
+          ],
+        },
+      },
       exportedResult,
       buildContext({ userPermission: 'read' })
     )
@@ -188,16 +194,53 @@ describe('maybeWriteOutputToFile', () => {
     const result = await maybeWriteOutputToFile(
       RunFunction.id,
       { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
-      { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
+      { success: true, output: { result: 'name,age\nAlice,30', stdout: 'Exported 1 row' } },
       buildContext()
     )
 
     expect(result.success).toBe(true)
+    expect(result.output).toMatchObject({ stdout: 'Exported 1 row' })
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ secretProvenance: { status: 'exact', entries: [] } })
     )
+  })
+
+  it('writes returned data alongside a completed sandbox export and keeps both receipts', async () => {
+    const existingFile = { fileId: 'raw-file', fileName: 'raw.csv', vfsPath: 'files/raw.csv' }
+    const existingResource = {
+      type: 'file' as const,
+      id: 'raw-file',
+      title: 'raw.csv',
+      path: 'files/raw.csv',
+    }
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      {
+        outputs: {
+          files: [
+            { path: 'files/raw.csv', sandboxPath: '/home/user/raw.csv' },
+            { path: 'files/report.csv' },
+          ],
+        },
+      },
+      {
+        success: true,
+        output: { result: [{ name: 'Ada' }], stdout: '1 row', exported: { files: [existingFile] } },
+        resources: [existingResource],
+      },
+      buildContext()
+    )
+
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+    expect(mockWriteWorkspaceFileByPath.mock.calls[0]?.[1].buffer.toString()).toBe('name\nAda')
+    expect(result.output).toMatchObject({
+      result: [{ name: 'Ada' }],
+      stdout: '1 row',
+      files: [existingFile, expect.objectContaining({ vfsPath: 'files/report.csv' })],
+    })
+    expect(result.resources).toContainEqual(existingResource)
   })
 
   it('classifies large structured output from its serialized bytes instead of its object count', async () => {
