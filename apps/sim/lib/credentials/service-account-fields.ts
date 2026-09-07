@@ -3,6 +3,7 @@ import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-s
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -21,6 +22,11 @@ export type ServiceAccountFieldId =
   | 'authMethod'
   | 'privateKey'
   | 'username'
+  | 'tenancyOcid'
+  | 'userOcid'
+  | 'fingerprint'
+  | 'privateKeyPassphrase'
+  | 'region'
 
 /**
  * Required create-body fields per service-account provider — the client-safe
@@ -29,13 +35,20 @@ export type ServiceAccountFieldId =
  * providers from descriptor fields, bespoke providers inline.) Token-paste
  * providers contribute their entries from
  * `TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS`, client-credential providers from
- * `CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS`; the three bespoke providers are
+ * `CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS`; the four bespoke providers are
  * declared here.
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],
+  [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: [
+    'tenancyOcid',
+    'userOcid',
+    'fingerprint',
+    'privateKey',
+    'region',
+  ],
   ...TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
   ...CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS,
 }

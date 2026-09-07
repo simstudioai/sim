@@ -9405,6 +9405,8 @@ export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export const OracleIcon = NetSuiteIcon
+
 export function WizaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 51 49' fill='none' xmlns='http://www.w3.org/2000/svg'>

@@ -287,6 +287,46 @@ describe('listCredentialProviderCatalog', () => {
     })
   })
 
+  it('publishes the OCI setup contract but keeps it unavailable without product metadata', async () => {
+    mocks.getAllOAuthServices.mockReturnValue([
+      {
+        serviceId: 'oci',
+        providerId: 'oci-api-key-service-account',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        name: 'Oracle Cloud Infrastructure',
+        description: 'Connect to Oracle Cloud Infrastructure services.',
+        baseProvider: 'oci',
+        authType: 'service_account',
+      },
+    ])
+    mocks.createVisibility.mockReturnValue({
+      isOAuthServiceVisible: vi.fn(),
+      isCredentialVisible: vi.fn().mockReturnValue(false),
+    })
+
+    const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
+
+    expect(catalog).toEqual([
+      expect.objectContaining({
+        type: 'service_account',
+        serviceId: 'oci-api-key-service-account',
+        providerId: 'oci-api-key-service-account',
+        name: 'OCI API key',
+        providerFamily: 'oci',
+        available: false,
+        requiresClientGeneratedCredentialId: false,
+        fields: [
+          expect.objectContaining({ id: 'tenancyOcid', required: true, secret: false }),
+          expect.objectContaining({ id: 'userOcid', required: true, secret: false }),
+          expect.objectContaining({ id: 'fingerprint', required: true, secret: false }),
+          expect.objectContaining({ id: 'privateKey', required: true, secret: true }),
+          expect.objectContaining({ id: 'privateKeyPassphrase', required: false, secret: true }),
+          expect.objectContaining({ id: 'region', required: true, secret: false }),
+        ],
+      }),
+    ])
+  })
+
   it('fails fast when a multi-server provider lacks complete labels', async () => {
     mocks.getServiceConfigByServiceId.mockImplementation((serviceId: string) => {
       if (serviceId === 'salesforce') {

@@ -9,6 +9,7 @@ import {
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
@@ -29,6 +30,7 @@ export function asServiceAccountProviderId(
     value === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === SLACK_CUSTOM_BOT_PROVIDER_ID ||
+    value === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID ||
     isTokenServiceAccountProviderId(value) ||
     isClientCredentialAccountProviderId(value)
   ) {

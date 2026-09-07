@@ -550,4 +550,68 @@ describe('POST /api/credentials', () => {
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
   })
+
+  it('forwards OCI API-key fields without returning secret material', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+      providerId: 'oci-api-key-service-account',
+      encryptedServiceAccountKey: 'encrypted-oci-blob',
+      displayName: 'ocid1.user.oc1..principal',
+      auditMetadata: {
+        principalKind: 'user',
+        principalId: 'ocid1.user.oc1..principal',
+      },
+      principal: { kind: 'user', id: 'ocid1.user.oc1..principal' },
+    })
+    queueTableRows(credential, [])
+    queueTableRows(credential, [])
+    queueTableRows(credential, [
+      {
+        id: 'credential-oci',
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        displayName: 'ocid1.user.oc1..principal',
+        description: null,
+        unredacted: false,
+        providerId: 'oci-api-key-service-account',
+        accountId: null,
+        envKey: null,
+        envOwnerUserId: null,
+        encryptedServiceAccountKey: 'encrypted-oci-blob',
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-11T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await POST(
+      createMockRequest('POST', {
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        providerId: 'oci-api-key-service-account',
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+        privateKeyPassphrase: ' exact passphrase ',
+        region: 'us-ashburn-1',
+      })
+    )
+    const body = await response.text()
+
+    expect(response.status).toBe(201)
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'oci-api-key-service-account',
+      expect.objectContaining({
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+        privateKeyPassphrase: ' exact passphrase ',
+        region: 'us-ashburn-1',
+      })
+    )
+    expect(body).not.toContain('PRIVATE KEY')
+    expect(body).not.toContain('exact passphrase')
+    expect(body).not.toContain('encrypted-oci-blob')
+  })
 })

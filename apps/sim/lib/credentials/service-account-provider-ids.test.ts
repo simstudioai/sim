@@ -16,6 +16,7 @@ describe('isServiceAccountProviderId', () => {
     expect(isServiceAccountProviderId('notion-service-account')).toBe(true)
     expect(isServiceAccountProviderId('salesforce-service-account')).toBe(true)
     expect(isServiceAccountProviderId('netsuite-service-account')).toBe(true)
+    expect(isServiceAccountProviderId('oci-api-key-service-account')).toBe(true)
   })
 
   it('is case- and whitespace-insensitive', () => {
@@ -39,6 +40,7 @@ describe('getServiceAccountGatingBlockType', () => {
     expect(getServiceAccountGatingBlockType('notion-service-account')).toBeNull()
     expect(getServiceAccountGatingBlockType('google-service-account')).toBeNull()
     expect(getServiceAccountGatingBlockType('salesforce-service-account')).toBeNull()
+    expect(getServiceAccountGatingBlockType('oci-api-key-service-account')).toBeNull()
   })
 })
 
@@ -63,5 +65,6 @@ describe('getServiceAccountConnectNoun', () => {
     // token/client descriptor, so they read as a plain "service account".
     expect(getServiceAccountConnectNoun('google-service-account')).toBe('service account')
     expect(getServiceAccountConnectNoun('atlassian-service-account')).toBe('service account')
+    expect(getServiceAccountConnectNoun('oci-api-key-service-account')).toBe('service account')
   })
 })
