@@ -6,13 +6,53 @@ import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
+interface TestStreamEntry {
+  id: string
+  message: Record<string, string>
+}
+
+interface TestRedisClient {
+  isOpen: boolean
+  connect(): Promise<void>
+  quit(): Promise<void>
+  on(): TestRedisClient
+  duplicate(): TestRedisClient
+  xAdd(key: string, id: string, fields: Record<string, string>): Promise<string>
+  xRange(
+    key: string,
+    start: string,
+    end: string,
+    options?: { COUNT?: number }
+  ): Promise<TestStreamEntry[]>
+  xRevRange(
+    key: string,
+    start: string,
+    end: string,
+    options?: { COUNT?: number }
+  ): Promise<TestStreamEntry[]>
+  xLen(key: string): Promise<number>
+  xTrim(key: string, strategy: string, minId: string): Promise<void>
+  xRead(
+    streams: { key: string; id: string }[],
+    options?: { BLOCK?: number; COUNT?: number }
+  ): Promise<{ name: string; messages: TestStreamEntry[] }[] | null>
+  set(key: string, value: string, options?: { NX?: boolean }): Promise<string | null>
+  get(key: string): Promise<string | null>
+  del(keys: string | string[]): Promise<number>
+  eval(
+    script: string,
+    options: { keys: string[]; arguments: string[] }
+  ): Promise<string | number | boolean | null>
+  expire(): Promise<number>
+}
+
 /**
  * One shared in-memory Redis backing per test, so several {@link FileDocStore} instances (modelling
  * several ECS tasks) all talk to the "same Redis". A minimal fake of just the stream/lock ops the
  * store uses.
  */
 interface Backing {
-  streams: Map<string, { id: string; message: Record<string, string> }[]>
+  streams: Map<string, TestStreamEntry[]>
   kv: Map<string, string>
   dedupe: Map<string, string[]>
   seq: number
@@ -51,13 +91,13 @@ function compareStreamIds(left: string, right: string): bigint {
   return leftMs === rightMs ? leftSequence - rightSequence : leftMs - rightMs
 }
 
-function makeClient(): any {
+function makeClient(): TestRedisClient {
   const b = () => {
     if (!state.backing) throw new Error('backing not initialized')
     return state.backing
   }
   const nextId = () => b().nextIds?.shift() ?? `${++b().seq}-0`
-  const client: any = {
+  const client: TestRedisClient = {
     isOpen: true,
     connect: async () => {
       client.isOpen = true
@@ -118,8 +158,7 @@ function makeClient(): any {
         client.isOpen = false
         throw new Error('The client is closed')
       }
-      const res: { name: string; messages: { id: string; message: Record<string, string> }[] }[] =
-        []
+      const res: { name: string; messages: TestStreamEntry[] }[] = []
       for (const { key, id } of streams) {
         const after = (b().streams.get(key) ?? [])
           .filter((e) => compareStreamIds(e.id, id) > 0n)
