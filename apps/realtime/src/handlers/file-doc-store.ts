@@ -123,6 +123,20 @@ const SNAPSHOT_FIELD = 's'
 /** Marks a stream entry as an AGENT-STREAMED preview frame, so the tailer applies it with
  * {@link REDIS_AGENT_ORIGIN} (never marks the doc edited). Present only on agent-frame entries. */
 const AGENT_FIELD = 'a'
+/**
+ * Marks a stream entry as the OUTPUT of a compaction, for byte accounting only.
+ *
+ * {@link SNAPSHOT_FIELD} cannot serve this purpose: a fold of an agent-only stream is stamped
+ * {@link AGENT_FIELD} instead, so it is indistinguishable from an ordinary agent preview frame —
+ * and those are the large ones. Excluding both markers would drop preview deltas from accounting;
+ * excluding neither would count a snapshot as something a fold can reclaim, arming the trigger
+ * against its own output. A separate field settles it without touching origin selection, which
+ * must keep treating an agent-only fold as an agent frame to preserve the no-persist guarantee.
+ *
+ * Entries written before this field existed carry no marker and are counted as deltas. That
+ * over-arms by at most one fold, which then trims them.
+ */
+const COMPACTION_FIELD = 'c'
 
 /** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
  * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
@@ -205,10 +219,10 @@ const streamKey = (name: string) => `${STREAM_PREFIX}${name}`
  */
 function foldableDeltaBytes(room: StoreRoom): number {
   let bytes = 0
-  for (const delta of room.pendingDeltas) {
+  for (const [id, deltaBytes] of room.pendingDeltas) {
     // Strictly before the boundary: MINID is inclusive, so the entry AT `lastId` survives the
     // trim and folding cannot reclaim it.
-    if (isAfterStreamId(room.lastId, delta.id)) bytes += delta.bytes
+    if (isAfterStreamId(room.lastId, id)) bytes += deltaBytes
   }
   return bytes
 }
@@ -265,20 +279,22 @@ interface StoreRoom {
   /** Epoch ms before which no forced fold is attempted, after one failed. */
   compactRetryAfter: number
   /**
-   * Deltas this task has appended and not yet folded, as `{id, bytes}` pairs in append order.
+   * Unfolded delta bytes in the shared stream, by entry id.
    *
-   * Keyed by stream id rather than summed, because a fold trims to `room.lastId` and RETAINS
-   * anything published past it — those bytes are still in Redis, so deducting them would
-   * disarm the trigger while the stream keeps growing. Entries are dropped only once an
-   * `XTRIM` has provably removed them.
+   * Recorded in {@link FileDocStore.applyEntry}, so it covers EVERY entry this room's tailer
+   * observes — this task's own appends, a peer task's, and one published with no room attached
+   * anywhere. Accounting on publish instead would see only this task's writes.
    *
-   * Counts deltas only — never the snapshot a compaction writes, which is a function of
-   * document size rather than of edit volume and would make a large document breach the
-   * threshold permanently. Locally tracked, so it under-counts a peer task's appends: it is a
-   * trigger, not an accounting, and {@link COMPACT_THRESHOLD} still covers many small edits
-   * arriving from elsewhere.
+   * Keyed by id rather than summed, because a fold trims to `room.lastId` and retains anything
+   * from that boundary on. Those bytes are still in Redis, so dropping them would disarm the
+   * trigger while the stream kept growing; entries are removed only once an `XTRIM` provably
+   * removed them.
+   *
+   * Excludes what a fold produces (see {@link COMPACTION_FIELD}) — a snapshot is a function of
+   * document size rather than edit volume, and counting one would make a large document breach
+   * the threshold permanently.
    */
-  pendingDeltas: Array<{ id: string; bytes: number }>
+  pendingDeltas: Map<string, number>
   /** Set once the doc has been observed seeded, so the seed transition itself is never mistaken for an
    * edit (mirrors the relay's `seededObserved`). */
   seededObserved: boolean
@@ -361,7 +377,7 @@ export class FileDocStore {
       lastId: '0',
       publishes: 0,
       compactRetryAfter: 0,
-      pendingDeltas: [],
+      pendingDeltas: new Map(),
       seededObserved: false,
       realEdited: false,
     }
@@ -391,24 +407,10 @@ export class FileDocStore {
         // the SEED after `seededObserved` latched would count it as a post-seed edit and let a
         // compaction snapshot claim content no user ever typed. Skip what this room already holds.
         if (!isAfterStreamId(entry.id, room.lastId)) continue
-        // Adopt the accounting for what is already in the stream. A task taking one over would
-        // otherwise start from an empty ledger, so a multi-megabyte stream under the entry
-        // threshold would stay unfolded while this room's heartbeat keeps refreshing its TTL.
-        // These entries are already being read to rebuild the doc, so this costs no extra work —
-        // unlike seeding from a scan we would not otherwise do.
-        //
-        // Plain deltas only: a compaction snapshot is the RESULT of a fold, not something a fold
-        // can reclaim, so counting one would arm the trigger against itself.
-        if (!entry.message[SNAPSHOT_FIELD] && !entry.message[AGENT_FIELD]) {
-          room.pendingDeltas.push({
-            id: entry.id,
-            bytes: entry.message[UPDATE_FIELD]?.length ?? 0,
-          })
-        }
         this.applyEntry(room, entry.id, entry.message)
       }
       await this.write.expire(streamKey(name), STREAM_TTL_SEC)
-      // The adopted entries may already be past the ceiling, and nothing else re-checks until the
+      // A stream taken over may already be past the ceiling, and nothing else re-checks until the
       // next local publish — which a read-only participant never makes.
       if (foldableDeltaBytes(room) >= COMPACT_BYTES_THRESHOLD) void this.maybeCompact(name, true)
     } catch (error) {
@@ -443,10 +445,9 @@ export class FileDocStore {
     const encoded = Buffer.from(update).toString('base64')
     const fields: Record<string, string> = { [UPDATE_FIELD]: encoded }
     if (agent) fields[AGENT_FIELD] = '1'
-    let appendedId: string | null = null
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
-        appendedId = await this.write.xAdd(streamKey(name), '*', fields)
+        await this.write.xAdd(streamKey(name), '*', fields)
         break
       } catch (error) {
         if (attempt === PUBLISH_MAX_RETRIES) {
@@ -461,7 +462,6 @@ export class FileDocStore {
     await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
     if (!room) return
-    if (appendedId) room.pendingDeltas.push({ id: appendedId, bytes: encoded.length })
     // Bytes are checked every publish: one entry can cross the ceiling on its own, so pacing this
     // check the way the entry count is paced would let a stream sit far over the ceiling for up to
     // COMPACT_CHECK_EVERY more appends. The check itself is a local sum over unfolded entries.
@@ -728,6 +728,12 @@ export class FileDocStore {
 
   private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
     room.lastId = id
+    // Account for every entry the tailer sees, whoever wrote it — this is the only point that
+    // observes peer and roomless appends. A fold's own output is excluded so it cannot arm the
+    // trigger against itself.
+    if (!message[COMPACTION_FIELD]) {
+      room.pendingDeltas.set(id, message[UPDATE_FIELD]?.length ?? 0)
+    }
     // A compaction snapshot folds seed + edits into one frame; stamp it so the relay's edit-tracker
     // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated). An
     // agent-streamed preview frame is stamped separately so the tracker NEVER marks it edited.
@@ -856,6 +862,7 @@ export class FileDocStore {
         await this.write.xAdd(streamKey(name), '*', {
           [UPDATE_FIELD]: snapshot,
           [marker]: '1',
+          [COMPACTION_FIELD]: '1',
         })
         // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
@@ -869,7 +876,9 @@ export class FileDocStore {
         // nothing and leaves the trigger armed.
         // `MINID upTo` is inclusive — it keeps the entry whose id EQUALS `upTo`, so that entry's
         // bytes are still in Redis and must stay counted. Keeps exactly what survived the trim.
-        room.pendingDeltas = room.pendingDeltas.filter((delta) => !isAfterStreamId(upTo, delta.id))
+        for (const id of room.pendingDeltas.keys()) {
+          if (isAfterStreamId(upTo, id)) room.pendingDeltas.delete(id)
+        }
       } finally {
         await this.releaseLock(key, token)
       }

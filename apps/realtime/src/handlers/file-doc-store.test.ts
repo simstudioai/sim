@@ -131,7 +131,7 @@ const REDIS_URL = 'redis://fake'
 
 interface StoreRoomInternals {
   lastId: string
-  pendingDeltas: Array<{ id: string; bytes: number }>
+  pendingDeltas: Map<string, number>
   realEdited: boolean
   publishes: number
   compactRetryAfter: number
@@ -141,6 +141,7 @@ interface StoreRoomInternals {
 
 interface FileDocStoreInternals {
   rooms: Map<string, StoreRoomInternals>
+  applyEntry(room: StoreRoomInternals, id: string, message: Record<string, string>): void
   appendUpdate(name: string, update: Uint8Array, agent?: boolean): Promise<void>
   write: { xTrim: (...args: unknown[]) => Promise<unknown> }
   maybeCompact(name: string, force?: boolean): Promise<void>
@@ -367,7 +368,7 @@ describe('FileDocStore', () => {
       lastId: '400-0',
       publishes: 0,
       compactRetryAfter: 0,
-      pendingDeltas: [],
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: true,
     })
@@ -500,7 +501,7 @@ describe('FileDocStore', () => {
     const doc = new Y.Doc()
     await a.attachRoom(NAME, doc)
     const room = internals(a).rooms.get(NAME)!
-    room.pendingDeltas = [{ id: '1-0', bytes: 9 * 1024 * 1024 }]
+    room.pendingDeltas = new Map([['1-0', 9 * 1024 * 1024]])
     room.realEdited = true
 
     const write = internals(a).write
@@ -512,7 +513,7 @@ describe('FileDocStore', () => {
 
     // A failed fold must not disarm the trigger — otherwise the stream stays oversized until
     // this task happens to append another full threshold's worth of deltas.
-    expect(room.pendingDeltas).toEqual([{ id: '1-0', bytes: 9 * 1024 * 1024 }])
+    expect([...room.pendingDeltas]).toEqual([['1-0', 9 * 1024 * 1024]])
 
     // But it must not retry immediately either: the snapshot XADD lands before the XTRIM, so a
     // persistent trim failure would append a full-document snapshot on every attempt.
@@ -537,17 +538,17 @@ describe('FileDocStore', () => {
     // INCLUSIVE) and 9-0. Their bytes are still in Redis, and dropping them would disarm the
     // byte trigger while the stream kept growing.
     room.lastId = '5-0'
-    room.pendingDeltas = [
-      { id: '3-0', bytes: 4 * 1024 * 1024 },
-      { id: '5-0', bytes: 6 * 1024 * 1024 },
-      { id: '9-0', bytes: 7 * 1024 * 1024 },
-    ]
+    room.pendingDeltas = new Map([
+      ['3-0', 4 * 1024 * 1024],
+      ['5-0', 6 * 1024 * 1024],
+      ['9-0', 7 * 1024 * 1024],
+    ])
 
     await internals(a).maybeCompact(NAME, true)
 
-    expect(room.pendingDeltas).toEqual([
-      { id: '5-0', bytes: 6 * 1024 * 1024 },
-      { id: '9-0', bytes: 7 * 1024 * 1024 },
+    expect([...room.pendingDeltas]).toEqual([
+      ['5-0', 6 * 1024 * 1024],
+      ['9-0', 7 * 1024 * 1024],
     ])
     doc.destroy()
   })
@@ -591,6 +592,67 @@ describe('FileDocStore', () => {
     seedDoc.destroy()
   })
 
+  it('counts agent preview deltas, which share a marker with an agent-only snapshot', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    // Agent preview frames are the LARGE ones — a copilot file edit re-serialising a document is
+    // what filled Redis. They carry the same marker as a fold of an agent-only stream, so keying
+    // exclusion on that marker would drop exactly the payloads this bound exists for.
+    const seedDoc = new Y.Doc()
+    const updates: Uint8Array[] = []
+    seedDoc.on('update', (u: Uint8Array) => updates.push(u))
+    seedDoc.getText('body').insert(0, 'x'.repeat(9 * 1024 * 1024))
+    seedDoc.getText('body').insert(0, 'tail')
+    state.backing!.streams.set(
+      streamKey,
+      updates.map((update, index) => ({
+        id: `${index + 1}-0`,
+        message: { u: Buffer.from(update).toString('base64'), a: '1' },
+      }))
+    )
+    state.backing!.seq = updates.length
+
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(streamKey)!
+      expect(stream.some((entry) => entry.message.c === '1')).toBe(true)
+    })
+
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(9 * 1024 * 1024 + 4)
+    rebuilt.destroy()
+    doc.destroy()
+    seedDoc.destroy()
+  })
+
+  it("never counts a fold's own output, so a large document cannot arm the trigger against itself", async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = internals(a).rooms.get(NAME)!
+
+    internals(a).applyEntry(room, '7-0', { u: 'x'.repeat(9 * 1024 * 1024), a: '1', c: '1' })
+
+    expect(room.pendingDeltas.has('7-0')).toBe(false)
+    doc.destroy()
+  })
+
+  it('counts a delta published by a peer task, which this room only ever tails', async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = internals(a).rooms.get(NAME)!
+
+    // Never published locally, so publish-side accounting would miss it entirely.
+    internals(a).applyEntry(room, '4-0', { u: 'x'.repeat(1024) })
+
+    expect(room.pendingDeltas.get('4-0')).toBe(1024)
+    doc.destroy()
+  })
+
   it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')
@@ -609,7 +671,7 @@ describe('FileDocStore', () => {
       lastId: '400-0',
       publishes: 0,
       compactRetryAfter: 0,
-      pendingDeltas: [],
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: false,
     })
@@ -777,7 +839,7 @@ describe('FileDocStore', () => {
       lastId: '401-0',
       publishes: 0,
       compactRetryAfter: 0,
-      pendingDeltas: [],
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: true,
     })
@@ -786,7 +848,7 @@ describe('FileDocStore', () => {
       lastId: '400-0',
       publishes: 0,
       compactRetryAfter: 0,
-      pendingDeltas: [],
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: true,
     })
