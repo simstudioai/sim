@@ -492,6 +492,8 @@ export type ChipModalDropdownOption = ChipDropdownOption
 interface ChipModalFieldBaseProps {
   /** Field title rendered above the control. Replaces the legacy `label` slot. */
   title: React.ReactNode
+  /** Trailing title-row control, rendered outside the label so it stays independently interactive. */
+  titleAdornment?: React.ReactNode
   /**
    * Renders a `*` marker after the title and sets `aria-required` on the
    * underlying control.
@@ -743,13 +745,23 @@ function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
-  const { title, required, error, hint, flush = false, className } = props
+  const { title, titleAdornment, required, error, hint, flush = false, className } = props
   const associatesLabel =
     props.type === 'input' ||
     props.type === 'email' ||
     props.type === 'textarea' ||
     props.type === 'copy' ||
     props.type === 'emails'
+  const label = (
+    <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
+      {title}
+      {required && (
+        <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
+          *
+        </span>
+      )}
+    </Label>
+  )
 
   return (
     <div
@@ -758,14 +770,14 @@ function ChipModalField(props: ChipModalFieldProps) {
         props.type === 'custom' && props.submitOnEnter === false ? '' : undefined
       }
     >
-      <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
-        {title}
-        {required && (
-          <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
-            *
-          </span>
-        )}
-      </Label>
+      {titleAdornment ? (
+        <div className='flex items-center justify-between gap-1.5'>
+          {label}
+          {titleAdornment}
+        </div>
+      ) : (
+        label
+      )}
       {renderChipModalControl(props, id, errorId, hintId)}
       {error && props.type !== 'emails' ? (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>

@@ -1,3 +1,4 @@
+export { CanonicalModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/canonical-mode-toggle'
 export { CheckboxList } from './checkbox-list'
 export { Code } from './code'
 export { ComboBox } from './combobox'
