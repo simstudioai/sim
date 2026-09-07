@@ -66,28 +66,16 @@ const createRedisStub = () => {
     }),
     get: vi.fn().mockImplementation((key: string) => Promise.resolve(values.get(key) ?? null)),
     /**
-     * Stands in for both Lua scripts, dispatching on the leading `DEL` that only
-     * `CLEAR_BUFFER_SCRIPT` has. It reproduces their observable
+     * Stands in for `APPEND_EVENTS_SCRIPT`. It reproduces the script's observable
      * effects — dedupe, zadd, rank-trim, seq — so the read-path tests still exercise
      * real data, and exposes `budgetRefusal` so the refusal branch can be driven
      * without reimplementing the budget arithmetic here.
      */
     budgetRefusal: null as null | [number, string, number],
     eval: vi.fn().mockImplementation((...args: unknown[]) => {
-      const script = String(args[0])
       const numKeys = Number(args[1])
       const keys = args.slice(2, 2 + numKeys) as string[]
       const argv = args.slice(2 + numKeys) as Array<string | number>
-
-      // CLEAR_BUFFER_SCRIPT is the only one that opens with a DEL.
-      if (script.trimStart().startsWith("redis.call('DEL'")) {
-        for (const key of keys) {
-          values.delete(key)
-          sortedSets.delete(key)
-          counters.delete(key)
-        }
-        return Promise.resolve(1)
-      }
 
       if (api.budgetRefusal) return Promise.resolve(api.budgetRefusal)
 
@@ -419,9 +407,10 @@ describe('mothership-stream-outbox', () => {
     // its events stored with its reservation already erased.
     await clearBuffer('stream-1')
 
-    const evalCall = mockRedis.eval.mock.calls.at(-1)
-    expect(evalCall?.[1]).toBe(4)
-    expect(evalCall?.[5]).toBe('execution:redis-budget:copilot_stream:stream-1')
+    // One variadic DEL: a single atomic command, so no script is needed for the counter to go
+    // with the data it accounts for.
+    expect(mockRedis.del).toHaveBeenCalledTimes(1)
+    expect(mockRedis.del.mock.calls[0]).toContain('execution:redis-budget:copilot_stream:stream-1')
   })
 
   it('never touches the shared user counter when clearing a buffer', async () => {
@@ -429,7 +418,7 @@ describe('mothership-stream-outbox', () => {
     // let anyone who can name a stream decrement a ceiling they never charged.
     await clearBuffer('stream-1')
 
-    const keys = mockRedis.eval.mock.calls.at(-1)?.slice(2, 6) as string[]
+    const keys = mockRedis.del.mock.calls[0] as string[]
     expect(keys.some((key) => key.includes('redis-budget:user:'))).toBe(false)
   })
 })

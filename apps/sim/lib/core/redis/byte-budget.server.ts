@@ -115,24 +115,6 @@ export interface RedisBudgetRefusal {
   attemptedBytes: number
 }
 
-export class RedisBudgetExceededError extends Error {
-  readonly resource: RedisBudgetRefusal['resource']
-  readonly currentBytes: number
-  readonly limitBytes: number
-  readonly attemptedBytes: number
-
-  constructor(refusal: RedisBudgetRefusal) {
-    super(
-      `Redis byte budget exceeded (${refusal.resource}): ${refusal.attemptedBytes} bytes would take ${refusal.currentBytes} past ${refusal.limitBytes}`
-    )
-    this.name = 'RedisBudgetExceededError'
-    this.resource = refusal.resource
-    this.currentBytes = refusal.currentBytes
-    this.limitBytes = refusal.limitBytes
-    this.attemptedBytes = refusal.attemptedBytes
-  }
-}
-
 /**
  * Lua that reserves or releases `net_bytes` against the caller's budget keys.
  *
@@ -198,31 +180,6 @@ else
     redis.call('EXPIRE', ${userKey}, budget_ttl_seconds)
   end
 end
-`
-}
-
-/**
- * Lua that drops an owner's counter, for data that is deleted rather than left to expire.
- *
- * Rendered into the caller's own script, the same way {@link renderRedisBudgetLua} is, so
- * the release commits together with the delete it accounts for. Releasing in a second
- * round trip would let a concurrent write land in between and keep its bytes stored with
- * its reservation already erased.
- *
- * The shared user counter is deliberately NOT credited here. An owner id is not proof of
- * who wrote the bytes — anyone who can name an owner could otherwise decrement a counter
- * they never charged, which is the one direction that must never be possible, since a
- * counter driven down grants writes rather than denying them. The user counter's fixed
- * window is what settles it instead: it already tolerates accruing bytes Redis has dropped
- * (see {@link REDIS_BUDGET_TTL_SECONDS}), and this is the same over-count, bounded by the
- * same window.
- *
- * Contract: the owner key is the **last** entry of `KEYS`, and `baseKeyCount` is how many
- * precede it.
- */
-export function renderRedisBudgetReleaseLua(baseKeyCount: number): string {
-  return `
-redis.call('DEL', KEYS[${baseKeyCount + 1}])
 `
 }
 

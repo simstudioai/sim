@@ -853,7 +853,6 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
-        // Captured with `upTo` so the two agree: exactly the entries this fold will trim.
         // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
         // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
         // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
@@ -867,15 +866,9 @@ export class FileDocStore {
         // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
         await this.write.xTrim(streamKey(name), 'MINID', upTo)
-        // Never the snapshot's own size: a document whose snapshot already exceeds the ceiling
-        // would re-breach it the instant compaction finished and force a full snapshot append on
-        // every subsequent keystroke — the write amplification this threshold exists to prevent.
-        // Drop only what the trim provably removed. An entry published past `upTo` is retained by
-        // MINID and its bytes are still in Redis, so it stays counted; dropping it would disarm the
-        // trigger while the stream kept growing. Done after the trim, so a failed fold changes
-        // nothing and leaves the trigger armed.
-        // `MINID upTo` is inclusive — it keeps the entry whose id EQUALS `upTo`, so that entry's
-        // bytes are still in Redis and must stay counted. Keeps exactly what survived the trim.
+        // Drop exactly what the trim removed, which `MINID upTo` being INCLUSIVE makes `id < upTo`
+        // — the entry at the boundary survives, and its bytes are still in Redis. Run after the
+        // trim, so a failed fold leaves the ledger intact and the trigger armed.
         for (const id of room.pendingDeltas.keys()) {
           if (isAfterStreamId(upTo, id)) room.pendingDeltas.delete(id)
         }
