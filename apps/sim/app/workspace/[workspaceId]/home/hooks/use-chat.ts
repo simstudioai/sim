@@ -1737,12 +1737,7 @@ export function useChat(
       mergedResources.splice(insertAt, 0, resource)
     }
     const resourcesUnchanged =
-      mergedResources.length === resourcesRef.current.length &&
-      mergedResources.every(
-        (resource, index) =>
-          buildChatResourceHydrationKey(resourcesRef.current[index]) ===
-          buildChatResourceHydrationKey(resource)
-      )
+      JSON.stringify(mergedResources) === JSON.stringify(resourcesRef.current)
 
     if (mergedResources.length > 0) {
       // An explicit selection wins. Otherwise pin the last resource the server
