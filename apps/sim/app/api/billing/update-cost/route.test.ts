@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { readFileSync } from 'node:fs'
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -80,6 +81,16 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
 }))
 
 import { billingUpdateCostBodySchema } from '@/lib/api/contracts/subscription'
+import {
+  BillingCallbackBody,
+  BillingCallbackHeaders,
+  BillingProtocol,
+  BillingProtocolHeaders,
+} from '@/lib/mothership/generated/billing'
+import {
+  BILLING_PROTOCOL_HEADERS,
+  COPILOT_BILLING_PROTOCOL,
+} from '@/lib/mothership/generated/billing-protocol-v1'
 import { POST } from '@/app/api/billing/update-cost/route'
 
 afterAll(resetEnvFlagsMock)
@@ -166,6 +177,45 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       },
     })
   })
+
+  it('keeps the worker callback protocol aligned with the Go-produced wire constants', () => {
+    expect(Object.values(BillingProtocol).sort()).toEqual(
+      Object.values(COPILOT_BILLING_PROTOCOL).sort()
+    )
+    expect(BillingProtocolHeaders).toEqual(BILLING_PROTOCOL_HEADERS)
+  })
+
+  it.skipIf(!process.env.BILLING_WIRE_FIXTURE)(
+    'accepts the actual worker HTTP callbacks through the Sim handler',
+    async () => {
+      const path = process.env.BILLING_WIRE_FIXTURE
+      if (!path) throw new Error('Missing worker callback fixture')
+      const receipts: { body: unknown; headers: Record<string, string> }[] = JSON.parse(
+        readFileSync(path, 'utf8')
+      )
+      expect(receipts.length).toBeGreaterThan(5)
+      setEnvFlags({ isBillingEnabled: true, isHosted: true })
+      for (const receipt of receipts) {
+        const body = BillingCallbackBody.parse(receipt.body)
+        BillingCallbackHeaders.parse(receipt.headers)
+        mockRequireBillingAttributionHeader.mockReturnValue({
+          ...ATTRIBUTION,
+          workspaceId: body.workspaceId,
+        })
+        const result = await POST(createMockRequest('POST', body, receipt.headers))
+        expect(result.status, JSON.stringify(await result.clone().json())).toBe(200)
+        expect(mockRecordCumulativeUsage).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            userId: body.userId,
+            cost: body.cost,
+            model: body.model,
+            eventKey: `update-cost:${body.idempotencyKey}`,
+            metadata: { inputTokens: body.inputTokens, outputTokens: body.outputTokens },
+          })
+        )
+      }
+    }
+  )
 
   it('returns 401 for a billing-disabled request without valid internal auth', async () => {
     setEnvFlags({ isBillingEnabled: false })
