@@ -1,5 +1,6 @@
 import '@sim/testing/mocks/executor'
 
+import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -60,6 +61,8 @@ vi.mock('@/lib/mothership/request/metrics', () => ({
 
 vi.mock('@/lib/mothership/request/otel', () => ({
   withCopilotToolSpan,
+  withCopilotSpan: (_name: string, _attrs: unknown, fn: () => Promise<unknown>) => fn(),
+  getCopilotTracer: () => trace.getTracer('test-copilot'),
 }))
 
 vi.mock('@/lib/mothership/request/sse-utils', () => ({

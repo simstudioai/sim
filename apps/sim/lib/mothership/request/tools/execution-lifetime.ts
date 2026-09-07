@@ -19,6 +19,9 @@ import {
   settleSimSandboxProcess,
   settleSimToolExecution,
 } from '@/lib/mothership/async-runs/repository'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { recoverSandboxProcesses } from '@/lib/mothership/request/tools/sandbox-recovery'
 
 const logger = createLogger('MothershipToolExecutionLifetime')
@@ -64,8 +67,14 @@ export async function withToolExecutionLifetime<T>(
   const lifetime: ToolExecutionLifetime = {
     signal: leaseAbort.signal,
     async complete(input) {
-      if (owner) await completeOwnedSimToolCall(input, owner.ownerToken)
-      else await completeAsyncToolCall(input)
+      await withCopilotSpan(
+        TraceSpan.CopilotToolResultCommit,
+        { [TraceAttr.ToolCallId]: toolCallId },
+        async () => {
+          if (owner) await completeOwnedSimToolCall(input, owner.ownerToken)
+          else await completeAsyncToolCall(input)
+        }
+      )
     },
     async claim(runId, userId) {
       const claim = await claimSimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(

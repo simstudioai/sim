@@ -38,12 +38,13 @@ import {
   RunWorkflowUntilBlock,
 } from '@/lib/mothership/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
   publishToolConfirmation,
   waitForToolConfirmation,
 } from '@/lib/mothership/persistence/tool-confirm'
 import { recordSimToolMetric } from '@/lib/mothership/request/metrics'
-import { withCopilotToolSpan } from '@/lib/mothership/request/otel'
+import { withCopilotSpan, withCopilotToolSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import {
   getToolCallTerminalData,
@@ -315,10 +316,12 @@ async function executeToolWithWatchdog(
     ...(toolContext.abortSignal ? [toolContext.abortSignal] : []),
   ])
   const execution = lifetime.hold(
-    executeTool(executableName, toolCall.params || {}, {
-      ...toolContext,
-      abortSignal: signal,
-    })
+    withCopilotSpan(TraceSpan.CopilotToolRuntime, { [TraceAttr.ToolCallId]: toolCall.id }, () =>
+      executeTool(executableName, toolCall.params || {}, {
+        ...toolContext,
+        abortSignal: signal,
+      })
+    )
   )
   let timer: ReturnType<typeof setTimeout> | undefined
   let rejectOwnershipLoss: () => void = () => {}

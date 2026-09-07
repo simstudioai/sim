@@ -1,4 +1,4 @@
-import { trace } from '@opentelemetry/api'
+import { SpanKind, trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   type CopilotAsyncToolStatus,
@@ -34,6 +34,10 @@ import {
 } from '@/lib/mothership/async-runs/execution-lease'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import {
+  traceMothershipQuery,
+  traceMothershipTransaction,
+} from '@/lib/mothership/observability/database'
 import { markSpanForError } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import {
@@ -71,22 +75,28 @@ async function withDbSpan<T>(
   attrs: Record<string, string | number | boolean | undefined>,
   fn: () => Promise<T>
 ): Promise<T> {
-  const span = getAsyncRunsTracer().startSpan(name, {
-    attributes: {
-      [TraceAttr.DbSystem]: 'postgresql',
-      [TraceAttr.DbOperation]: op,
-      [TraceAttr.DbSqlTable]: table,
-      ...filterUndefined(attrs),
+  return getAsyncRunsTracer().startActiveSpan(
+    name,
+    {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        [TraceAttr.DbSystem]: 'postgresql',
+        [TraceAttr.DbOperation]: op,
+        [TraceAttr.DbSqlTable]: table,
+        ...filterUndefined(attrs),
+      },
     },
-  })
-  try {
-    return await fn()
-  } catch (error) {
-    markSpanForError(span, error)
-    throw error
-  } finally {
-    span.end()
-  }
+    async (span) => {
+      try {
+        return await fn()
+      } catch (error) {
+        markSpanForError(span, error)
+        throw error
+      } finally {
+        span.end()
+      }
+    }
+  )
 }
 
 export interface CreateRunSegmentInput {
@@ -368,20 +378,22 @@ export async function upsertAsyncToolCall(input: {
       const now = new Date()
       const args = sanitizeValueForJsonb(input.args ?? {})
       const sealedContext = sanitizeValueForJsonb(input.sealedContext)
-      const [row] = await db
-        .insert(copilotAsyncToolCalls)
-        .values({
-          runId: effectiveRunId,
-          checkpointId: input.checkpointId ?? null,
-          toolCallId: input.toolCallId,
-          toolName: input.toolName,
-          args,
-          status: incomingStatus,
-          ...(sealedContext !== undefined ? { result: sealedContext } : {}),
-          updatedAt: now,
-        })
-        .onConflictDoNothing()
-        .returning()
+      const [row] = await traceMothershipQuery('INSERT', 'copilot_async_tool_calls', () =>
+        db
+          .insert(copilotAsyncToolCalls)
+          .values({
+            runId: effectiveRunId,
+            checkpointId: input.checkpointId ?? null,
+            toolCallId: input.toolCallId,
+            toolName: input.toolName,
+            args,
+            status: incomingStatus,
+            ...(sealedContext !== undefined ? { result: sealedContext } : {}),
+            updatedAt: now,
+          })
+          .onConflictDoNothing()
+          .returning()
+      )
 
       return row ?? getAsyncToolCall(input.toolCallId)
     }
@@ -493,54 +505,60 @@ export async function claimSimToolExecution(
       [TraceAttr.RunId]: input.runId,
     },
     () =>
-      db.transaction(async (tx) => {
-        const [run] = await tx
-          .select({
-            toolExecutionVersion: copilotRuns.toolExecutionVersion,
-            toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
-            status: copilotRuns.status,
-          })
-          .from(copilotRuns)
-          .where(and(eq(copilotRuns.id, input.runId), eq(copilotRuns.userId, input.userId)))
-          .for('update')
+      traceMothershipTransaction<SimToolExecutionClaim>('claim_tool', async (tx) => {
+        const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
+          tx
+            .select({
+              toolExecutionVersion: copilotRuns.toolExecutionVersion,
+              toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+              status: copilotRuns.status,
+            })
+            .from(copilotRuns)
+            .where(and(eq(copilotRuns.id, input.runId), eq(copilotRuns.userId, input.userId)))
+            .for('update')
+        )
         if (!run || run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
           throw new Error('Tool execution ownership is unavailable for this run')
         if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
           return { outcome: 'closed' }
         const startedAt = new Date()
-        const [claimed] = await tx
-          .update(copilotAsyncToolCalls)
-          .set({
-            status: ASYNC_TOOL_STATUS.running,
-            claimedBy: 'sim-stream',
-            claimedAt: startedAt,
-            executionStartedAt: startedAt,
-            executionOwnerToken: input.ownerToken,
-            executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
-            updatedAt: startedAt,
-          })
-          .where(
-            and(
-              eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-              eq(copilotAsyncToolCalls.runId, input.runId),
-              isNull(copilotAsyncToolCalls.executionStartedAt),
-              inArray(copilotAsyncToolCalls.status, [
-                ASYNC_TOOL_STATUS.pending,
-                ASYNC_TOOL_STATUS.running,
-              ])
+        const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
+          tx
+            .update(copilotAsyncToolCalls)
+            .set({
+              status: ASYNC_TOOL_STATUS.running,
+              claimedBy: 'sim-stream',
+              claimedAt: startedAt,
+              executionStartedAt: startedAt,
+              executionOwnerToken: input.ownerToken,
+              executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+              updatedAt: startedAt,
+            })
+            .where(
+              and(
+                eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+                eq(copilotAsyncToolCalls.runId, input.runId),
+                isNull(copilotAsyncToolCalls.executionStartedAt),
+                inArray(copilotAsyncToolCalls.status, [
+                  ASYNC_TOOL_STATUS.pending,
+                  ASYNC_TOOL_STATUS.running,
+                ])
+              )
             )
-          )
-          .returning({ id: copilotAsyncToolCalls.id })
+            .returning({ id: copilotAsyncToolCalls.id })
+        )
         if (claimed) return { outcome: 'claimed' }
-        const [record] = await tx
-          .select({ id: copilotAsyncToolCalls.id })
-          .from(copilotAsyncToolCalls)
-          .where(
-            and(
-              eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-              eq(copilotAsyncToolCalls.runId, input.runId)
+        const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
+          tx
+            .select({ id: copilotAsyncToolCalls.id })
+            .from(copilotAsyncToolCalls)
+            .where(
+              and(
+                eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+                eq(copilotAsyncToolCalls.runId, input.runId)
+              )
             )
-          )
+        )
         if (!record) throw new Error('Tool execution record is unavailable')
         return { outcome: 'existing' }
       })
