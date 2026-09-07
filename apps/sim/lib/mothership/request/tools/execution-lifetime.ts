@@ -1,10 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
 import {
+  SIM_TOOL_EXECUTION_HEARTBEAT_MS,
+  SimToolExecutionLeaseLostError,
+  type SimToolExecutionOwner,
+} from '@/lib/mothership/async-runs/execution-lease'
+import {
+  type CompleteAsyncToolCallInput,
   claimSimToolExecution,
+  completeAsyncToolCall,
+  completeOwnedSimToolCall,
   prepareWorkbenchAccess,
   recordSimSandboxProcess,
+  renewSimToolExecutionLease,
   type SimToolExecutionClaim,
   settleSimSandboxProcess,
   settleSimToolExecution,
@@ -14,6 +24,8 @@ import { recoverSandboxProcesses } from '@/lib/mothership/request/tools/sandbox-
 const logger = createLogger('MothershipToolExecutionLifetime')
 
 export interface ToolExecutionLifetime {
+  readonly signal: AbortSignal
+  complete(input: CompleteAsyncToolCallInput): Promise<void>
   claim(runId: string, userId: string): Promise<SimToolExecutionClaim>
   hold<T>(work: Promise<T>): Promise<T>
 }
@@ -24,18 +36,23 @@ export async function withToolExecutionLifetime<T>(
   execute: (lifetime: ToolExecutionLifetime) => Promise<T>
 ): Promise<T> {
   let admitted = false
-  let owner: { runId: string; userId: string } | undefined
+  let owner: SimToolExecutionOwner | undefined
+  const ownerToken = generateId()
+  const leaseAbort = new AbortController()
+  let heartbeat: ReturnType<typeof setInterval> | undefined
+  let renewing = false
   const recordedProcesses = new Set<string>()
   let pending = 0
   let resultFinished = false
   let processUnsettled = false
   let settlementAttempted = false
   const settle = async () => {
-    if (!admitted || pending > 0 || !resultFinished || processUnsettled || settlementAttempted)
-      return
+    if (!admitted || pending > 0 || !resultFinished || settlementAttempted) return
+    clearInterval(heartbeat)
+    if (processUnsettled) return
     settlementAttempted = true
     try {
-      await settleSimToolExecution(toolCallId)
+      await settleSimToolExecution(toolCallId, ownerToken)
     } catch (error) {
       /** Retain the unresolved receipt without turning a performed mutation into a retryable failure. */
       logger.warn('Tool execution settlement could not be persisted', {
@@ -45,12 +62,39 @@ export async function withToolExecutionLifetime<T>(
     }
   }
   const lifetime: ToolExecutionLifetime = {
+    signal: leaseAbort.signal,
+    async complete(input) {
+      if (owner) await completeOwnedSimToolCall(input, owner.ownerToken)
+      else await completeAsyncToolCall(input)
+    },
     async claim(runId, userId) {
-      const claim = await claimSimToolExecution({ toolCallId, runId, userId }).catch(() => {
-        throw new Error('Tool could not start because execution admission could not be recorded')
-      })
+      const claim = await claimSimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(
+        () => {
+          throw new Error('Tool could not start because execution admission could not be recorded')
+        }
+      )
       admitted = claim.outcome === 'claimed'
-      if (admitted) owner = { runId, userId }
+      if (admitted) {
+        owner = { toolCallId, runId, userId, ownerToken }
+        heartbeat = setInterval(async () => {
+          if (renewing || !owner) return
+          renewing = true
+          try {
+            if (!(await renewSimToolExecutionLease(owner)))
+              throw new SimToolExecutionLeaseLostError()
+          } catch (error) {
+            clearInterval(heartbeat)
+            leaseAbort.abort(new SimToolExecutionLeaseLostError())
+            logger.warn('Tool execution lease was lost', {
+              toolCallId,
+              error: getErrorMessage(error),
+            })
+          } finally {
+            renewing = false
+          }
+        }, SIM_TOOL_EXECUTION_HEARTBEAT_MS)
+        heartbeat.unref?.()
+      }
       return claim
     },
     hold(work) {
@@ -69,8 +113,9 @@ export async function withToolExecutionLifetime<T>(
         lifetime.hold(work)
       },
       sessionAccess: async (sessionKey, signal) => {
+        leaseAbort.signal.throwIfAborted()
         if (!owner) throw new Error('Workbench access requires an admitted tool execution')
-        const input = { ...owner, toolCallId, sessionKey }
+        const input = { ...owner, sessionKey }
         const inspectOwnership = () =>
           prepareWorkbenchAccess(input).catch((error) => {
             logger.warn('Workbench ownership verification failed', {
@@ -84,7 +129,7 @@ export async function withToolExecutionLifetime<T>(
         if (state.processes.length) {
           await recoverSandboxProcesses(
             state.processes,
-            AbortSignal.any([signal, AbortSignal.timeout(8000)])
+            AbortSignal.any([signal, leaseAbort.signal, AbortSignal.timeout(8000)])
           )
           signal.throwIfAborted()
           state = await inspectOwnership()
@@ -99,8 +144,9 @@ export async function withToolExecutionLifetime<T>(
         if (!processId || !recordedProcesses.has(processId)) processUnsettled = true
       },
       claimProcess: async (process) => {
+        leaseAbort.signal.throwIfAborted()
         if (!owner) throw new Error('Sandbox command requires an admitted tool execution')
-        await recordSimSandboxProcess({ toolCallId, ...owner, process }).catch(() => {
+        await recordSimSandboxProcess({ ...owner, process }).catch(() => {
           throw new Error('Sandbox command could not start because its ownership is unavailable')
         })
         recordedProcesses.add(process.id)
