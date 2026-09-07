@@ -412,7 +412,7 @@ export async function updateCredentialRecord(
             success: false,
             error: providerUnavailable
               ? 'OCI is temporarily unavailable for credential verification'
-              : 'OCI rejected the API-key credential',
+              : 'OCI API-key credential could not be verified',
             errorCode: 'validation',
             providerErrorCode: providerUnavailable ? 'provider_unavailable' : 'invalid_credentials',
           }

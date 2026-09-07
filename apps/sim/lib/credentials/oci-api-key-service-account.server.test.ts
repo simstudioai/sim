@@ -101,6 +101,56 @@ describe('OCI API-key credential setup', () => {
     )
   })
 
+  it.each(['\n', '\r\n'])(
+    'accepts the exact Oracle download marker with %j line endings',
+    async (newline) => {
+      for (const [pem, keyPassphrase] of [
+        [privateKey, undefined],
+        [encryptedPrivateKey, passphrase],
+      ]) {
+        await verifyAndEncryptOciApiKeyCredential(
+          fields({
+            privateKey: `${pem}OCI_API_KEY\n`.replaceAll('\n', newline),
+            privateKeyPassphrase: keyPassphrase,
+          })
+        )
+        const serialized = dependencies.verifySetup.mock.lastCall![0]
+        expect(JSON.parse(serialized).privateKey).toBe(pem)
+        expect(dependencies.encryptSecret).toHaveBeenLastCalledWith(serialized)
+      }
+    }
+  )
+
+  it('rejects malformed download trailers before provider verification', async () => {
+    for (const suffix of [
+      'OCI_API_KEY_EXTRA',
+      'oci_api_key',
+      'OCI_API_KEY\nextra',
+      'extra\nOCI_API_KEY',
+      'OCI_API_KEY\nOCI_API_KEY',
+      '\u0000OCI_API_KEY',
+    ]) {
+      await expect(
+        verifyAndEncryptOciApiKeyCredential(fields({ privateKey: `${privateKey}${suffix}` }))
+      ).rejects.toEqual(new OciCredentialVerificationError('invalid_credentials'))
+    }
+    await expect(
+      verifyAndEncryptOciApiKeyCredential(
+        fields({ privateKey: `${privateKey}${' '.repeat(65536)}\nOCI_API_KEY` })
+      )
+    ).rejects.toEqual(new OciCredentialVerificationError('invalid_credentials'))
+    await expect(
+      verifyAndEncryptOciApiKeyCredential(
+        fields({
+          privateKey: `${privateKey}OCI_API_KEY`,
+          fingerprint: '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
+        })
+      )
+    ).rejects.toEqual(new OciCredentialVerificationError('invalid_credentials'))
+    expect(dependencies.verifySetup).not.toHaveBeenCalled()
+    expect(dependencies.encryptSecret).not.toHaveBeenCalled()
+  })
+
   it('accepts encrypted RSA keys only with the exact preserved passphrase', async () => {
     await verifyAndEncryptOciApiKeyCredential(
       fields({ privateKey: encryptedPrivateKey, privateKeyPassphrase: passphrase })

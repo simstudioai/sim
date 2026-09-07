@@ -94,10 +94,17 @@ function normalizeFingerprint(value: unknown): string {
 function normalizePrivateKey(value: unknown): string {
   assertBoundedText(value, 'private key', MAX_PRIVATE_KEY_BYTES, PEM_CONTROL_CHARACTER_PATTERN)
   const normalized = value.replace(/\r\n?/g, '\n').trim()
-  if (!normalized.startsWith('-----BEGIN ') || !normalized.endsWith('-----')) {
+  const pem = normalized.endsWith('\nOCI_API_KEY')
+    ? normalized.slice(0, -'\nOCI_API_KEY'.length).trimEnd()
+    : normalized
+  if (
+    !/^-----BEGIN (PRIVATE KEY|RSA PRIVATE KEY|ENCRYPTED PRIVATE KEY)-----\n[\s\S]+\n-----END \1-----$/.test(
+      pem
+    )
+  ) {
     throw new Error('OCI private key must be PEM encoded')
   }
-  return `${normalized}\n`
+  return `${pem}\n`
 }
 
 function validatePassphrase(value: unknown): string | undefined {

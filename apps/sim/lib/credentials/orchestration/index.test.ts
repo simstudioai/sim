@@ -230,7 +230,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
   })
 
   it.each([
-    ['invalid_credentials', 'invalid_credentials', 'OCI rejected the API-key credential'],
+    ['invalid_credentials', 'invalid_credentials', 'OCI API-key credential could not be verified'],
     [
       'service_unavailable',
       'provider_unavailable',
@@ -724,7 +724,12 @@ describe('createServiceAccountCredential', () => {
   })
 
   it.each([
-    ['invalid_credentials', 'invalid_credentials', false, 'OCI rejected the API-key credential'],
+    [
+      'invalid_credentials',
+      'invalid_credentials',
+      false,
+      'OCI API-key credential could not be verified',
+    ],
     [
       'service_unavailable',
       'provider_unavailable',

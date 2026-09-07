@@ -545,7 +545,7 @@ export async function createCredentialRecord(
       return failure(
         providerUnavailable
           ? 'OCI is temporarily unavailable for credential verification'
-          : 'OCI rejected the API-key credential',
+          : 'OCI API-key credential could not be verified',
         'validation',
         { providerErrorCode, providerUnavailable }
       )
