@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import { writeStderr } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
@@ -224,7 +225,7 @@ function writeResultNote(
       ? (payload as Record<string, unknown>)
       : {}
   const message = note(record, body)
-  if (message) process.stderr.write(styles().dim(`${message}\n`))
+  if (message) writeStderr(styles().dim(`${message}\n`))
 }
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */

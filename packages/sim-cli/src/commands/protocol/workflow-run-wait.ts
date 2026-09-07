@@ -1,4 +1,5 @@
 import { type Command, Option } from 'commander'
+import { printError, writeStderr } from '#cli/output/io'
 import { hasProgressTerminal, styles } from '#cli/output/presentation'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
@@ -162,7 +163,7 @@ function waitProgress(): WaitProgress {
     advance: (status, elapsedMs) => {
       if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(
+      writeStderr(
         `\r${styles().dim(`${status} — waiting ${Math.round(elapsedMs / 1000)}s…`)}\u001b[K`
       )
     },
@@ -172,7 +173,7 @@ function waitProgress(): WaitProgress {
     finish: () => {
       if (!reported) return
       reported = false
-      process.stderr.write('\r\u001b[K')
+      writeStderr('\r\u001b[K')
     },
   }
 }
@@ -261,7 +262,7 @@ export function attachWorkflowRunWait(runs: Command): void {
               progress.finish()
               renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
               const message = explain(outcome, runId, options.workflow, snapshot)
-              if (message) console.error(styles().red(message))
+              if (message) printError(styles().red(message))
               setSoftExitCode(WAIT_EXIT_CODES[outcome])
               return
             }
@@ -270,7 +271,7 @@ export function attachWorkflowRunWait(runs: Command): void {
             if (remainingMs <= 0) {
               progress.finish()
               renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
-              console.error(
+              printError(
                 styles().red(
                   `Timed out after ${timeoutSeconds}s waiting for run ${runId} (status: ${snapshot.status}${
                     snapshot.resumeAt ? `, resuming at ${snapshot.resumeAt}` : ''

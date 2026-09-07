@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
+import { writeStdout } from '#cli/output/io'
 import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
@@ -227,14 +228,18 @@ export async function saveToFile(
 /** Streams a fetch body to stdout without closing the process-wide stream. */
 export async function streamToStdout(
   body: ReadableStream<Uint8Array>,
-  output: NodeJS.WriteStream = process.stdout
+  output?: NodeJS.WriteStream
 ): Promise<void> {
   const reader = body.getReader()
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) return
-      if (!output.write(value)) await once(output, 'drain')
+      if (output) {
+        if (!output.write(value)) await once(output, 'drain')
+      } else if (!writeStdout(value)) {
+        await once(process.stdout, 'drain')
+      }
     }
   } finally {
     await reader.cancel().catch(() => {})

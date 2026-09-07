@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
 import { Command } from 'commander'
+import { printLine } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import {
   buildApprovalUrl,
@@ -212,9 +213,9 @@ async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<Sele
     )
   }
 
-  console.log('\nAvailable workspaces:')
+  printLine('\nAvailable workspaces:')
   for (const [index, workspace] of workspaces.entries()) {
-    console.log(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
+    printLine(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
   }
 
   const prompt = createInterface({ input: process.stdin, output: process.stderr })
@@ -257,12 +258,10 @@ function addProfileCommand(): Command {
         workspace: normalizeWorkspaceId(workspace.id, 'the workspace response'),
       })
 
-      console.log(
-        styles().green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`)
-      )
-      console.log(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
-      console.log(`  Authentication: ${safeOneLine(authProfile)}`)
-      console.log(styles().dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
+      printLine(styles().green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
+      printLine(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
+      printLine(`  Authentication: ${safeOneLine(authProfile)}`)
+      printLine(styles().dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
     })
 }
 
@@ -294,7 +293,7 @@ export function loginCommand(): Command {
         if (readCredentialsProfile(profile.name).api_key && !options.yes) {
           const confirmed = await confirmProfileOverwrite(profile.name)
           if (!confirmed) {
-            console.log(styles().dim('Login cancelled; the existing profile was not changed.'))
+            printLine(styles().dim('Login cancelled; the existing profile was not changed.'))
             return
           }
         }
@@ -307,17 +306,17 @@ export function loginCommand(): Command {
           profile.workspaceId ?? undefined
         )
 
-        console.log(
+        printLine(
           `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
         )
-        console.log(`\nPairing code: ${styles().bold(auth.pairing)}`)
-        console.log(
+        printLine(`\nPairing code: ${styles().bold(auth.pairing)}`)
+        printLine(
           styles().dim('Confirm this code matches what the browser shows before approving.\n')
         )
-        console.log(url)
+        printLine(url)
 
         if (options.browser) openBrowser(url)
-        console.log(styles().dim('\nWaiting for approval…'))
+        printLine(styles().dim('\nWaiting for approval…'))
 
         const key = await pollForKey(profile.endpoint, auth)
 
@@ -360,19 +359,17 @@ export function loginCommand(): Command {
         writeConfigProfile(profile.name, settings)
         writeCredentialsProfile(profile.name, key.apiKey)
 
-        console.log(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+        printLine(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
         if (key.workspaceBound && key.workspaceId) {
-          console.log(
-            styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`)
-          )
+          printLine(styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
         } else if (key.workspaceId) {
-          console.log(
+          printLine(
             styles().dim(
               `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
             )
           )
         } else {
-          console.log(
+          printLine(
             styles().dim(
               '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
             )
@@ -398,10 +395,10 @@ export function logoutCommand(): Command {
         }
         const removed = deleteProfile(profileName)
         if (!removed.config && !removed.credentials) {
-          console.log(styles().dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
+          printLine(styles().dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
         }
-        console.log(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
+        printLine(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         return
       }
 
@@ -415,17 +412,17 @@ export function logoutCommand(): Command {
       }
 
       if (!readCredentialsProfile(profile.name).api_key) {
-        console.log(styles().dim(`No stored key for profile "${safeOneLine(profile.name)}".`))
+        printLine(styles().dim(`No stored key for profile "${safeOneLine(profile.name)}".`))
         return
       }
 
       writeCredentialsProfile(profile.name, null)
-      console.log(
+      printLine(
         styles().green(`✓ Removed the stored key for profile "${safeOneLine(profile.name)}".`)
       )
       // The key still exists server-side; leaving that unsaid invites the
       // assumption that logging out revoked it.
-      console.log(
+      printLine(
         styles().dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
       )
     })
@@ -759,7 +756,7 @@ export function profilesCommand(): Command {
     if (rows.length === 0) {
       // The prose belongs to the human formats; a script asking for json must
       // get an empty list, not a sentence it cannot parse.
-      if (output === 'table') console.log(styles().dim('No profiles yet. Run: sim login'))
+      if (output === 'table') printLine(styles().dim('No profiles yet. Run: sim login'))
       else printList(output, rows, PROFILE_COLUMNS)
       return
     }

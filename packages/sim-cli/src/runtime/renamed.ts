@@ -1,3 +1,5 @@
+import { writeStderr } from '#cli/output/io'
+
 /**
  * Support for spellings the CLI has moved on from.
  *
@@ -20,9 +22,7 @@ function warn(kind: string, from: string, to: string): void {
   const key = `${kind}:${from}`
   if (warned.has(key)) return
   warned.add(key)
-  process.stderr.write(
-    `warning: ${kind} "${from}" has been renamed to "${to}". The old name still works.\n`
-  )
+  writeStderr(`warning: ${kind} "${from}" has been renamed to "${to}". The old name still works.\n`)
 }
 
 /** Announces a command path that has been renamed, naming its current spelling. */

@@ -1,4 +1,5 @@
 import { dump } from 'js-yaml'
+import { printLine } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import type { OutputFormat } from '../config/index'
 import { displayWidth } from './terminal-text'
@@ -268,18 +269,18 @@ export function printList<T>(
 ): void {
   const machine = renderMachine(format, raw)
   if (machine !== null) {
-    console.log(machine)
+    printLine(machine)
     return
   }
 
   if (format === 'text') {
     for (const row of rows) {
-      console.log(columns.map((column) => oneLine(stripAnsi(column.value(row)))).join('\t'))
+      printLine(columns.map((column) => oneLine(stripAnsi(column.value(row)))).join('\t'))
     }
     return
   }
 
-  console.log(renderTable(rows, columns))
+  printLine(renderTable(rows, columns))
 }
 
 /**
@@ -292,7 +293,7 @@ export function printList<T>(
  * is honoured, because it round-trips.
  */
 export function printDocument(format: OutputFormat, raw: unknown): void {
-  console.log(
+  printLine(
     format === 'yaml' ? (renderMachine('yaml', raw) as string) : JSON.stringify(raw, null, 2)
   )
 }
@@ -304,7 +305,7 @@ export function printDocument(format: OutputFormat, raw: unknown): void {
 export function printRecord(format: OutputFormat, fields: Array<[string, string]>, raw: unknown) {
   const machine = renderMachine(format, raw)
   if (machine !== null) {
-    console.log(machine)
+    printLine(machine)
     return
   }
 
@@ -312,14 +313,14 @@ export function printRecord(format: OutputFormat, fields: Array<[string, string]
 
   if (format === 'text') {
     for (const [label, value] of safeFields) {
-      console.log(`${label}\t${oneLine(stripAnsi(value))}`)
+      printLine(`${label}\t${oneLine(stripAnsi(value))}`)
     }
     return
   }
 
   const width = Math.max(...safeFields.map(([label]) => visibleWidth(label)))
   for (const [label, value] of safeFields) {
-    console.log(
+    printLine(
       `${styles().dim(pad(`${label}:`, width + 1))}  ${clamp(oneLine(value), MAX_RECORD_WIDTH)}`
     )
   }

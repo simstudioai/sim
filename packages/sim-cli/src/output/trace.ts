@@ -1,3 +1,4 @@
+import { printLine } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import type { OutputFormat } from '../config/index'
 import { duration, sanitize } from './render'
@@ -105,11 +106,11 @@ function renderSpan(value: unknown, depth: number): string[] {
 /** Prints the complete recursive run trace for an explicitly expanded log. */
 export function printTraceSpans(format: OutputFormat, traceSpans: unknown[]): void {
   if (format === 'json' || format === 'yaml') return
-  console.log('')
-  console.log(format === 'table' ? styles().dim('trace:') : 'trace:')
+  printLine('')
+  printLine(format === 'table' ? styles().dim('trace:') : 'trace:')
   if (traceSpans.length === 0) {
-    console.log(styles().dim('  No trace spans.'))
+    printLine(styles().dim('  No trace spans.'))
     return
   }
-  console.log(traceSpans.flatMap((span) => renderSpan(span, 0)).join('\n'))
+  printLine(traceSpans.flatMap((span) => renderSpan(span, 0)).join('\n'))
 }

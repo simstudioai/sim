@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import { writeStderr } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
@@ -312,7 +313,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
   const final = await renderRunStream(response.body, {
     includeThinking,
     includeToolCalls,
-    stderr: process.stderr,
+    stderr: { write: writeStderr },
   })
 
   renderResult('executeWorkflow', profile.output, final, CLI_CONTRACT.executeWorkflow ?? {})

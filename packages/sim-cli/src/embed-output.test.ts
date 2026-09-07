@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
+import { printError, writeStderr } from './output/io'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
 afterEach(() => vi.unstubAllGlobals())
@@ -35,14 +36,14 @@ describe('embedded output through the real command tree', () => {
     expect(JSON.parse(result.stdout)).toEqual(JSON.parse(content))
   })
 
-  it('keeps stream writes adjacent and adds newlines only for console lines', async () => {
+  it('keeps stream writes adjacent and adds newlines only for CLI lines', async () => {
     const result = await runEmbeddedCli(['files', 'get', 'file'], {
       ...identity,
       transport: async () => {
-        process.stderr.write('progress: ')
-        process.stderr.write('1')
-        console.error(' of %d', 2)
-        console.error('')
+        writeStderr('progress: ')
+        writeStderr('1')
+        printError(' of %d', 2)
+        printError('')
         return download([Buffer.from('{}')])
       },
     })
@@ -99,9 +100,9 @@ describe('embedded output through the real command tree', () => {
     const requests = vi.fn(async () => {
       const block = 'x'.repeat(1024 * 1024)
       try {
-        for (let index = 0; index < 17; index++) process.stderr.write(block)
+        for (let index = 0; index < 17; index++) writeStderr(block)
       } catch {
-        /** An internal handler can catch a logging failure after a mutation already committed. */
+        /** A command can catch an output failure after a mutation already committed. */
       }
       return Response.json({ data: { id: 'created', name: 'New workflow' } })
     })

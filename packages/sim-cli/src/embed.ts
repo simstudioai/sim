@@ -1,3 +1,4 @@
+import type { Command } from 'commander'
 import { ProfileConfigError } from './config/index'
 import {
   type EmbedContext,
@@ -5,7 +6,6 @@ import {
   EmbeddedExit,
   type EmbeddedFileSnapshot,
   embedStore,
-  installEmbedSinks,
 } from './embed-context'
 import { EmbeddedOutput, EmbeddedOutputLimitError } from './embed-output'
 import {
@@ -15,6 +15,7 @@ import {
   SimApiError,
   SimClient,
 } from './http/client'
+import { writeStderr, writeStdout } from './output/io'
 import { sanitize } from './output/render'
 import { buildProgram } from './program'
 
@@ -79,7 +80,6 @@ export async function runEmbeddedCli(
     writeFile?: EmbedContext['writeFile']
   }
 ): Promise<EmbeddedCliResult> {
-  installEmbedSinks()
   /** Multiple structured flags may consume the same file within one invocation. */
   const reads = new Map<string, Promise<string | Uint8Array>>()
   const snapshots = new Map<string, Promise<EmbeddedFileSnapshot>>()
@@ -128,7 +128,7 @@ export async function runEmbeddedCli(
     try {
       identity.signal?.throwIfAborted()
       const program = buildProgram()
-      program.exitOverride()
+      configureEmbeddedOutput(program)
       await program.parseAsync(argv, { from: 'user' })
       // Commands that soft-fail (a failed run outcome, wait timeout) report through the
       // context via setSoftExitCode — never process.exitCode, which is shared and raced
@@ -195,4 +195,11 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     `Error: ${sanitize(error instanceof Error ? error.message : String(error))}`
   )
   return 1
+}
+
+/** Independently constructed subcommands do not inherit Commander output or exit overrides. */
+function configureEmbeddedOutput(command: Command): void {
+  command.configureOutput({ writeOut: writeStdout, writeErr: writeStderr })
+  command.exitOverride()
+  for (const child of command.commands) configureEmbeddedOutput(child)
 }

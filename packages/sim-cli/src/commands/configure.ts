@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { printLine } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import {
   configPath,
@@ -154,11 +155,11 @@ export function configureCommand(): Command {
         if (Object.keys(updates).length === 0) {
           const current = readConfigProfile(profile.name)
           if (Object.keys(current).length === 0) {
-            console.log(styles().dim(`No settings stored for profile "${profile.name}".`))
+            printLine(styles().dim(`No settings stored for profile "${profile.name}".`))
             return
           }
           for (const [key, value] of Object.entries(current)) {
-            console.log(`${styles().dim(`${key}:`)} ${value}`)
+            printLine(`${styles().dim(`${key}:`)} ${value}`)
           }
           return
         }
@@ -168,12 +169,12 @@ export function configureCommand(): Command {
         // an update would claim a change that did not happen.
         const removalOnly = Object.values(updates).every((value) => value === null)
         if (removalOnly && Object.keys(readConfigProfile(profile.name)).length === 0) {
-          console.log(styles().dim(`No settings stored for profile "${profile.name}".`))
+          printLine(styles().dim(`No settings stored for profile "${profile.name}".`))
           return
         }
 
         writeConfigProfile(profile.name, updates)
-        console.log(styles().green(`✓ Updated profile "${profile.name}" in ${configPath()}`))
+        printLine(styles().green(`✓ Updated profile "${profile.name}" in ${configPath()}`))
       }
     )
 }

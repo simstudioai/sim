@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { format } from 'node:util'
 import type { ResolvedProfile } from './config/profile'
 import type { EmbeddedOutput } from './embed-output'
 
@@ -103,70 +102,8 @@ export function embeddedProfile(): ResolvedProfile | null {
   }
 }
 
-let sinksInstalled = false
-
-/**
- * Output and process.exit shims, installed once, active only inside an embedded
- * run's async context. The CLI renders through console.log/error, commander and
- * chalk write straight to process.stdout/stderr, and a few commands exit
- * directly; all of it must land in the embed result instead of the host
- * server's stdout (or worse, the host process's lifetime).
- */
-export function installEmbedSinks(): void {
-  if (sinksInstalled) return
-  sinksInstalled = true
-  const originalLog = console.log.bind(console)
-  const originalError = console.error.bind(console)
-  const originalExit = process.exit.bind(process)
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout)
-  const originalStderrWrite = process.stderr.write.bind(process.stderr)
-  console.log = (...args: unknown[]) => {
-    const ctx = embedStore.getStore()
-    if (ctx) {
-      ctx.stdout.write(`${format(...args)}\n`)
-      return
-    }
-    originalLog(...args)
-  }
-  console.error = (...args: unknown[]) => {
-    const ctx = embedStore.getStore()
-    if (ctx) {
-      ctx.stderr.write(`${format(...args)}\n`)
-      return
-    }
-    originalError(...args)
-  }
-  process.stdout.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
-    const ctx = embedStore.getStore()
-    if (ctx) {
-      const encoding = rest.find((arg) => typeof arg === 'string')
-      ctx.stdout.write(
-        chunk,
-        typeof encoding === 'string' && Buffer.isEncoding(encoding) ? encoding : 'utf8'
-      )
-      const callback = rest.find((a) => typeof a === 'function') as (() => void) | undefined
-      callback?.()
-      return true
-    }
-    return originalStdoutWrite(chunk as never, ...(rest as never[]))
-  }) as typeof process.stdout.write
-  process.stderr.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
-    const ctx = embedStore.getStore()
-    if (ctx) {
-      const encoding = rest.find((arg) => typeof arg === 'string')
-      ctx.stderr.write(
-        chunk,
-        typeof encoding === 'string' && Buffer.isEncoding(encoding) ? encoding : 'utf8'
-      )
-      const callback = rest.find((a) => typeof a === 'function') as (() => void) | undefined
-      callback?.()
-      return true
-    }
-    return originalStderrWrite(chunk as never, ...(rest as never[]))
-  }) as typeof process.stderr.write
-  process.exit = ((code?: number) => {
-    const ctx = embedStore.getStore()
-    if (ctx) throw new EmbeddedExit(code ?? 0)
-    return originalExit(code)
-  }) as typeof process.exit
+/** Exits the terminal CLI without terminating an embedding host. */
+export function exitCli(code: number): never {
+  if (embedStore.getStore()) throw new EmbeddedExit(code)
+  return process.exit(code)
 }

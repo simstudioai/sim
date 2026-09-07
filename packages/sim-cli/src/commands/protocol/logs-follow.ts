@@ -1,5 +1,6 @@
 import { type Command, Option } from 'commander'
 import { dump } from 'js-yaml'
+import { printLine, writeStderr } from '#cli/output/io'
 import { hasProgressTerminal, styles } from '#cli/output/presentation'
 import type { OutputFormat } from '../../config/index'
 import { clientFrom } from '../../context'
@@ -213,7 +214,7 @@ function createTableWriter(): RowWriter {
         )
       )
       const header = widths
-      console.log(
+      printLine(
         styles().dim(
           COLUMNS.map((column, index) => pad(column.header.toUpperCase(), header[index]))
             .join('  ')
@@ -224,7 +225,7 @@ function createTableWriter(): RowWriter {
 
     const locked = widths
     for (const line of lines) {
-      console.log(
+      printLine(
         line
           .map((cell, index) => pad(cell, locked[index]))
           .join('  ')
@@ -246,13 +247,13 @@ function createTableWriter(): RowWriter {
 function createWriter(format: OutputFormat): RowWriter {
   if (format === 'json') {
     return (rows) => {
-      for (const row of rows) console.log(JSON.stringify(row))
+      for (const row of rows) printLine(JSON.stringify(row))
     }
   }
   if (format === 'yaml') {
     return (rows) => {
       for (const row of rows) {
-        console.log(`---\n${dump(row, { lineWidth: 0, noRefs: true }).trimEnd()}`)
+        printLine(`---\n${dump(row, { lineWidth: 0, noRefs: true }).trimEnd()}`)
       }
     }
   }
@@ -292,19 +293,19 @@ export function followStatus(): FollowStatus {
     note: (message) => {
       if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${styles().dim(message)}${ERASE_LINE}`)
+      writeStderr(`\r${styles().dim(message)}${ERASE_LINE}`)
     },
     warn: (message) => {
       if (reported) {
         reported = false
-        process.stderr.write(`\r${ERASE_LINE}`)
+        writeStderr(`\r${ERASE_LINE}`)
       }
-      process.stderr.write(`warning: ${message}\n`)
+      writeStderr(`warning: ${message}\n`)
     },
     clear: () => {
       if (!reported) return
       reported = false
-      process.stderr.write(`\r${ERASE_LINE}`)
+      writeStderr(`\r${ERASE_LINE}`)
     },
   }
 }

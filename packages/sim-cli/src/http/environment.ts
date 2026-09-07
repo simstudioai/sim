@@ -1,3 +1,5 @@
+import { writeStderr } from '#cli/output/io'
+
 /**
  * One-time notices about the environment a request is about to be made in.
  *
@@ -12,7 +14,7 @@ const reported = new Set<string>()
 function once(key: string, message: string): void {
   if (reported.has(key)) return
   reported.add(key)
-  process.stderr.write(`warning: ${message}\n`)
+  writeStderr(`warning: ${message}\n`)
 }
 
 /** Test seam: notices are once-per-process, and each test needs a clean slate. */

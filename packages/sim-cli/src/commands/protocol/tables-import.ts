@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { type Command, Option } from 'commander'
+import { writeStderr } from '#cli/output/io'
 import { hasProgressTerminal, styles } from '#cli/output/presentation'
 import { clientFrom } from '../../context'
 import type {
@@ -109,11 +110,11 @@ async function watchImport(
     const line = progressLine(current)
     if (hasProgressTerminal() && line !== reported) {
       reported = line
-      process.stderr.write(`\r${styles().dim(line)}\u001b[K`)
+      writeStderr(`\r${styles().dim(line)}\u001b[K`)
     }
   }
 
-  if (hasProgressTerminal() && reported !== null) process.stderr.write('\r\u001b[K')
+  if (hasProgressTerminal() && reported !== null) writeStderr('\r\u001b[K')
   return current
 }
 

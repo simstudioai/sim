@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
+import { writeStderr } from '#cli/output/io'
 import { sleep } from '../helpers'
 import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
 import { userAgent } from '../version'
@@ -207,7 +208,7 @@ export async function pollForKey(
         consecutiveTransportFailures >= TRANSPORT_FAILURES_BEFORE_WARNING
       ) {
         warnedAboutTransport = true
-        process.stderr.write(
+        writeStderr(
           `Still waiting: ${endpoint} is not answering the login poll (${(cause as Error).message}). Check the endpoint; retrying until you approve or the login times out.\n`
         )
       }

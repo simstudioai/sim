@@ -1,4 +1,6 @@
 import { type Command, Option } from 'commander'
+import { exitCli } from '#cli/embed-context'
+import { printError } from '#cli/output/io'
 import { styles } from '#cli/output/presentation'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
@@ -108,8 +110,8 @@ async function readSecretValue(options: SetSecretOptions): Promise<string | unde
     return validateSecretValue(await promptSecret())
   } catch (error) {
     if (!(error instanceof SecretInputCancelledError)) throw error
-    console.error(styles().red(`Error: ${error.message}`))
-    return process.exit(CANCELLED_EXIT_CODE)
+    printError(styles().red(`Error: ${error.message}`))
+    return exitCli(CANCELLED_EXIT_CODE)
   }
 }
 
