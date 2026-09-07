@@ -77,6 +77,48 @@ describe('OCI Notifications operation contracts', () => {
     prepareDiscoveredEndpoint.mockReset().mockResolvedValue(data)
   })
 
+  it.each([200, 201])(
+    'accepts CreateTopic status %i with an absent SMS identifier',
+    async (status) => {
+      request.mockResolvedValue(response({ ...topic, shortTopicId: null }, status))
+      const output = await run('create_topic', { compartmentId: 'compartment', name: 'Operations' })
+      expect(output).toMatchObject({ status, requestId: 'oracle-request', topic })
+      expect(output.topic?.shortTopicId).toBeUndefined()
+      expect(request).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each([undefined, null, 'sms-code'])(
+    'projects optional topic identifiers: %s',
+    async (shortTopicId) => {
+      request.mockResolvedValue(response([{ ...topic, shortTopicId }]))
+      const output = await run('list_topics', { compartmentId: 'compartment' })
+      expect(output.topics?.[0].shortTopicId).toBe(shortTopicId ?? undefined)
+    }
+  )
+
+  it('retains authenticated discovery with null SMS identifiers', async () => {
+    const discovery = response({ ...topic, shortTopicId: null })
+    request.mockResolvedValueOnce(discovery).mockResolvedValueOnce(response([subscription]))
+    expect(
+      (await run('list_subscriptions', { compartmentId: 'compartment' })).subscriptions
+    ).toEqual([subscription])
+    expect(prepareDiscoveredEndpoint).toHaveBeenCalledWith(expect.anything(), discovery)
+  })
+
+  it('does not broaden other statuses or malformed topic identifiers', async () => {
+    request.mockResolvedValue(response(topic, 201))
+    await expect(run('get_topic')).rejects.toThrow('unexpected response status')
+    request.mockResolvedValue(response(topic, 202))
+    await expect(
+      run('create_topic', { compartmentId: 'compartment', name: 'Operations' })
+    ).rejects.toThrow('unexpected response status')
+    request.mockResolvedValue(response([{ ...topic, shortTopicId: 42 }]))
+    await expect(run('list_topics', { compartmentId: 'compartment' })).rejects.toThrow(
+      'invalid response'
+    )
+  })
+
   it('lists one bare topic array and preserves opaque pagination without discovery', async () => {
     request.mockResolvedValue(response([topic], 200, { 'opc-next-page': 'next+/=' }))
     expect(

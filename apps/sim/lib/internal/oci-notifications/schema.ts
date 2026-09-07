@@ -150,7 +150,10 @@ export const ociNotificationsTopicSchema = z.object({
   apiEndpoint: z.string(),
   description: z.string().optional(),
   etag: z.string().optional(),
-  shortTopicId: z.string().optional(),
+  shortTopicId: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
   locks: z.array(ociNotificationsLockSchema).optional(),
   ...tags,
   systemTags: z.record(z.string(), z.record(z.string(), z.string())).optional(),

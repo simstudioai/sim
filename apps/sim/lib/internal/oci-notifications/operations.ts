@@ -228,7 +228,10 @@ export async function executeOciNotificationsOperation(
   try {
     const response = await prepared.client.request(request)
     signal?.throwIfAborted()
-    if (response.status !== expectedStatus) {
+    /** Oracle documents 200, while its live CreateTopic endpoint also returns 201. */
+    const createdTopic =
+      input.operation === 'oci_notifications_create_topic' && response.status === 201
+    if (response.status !== expectedStatus && !createdTopic) {
       throw new OciNotificationsOperationError(
         'OCI Notifications returned an unexpected response status',
         502,
