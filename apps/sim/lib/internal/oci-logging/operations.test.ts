@@ -51,6 +51,29 @@ const execute = (operation: OciLoggingOperation, input: unknown, signal?: AbortS
 describe('OCI Logging provider operations', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it.each([undefined, null, 'Synthetic group'])(
+    'accepts optional log-group descriptions in lists and details: %s',
+    async (description) => {
+      const wireGroup = { ...group, description }
+      const expectedGroup = {
+        ...group,
+        ...(description === undefined ? {} : { description: description ?? undefined }),
+      }
+      respond([wireGroup])
+      expect(await execute('list_log_groups', { compartmentId: 'compartment' })).toMatchObject({
+        logGroups: [expectedGroup],
+      })
+      respond(wireGroup)
+      expect(await execute('get_log_group', { logGroupId: 'group' })).toMatchObject({
+        logGroup: expectedGroup,
+      })
+      respond({ ...group, description: 42 })
+      await expect(execute('get_log_group', { logGroupId: 'group' })).rejects.toBeInstanceOf(
+        OciLoggingResponseError
+      )
+    }
+  )
+
   it('accepts absent custom-log configuration and system tags in lists and details', async () => {
     const wireLog = { ...log, configuration: null, systemTags: null }
     respond([wireLog])
