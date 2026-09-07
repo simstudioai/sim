@@ -33,7 +33,7 @@ type DelegatedPrincipalForOperation<
   : never
 
 type WorkflowExecutionPrincipalForOperation<O extends { readonly workflowExecution?: 'allow' }> =
-  O['workflowExecution'] extends 'allow' ? BoundWorkflowExecutionPrincipal : never
+  Extract<O['workflowExecution'], 'allow'> extends never ? never : BoundWorkflowExecutionPrincipal
 
 export type PrincipalForOperation<
   O extends {

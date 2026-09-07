@@ -56,19 +56,23 @@ describe('internal logs route authentication', () => {
     })
   })
 
-  it('keeps workflow-scoped executor tokens unscoped to one execution', async () => {
+  it('preserves the canonical workspace separately from the signed execution identity', async () => {
     const token = await generateInternalDelegationToken({
       principal: createTestRuntimePrincipal(),
     })
 
-    const principal = await internalLogsSessionOrExecutorAuth.authenticate(
+    const admission = await internalLogsSessionOrExecutorAuth.authenticateWithTransport(
       new NextRequest('http://localhost/api/logs/log-1', {
         headers: { authorization: `Bearer ${token}` },
       }),
       { id: 'log-1' }
     )
 
-    expect(principal.executionMetadata.executionId).toBe('execution-1')
+    expect(admission).toMatchObject({
+      transport: 'executor_jwt',
+      executionWorkspaceId: 'canonical-workspace',
+      principal: { executionMetadata: { executionId: 'execution-1' } },
+    })
   })
 
   it('rejects an executor delegation without canonical workflow execution context', async () => {

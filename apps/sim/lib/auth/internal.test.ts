@@ -74,6 +74,20 @@ describe('internal executor delegation claims', () => {
       name: 'workspace API key',
       principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
     },
+    ...(['copilot', 'realtime'] as const).map((serviceId) => ({
+      name: `${serviceId} delegation`,
+      principal: {
+        kind: 'delegated' as const,
+        serviceId,
+        subjectUserId: 'delegated-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        audience: 'workflow-execution',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      expectedSubject: 'delegated-user',
+    })),
     {
       name: 'schedule',
       principal: {

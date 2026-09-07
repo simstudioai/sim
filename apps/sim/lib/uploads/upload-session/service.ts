@@ -3,8 +3,6 @@ import {
   type Principal,
   parsePrincipal,
   requirePrincipalExecutionMetadata,
-  requirePrincipalSubjectUserId,
-  resolvePrincipalSubject,
   type SerializedPrincipalV2,
   serializePrincipal,
 } from '@sim/auth/principal'
@@ -167,7 +165,7 @@ function isExecutorWorkflowExecutionPrincipal(
   } catch {
     return false
   }
-  return resolvePrincipalSubject(principal)?.kind === 'sim_user'
+  return true
 }
 
 interface CreateUploadSessionBaseParams {
@@ -509,6 +507,8 @@ export function assertUploadSessionAuthBinding(
     return
   }
   const bound = candidate.principal
+  /** Version-1 executor bindings cannot prove the canonical runtime principal identity. */
+  if (bound.kind === 'delegated') throw uploadNotFound()
   const matches =
     bound.kind === principal.kind &&
     (bound.kind === 'session'
@@ -519,15 +519,9 @@ export function assertUploadSessionAuthBinding(
         ? principal.kind === 'personal_api_key' &&
           bound.userId === principal.userId &&
           bound.keyId === principal.keyId
-        : bound.kind === 'workspace_api_key'
-          ? principal.kind === 'workspace_api_key' &&
-            bound.workspaceId === principal.workspaceId &&
-            bound.keyId === principal.keyId
-          : isExecutorWorkflowExecutionPrincipal(principal) &&
-            resolvePrincipalSubject(principal)?.kind === 'sim_user' &&
-            requirePrincipalSubjectUserId(principal) === bound.subjectUserId &&
-            principal.executionMetadata.rootWorkflowId === bound.workflowId &&
-            principal.executionMetadata.executionId === bound.executionId)
+        : principal.kind === 'workspace_api_key' &&
+          bound.workspaceId === principal.workspaceId &&
+          bound.keyId === principal.keyId)
   if (!matches) throw uploadNotFound()
 }
 

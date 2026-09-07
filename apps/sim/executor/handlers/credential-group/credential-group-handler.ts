@@ -140,6 +140,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           principal,
           input: {
             credentialGroupId: credentialGroupId!,
+            assertedWorkspaceId: executionWorkspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
             email: parseOptionalString(inputs.email, 'Email'),

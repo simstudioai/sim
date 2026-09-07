@@ -190,6 +190,7 @@ describe('CredentialGroupBlockHandler', () => {
       principal,
       input: {
         credentialGroupId: 'group-1',
+        assertedWorkspaceId: 'workspace-1',
         email: 'person@example.com',
         mcpServerId: 'mcp-server-1',
         limit: 25,

@@ -15,6 +15,7 @@ import {
 
 export interface ListCredentialGroupMcpConnectionsInput {
   credentialGroupId: string
+  assertedWorkspaceId: string
   limit: number
   cursor?: string
   email?: string
@@ -31,7 +32,7 @@ export interface ListCredentialGroupMcpConnectionsResult {
 export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listMcpConnections,
   resolveContext: ({ input }: { input: ListCredentialGroupMcpConnectionsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
   authorizationOptions: {},
   execute: async ({ input, context }): Promise<ListCredentialGroupMcpConnectionsResult> => {
     if (

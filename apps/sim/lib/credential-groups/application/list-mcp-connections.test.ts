@@ -63,7 +63,7 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const input = { credentialGroupId: 'group-1', limit: 50 }
+const input = { credentialGroupId: 'group-1', assertedWorkspaceId: 'workspace-1', limit: 50 }
 
 function executorPrincipal(
   principal?: WorkflowExecutionPrincipal
@@ -155,6 +155,18 @@ describe('listCredentialGroupMcpConnections', () => {
       hasMore: false,
       nextCursor: null,
     })
+  })
+
+  it('conceals groups outside the execution workspace even when the user has access', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.loadGroup.mockResolvedValue({ ...groupContext, workspaceId: 'workspace-2' })
+
+    await expect(
+      listCredentialGroupMcpConnections.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.listMcpConnections).not.toHaveBeenCalled()
   })
 
   it('rejects invalid filters before querying MCP connections', async () => {

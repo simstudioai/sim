@@ -166,10 +166,11 @@ export function requireResumeDeploymentVersion(
 /** Verifies that a durable pause retained the run root and current workflow authority. */
 export function assertResumeExecutionPrincipalBinding(
   snapshot: ExecutionSnapshot,
+  rootExecutionId: string,
   rootWorkflowId: string,
   deploymentVersionId: string | undefined
 ): void {
-  const { executionId, workflowId, principal } = snapshot.metadata
+  const { workflowId, principal } = snapshot.metadata
   const currentWorkflow = deploymentVersionId
     ? ({ workflowId, mode: 'deployment', deploymentVersionId } as const)
     : ({ workflowId, mode: 'draft' } as const)
@@ -182,7 +183,7 @@ export function assertResumeExecutionPrincipalBinding(
         executionMetadata.currentWorkflow.deploymentVersionId ===
           currentWorkflow.deploymentVersionId))
   if (
-    executionMetadata.executionId !== executionId ||
+    executionMetadata.executionId !== rootExecutionId ||
     executionMetadata.rootWorkflowId !== rootWorkflowId ||
     !matchesCurrentWorkflow
   ) {
@@ -927,7 +928,7 @@ export class PauseResumeManager {
       })
 
       if (result.status === 'paused') {
-        const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
+        const effectiveExecutionId = pausedExecution.executionId
         if (!result.snapshotSeed) {
           logger.error('Missing snapshot seed for paused resume execution', {
             resumeExecutionId,
@@ -1142,6 +1143,7 @@ export class PauseResumeManager {
     )
     assertResumeExecutionPrincipalBinding(
       baseSnapshot,
+      parentExecutionId,
       pausedExecution.workflowId,
       resumeDeploymentVersionId
     )
