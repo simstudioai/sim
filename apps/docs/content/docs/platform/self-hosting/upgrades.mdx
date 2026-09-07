@@ -157,7 +157,7 @@ Migration surprises are usually data-shaped rather than schema-shaped, so a stag
 
 ```bash
 helm upgrade sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.4 \
+  --version 1.9.5 \
   --namespace simstudio \
   --values my-values.yaml
 ```
@@ -165,7 +165,7 @@ helm upgrade sim oci://ghcr.io/simstudioai/charts/sim \
 Preview first if the chart version changed:
 
 ```bash
-helm diff upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 -n simstudio --values my-values.yaml
+helm diff upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 -n simstudio --values my-values.yaml
 ```
 
 Then watch the rollout:
