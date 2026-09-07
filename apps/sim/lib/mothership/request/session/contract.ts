@@ -18,6 +18,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type {
   StreamActivityCheckpoint,
+  StreamResourceEffect,
   StreamTextCompletion,
   StreamTextPosition,
   StreamToolReplay,
@@ -48,9 +49,11 @@ type EnvelopeToStreamEvent<T> = T extends {
           ? TPayload & StreamTextCompletion & StreamActivityCheckpoint
           : TType extends 'tool'
             ? TPayload & StreamToolReplay
-            : TType extends 'run'
-              ? TPayload & StreamActivityCheckpoint
-              : TPayload
+            : TType extends 'resource'
+              ? TPayload & StreamResourceEffect
+              : TType extends 'run'
+                ? TPayload & StreamActivityCheckpoint
+                : TPayload
       scope?: Exclude<TScope, undefined>
       /** Wire ordering key, carried off the envelope; absent on synthetic events. */
       seq?: number
@@ -128,8 +131,13 @@ export interface SyntheticFilePreviewEventEnvelope {
   v: 1
 }
 
+type ResourceEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'resource' }>
+
 export type PersistedStreamEventEnvelope =
-  | MothershipStreamV1EventEnvelope
+  | Exclude<MothershipStreamV1EventEnvelope, { type: 'resource' }>
+  | (Omit<ResourceEnvelope, 'payload'> & {
+      payload: ResourceEnvelope['payload'] & StreamResourceEffect
+    })
   | SyntheticFilePreviewEventEnvelope
 
 export type ContractStreamEvent = EnvelopeToStreamEvent<MothershipStreamV1EventEnvelope>
@@ -294,6 +302,14 @@ function isValidSpanPayload(payload: JsonRecord): boolean {
 }
 
 function isValidResourcePayload(payload: JsonRecord): boolean {
+  if (
+    payload.effectId !== undefined &&
+    (typeof payload.effectId !== 'string' ||
+      payload.effectId.trim().length === 0 ||
+      payload.effectId.length > 512)
+  )
+    return false
+  if (payload.replay !== undefined && payload.replay !== true) return false
   if (
     payload.op !== MothershipStreamV1ResourceOp.upsert &&
     payload.op !== MothershipStreamV1ResourceOp.remove

@@ -1742,7 +1742,12 @@ export function useChat(
     // resource being hidden cannot make it look local-only and get re-added.
     const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
     const localOnly = resourcesRef.current.filter(
-      (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
+      (r) =>
+        r.id !== 'streaming-file' &&
+        !serverKeys.has(`${r.type}:${r.id}`) &&
+        (isEphemeralResource(r) ||
+          pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`) ||
+          inFlightResourceAddsRef.current.has(`${r.type}:${r.id}`))
     )
     // Server order is authoritative for persisted resources, but local-only
     // items (pending-persist adds and synthetic ephemeral panels)
@@ -1787,7 +1792,7 @@ export function useChat(
       if (workflowResources.length > 0) {
         void reconcileHydratedWorkflowResources(chatHistory.id, workflowResources)
       }
-    } else if (hasPersistedStreamingFile) {
+    } else if (resourcesRef.current.length > 0 || hasPersistedStreamingFile) {
       activeResourceIdRef.current = null
       setResources([])
       setActiveResourceId(null)

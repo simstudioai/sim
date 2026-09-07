@@ -12,6 +12,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -64,6 +65,20 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     ...(pinnedViewId ? { viewId: pinnedViewId } : {}),
   })
   const resourceUpdate = shouldClearViewId ? { ...resource, clearViewId: true as const } : resource
+
+  if (payload.effectId) {
+    // Worker effects are already committed. Replayed transcript commands must
+    // never write panel state or reopen a resource the user has since closed.
+    const chatId = ctx.deps.chatIdRef.current
+    if (chatId) {
+      void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+    }
+    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+    if (!payload.replay && payload.op !== MothershipStreamV1ResourceOp.remove) {
+      onResourceEvent?.(resource.id)
+    }
+    return
+  }
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
     const resourceType = resource.type

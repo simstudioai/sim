@@ -17,13 +17,16 @@ vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
 }))
 
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { handleResourceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 
-function removeEvent(type: 'workflow' | 'file', id: string): PersistedStreamEventEnvelope {
+type ResourceEvent = Extract<PersistedStreamEventEnvelope, { type: 'resource' }>
+
+function removeEvent(type: 'workflow' | 'file', id: string): ResourceEvent {
   return {
     type: 'resource',
     v: 1,
@@ -31,10 +34,10 @@ function removeEvent(type: 'workflow' | 'file', id: string): PersistedStreamEven
     ts: '',
     stream: { streamId: 's', cursor: '1' },
     payload: { op: 'remove', resource: { type, id, title: id } },
-  } as PersistedStreamEventEnvelope
+  }
 }
 
-function browserUpsertEvent(id: string, title: string): PersistedStreamEventEnvelope {
+function browserUpsertEvent(id: string, title: string): ResourceEvent {
   return {
     type: 'resource',
     v: 1,
@@ -42,13 +45,47 @@ function browserUpsertEvent(id: string, title: string): PersistedStreamEventEnve
     ts: '',
     stream: { streamId: 's', cursor: '1' },
     payload: { op: 'upsert', resource: { type: 'browser', id, title } },
-  } as PersistedStreamEventEnvelope
+  }
 }
 
 describe('handleResourceEvent removal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+
+  it.each(['upsert', 'remove'] as const)(
+    'replayed worker %s refreshes saved panels without mutating user choices',
+    (op) => {
+      const onResourceEvent = vi.fn()
+      const deps = makeStreamLoopDeps({
+        chatIdRef: { current: 'chat' },
+        onResourceEventRef: { current: onResourceEvent },
+      })
+      const ctx = { deps } as StreamLoopContext
+      const event: Extract<PersistedStreamEventEnvelope, { type: 'resource' }> = {
+        type: 'resource',
+        v: 1,
+        seq: 1,
+        ts: '',
+        stream: { streamId: 's' },
+        payload: {
+          op,
+          effectId: 's:tool:0',
+          resource: { type: 'workflow', id: 'wf', title: 'Workflow' },
+        },
+      }
+      const replay = toStreamBatchEvent(event).event
+      if (replay.type !== 'resource') throw new Error('Expected resource replay')
+      handleResourceEvent(ctx, replay)
+      expect(deps.addResource).not.toHaveBeenCalled()
+      expect(deps.removeResource).not.toHaveBeenCalled()
+      expect(onResourceEvent).not.toHaveBeenCalled()
+      expect(mocks.removeWorkflowFromActiveCache).not.toHaveBeenCalled()
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['mothership-chats', 'detail', 'chat'],
+      })
+    }
+  )
 
   it('closes a deleted workflow tab and removes it from the established workflow cache', () => {
     const deps = makeStreamLoopDeps()

@@ -35,7 +35,7 @@ import {
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/mothership/request/session'
-import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
 export const maxDuration = 3600
 
@@ -336,7 +336,7 @@ async function handleResumeRequestBody({
         })
       }
       for (const envelope of events) {
-        if (!enqueueEvent(envelope)) {
+        if (!enqueueEvent(toReplayEnvelope(envelope))) {
           break
         }
         totalEventsFlushed += 1
