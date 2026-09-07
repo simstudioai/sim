@@ -41,35 +41,12 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Rewrites the boolean-valued attributes of an inbound body in place of their
- * string forms, before schema validation sees them.
+ * Strips a schema URN prefix from an attribute path and decodes it.
  *
- * Applied to the whole body rather than to individual fields because the same
- * job sends `active` at the top level, `primary` inside every multi-valued
- * attribute, and both again nested in PATCH operation values.
- */
-export function normalizeScimBooleansDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeScimBooleansDeep)
-  if (!isRecord(value)) return value
-  const next: Record<string, unknown> = {}
-  for (const [key, nested] of Object.entries(value)) {
-    next[key] = BOOLEAN_ATTRIBUTES.has(key.toLowerCase())
-      ? normalizeScimBoolean(unwrapSingleElement(nested))
-      : normalizeScimBooleansDeep(nested)
-  }
-  return next
-}
-
-/** Attribute names whose value is a boolean everywhere they appear. */
-const BOOLEAN_ATTRIBUTES = new Set(['active', 'primary'])
-
-/**
- * Strips a schema URN prefix from an attribute path and lower-cases the
- * attribute name.
- *
- * RFC 7643 makes attribute names case-insensitive, and providers disagree:
- * Okta sends `userName`, Entra sometimes sends `username` and sometimes the
- * fully qualified `urn:...:User:userName`.
+ * Case is left to the caller, which compares lower-cased: RFC 7643 makes
+ * attribute names case-insensitive, and providers disagree — Okta sends
+ * `userName`, Entra sometimes `username` and sometimes the fully qualified
+ * `urn:...:User:userName`.
  */
 export function normalizeAttributePath(path: string): string {
   let value = path.trim()

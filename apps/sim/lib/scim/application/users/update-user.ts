@@ -4,6 +4,7 @@ import { type ScimUserAttributes, user } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   invalidateAfterSessionRevocation,
@@ -23,10 +24,12 @@ import { reconcileUserProjection } from '@/lib/scim/projection/reconcile-user'
 import { primaryEmail } from '@/lib/scim/protocol/canonical'
 import { notFound, ScimError } from '@/lib/scim/protocol/errors'
 import { toUserResource } from '@/lib/scim/protocol/resources'
-import { applyUserPatch } from '@/lib/scim/protocol/user-patch'
+import { applyUserPatch, userAttributesEqual } from '@/lib/scim/protocol/user-patch'
 import {
+  assertUserNameAvailable,
   findScimUserById,
   loadGroupsForScimUsers,
+  lockScimUserById,
   type ScimUserRecord,
   toUserResourceRow,
   updateScimUser,
@@ -45,7 +48,6 @@ export interface UpdateOutcome {
   emailChanged: boolean
   deactivated: boolean
   reactivated: boolean
-  changed: boolean
 }
 
 async function applyUserUpdate(
@@ -56,6 +58,21 @@ async function applyUserUpdate(
 ): Promise<UpdateOutcome> {
   const nextEmail = primaryEmail(next)
   const emailChanged = normalizeEmail(nextEmail) !== normalizeEmail(current.email)
+  const deactivated = current.active && !next.active
+  const reactivated = !current.active && next.active
+
+  /**
+   * Taken first so the advisory locks always precede the `organization` row
+   * lock that a session revocation takes, in every path through this function.
+   */
+  await acquireOrganizationUserMutationLocks(tx, {
+    userId: current.userId,
+    organizationIds: [context.organizationId],
+  })
+
+  if (next.userName !== current.userName) {
+    await assertUserNameAvailable(tx, context.connection.id, next.userName, current.id)
+  }
 
   if (emailChanged) {
     /**
@@ -77,20 +94,23 @@ async function applyUserUpdate(
       })
       .where(eq(user.id, current.userId))
 
-    /** An address change ends the sessions established under the old one. */
-    await revokeUserSessionsTx(tx, {
-      userId: current.userId,
-      organizationId: context.organizationId,
-    })
+    /**
+     * An address change ends the sessions established under the old one. A
+     * deactivation in the same request revokes them itself, so this only runs
+     * when nothing else will.
+     */
+    if (!deactivated) {
+      await revokeUserSessionsTx(tx, {
+        userId: current.userId,
+        organizationId: context.organizationId,
+      })
+    }
   } else if (next.name.formatted !== current.attributes.name.formatted) {
     await tx
       .update(user)
       .set({ name: next.name.formatted, updatedAt: new Date() })
       .where(eq(user.id, current.userId))
   }
-
-  const deactivated = current.active && !next.active
-  const reactivated = !current.active && next.active
 
   if (deactivated) {
     await suspendMemberTx(tx, {
@@ -115,7 +135,7 @@ async function applyUserUpdate(
     settings: context.connection.settings,
   })
 
-  return { emailChanged, deactivated, reactivated, changed: true }
+  return { emailChanged, deactivated, reactivated }
 }
 
 export interface UpdateScimUserResult {
@@ -186,26 +206,41 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<ReplaceScimUserInput>): Promise<UpdateScimUserResult> {
-    const current = await findScimUserById(db, context.connection.id, input.scimUserId)
-    if (!current) throw notFound('SCIM User not found')
+    const { scimUserId, userId, outcome } = await db.transaction(async (tx) => {
+      const current = await lockScimUserById(tx, context.connection.id, input.scimUserId)
+      if (!current) throw notFound('SCIM User not found')
 
-    /**
-     * A replace keeps attributes Sim does not model that the directory sent on a
-     * previous write but omitted now, so a partial mapping does not erase them.
-     */
-    const next: ScimUserAttributes = {
-      ...input.attributes,
-      ...(current.attributes.extra || input.attributes.extra
-        ? { extra: { ...current.attributes.extra, ...input.attributes.extra } }
-        : {}),
-    }
+      /**
+       * A replace keeps attributes Sim does not model that the directory sent on
+       * a previous write but omitted now, so a partial mapping does not erase
+       * them.
+       */
+      const next: ScimUserAttributes = {
+        ...input.attributes,
+        ...(current.attributes.extra || input.attributes.extra
+          ? { extra: { ...current.attributes.extra, ...input.attributes.extra } }
+          : {}),
+      }
 
-    const outcome = await db.transaction((tx) => applyUserUpdate(tx, context, current, next))
+      /**
+       * Okta re-sends the whole resource on every cycle for every user. A PUT that
+       * changes nothing must not write, audit, or re-project, or a 2,000-user
+       * organization produces 2,000 spurious audit rows per sync.
+       */
+      if (userAttributesEqual(current.attributes, next)) {
+        return { scimUserId: current.id, userId: current.userId, outcome: null }
+      }
+      return {
+        scimUserId: current.id,
+        userId: current.userId,
+        outcome: await applyUserUpdate(tx, context, current, next),
+      }
+    })
     return {
-      scimUserId: current.id,
-      userId: current.userId,
+      scimUserId,
+      userId,
       outcome,
-      resource: await renderUpdated(context.connection.id, current.id, context.baseUrl),
+      resource: await renderUpdated(context.connection.id, scimUserId, context.baseUrl),
     }
   },
   projectAudit: ({ result }) => auditEntries(result),
@@ -224,32 +259,31 @@ export const patchScimUser = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<PatchScimUserInput>): Promise<UpdateScimUserResult> {
-    const current = await findScimUserById(db, context.connection.id, input.scimUserId)
-    if (!current) throw notFound('SCIM User not found')
+    const { scimUserId, userId, outcome } = await db.transaction(async (tx) => {
+      const current = await lockScimUserById(tx, context.connection.id, input.scimUserId)
+      if (!current) throw notFound('SCIM User not found')
 
-    const { next, changed } = applyUserPatch(current.attributes, input.operations)
+      const { next, changed } = applyUserPatch(current.attributes, input.operations)
 
-    /**
-     * A patch that changes nothing is answered with the resource and no write.
-     * Directories re-send unchanged attributes constantly on incremental cycles,
-     * and treating each as a write would produce an audit row, a projection pass,
-     * and a `lastModified` bump for a request that meant nothing.
-     */
-    if (!changed) {
+      /**
+       * A patch that changes nothing is answered with the resource and no write.
+       * Directories re-send unchanged attributes constantly on incremental
+       * cycles, and treating each as a write would produce an audit row, a
+       * projection pass, and a `lastModified` bump for a request that meant
+       * nothing.
+       */
+      if (!changed) return { scimUserId: current.id, userId: current.userId, outcome: null }
       return {
         scimUserId: current.id,
         userId: current.userId,
-        outcome: null,
-        resource: await renderUpdated(context.connection.id, current.id, context.baseUrl),
+        outcome: await applyUserUpdate(tx, context, current, next),
       }
-    }
-
-    const outcome = await db.transaction((tx) => applyUserUpdate(tx, context, current, next))
+    })
     return {
-      scimUserId: current.id,
-      userId: current.userId,
+      scimUserId,
+      userId,
       outcome,
-      resource: await renderUpdated(context.connection.id, current.id, context.baseUrl),
+      resource: await renderUpdated(context.connection.id, scimUserId, context.baseUrl),
     }
   },
   projectAudit: ({ result }) => auditEntries(result),

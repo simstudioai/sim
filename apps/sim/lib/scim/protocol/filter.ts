@@ -35,7 +35,6 @@ const USER_FILTER_FIELDS: Record<string, ScimUserFilterField> = {
   externalid: 'externalId',
   'emails.value': 'email',
   'emails[type eq "work"].value': 'email',
-  "emails[type eq 'work'].value": 'email',
   'emails[primary eq true].value': 'email',
   active: 'active',
 }

@@ -124,28 +124,30 @@ export const listScimGroupMappingsContract = defineRouteContract({
   },
 })
 
+export const scimGroupMappingBodySchema = z.discriminatedUnion('targetKind', [
+  z.object({
+    groupId: z.string().min(1).max(128),
+    targetKind: z.literal('permission_group'),
+    permissionGroupId: z.string().min(1).max(128),
+  }),
+  z.object({
+    groupId: z.string().min(1).max(128),
+    targetKind: z.literal('workspace'),
+    workspaceId: z.string().min(1).max(128),
+    permissionType: z.enum(['admin', 'write', 'read']),
+  }),
+  z.object({
+    groupId: z.string().min(1).max(128),
+    targetKind: z.literal('org_role'),
+    role: z.literal('admin'),
+  }),
+])
+
 export const upsertScimGroupMappingContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/scim/mappings',
   params: organizationParamsSchema,
-  body: z.discriminatedUnion('targetKind', [
-    z.object({
-      groupId: z.string().min(1).max(128),
-      targetKind: z.literal('permission_group'),
-      permissionGroupId: z.string().min(1).max(128),
-    }),
-    z.object({
-      groupId: z.string().min(1).max(128),
-      targetKind: z.literal('workspace'),
-      workspaceId: z.string().min(1).max(128),
-      permissionType: z.enum(['admin', 'write', 'read']),
-    }),
-    z.object({
-      groupId: z.string().min(1).max(128),
-      targetKind: z.literal('org_role'),
-      role: z.literal('admin'),
-    }),
-  ]),
+  body: scimGroupMappingBodySchema,
   response: {
     mode: 'json',
     schema: z.object({ mapping: groupMappingSchema, reconciledUsers: z.number().int() }),
@@ -163,6 +165,18 @@ export const deleteScimGroupMappingContract = defineRouteContract({
   },
 })
 
+const scimActivityEntrySchema = z.object({
+  id: z.string(),
+  method: z.string(),
+  path: z.string(),
+  status: z.number().int(),
+  scimType: z.string().nullable(),
+  detail: z.string().nullable(),
+  userAgent: z.string().nullable(),
+  durationMs: z.number().int(),
+  createdAt: z.string(),
+})
+
 export const listScimActivityContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/scim/activity',
@@ -170,21 +184,7 @@ export const listScimActivityContract = defineRouteContract({
   query: z.object({ limit: z.coerce.number().int().min(1).max(200).optional() }),
   response: {
     mode: 'json',
-    schema: z.object({
-      entries: z.array(
-        z.object({
-          id: z.string(),
-          method: z.string(),
-          path: z.string(),
-          status: z.number().int(),
-          scimType: z.string().nullable(),
-          detail: z.string().nullable(),
-          userAgent: z.string().nullable(),
-          durationMs: z.number().int(),
-          createdAt: z.string(),
-        })
-      ),
-    }),
+    schema: z.object({ entries: z.array(scimActivityEntrySchema) }),
   },
 })
 
@@ -202,6 +202,8 @@ export const reconcileScimConnectionContract = defineRouteContract({
   },
 })
 
+export type ScimGroupMappingBody = z.input<typeof scimGroupMappingBodySchema>
+export type ScimActivityEntry = z.output<typeof scimActivityEntrySchema>
 export type ScimConnectionView = z.output<typeof scimConnectionSchema>
 export type ScimCredentialView = z.output<typeof scimCredentialSchema>
 export type ScimGroupMappingView = z.output<typeof groupMappingSchema>

@@ -8,7 +8,6 @@ import { defineScimRoute } from '@/lib/scim/route'
 
 export const GET = defineScimRoute({
   contract: listScimGroupsContract,
-  scope: 'groups:read',
   operation: listScimGroups.operation,
   useCase: listScimGroups,
   mapInput: ({ query }) => ({
@@ -22,7 +21,6 @@ export const GET = defineScimRoute({
 
 export const POST = defineScimRoute({
   contract: createScimGroupContract,
-  scope: 'groups:write',
   operation: createScimGroup.operation,
   useCase: createScimGroup,
   mapInput: ({ body }) => {

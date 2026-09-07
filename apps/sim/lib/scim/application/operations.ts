@@ -211,6 +211,3 @@ export const scimAdminOperations = {
     workspaceApiKey: 'deny',
   }),
 } as const
-
-export type AnyScimOperation = (typeof scimOperations)[keyof typeof scimOperations]
-export type AnyScimAdminOperation = (typeof scimAdminOperations)[keyof typeof scimAdminOperations]

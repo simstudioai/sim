@@ -1,10 +1,10 @@
-import type { Principal, ScimConnectionPrincipal } from '@sim/auth/principal'
+import type { ScimConnectionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { AnyApiRouteContract, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { type ParsedRequest, parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
-import { RateLimiter } from '@/lib/core/rate-limiter'
+import { enforceIpRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ScimConnectionAuthenticator } from '@/lib/scim/authenticate'
@@ -33,17 +33,12 @@ const rateLimiter = new RateLimiter()
  * so request ids, logging, and abort handling stay identical.
  */
 
-/** Which credential scope a route requires, derived from its contract. */
-export type ScimRouteScope = 'users:read' | 'users:write' | 'groups:read' | 'groups:write'
-
 export interface ScimPresenterContext {
-  principal: ScimConnectionPrincipal
   baseUrl: string
 }
 
 interface ScimRouteOptions<C extends AnyApiRouteContract, O extends ApplicationOperation, I, R> {
   contract: C
-  scope: ScimRouteScope
   operation: O
   useCase: OperationUseCase<NoInfer<O>, I, R>
   mapInput(
@@ -173,14 +168,12 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
           }
           assertAcceptableMediaType(request)
 
+          /**
+           * Scope is enforced by the use-case wrapper from the operation's own
+           * declaration, so the route cannot disagree with it. The builder only
+           * authenticates and admits.
+           */
           principal = await dependencies.authenticate(request)
-          if (!principal.scopes.includes(options.scope)) {
-            throw new ScimError(
-              403,
-              undefined,
-              `The credential does not carry the ${options.scope} scope`
-            )
-          }
           await enforceConnectionRateLimit(principal)
 
           const parsed = await parseRequest(options.contract, request, context ?? {}, {
@@ -222,13 +215,13 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
             })
           }
 
-          const presented = options.present!(result, { principal, baseUrl })
+          const presented = options.present!(result, { baseUrl })
           const validated =
             options.contract.response.mode === 'json'
               ? options.contract.response.schema.parse(presented)
               : presented
           status = successStatus
-          return scimResponse(validated, status, options.headers?.(result, { principal, baseUrl }))
+          return scimResponse(validated, status, options.headers?.(result, { baseUrl }))
         } catch (error) {
           const scim = toScimError(error)
           status = scim.status
@@ -288,6 +281,13 @@ export function defineScimDiscoveryRoute(
         if (request.method !== 'GET') {
           throw new ScimError(405, undefined, `${request.method} is not supported here`)
         }
+        /** Unauthenticated, so the only admission control available is by address. */
+        const limited = await enforceIpRateLimit('scim-discovery', request)
+        if (limited) {
+          throw new ScimError(429, undefined, 'Rate limit exceeded', {
+            'Retry-After': limited.headers.get('Retry-After') ?? '60',
+          })
+        }
         const params = context?.params ? await context.params : {}
         return scimResponse(build(`${getBaseUrl()}${SCIM_BASE_PATH}`, params), 200)
       } catch (error) {
@@ -301,11 +301,4 @@ export function defineScimDiscoveryRoute(
         scimResponse(scimErrorBody(500, undefined, 'Internal server error'), 500),
     }
   )
-}
-
-/** Narrows an arbitrary principal to a SCIM connection, for use-case entry points. */
-export function isScimConnectionPrincipal(
-  principal: Principal
-): principal is ScimConnectionPrincipal {
-  return principal.kind === 'scim_connection'
 }

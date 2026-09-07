@@ -2,13 +2,10 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   SCIM_ENTERPRISE_USER_SCHEMA,
-  SCIM_ERROR_SCHEMA,
-  SCIM_GROUP_SCHEMA,
   SCIM_LIST_RESPONSE_SCHEMA,
   SCIM_MAX_GROUP_MEMBERS,
   SCIM_MAX_PATCH_OPERATIONS,
   SCIM_PATCH_OP_SCHEMA,
-  SCIM_USER_SCHEMA,
 } from '@/lib/scim/protocol/constants'
 import { normalizeScimBoolean, unwrapSingleElement } from '@/lib/scim/protocol/normalize'
 
@@ -61,20 +58,23 @@ const scimEnterpriseSchema = z.looseObject({
 /**
  * An inbound User.
  *
- * `password` is absent on purpose. Okta sends one on every create even when
- * password sync is off; naming it here would put a credential into the parsed
- * request object and from there into logs and error details.
+ * `password` is stripped during parsing. Okta sends one on every create even
+ * when password sync is off, and Sim never stores or uses it; dropping it here
+ * keeps the credential out of the parsed request object and therefore out of
+ * every log line and error detail downstream.
  */
-export const scimUserWriteSchema = z.looseObject({
-  schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
-  userName: z.string().trim().min(1, 'userName must not be empty').max(320),
-  externalId: z.string().trim().max(256).optional(),
-  active: scimBoolean.optional(),
-  displayName: z.string().max(256).optional(),
-  name: scimNameSchema.optional(),
-  emails: z.array(scimEmailSchema).max(20).optional(),
-  [SCIM_ENTERPRISE_USER_SCHEMA]: scimEnterpriseSchema.optional(),
-})
+export const scimUserWriteSchema = z
+  .looseObject({
+    schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
+    userName: z.string().trim().min(1, 'userName must not be empty').max(320),
+    externalId: z.string().trim().max(256).optional(),
+    active: scimBoolean.optional(),
+    displayName: z.string().max(256).optional(),
+    name: scimNameSchema.optional(),
+    emails: z.array(scimEmailSchema).max(20).optional(),
+    [SCIM_ENTERPRISE_USER_SCHEMA]: scimEnterpriseSchema.optional(),
+  })
+  .transform(({ password: _password, ...rest }) => rest)
 /** What a client may send. */
 export type ScimUserWrite = z.input<typeof scimUserWriteSchema>
 /** What the route receives after parsing, which is what the canonicalizer reads. */
@@ -195,13 +195,6 @@ function listResponseSchema<Item extends z.ZodTypeAny>(item: Item) {
   })
 }
 
-export const scimErrorResponseSchema = z.object({
-  schemas: z.tuple([z.literal(SCIM_ERROR_SCHEMA)]),
-  status: z.string(),
-  scimType: z.string().optional(),
-  detail: z.string(),
-})
-
 export const listScimUsersContract = defineRouteContract({
   method: 'GET',
   path: '/api/scim/v2/Users',
@@ -302,9 +295,3 @@ export const deleteScimGroupContract = defineRouteContract({
   params: scimResourceParamsSchema,
   response: { mode: 'empty', status: 204 },
 })
-
-export const SCIM_SUPPORTED_SCHEMA_URNS = [
-  SCIM_USER_SCHEMA,
-  SCIM_ENTERPRISE_USER_SCHEMA,
-  SCIM_GROUP_SCHEMA,
-] as const

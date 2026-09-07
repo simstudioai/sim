@@ -305,7 +305,7 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "Does disabling someone in the identity provider remove their Sim access?",
-    answer: "With [directory provisioning](/platform/enterprise/scim) connected, yes: your identity provider sends the deactivation, and Sim blocks sign-in, stops their API keys, and withdraws directory-granted access while leaving everything they own intact. With SSO alone, disabling the IdP account only blocks future SSO authentication — remove or suspend the user in Sim as part of offboarding."
+    answer: "With [directory provisioning](/platform/enterprise/scim) connected, yes: your identity provider sends the deactivation, and Sim blocks sign-in and stops their API keys while leaving everything they own intact. With SSO alone, disabling the IdP account only blocks future SSO authentication — remove or suspend the user in Sim as part of offboarding."
   },
   {
     question: "Can I still use email/password login after enabling SSO?",

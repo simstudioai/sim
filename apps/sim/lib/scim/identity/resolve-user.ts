@@ -5,7 +5,7 @@ import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { primaryEmail } from '@/lib/scim/protocol/canonical'
-import { uniqueness } from '@/lib/scim/protocol/errors'
+import { invalidValue, uniqueness } from '@/lib/scim/protocol/errors'
 
 /**
  * Deciding which Sim account an incoming directory identity refers to.
@@ -23,10 +23,7 @@ export type IdentityResolution =
   | { action: 'link'; userId: string; via: 'tombstone' | 'verified-domain' }
 
 /** Domains this organization has proven it owns, through the SSO domain flow. */
-export async function listVerifiedDomains(
-  tx: DbOrTx,
-  organizationId: string
-): Promise<Set<string>> {
+async function listVerifiedDomains(tx: DbOrTx, organizationId: string): Promise<Set<string>> {
   const rows = await tx
     .select({ domain: ssoDomain.domain })
     .from(ssoDomain)
@@ -53,15 +50,21 @@ export async function assertDomainOwned(
   email: string
 ): Promise<void> {
   const domain = normalizeSSODomain(email)
-  if (!domain) throw uniqueness(`${email} is not a usable email address`)
+  if (!domain) throw invalidValue(`${email} is not a usable email address`)
   const verified = await listVerifiedDomains(tx, organizationId)
+  /**
+   * `invalidValue` rather than `uniqueness`. Nothing is duplicated here; the
+   * value is one this organization may not use. Labelling it a uniqueness
+   * conflict would make Okta record the user as "already exists" and hide the
+   * actual remedy — verify the domain — from the administrator.
+   */
   if (verified.size === 0) {
-    throw uniqueness(
+    throw invalidValue(
       'This organization has no verified email domains. Verify the domain in Sim before provisioning users.'
     )
   }
   if (!verified.has(domain)) {
-    throw uniqueness(
+    throw invalidValue(
       `The domain ${domain} is not verified for this organization, so ${email} cannot be provisioned`
     )
   }
@@ -99,6 +102,10 @@ export async function resolveProvisionedIdentity(
   tx: DbOrTx,
   params: { connectionId: string; organizationId: string; attributes: ScimUserAttributes }
 ): Promise<IdentityResolution> {
+  const email = primaryEmail(params.attributes)
+  /** Checked first so no path — a tombstone relink included — skips it. */
+  await assertDomainOwned(tx, params.organizationId, email)
+
   const externalId = params.attributes.externalId
   if (externalId) {
     const [tombstone] = await tx
@@ -113,9 +120,6 @@ export async function resolveProvisionedIdentity(
       .limit(1)
     if (tombstone) return { action: 'link', userId: tombstone.userId, via: 'tombstone' }
   }
-
-  const email = primaryEmail(params.attributes)
-  await assertDomainOwned(tx, params.organizationId, email)
 
   const [existing] = await tx
     .select({ id: user.id })

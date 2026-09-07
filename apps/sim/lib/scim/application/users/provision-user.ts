@@ -1,12 +1,15 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { type ScimUserAttributes, subscription } from '@sim/db/schema'
+import { type ScimUserAttributes, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
+import {
+  ensureUserInOrganizationTx,
+  getUserOrganization,
+} from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
@@ -28,6 +31,8 @@ import { primaryEmail } from '@/lib/scim/protocol/canonical'
 import { ScimError, uniqueness } from '@/lib/scim/protocol/errors'
 import { toUserResource } from '@/lib/scim/protocol/resources'
 import {
+  assertUserNameAvailable,
+  deleteScimUser,
   findScimUserById,
   findScimUserByUserId,
   insertScimUser,
@@ -44,6 +49,8 @@ export interface ProvisionScimUserResult {
   scimUserId: string
   userId: string
   createdAccount: boolean
+  /** False when the account was already a member and only the SCIM link was new. */
+  joinedOrganization: boolean
   organizationId: string
   resource: ReturnType<typeof toUserResource>
 }
@@ -121,6 +128,13 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
     let userId: string
     let createdAccount = false
 
+    /**
+     * `userName` is unique per connection. Checked up front for a message the
+     * directory administrator can read; a race that slips past this lands on the
+     * unique index and is rendered as the same 409 by the error mapper.
+     */
+    await assertUserNameAvailable(db, context.connection.id, attributes.userName)
+
     if (resolution.action === 'create') {
       await assertEmailAvailable(db, email)
       const created = await auth.api.createUser({
@@ -138,51 +152,84 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
 
     const existing = await findScimUserByUserId(db, context.connection.id, userId)
     if (existing) {
-      throw uniqueness('This directory already provisions the user')
+      /**
+       * A SCIM row whose account has already left the organization is the
+       * residue of a deprovisioning interrupted between its two commits. The
+       * directory is telling us the person is back; clearing the stale row lets
+       * it proceed rather than reporting a conflict nobody can act on.
+       */
+      const stillMember = await getUserOrganization(userId)
+      if (stillMember?.organizationId === context.organizationId) {
+        throw uniqueness('This directory already provisions the user')
+      }
+      await deleteScimUser(db, existing.id)
     }
 
-    const scimUserId = await db.transaction(async (tx) => {
-      const seatPolicy = await resolveSeatPolicy(tx, context.organizationId)
-      const membership = await ensureUserInOrganizationTx(tx, {
-        userId,
-        organizationId: context.organizationId,
-        role: 'member',
-        ...seatPolicy,
-      })
-      if (!membership.success) throw membershipFailure(membership.failureCode)
-
-      const inserted = await insertScimUser(tx, {
-        connectionId: context.connection.id,
-        userId,
-        attributes,
-        active: attributes.active,
-      })
-
-      /**
-       * Microsoft Entra pre-provisions a disabled account before its start date,
-       * so a create can arrive already inactive and must land suspended rather
-       * than briefly usable.
-       */
-      if (!attributes.active) {
-        await suspendMemberTx(tx, {
+    let provisioned: { scimUserId: string; joinedOrganization: boolean }
+    try {
+      provisioned = await db.transaction(async (tx) => {
+        const seatPolicy = await resolveSeatPolicy(tx, context.organizationId)
+        const membership = await ensureUserInOrganizationTx(tx, {
           userId,
           organizationId: context.organizationId,
-          source: 'scim',
+          role: 'member',
+          ...seatPolicy,
         })
-      }
+        if (!membership.success) throw membershipFailure(membership.failureCode)
 
-      await consumeTombstone(tx, {
-        connectionId: context.connection.id,
-        externalId: attributes.externalId,
+        const inserted = await insertScimUser(tx, {
+          connectionId: context.connection.id,
+          userId,
+          attributes,
+          active: attributes.active,
+        })
+
+        /**
+         * Microsoft Entra pre-provisions a disabled account before its start date,
+         * so a create can arrive already inactive and must land suspended rather
+         * than briefly usable.
+         */
+        if (!attributes.active) {
+          await suspendMemberTx(tx, {
+            userId,
+            organizationId: context.organizationId,
+            source: 'scim',
+          })
+        }
+
+        await consumeTombstone(tx, {
+          connectionId: context.connection.id,
+          externalId: attributes.externalId,
+        })
+        await reconcileUserProjection(tx, {
+          connectionId: context.connection.id,
+          organizationId: context.organizationId,
+          scimUserId: inserted.id,
+          settings: context.connection.settings,
+        })
+        return { scimUserId: inserted.id, joinedOrganization: !membership.alreadyMember }
       })
-      await reconcileUserProjection(tx, {
-        connectionId: context.connection.id,
-        organizationId: context.organizationId,
-        scimUserId: inserted.id,
-        settings: context.connection.settings,
-      })
-      return inserted.id
-    })
+    } catch (error) {
+      /**
+       * The account was created through Better Auth ahead of this transaction,
+       * so a refusal here — no seats, a lock timeout — would otherwise leave an
+       * orphan with no membership and no directory link. Removing it means the
+       * directory's retry starts from a clean slate instead of a half-state.
+       */
+      if (createdAccount) {
+        await db
+          .delete(user)
+          .where(eq(user.id, userId))
+          .catch((cleanupError) =>
+            logger.error('Failed to remove an account after provisioning was refused', {
+              userId,
+              cleanupError,
+            })
+          )
+      }
+      throw error
+    }
+    const { scimUserId, joinedOrganization } = provisioned
 
     const record = await findScimUserById(db, context.connection.id, scimUserId)
     if (!record) throw new ScimError(500, undefined, 'The provisioned user could not be read back')
@@ -191,6 +238,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       scimUserId,
       userId,
       createdAccount,
+      joinedOrganization,
       organizationId: context.organizationId,
       resource: toUserResource(toUserResourceRow(record, []), context.baseUrl),
     }
@@ -203,13 +251,17 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       resourceId: result.userId,
       metadata: { scimUserId: result.scimUserId, createdAccount: result.createdAccount },
     },
-    {
-      action: AuditAction.ORG_MEMBER_ADDED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: result.organizationId,
-      description: 'Joined the organization through directory provisioning',
-      metadata: { memberRole: 'member', scimUserId: result.scimUserId },
-    },
+    ...(result.joinedOrganization
+      ? [
+          {
+            action: AuditAction.ORG_MEMBER_ADDED,
+            resourceType: AuditResourceType.ORGANIZATION,
+            resourceId: result.organizationId,
+            description: 'Joined the organization through directory provisioning',
+            metadata: { memberRole: 'member', scimUserId: result.scimUserId },
+          },
+        ]
+      : []),
   ],
 
   /**

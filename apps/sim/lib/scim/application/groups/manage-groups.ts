@@ -9,6 +9,7 @@ import {
   type ScimUseCaseArgs,
 } from '@/lib/scim/application/authorized-scim-use-case'
 import { scimOperations } from '@/lib/scim/application/operations'
+import { autoMapPermissionGroupByName } from '@/lib/scim/projection/auto-map'
 import { reconcileUsersProjection } from '@/lib/scim/projection/reconcile-user'
 import type { CanonicalScimGroup } from '@/lib/scim/protocol/canonical'
 import { SCIM_MAX_GROUP_MEMBERS } from '@/lib/scim/protocol/constants'
@@ -27,7 +28,7 @@ import {
   addGroupMember,
   assertConnectionOwnsUsers,
   countGroupMembers,
-  deleteScimGroup,
+  deleteScimGroupRow,
   findScimGroupById,
   insertScimGroup,
   loadGroupMemberIds,
@@ -142,6 +143,8 @@ export interface ScimGroupWriteResult {
   displayName: string
   resource: ScimGroupResource
   touchedUserIds: string[]
+  /** Whether the name or external id changed; always true for a create. */
+  renamed: boolean
 }
 
 export const createScimGroup = defineAuthorizedScimUseCase({
@@ -168,6 +171,14 @@ export const createScimGroup = defineAuthorizedScimUseCase({
       }
       await assertMemberCount(tx, created.id)
 
+      if (context.connection.settings.autoMapPermissionGroupsByName) {
+        await autoMapPermissionGroupByName(tx, {
+          organizationId: context.organizationId,
+          scimGroupId: created.id,
+          displayName: created.displayName,
+        })
+      }
+
       await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,
@@ -181,6 +192,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
         displayName: created.displayName,
         resource: toGroupResource({ ...created, members }, context.baseUrl),
         touchedUserIds: group.memberIds,
+        renamed: true,
       }
     })
   },
@@ -220,6 +232,16 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         displayName: input.group.displayName,
         externalId: input.group.externalId ?? null,
       })
+      if (
+        context.connection.settings.autoMapPermissionGroupsByName &&
+        input.group.displayName !== current.displayName
+      ) {
+        await autoMapPermissionGroupByName(tx, {
+          organizationId: context.organizationId,
+          scimGroupId: current.id,
+          displayName: input.group.displayName,
+        })
+      }
 
       const before = await loadGroupMemberIds(tx, current.id)
       const desired = new Set(input.group.memberIds)
@@ -250,16 +272,23 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         displayName: refreshed.displayName,
         resource: toGroupResource({ ...refreshed, members }, context.baseUrl),
         touchedUserIds: [...touched],
+        renamed:
+          current.displayName !== refreshed.displayName ||
+          (current.externalId ?? null) !== (refreshed.externalId ?? null),
       }
     })
   },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.SCIM_GROUP_UPDATED,
-    resourceType: AuditResourceType.SCIM_GROUP,
-    resourceId: result.groupId,
-    resourceName: result.displayName,
-    metadata: { membersChanged: result.touchedUserIds.length },
-  }),
+  /** Okta re-sends the whole group each cycle; an unchanged one records nothing. */
+  projectAudit: ({ result }) =>
+    result.touchedUserIds.length === 0 && !result.renamed
+      ? undefined
+      : {
+          action: AuditAction.SCIM_GROUP_UPDATED,
+          resourceType: AuditResourceType.SCIM_GROUP,
+          resourceId: result.groupId,
+          resourceName: result.displayName,
+          metadata: { membersChanged: result.touchedUserIds.length, renamed: result.renamed },
+        },
 })
 
 export interface PatchScimGroupInput {
@@ -322,6 +351,17 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
             ...(patch.externalId !== undefined ? { externalId: patch.externalId } : {}),
           })
         }
+        if (
+          renamed &&
+          patch.displayName &&
+          context.connection.settings.autoMapPermissionGroupsByName
+        ) {
+          await autoMapPermissionGroupByName(tx, {
+            organizationId: context.organizationId,
+            scimGroupId: current.id,
+            displayName: patch.displayName,
+          })
+        }
         if (patch.members !== undefined) {
           const before = await loadGroupMemberIds(tx, current.id)
           const desired = new Set(patch.members)
@@ -368,7 +408,7 @@ export interface DeleteScimGroupInput {
   groupId: string
 }
 
-export const deleteScimGroupUseCase = defineAuthorizedScimUseCase({
+export const deleteScimGroup = defineAuthorizedScimUseCase({
   operation: scimOperations.deleteGroup,
   async execute({ input, context }: ScimUseCaseArgs<DeleteScimGroupInput>) {
     return db.transaction(async (tx) => {
@@ -381,7 +421,7 @@ export const deleteScimGroupUseCase = defineAuthorizedScimUseCase({
        * projection has to be re-run for them afterwards.
        */
       const memberIds = await loadGroupMemberIds(tx, current.id)
-      await deleteScimGroup(tx, current.id)
+      await deleteScimGroupRow(tx, current.id)
       await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,

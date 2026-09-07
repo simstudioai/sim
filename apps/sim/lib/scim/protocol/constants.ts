@@ -42,13 +42,14 @@ export const SCIM_MAX_BODY_BYTES = 1_000_000
 /**
  * Requests a connection may make per minute, and the burst it may spend at once.
  *
- * Microsoft Entra opens a provisioning cycle with a burst of reads and Okta
- * pages imports at 100 users, so a limit tuned to interactive traffic would
- * throttle an ordinary first sync.
+ * Microsoft requires a SCIM endpoint to sustain at least 25 requests per second
+ * per tenant, and opens each provisioning cycle with a burst of reads; Okta pages
+ * imports at 100 users a call. The bucket is sized to those clients, not to
+ * interactive traffic.
  */
 export const SCIM_RATE_LIMIT = {
-  maxTokens: 600,
-  refillRate: 300,
+  maxTokens: 3_000,
+  refillRate: 1_500,
   refillIntervalMs: 60_000,
 } as const
 

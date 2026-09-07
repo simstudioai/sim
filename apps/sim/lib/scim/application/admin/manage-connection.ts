@@ -27,14 +27,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { defineAuthorizedScimAdminUseCase } from '@/lib/scim/application/authorized-scim-admin-use-case'
 import { scimAdminOperations } from '@/lib/scim/application/operations'
-import {
-  activeCredentialCondition,
-  generateScimToken,
-  pruneExpiredCredentials,
-} from '@/lib/scim/authenticate'
+import { activeCredentialCondition, generateScimToken } from '@/lib/scim/authenticate'
 import { reconcileUserProjection } from '@/lib/scim/projection/reconcile-user'
 import { SCIM_BASE_PATH } from '@/lib/scim/protocol/constants'
-import { listScimUserIds } from '@/lib/scim/repository/users'
+import { reconcileConnection } from '@/lib/scim/reconcile/job'
 
 /**
  * Administering the connection: enabling it, issuing and revoking credentials,
@@ -265,9 +261,6 @@ export const issueScimCredential = defineAuthorizedScimAdminUseCase({
         'Enable directory provisioning for this organization before issuing a credential'
       )
     }
-
-    /** Sweep lapsed credentials first so an expired one does not hold a slot. */
-    await pruneExpiredCredentials(connection.id)
 
     const [active] = await db
       .select({ value: count() })
@@ -701,51 +694,32 @@ export const reconcileScimConnection = defineAuthorizedScimAdminUseCase({
   operation: scimAdminOperations.reconcile,
   async execute({ input }: { input: { organizationId: string } }) {
     const [connection] = await db
-      .select({ id: scimConnection.id, settings: scimConnection.settings })
+      .select({
+        id: scimConnection.id,
+        organizationId: scimConnection.organizationId,
+        settings: scimConnection.settings,
+      })
       .from(scimConnection)
       .where(eq(scimConnection.organizationId, input.organizationId))
       .limit(1)
     if (!connection)
       throw new OrchestrationError('not_found', 'Directory provisioning is not enabled')
 
-    let reconciledUsers = 0
-    let grantsAdded = 0
-    let grantsRemoved = 0
-    let cursor: string | undefined
-
     /**
-     * Paged rather than loaded whole: a large directory has tens of thousands of
-     * users, and one transaction over all of them would hold locks far too long.
+     * The same lease-protected pass the scheduler runs, so an administrator's
+     * click and the hourly sweep can never reconcile one connection at once.
      */
-    for (;;) {
-      const page = await listScimUserIds(db, {
-        connectionId: connection.id,
-        ...(cursor ? { afterOrderKey: cursor } : {}),
-        limit: 200,
-      })
-      if (page.length === 0) break
-
-      await db.transaction(async (tx) => {
-        for (const row of page) {
-          const delta = await reconcileUserProjection(tx, {
-            connectionId: connection.id,
-            organizationId: input.organizationId,
-            scimUserId: row.id,
-            settings: connection.settings,
-          })
-          reconciledUsers += 1
-          grantsAdded += delta.added.length + delta.raised.length
-          grantsRemoved += delta.removed.length
-        }
-      })
-      cursor = page[page.length - 1].orderKey
+    const report = await reconcileConnection(connection)
+    if (!report) {
+      throw new OrchestrationError(
+        'conflict',
+        'A reconciliation is already running for this organization; try again in a few minutes'
+      )
     }
-
-    await db
-      .update(scimConnection)
-      .set({ reconciledAt: new Date() })
-      .where(eq(scimConnection.id, connection.id))
-
-    return { reconciledUsers, grantsAdded, grantsRemoved }
+    return {
+      reconciledUsers: report.reconciledUsers,
+      grantsAdded: report.grantsAdded,
+      grantsRemoved: report.grantsRemoved,
+    }
   },
 })

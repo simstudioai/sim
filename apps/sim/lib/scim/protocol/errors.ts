@@ -98,13 +98,30 @@ export function notFound(detail: string): ScimError {
  */
 const PG_LOCK_NOT_AVAILABLE = '55P03'
 
+/** PostgreSQL's unique-violation code: a concurrent write beat this one to a key. */
+const PG_UNIQUE_VIOLATION = '23505'
+
+function pgErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined
+  const direct = (error as { code?: unknown }).code
+  if (typeof direct === 'string') return direct
+  /** postgres-js wraps the driver error under `cause` in some paths. */
+  const cause = (error as { cause?: { code?: unknown } }).cause
+  return typeof cause?.code === 'string' ? cause.code : undefined
+}
+
 function isLockTimeout(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === PG_LOCK_NOT_AVAILABLE
-  )
+  return pgErrorCode(error) === PG_LOCK_NOT_AVAILABLE
+}
+
+/**
+ * Two provisioning requests for the same key can race past every pre-check;
+ * the unique index is the arbiter. RFC 7644 calls that a `uniqueness` conflict,
+ * and the label matters: Okta stops retrying on `uniqueness` and treats an
+ * unlabelled failure as transient.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  return pgErrorCode(error) === PG_UNIQUE_VIOLATION
 }
 
 /**
@@ -122,6 +139,9 @@ export function toScimError(error: unknown): ScimError {
     return new ScimError(503, undefined, 'The organization is busy; retry shortly', {
       'Retry-After': '5',
     })
+  }
+  if (isUniqueViolation(error)) {
+    return new ScimError(409, 'uniqueness', 'A resource with the same identifier already exists')
   }
 
   if (error instanceof OrchestrationError) {

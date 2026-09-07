@@ -15,7 +15,6 @@ import { defineScimRoute } from '@/lib/scim/route'
 
 export const GET = defineScimRoute({
   contract: getScimUserContract,
-  scope: 'users:read',
   operation: getScimUser.operation,
   useCase: getScimUser,
   mapInput: ({ params, query }) => ({
@@ -27,7 +26,6 @@ export const GET = defineScimRoute({
 
 export const PUT = defineScimRoute({
   contract: replaceScimUserContract,
-  scope: 'users:write',
   operation: replaceScimUser.operation,
   useCase: replaceScimUser,
   mapInput: ({ params, body }) => {
@@ -39,7 +37,6 @@ export const PUT = defineScimRoute({
 
 export const PATCH = defineScimRoute({
   contract: patchScimUserContract,
-  scope: 'users:write',
   operation: patchScimUser.operation,
   useCase: patchScimUser,
   mapInput: ({ params, body }) => ({ scimUserId: params.id, operations: body.Operations }),
@@ -48,7 +45,6 @@ export const PATCH = defineScimRoute({
 
 export const DELETE = defineScimRoute({
   contract: deleteScimUserContract,
-  scope: 'users:write',
   operation: deprovisionScimUser.operation,
   useCase: deprovisionScimUser,
   mapInput: ({ params }) => ({ scimUserId: params.id }),

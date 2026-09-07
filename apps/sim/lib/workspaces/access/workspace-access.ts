@@ -37,6 +37,27 @@ export async function grantWorkspaceAccessTx(
   tx: DbOrTx,
   params: { workspaceId: string; userId: string; permission: PermissionType }
 ): Promise<GrantWorkspaceAccessOutcome> {
+  /**
+   * Insert first and let the unique index on (user, entity) decide. A read
+   * followed by an insert would let two concurrent grants both see "absent" and
+   * one of them fail on the index; this way the loser falls through to the
+   * comparison below against the row that won.
+   */
+  const inserted = await tx
+    .insert(permissions)
+    .values({
+      id: generateId(),
+      userId: params.userId,
+      entityType: 'workspace',
+      entityId: params.workspaceId,
+      permissionType: params.permission,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: permissions.id })
+  if (inserted.length > 0) return 'granted'
+
   const [existing] = await tx
     .select({ id: permissions.id, permissionType: permissions.permissionType })
     .from(permissions)
@@ -49,19 +70,7 @@ export async function grantWorkspaceAccessTx(
     )
     .limit(1)
     .for('update')
-
-  if (!existing) {
-    await tx.insert(permissions).values({
-      id: generateId(),
-      userId: params.userId,
-      entityType: 'workspace',
-      entityId: params.workspaceId,
-      permissionType: params.permission,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    return 'granted'
-  }
+  if (!existing) return 'unchanged'
 
   if (permissionRank(existing.permissionType) >= permissionRank(params.permission)) {
     return 'unchanged'
@@ -72,6 +81,33 @@ export async function grantWorkspaceAccessTx(
     .set({ permissionType: params.permission, updatedAt: new Date() })
     .where(eq(permissions.id, existing.id))
   return 'raised'
+}
+
+/**
+ * Lowers a grant, but only from the level a previous automated grant set.
+ *
+ * A directory mapping edited from admin down to write must take effect, yet a
+ * person a workspace administrator deliberately promoted must not be demoted by
+ * it. The caller passes the level it last set; if the row no longer matches,
+ * someone else raised it and the lowering is skipped.
+ */
+export async function lowerWorkspaceAccessTx(
+  tx: DbOrTx,
+  params: { workspaceId: string; userId: string; from: PermissionType; to: PermissionType }
+): Promise<'lowered' | 'unchanged'> {
+  const updated = await tx
+    .update(permissions)
+    .set({ permissionType: params.to, updatedAt: new Date() })
+    .where(
+      and(
+        eq(permissions.userId, params.userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, params.workspaceId),
+        eq(permissions.permissionType, params.from)
+      )
+    )
+    .returning({ id: permissions.id })
+  return updated.length > 0 ? 'lowered' : 'unchanged'
 }
 
 export interface RevokeWorkspaceAccessResult {

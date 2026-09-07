@@ -15,7 +15,6 @@ import { defineScimRoute } from '@/lib/scim/route'
 
 export const GET = defineScimRoute({
   contract: listScimUsersContract,
-  scope: 'users:read',
   operation: listScimUsers.operation,
   useCase: listScimUsers,
   mapInput: ({ query }) => ({
@@ -29,7 +28,6 @@ export const GET = defineScimRoute({
 
 export const POST = defineScimRoute({
   contract: createScimUserContract,
-  scope: 'users:write',
   operation: provisionScimUser.operation,
   useCase: provisionScimUser,
   mapInput: ({ body }) => {

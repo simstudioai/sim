@@ -1,10 +1,10 @@
-import { createHash, timingSafeEqual } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import type { ScimConnectionPrincipal, ScimCredentialScope } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { scimConnection, scimCredential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
+import { generateShortId } from '@sim/utils/id'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { isScimEnabled } from '@/lib/core/config/env-flags'
@@ -20,7 +20,7 @@ export type ScimConnectionAuthenticator = (request: NextRequest) => Promise<Scim
  * Makes a leaked token identifiable in a log or a secret scanner without
  * revealing which tenant it belongs to.
  */
-export const SCIM_TOKEN_PREFIX = 'sim_scim_'
+const SCIM_TOKEN_PREFIX = 'sim_scim_'
 
 /** Characters shown in the settings list so an administrator can tell two apart. */
 const DISPLAY_PREFIX_LENGTH = SCIM_TOKEN_PREFIX.length + 6
@@ -41,20 +41,8 @@ export function generateScimToken(): { secret: string; hash: string; prefix: str
   }
 }
 
-export function hashScimToken(secret: string): string {
+function hashScimToken(secret: string): string {
   return createHash('sha256').update(secret).digest('base64url')
-}
-
-/**
- * Compares digests without leaking their difference through timing.
- *
- * The lookup is by digest, so a mismatch normally means no row at all; this
- * guards the case where a row is found by an equal-prefix collision.
- */
-function digestsMatch(left: string, right: string): boolean {
-  const a = Buffer.from(left)
-  const b = Buffer.from(right)
-  return a.length === b.length && timingSafeEqual(a, b)
 }
 
 function unauthorized(detail = 'Invalid SCIM credential'): ScimError {
@@ -100,9 +88,12 @@ function touchConnectionLastRequest(connectionId: string, lastRequestAt: Date | 
 /**
  * Resolves the bearer credential on a SCIM request into a principal.
  *
- * Every refusal renders the same message. A provider cannot be helped by knowing
- * whether a token was unknown, revoked, expired, or belonged to a disabled
- * connection, while an attacker probing tokens learns which of those it hit.
+ * The lookup is by the token's digest, so the comparison the database performs
+ * is between two fixed-length hashes and reveals nothing about the secret
+ * through its timing. Every refusal renders the same message: a provider cannot
+ * be helped by knowing whether a token was unknown, revoked, expired, or
+ * belonged to a disabled connection, while an attacker probing tokens would
+ * learn which of those it hit.
  */
 export async function authenticateScimRequest(
   request: NextRequest
@@ -113,7 +104,6 @@ export async function authenticateScimRequest(
   const [row] = await db
     .select({
       credentialId: scimCredential.id,
-      tokenHash: scimCredential.tokenHash,
       scopes: scimCredential.scopes,
       expiresAt: scimCredential.expiresAt,
       revokedAt: scimCredential.revokedAt,
@@ -128,7 +118,7 @@ export async function authenticateScimRequest(
     .where(eq(scimCredential.tokenHash, hashScimToken(token)))
     .limit(1)
 
-  if (!row || !digestsMatch(row.tokenHash, hashScimToken(token))) throw unauthorized()
+  if (!row) throw unauthorized()
   if (row.revokedAt) throw unauthorized()
   if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) throw unauthorized()
   if (row.status !== 'active') throw unauthorized()
@@ -161,23 +151,4 @@ export function activeCredentialCondition(connectionId: string) {
     isNull(scimCredential.revokedAt),
     or(isNull(scimCredential.expiresAt), sql`${scimCredential.expiresAt} > now()`)
   )
-}
-
-/** Marks credentials whose expiry has passed, so the active count stays honest. */
-export async function pruneExpiredCredentials(connectionId: string): Promise<void> {
-  await db
-    .update(scimCredential)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(scimCredential.connectionId, connectionId),
-        isNull(scimCredential.revokedAt),
-        lt(scimCredential.expiresAt, new Date())
-      )
-    )
-}
-
-/** Generates the ids the SCIM tables use, kept here so callers share one source. */
-export function newScimId(): string {
-  return generateId()
 }

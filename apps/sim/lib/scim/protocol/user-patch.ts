@@ -274,6 +274,11 @@ function comparisonKey(attributes: ScimUserAttributes): string {
   return JSON.stringify(sortDeep(attributes))
 }
 
+/** Whether two canonical resources describe the same state, ignoring key order. */
+export function userAttributesEqual(left: ScimUserAttributes, right: ScimUserAttributes): boolean {
+  return comparisonKey(left) === comparisonKey(right)
+}
+
 export function applyUserPatch(
   current: ScimUserAttributes,
   operations: readonly ScimPatchOperation[]

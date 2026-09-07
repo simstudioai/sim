@@ -101,5 +101,3 @@ export const getScimUser = defineAuthorizedScimUseCase({
     )
   },
 })
-
-export { toListResponse }

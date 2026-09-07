@@ -481,7 +481,12 @@ export async function createWorkspaceInvitation({
   const allWorkspaceIds = context.targets.map((target) => target.workspaceId)
 
   const existingUser = await db
-    .select({ id: user.id, scimManaged: scimManagedUserPredicate(user.id) })
+    .select({
+      id: user.id,
+      scimManaged: organizationId
+        ? scimManagedUserPredicate(organizationId, user.id)
+        : sql<boolean>`false`,
+    })
     .from(user)
     .where(sql`lower(${user.email}) = ${normalizedEmail}`)
     .then((rows) => rows[0])

@@ -5,7 +5,7 @@ import {
   replaceScimGroupContract,
 } from '@/lib/api/contracts/scim'
 import {
-  deleteScimGroupUseCase,
+  deleteScimGroup,
   getScimGroup,
   patchScimGroup,
   replaceScimGroup,
@@ -18,7 +18,6 @@ import { defineScimRoute } from '@/lib/scim/route'
 
 export const GET = defineScimRoute({
   contract: getScimGroupContract,
-  scope: 'groups:read',
   operation: getScimGroup.operation,
   useCase: getScimGroup,
   mapInput: ({ params, query }) => ({
@@ -30,7 +29,6 @@ export const GET = defineScimRoute({
 
 export const PUT = defineScimRoute({
   contract: replaceScimGroupContract,
-  scope: 'groups:write',
   operation: replaceScimGroup.operation,
   useCase: replaceScimGroup,
   mapInput: ({ params, body }) => {
@@ -43,7 +41,6 @@ export const PUT = defineScimRoute({
 /** Answers 204: Microsoft asks that a group patch not echo the member list. */
 export const PATCH = defineScimRoute({
   contract: patchScimGroupContract,
-  scope: 'groups:write',
   operation: patchScimGroup.operation,
   useCase: patchScimGroup,
   mapInput: ({ params, body }) => ({ groupId: params.id, operations: body.Operations }),
@@ -51,8 +48,7 @@ export const PATCH = defineScimRoute({
 
 export const DELETE = defineScimRoute({
   contract: deleteScimGroupContract,
-  scope: 'groups:write',
-  operation: deleteScimGroupUseCase.operation,
-  useCase: deleteScimGroupUseCase,
+  operation: deleteScimGroup.operation,
+  useCase: deleteScimGroup,
   mapInput: ({ params }) => ({ groupId: params.id }),
 })

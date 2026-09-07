@@ -1,0 +1,589 @@
+'use client'
+
+import { useState } from 'react'
+import {
+  Chip,
+  ChipConfirmModal,
+  ChipCopyInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipSelect,
+  ChipTag,
+  Switch,
+  toast,
+} from '@sim/emcn'
+import { Key, X } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
+import type {
+  ScimActivityEntry,
+  ScimConnectionView,
+  ScimCredentialView,
+  ScimGroupMappingBody,
+  ScimGroupMappingView,
+} from '@/lib/api/contracts/organization-scim'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import {
+  useOrganizationWorkspaces,
+  usePermissionGroups,
+} from '@/ee/access-control/hooks/permission-groups'
+import { SettingRow } from '@/ee/components/setting-row'
+import {
+  useConfigureScimConnection,
+  useDeleteScimGroupMapping,
+  useIssueScimCredential,
+  useReconcileScimConnection,
+  useRevokeScimCredential,
+  useScimActivity,
+  useScimConnection,
+  useScimGroupMappings,
+  useUpsertScimGroupMapping,
+} from '@/ee/scim/hooks/scim'
+
+interface ScimSectionProps {
+  organizationId: string
+}
+
+type MappingTargetKind = ScimGroupMappingView['targetKind']
+type WorkspacePermission = NonNullable<ScimGroupMappingView['permissionType']>
+
+const TARGET_KIND_OPTIONS = [
+  { value: 'permission_group', label: 'Permission group' },
+  { value: 'workspace', label: 'Workspace' },
+  { value: 'org_role', label: 'Organization admin' },
+] as const
+
+const PERMISSION_OPTIONS = [
+  { value: 'read', label: 'Read' },
+  { value: 'write', label: 'Write' },
+  { value: 'admin', label: 'Admin' },
+] as const
+
+const SETTING_TOGGLES = [
+  {
+    key: 'lockManualMembership',
+    label: 'Lock managed membership',
+    description:
+      'Refuse invitations, role changes, and manual grants for members the directory provisions. The next sync would revert them anyway.',
+  },
+  {
+    key: 'disableJit',
+    label: 'Disable just-in-time provisioning',
+    description:
+      'Refuse membership for someone signing in with SSO who the directory never provisioned. The directory becomes the only way in.',
+  },
+  {
+    key: 'autoMapPermissionGroupsByName',
+    label: 'Match permission groups by name',
+    description:
+      'When a pushed group has the same name as one of your permission groups, map them automatically. Nothing is created.',
+  },
+] as const
+
+const RELATIVE_TIME = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+
+/** Renders "3 minutes ago" for the activity list and credential rows. */
+function formatRelative(iso: string | null): string {
+  if (!iso) return 'never'
+  const deltaMs = new Date(iso).getTime() - Date.now()
+  const minutes = Math.round(deltaMs / 60_000)
+  if (Math.abs(minutes) < 60) return RELATIVE_TIME.format(minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (Math.abs(hours) < 48) return RELATIVE_TIME.format(hours, 'hour')
+  return RELATIVE_TIME.format(Math.round(hours / 24), 'day')
+}
+
+function describeMapping(
+  mapping: ScimGroupMappingView,
+  names: { permissionGroups: Map<string, string>; workspaces: Map<string, string> }
+): string {
+  switch (mapping.targetKind) {
+    case 'permission_group':
+      return names.permissionGroups.get(mapping.permissionGroupId ?? '') ?? 'Permission group'
+    case 'workspace': {
+      const name = names.workspaces.get(mapping.workspaceId ?? '') ?? 'Workspace'
+      const level = PERMISSION_OPTIONS.find((o) => o.value === mapping.permissionType)?.label
+      return level ? `${name} · ${level}` : name
+    }
+    case 'org_role':
+      return 'Organization admin'
+  }
+}
+
+interface CredentialRowProps {
+  credential: ScimCredentialView
+  onRevoke: (credential: ScimCredentialView) => void
+}
+
+function CredentialRow({ credential, onRevoke }: CredentialRowProps) {
+  const expired = credential.expiresAt ? new Date(credential.expiresAt) < new Date() : false
+  const expiry = credential.expiresAt
+    ? `${expired ? 'expired' : 'expires'} ${formatRelative(credential.expiresAt)}`
+    : 'no expiry'
+  return (
+    <SettingsResourceRow
+      icon={<Key />}
+      title={<span className='font-mono'>{credential.tokenPrefix}…</span>}
+      description={`Last used ${formatRelative(credential.lastUsedAt)} · ${expiry}`}
+      badge={expired ? <ChipTag variant='gray'>Expired</ChipTag> : undefined}
+      trailing={
+        <RowActionsMenu
+          label={`${credential.tokenPrefix} actions`}
+          actions={[{ label: 'Revoke', onSelect: () => onRevoke(credential), destructive: true }]}
+        />
+      }
+    />
+  )
+}
+
+interface AddMappingProps {
+  organizationId: string
+  groupId: string
+  permissionGroups: Array<{ id: string; name: string }>
+  workspaces: Array<{ id: string; name: string }>
+}
+
+function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: AddMappingProps) {
+  const upsertMapping = useUpsertScimGroupMapping()
+  const [targetKind, setTargetKind] = useState<MappingTargetKind>('permission_group')
+  const [targetId, setTargetId] = useState('')
+  const [permission, setPermission] = useState<WorkspacePermission>('read')
+
+  function buildBody(): ScimGroupMappingBody | null {
+    switch (targetKind) {
+      case 'permission_group':
+        return targetId ? { groupId, targetKind, permissionGroupId: targetId } : null
+      case 'workspace':
+        return targetId
+          ? { groupId, targetKind, workspaceId: targetId, permissionType: permission }
+          : null
+      case 'org_role':
+        return { groupId, targetKind, role: 'admin' }
+    }
+  }
+
+  const body = buildBody()
+
+  async function handleAdd() {
+    if (!body) return
+    try {
+      const result = await upsertMapping.mutateAsync({ organizationId, body })
+      setTargetId('')
+      toast.success(
+        result.reconciledUsers === 0
+          ? 'Mapping added'
+          : `Mapping added and applied to ${result.reconciledUsers} member${result.reconciledUsers === 1 ? '' : 's'}`
+      )
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to add mapping'))
+    }
+  }
+
+  const targetOptions = targetKind === 'permission_group' ? permissionGroups : workspaces
+
+  return (
+    <div className='flex flex-wrap items-center gap-2'>
+      <ChipSelect
+        aria-label='Mapping target type'
+        align='start'
+        value={targetKind}
+        onChange={(next) => {
+          setTargetKind(next as MappingTargetKind)
+          setTargetId('')
+        }}
+        options={[...TARGET_KIND_OPTIONS]}
+      />
+      {targetKind !== 'org_role' && (
+        <ChipSelect
+          aria-label={targetKind === 'workspace' ? 'Workspace' : 'Permission group'}
+          align='start'
+          searchable
+          placeholder={targetKind === 'workspace' ? 'Choose a workspace' : 'Choose a group'}
+          value={targetId}
+          onChange={setTargetId}
+          options={targetOptions.map((target) => ({ value: target.id, label: target.name }))}
+        />
+      )}
+      {targetKind === 'workspace' && (
+        <ChipSelect
+          aria-label='Workspace permission'
+          align='start'
+          value={permission}
+          onChange={(next) => setPermission(next as WorkspacePermission)}
+          options={[...PERMISSION_OPTIONS]}
+        />
+      )}
+      <Chip variant='primary' onClick={handleAdd} disabled={!body || upsertMapping.isPending}>
+        {upsertMapping.isPending ? 'Adding...' : 'Add mapping'}
+      </Chip>
+    </div>
+  )
+}
+
+interface GroupMappingsProps {
+  organizationId: string
+}
+
+function GroupMappings({ organizationId }: GroupMappingsProps) {
+  const { data: groups, isLoading } = useScimGroupMappings(organizationId)
+  const { data: permissionGroups = [] } = usePermissionGroups(organizationId)
+  const { data: workspaces = [] } = useOrganizationWorkspaces(organizationId)
+  const deleteMapping = useDeleteScimGroupMapping()
+
+  const names = {
+    permissionGroups: new Map(permissionGroups.map((group) => [group.id, group.name])),
+    workspaces: new Map(workspaces.map((workspace) => [workspace.id, workspace.name])),
+  }
+
+  async function handleRemove(mapping: ScimGroupMappingView) {
+    try {
+      await deleteMapping.mutateAsync({ organizationId, mappingId: mapping.id })
+      toast.success('Mapping removed')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to remove mapping'))
+    }
+  }
+
+  if (isLoading) {
+    return <SettingsEmptyState variant='inline'>Loading groups...</SettingsEmptyState>
+  }
+  if (!groups || groups.length === 0) {
+    return (
+      <SettingsEmptyState variant='inline'>
+        No groups yet. Push a group from your identity provider and it appears here.
+      </SettingsEmptyState>
+    )
+  }
+
+  return (
+    <div className='flex flex-col gap-5'>
+      {groups.map((group) => (
+        <div key={group.id} className='flex flex-col gap-3'>
+          <SettingsResourceRow
+            title={group.displayName}
+            description={`${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`}
+          />
+          <div className='flex flex-col gap-3 pl-[46px]'>
+            {group.mappings.length > 0 && (
+              <div className='flex flex-wrap gap-1.5'>
+                {group.mappings.map((mapping) => (
+                  <ChipTag
+                    key={mapping.id}
+                    variant='gray'
+                    rightIcon={X}
+                    rightIconLabel='Remove mapping'
+                    rightIconDisabled={deleteMapping.isPending}
+                    onRightIconClick={() => void handleRemove(mapping)}
+                  >
+                    {describeMapping(mapping, names)}
+                  </ChipTag>
+                ))}
+              </div>
+            )}
+            <AddMapping
+              organizationId={organizationId}
+              groupId={group.id}
+              permissionGroups={permissionGroups}
+              workspaces={workspaces}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+interface ActivityListProps {
+  organizationId: string
+}
+
+function ActivityList({ organizationId }: ActivityListProps) {
+  const { data: entries, isLoading } = useScimActivity(organizationId)
+
+  if (isLoading) {
+    return <SettingsEmptyState variant='inline'>Loading activity...</SettingsEmptyState>
+  }
+  if (!entries || entries.length === 0) {
+    return <SettingsEmptyState variant='inline'>No requests yet.</SettingsEmptyState>
+  }
+
+  return (
+    <div className='flex flex-col gap-2'>
+      {entries.map((entry: ScimActivityEntry) => {
+        const failed = entry.status >= 400
+        return (
+          <div key={entry.id} className='flex flex-col gap-0.5 text-small'>
+            <div className='flex items-center gap-2'>
+              <ChipTag variant={failed ? 'gray' : 'mono'} invalid={failed}>
+                {entry.status}
+              </ChipTag>
+              <span className='truncate font-mono text-[var(--text-primary)]'>
+                {entry.method} {entry.path}
+              </span>
+              <span className='ml-auto shrink-0 text-[var(--text-muted)]'>
+                {formatRelative(entry.createdAt)}
+              </span>
+            </div>
+            {failed && entry.detail && (
+              <p className='pl-1 text-[var(--text-muted)]'>
+                {entry.scimType ? `${entry.scimType}: ` : ''}
+                {entry.detail}
+              </p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+interface ConnectionDetailsProps {
+  organizationId: string
+  connection: ScimConnectionView
+}
+
+function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProps) {
+  const configure = useConfigureScimConnection()
+  const issueCredential = useIssueScimCredential()
+  const revokeCredential = useRevokeScimCredential()
+  const reconcile = useReconcileScimConnection()
+
+  const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
+  const [pendingRevoke, setPendingRevoke] = useState<ScimCredentialView | null>(null)
+
+  async function handleToggleSetting(key: (typeof SETTING_TOGGLES)[number]['key'], value: boolean) {
+    try {
+      await configure.mutateAsync({
+        organizationId,
+        settings: { ...connection.settings, [key]: value },
+      })
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to update setting'))
+    }
+  }
+
+  async function handleIssue() {
+    try {
+      const result = await issueCredential.mutateAsync({ organizationId })
+      setIssuedSecret(result.secret)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to issue credential'))
+    }
+  }
+
+  async function handleConfirmRevoke() {
+    if (!pendingRevoke) return
+    try {
+      await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })
+      setPendingRevoke(null)
+      toast.success('Credential revoked')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to revoke credential'))
+    }
+  }
+
+  async function handleReconcile() {
+    try {
+      const report = await reconcile.mutateAsync(organizationId)
+      const corrections = report.grantsAdded + report.grantsRemoved
+      toast.success(
+        corrections === 0
+          ? `Checked ${report.reconciledUsers} members; nothing to correct`
+          : `Checked ${report.reconciledUsers} members; corrected ${corrections} grant${corrections === 1 ? '' : 's'}`
+      )
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Reconciliation failed'))
+    }
+  }
+
+  const activeCredentials = connection.credentials.filter(
+    (credential) => !credential.expiresAt || new Date(credential.expiresAt) > new Date()
+  )
+
+  return (
+    <>
+      <SettingRow
+        label='Base URL'
+        description='Enter this as the tenant or connector URL in your identity provider.'
+        htmlFor='scim-base-url'
+      >
+        <ChipCopyInput
+          id='scim-base-url'
+          value={connection.baseUrl}
+          copyLabel='Copy base URL'
+          inputClassName='font-mono'
+        />
+      </SettingRow>
+
+      <SettingRow label='Status'>
+        <p className='text-[var(--text-muted)] text-small'>
+          {connection.userCount} provisioned member{connection.userCount === 1 ? '' : 's'},{' '}
+          {connection.groupCount} group{connection.groupCount === 1 ? '' : 's'}. Last request{' '}
+          {formatRelative(connection.lastRequestAt)}.
+        </p>
+      </SettingRow>
+
+      {SETTING_TOGGLES.map((toggle) => (
+        <SettingRow
+          key={toggle.key}
+          label={toggle.label}
+          description={toggle.description}
+          htmlFor={`scim-${toggle.key}`}
+        >
+          <Switch
+            id={`scim-${toggle.key}`}
+            checked={connection.settings[toggle.key] ?? toggle.key === 'lockManualMembership'}
+            onCheckedChange={(checked) => void handleToggleSetting(toggle.key, checked)}
+            disabled={configure.isPending}
+          />
+        </SettingRow>
+      ))}
+
+      <SettingRow
+        label='Credentials'
+        description='The token is shown once. Two can be active at a time so you can rotate without downtime.'
+      >
+        <div className='flex flex-col gap-3'>
+          {connection.credentials.length === 0 ? (
+            <SettingsEmptyState variant='inline'>No credentials yet.</SettingsEmptyState>
+          ) : (
+            connection.credentials.map((credential) => (
+              <CredentialRow
+                key={credential.id}
+                credential={credential}
+                onRevoke={setPendingRevoke}
+              />
+            ))
+          )}
+          <div>
+            <Chip
+              variant='primary'
+              onClick={handleIssue}
+              disabled={issueCredential.isPending || activeCredentials.length >= 2}
+            >
+              {issueCredential.isPending ? 'Issuing...' : 'Issue credential'}
+            </Chip>
+          </div>
+        </div>
+      </SettingRow>
+
+      <SettingRow
+        label='Group mappings'
+        description='Point each pushed group at a permission group, a workspace, or the organization admin role. A group can carry several mappings.'
+      >
+        <GroupMappings organizationId={organizationId} />
+      </SettingRow>
+
+      <SettingRow
+        label='Activity'
+        description='Recent requests from your identity provider. A failed request shows what was wrong.'
+      >
+        <div className='flex flex-col gap-3'>
+          <ActivityList organizationId={organizationId} />
+          <div>
+            <Chip onClick={handleReconcile} disabled={reconcile.isPending}>
+              {reconcile.isPending ? 'Reconciling...' : 'Reconcile now'}
+            </Chip>
+          </div>
+        </div>
+      </SettingRow>
+
+      <ChipModal
+        open={issuedSecret !== null}
+        onOpenChange={(open) => !open && setIssuedSecret(null)}
+      >
+        <ChipModalHeader icon={Key} onClose={() => setIssuedSecret(null)}>
+          Credential issued
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='custom'
+            title='Token'
+            hint='Copy it into your identity provider now. Sim stores only a digest and cannot show it again.'
+          >
+            <ChipCopyInput
+              value={issuedSecret ?? ''}
+              copyLabel='Copy token'
+              inputClassName='font-mono'
+            />
+          </ChipModalField>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => setIssuedSecret(null)}
+          primaryAction={{ label: 'Done', onClick: () => setIssuedSecret(null) }}
+        />
+      </ChipModal>
+
+      <ChipConfirmModal
+        open={pendingRevoke !== null}
+        onOpenChange={(open) => !open && setPendingRevoke(null)}
+        title='Revoke credential'
+        text={[
+          'Revoke ',
+          { text: pendingRevoke?.tokenPrefix ?? '', bold: true },
+          '? Your identity provider stops syncing the moment it next uses this token. Issue a new credential first if you are rotating.',
+        ]}
+        confirm={{
+          label: 'Revoke',
+          onClick: handleConfirmRevoke,
+          pending: revokeCredential.isPending,
+          pendingLabel: 'Revoking...',
+        }}
+      />
+    </>
+  )
+}
+
+/**
+ * Directory provisioning (SCIM) settings, rendered as a section of the SSO page.
+ * SSO decides who someone is; provisioning decides who exists and what they can
+ * reach, so the two are configured together.
+ */
+export function ScimSection({ organizationId }: ScimSectionProps) {
+  const { features } = useDeploymentShape()
+  const { data, isLoading } = useScimConnection(organizationId, features.scim)
+  const configure = useConfigureScimConnection()
+
+  if (!features.scim) return null
+
+  const connection = data?.connection ?? null
+  const enabled = connection?.status === 'active'
+
+  async function handleToggleEnabled(next: boolean) {
+    try {
+      await configure.mutateAsync({ organizationId, status: next ? 'active' : 'disabled' })
+      toast.success(next ? 'Directory provisioning enabled' : 'Directory provisioning disabled')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to update directory provisioning'))
+    }
+  }
+
+  return (
+    <SettingsSection label='Directory provisioning'>
+      <div className='flex flex-col gap-4.5'>
+        <SettingRow
+          label='Enable directory provisioning'
+          description='Let your identity provider create, update, and deactivate members over SCIM 2.0. Requires a verified domain.'
+          htmlFor='scim-enabled'
+        >
+          <Switch
+            id='scim-enabled'
+            checked={enabled}
+            onCheckedChange={(checked) => void handleToggleEnabled(checked)}
+            disabled={isLoading || configure.isPending}
+          />
+        </SettingRow>
+
+        {connection && enabled && (
+          <ConnectionDetails organizationId={organizationId} connection={connection} />
+        )}
+      </div>
+    </SettingsSection>
+  )
+}

@@ -17,7 +17,6 @@ import {
 } from '@/lib/scim/application/authorized-scim-use-case'
 import { scimOperations } from '@/lib/scim/application/operations'
 import { upsertTombstone } from '@/lib/scim/identity/resolve-user'
-import { withdrawAllProjectedGrants } from '@/lib/scim/projection/reconcile-user'
 import { notFound, ScimError } from '@/lib/scim/protocol/errors'
 import { deleteScimUser, findScimUserById } from '@/lib/scim/repository/users'
 
@@ -30,6 +29,8 @@ export interface DeprovisionScimUserInput {
 export interface DeprovisionScimUserResult {
   scimUserId: string
   userId: string
+  /** False when the account had already left the organization by other means. */
+  removedFromOrganization: boolean
 }
 
 /**
@@ -70,24 +71,13 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
       )
     }
 
-    /**
-     * Withdraw directory-granted access first, in its own transaction, so the
-     * removal below sees a user with nothing left to reassign from a group.
-     */
-    await db.transaction(async (tx) => {
-      await withdrawAllProjectedGrants(tx, {
-        connectionId: context.connection.id,
-        organizationId: context.organizationId,
-        scimUserId: current.id,
-        userId: current.userId,
-      })
-    })
-
     if (membership) {
       /**
-       * Owns its own invitation-safe lock scope and reassigns everything the
-       * member owned, so it runs on its own rather than inside a transaction
-       * this use case controls.
+       * Owns its own invitation-safe lock scope, clears every workspace
+       * permission and permission-group membership in the organization, and
+       * reassigns everything the member owned — so directory-granted access is
+       * withdrawn here as a consequence, and the projection rows cascade away
+       * with the SCIM user below.
        */
       const removal = await removeUserFromOrganization({
         userId: current.userId,
@@ -118,7 +108,11 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
       await deleteScimUser(tx, current.id)
     })
 
-    return { scimUserId: current.id, userId: current.userId }
+    return {
+      scimUserId: current.id,
+      userId: current.userId,
+      removedFromOrganization: Boolean(membership),
+    }
   },
 
   projectAudit: ({ result, context }) => [
@@ -128,13 +122,17 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
       resourceId: result.userId,
       metadata: { scimUserId: result.scimUserId },
     },
-    {
-      action: AuditAction.ORG_MEMBER_REMOVED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: context.organizationId,
-      description: 'Removed from the organization through directory deprovisioning',
-      metadata: { targetUserId: result.userId, scimUserId: result.scimUserId },
-    },
+    ...(result.removedFromOrganization
+      ? [
+          {
+            action: AuditAction.ORG_MEMBER_REMOVED,
+            resourceType: AuditResourceType.ORGANIZATION,
+            resourceId: context.organizationId,
+            description: 'Removed from the organization through directory deprovisioning',
+            metadata: { targetUserId: result.userId, scimUserId: result.scimUserId },
+          },
+        ]
+      : []),
   ],
 
   afterSuccess: async ({ result, context }) => {

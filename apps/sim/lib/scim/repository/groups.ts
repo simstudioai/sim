@@ -173,7 +173,7 @@ export async function touchScimGroup(tx: DbOrTx, groupId: string): Promise<void>
   await tx.update(scimGroup).set({ updatedAt: new Date() }).where(eq(scimGroup.id, groupId))
 }
 
-export async function deleteScimGroup(tx: DbOrTx, groupId: string): Promise<void> {
+export async function deleteScimGroupRow(tx: DbOrTx, groupId: string): Promise<void> {
   await tx.delete(scimGroup).where(eq(scimGroup.id, groupId))
 }
 

@@ -17,6 +17,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { ForbiddenOperationError } from '@/lib/core/application'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -231,19 +232,11 @@ export const PUT = withRouteHandler(
         changeMemberRoleTx(tx, { organizationId, userId: memberId, role })
       )
 
-      if (!roleChange.changed) {
-        return NextResponse.json({
-          success: true,
-          message: 'Member role updated successfully',
-          data: {
-            id: targetMember[0].id,
-            userId: targetMember[0].userId,
-            role: roleChange.role,
-            updatedBy: session.user.id,
-          },
-        })
-      }
-
+      /**
+       * The audit row and analytics event fire whether or not the role actually
+       * moved, exactly as this route did before the write went through the
+       * shared primitive. Callers assert on those side effects.
+       */
       logger.info('Organization member role updated', {
         organizationId,
         memberId,
@@ -282,7 +275,7 @@ export const PUT = withRouteHandler(
         data: {
           id: targetMember[0].id,
           userId: targetMember[0].userId,
-          role: roleChange.to,
+          role: roleChange.changed ? roleChange.to : roleChange.role,
           updatedBy: session.user.id,
         },
       })
@@ -291,6 +284,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json(
           { error: error.message, details: { code: error.detailCode } },
           { status: 403 }
+        )
+      }
+      if (error instanceof OrchestrationError) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: statusForOrchestrationError(error.code) }
         )
       }
 

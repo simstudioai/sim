@@ -1,7 +1,9 @@
 import { type ScimUserAttributes, scimGroup, scimGroupMember, scimUser, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { uniqueness } from '@/lib/scim/protocol/errors'
 import type { ScimFilterTerm, ScimUserFilterField } from '@/lib/scim/protocol/filter'
 import type { UserResourceRow } from '@/lib/scim/protocol/resources'
 
@@ -35,7 +37,7 @@ function userFilterCondition(term: ScimFilterTerm<ScimUserFilterField>): SQL | u
     case 'externalId':
       return eq(scimUser.externalId, term.value)
     case 'email':
-      return sql`lower(${user.email}) = ${term.value.toLowerCase()}`
+      return sql`lower(trim(${user.email})) = ${normalizeEmail(term.value)}`
     case 'active':
       return eq(scimUser.active, term.value.toLowerCase() === 'true')
   }
@@ -131,6 +133,29 @@ export async function findScimUserById(
   return row ?? null
 }
 
+/**
+ * The same lookup, holding the row for the rest of the transaction.
+ *
+ * A write path reads the stored resource, computes the next one in memory, and
+ * writes it back. Two concurrent PATCHes — which Microsoft Entra pipelines
+ * routinely — would otherwise both read the same base and the second would
+ * overwrite the first's whole attribute document.
+ */
+export async function lockScimUserById(
+  tx: DbOrTx,
+  connectionId: string,
+  scimUserId: string
+): Promise<ScimUserRecord | null> {
+  const [row] = await tx
+    .select(USER_SELECTION)
+    .from(scimUser)
+    .innerJoin(user, eq(user.id, scimUser.userId))
+    .where(and(eq(scimUser.connectionId, connectionId), eq(scimUser.id, scimUserId)))
+    .limit(1)
+    .for('update', { of: scimUser })
+  return row ?? null
+}
+
 export async function findScimUserByUserId(
   tx: DbOrTx,
   connectionId: string,
@@ -187,6 +212,23 @@ export async function pageScimUsers(
           .offset(params.offset)
 
   return { records, totalResults: totalRow?.value ?? 0 }
+}
+
+/** Refuses a `userName` another resource on this connection already holds. */
+export async function assertUserNameAvailable(
+  tx: DbOrTx,
+  connectionId: string,
+  userName: string,
+  exceptScimUserId?: string
+): Promise<void> {
+  const [clash] = await tx
+    .select({ id: scimUser.id })
+    .from(scimUser)
+    .where(and(eq(scimUser.connectionId, connectionId), eq(scimUser.userName, userName)))
+    .limit(1)
+  if (clash && clash.id !== exceptScimUserId) {
+    throw uniqueness(`A user with userName ${userName} already exists in this directory`)
+  }
 }
 
 export async function insertScimUser(

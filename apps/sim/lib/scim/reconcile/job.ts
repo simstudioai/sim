@@ -3,6 +3,8 @@ import { scimConnection } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { isScimEnabled } from '@/lib/core/config/env-flags'
 import { reconcileUserProjection } from '@/lib/scim/projection/reconcile-user'
 import { listScimUserIds } from '@/lib/scim/repository/users'
 import { pruneScimRequestLog } from '@/lib/scim/request-log'
@@ -23,8 +25,15 @@ const logger = createLogger('ScimReconcile')
 /** How long a claimed lease is honored before another run may take it over. */
 const LEASE_TTL_MS = 15 * 60 * 1000
 
-/** How often a connection is swept when nothing else triggers it. */
-const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000
+/**
+ * How often a connection is swept when nothing else triggers it.
+ *
+ * The cron fires hourly; each connection is picked up once this interval has
+ * passed since its last sweep, oldest first. Drift is rare and corrected on the
+ * next membership change anyway, so a few passes a day is plenty without
+ * re-walking every tenant every hour.
+ */
+const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 /** Users reconciled per transaction, so no single one holds locks for long. */
 const BATCH_SIZE = 200
@@ -69,7 +78,7 @@ async function releaseLease(connectionId: string, runId: string): Promise<void> 
 }
 
 /** Connections whose last sweep is older than the interval, oldest first. */
-export async function findConnectionsDueForReconcile(limit: number): Promise<
+async function findConnectionsDueForReconcile(limit: number): Promise<
   Array<{
     id: string
     organizationId: string
@@ -99,6 +108,12 @@ export async function reconcileConnection(connection: {
   organizationId: string
   settings: (typeof scimConnection.$inferSelect)['settings']
 }): Promise<ScimReconcileReport | null> {
+  /**
+   * A lapsed organization's credentials are refused at authentication; its
+   * projection must not keep being re-applied by the scheduler either.
+   */
+  if (!(await isOrganizationFeatureEntitled(connection.organizationId, isScimEnabled))) return null
+
   const runId = generateId()
   if (!(await acquireLease(connection.id, runId))) return null
 
@@ -152,7 +167,7 @@ export interface ScimReconcileSweep {
   grantsRemoved: number
 }
 
-export async function runScimReconcileSweep(maxConnections = 25): Promise<ScimReconcileSweep> {
+export async function runScimReconcileSweep(maxConnections = 200): Promise<ScimReconcileSweep> {
   const due = await findConnectionsDueForReconcile(maxConnections)
   const sweep: ScimReconcileSweep = {
     connections: 0,

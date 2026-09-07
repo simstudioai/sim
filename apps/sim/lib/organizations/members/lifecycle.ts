@@ -97,7 +97,6 @@ export async function revokePersonalApiKeysTx(
 export interface SuspendMemberResult {
   suspended: boolean
   sessionsRevoked: number
-  apiKeysRevoked: number
 }
 
 /**
@@ -108,7 +107,9 @@ export interface SuspendMemberResult {
  * archives every workspace the user owns and deletes their API keys, and there
  * is no server-side path to undo it. A directory deactivation is routine and
  * reversible — someone on leave, or moved between teams — so it must not destroy
- * the work they own.
+ * the work they own. That includes their API keys: the key rows stay, and the
+ * authentication paths refuse them while `suspendedAt` is set, so reactivation
+ * restores every automation exactly as it was.
  */
 export async function suspendMemberTx(
   tx: DbOrTx,
@@ -129,13 +130,8 @@ export async function suspendMemberTx(
     userId: params.userId,
     organizationId: params.organizationId,
   })
-  const keys = await revokePersonalApiKeysTx(tx, { userId: params.userId })
 
-  return {
-    suspended: Boolean(updated),
-    sessionsRevoked: sessions.revoked,
-    apiKeysRevoked: keys.revoked,
-  }
+  return { suspended: Boolean(updated), sessionsRevoked: sessions.revoked }
 }
 
 /**
@@ -199,9 +195,4 @@ export async function changeMemberRoleTx(
     to: params.role,
   })
   return { changed: true, from: current.role, to: params.role }
-}
-
-/** True when the account is currently suspended. */
-export function isSuspended(row: { suspendedAt: Date | null }): boolean {
-  return row.suspendedAt !== null
 }

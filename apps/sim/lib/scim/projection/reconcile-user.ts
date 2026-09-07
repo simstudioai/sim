@@ -1,24 +1,27 @@
+import { db } from '@sim/db'
 import {
   type ScimConnectionSettings,
   scimGroupMapping,
   scimGroupMember,
   scimProjectionGrant,
   scimUser,
-  user,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import {
   addPermissionGroupMemberTx,
   PermissionGroupNotFoundError,
+  PermissionGroupScopeConflictError,
   removePermissionGroupMemberTx,
 } from '@/lib/permission-groups/application/group-membership'
 import {
   grantWorkspaceAccessTx,
+  lowerWorkspaceAccessTx,
   permissionRank,
   readWorkspacePermission,
   revokeWorkspaceAccessTx,
@@ -51,6 +54,7 @@ export interface ProjectionGrant {
 export interface ProjectionDelta {
   added: ProjectionGrant[]
   removed: ProjectionGrant[]
+  /** Workspace grants whose level changed in either direction. */
   raised: ProjectionGrant[]
 }
 
@@ -63,16 +67,16 @@ function grantKey(grant: ProjectionGrant): string {
 /**
  * What this user's group mappings entitle them to.
  *
- * An inactive user is entitled to nothing: a deactivation must withdraw access
- * rather than merely blocking sign-in, so that a reactivation is what restores
- * it and nothing is left dangling in between.
+ * Deliberately independent of whether the user is active. A deactivation blocks
+ * sign-in and API keys through suspension; it does not withdraw grants, because
+ * withdrawing a workspace grant reassigns the workflows the person owns there,
+ * and that cannot be undone by reactivating them. Grants change only when group
+ * membership or mappings change, or when the user is deprovisioned outright.
  */
 async function desiredGrants(
   tx: DbOrTx,
-  params: { scimUserId: string; active: boolean; settings: ScimConnectionSettings }
+  params: { scimUserId: string; settings: ScimConnectionSettings }
 ): Promise<ProjectionGrant[]> {
-  if (!params.active) return []
-
   const rows = await tx
     .select({
       targetKind: scimGroupMapping.targetKind,
@@ -146,45 +150,59 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
   }))
 }
 
+/**
+ * Applies one grant. Returns false when the grant describes nothing this server
+ * can apply, so the caller records provenance only for what actually happened.
+ */
 async function applyGrant(
   tx: DbOrTx,
   params: {
     organizationId: string
     userId: string
     grant: ProjectionGrant
-    lockTimeoutAlreadyBounded: boolean
+    /** The level a previous pass set on a workspace, when lowering it. */
+    previousPermission?: PermissionType
   }
-): Promise<void> {
+): Promise<boolean> {
   const { grant } = params
   switch (grant.targetKind) {
     case 'workspace':
-      if (!grant.permissionType) return
+      if (!grant.permissionType) return false
+      if (
+        params.previousPermission &&
+        permissionRank(params.previousPermission) > permissionRank(grant.permissionType)
+      ) {
+        await lowerWorkspaceAccessTx(tx, {
+          workspaceId: grant.targetId,
+          userId: params.userId,
+          from: params.previousPermission,
+          to: grant.permissionType,
+        })
+        return true
+      }
       await grantWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,
         userId: params.userId,
         permission: grant.permissionType,
       })
-      return
+      return true
     case 'org_role':
-      if (grant.targetId !== 'admin') return
+      if (grant.targetId !== 'admin') return false
       await changeMemberRoleTx(tx, {
         organizationId: params.organizationId,
         userId: params.userId,
         role: 'admin',
       })
-      return
+      return true
     case 'permission_group':
-      /**
-       * Last, because the permission-group lock is a documented leaf: no further
-       * advisory lock may be taken after it.
-       */
       await addPermissionGroupMemberTx(tx, {
         organizationId: params.organizationId,
         groupId: grant.targetId,
         userId: params.userId,
         assignedBy: null,
-        lockTimeoutAlreadyBounded: params.lockTimeoutAlreadyBounded,
+        lockTimeoutAlreadyBounded: true,
       })
+      return true
   }
 }
 
@@ -195,7 +213,6 @@ async function withdrawGrant(
     userId: string
     grant: ProjectionGrant
     lockManualMembership: boolean
-    lockTimeoutAlreadyBounded: boolean
   }
 ): Promise<void> {
   const { grant } = params
@@ -241,12 +258,21 @@ async function withdrawGrant(
       })
       return
     case 'permission_group':
-      await removePermissionGroupMemberTx(tx, {
-        organizationId: params.organizationId,
-        groupId: grant.targetId,
-        userId: params.userId,
-        lockTimeoutAlreadyBounded: params.lockTimeoutAlreadyBounded,
-      })
+      try {
+        await removePermissionGroupMemberTx(tx, {
+          organizationId: params.organizationId,
+          groupId: grant.targetId,
+          userId: params.userId,
+          lockTimeoutAlreadyBounded: true,
+        })
+      } catch (error) {
+        /**
+         * The group may already be gone; the grant row outlives it because the
+         * target column carries no foreign key. Withdrawing from nothing is
+         * complete, not a failure.
+         */
+        if (!(error instanceof PermissionGroupNotFoundError)) throw error
+      }
   }
 }
 
@@ -257,9 +283,6 @@ async function withdrawGrant(
  * before, and acts only on the difference. Running it twice changes nothing the
  * second time, which is what lets the reconcile job re-run it over every user
  * without a dry-run mode.
- *
- * Ordering within the transaction follows the documented advisory-lock order:
- * workspace and role writes first, permission-group writes last.
  */
 export async function reconcileUserProjection(
   tx: DbOrTx,
@@ -271,21 +294,26 @@ export async function reconcileUserProjection(
   }
 ): Promise<ProjectionDelta> {
   const [record] = await tx
-    .select({
-      userId: scimUser.userId,
-      active: scimUser.active,
-      suspendedAt: user.suspendedAt,
-    })
+    .select({ userId: scimUser.userId })
     .from(scimUser)
-    .innerJoin(user, eq(user.id, scimUser.userId))
     .where(and(eq(scimUser.id, params.scimUserId), eq(scimUser.connectionId, params.connectionId)))
     .limit(1)
 
   if (!record) return EMPTY_DELTA
 
+  /**
+   * Taken before any target is touched so the documented order holds: the
+   * organization and membership locks first, the permission-group leaf lock
+   * last. A withdrawal that reached the leaf lock before a later grant took the
+   * organization lock would invert that order against a concurrent request.
+   */
+  await acquireOrganizationUserMutationLocks(tx, {
+    userId: record.userId,
+    organizationIds: [params.organizationId],
+  })
+
   const desired = await desiredGrants(tx, {
     scimUserId: params.scimUserId,
-    active: record.active && record.suspendedAt === null,
     settings: params.settings,
   })
   const current = await currentGrants(tx, params.scimUserId)
@@ -304,7 +332,6 @@ export async function reconcileUserProjection(
       userId: record.userId,
       grant,
       lockManualMembership,
-      lockTimeoutAlreadyBounded: false,
     })
     await tx
       .delete(scimProjectionGrant)
@@ -320,27 +347,30 @@ export async function reconcileUserProjection(
 
   for (const [key, grant] of desiredByKey) {
     const existing = currentByKey.get(key)
-    const raised =
+    const levelChanged =
       existing !== undefined &&
       grant.permissionType !== undefined &&
       existing.permissionType !== undefined &&
-      permissionRank(grant.permissionType) > permissionRank(existing.permissionType)
+      grant.permissionType !== existing.permissionType
 
-    if (existing && !raised) continue
+    if (existing && !levelChanged) continue
 
+    let applied: boolean
     try {
-      await applyGrant(tx, {
+      applied = await applyGrant(tx, {
         organizationId: params.organizationId,
         userId: record.userId,
         grant,
-        lockTimeoutAlreadyBounded: false,
+        ...(existing?.permissionType ? { previousPermission: existing.permissionType } : {}),
       })
     } catch (error) {
       /**
        * A mapping can outlive its target — an administrator deletes a permission
        * group and the row cascades away, or deletes the group between the read
-       * and the write. Skipping one target is right; failing the whole
-       * provisioning request over it is not.
+       * and the write. And two mapped groups can collide: the same person in
+       * both, each governing a shared workspace. Both are configuration problems
+       * for the administrator to see in the activity log, not reasons to fail
+       * the directory's request and have it retry forever.
        */
       if (error instanceof PermissionGroupNotFoundError) {
         logger.warn('Skipped a SCIM mapping whose permission group no longer exists', {
@@ -349,8 +379,17 @@ export async function reconcileUserProjection(
         })
         continue
       }
+      if (error instanceof PermissionGroupScopeConflictError) {
+        logger.warn('Skipped a SCIM mapping that conflicts with another permission group', {
+          connectionId: params.connectionId,
+          groupId: grant.targetId,
+          conflicts: error.conflicts.length,
+        })
+        continue
+      }
       throw error
     }
+    if (!applied) continue
 
     await tx
       .insert(scimProjectionGrant)
@@ -373,30 +412,11 @@ export async function reconcileUserProjection(
         set: { permissionType: grant.permissionType ?? null, updatedAt: new Date() },
       })
 
-    if (raised) delta.raised.push(grant)
+    if (levelChanged) delta.raised.push(grant)
     else delta.added.push(grant)
   }
 
   return delta
-}
-
-/** Withdraws everything SCIM granted a user, for deprovisioning. */
-export async function withdrawAllProjectedGrants(
-  tx: DbOrTx,
-  params: { connectionId: string; organizationId: string; scimUserId: string; userId: string }
-): Promise<void> {
-  const grants = await currentGrants(tx, params.scimUserId)
-  for (const grant of grants) {
-    await withdrawGrant(tx, {
-      organizationId: params.organizationId,
-      userId: params.userId,
-      grant,
-      /** Deprovisioning removes access regardless of later manual changes. */
-      lockManualMembership: true,
-      lockTimeoutAlreadyBounded: false,
-    })
-  }
-  await tx.delete(scimProjectionGrant).where(eq(scimProjectionGrant.scimUserId, params.scimUserId))
 }
 
 /** Reconciles several users, in a stable order so concurrent syncs cannot deadlock. */
@@ -417,4 +437,41 @@ export async function reconcileUsersProjection(
       settings: params.settings,
     })
   }
+}
+
+/**
+ * Reconciles many users in transactions of a bounded size.
+ *
+ * For callers that are not already inside a transaction — the reconcile job,
+ * and an administrator changing a mapping on a large group. One transaction over
+ * thousands of users would hold the organization's advisory locks for its whole
+ * duration, blocking every invitation and role change in the tenant meanwhile.
+ */
+export async function reconcileUsersProjectionInBatches(params: {
+  connectionId: string
+  organizationId: string
+  scimUserIds: string[]
+  settings: ScimConnectionSettings
+  batchSize?: number
+}): Promise<ProjectionDelta> {
+  const total: ProjectionDelta = { added: [], removed: [], raised: [] }
+  const ids = [...new Set(params.scimUserIds)].sort()
+  const size = params.batchSize ?? 200
+  for (let start = 0; start < ids.length; start += size) {
+    const batch = ids.slice(start, start + size)
+    await db.transaction(async (tx) => {
+      for (const scimUserId of batch) {
+        const delta = await reconcileUserProjection(tx, {
+          connectionId: params.connectionId,
+          organizationId: params.organizationId,
+          scimUserId,
+          settings: params.settings,
+        })
+        total.added.push(...delta.added)
+        total.removed.push(...delta.removed)
+        total.raised.push(...delta.raised)
+      }
+    })
+  }
+  return total
 }

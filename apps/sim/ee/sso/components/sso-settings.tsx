@@ -35,6 +35,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SettingRow } from '@/ee/components/setting-row'
+import { ScimSection } from '@/ee/scim/components/scim-section'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
@@ -642,6 +643,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     return (
       <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]}>
         <VerifiedDomainsSection organizationId={organizationId} />
+        <ScimSection organizationId={organizationId} />
 
         <SettingsSection label='Identity provider'>
           <div className='flex flex-col gap-4.5'>
@@ -756,6 +758,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         ]}
       >
         <VerifiedDomainsSection organizationId={organizationId} />
+        <ScimSection organizationId={organizationId} />
 
         <SettingsSection label='Identity provider'>
           <div className='flex flex-col gap-4.5'>

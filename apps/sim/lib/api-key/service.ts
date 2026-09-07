@@ -101,10 +101,11 @@ export async function authenticateApiKeyFromHeader(
 
     /**
      * A suspension deliberately leaves the account's resources intact, so unlike
-     * a ban it does not delete the keys. Refusing them here is what actually
-     * ends machine access for a deactivated member.
+     * a ban it does not delete the keys. Refusing a personal key here is what
+     * ends the member's own machine access. A workspace key is shared and
+     * belongs to the workspace, so one member's suspension does not break it.
      */
-    if (record.userSuspendedAt) return INVALID
+    if (record.userSuspendedAt && keyType === 'personal') return INVALID
 
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID
