@@ -1308,6 +1308,73 @@ describe('setupWorkspaceFileDocHandlers', () => {
     }
   )
 
+  it.each(['revoked', 'expired', 'unchanged'] as const)(
+    'checks %s access after an asynchronous content-room join',
+    async (access) => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# Private', 'doc-private'))
+      const { io } = createIo()
+      const memberships = new Set<string>()
+      let finishSubscription!: () => void
+      const subscription = new Promise<void>((resolve) => {
+        finishSubscription = resolve
+      })
+      const pending = setup('socket-content-subscription-access', io, {
+        join: vi.fn((name: string) => {
+          if (name === ROOM_NAME)
+            return subscription.then(() => {
+              memberships.add(name)
+            })
+          memberships.add(name)
+        }),
+        leave: vi.fn((name: string) => memberships.delete(name)),
+      })
+      const clock = vi.spyOn(Date, 'now')
+      const joining = pending.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      try {
+        await vi.waitFor(() => expect(pending.socket.join).toHaveBeenCalledWith(ROOM_NAME))
+        expect(joinSuccessFileId(pending.socket)).toBeUndefined()
+        if (access === 'revoked') {
+          commitRoomPermission(
+            'user-1',
+            { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' },
+            'read',
+            beginRoomPermissionRead()
+          )
+        } else if (access === 'expired') {
+          clock.mockReturnValue(Date.now() + ROLE_REVALIDATION_TTL_MS + 1)
+        }
+        finishSubscription()
+        await joining
+        expect(memberships.has(fileDocAdmissionRoom('file-1'))).toBe(false)
+        expect(memberships.has(ROOM_NAME)).toBe(access === 'unchanged')
+        if (access === 'unchanged') {
+          expect(joinSuccessFileId(pending.socket)).toBe('file-1')
+        } else {
+          expect(joinSuccessFileId(pending.socket)).toBeUndefined()
+          expect(pending.socket.emit).toHaveBeenCalledWith(
+            FILE_DOC_EVENTS.JOIN_ERROR,
+            expect.objectContaining({
+              code: access === 'revoked' ? 'ACCESS_DENIED' : 'JOIN_FAILED',
+              retryable: access === 'expired',
+            })
+          )
+          expect(pending.socket.emit).not.toHaveBeenCalledWith(
+            FILE_DOC_EVENTS.MESSAGE,
+            expect.anything()
+          )
+          expect(pending.socket.emit).not.toHaveBeenCalledWith(
+            FILE_DOC_EVENTS.PRESENCE,
+            expect.anything()
+          )
+        }
+      } finally {
+        clock.mockRestore()
+        finishSubscription()
+        await joining
+      }
+    }
+  )
+
   it('keeps a shared provisional subscription until the other provider finishes joining', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# Shared', 'doc-shared'))
     const { io } = createIo()

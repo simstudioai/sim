@@ -1441,6 +1441,20 @@ export function setupWorkspaceFileDocHandlers(
         !socket.disconnected &&
         joinGeneration.get(socket.id) === generation &&
         fileDocRooms.get(name) === entry
+      const canRegisterJoin = () => {
+        if (!isCurrentJoin()) return false
+        const permission = peekRoomPermission(userId, room)
+        if (satisfiesRoomMembership(permission ?? null, ROOM_TYPES.WORKSPACE_FILE_DOC)) return true
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'File access changed while joining',
+          permission === undefined ? 'JOIN_FAILED' : 'ACCESS_DENIED',
+          permission === undefined
+        )
+        return false
+      }
       try {
         // A client is attached to a WHOLE document or to nothing. A room assembles itself from the
         // shared stream and the server seed, and both land in the same Y.Doc that fans every update out
@@ -1495,22 +1509,10 @@ export function setupWorkspaceFileDocHandlers(
           )
           return
         }
-        /** The generation read may wait; a revoked or expired access decision must not admit content. */
-        const membershipPermission = peekRoomPermission(userId, room)
-        if (!satisfiesRoomMembership(membershipPermission ?? null, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
-          emitJoinError(
-            socket,
-            fileId,
-            clientId,
-            'File access changed while joining',
-            membershipPermission === undefined ? 'JOIN_FAILED' : 'ACCESS_DENIED',
-            membershipPermission === undefined
-          )
-          return
-        }
+        if (!canRegisterJoin()) return
         await socket.join(name)
-        /** An asynchronous adapter join can be superseded by a leave, switch, or disconnect. */
-        if (!isCurrentJoin()) return
+        /** Adapter joins can wait; recheck access and liveness before ownership or synchronization. */
+        if (!canRegisterJoin()) return
 
         // A client id must be owned by at most one user, or a peer could bind an active
         // collaborator's id and pass the per-frame ownership check to spoof/clear its caret.
