@@ -8,7 +8,10 @@
  * `@active_tab`/`@open_tab` context. A browser tab with no page loaded has
  * nothing to say and is dropped.
  */
-import type { MothershipResourceAttachment } from '@/lib/api/contracts/mothership-resources'
+import type {
+  MothershipResourceAttachment,
+  MothershipTableViewContext,
+} from '@/lib/api/contracts/mothership-resources'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { getBrowserSession } from '@/stores/browser-session/store'
@@ -16,7 +19,8 @@ import { getBrowserSession } from '@/stores/browser-session/store'
 export function buildResourceAttachments(
   resources: readonly MothershipResource[],
   activeResourceId: string | null,
-  scopeId: string
+  scopeId: string,
+  tableViews?: ReadonlyMap<string, MothershipTableViewContext>
 ): MothershipResourceAttachment[] | undefined {
   const { tabs } = getBrowserSession(scopeId)
   const tabsById = new Map(tabs.map((tab) => [tab.tabId, tab]))
@@ -30,6 +34,9 @@ export function buildResourceAttachments(
       return [
         {
           ...resource,
+          ...(resource.type === 'table' && tableViews?.has(resource.id)
+            ? { currentView: tableViews.get(resource.id) }
+            : {}),
           active: resource.id === activeResourceId,
         },
       ]

@@ -122,6 +122,77 @@ import {
   resolveActiveResourceContext,
 } from '@/lib/mothership/chat/process-contents'
 
+describe('processContextsServer - workflow references', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readWorkflowMetadata.mockResolvedValue({
+      workflow: { id: 'workflow-1', workspaceId: 'workspace-1', name: 'Lead intake' },
+      folderPath: '/',
+    })
+  })
+
+  it.each(['workflow', 'current_workflow'] as const)(
+    'attaches a canonical CLI reference for %s without an unreadable state file',
+    async (kind) => {
+      const result = await processContextsServer(
+        [{ kind, workflowId: 'workflow-1', label: 'Intake' }],
+        'reader',
+        'Inspect this workflow',
+        'workspace-1'
+      )
+      expect(result).toEqual([
+        {
+          type: kind,
+          tag: '@Intake',
+          content: JSON.stringify({ workflowId: 'workflow-1', name: 'Lead intake' }),
+        },
+      ])
+      expect(readWorkflowMetadata).toHaveBeenCalled()
+    }
+  )
+
+  it('retains the canonical workflow and selected block together', async () => {
+    const result = await processContextsServer(
+      [{ kind: 'workflow_block', workflowId: 'workflow-1', blockId: 'block-1', label: 'Email' }],
+      'reader',
+      'Fix this block',
+      'workspace-1'
+    )
+    expect(JSON.parse(result[0]!.content)).toEqual({
+      workflowId: 'workflow-1',
+      name: 'Lead intake',
+      blockId: 'block-1',
+    })
+    expect(result[0]!.path).toBeUndefined()
+  })
+
+  it('does not attach a denied or cross-workspace workflow reference', async () => {
+    readWorkflowMetadata.mockRejectedValue(new DelegatedWorkspaceAuthorizationError())
+    expect(
+      await resolveActiveResourceContext('workflow', 'workflow-1', 'workspace-1', 'reader')
+    ).toBeNull()
+    expect(
+      await resolveActiveResourceContext('workflow', 'workflow-1', 'workspace-2', 'reader')
+    ).toBeNull()
+  })
+
+  it('resolves a folder through current authorized folder queries', async () => {
+    listWorkflowFolders.mockResolvedValueOnce({ folders: [
+      { id: 'root', name: 'Sales team', parentId: null },
+      { id: 'folder-1', name: 'Leads / new', parentId: 'root' },
+    ] })
+    expect(await resolveActiveResourceContext('folder', 'folder-1', 'workspace-1', 'reader')).toMatchObject({
+      type: 'folder',
+      path: 'workflows/Sales%20team/Leads%20%2F%20new',
+    })
+    expect(listWorkflowFolders).toHaveBeenCalledWith({
+      principal: expect.objectContaining({ subjectUserId: 'reader', workspaceId: 'workspace-1' }),
+      input: expect.objectContaining({ workspaceId: 'workspace-1' }),
+    })
+  })
+
+})
+
 describe('processContextsServer - knowledge contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -157,8 +228,7 @@ describe('processContextsServer - knowledge contexts', () => {
       {
         type: 'knowledge',
         tag: '@Docs',
-        content: '',
-        path: 'knowledgebases/Product%20docs/meta.json',
+        content: JSON.stringify({ knowledgeBaseId: 'knowledge-1', name: 'Product docs' }),
       },
     ])
   })
@@ -225,8 +295,7 @@ describe('processContextsServer - block contexts', () => {
       {
         type: 'blocks',
         tag: '@Start',
-        content: '',
-        path: 'components/blocks/start_trigger.json',
+        content: JSON.stringify({ blockType: 'start_trigger' }),
       },
     ])
   })
@@ -237,7 +306,7 @@ describe('processContextsServer - skill contexts', () => {
     vi.clearAllMocks()
   })
 
-  it('resolves a tagged skill to full content + encoded VFS path', async () => {
+  it('resolves a tagged workspace skill to its full body through current authorization', async () => {
     getSkillUseCase.mockResolvedValue({
       skill: {
         id: 'sk-1',
@@ -267,7 +336,6 @@ describe('processContextsServer - skill contexts', () => {
         type: 'skill',
         tag: '@My Skill — PostHog',
         content: '# My Skill\n\nDo the thing.',
-        path: 'agent/skills/My%20Skill%20%E2%80%94%20PostHog.json',
       },
     ])
   })
@@ -299,7 +367,6 @@ describe('processContextsServer - skill contexts', () => {
         type: 'skill',
         tag: '@Skill',
         content: '# Resolved Skill\n\nDo the thing.',
-        path: 'agent/skills/Resolved%20Skill.json',
       },
     ])
     expect(JSON.stringify(result)).not.toContain(skillId)
@@ -774,9 +841,7 @@ describe('processContextsServer - logs contexts', () => {
         workflowName: 'My Flow',
       },
     ])
-    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
-      allowed: false,
-    })
+    readWorkflowMetadata.mockRejectedValue(new DelegatedWorkspaceAuthorizationError())
 
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
@@ -941,6 +1006,8 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(result).toHaveLength(1)
     const [ctx] = result
     expect(ctx.type).toBe('table_selection')
+    expect(ctx.content).toContain('tableId: tbl-1')
+    expect(ctx.path).toBeUndefined()
     expect(ctx.content).toContain('| Name | Amount |')
     expect(ctx.content).toContain('| Acme | 100 |')
     expect(ctx.content).toContain('| Globex | 250 |')
@@ -1197,7 +1264,7 @@ describe('processContextsServer - table_selection contexts', () => {
       'ws-1'
     )
     expect(context.content.indexOf('First')).toBeLessThan(context.content.indexOf('Second'))
-    expect(context.path).toBe('tables/Parent/Nested%20100%25/Sales/meta.json')
+    expect(context.path).toBeUndefined()
     expect(queryTableRows.mock.calls[0][0].input.limit).toBe(2)
   })
 
@@ -1273,14 +1340,9 @@ describe('workflow resource context consistency', () => {
       'user-1',
       'chat-1'
     )
-    const directory = 'workflows/Planning%2FReview/Nested/Flow%20100%25'
-    expect(contexts.map(({ path }) => path)).toEqual([
-      `${directory}/meta.json`,
-      `${directory}/state.json`,
-      `${directory}/state.json`,
-    ])
-    expect(active?.path).toBe(contexts[1].path)
-    expect(contexts[2].content).toBe('Block id: block-1')
+    expect(contexts.map(({ path }) => path)).toEqual([undefined, undefined, undefined])
+    expect(active?.content).toBe(contexts[1].content)
+    expect(JSON.parse(contexts[2].content)).toEqual({ workflowId: 'flow', name: 'Flow 100%', blockId: 'block-1' })
     expect(readWorkflowMetadata).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user-1',
@@ -1476,9 +1538,11 @@ describe('folder and foldered-resource chat pointers', () => {
         'ws-1',
         'user-1'
       )
-      const root = kind === 'table' ? 'tables' : 'knowledgebases'
-      expect(result.path).toBe(`${root}/Finance%2FLegal/Q4%20100%25/Same%20name/meta.json`)
-      expect(active?.path).toBe(result.path)
+      expect(result.path).toBeUndefined()
+      expect(active?.content).toBe(result.content)
+      expect(JSON.parse(result.content)).toMatchObject(
+        kind === 'table' ? { tableId: 'resource' } : { knowledgeBaseId: 'resource' }
+      )
     }
   )
 
@@ -1563,7 +1627,49 @@ describe('table view context', () => {
       'view-1'
     )
     expect(active?.content).toEqual(contexts[0]!.content)
-    expect(active?.path).toBe('tables/Sales/Leads/meta.json')
+    expect(active?.path).toBeUndefined()
+  })
+
+  it('uses the live panel query including explicit cleared filters instead of its initial saved view', async () => {
+    readTableView.mockResolvedValueOnce({
+      table: { id: 'table-1', name: 'Leads' },
+      view: {
+        id: 'all-view',
+        name: 'All leads',
+        config: { filter: { all: [{ field: 'col_status', op: 'eq', value: 'qualified' }] } },
+      },
+    })
+    const currentView = { viewId: 'all-view', filter: null, sort: null }
+    const result = await resolveActiveResourceContext(
+      'table',
+      'table-1',
+      'workspace-1',
+      'reader',
+      'chat-1',
+      'view-1',
+      currentView
+    )
+    expect(readTableView.mock.calls[0]?.[0].input.viewId).toBe('all-view')
+    expect(JSON.parse(result!.content)).toEqual({
+      tableId: 'table-1',
+      currentView: { ...currentView, name: 'All leads' },
+    })
+  })
+
+  it('accepts an unfiltered panel without a saved view and still authorizes the table', async () => {
+    const currentView = { viewId: null, filter: null, sort: null }
+    const result = await resolveActiveResourceContext(
+      'table',
+      'table-1',
+      'workspace-1',
+      'reader',
+      'chat-1',
+      'view-1',
+      currentView
+    )
+    expect(readTableView).not.toHaveBeenCalled()
+    expect(readTableUseCase).toHaveBeenCalledOnce()
+    expect(JSON.parse(result!.content)).toEqual({ tableId: 'table-1', currentView })
   })
 
   it('reads an unpinned table through current application authorization', async () => {
@@ -1571,7 +1677,6 @@ describe('table view context', () => {
       {
         type: 'active_resource',
         tag: '@active_resource',
-        path: 'tables/Sales/Leads/meta.json',
         content: '{"tableId":"table-1"}',
       }
     )
