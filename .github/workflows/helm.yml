@@ -374,3 +374,73 @@ jobs:
             echo "helm install sim oci://${REPOSITORY} --version ${VERSION}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The classic HTTP repo, published alongside the OCI artifact above. Both is
+  # what the ecosystem actually does: Bitnami, cert-manager, ingress-nginx,
+  # prometheus-community, Grafana, Argo and external-secrets all still serve an
+  # index.yaml, because plenty of clusters, GitOps configs and mirroring tools
+  # only speak `helm repo add`. OCI is the modern path, not yet the only one.
+  #
+  # Separate from the OCI job on purpose: chart-releaser needs `contents: write`
+  # to cut a release and push the index, and there is no reason to hand that to
+  # the job holding the signing identity.
+  publish-http:
+    name: Publish chart to the Helm repo
+    needs: [chart, install]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: write # Cut the chart release and push index.yaml to the pages branch.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # chart-releaser diffs against the previous tag to decide which charts
+          # changed, so it needs the full history rather than a shallow clone.
+          fetch-depth: 0
+          # chart-releaser authenticates with CR_TOKEN, not the checkout credential.
+          persist-credentials: false
+
+      # Creating the pages branch and turning on GitHub Pages are one-time
+      # manual steps that no workflow can do for itself. Skip loudly rather than
+      # failing main when they have not happened yet -- the OCI publish is
+      # independent and must not be held hostage to this.
+      - name: Check the pages branch exists
+        id: pages
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No gh-pages branch, so the HTTP chart repo was not updated. Create it and point GitHub Pages at it to activate this job. The OCI publish is unaffected."
+          fi
+
+      - name: Configure Git
+        if: steps.pages.outputs.exists == 'true'
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          git config user.name "${ACTOR}"
+          git config user.email "${ACTOR}@users.noreply.github.com"
+
+      # chart-releaser writes index.yaml to the pages branch and attaches the
+      # .tgz to a GitHub release, which is where index.yaml points -- so the
+      # packages stay reachable no matter which domain serves the index.
+      - name: Run chart-releaser
+        if: steps.pages.outputs.exists == 'true'
+        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
+        with:
+          charts_dir: helm
+          # Re-running on an already-released version must be a no-op, the same
+          # way the OCI publish above refuses to move a published version.
+          skip_existing: true
+          # A chart release must never take the "Latest" badge from the
+          # application release it packages.
+          mark_as_latest: false
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Keeps chart releases visually distinct from the vX.Y.Z app releases
+          # they share the list with.
+          CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Version }}"
