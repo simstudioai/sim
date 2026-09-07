@@ -66,6 +66,14 @@ describe('raceWorkflowToolClientPickup', () => {
     vi.useRealTimers()
   })
 
+  it('forwards requested output selectors to the client completion boundary', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValue({ status: 'success', data: {} })
+    await raceWorkflowToolClientPickup({ ...baseParams(), select: ['Result.value'] })
+    expect(waitForWorkflowToolCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ select: ['Result.value'] })
+    )
+  })
+
   it('lets the client win without ever attempting a claim', async () => {
     waitForWorkflowToolCompletion.mockResolvedValue({ status: 'success', data: { ok: true } })
     const params = baseParams()
