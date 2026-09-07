@@ -3,29 +3,8 @@ import {
   createV2ResourceConcealmentPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
-import { LOGS_DELEGATION_AUDIENCE } from '@/lib/logs/application/authorization'
 
-const internalLogsSessionOrExecutorAuthBase = createInternalSessionOrExecutorAuth({
-  audience: LOGS_DELEGATION_AUDIENCE,
-})
-
-export const internalLogsSessionOrExecutorAuth = {
-  async authenticate(
-    ...args: Parameters<typeof internalLogsSessionOrExecutorAuthBase.authenticate>
-  ) {
-    const principal = await internalLogsSessionOrExecutorAuthBase.authenticate(...args)
-    if (principal.kind !== 'delegated') return principal
-
-    const { delegationContext } = principal
-    if (!delegationContext) {
-      throw new Error('Executor log delegation is missing its canonical workflow execution context')
-    }
-    const { executionId } = delegationContext
-    return executionId
-      ? { ...principal, resourceScope: { ...principal.resourceScope, executionId } }
-      : principal
-  },
-}
+export const internalLogsSessionOrExecutorAuth = createInternalSessionOrExecutorAuth()
 
 /**
  * `GET /logs` and `GET /billing/logs` both take a caller-named `workspaceId` and

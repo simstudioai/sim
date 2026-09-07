@@ -3,14 +3,17 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   createExecutorPrincipalFromExecutionContext: vi.fn(),
+  requireExecutorWorkspaceId: vi.fn(() => 'workspace-1'),
   executeWindchillOperation: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId: mocks.requireExecutorWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/windchill/operations', () => ({
@@ -29,21 +32,7 @@ const BASE = {
 const DOCUMENT_OID = 'OR:wt.doc.WTDocument:1'
 const ATTACHMENT_OID = 'OR:wt.content.ApplicationData:1'
 const FILE = { key: 'uploads/specification.pdf', name: 'specification.pdf', size: 3 }
-const PRINCIPAL = {
-  kind: 'delegated' as const,
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:windchill',
-  issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date('2026-01-01T01:00:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution' as const,
-    workflowId: 'workflow-1',
-    executionId: 'execution-1',
-  },
-}
+const PRINCIPAL = createTestRuntimePrincipal({ executionId: 'execution-1' })
 
 const TOOL_CASES = [
   ['windchill_create_document', { name: 'Specification', containerOid: DOCUMENT_OID }],
@@ -127,12 +116,12 @@ describe('executeWindchillTool', () => {
         executionId: 'execution-1',
         userId: 'user-1',
       }),
-      audience: 'sim:windchill',
     })
     expect(mocks.executeWindchillOperation).toHaveBeenCalledWith(operationInput, {
       principal: PRINCIPAL,
       requestId: 'request-1',
       signal: controller.signal,
+      workspaceId: 'workspace-1',
     })
   })
 

@@ -42,7 +42,7 @@ export const POST = defineInternalJsonRoute({
     reason: 'Preserve existing internal connector-create behavior',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { principal, request, authTransport }) => ({
     knowledgeBaseId: params.id,
     connectorType: body.connectorType,
     credentialId: body.credentialId,
@@ -53,7 +53,7 @@ export const POST = defineInternalJsonRoute({
     credentialGroupId: body.credentialGroupId,
     credentialGroupOptionId: body.credentialGroupOptionId,
     resolveBillingAttribution: (workspaceId: string) =>
-      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
+      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId, authTransport),
     source: 'ui' as const,
   }),
   useCase: createKnowledgeConnector,

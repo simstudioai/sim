@@ -9,7 +9,6 @@ import {
   getRemainingExecutionMs,
 } from '@/lib/core/execution-limits'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
-import { MANAGED_MCP_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import { ManagedMcpCredentialError } from '@/lib/credentials/managed-mcp'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import {
@@ -18,7 +17,6 @@ import {
   internalToolIdentityFaultStatus,
 } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
-import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import { executeManagedMcpToolUseCase } from '@/lib/mcp/application/execute-managed-tool'
 import { executeMcpToolUseCase, McpToolsNotAllowedError } from '@/lib/mcp/application/execute-tool'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
@@ -130,13 +128,6 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
-      audience:
-        target.kind === 'shared_server'
-          ? MCP_SERVER_DELEGATION_AUDIENCE
-          : MANAGED_MCP_DELEGATION_AUDIENCE,
-      ...(target.kind === 'managed_connection'
-        ? { resourceScope: { credentialId: target.credentialId } }
-        : { resourceScope: { mcpServerId: target.serverId } }),
     })
     request.signal?.throwIfAborted()
     const subject = resolvePrincipalSubject(principal)

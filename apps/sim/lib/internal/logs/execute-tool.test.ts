@@ -2,15 +2,14 @@
  * @vitest-environment node
  */
 
-import {
-  PrincipalSubjectUserRequiredError,
-  type WorkflowExecutionDelegatedPrincipal,
-} from '@sim/auth/principal'
+import { PrincipalSubjectUserRequiredError } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { ExecutionContext } from '@/executor/types'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  requireWorkspaceId: vi.fn(() => 'workspace-canonical'),
   list: vi.fn(),
   get: vi.fn(),
   getRun: vi.fn(),
@@ -19,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 vi.mock('@/lib/internal/logs/operations', () => ({
   executeLogsList: mocks.list,
@@ -28,19 +28,9 @@ vi.mock('@/lib/internal/logs/operations', () => ({
 }))
 
 import { executeLogsTool } from '@/lib/internal/logs/execute-tool'
-import { ExecutorDelegationOriginRequiredError } from '@/lib/internal/tool-operations/identity-faults'
+import { WorkflowExecutionPrincipalRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
-  audience: 'sim:logs',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
 
 const CONTEXT = { userId: 'user-1', workflowId: 'workflow-1' } as ExecutionContext
 
@@ -135,8 +125,6 @@ describe('executeLogsTool', () => {
     expect(mocks[testCase.operation]).toHaveBeenCalledOnce()
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: CONTEXT,
-      audience: 'sim:logs',
-      ...(testCase.executionId ? { resourceScope: { executionId: testCase.executionId } } : {}),
     })
   })
 
@@ -175,9 +163,7 @@ describe('executeLogsTool', () => {
   })
 
   it('answers a missing execution context as unauthenticated, not as a broken tool', async () => {
-    // A caller with no executor delegation origin never established an identity.
-    // The error was untyped, so it fell past the classifier into a generic 500.
-    mocks.createPrincipal.mockRejectedValueOnce(new ExecutorDelegationOriginRequiredError())
+    mocks.createPrincipal.mockRejectedValueOnce(new WorkflowExecutionPrincipalRequiredError())
 
     const response = await executeLogsTool({
       toolId: 'logs_query',

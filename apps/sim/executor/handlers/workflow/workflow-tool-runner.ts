@@ -12,7 +12,6 @@ import {
   type CustomBlockExecutorContext,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { classifyExecutionError } from '@/executor/utils/errors'
 import { parseJSON } from '@/executor/utils/json'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -96,7 +95,6 @@ export async function runWorkflowTool(
     environmentVariables: Record<string, string>
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
-    executorDelegationOrigin?: ExecutorDelegationOrigin
     principal?: WorkflowExecutionPrincipal
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
   }

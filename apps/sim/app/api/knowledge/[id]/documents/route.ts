@@ -56,11 +56,16 @@ export const GET = defineInternalJsonRoute({
       pagination,
     },
   }),
-  finalizeResponse: ({ request, principal, result, body }) =>
+  finalizeResponse: ({ request, principal, result, body, authTransport }) =>
     finalizeKnowledgePersistedResponse({
       headers: request.headers,
-      authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
+      authType: internalKnowledgeAuthType(authTransport),
+      userId: internalKnowledgeProvenanceUserId(
+        request.headers,
+        principal,
+        result.workspaceId,
+        authTransport
+      ),
       workspaceId: result.workspaceId,
       body,
       documents: result.documents.map((document) => ({

@@ -1,8 +1,8 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
 const MEMORY_EXECUTOR_PRINCIPAL_POLICY = {
-  principalKinds: ['delegated'],
-  delegatedServices: ['executor'],
+  principalKinds: [],
+  workflowExecution: 'allow',
 } as const
 
 /**

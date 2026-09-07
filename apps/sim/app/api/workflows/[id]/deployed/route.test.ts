@@ -4,16 +4,17 @@
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
   InvalidDelegationTokenError,
-  mockBindExecutorDelegation,
+  mockBindExecutorDelegationAdmission,
   mockReadWorkflowDefinition,
   mockVerifyDelegationToken,
 } = vi.hoisted(() => ({
   InvalidDelegationTokenError: class InvalidDelegationTokenError extends Error {},
-  mockBindExecutorDelegation: vi.fn(),
+  mockBindExecutorDelegationAdmission: vi.fn(),
   mockReadWorkflowDefinition: vi.fn(),
   mockVerifyDelegationToken: vi.fn(),
 }))
@@ -24,7 +25,7 @@ vi.mock('@/lib/auth/internal', () => ({
 }))
 
 vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindExecutorDelegation,
+  bindInternalExecutorDelegationAdmission: mockBindExecutorDelegationAdmission,
   InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
 }))
 
@@ -34,7 +35,8 @@ vi.mock('@/lib/workflows/application/read-workflow-definition', () => {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-    delegatedServices: ['copilot', 'executor'],
+    delegatedServices: ['copilot'],
+    workflowExecution: 'allow',
   } as const
   return {
     readWorkflowDefinition: { operation, execute: mockReadWorkflowDefinition },
@@ -57,21 +59,11 @@ const SESSION = {
   session: { id: 'session-123' },
 }
 
-const EXECUTOR_PRINCIPAL = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  subjectUserId: 'user-123',
-  workspaceId: 'workspace-456',
-  delegationId: 'delegation-123',
-  audience: 'sim:workflows',
-  issuedAt: new Date('2026-08-08T00:00:00.000Z'),
-  expiresAt: new Date('2999-08-08T00:00:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution' as const,
-    workflowId: 'origin-workflow',
-    executionId: 'origin-run',
-  },
-}
+const EXECUTOR_PRINCIPAL = createTestRuntimePrincipal({
+  principal: { kind: 'session', userId: 'user-123', sessionId: 'session-123' },
+  rootWorkflowId: 'origin-workflow',
+  executionId: 'origin-run',
+})
 
 function createRequest(bearerToken?: string) {
   return new NextRequest('http://localhost:3000/api/workflows/workflow-123/deployed', {
@@ -94,12 +86,18 @@ describe('GET /api/workflows/[id]/deployed', () => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(SESSION)
     mockReadWorkflowDefinition.mockResolvedValue(readResult())
-    mockVerifyDelegationToken.mockResolvedValue({
-      subjectUserId: 'user-123',
-      workflowId: 'origin-workflow',
-      executionId: 'origin-run',
+    const delegation = {
+      serviceId: 'executor' as const,
+      principal: EXECUTOR_PRINCIPAL,
+      delegationId: 'delegation-123',
+      issuedAt: new Date('2026-08-08T00:00:00.000Z'),
+      expiresAt: new Date('2999-08-08T00:00:00.000Z'),
+    }
+    mockVerifyDelegationToken.mockResolvedValue(delegation)
+    mockBindExecutorDelegationAdmission.mockResolvedValue({
+      principal: EXECUTOR_PRINCIPAL,
+      workspaceId: 'workspace-456',
     })
-    mockBindExecutorDelegation.mockResolvedValue(EXECUTOR_PRINCIPAL)
   })
 
   it('passes the authenticated session principal through the application use case', async () => {
@@ -119,9 +117,8 @@ describe('GET /api/workflows/[id]/deployed', () => {
     const response = await GET(createRequest('signed-token'), routeParams())
 
     expect(response.status).toBe(200)
-    expect(mockBindExecutorDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: 'origin-workflow', executionId: 'origin-run' }),
-      { audience: 'sim:workflows', resourceScope: undefined }
+    expect(mockBindExecutorDelegationAdmission).toHaveBeenCalledWith(
+      expect.objectContaining({ principal: EXECUTOR_PRINCIPAL })
     )
     expect(mockReadWorkflowDefinition).toHaveBeenCalledWith(
       expect.objectContaining({

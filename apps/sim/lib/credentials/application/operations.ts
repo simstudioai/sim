@@ -184,7 +184,8 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
     principalKinds: ['delegated'],
-    delegatedServices: ['executor', 'copilot'],
+    delegatedServices: ['copilot'],
+    workflowExecution: 'allow',
     resourcePolicy: {
       resourceType: 'credential_group',
       action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
@@ -195,8 +196,8 @@ export const credentialOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
     resourcePolicy: {
       resourceType: 'credential_group',
       action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,

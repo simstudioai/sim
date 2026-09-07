@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
 import type { CopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
@@ -7,7 +8,6 @@ import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,
 } from '@/lib/oauth/token-resolution'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const logger = createLogger('ExecutorCredentialToken')
 
@@ -24,13 +24,13 @@ export interface ResolveExecutorCredentialTokenParams {
   impersonateEmail?: string
   /** Asserts the acting user alongside the credential lookup, mirroring the HTTP surface. */
   enforceCredentialAccess?: boolean
-  /** Proves managed-credential delegations in-process when the run carries one. */
-  executorDelegationOrigin?: ExecutorDelegationOrigin
   /**
    * The trusted Chat tool call this token is for, when there is no workflow
    * run: it proves the signed-in user's own Credential Group credential.
    */
   copilotExecutionContext?: CopilotExecutionContext
+  /** Canonical runtime identity used to authorize managed credentials in-process. */
+  principal?: WorkflowExecutionPrincipal
 }
 
 /**
@@ -49,22 +49,18 @@ export async function resolveExecutorCredentialToken(
     userId,
     workflowId,
     toolId,
-    executorDelegationOrigin,
+    principal,
     copilotExecutionContext,
   } = params
-
-  if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
-    throw new Error('Managed credential delegation is missing current workflow authority')
-  }
 
   /**
    * A Chat proof needs the per-call id the delegation is minted under; a
    * context that lacks it is not a Chat tool call and leaves managed
    * credentials unproven, so the resolver answers with its own refusal.
    */
-  const resolveManagedPrincipal = executorDelegationOrigin
+  const resolveManagedPrincipal = principal
     ? (managedCredentialId: string) =>
-        bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
+        bindExecutorManagedOAuthDelegation(principal, managedCredentialId)
     : copilotExecutionContext?.copilotToolExecution && copilotExecutionContext.toolCallId
       ? async (managedCredentialId: string) =>
           createCopilotManagedOAuthPrincipal(copilotExecutionContext, managedCredentialId)

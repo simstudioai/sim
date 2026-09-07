@@ -1,8 +1,12 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  BoundWorkflowExecutionPrincipal,
+  WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   inviteEnrollment: vi.fn(),
@@ -49,47 +53,27 @@ const context = {
   options: [],
 }
 
-function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'admin-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId: 'group-1' },
-    delegationContext: {
-      kind: 'workflow_execution',
-      workflowId: 'workflow-1',
-      principal: { kind: 'session', userId: 'admin-1', sessionId: 'session-1' },
-      currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
-    },
-  }
+function executorPrincipal(): BoundWorkflowExecutionPrincipal {
+  return createTestRuntimePrincipal({
+    principal: { kind: 'session', userId: 'admin-1', sessionId: 'session-1' },
+  })
 }
 
 /** A deployed run whose only actor is the external identity that triggered it. */
 function unattendedPrincipal(
-  principal: NonNullable<WorkflowExecutionDelegatedPrincipal['delegationContext']>['principal']
-): WorkflowExecutionDelegatedPrincipal {
-  const { subjectUserId: _subject, ...base } = executorPrincipal()
-  return {
-    ...base,
-    delegationContext: {
-      kind: 'workflow_execution',
+  principal: WorkflowExecutionPrincipal
+): BoundWorkflowExecutionPrincipal {
+  return createTestRuntimePrincipal({
+    principal,
+    currentWorkflow: {
       workflowId: 'workflow-1',
-      principal,
-      currentWorkflow: {
-        workflowId: 'workflow-1',
-        mode: 'deployment',
-        deploymentVersionId: 'version-1',
-      },
+      mode: 'deployment',
+      deploymentVersionId: 'version-1',
     },
-  }
+  })
 }
 
-function slackPrincipal(): WorkflowExecutionDelegatedPrincipal {
+function slackPrincipal(): BoundWorkflowExecutionPrincipal {
   return unattendedPrincipal({
     kind: 'system',
     serviceId: 'webhook',
@@ -101,7 +85,7 @@ function slackPrincipal(): WorkflowExecutionDelegatedPrincipal {
   })
 }
 
-function invite(principal: WorkflowExecutionDelegatedPrincipal) {
+function invite(principal: BoundWorkflowExecutionPrincipal) {
   return sendCredentialGroupInvite.execute({
     principal,
     input: { credentialGroupId: 'group-1', email: 'person@example.com' },
@@ -186,14 +170,6 @@ describe('sendCredentialGroupInvite', () => {
     mocks.resolvePermission.mockResolvedValue('write')
 
     await expect(invite(executorPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.inviteEnrollment).not.toHaveBeenCalled()
-  })
-
-  it('rejects a delegation asserting a subject its run never had', async () => {
-    const spoofed = slackPrincipal()
-    spoofed.subjectUserId = 'invented-user'
-
-    await expect(invite(spoofed)).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.inviteEnrollment).not.toHaveBeenCalled()
   })
 })

@@ -35,7 +35,10 @@ import {
   updateChunkOperation,
   upsertDocumentOperation,
 } from '@/lib/internal/knowledge/operations'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import {
   classifyInternalToolIdentityFault,
   internalToolIdentityFaultMessage,
@@ -47,7 +50,6 @@ import {
 } from '@/lib/internal/tool-operations/parse-contract-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
-import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 
 const logger = createLogger('KnowledgeToolExecution')
 const MAX_KNOWLEDGE_BODY_BYTES = 2 * 1024 * 1024
@@ -126,7 +128,6 @@ export const executeKnowledgeTool: InternalToolOperationHandler = async (request
     try {
       principal = await createExecutorPrincipalFromExecutionContext({
         context: request.context,
-        audience: KNOWLEDGE_DELEGATION_AUDIENCE,
       })
     } catch (error) {
       const identityFault = classifyInternalToolIdentityFault(error)
@@ -141,6 +142,7 @@ export const executeKnowledgeTool: InternalToolOperationHandler = async (request
     signal?.throwIfAborted()
     const context = {
       principal,
+      workspaceId: requireExecutorWorkspaceId(request.context),
       headers: request.headers,
       signal,
     }

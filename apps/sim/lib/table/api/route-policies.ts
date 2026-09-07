@@ -7,7 +7,6 @@ import {
   internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
 } from '@/lib/api/server/routes'
-import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
@@ -16,13 +15,7 @@ import {
   v2ErrorForOrchestration,
 } from '@/app/api/v2/lib/response'
 
-export const internalTableSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
-  audience: TABLE_DELEGATION_AUDIENCE,
-  resourceScope: (params) => {
-    const tableId = typeof params.tableId === 'string' ? params.tableId : undefined
-    return tableId ? { tableId } : undefined
-  },
-})
+export const internalTableSessionOrExecutorAuth = createInternalSessionOrExecutorAuth()
 
 function renderTableError(error: unknown) {
   if (error instanceof TableOperationError) {

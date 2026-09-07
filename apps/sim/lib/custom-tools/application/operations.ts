@@ -43,7 +43,8 @@ export const customToolOperations = {
     workspaceApiKey: 'deny',
     capability: 'custom_tools.use',
     principalKinds: ['delegated'],
-    delegatedServices: ['copilot', 'executor'],
+    delegatedServices: ['copilot'],
+    workflowExecution: 'allow',
   }),
   create: defineWorkspaceOperation({
     id: 'custom_tools.create',

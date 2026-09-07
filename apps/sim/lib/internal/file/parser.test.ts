@@ -162,8 +162,8 @@ vi.mock('fs/promises', () => ({
 }))
 
 import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
 async function POST(request: NextRequest): Promise<Response> {
   const parsed = fileParseBodySchema.safeParse(await request.json())
@@ -175,11 +175,10 @@ async function POST(request: NextRequest): Promise<Response> {
     )
   }
   return executeFileParserOperation(parsed.data, {
-    principal: createWorkspaceFileDelegatedPrincipal({
-      serviceId: 'executor',
-      subjectUserId: 'test-user-id',
-      workspaceId: parsed.data.workspaceId || 'workspace-id',
-      delegationId: 'test-file-parser',
+    principal: createTestRuntimePrincipal({
+      principal: { kind: 'session', userId: 'test-user-id', sessionId: 'test-file-parser' },
+      executionId: parsed.data.executionId || 'execution-id',
+      rootWorkflowId: parsed.data.workflowId || 'workflow-id',
     }),
     workspaceId: parsed.data.workspaceId || 'workspace-id',
     workflowId: parsed.data.workflowId || 'workflow-id',

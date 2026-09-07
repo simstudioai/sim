@@ -105,7 +105,7 @@ export async function enqueueWorkflowExecution(
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
-    principal: serializePrincipal(principal),
+    principal: serializePrincipal(principal, 1),
     userId,
     billingAttribution,
     workspaceId,

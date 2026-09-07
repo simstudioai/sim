@@ -10,6 +10,7 @@ import {
   resetDbChainMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
@@ -31,6 +32,7 @@ vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
 }))
 
 import {
+  assertResumeExecutionPrincipalBinding,
   createResumeAttemptTimeoutController,
   extractResumeBillingAttributionFromSnapshot,
   PauseResumeManager,
@@ -39,6 +41,7 @@ import {
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
 
@@ -53,6 +56,7 @@ if (!humanInTheLoopLogger) {
 
 interface PauseResumeManagerInternals {
   markResumeFailed: (...args: unknown[]) => Promise<void>
+  markResumeCompleted: (...args: unknown[]) => Promise<void>
   runResumeExecution: (...args: unknown[]) => Promise<unknown>
 }
 
@@ -638,6 +642,57 @@ describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () 
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+  })
+
+  it('persists a resumed pause under the durable root rather than its attempt ID', async () => {
+    const internals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    const snapshotSeed = createSnapshotSeed()
+    const result = {
+      success: true,
+      status: 'paused',
+      metadata: { executionId: 'resume-execution-1', userId: 'user-1' },
+      pausePoints: [],
+      snapshotSeed,
+    }
+    const runSpy = vi.spyOn(internals, 'runResumeExecution').mockResolvedValueOnce(result)
+    const persistSpy = vi.spyOn(PauseResumeManager, 'persistPauseResult').mockResolvedValueOnce()
+    const completedSpy = vi.spyOn(internals, 'markResumeCompleted').mockResolvedValueOnce()
+    const queueSpy = vi.spyOn(PauseResumeManager, 'processQueuedResumes').mockResolvedValueOnce()
+    type StartResumeArgs = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+    const pausedExecution = {
+      id: 'paused-1',
+      executionId: 'root-execution',
+      workflowId: 'workflow-1',
+      executionSnapshot: snapshotSeed,
+      pausePoints: { 'context-1': { contextId: 'context-1', blockId: 'pause-1' } },
+      metadata: {},
+    } as StartResumeArgs['pausedExecution']
+
+    try {
+      await expect(
+        PauseResumeManager.startResumeExecution({
+          resumeEntryId: 'resume-entry-1',
+          resumeExecutionId: 'resume-execution-1',
+          pausedExecution,
+          contextId: 'context-1',
+          resumeInput: {},
+          userId: 'user-1',
+        })
+      ).resolves.toEqual(result)
+      expect(persistSpy).toHaveBeenCalledWith({
+        workflowId: 'workflow-1',
+        executionId: 'root-execution',
+        reservationId: 'resume-entry-1',
+        pausePoints: [],
+        snapshotSeed,
+        executorUserId: 'user-1',
+      })
+    } finally {
+      runSpy.mockRestore()
+      persistSpy.mockRestore()
+      completedSpy.mockRestore()
+      queueSpy.mockRestore()
+    }
   })
 
   it('persists a multi-day re-pause, preserves metadata, then releases its reservation', async () => {
@@ -1876,6 +1931,89 @@ describe('PauseResumeManager resume log claims', () => {
 
   it('keeps draft resumes version-free', () => {
     expect(requireResumeDeploymentVersion(true, null)).toBeUndefined()
+  })
+
+  it('keeps the root run stable while resuming a regular child workflow', () => {
+    const principal = createTestRuntimePrincipal({
+      executionId: 'execution-1',
+      rootWorkflowId: 'root-workflow',
+      currentWorkflow: { workflowId: 'child-workflow', mode: 'draft' },
+    })
+    const snapshot = new ExecutionSnapshot(
+      {
+        requestId: 'request-1',
+        executionId: 'execution-1',
+        workflowId: 'child-workflow',
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        principal,
+        triggerType: 'manual',
+        useDraftState: true,
+        startTime: '2026-08-04T12:00:00.000Z',
+      },
+      {},
+      {},
+      {}
+    )
+
+    expect(() =>
+      assertResumeExecutionPrincipalBinding(snapshot, 'execution-1', 'root-workflow', undefined)
+    ).not.toThrow()
+    expect(() =>
+      assertResumeExecutionPrincipalBinding(snapshot, 'execution-1', 'child-workflow', undefined)
+    ).toThrowError(expect.objectContaining({ name: 'ResumeAdmissionError', statusCode: 409 }))
+  })
+
+  it('preserves the original actor and root across repeated pauses with new attempt IDs', () => {
+    const principal = createTestRuntimePrincipal({
+      executionId: 'root-execution',
+      rootWorkflowId: 'root-workflow',
+      currentWorkflow: { workflowId: 'child-workflow', mode: 'draft' },
+      principal: {
+        kind: 'session',
+        userId: 'original-user',
+        sessionId: 'original-session',
+      },
+    })
+
+    for (const executionId of ['root-execution', 'resume-1', 'resume-2']) {
+      const snapshot = ExecutionSnapshot.fromJSON(
+        new ExecutionSnapshot(
+          {
+            requestId: 'request-1',
+            executionId,
+            workflowId: 'child-workflow',
+            workspaceId: 'workspace-1',
+            userId: 'original-user',
+            principal,
+            triggerType: 'manual',
+            useDraftState: true,
+            startTime: '2026-08-04T12:00:00.000Z',
+          },
+          {},
+          {},
+          {}
+        ).toJSON()
+      )
+
+      expect(() =>
+        assertResumeExecutionPrincipalBinding(
+          snapshot,
+          'root-execution',
+          'root-workflow',
+          undefined
+        )
+      ).not.toThrow()
+      expect(snapshot.metadata.principal).toEqual(principal)
+      expect(() =>
+        assertResumeExecutionPrincipalBinding(
+          snapshot,
+          'other-execution',
+          'root-workflow',
+          undefined
+        )
+      ).toThrowError(expect.objectContaining({ name: 'ResumeAdmissionError', statusCode: 409 }))
+    }
   })
 
   it.each([

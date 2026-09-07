@@ -1,5 +1,9 @@
 import { rowQueryContract, TABLE_QUERY_MAX_BODY_BYTES } from '@/lib/api/contracts/tables'
-import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  resolveInternalAuthWorkspaceId,
+} from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { internalTableV2QueryErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -8,7 +12,7 @@ import {
   finalizeTableRowsProvenance,
   negotiateTableRowsProvenance,
 } from '@/app/api/table/row-secret-provenance'
-import { presentQueryRowForPrincipal } from '@/app/api/table/row-wire'
+import { presentQueryRowForKeying, rowKeyingForAuthTransport } from '@/app/api/table/row-wire'
 
 export const POST = defineInternalJsonRoute({
   contract: rowQueryContract,
@@ -19,9 +23,13 @@ export const POST = defineInternalJsonRoute({
   }),
   errorPolicy: internalTableV2QueryErrorPolicy,
   parseOptions: { maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES },
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
-    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      body.workspaceId
+    ),
     predicate: body.predicate,
     sort: body.sort,
     columns: body.columns,
@@ -33,15 +41,15 @@ export const POST = defineInternalJsonRoute({
     requireV2Feature: true,
     includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
-      principal.kind === 'delegated'
+      authTransport === 'executor_jwt'
     ),
   }),
   useCase: queryTableRows,
-  present: (result, { principal }) => ({
+  present: (result, { authTransport }) => ({
     success: true as const,
     data: {
       rows: result.rows.map((row) =>
-        presentQueryRowForPrincipal(row, result.table.schema, principal)
+        presentQueryRowForKeying(row, result.table.schema, rowKeyingForAuthTransport(authTransport))
       ),
       rowCount: result.rowCount,
       totalCount: result.totalCount,

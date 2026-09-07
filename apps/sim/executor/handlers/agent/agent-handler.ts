@@ -1055,7 +1055,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
-    if (!ctx.userId && !ctx.executorDelegationOrigin?.subjectUserId) {
+    if (!ctx.userId && !ctx.principal?.executionMetadata) {
       logger.error(
         'Cannot fetch custom tool without userId',
         projectAgentDiagnosticMetadata(
@@ -1385,7 +1385,7 @@ export class AgentBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         userId: ctx.userId,
-        executorDelegationOrigin: ctx.executorDelegationOrigin,
+        principal: ctx.principal,
       },
       serverId,
       signal: ctx.abortSignal,
@@ -1464,7 +1464,7 @@ export class AgentBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         userId: ctx.userId,
-        executorDelegationOrigin: ctx.executorDelegationOrigin,
+        principal: ctx.principal,
       },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>

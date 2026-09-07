@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { BoundWorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type {
   DeploymentsDeployBody,
   DeploymentsGetVersionQuery,
@@ -15,7 +15,7 @@ import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 
 export interface DeploymentApplicationClientContext {
-  principal: DelegatedPrincipal
+  principal: BoundWorkflowExecutionPrincipal
   requestId: string
   signal?: AbortSignal
 }

@@ -3,7 +3,8 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 const PUBLIC_API_PRINCIPAL_KINDS = ['personal_api_key', 'workspace_api_key'] as const
 const LOG_READER_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 
 export const logOperations = {
@@ -37,7 +38,7 @@ export const logOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session', 'delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: ['session'],
+    workflowExecution: 'allow',
   }),
 } as const

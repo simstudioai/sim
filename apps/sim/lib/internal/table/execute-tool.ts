@@ -16,7 +16,10 @@ import {
   upsertTableRowContract,
 } from '@/lib/api/contracts/tables'
 import { type InternalErrorPolicy, internalOrchestrationErrorPolicy } from '@/lib/api/server/routes'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import {
   executeTableCreate,
   executeTableDeleteRow,
@@ -46,7 +49,6 @@ import {
   internalTableRowsErrorPolicy,
   internalTableV2QueryErrorPolicy,
 } from '@/lib/table/api/row-route-policies'
-import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 
 const logger = createLogger('TableInternalOperation')
 
@@ -274,13 +276,12 @@ export const executeTableTool: InternalToolOperationHandler = async (request) =>
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
-      audience: TABLE_DELEGATION_AUDIENCE,
-      ...(tableId ? { resourceScope: { tableId } } : {}),
     })
     request.signal?.throwIfAborted()
 
     const result = await dispatchTableTool(request, {
       principal,
+      workspaceId: requireExecutorWorkspaceId(request.context),
       headers: request.headers,
       requestId: request.requestId,
       signal: request.signal,

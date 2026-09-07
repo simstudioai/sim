@@ -4,6 +4,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { bindPrincipalExecutionMetadata } from '@sim/auth/principal'
 import {
   createMockRequest,
   envFlagsMock,
@@ -204,21 +205,17 @@ async function POST(request: NextRequest): Promise<Response> {
 
   return executeFunctionRequest({ headers: request.headers, signal: request.signal }, parsed.data, {
     attributedUserId: auth.userId,
-    principal: {
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: auth.userId,
-      workspaceId: parsed.data.workspaceId ?? 'workspace-test',
-      delegationId: 'function-test',
-      audience: 'sim:function-executions',
-      issuedAt: new Date(Date.now() - 1_000),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: {
-        kind: 'workflow_execution',
-        workflowId: parsed.data.workflowId ?? 'workflow-test',
-        ...(parsed.data.executionId ? { executionId: parsed.data.executionId } : {}),
-      },
-    },
+    principal: bindPrincipalExecutionMetadata(
+      { kind: 'session', userId: auth.userId, sessionId: 'function-test' },
+      {
+        executionId: parsed.data.executionId ?? 'execution-test',
+        rootWorkflowId: parsed.data.workflowId ?? 'workflow-test',
+        currentWorkflow: {
+          workflowId: parsed.data.workflowId ?? 'workflow-test',
+          mode: 'draft',
+        },
+      }
+    ),
     ...(auth.sandboxProfile === 'mothership' ? { sandboxProfile: 'mothership' } : {}),
   })
 }

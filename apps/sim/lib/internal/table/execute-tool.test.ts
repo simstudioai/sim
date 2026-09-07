@@ -2,13 +2,14 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { ExecutionContext } from '@/executor/types'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  requireWorkspaceId: vi.fn(() => 'workspace-canonical'),
   create: vi.fn(),
   list: vi.fn(),
   getSchema: vi.fn(),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/table/operations', () => ({
@@ -45,17 +47,7 @@ vi.mock('@/lib/internal/table/operations', () => ({
 import { executeTableTool } from '@/lib/internal/table/execute-tool'
 import { TableRowsValidationError, TableV2FeatureDisabledError } from '@/lib/table/application/rows'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
-  audience: 'sim:tables',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
 
 const CONTEXT = {
   workflowId: 'workflow-1',
@@ -276,8 +268,6 @@ describe('executeTableTool', () => {
     expect(mocks[testCase.operation]).toHaveBeenCalledOnce()
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: CONTEXT,
-      audience: 'sim:tables',
-      ...(testCase.tableId ? { resourceScope: { tableId: testCase.tableId } } : {}),
     })
   })
 

@@ -4,6 +4,7 @@
 
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mocks, MockTableV2FeatureDisabledError } = vi.hoisted(() => {
   class MockTableV2FeatureDisabledError extends Error {
@@ -18,7 +19,10 @@ const { mocks, MockTableV2FeatureDisabledError } = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
+  internalTableSessionOrExecutorAuth: {
+    authenticate: vi.fn(),
+    authenticateWithTransport: mocks.authenticate,
+  },
 }))
 
 vi.mock('@/lib/table/api/row-route-policies', () => ({
@@ -63,22 +67,16 @@ const ROW = {
 
 function sessionPrincipal() {
   mocks.authenticate.mockResolvedValue({
-    kind: 'session',
-    userId: 'user-1',
-    sessionId: 'session-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    transport: 'session',
   })
 }
 
 function executorPrincipal() {
   mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-canonical',
-    delegationId: 'delegation-1',
-    audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
+    principal: createTestRuntimePrincipal(),
+    transport: 'executor_jwt',
+    executionWorkspaceId: 'workspace-canonical',
   })
 }
 

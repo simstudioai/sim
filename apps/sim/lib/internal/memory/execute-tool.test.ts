@@ -2,12 +2,13 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { ExecutionContext } from '@/executor/types'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  requireWorkspaceId: vi.fn(() => 'workspace-canonical'),
   add: vi.fn(),
   list: vi.fn(),
   get: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/memory/operations', () => ({
@@ -33,43 +35,21 @@ vi.mock('@/lib/internal/memory/provenance', () => ({
 
 import { executeMemoryTool } from '@/lib/internal/memory/execute-tool'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
-  audience: 'sim:memory',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
 
-const ACTORLESS_DEPLOYED_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-actorless',
-  audience: 'sim:memory',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution',
+const ACTORLESS_DEPLOYED_PRINCIPAL = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: 'workspace-canonical',
     workflowId: 'workflow-1',
-    executionId: 'execution-1',
-    principal: {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-canonical',
-      workflowId: 'workflow-1',
-    },
-    currentWorkflow: {
-      workflowId: 'workflow-1',
-      mode: 'deployment',
-      deploymentVersionId: 'deployment-1',
-    },
   },
-}
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+})
 
 const CONTEXT = { userId: 'user-1', workflowId: 'workflow-1' } as ExecutionContext
 
@@ -135,7 +115,6 @@ describe('executeMemoryTool', () => {
     expect(mocks[testCase.operation]).toHaveBeenCalledOnce()
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: CONTEXT,
-      audience: 'sim:memory',
     })
   })
 
@@ -166,12 +145,7 @@ describe('executeMemoryTool', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-canonical',
       executionId: 'execution-1',
-      executorDelegationOrigin: {
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal: ACTORLESS_DEPLOYED_PRINCIPAL.delegationContext?.principal,
-        currentWorkflow: ACTORLESS_DEPLOYED_PRINCIPAL.delegationContext?.currentWorkflow,
-      },
+      principal: ACTORLESS_DEPLOYED_PRINCIPAL,
     }
     mocks.createPrincipal.mockResolvedValueOnce(ACTORLESS_DEPLOYED_PRINCIPAL)
     mocks.list.mockResolvedValueOnce({

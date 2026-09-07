@@ -3,6 +3,7 @@
  */
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
@@ -106,8 +107,8 @@ describe('platform context application use cases', () => {
       },
     },
     {
-      name: 'executor delegation',
-      principal: { ...copilotPrincipal(), serviceId: 'executor' as const },
+      name: 'workflow execution',
+      principal: createTestRuntimePrincipal(),
     },
   ])('rejects a $name before loading protected account context', async ({ principal }) => {
     await expect(

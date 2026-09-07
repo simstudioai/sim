@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   discoverTools: vi.fn(),
@@ -57,23 +57,9 @@ const context = {
   allowPersonalApiKeys: true,
 }
 
-const principal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'execution-user',
-  workspaceId: context.workspaceId,
-  delegationId: 'delegation-1',
-  audience: 'sim:managed-mcp-credentials',
-  issuedAt: new Date(Date.now() - 1_000),
-  expiresAt: new Date(Date.now() + 60_000),
-  resourceScope: { credentialId: context.credentialId },
-  delegationContext: {
-    kind: 'workflow_execution',
-    workflowId: 'workflow-1',
-    principal: { kind: 'session', userId: 'execution-user', sessionId: 'session-1' },
-    currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
-  },
-}
+const principal = createTestRuntimePrincipal({
+  principal: { kind: 'session', userId: 'execution-user', sessionId: 'session-1' },
+})
 
 describe('discoverManagedMcpToolsUseCase', () => {
   beforeEach(() => {

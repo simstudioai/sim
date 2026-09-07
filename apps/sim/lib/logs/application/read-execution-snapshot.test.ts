@@ -18,6 +18,7 @@ import {
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -111,22 +112,21 @@ const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'sess
  * subjectless caller that actually reaches this read is the executor delegation —
  * which carries a workspace role but no capabilities, and must read whole.
  */
-const executorPrincipal = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  workspaceId: WORKSPACE_ID,
-  delegationId: 'delegation-1',
-  audience: 'sim:logs',
-  issuedAt: new Date(Date.now() - 60_000),
-  expiresAt: new Date(Date.now() + 60 * 60_000),
-  delegationContext: {
-    kind: 'workflow_execution' as const,
+const executorPrincipal = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: WORKSPACE_ID,
     workflowId: 'workflow-1',
-    currentWorkflow: { mode: 'deployment' as const },
-    /** Never the projection subject: it is compatibility policy, not the caller. */
-    compatibilityActor: { kind: 'legacy_execution_user' as const, userId: 'user-1' },
   },
-}
+  executionId: 'run-1',
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+  compatibilityActorUserId: 'user-1',
+})
 
 function read(actor: typeof principal | typeof executorPrincipal, executionId: string) {
   return readExecutionSnapshotUseCase.execute({

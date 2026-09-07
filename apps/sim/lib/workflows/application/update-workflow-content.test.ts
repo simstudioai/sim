@@ -169,7 +169,7 @@ describe('applyWorkflowVariableOperations', () => {
       applyWorkflowVariableOperations.execute({
         principal: {
           kind: 'delegated',
-          serviceId: 'executor',
+          serviceId: 'realtime',
           subjectUserId: 'user-1',
           workspaceId: 'workspace-1',
           delegationId: 'delegation-1',

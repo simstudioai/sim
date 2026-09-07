@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { SessionPrincipal, WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
@@ -62,30 +63,12 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const input = { credentialGroupId: 'group-1', limit: 50 }
+const input = { credentialGroupId: 'group-1', assertedWorkspaceId: 'workspace-1', limit: 50 }
 
-function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId },
-    delegationContext: {
-      kind: 'workflow_execution',
-      workflowId: 'workflow-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      currentWorkflow: {
-        workflowId: 'workflow-1',
-        mode: 'deployment',
-        deploymentVersionId: 'deployment-version-1',
-      },
-    },
-  }
+function executorPrincipal(
+  principal?: WorkflowExecutionPrincipal
+): ReturnType<typeof createTestRuntimePrincipal> {
+  return principal ? createTestRuntimePrincipal({ principal }) : createTestRuntimePrincipal()
 }
 
 describe('listCredentialGroupMcpConnections', () => {
@@ -124,10 +107,15 @@ describe('listCredentialGroupMcpConnections', () => {
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
-  it('rejects executor delegation scoped to another group', async () => {
+  it('rejects an executor principal scoped to another workspace', async () => {
     await expect(
       listCredentialGroupMcpConnections.execute({
-        principal: executorPrincipal('group-2'),
+        principal: executorPrincipal({
+          kind: 'system',
+          serviceId: 'schedule',
+          workspaceId: 'workspace-2',
+          workflowId: 'workflow-1',
+        }),
         input,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -167,6 +155,18 @@ describe('listCredentialGroupMcpConnections', () => {
       hasMore: false,
       nextCursor: null,
     })
+  })
+
+  it('conceals groups outside the execution workspace even when the user has access', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.loadGroup.mockResolvedValue({ ...groupContext, workspaceId: 'workspace-2' })
+
+    await expect(
+      listCredentialGroupMcpConnections.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.listMcpConnections).not.toHaveBeenCalled()
   })
 
   it('rejects invalid filters before querying MCP connections', async () => {

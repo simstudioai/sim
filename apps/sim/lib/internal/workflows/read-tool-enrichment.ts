@@ -1,32 +1,33 @@
-import { resolveExecutorOriginSubject } from '@/lib/internal/principals/executor'
+import {
+  type BoundWorkflowExecutionPrincipal,
+  requirePrincipalExecutionMetadata,
+  resolvePrincipalSubject,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { readWorkflowDefinitionAsExecutor } from '@/lib/internal/workflows/read-definition'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 export interface WorkflowToolEnrichmentContext {
   userId?: string
   workflowId?: string
   executionId?: string
-  executorDelegationOrigin?: ExecutorDelegationOrigin
+  principal?: WorkflowExecutionPrincipal
 }
 
 async function readWorkflowForTool(workflowId: string, context: WorkflowToolEnrichmentContext) {
-  const origin = context.executorDelegationOrigin
-  if (!origin) {
-    throw new Error('Workflow enrichment requires trusted execution authority')
-  }
-  const subjectUserId = resolveExecutorOriginSubject(origin)
-  if (subjectUserId) {
-    return readWorkflowDefinitionAsExecutor({
-      origin: { subjectUserId, workflowId },
-      workflowId,
-      state: 'draft',
-    })
-  }
-  if (origin.currentWorkflow?.mode !== 'deployment') {
+  const principal = context.principal
+  if (!principal) throw new Error('Workflow enrichment requires trusted execution authority')
+  requirePrincipalExecutionMetadata(principal)
+  const runtimePrincipal = principal as BoundWorkflowExecutionPrincipal
+  const subject = resolvePrincipalSubject(runtimePrincipal)
+  if (!subject && runtimePrincipal.executionMetadata.currentWorkflow.mode !== 'deployment') {
     throw new Error('Actorless workflow enrichment requires deployed execution authority')
   }
-  return readWorkflowDefinitionAsExecutor({ origin, workflowId, state: 'deployed' })
+  return readWorkflowDefinitionAsExecutor({
+    principal: runtimePrincipal,
+    workflowId,
+    state: subject?.kind === 'sim_user' ? 'draft' : 'deployed',
+  })
 }
 
 export async function readWorkflowMetadataForTool(

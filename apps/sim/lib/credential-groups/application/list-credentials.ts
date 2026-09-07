@@ -1,7 +1,6 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -20,6 +19,7 @@ import {
 
 export interface ListCredentialGroupCredentialsInput {
   credentialGroupId: string
+  assertedWorkspaceId?: string
   limit: number
   cursor?: string
   email?: string
@@ -36,8 +36,8 @@ export interface ListCredentialGroupCredentialsResult {
 export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listCredentials,
   resolveContext: ({ input }: { input: ListCredentialGroupCredentialsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
-  authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
+  authorizationOptions: {},
   execute: async ({ input, context }): Promise<ListCredentialGroupCredentialsResult> => {
     if (
       !Number.isInteger(input.limit) ||

@@ -4,6 +4,7 @@ export {
   defineInternalJsonRoute,
   extendInternalErrorPolicy,
   type InternalAuthPolicy,
+  type InternalAuthTransport,
   type InternalErrorPolicy,
   InternalUnauthenticatedError,
   internalErrorResponse,
@@ -11,6 +12,7 @@ export {
   internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes/internal-json-route'
 export {
   concealCrossTenantResourceError,

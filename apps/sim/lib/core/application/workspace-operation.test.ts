@@ -1,9 +1,44 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
-import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import type { BoundWorkflowExecutionPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import {
+  defineWorkspaceOperation,
+  type PrincipalForOperation,
+} from '@/lib/core/application/workspace-operation'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
+
+describe('defineWorkspaceOperation workflow execution policy', () => {
+  it('infers bound runtime principals for a workflow-only operation', () => {
+    const operation = defineWorkspaceOperation({
+      id: 'test.workflow_only',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: [],
+      workflowExecution: 'allow',
+      capability: 'none',
+    })
+
+    expect(operation.workflowExecution).toBe('allow')
+    expectTypeOf<
+      PrincipalForOperation<typeof operation>
+    >().toEqualTypeOf<BoundWorkflowExecutionPrincipal>()
+  })
+
+  it('does not widen an operation that omits workflow execution', () => {
+    const operation = defineWorkspaceOperation({
+      id: 'test.session_only',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: ['session'],
+      capability: 'none',
+    })
+
+    expect(operation.workflowExecution).toBeUndefined()
+    expectTypeOf<PrincipalForOperation<typeof operation>>().toEqualTypeOf<SessionPrincipal>()
+  })
+})
 
 describe('defineWorkspaceOperation delegated service policy', () => {
   it('preserves and freezes an explicit delegated service allowlist', () => {
@@ -12,11 +47,11 @@ describe('defineWorkspaceOperation delegated service policy', () => {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
-      delegatedServices: ['copilot', 'executor'],
+      delegatedServices: ['copilot', 'realtime'],
       capability: 'none',
     })
 
-    expect(operation.delegatedServices).toEqual(['copilot', 'executor'])
+    expect(operation.delegatedServices).toEqual(['copilot', 'realtime'])
     expect(Object.isFrozen(operation.delegatedServices)).toBe(true)
   })
 
@@ -64,7 +99,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
+      delegatedServices: ['copilot'],
       resourcePolicy: {
         resourceType: 'credential_group',
         action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
@@ -86,7 +121,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
         minimumRole: 'read',
         workspaceApiKey: 'deny',
         principalKinds: ['delegated'],
-        delegatedServices: ['executor'],
+        delegatedServices: ['copilot'],
         resourcePolicy: {
           resourceType: 'credential_group',
           action: 'credentials.invalid',

@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   append: vi.fn(),
@@ -41,17 +41,7 @@ import {
   type MemoryToolOperationContext,
 } from '@/lib/internal/memory/operations'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
-  audience: 'sim:memory',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
 
 const RECORD = {
   id: 'memory-1',
@@ -61,7 +51,7 @@ const RECORD = {
 }
 
 function context(): MemoryToolOperationContext {
-  return { principal: PRINCIPAL, headers: new Headers() }
+  return { principal: PRINCIPAL, workspaceId: 'workspace-canonical', headers: new Headers() }
 }
 
 describe('Memory direct operations', () => {

@@ -14,9 +14,9 @@ describe('table operation registry', () => {
     expect(new Set(ids).size).toBe(ids.length)
     for (const operation of operations) {
       expect(
-        operation.principalKinds.length,
+        operation.principalKinds.length > 0 || operation.workflowExecution === 'allow',
         `${operation.id} has no allowed principals`
-      ).toBeGreaterThan(0)
+      ).toBe(true)
       expect(
         new Set(operation.principalKinds).size,
         `${operation.id} repeats a principal kind`
@@ -57,7 +57,7 @@ describe('table operation registry', () => {
     expect(tableOperations.restore.minimumRole).toBe('write')
   })
 
-  it('admits executor delegation only for the intentional internal route operations', () => {
+  it('admits workflow execution only for intentional table-tool operations', () => {
     const executorOnlyOperations = new Set([
       tableOperations.createImport.id,
       tableOperations.readImport.id,
@@ -92,20 +92,21 @@ describe('table operation registry', () => {
     ])
 
     for (const operation of Object.values(tableOperations)) {
+      expect(operation.workflowExecution).toBe(
+        executorOnlyOperations.has(operation.id) || sharedToolOperations.has(operation.id)
+          ? 'allow'
+          : undefined
+      )
       expect(operation.delegatedServices).toEqual(
-        executorOnlyOperations.has(operation.id)
-          ? ['executor']
-          : sharedToolOperations.has(operation.id)
-            ? ['copilot', 'executor']
-            : ['copilot']
+        executorOnlyOperations.has(operation.id) ? undefined : ['copilot']
       )
     }
   })
 
   it('separates Copilot workspace-file imports from the credential-bound upload lifecycle', () => {
-    expect(tableOperations.createImport.delegatedServices).toEqual(['executor'])
-    expect(tableOperations.createImportParts.delegatedServices).toEqual(['executor'])
-    expect(tableOperations.completeImport.delegatedServices).toEqual(['executor'])
+    expect(tableOperations.createImport.workflowExecution).toBe('allow')
+    expect(tableOperations.createImportParts.workflowExecution).toBe('allow')
+    expect(tableOperations.completeImport.workflowExecution).toBe('allow')
     expect(tableOperations.createFromWorkspaceFile.principalKinds).toEqual(['delegated'])
     expect(tableOperations.createFromWorkspaceFile.delegatedServices).toEqual(['copilot'])
     expect(tableOperations.importWorkspaceFile.principalKinds).toEqual(['delegated'])

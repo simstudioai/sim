@@ -20,7 +20,7 @@ export const PATCH = defineInternalJsonRoute({
     reason: 'A settings action an admin performs by hand; the switch itself is bounded',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { principal, request, authTransport }) => ({
     connectorId: params.connectorId,
     knowledgeBaseId: params.id,
     accessMode: body.accessMode,
@@ -28,7 +28,7 @@ export const PATCH = defineInternalJsonRoute({
     credentialGroupOptionId: body.credentialGroupOptionId,
     credentialId: body.credentialId,
     resolveBillingAttribution: (workspaceId: string) =>
-      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
+      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId, authTransport),
     source: 'ui' as const,
   }),
   useCase: updateKnowledgeConnectorAccess,

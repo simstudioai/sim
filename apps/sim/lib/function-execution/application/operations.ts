@@ -8,6 +8,7 @@ export const functionExecutionOperations = {
     workspaceApiKey: 'deny',
     capability: 'none',
     principalKinds: ['delegated'],
-    delegatedServices: ['executor', 'copilot'],
+    delegatedServices: ['copilot'],
+    workflowExecution: 'allow',
   }),
 } as const

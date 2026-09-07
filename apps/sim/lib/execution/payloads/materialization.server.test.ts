@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mockDownloadServableFileFromStorage, mockReadWorkspaceFileByKey, mockVerifyFileAccess } =
   vi.hoisted(() => ({
@@ -126,31 +127,19 @@ describe('readUserFileContent', () => {
   })
 
   it('authorizes workspace files with the preserved actorless deployment principal', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'function-1',
-      audience: 'sim:function-executions',
-      issuedAt: new Date(Date.now() - 1_000),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal: {
-          kind: 'system' as const,
-          serviceId: 'schedule' as const,
-          workspaceId: 'workspace-1',
-          workflowId: 'workflow-1',
-        },
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment' as const,
-          deploymentVersionId: 'deployment-1',
-        },
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-1',
+      },
+    })
 
     await readUserFileContent(generatedPdf, {
       principal,
@@ -168,10 +157,7 @@ describe('readUserFileContent', () => {
           key: generatedPdf.key,
           assertedWorkspaceId: 'workspace-1',
         },
-        principal: expect.objectContaining({
-          audience: 'sim:workspace-files',
-          delegationContext: principal.delegationContext,
-        }),
+        principal,
       })
     )
   })

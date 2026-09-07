@@ -19,12 +19,12 @@ export const POST = defineInternalJsonRoute({
     reason: 'Preserve existing internal connector-sync behavior',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ params, query }, { principal, request }) => ({
+  mapInput: ({ params, query }, { principal, request, authTransport }) => ({
     connectorId: params.connectorId,
     knowledgeBaseId: params.id,
     rehydrate: query.rehydrate,
     resolveBillingAttribution: (workspaceId: string) =>
-      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
+      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId, authTransport),
     source: 'ui' as const,
   }),
   useCase: syncKnowledgeConnector,

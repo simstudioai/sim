@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   fetchContent: vi.fn(),
@@ -117,34 +118,22 @@ describe('readWorkspaceFileContentByKey', () => {
     expect(mocks.fetchContent).not.toHaveBeenCalled()
   })
 
-  it('authorizes an actorless deployment executor by its preserved workflow authority', async () => {
+  it('authorizes an actorless deployment by its preserved workflow authority', async () => {
     await expect(
       readWorkspaceFileRecordByKey.execute({
-        principal: {
-          kind: 'delegated',
-          serviceId: 'executor',
-          workspaceId: file.workspaceId,
-          delegationId: 'execution-file-read:request-1',
-          audience: 'sim:workspace-files',
-          issuedAt: new Date(Date.now() - 1_000),
-          expiresAt: new Date(Date.now() + 60_000),
-          delegationContext: {
-            kind: 'workflow_execution',
+        principal: createTestRuntimePrincipal({
+          principal: {
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: file.workspaceId,
             workflowId: 'workflow-1',
-            executionId: 'execution-1',
-            principal: {
-              kind: 'system',
-              serviceId: 'schedule',
-              workspaceId: file.workspaceId,
-              workflowId: 'workflow-1',
-            },
-            currentWorkflow: {
-              workflowId: 'workflow-1',
-              mode: 'deployment',
-              deploymentVersionId: 'deployment-1',
-            },
           },
-        },
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-1',
+          },
+        }),
         input: { key: file.key, assertedWorkspaceId: file.workspaceId },
       })
     ).resolves.toEqual({ file })

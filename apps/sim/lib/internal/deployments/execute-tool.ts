@@ -28,7 +28,6 @@ import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
 } from '@/lib/internal/tool-operations/types'
-import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 
 const logger = createLogger('DeploymentsInternalOperation')
 
@@ -93,7 +92,6 @@ async function dispatchDeploymentTool(
 
   const principal = await createExecutorPrincipalFromExecutionContext({
     context: request.context,
-    audience: WORKFLOW_DELEGATION_AUDIENCE,
   })
   const context = {
     principal,

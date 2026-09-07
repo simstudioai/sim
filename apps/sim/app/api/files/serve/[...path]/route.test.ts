@@ -6,6 +6,7 @@
 import { hybridAuthMockFns, storageServiceMock, storageServiceMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 vi.mock('@sim/logger', () => ({
@@ -368,6 +369,39 @@ describe('File Serve API Route', () => {
     )
     expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).not.toHaveBeenCalled()
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
+  it('serves an actorless workflow file without synthesizing a user owner', async () => {
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'test-workspace-id',
+        workflowId: 'workflow-1',
+      },
+    })
+    mockResolveStoredFileContext.mockResolvedValue('workspace')
+    mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
+    mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
+
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf'
+      ),
+      {
+        params: Promise.resolve({
+          path: ['workspace', 'test-workspace-id', 'report.pdf'],
+        }),
+      }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockResolveServableDocBytes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePrincipal: principal,
+        ownerKey: 'workspace:test-workspace-id',
+      })
+    )
   })
 
   it('serves a mothership chat attachment stored under a workspace key', async () => {

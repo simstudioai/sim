@@ -1,7 +1,11 @@
 /**
  * @vitest-environment node
  */
-import type { Principal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  type Principal,
+  serializePrincipal,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, inArray, isNull } from 'drizzle-orm'
@@ -68,6 +72,7 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   uploadStorageProvider: mockUploadStorageProvider,
 }))
 
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
@@ -89,21 +94,7 @@ import {
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const FINAL_KEY = `workspace/${WORKSPACE_ID}/final-file.bin`
-const executorPrincipal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: WORKSPACE_ID,
-  delegationId: 'delegation-1',
-  audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution',
-    workflowId: 'workflow-1',
-    executionId: 'execution-1',
-  },
-}
+const executorPrincipal = createTestRuntimePrincipal()
 
 describe('upload sessions', () => {
   beforeEach(() => {
@@ -527,16 +518,9 @@ describe('upload sessions', () => {
     })
 
     expect(dbChainMockFns.values.mock.calls[0][0].metadata.authBinding).toEqual({
-      version: 1,
+      version: 2,
       workspaceId: WORKSPACE_ID,
-      principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        subjectUserId: 'user-1',
-        audience: 'sim:tables',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
+      principal: serializePrincipal(executorPrincipal, 2),
     })
   })
 
@@ -546,7 +530,7 @@ describe('upload sessions', () => {
       storageContext: 'table-import',
       metadata: {
         authBinding: createUploadSessionAuthBinding(executorPrincipal, WORKSPACE_ID, {
-          executorDelegationAudience: 'sim:tables',
+          workflowExecution: 'allow',
         }),
       },
     })
@@ -554,37 +538,172 @@ describe('upload sessions', () => {
     expect(() =>
       assertUploadSessionAuthBinding(session, {
         ...executorPrincipal,
-        delegationId: 'refreshed-token-jti',
       })
     ).not.toThrow()
     expect(() =>
       assertUploadSessionAuthBinding(session, {
-        ...executorPrincipal,
-        delegationId: 'other-execution-token',
-        delegationContext: {
-          kind: 'workflow_execution',
-          workflowId: 'workflow-1',
-          executionId: 'execution-2',
-        },
+        ...createTestRuntimePrincipal({ executionId: 'execution-2' }),
       })
     ).toThrow('Upload session not found')
     expect(() =>
       assertUploadSessionAuthBinding(session, {
-        ...executorPrincipal,
-        workspaceId: 'different-workspace',
+        ...createTestRuntimePrincipal({
+          principal: { kind: 'session', userId: 'user-2', sessionId: 'session-2' },
+        }),
       })
     ).toThrow('Upload session not found')
   })
 
-  it('does not admit executor delegation outside the explicit Table upload policy', () => {
+  it.each<WorkflowExecutionPrincipal>([
+    { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'workspace-key' },
+    {
+      kind: 'system',
+      serviceId: 'schedule',
+      workspaceId: WORKSPACE_ID,
+      workflowId: 'workflow-1',
+    },
+    {
+      kind: 'system',
+      serviceId: 'webhook',
+      workspaceId: WORKSPACE_ID,
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      provider: 'generic',
+    },
+    {
+      kind: 'system',
+      serviceId: 'webhook',
+      workspaceId: WORKSPACE_ID,
+      workflowId: 'workflow-1',
+      webhookId: 'slack-webhook',
+      provider: 'slack',
+      subject: { kind: 'external_user', provider: 'slack', tenantId: 'T123', subjectId: 'U123' },
+    },
+    {
+      kind: 'system',
+      serviceId: 'chat',
+      workspaceId: WORKSPACE_ID,
+      workflowId: 'workflow-1',
+      subject: { kind: 'authenticated_email', email: 'person@example.com' },
+    },
+  ])(
+    'binds and validates table-import uploads without inventing a Sim user: $kind $serviceId',
+    async (actor) => {
+      const principal = createTestRuntimePrincipal({ principal: actor })
+      dbChainMockFns.returning.mockResolvedValueOnce([uploadRow({ purpose: 'table_import' })])
+
+      await createUploadSession({
+        id: 'upload-1',
+        workspaceId: WORKSPACE_ID,
+        userId: 'billing-attribution-only',
+        principal,
+        purpose: 'table_import',
+        fileName: 'data.csv',
+        contentType: 'text/csv',
+        fileSize: 4,
+      })
+
+      const authBinding = dbChainMockFns.values.mock.calls[0][0].metadata.authBinding
+      expect(authBinding).toEqual({
+        version: 2,
+        workspaceId: WORKSPACE_ID,
+        principal: serializePrincipal(principal, 2),
+      })
+      expect(authBinding.principal.principal).toEqual(actor)
+      expect(JSON.stringify(authBinding)).not.toContain('billing-attribution-only')
+      const session = sessionRecord({ purpose: 'table_import', metadata: { authBinding } })
+      expect(() => assertUploadSessionAuthBinding(session, principal)).not.toThrow()
+      expect(() =>
+        createUploadSessionAuthBinding(principal, 'other-workspace', { workflowExecution: 'allow' })
+      ).toThrow('Workflow execution cannot create this upload')
+      expect(() =>
+        assertUploadSessionAuthBinding(
+          session,
+          createTestRuntimePrincipal({ principal: actor, executionId: 'other-execution' })
+        )
+      ).toThrow('Upload session not found')
+    }
+  )
+
+  it.each([
+    { workspaceId: WORKSPACE_ID, audience: 'uploads' },
+    { workspaceId: 'other-workspace', audience: 'uploads' },
+    { workspaceId: WORKSPACE_ID, audience: 'other-audience' },
+  ])(
+    'rejects legacy executor bindings instead of accepting a different delegated identity: %j',
+    (scope) => {
+      const principal = createTestRuntimePrincipal({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          ...scope,
+          delegationId: 'copilot-1',
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      })
+      const session = sessionRecord({
+        purpose: 'table_import',
+        metadata: {
+          authBinding: {
+            version: 1,
+            workspaceId: WORKSPACE_ID,
+            principal: {
+              kind: 'delegated',
+              serviceId: 'executor',
+              subjectUserId: 'user-1',
+              audience: 'uploads',
+              workflowId: 'workflow-1',
+              executionId: 'execution-1',
+            },
+          },
+        },
+      })
+
+      expect(() => assertUploadSessionAuthBinding(session, principal)).toThrow(
+        'Upload session not found'
+      )
+    }
+  )
+
+  it('compares persisted executor bindings independently of JSON object key order', () => {
+    const session = sessionRecord({
+      purpose: 'table_import',
+      storageContext: 'table-import',
+      metadata: {
+        authBinding: {
+          version: 2,
+          workspaceId: WORKSPACE_ID,
+          principal: {
+            executionMetadata: {
+              currentWorkflow: { mode: 'draft', workflowId: 'workflow-1' },
+              rootWorkflowId: 'workflow-1',
+              executionId: 'execution-1',
+            },
+            principal: {
+              sessionId: 'session-1',
+              userId: 'user-1',
+              kind: 'session',
+            },
+            version: 2,
+          },
+        },
+      },
+    })
+
+    expect(() => assertUploadSessionAuthBinding(session, executorPrincipal)).not.toThrow()
+  })
+
+  it('does not admit workflow execution outside an explicit upload policy', () => {
     expect(() => createUploadSessionAuthBinding(executorPrincipal, WORKSPACE_ID)).toThrow(
-      'Delegated principal cannot create this upload'
+      'Workflow execution cannot create this upload'
     )
     expect(() =>
       createUploadSessionAuthBinding(executorPrincipal, WORKSPACE_ID, {
-        executorDelegationAudience: 'sim:workspace-files',
+        workflowExecution: 'allow',
       })
-    ).toThrow('Delegated principal cannot create this upload')
+    ).not.toThrow()
   })
 
   it('fails closed for legacy table-import sessions without a binding', () => {

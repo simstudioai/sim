@@ -1,7 +1,6 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -16,6 +15,7 @@ import {
 
 export interface ListCredentialGroupMcpConnectionsInput {
   credentialGroupId: string
+  assertedWorkspaceId: string
   limit: number
   cursor?: string
   email?: string
@@ -32,8 +32,8 @@ export interface ListCredentialGroupMcpConnectionsResult {
 export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listMcpConnections,
   resolveContext: ({ input }: { input: ListCredentialGroupMcpConnectionsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
-  authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
+  authorizationOptions: {},
   execute: async ({ input, context }): Promise<ListCredentialGroupMcpConnectionsResult> => {
     if (
       !Number.isInteger(input.limit) ||

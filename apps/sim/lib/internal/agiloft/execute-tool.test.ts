@@ -164,7 +164,7 @@ describe('executeAgiloftTool', () => {
     )
   })
 
-  it('uses the trusted delegation origin and forwards cancellation', async () => {
+  it('uses the trusted execution user and forwards cancellation', async () => {
     const controller = new AbortController()
     const input = { ...BASE, data: '{"name":"Contract"}' }
 
@@ -176,18 +176,13 @@ describe('executeAgiloftTool', () => {
           ...createExecutionContext({ workflowId: 'workflow-current' }),
           workspaceId: 'workspace-1',
           userId: 'user-current',
-          executorDelegationOrigin: {
-            subjectUserId: 'user-origin',
-            workflowId: 'workflow-origin',
-            executionId: 'execution-origin',
-          },
         },
       })
     )
 
     expect(operationMocks.executeAgiloftCreateRecord).toHaveBeenCalledWith(input, {
       requestId: 'request-1',
-      userId: 'user-origin',
+      userId: 'user-current',
       signal: controller.signal,
     })
   })

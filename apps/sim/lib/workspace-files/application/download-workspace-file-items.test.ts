@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const {
   events,
@@ -319,11 +320,7 @@ describe('downloadWorkspaceFileItems', () => {
     it('does not apply the capability to a delegated executor carrying a subject', async () => {
       await expect(
         downloadWorkspaceFileItems.execute({
-          principal: {
-            ...delegatedPrincipal,
-            serviceId: 'executor' as const,
-            resourceScope: {},
-          },
+          principal: createTestRuntimePrincipal({ principal }),
           input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
         })
       ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f2' })] })

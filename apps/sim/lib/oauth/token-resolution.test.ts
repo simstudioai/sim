@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const {
   mockAuthorizeCredentialUseForAuth,
@@ -365,12 +366,7 @@ const MANAGED_RESOLVED = {
   usedCredentialTable: true,
 } as const
 
-const EXECUTOR_PRINCIPAL = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'ws-1',
-} as never
+const EXECUTOR_PRINCIPAL = createTestRuntimePrincipal()
 
 describe('resolveCredentialAccessToken', () => {
   const authenticate = vi.fn()
@@ -560,7 +556,11 @@ describe('resolveCredentialAccessToken', () => {
 
   it('resolves a managed credential through the use case and records analytics', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockExecuteManagedToken.mockResolvedValue({ accessToken: 'managed-token', idToken: 'id-1' })
+    mockExecuteManagedToken.mockResolvedValue({
+      accessToken: 'managed-token',
+      idToken: 'id-1',
+      workspaceId: 'ws-1',
+    })
     const auditRequest = { headers: { get: () => null } }
 
     const result = await resolveCredentialAccessToken({

@@ -5,25 +5,16 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { ArchiveError, statusForArchiveError } from '@/lib/uploads/archive'
-import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
-export const internalSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
-  audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-  resourceScope: (params) => {
-    const fileId = typeof params.fileId === 'string' ? params.fileId : undefined
-    return fileId ? { fileId } : undefined
-  },
-})
+export const internalSessionOrExecutorAuth = createInternalSessionOrExecutorAuth()
 
 /**
  * Generated-document serving authorizes the root file and every referenced input. Its executor
  * Principal is therefore intentionally workspace-scoped; a file-scoped Principal could authorize
  * the root or one dependency, but never the full dependency graph.
  */
-export const internalWorkspaceFileServeAuth = createInternalSessionOrExecutorAuth({
-  audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-})
+export const internalWorkspaceFileServeAuth = createInternalSessionOrExecutorAuth()
 
 export const v2FileErrorPolicies = {
   default: v2OrchestrationErrorPolicy,

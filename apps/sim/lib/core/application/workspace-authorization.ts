@@ -1,6 +1,8 @@
 import {
+  type BoundWorkflowExecutionPrincipal,
   type DelegatedPrincipal,
   type Principal,
+  requirePrincipalExecutionMetadata,
   resolvePrincipalSubject,
 } from '@sim/auth/principal'
 import type { db } from '@sim/db'
@@ -38,6 +40,7 @@ import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-sco
  * capabilities.
  */
 export function capabilityGovernedPrincipalUserId(principal: Principal): string | null {
+  if (principal.executionMetadata !== undefined) return null
   switch (principal.kind) {
     case 'session':
     case 'personal_api_key':
@@ -47,7 +50,6 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'credential_group_enrollment':
       return null
     case 'delegated': {
-      if (principal.serviceId === 'executor') return null
       const subject = resolvePrincipalSubject(principal)
       return subject?.kind === 'sim_user' ? subject.userId : null
     }
@@ -150,6 +152,13 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   principal: Principal,
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
+  if (principal.executionMetadata !== undefined) {
+    requirePrincipalExecutionMetadata(principal)
+    if (operation.workflowExecution !== 'allow') {
+      throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+    }
+    return
+  }
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     /**
      * A workspace key refused because the operation does not delegate to one is
@@ -175,6 +184,39 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   }
   if (!delegatedServices.some((serviceId) => serviceId === principal.serviceId)) {
     throw new DelegatedServiceAuthorizationError(principal.serviceId, operation.id)
+  }
+}
+
+function requireExecutionPrincipalWorkspace(
+  principal: BoundWorkflowExecutionPrincipal,
+  workspaceId: string
+): void {
+  if (
+    (principal.kind === 'workspace_api_key' ||
+      principal.kind === 'system' ||
+      principal.kind === 'delegated') &&
+    principal.workspaceId !== workspaceId
+  ) {
+    throw new DelegatedWorkspaceAuthorizationError()
+  }
+}
+
+async function authorizeWorkflowExecution<C extends WorkspaceAuthorizationContext>(
+  principal: BoundWorkflowExecutionPrincipal,
+  operation: WorkspaceOperation,
+  context: C,
+  options?: WorkspaceAuthorizationOptions<C>
+): Promise<void> {
+  const executionMetadata = requirePrincipalExecutionMetadata(principal)
+  requireExecutionPrincipalWorkspace(principal, context.workspaceId)
+
+  const subject = resolvePrincipalSubject(principal)
+  if (subject?.kind === 'sim_user') {
+    await requireCurrentHumanRole(subject.userId, context, operation.minimumRole, options)
+    return
+  }
+  if (executionMetadata.currentWorkflow.mode !== 'deployment') {
+    throw new DelegatedWorkspaceAuthorizationError()
   }
 }
 
@@ -289,6 +331,16 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
 ): Promise<void> {
   requireAllowedWorkspacePrincipal(principal, operation)
 
+  if (principal.executionMetadata !== undefined) {
+    await authorizeWorkflowExecution(
+      principal as BoundWorkflowExecutionPrincipal,
+      operation,
+      context,
+      options
+    )
+    return
+  }
+
   switch (principal.kind) {
     case 'session':
       await requireCurrentHumanAccess(principal.userId, context, operation, options)
@@ -357,55 +409,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       ) {
         throw new DelegatedWorkspaceAuthorizationError()
       }
-      const subject = resolvePrincipalSubject(principal)
-      if (subject?.kind === 'sim_user') {
-        /**
-         * A workflow run carries the role of whoever triggered it but not their
-         * capabilities. A capability names what a *person* may reach in the
-         * product — the Tables module, the Files module — while a run reaches
-         * those same resources because a block in the graph does, and what a run
-         * may do is governed separately by `assertPermissionsAllowed`, which
-         * gates every block, tool and model against the group of whoever the run
-         * resolved as its actor — for a manually triggered run, the triggering
-         * member.
-         *
-         * Applying capabilities here would mean an admin ticking "hide Tables
-         * from the sidebar" silently broke every workflow with a Table block for
-         * that cohort — a runtime kill-switch behind a checkbox that promises to
-         * hide a nav item. Copilot is deliberately not exempt: it acts as the
-         * person, so it must not reach what the person may not.
-         */
-        if (principal.serviceId === 'executor') {
-          await requireCurrentHumanRole(subject.userId, context, operation.minimumRole, options)
-          return
-        }
-        await requireCurrentHumanAccess(subject.userId, context, operation, options)
-        return
-      }
-      if (
-        principal.serviceId !== 'executor' ||
-        principal.delegationContext?.currentWorkflow?.mode !== 'deployment'
-      ) {
-        throw new DelegatedWorkspaceAuthorizationError()
-      }
-      /**
-       * The same reasoning with no subject at all: a deployed workflow acts on
-       * the workspace's behalf rather than any one member's.
-       *
-       * Be careful what this does *not* say. The block, tool and model gate
-       * still runs, but for an actorless run — a schedule, a webhook, a
-       * workspace-key call — `useAuthenticatedUserAsActor` is false, so
-       * `preprocessing.ts` falls back to `resolveSystemBillingAttribution` and
-       * the actor becomes the workspace's billing owner. Those gates therefore
-       * resolve the *payer's* permission group, not the workspace's and not
-       * nobody's. That predates this change and is not a capability the funnel
-       * can reach, but it means a member denied a tool can still reach it by
-       * putting the workflow on a schedule, and a billing owner who happens to
-       * sit in a restrictive group narrows every unattended run in the
-       * workspace. Fixing it means deciding what a workspace itself is allowed
-       * to do, which is a policy question this exemption deliberately leaves
-       * open.
-       */
+      await requireCurrentHumanAccess(principal.subjectUserId, context, operation, options)
       return
     }
   }

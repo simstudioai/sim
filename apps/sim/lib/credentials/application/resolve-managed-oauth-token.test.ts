@@ -1,7 +1,11 @@
 /**
  * @vitest-environment node
  */
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  type BoundWorkflowExecutionPrincipal,
+  bindPrincipalExecutionMetadata,
+  type SessionPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -51,28 +55,19 @@ const input = {
   toolId: 'gmail_read',
 }
 
-function executorPrincipal(credentialId = 'credential-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:managed-oauth-credentials',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialId },
-    delegationContext: {
-      kind: 'workflow_execution',
-      workflowId: 'workflow-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+function executorPrincipal(): BoundWorkflowExecutionPrincipal {
+  return bindPrincipalExecutionMetadata(
+    { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    {
+      executionId: 'execution-1',
+      rootWorkflowId: 'workflow-1',
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment',
         deploymentVersionId: 'version-1',
       },
-    },
-  }
+    }
+  )
 }
 
 describe('resolveManagedOAuthCredentialToken', () => {
@@ -97,10 +92,10 @@ describe('resolveManagedOAuthCredentialToken', () => {
     expect(mocks.loadContext).not.toHaveBeenCalled()
   })
 
-  it('rejects a delegation scoped to another credential', async () => {
+  it('does not treat an unbound session as workflow execution authority', async () => {
     await expect(
       resolveManagedOAuthCredentialToken.execute({
-        principal: executorPrincipal('credential-2'),
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
         input,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -127,7 +122,11 @@ describe('resolveManagedOAuthCredentialToken', () => {
       expectedProviderId: 'google-email',
       requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
     })
-    expect(result).toEqual({ accessToken: 'access-token', refreshed: false })
+    expect(result).toEqual({
+      accessToken: 'access-token',
+      refreshed: false,
+      workspaceId: 'workspace-1',
+    })
     expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
 
@@ -151,7 +150,11 @@ describe('resolveManagedOAuthCredentialToken', () => {
 
     await expect(
       resolveManagedOAuthCredentialToken.execute({ principal: executorPrincipal(), input })
-    ).resolves.toEqual({ accessToken: 'access-token', refreshed: false })
+    ).resolves.toEqual({
+      accessToken: 'access-token',
+      refreshed: false,
+      workspaceId: 'workspace-1',
+    })
     expect(mocks.resolveToken).toHaveBeenCalledOnce()
   })
 })

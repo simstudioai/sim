@@ -23,14 +23,16 @@ import {
   type MemoryToolOperationResult,
 } from '@/lib/internal/memory/operations'
 import { createMemoryToolResponse, MemoryProvenanceError } from '@/lib/internal/memory/provenance'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import {
   classifyInternalToolIdentityFault,
   internalToolIdentityFaultMessage,
   internalToolIdentityFaultStatus,
 } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
-import { MEMORY_DELEGATION_AUDIENCE } from '@/lib/memory/application/authorization'
 
 const logger = createLogger('MemoryInternalOperation')
 
@@ -81,7 +83,7 @@ async function dispatchMemoryTool(
     case 'memory_get_all': {
       const parsed = memoryListQuerySchema.safeParse({
         ...(isPlainRecord(request.input) ? request.input : {}),
-        workspaceId: context.principal.workspaceId,
+        workspaceId: context.workspaceId,
       })
       return parsed.success
         ? dispatched(listMemoriesContract, executeMemoryList(parsed.data, context))
@@ -96,7 +98,7 @@ async function dispatchMemoryTool(
     case 'memory_delete': {
       const parsed = memoryDeleteQuerySchema.safeParse({
         ...(isPlainRecord(request.input) ? request.input : {}),
-        workspaceId: context.principal.workspaceId,
+        workspaceId: context.workspaceId,
       })
       return parsed.success
         ? dispatched(deleteMemoryByQueryContract, executeMemoryDelete(parsed.data, context))
@@ -123,11 +125,11 @@ export const executeMemoryTool: InternalToolOperationHandler = async (request) =
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
-      audience: MEMORY_DELEGATION_AUDIENCE,
     })
     request.signal?.throwIfAborted()
     const dispatched = await dispatchMemoryTool(request, {
       principal,
+      workspaceId: requireExecutorWorkspaceId(request.context),
       headers: request.headers,
       signal: request.signal,
     })

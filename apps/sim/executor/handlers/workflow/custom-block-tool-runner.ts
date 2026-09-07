@@ -6,7 +6,7 @@ import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
-import type { ExecutionContext, ExecutorDelegationOrigin } from '@/executor/types'
+import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
@@ -72,7 +72,6 @@ export function buildCustomBlockExecutionContext(
     environmentVariables: Record<string, string>
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
-    executorDelegationOrigin?: ExecutorDelegationOrigin
     principal?: WorkflowExecutionPrincipal
     /** The invoking run's in-flight block-output redaction policy. */
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
@@ -86,7 +85,6 @@ export function buildCustomBlockExecutionContext(
     workspaceId: context.workspaceId,
     userId: context.userId,
     principal: options.principal,
-    executorDelegationOrigin: options.executorDelegationOrigin,
     executionId,
     isDeployedContext: context.isDeployedContext,
     // Inherit the accumulated chain so the handler appends + validates depth;
