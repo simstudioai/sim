@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import type { Command } from 'commander'
 import {
@@ -240,7 +241,7 @@ function writeResultNote(
       ? (payload as Record<string, unknown>)
       : {}
   const message = note(record, body)
-  if (message) process.stderr.write(styles().dim(`${message}\n`))
+  if (message) writeStderr(styles().dim(`${message}\n`))
 }
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */

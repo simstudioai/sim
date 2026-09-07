@@ -1,3 +1,4 @@
+import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
 import { identityHeaders } from '../telemetry/client-info'
@@ -392,7 +393,7 @@ function debugEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * log the user pasted it into.
  */
 function traceRequest(method: string, url: string, status: number | string, startedAt: number) {
-  process.stderr.write(
+  writeStderr(
     `${styles().dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
   )
 }
@@ -770,10 +771,10 @@ export function pageProgress(): PageProgress {
     advance: (fetched) => {
       if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${styles().dim(`fetched ${fetched}…`)}\u001b[K`)
+      writeStderr(`\r${styles().dim(`fetched ${fetched}…`)}\u001b[K`)
     },
     finish: () => {
-      if (reported) process.stderr.write('\r\u001b[K')
+      if (reported) writeStderr('\r\u001b[K')
     },
   }
 }
