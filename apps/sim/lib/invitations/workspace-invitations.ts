@@ -12,7 +12,7 @@ import {
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isScimEnabled } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -483,9 +483,10 @@ export async function createWorkspaceInvitation({
   const existingUser = await db
     .select({
       id: user.id,
-      scimManaged: organizationId
-        ? scimManagedUserPredicate(organizationId, user.id)
-        : sql<boolean>`false`,
+      scimManaged:
+        organizationId && isScimEnabled
+          ? scimManagedUserPredicate(organizationId, user.id)
+          : sql<boolean>`false`,
     })
     .from(user)
     .where(sql`lower(${user.email}) = ${normalizedEmail}`)

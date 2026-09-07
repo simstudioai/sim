@@ -139,6 +139,37 @@ describe('applyUserPatch', () => {
     expect(next.enterprise?.manager).toBeUndefined()
   })
 
+  it('adds a secondary email without stealing the primary', () => {
+    const { next } = applyUserPatch(
+      baseUser(),
+      parseOperations([
+        { op: 'add', path: 'emails', value: [{ value: 'ada@home.test', type: 'home' }] },
+      ])
+    )
+    expect(next.emails).toEqual([
+      { value: 'ada@acme.test', type: 'work', primary: true },
+      { value: 'ada@home.test', type: 'home', primary: false },
+    ])
+  })
+
+  it('applies RFC 7644 canonical nesting in a path-less replace', () => {
+    const { next } = applyUserPatch(
+      baseUser(),
+      parseOperations([
+        {
+          op: 'replace',
+          value: {
+            name: { givenName: 'Augusta' },
+            'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User': { department: 'Maths' },
+          },
+        },
+      ])
+    )
+    expect(next.name.givenName).toBe('Augusta')
+    expect(next.name.formatted).toBe('Augusta Lovelace')
+    expect(next.enterprise?.department).toBe('Maths')
+  })
+
   it('reports no change when a patch re-sends what is already stored', () => {
     const { changed } = applyUserPatch(
       baseUser(),

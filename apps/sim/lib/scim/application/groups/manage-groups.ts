@@ -33,6 +33,7 @@ import {
   insertScimGroup,
   loadGroupMemberIds,
   loadGroupMembers,
+  loadGroupMembersForGroups,
   pageScimGroups,
   removeGroupMember,
   touchScimGroup,
@@ -95,16 +96,24 @@ export const listScimGroups = defineAuthorizedScimUseCase({
      * loading thousands of rows only to drop them.
      */
     const wantsMembers = projectionWants(input.projection, 'members')
-    const resources: ScimGroupResource[] = []
-    for (const record of records) {
-      const members = wantsMembers ? await loadGroupMembers(db, record.id) : undefined
-      resources.push(
-        projectResource(
-          toGroupResource({ ...record, ...(members ? { members } : {}) }, context.baseUrl),
-          input.projection
+    const membersByGroup = wantsMembers
+      ? await loadGroupMembersForGroups(
+          db,
+          records.map((record) => record.id)
         )
+      : null
+    const resources: ScimGroupResource[] = records.map((record) =>
+      projectResource(
+        toGroupResource(
+          {
+            ...record,
+            ...(membersByGroup ? { members: membersByGroup.get(record.id) ?? [] } : {}),
+          },
+          context.baseUrl
+        ),
+        input.projection
       )
-    }
+    )
 
     return { resources, totalResults, startIndex: page.startIndex }
   },
@@ -227,25 +236,27 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
       })
       await assertConnectionOwnsUsers(tx, context.connection.id, input.group.memberIds)
 
-      await updateScimGroup(tx, {
-        groupId: current.id,
-        displayName: input.group.displayName,
-        externalId: input.group.externalId ?? null,
-      })
-      if (
-        context.connection.settings.autoMapPermissionGroupsByName &&
-        input.group.displayName !== current.displayName
-      ) {
-        await autoMapPermissionGroupByName(tx, {
+      const before = await loadGroupMemberIds(tx, current.id)
+      const desired = new Set(input.group.memberIds)
+      const touched = new Set<string>()
+
+      const renamed = input.group.displayName !== current.displayName
+      if (renamed || (input.group.externalId ?? null) !== current.externalId) {
+        await updateScimGroup(tx, {
+          groupId: current.id,
+          displayName: input.group.displayName,
+          externalId: input.group.externalId ?? null,
+        })
+      }
+      if (renamed && context.connection.settings.autoMapPermissionGroupsByName) {
+        const mapped = await autoMapPermissionGroupByName(tx, {
           organizationId: context.organizationId,
           scimGroupId: current.id,
           displayName: input.group.displayName,
         })
+        /** A new mapping applies to everyone already in the group, not only to those moving today. */
+        if (mapped === 'mapped') for (const scimUserId of before) touched.add(scimUserId)
       }
-
-      const before = await loadGroupMemberIds(tx, current.id)
-      const desired = new Set(input.group.memberIds)
-      const touched = new Set<string>()
 
       for (const scimUserId of before) {
         if (desired.has(scimUserId)) continue
@@ -272,9 +283,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         displayName: refreshed.displayName,
         resource: toGroupResource({ ...refreshed, members }, context.baseUrl),
         touchedUserIds: [...touched],
-        renamed:
-          current.displayName !== refreshed.displayName ||
-          (current.externalId ?? null) !== (refreshed.externalId ?? null),
+        renamed: renamed || (current.externalId ?? null) !== (refreshed.externalId ?? null),
       }
     })
   },
@@ -344,11 +353,15 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
           })
           renamed = true
         }
-        if (patch.displayName !== undefined || patch.externalId !== undefined) {
+        const externalIdChanged =
+          patch.externalId !== undefined && patch.externalId !== current.externalId
+        if (renamed || externalIdChanged) {
           await updateScimGroup(tx, {
             groupId: current.id,
-            ...(patch.displayName !== undefined ? { displayName: patch.displayName } : {}),
-            ...(patch.externalId !== undefined ? { externalId: patch.externalId } : {}),
+            ...(renamed && patch.displayName !== undefined
+              ? { displayName: patch.displayName }
+              : {}),
+            ...(externalIdChanged ? { externalId: patch.externalId } : {}),
           })
         }
         if (
@@ -356,12 +369,18 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
           patch.displayName &&
           context.connection.settings.autoMapPermissionGroupsByName
         ) {
-          await autoMapPermissionGroupByName(tx, {
+          const mapped = await autoMapPermissionGroupByName(tx, {
             organizationId: context.organizationId,
             scimGroupId: current.id,
             displayName: patch.displayName,
           })
+          if (mapped === 'mapped') {
+            for (const scimUserId of await loadGroupMemberIds(tx, current.id)) {
+              touched.add(scimUserId)
+            }
+          }
         }
+        renamed = renamed || externalIdChanged
         if (patch.members !== undefined) {
           const before = await loadGroupMemberIds(tx, current.id)
           const desired = new Set(patch.members)

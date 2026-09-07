@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkspaceInvitation,
@@ -37,6 +38,13 @@ function batchErrorResponse(error: unknown) {
 
   if (error instanceof InvitationsNotAllowedError) {
     return NextResponse.json({ error: error.message }, { status: 403 })
+  }
+
+  if (error instanceof ForbiddenOperationError) {
+    return NextResponse.json(
+      { error: error.message, details: { code: error.detailCode } },
+      { status: 403 }
+    )
   }
 
   logger.error('Error creating workspace invitation batch:', error)

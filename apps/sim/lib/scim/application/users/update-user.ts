@@ -1,8 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { type ScimUserAttributes, user } from '@sim/db/schema'
+import type { ScimUserAttributes } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
-import { eq } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
@@ -19,7 +18,8 @@ import {
   type ScimUseCaseContext,
 } from '@/lib/scim/application/authorized-scim-use-case'
 import { scimOperations } from '@/lib/scim/application/operations'
-import { assertDomainOwned, assertEmailAvailable } from '@/lib/scim/identity/resolve-user'
+import { syncAccountIdentityTx } from '@/lib/scim/identity/account-identity'
+import { assertDomainOwned } from '@/lib/scim/identity/resolve-user'
 import { reconcileUserProjection } from '@/lib/scim/projection/reconcile-user'
 import { primaryEmail } from '@/lib/scim/protocol/canonical'
 import { notFound, ScimError } from '@/lib/scim/protocol/errors'
@@ -29,7 +29,6 @@ import {
   assertUserNameAvailable,
   findScimUserById,
   loadGroupsForScimUsers,
-  lockScimUserById,
   type ScimUserRecord,
   toUserResourceRow,
   updateScimUser,
@@ -61,15 +60,6 @@ async function applyUserUpdate(
   const deactivated = current.active && !next.active
   const reactivated = !current.active && next.active
 
-  /**
-   * Taken first so the advisory locks always precede the `organization` row
-   * lock that a session revocation takes, in every path through this function.
-   */
-  await acquireOrganizationUserMutationLocks(tx, {
-    userId: current.userId,
-    organizationIds: [context.organizationId],
-  })
-
   if (next.userName !== current.userName) {
     await assertUserNameAvailable(tx, context.connection.id, next.userName, current.id)
   }
@@ -81,18 +71,11 @@ async function applyUserUpdate(
      * someone else's Sim account at a mailbox it controls and recover it.
      */
     await assertDomainOwned(tx, context.organizationId, nextEmail)
-    await assertEmailAvailable(tx, nextEmail, current.userId)
-    await tx
-      .update(user)
-      .set({
-        email: nextEmail,
-        normalizedEmail: normalizeEmail(nextEmail),
-        /** The new address is unproven until its owner acts on it. */
-        emailVerified: false,
-        name: next.name.formatted,
-        updatedAt: new Date(),
-      })
-      .where(eq(user.id, current.userId))
+    await syncAccountIdentityTx(tx, {
+      userId: current.userId,
+      email: nextEmail,
+      name: next.name.formatted,
+    })
 
     /**
      * An address change ends the sessions established under the old one. A
@@ -106,10 +89,7 @@ async function applyUserUpdate(
       })
     }
   } else if (next.name.formatted !== current.attributes.name.formatted) {
-    await tx
-      .update(user)
-      .set({ name: next.name.formatted, updatedAt: new Date() })
-      .where(eq(user.id, current.userId))
+    await syncAccountIdentityTx(tx, { userId: current.userId, name: next.name.formatted })
   }
 
   if (deactivated) {
@@ -143,6 +123,31 @@ export interface UpdateScimUserResult {
   userId: string
   outcome: UpdateOutcome | null
   resource: ReturnType<typeof toUserResource>
+}
+
+/**
+ * Loads the stored resource under the organization and user advisory locks.
+ *
+ * The locks, not a row lock, serialize two concurrent PATCHes on one account:
+ * the record is read once to learn the user, locked, then read again so the
+ * patch is computed against the state the lock protects. A `FOR UPDATE` on the
+ * `scim_user` row would invert the documented order against projection writers,
+ * which take the advisory locks first and then touch rows referencing this one.
+ */
+async function loadUserForUpdate(
+  tx: DbOrTx,
+  context: ScimUseCaseContext,
+  scimUserId: string
+): Promise<ScimUserRecord> {
+  const found = await findScimUserById(tx, context.connection.id, scimUserId)
+  if (!found) throw notFound('SCIM User not found')
+  await acquireOrganizationUserMutationLocks(tx, {
+    userId: found.userId,
+    organizationIds: [context.organizationId],
+  })
+  const current = await findScimUserById(tx, context.connection.id, scimUserId)
+  if (!current) throw notFound('SCIM User not found')
+  return current
 }
 
 async function renderUpdated(
@@ -207,8 +212,7 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
     context,
   }: ScimUseCaseArgs<ReplaceScimUserInput>): Promise<UpdateScimUserResult> {
     const { scimUserId, userId, outcome } = await db.transaction(async (tx) => {
-      const current = await lockScimUserById(tx, context.connection.id, input.scimUserId)
-      if (!current) throw notFound('SCIM User not found')
+      const current = await loadUserForUpdate(tx, context, input.scimUserId)
 
       /**
        * A replace keeps attributes Sim does not model that the directory sent on
@@ -260,8 +264,7 @@ export const patchScimUser = defineAuthorizedScimUseCase({
     context,
   }: ScimUseCaseArgs<PatchScimUserInput>): Promise<UpdateScimUserResult> {
     const { scimUserId, userId, outcome } = await db.transaction(async (tx) => {
-      const current = await lockScimUserById(tx, context.connection.id, input.scimUserId)
-      if (!current) throw notFound('SCIM User not found')
+      const current = await loadUserForUpdate(tx, context, input.scimUserId)
 
       const { next, changed } = applyUserPatch(current.attributes, input.operations)
 

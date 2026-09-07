@@ -119,9 +119,48 @@ export function toCanonicalUser(body: ScimUserWriteParsed): ScimUserAttributes {
     displayName: trimmed(body.displayName) ?? name.formatted,
     name,
     emails,
-    ...(enterprise ? { enterprise: enterprise as ScimUserAttributes['enterprise'] } : {}),
+    ...(isRecord(enterprise) ? { enterprise: normalizeEnterprise(enterprise) } : {}),
     ...(extra ? { extra } : {}),
   }
+}
+
+type EnterpriseAttributes = NonNullable<ScimUserAttributes['enterprise']>
+
+const ENTERPRISE_STRING_FIELDS = [
+  'department',
+  'employeeNumber',
+  'costCenter',
+  'division',
+  'organization',
+] as const
+
+/**
+ * The enterprise extension as stored. The write contract accepts `manager` as
+ * either an identifier string or an object, so the string form is normalized
+ * here rather than trusted to match the stored shape.
+ */
+function normalizeEnterprise(value: Record<string, unknown>): EnterpriseAttributes {
+  const text = (candidate: unknown) =>
+    typeof candidate === 'string' ? trimmed(candidate) : undefined
+  const enterprise: EnterpriseAttributes = {}
+  for (const field of ENTERPRISE_STRING_FIELDS) {
+    const candidate = text(value[field])
+    if (candidate) enterprise[field] = candidate
+  }
+  const manager = value.manager
+  if (typeof manager === 'string' && manager.trim()) {
+    enterprise.manager = { value: manager.trim() }
+  } else if (isRecord(manager)) {
+    const managerValue = text(manager.value)
+    const displayName = text(manager.displayName)
+    if (managerValue || displayName) {
+      enterprise.manager = {
+        ...(managerValue ? { value: managerValue } : {}),
+        ...(displayName ? { displayName } : {}),
+      }
+    }
+  }
+  return enterprise
 }
 
 /** The primary address of a canonical resource. */

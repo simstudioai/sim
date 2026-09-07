@@ -84,7 +84,11 @@ function removeTypedEmail(user: ScimUserAttributes, type: string): void {
   user.emails = remaining
 }
 
-function normalizeEmailList(value: unknown, attribute: string): ScimUserEmail[] {
+function normalizeEmailList(
+  value: unknown,
+  attribute: string,
+  options: { defaultPrimary: boolean }
+): ScimUserEmail[] {
   const entries = Array.isArray(value) ? value : [value]
   const normalized: ScimUserEmail[] = []
   for (const entry of entries) {
@@ -97,7 +101,10 @@ function normalizeEmailList(value: unknown, attribute: string): ScimUserEmail[] 
     })
   }
   if (normalized.length === 0) throw invalidValue(`${attribute} must not be empty`)
-  if (!normalized.some((entry) => entry.primary)) normalized[0].primary = true
+  /** A whole list needs a primary; an added address stays secondary unless it says otherwise. */
+  if (options.defaultPrimary && !normalized.some((entry) => entry.primary)) {
+    normalized[0].primary = true
+  }
   return normalized
 }
 
@@ -169,10 +176,10 @@ function applyOperation(
     case 'emails':
       if (op === 'remove') throw invalidValue('emails cannot be removed')
       if (op === 'replace') {
-        user.emails = normalizeEmailList(value, 'emails')
+        user.emails = normalizeEmailList(value, 'emails', { defaultPrimary: true })
         return
       }
-      for (const entry of normalizeEmailList(value, 'emails')) {
+      for (const entry of normalizeEmailList(value, 'emails', { defaultPrimary: false })) {
         const existing = user.emails.find((candidate) => candidate.value === entry.value)
         if (existing) {
           if (entry.primary) {
@@ -301,6 +308,18 @@ export function applyUserPatch(
        * arrived as its own operation.
        */
       for (const [attribute, nested] of Object.entries(value)) {
+        /**
+         * RFC 7644's canonical form nests complex attributes — `{"name": {"givenName": …}}`
+         * and the enterprise extension keyed by its URN — so each sub-attribute is
+         * dispatched by its dotted path.
+         */
+        const normalized = normalizeAttributePath(attribute).toLowerCase()
+        if (isRecord(nested) && (normalized === 'name' || normalized === 'enterprise')) {
+          for (const [sub, subValue] of Object.entries(nested)) {
+            applyOperation(next, operation.op, `${normalized}.${sub}`, subValue)
+          }
+          continue
+        }
         applyOperation(next, operation.op, attribute, nested)
       }
       continue

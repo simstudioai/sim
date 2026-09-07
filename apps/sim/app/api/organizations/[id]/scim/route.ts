@@ -8,10 +8,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import {
-  configureScimConnection,
-  getScimConnection,
-} from '@/lib/scim/application/admin/manage-connection'
+import { configureScimConnection, getScimConnection } from '@/lib/scim/application/admin/connection'
 
 /**
  * The organization's directory-provisioning connection.
@@ -45,4 +42,5 @@ export const PUT = defineInternalJsonRoute({
     ...(body.ssoProviderId !== undefined ? { ssoProviderId: body.ssoProviderId } : {}),
   }),
   useCase: configureScimConnection,
+  present: ({ connection }) => ({ connection }),
 })

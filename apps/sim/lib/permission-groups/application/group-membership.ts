@@ -5,12 +5,13 @@ import type { DbOrTx } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 
 /**
- * Permission-group membership as a shared domain primitive.
+ * Permission-group membership as a domain primitive for callers outside the
+ * settings routes, today directory provisioning.
  *
- * The conflict rules live here rather than in each caller because there are now
- * three: the settings UI, the bulk assignment route, and directory
- * provisioning. Two of them predate this module and carried the rules inline; a
- * third copy is where they would first diverge.
+ * The settings routes still carry their own copies of the scope and
+ * all-members conflict rules in `app/api/organizations/[id]/permission-groups/utils.ts`;
+ * both copies must agree on `membershipMode`, and do. Folding the routes onto
+ * this module is the next step, not a prerequisite for it.
  */
 
 /** A user already governed by another group that shares one of these workspaces. */

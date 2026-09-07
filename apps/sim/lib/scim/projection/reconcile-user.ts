@@ -11,6 +11,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import {
@@ -19,6 +20,13 @@ import {
   PermissionGroupScopeConflictError,
   removePermissionGroupMemberTx,
 } from '@/lib/permission-groups/application/group-membership'
+import {
+  type MappingRow,
+  type ProjectionGrant,
+  type ProjectionTargetKind,
+  planGrantChanges,
+  resolveDesiredGrants,
+} from '@/lib/scim/projection/grants'
 import {
   grantWorkspaceAccessTx,
   lowerWorkspaceAccessTx,
@@ -43,14 +51,6 @@ const logger = createLogger('ScimProjection')
  * administrator granted by hand.
  */
 
-export type ProjectionTargetKind = 'permission_group' | 'workspace' | 'org_role'
-
-export interface ProjectionGrant {
-  targetKind: ProjectionTargetKind
-  targetId: string
-  permissionType?: PermissionType
-}
-
 export interface ProjectionDelta {
   added: ProjectionGrant[]
   removed: ProjectionGrant[]
@@ -60,12 +60,8 @@ export interface ProjectionDelta {
 
 const EMPTY_DELTA: ProjectionDelta = { added: [], removed: [], raised: [] }
 
-function grantKey(grant: ProjectionGrant): string {
-  return `${grant.targetKind}:${grant.targetId}`
-}
-
 /**
- * What this user's group mappings entitle them to.
+ * The mapping rows this user reaches through their groups.
  *
  * Deliberately independent of whether the user is active. A deactivation blocks
  * sign-in and API keys through suspension; it does not withdraw grants, because
@@ -73,11 +69,8 @@ function grantKey(grant: ProjectionGrant): string {
  * and that cannot be undone by reactivating them. Grants change only when group
  * membership or mappings change, or when the user is deprovisioned outright.
  */
-async function desiredGrants(
-  tx: DbOrTx,
-  params: { scimUserId: string; settings: ScimConnectionSettings }
-): Promise<ProjectionGrant[]> {
-  const rows = await tx
+async function loadMappingRows(tx: DbOrTx, scimUserId: string): Promise<MappingRow[]> {
+  return tx
     .select({
       targetKind: scimGroupMapping.targetKind,
       permissionGroupId: scimGroupMapping.permissionGroupId,
@@ -87,51 +80,7 @@ async function desiredGrants(
     })
     .from(scimGroupMember)
     .innerJoin(scimGroupMapping, eq(scimGroupMapping.groupId, scimGroupMember.groupId))
-    .where(eq(scimGroupMember.scimUserId, params.scimUserId))
-
-  const byKey = new Map<string, ProjectionGrant>()
-
-  for (const grant of params.settings.defaultWorkspaceGrants ?? []) {
-    const entry: ProjectionGrant = {
-      targetKind: 'workspace',
-      targetId: grant.workspaceId,
-      permissionType: grant.permission,
-    }
-    byKey.set(grantKey(entry), entry)
-  }
-
-  for (const row of rows) {
-    if (row.targetKind === 'permission_group' && row.permissionGroupId) {
-      const entry: ProjectionGrant = {
-        targetKind: 'permission_group',
-        targetId: row.permissionGroupId,
-      }
-      byKey.set(grantKey(entry), entry)
-      continue
-    }
-    if (row.targetKind === 'workspace' && row.workspaceId && row.permissionType) {
-      const entry: ProjectionGrant = {
-        targetKind: 'workspace',
-        targetId: row.workspaceId,
-        permissionType: row.permissionType,
-      }
-      const existing = byKey.get(grantKey(entry))
-      /** Two groups granting the same workspace resolve to the stronger one. */
-      if (
-        !existing?.permissionType ||
-        permissionRank(row.permissionType) > permissionRank(existing.permissionType)
-      ) {
-        byKey.set(grantKey(entry), entry)
-      }
-      continue
-    }
-    if (row.targetKind === 'org_role' && row.role) {
-      const entry: ProjectionGrant = { targetKind: 'org_role', targetId: row.role }
-      byKey.set(grantKey(entry), entry)
-    }
-  }
-
-  return [...byKey.values()]
+    .where(eq(scimGroupMember.scimUserId, scimUserId))
 }
 
 async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<ProjectionGrant[]> {
@@ -188,12 +137,7 @@ async function applyGrant(
       return true
     case 'org_role':
       if (grant.targetId !== 'admin') return false
-      await changeMemberRoleTx(tx, {
-        organizationId: params.organizationId,
-        userId: params.userId,
-        role: 'admin',
-      })
-      return true
+      return setOrganizationRole(tx, params.organizationId, params.userId, 'admin')
     case 'permission_group':
       await addPermissionGroupMemberTx(tx, {
         organizationId: params.organizationId,
@@ -206,6 +150,44 @@ async function applyGrant(
   }
 }
 
+/**
+ * Sets a member's organization role on the directory's behalf.
+ *
+ * The owner is out of the directory's reach: ownership carries billing and the
+ * last-owner guarantee, and a group that happens to contain the owner must not
+ * fail every sync over it. Returns false, and records no grant, so the mapping
+ * is simply inert for that one person.
+ */
+async function setOrganizationRole(
+  tx: DbOrTx,
+  organizationId: string,
+  userId: string,
+  role: 'admin' | 'member'
+): Promise<boolean> {
+  try {
+    await changeMemberRoleTx(tx, { organizationId, userId, role })
+    return true
+  } catch (error) {
+    if (error instanceof OrchestrationError && error.code === 'conflict') {
+      logger.warn('Skipped an organization role mapping for the owner', { organizationId, userId })
+      return false
+    }
+    if (error instanceof OrchestrationError && error.code === 'not_found') {
+      logger.warn('Skipped an organization role mapping for a user who is no longer a member', {
+        organizationId,
+        userId,
+      })
+      return false
+    }
+    throw error
+  }
+}
+
+/**
+ * Withdraws one grant. Returns false when the grant must stay in place — the
+ * access could not be handed on — so the provenance row survives and the next
+ * pass retries instead of forgetting.
+ */
 async function withdrawGrant(
   tx: DbOrTx,
   params: {
@@ -214,7 +196,7 @@ async function withdrawGrant(
     grant: ProjectionGrant
     lockManualMembership: boolean
   }
-): Promise<void> {
+): Promise<boolean> {
   const { grant } = params
   switch (grant.targetKind) {
     case 'workspace': {
@@ -228,35 +210,32 @@ async function withdrawGrant(
         workspaceId: grant.targetId,
         userId: params.userId,
       })
-      if (!current) return
+      if (!current) return true
       if (
         !params.lockManualMembership &&
         grant.permissionType &&
         permissionRank(current) > permissionRank(grant.permissionType)
       ) {
-        return
+        return true
       }
       const outcome = await revokeWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,
         userId: params.userId,
       })
-      if (!outcome.revoked && outcome.unresolvedWorkflows.length > 0) {
-        logger.warn('Left workspace access in place: workflow ownership could not be reassigned', {
+      if (!outcome.revoked) {
+        logger.warn('Left workspace access in place: ownership could not be handed on', {
           workspaceId: grant.targetId,
           userId: params.userId,
-          unresolved: outcome.unresolvedWorkflows.length,
+          reason: outcome.reason,
         })
+        return false
       }
-      return
+      return true
     }
     case 'org_role':
-      if (grant.targetId !== 'admin') return
-      await changeMemberRoleTx(tx, {
-        organizationId: params.organizationId,
-        userId: params.userId,
-        role: 'member',
-      })
-      return
+      if (grant.targetId !== 'admin') return true
+      await setOrganizationRole(tx, params.organizationId, params.userId, 'member')
+      return true
     case 'permission_group':
       try {
         await removePermissionGroupMemberTx(tx, {
@@ -273,6 +252,7 @@ async function withdrawGrant(
          */
         if (!(error instanceof PermissionGroupNotFoundError)) throw error
       }
+      return true
   }
 }
 
@@ -312,27 +292,24 @@ export async function reconcileUserProjection(
     organizationIds: [params.organizationId],
   })
 
-  const desired = await desiredGrants(tx, {
-    scimUserId: params.scimUserId,
-    settings: params.settings,
-  })
-  const current = await currentGrants(tx, params.scimUserId)
-
-  const desiredByKey = new Map(desired.map((grant) => [grantKey(grant), grant]))
-  const currentByKey = new Map(current.map((grant) => [grantKey(grant), grant]))
+  const desired = resolveDesiredGrants(
+    await loadMappingRows(tx, params.scimUserId),
+    params.settings.defaultWorkspaceGrants ?? []
+  )
+  const plan = planGrantChanges(desired, await currentGrants(tx, params.scimUserId))
 
   const delta: ProjectionDelta = { added: [], removed: [], raised: [] }
   const lockManualMembership = params.settings.lockManualMembership === true
 
   /** Withdrawals first, so a move between groups frees its workspace slot. */
-  for (const [key, grant] of currentByKey) {
-    if (desiredByKey.has(key)) continue
-    await withdrawGrant(tx, {
+  for (const grant of plan.withdraw) {
+    const withdrawn = await withdrawGrant(tx, {
       organizationId: params.organizationId,
       userId: record.userId,
       grant,
       lockManualMembership,
     })
+    if (!withdrawn) continue
     await tx
       .delete(scimProjectionGrant)
       .where(
@@ -345,23 +322,14 @@ export async function reconcileUserProjection(
     delta.removed.push(grant)
   }
 
-  for (const [key, grant] of desiredByKey) {
-    const existing = currentByKey.get(key)
-    const levelChanged =
-      existing !== undefined &&
-      grant.permissionType !== undefined &&
-      existing.permissionType !== undefined &&
-      grant.permissionType !== existing.permissionType
-
-    if (existing && !levelChanged) continue
-
+  for (const { grant, previousPermission } of plan.apply) {
     let applied: boolean
     try {
       applied = await applyGrant(tx, {
         organizationId: params.organizationId,
         userId: record.userId,
         grant,
-        ...(existing?.permissionType ? { previousPermission: existing.permissionType } : {}),
+        ...(previousPermission ? { previousPermission } : {}),
       })
     } catch (error) {
       /**
@@ -412,7 +380,7 @@ export async function reconcileUserProjection(
         set: { permissionType: grant.permissionType ?? null, updatedAt: new Date() },
       })
 
-    if (levelChanged) delta.raised.push(grant)
+    if (previousPermission) delta.raised.push(grant)
     else delta.added.push(grant)
   }
 

@@ -148,22 +148,31 @@ const scimMetaSchema = z.object({
   version: z.string(),
 })
 
+/**
+ * Only `schemas`, `id`, and `meta` are always present. Every other attribute may
+ * be dropped by `attributes` / `excludedAttributes` (RFC 7644 section 3.9), which
+ * Entra uses on every listing, so the response schema cannot require them.
+ */
 export const scimUserResourceSchema = z.looseObject({
   schemas: z.array(z.string()),
   id: z.string(),
   externalId: z.string().optional(),
-  userName: z.string(),
-  active: z.boolean(),
-  displayName: z.string(),
-  name: z.looseObject({
-    formatted: z.string(),
-    givenName: z.string().optional(),
-    familyName: z.string().optional(),
-  }),
-  emails: z.array(
-    z.object({ value: z.string(), type: z.string().optional(), primary: z.boolean() })
-  ),
-  groups: z.array(z.object({ value: z.string(), display: z.string(), $ref: z.string() })),
+  userName: z.string().optional(),
+  active: z.boolean().optional(),
+  displayName: z.string().optional(),
+  name: z
+    .looseObject({
+      formatted: z.string(),
+      givenName: z.string().optional(),
+      familyName: z.string().optional(),
+    })
+    .optional(),
+  emails: z
+    .array(z.object({ value: z.string(), type: z.string().optional(), primary: z.boolean() }))
+    .optional(),
+  groups: z
+    .array(z.object({ value: z.string(), display: z.string(), $ref: z.string() }))
+    .optional(),
   meta: scimMetaSchema,
 })
 
@@ -171,7 +180,7 @@ export const scimGroupResourceSchema = z.looseObject({
   schemas: z.array(z.string()),
   id: z.string(),
   externalId: z.string().optional(),
-  displayName: z.string(),
+  displayName: z.string().optional(),
   members: z
     .array(
       z.object({

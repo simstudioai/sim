@@ -11,7 +11,7 @@ import {
 import {
   listScimGroupMappings,
   upsertScimGroupMapping,
-} from '@/lib/scim/application/admin/manage-connection'
+} from '@/lib/scim/application/admin/mappings'
 
 /** What each directory group means inside Sim. */
 

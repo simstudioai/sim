@@ -1,3 +1,4 @@
+import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
@@ -14,12 +15,33 @@ import type { ScimAdminOperation, ScimAdminPrincipal } from '@/lib/scim/applicat
  * Gate order is deliberate and each step is its own refusal, so a failure says
  * which rule stopped it: principal kind, then organization membership, then the
  * admin role, then the entitlement. Mirrors the organization BYOK and usage
- * wrappers rather than inventing a fourth shape.
+ * wrappers rather than inventing a fourth shape, and mirrors the directory
+ * wrapper's audit projection so both halves of the surface record audit the
+ * same way.
  */
 
 export interface ScimAdminContext {
   organizationId: string
   actorUserId: string
+}
+
+export interface ScimAdminUseCaseArgs<I> {
+  principal: ScimAdminPrincipal
+  input: I
+  context: ScimAdminContext
+  request?: OrchestrationRequestContext
+}
+
+export interface ScimAdminUseCaseResultArgs<I, R> extends ScimAdminUseCaseArgs<I> {
+  result: R
+}
+
+export interface ScimAdminAuditEntry {
+  action: AuditActionType
+  resourceType: AuditResourceTypeValue
+  resourceId?: string
+  resourceName?: string
+  metadata?: Record<string, unknown>
 }
 
 interface AuthorizedScimAdminDefinition<
@@ -28,12 +50,9 @@ interface AuthorizedScimAdminDefinition<
   R,
 > {
   operation: O
-  execute(args: {
-    principal: ScimAdminPrincipal
-    input: I
-    context: ScimAdminContext
-    request?: OrchestrationRequestContext
-  }): Promise<R>
+  execute(args: ScimAdminUseCaseArgs<I>): Promise<R>
+  /** Audit attributed to the administrator; the organization id is added for every entry. */
+  projectAudit?(args: ScimAdminUseCaseResultArgs<I, R>): ScimAdminAuditEntry | undefined
 }
 
 function requireScimAdminPrincipal(
@@ -85,12 +104,26 @@ export function defineAuthorizedScimAdminUseCase<
         )
       }
 
-      return definition.execute({
-        principal,
-        input,
-        context: { organizationId: input.organizationId, actorUserId: principal.userId },
-        request,
-      })
+      const context: ScimAdminContext = {
+        organizationId: input.organizationId,
+        actorUserId: principal.userId,
+      }
+      const result = await definition.execute({ principal, input, context, request })
+
+      const entry = definition.projectAudit?.({ principal, input, context, request, result })
+      if (entry) {
+        recordAudit({
+          workspaceId: null,
+          actorId: context.actorUserId,
+          action: entry.action,
+          resourceType: entry.resourceType,
+          resourceId: entry.resourceId,
+          resourceName: entry.resourceName,
+          metadata: { ...entry.metadata, organizationId: context.organizationId },
+          request,
+        })
+      }
+      return result
     },
   }
 }

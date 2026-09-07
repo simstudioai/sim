@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { type ScimUserAttributes, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { APIError } from 'better-auth/api'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
@@ -21,6 +22,7 @@ import {
   type ScimUseCaseArgs,
 } from '@/lib/scim/application/authorized-scim-use-case'
 import { scimOperations } from '@/lib/scim/application/operations'
+import { syncAccountIdentityTx } from '@/lib/scim/identity/account-identity'
 import {
   assertEmailAvailable,
   consumeTombstone,
@@ -137,14 +139,26 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
 
     if (resolution.action === 'create') {
       await assertEmailAvailable(db, email)
-      const created = await auth.api.createUser({
-        body: {
-          email,
-          name: attributes.name.formatted,
-          data: { emailVerified: false },
-        },
-      })
-      userId = created.user.id
+      try {
+        const created = await auth.api.createUser({
+          body: {
+            email,
+            name: attributes.name.formatted,
+            data: { emailVerified: false },
+          },
+        })
+        userId = created.user.id
+      } catch (error) {
+        /**
+         * Two creates for one address can race past the availability check;
+         * Better Auth's unique constraint is the arbiter, and the loser is a
+         * duplicate the directory must resolve, not a server fault to retry.
+         */
+        if (error instanceof APIError && error.statusCode === 422) {
+          throw uniqueness('Another Sim account already uses this email address')
+        }
+        throw error
+      }
       createdAccount = true
     } else {
       userId = resolution.userId
@@ -176,6 +190,16 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           ...seatPolicy,
         })
         if (!membership.success) throw membershipFailure(membership.failureCode)
+
+        /**
+         * A relinked account takes the directory's current identity. A rename
+         * that arrives as delete-and-recreate must land the same way as one that
+         * arrives as a PATCH, or the response would describe an address the
+         * account does not have.
+         */
+        if (resolution.action === 'link') {
+          await syncAccountIdentityTx(tx, { userId, email, name: attributes.name.formatted })
+        }
 
         const inserted = await insertScimUser(tx, {
           connectionId: context.connection.id,

@@ -99,6 +99,31 @@ export async function loadGroupMembers(tx: DbOrTx, groupId: string): Promise<Sci
   return rows
 }
 
+/** Members of many groups in one query, keyed by group, for list responses. */
+export async function loadGroupMembersForGroups(
+  tx: DbOrTx,
+  groupIds: string[]
+): Promise<Map<string, ScimGroupMemberRow[]>> {
+  const byGroup = new Map<string, ScimGroupMemberRow[]>()
+  if (groupIds.length === 0) return byGroup
+  const rows = await tx
+    .select({
+      groupId: scimGroupMember.groupId,
+      scimUserId: scimGroupMember.scimUserId,
+      displayName: scimUser.userName,
+    })
+    .from(scimGroupMember)
+    .innerJoin(scimUser, eq(scimUser.id, scimGroupMember.scimUserId))
+    .where(inArray(scimGroupMember.groupId, groupIds))
+    .orderBy(asc(scimGroupMember.createdAt), asc(scimGroupMember.scimUserId))
+  for (const row of rows) {
+    const list = byGroup.get(row.groupId) ?? []
+    list.push({ scimUserId: row.scimUserId, displayName: row.displayName })
+    byGroup.set(row.groupId, list)
+  }
+  return byGroup
+}
+
 export async function loadGroupMemberIds(tx: DbOrTx, groupId: string): Promise<string[]> {
   const rows = await tx
     .select({ scimUserId: scimGroupMember.scimUserId })

@@ -19,6 +19,7 @@ import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isRetryableTransactionError } from '@/lib/db/transaction'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { assertMembershipNotScimManaged } from '@/lib/scim/managed-membership'
@@ -220,7 +221,6 @@ export const PUT = withRouteHandler(
       await assertMembershipNotScimManaged({
         organizationId,
         userId: memberId,
-        action: 'change-role',
       })
 
       /**
@@ -290,6 +290,13 @@ export const PUT = withRouteHandler(
         return NextResponse.json(
           { error: error.message },
           { status: statusForOrchestrationError(error.code) }
+        )
+      }
+      /** The role change now serializes on the organization lock; a timeout is "retry", not a fault. */
+      if (isRetryableTransactionError(error)) {
+        return NextResponse.json(
+          { error: 'The organization is busy; retry in a moment' },
+          { status: 409 }
         )
       }
 

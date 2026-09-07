@@ -5,6 +5,7 @@ import {
   invitation,
   member,
   permissions,
+  scimConnection,
   ssoProvider,
   subscription,
   user,
@@ -130,7 +131,24 @@ async function runAdmissionTransaction(
       organizationIds: [provider.organizationId],
     })
 
-    if (!provider.jitProvisioningEnabled) {
+    /**
+     * An organization whose directory is the only way in has said so on its
+     * SCIM connection; a first sign-in must not create a membership the directory
+     * did not ask for and will not know about.
+     */
+    const [directoryOnly] = await tx
+      .select({ id: scimConnection.id })
+      .from(scimConnection)
+      .where(
+        and(
+          eq(scimConnection.organizationId, provider.organizationId),
+          eq(scimConnection.status, 'active'),
+          sql`coalesce((${scimConnection.settings} ->> 'disableJit')::boolean, false) = true`
+        )
+      )
+      .limit(1)
+
+    if (!provider.jitProvisioningEnabled || directoryOnly) {
       const [sameOrganization] = await tx
         .select({ id: member.id })
         .from(member)

@@ -58,6 +58,7 @@ export async function loadGroupInOrganization(
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
       isDefault: permissionGroup.isDefault,
+      membershipMode: permissionGroup.membershipMode,
     })
     .from(permissionGroup)
     .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.organizationId, organizationId)))
@@ -209,7 +210,8 @@ export interface AllMembersConflict {
  * all-members group already targeting one of those workspaces, or `null`. Two
  * all-members groups on one workspace would both claim everyone there, so this
  * is rejected at assignment time. The candidate group (`excludeGroupId`) is
- * ignored.
+ * ignored, and so is any group in `explicit` membership mode: empty, it governs
+ * nobody rather than everyone, so it cannot collide.
  */
 export async function findAllMembersWorkspaceConflict(
   params: { organizationId: string; excludeGroupId: string; workspaceIds: string[] },
@@ -234,6 +236,7 @@ export async function findAllMembersWorkspaceConflict(
       and(
         eq(permissionGroup.organizationId, organizationId),
         eq(permissionGroup.isDefault, false),
+        eq(permissionGroup.membershipMode, 'inherit'),
         ne(permissionGroup.id, excludeGroupId),
         inArray(permissionGroupWorkspace.workspaceId, workspaceIds),
         sql`not exists (

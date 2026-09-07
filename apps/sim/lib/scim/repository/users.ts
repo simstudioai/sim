@@ -133,29 +133,6 @@ export async function findScimUserById(
   return row ?? null
 }
 
-/**
- * The same lookup, holding the row for the rest of the transaction.
- *
- * A write path reads the stored resource, computes the next one in memory, and
- * writes it back. Two concurrent PATCHes — which Microsoft Entra pipelines
- * routinely — would otherwise both read the same base and the second would
- * overwrite the first's whole attribute document.
- */
-export async function lockScimUserById(
-  tx: DbOrTx,
-  connectionId: string,
-  scimUserId: string
-): Promise<ScimUserRecord | null> {
-  const [row] = await tx
-    .select(USER_SELECTION)
-    .from(scimUser)
-    .innerJoin(user, eq(user.id, scimUser.userId))
-    .where(and(eq(scimUser.connectionId, connectionId), eq(scimUser.id, scimUserId)))
-    .limit(1)
-    .for('update', { of: scimUser })
-  return row ?? null
-}
-
 export async function findScimUserByUserId(
   tx: DbOrTx,
   connectionId: string,

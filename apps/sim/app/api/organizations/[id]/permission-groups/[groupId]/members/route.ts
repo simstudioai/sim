@@ -281,7 +281,7 @@ export const DELETE = withRouteHandler(
           throw new Error('MEMBER_NOT_FOUND')
         }
 
-        if (!lockedGroup.isDefault) {
+        if (!lockedGroup.isDefault && lockedGroup.membershipMode === 'inherit') {
           const [memberCountRow] = await tx
             .select({ value: count() })
             .from(permissionGroupMember)

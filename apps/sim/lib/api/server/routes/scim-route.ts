@@ -227,6 +227,22 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
           status = scim.status
           scimType = scim.scimType
           detail = scim.message
+          /**
+           * Authenticated traffic is admitted per connection. A caller that failed
+           * to authenticate has no connection, so token guessing is bounded per
+           * source address instead.
+           */
+          if (scim.status === 401 && !principal) {
+            const limited = await enforceIpRateLimit('scim-auth', request)
+            if (limited) {
+              status = 429
+              return scimResponse(
+                scimErrorBody(429, undefined, 'Too many failed authentication attempts'),
+                429,
+                { 'Retry-After': '60' }
+              )
+            }
+          }
           if (scim.status >= 500) {
             logger.error('SCIM request failed', {
               connectionId: principal?.connectionId,

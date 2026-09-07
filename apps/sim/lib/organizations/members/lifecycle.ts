@@ -21,8 +21,11 @@ const logger = createLogger('OrganizationMemberLifecycle')
  * that gap load-bearing, so the behavior is defined once here.
  */
 
-/** Why an account is suspended. SCIM only ever lifts a suspension it applied. */
-export type SuspensionSource = 'scim' | 'admin'
+/**
+ * Who applied a suspension. A source only ever lifts its own, so a second source
+ * added later cannot have its suspensions undone by a directory sync.
+ */
+export type SuspensionSource = 'scim'
 
 export interface RevokeSessionsResult {
   revoked: number
@@ -134,13 +137,7 @@ export async function suspendMemberTx(
   return { suspended: Boolean(updated), sessionsRevoked: sessions.revoked }
 }
 
-/**
- * Lifts a suspension, but only one raised by the same source.
- *
- * An administrator who suspends someone during an investigation must not have
- * that undone by the next directory sync, so a SCIM reactivation leaves an
- * `admin` suspension in place.
- */
+/** Lifts a suspension, but only one raised by the same source. */
 export async function unsuspendMemberTx(
   tx: DbOrTx,
   params: { userId: string; source: SuspensionSource }

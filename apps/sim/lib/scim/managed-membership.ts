@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { scimConnection, scimUser } from '@sim/db/schema'
-import { type AnyColumn, and, eq, type SQL, sql } from 'drizzle-orm'
+import { type AnyColumn, type SQL, sql } from 'drizzle-orm'
 import { ForbiddenOperationError } from '@/lib/core/application'
+import { isScimEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 
 /**
@@ -16,14 +17,6 @@ import type { DbOrTx } from '@/lib/db/types'
  * Deliberately not applied to deprovisioning: an administrator must always be
  * able to remove someone in an emergency, whatever the directory believes.
  */
-
-type ManagedMembershipAction = 'invite' | 'change-role' | 'workspace-grant'
-
-const ACTION_WORDING: Record<ManagedMembershipAction, string> = {
-  invite: 'Inviting a member',
-  'change-role': 'Changing a member’s role',
-  'workspace-grant': 'Granting workspace access',
-}
 
 /**
  * A SQL predicate that is true when the given user is provisioned by THIS
@@ -59,16 +52,20 @@ export function scimManagedUserPredicate(
 export async function assertMembershipNotScimManaged(params: {
   organizationId: string
   userId: string
-  action: ManagedMembershipAction
   executor?: DbOrTx
 }): Promise<void> {
+  /**
+   * A deployment or plan that no longer has directory provisioning must not keep
+   * refusing manual changes on behalf of a directory that can no longer sync.
+   */
+  if (!isScimEnabled) return
   const [row] = await (params.executor ?? db)
     .select({ managed: scimManagedUserPredicate(params.organizationId, sql`${params.userId}`) })
     .from(sql`(select 1) as probe`)
   if (!row?.managed) return
   throw new ForbiddenOperationError(
     'SCIM_MANAGED_MEMBERSHIP',
-    `${ACTION_WORDING[params.action]} is managed by this organization’s identity provider. Make the change there, or turn off managed-membership locking in the organization’s directory settings.`
+    'This member is managed by the organization’s identity provider. Make the change there, or turn off managed-membership locking in the organization’s directory settings.'
   )
 }
 

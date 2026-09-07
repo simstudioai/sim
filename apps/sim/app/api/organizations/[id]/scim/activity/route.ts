@@ -5,7 +5,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { listScimActivity } from '@/lib/scim/application/admin/manage-connection'
+import { listScimActivity } from '@/lib/scim/application/admin/connection'
 
 /** Recent provisioning requests, so a failing sync can be diagnosed from Sim. */
 export const GET = defineInternalJsonRoute({

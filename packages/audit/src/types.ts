@@ -169,8 +169,6 @@ export const AuditAction = {
   ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',
   ORG_INVITATION_REVOKED: 'org_invitation.revoked',
   ORG_INVITATION_RESENT: 'org_invitation.resent',
-  ORG_MEMBER_SUSPENDED: 'org_member.suspended',
-  ORG_MEMBER_UNSUSPENDED: 'org_member.unsuspended',
   ORG_SEAT_PROVISIONED: 'org_seat.provisioned',
   ORG_SEAT_DEPROVISIONED: 'org_seat.deprovisioned',
   ORG_PLAN_CONVERTED: 'org_plan.converted',

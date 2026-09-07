@@ -5,7 +5,11 @@ import { and, eq } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
-import { reassignWorkflowOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/utils'
+import {
+  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
+  WorkspaceBillingAccountRemovalError,
+} from '@/lib/workspaces/utils'
 
 /**
  * Workspace access as a shared domain primitive.
@@ -110,30 +114,50 @@ export async function lowerWorkspaceAccessTx(
   return updated.length > 0 ? 'lowered' : 'unchanged'
 }
 
-export interface RevokeWorkspaceAccessResult {
-  revoked: boolean
-  /** Workflows whose owner could not be reassigned, which blocks the removal. */
-  unresolvedWorkflows: string[]
-}
+export type RevokeWorkspaceAccessResult =
+  | { revoked: true }
+  /** Workflows whose owner could not be reassigned; the access row is left in place. */
+  | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkflows: string[] }
+  /** The user owns the workspace and it has no billed account to hand it to. */
+  | { revoked: false; reason: 'workspace-owner-without-successor' }
 
 /**
  * Removes a user's access to one workspace and everything that hangs off it.
  *
- * Ownership reassignment runs first and can fail: a workflow whose owner cannot
- * be moved would be orphaned by the delete, so the caller is expected to treat
- * an unresolved list as a refusal rather than proceeding.
+ * Ownership moves first, in the same order the members route uses: the workspace
+ * itself to its billed account when the departing user owns it, then every
+ * workflow they own to a remaining member. Either can fail, and a failure is a
+ * refusal rather than a partial removal — deleting the access row would orphan
+ * what could not be moved.
  */
 export async function revokeWorkspaceAccessTx(
   tx: DbOrTx,
   params: { workspaceId: string; userId: string }
 ): Promise<RevokeWorkspaceAccessResult> {
+  try {
+    await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
+      tx,
+      workspaceId: params.workspaceId,
+      departingUserId: params.userId,
+    })
+  } catch (error) {
+    if (error instanceof WorkspaceBillingAccountRemovalError) {
+      return { revoked: false, reason: 'workspace-owner-without-successor' }
+    }
+    throw error
+  }
+
   const reassignment = await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
     tx,
     workspaceIds: [params.workspaceId],
     departingUserId: params.userId,
   })
   if (reassignment.unresolved.length > 0) {
-    return { revoked: false, unresolvedWorkflows: reassignment.unresolved }
+    return {
+      revoked: false,
+      reason: 'unresolved-workflows',
+      unresolvedWorkflows: reassignment.unresolved,
+    }
   }
 
   const deleted = await tx
@@ -150,7 +174,7 @@ export async function revokeWorkspaceAccessTx(
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)
 
-  return { revoked: deleted.length > 0, unresolvedWorkflows: [] }
+  return { revoked: true }
 }
 
 /** The permission a user currently holds on a workspace, if any. */

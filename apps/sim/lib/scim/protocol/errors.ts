@@ -148,8 +148,9 @@ export function toScimError(error: unknown): ScimError {
     switch (error.code) {
       case 'not_found':
         return new ScimError(404, undefined, error.message)
+      /** A conflict that is not a duplicate carries no `scimType`; `uniqueness` is reserved for duplicates. */
       case 'conflict':
-        return new ScimError(409, 'uniqueness', error.message)
+        return new ScimError(409, undefined, error.message)
       case 'forbidden':
         return new ScimError(403, undefined, error.message)
       case 'validation':

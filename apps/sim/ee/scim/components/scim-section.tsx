@@ -86,6 +86,15 @@ const SETTING_TOGGLES = [
   },
 ] as const
 
+/** Credential lifetimes offered at issue time; `never` matches what Okta and Entra expect by default. */
+const CREDENTIAL_EXPIRY_OPTIONS = [
+  { value: 'never', label: 'Never expires' },
+  { value: '90', label: 'Expires in 90 days' },
+  { value: '365', label: 'Expires in 1 year' },
+] as const
+
+type CredentialExpiry = (typeof CREDENTIAL_EXPIRY_OPTIONS)[number]['value']
+
 const RELATIVE_TIME = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 
 /** Renders "3 minutes ago" for the activity list and credential rows. */
@@ -122,16 +131,14 @@ interface CredentialRowProps {
 }
 
 function CredentialRow({ credential, onRevoke }: CredentialRowProps) {
-  const expired = credential.expiresAt ? new Date(credential.expiresAt) < new Date() : false
   const expiry = credential.expiresAt
-    ? `${expired ? 'expired' : 'expires'} ${formatRelative(credential.expiresAt)}`
+    ? `expires ${formatRelative(credential.expiresAt)}`
     : 'no expiry'
   return (
     <SettingsResourceRow
       icon={<Key />}
       title={<span className='font-mono'>{credential.tokenPrefix}…</span>}
       description={`Last used ${formatRelative(credential.lastUsedAt)} · ${expiry}`}
-      badge={expired ? <ChipTag variant='gray'>Expired</ChipTag> : undefined}
       trailing={
         <RowActionsMenu
           label={`${credential.tokenPrefix} actions`}
@@ -355,6 +362,7 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
   const reconcile = useReconcileScimConnection()
 
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
+  const [credentialExpiry, setCredentialExpiry] = useState<CredentialExpiry>('never')
   const [pendingRevoke, setPendingRevoke] = useState<ScimCredentialView | null>(null)
 
   async function handleToggleSetting(key: (typeof SETTING_TOGGLES)[number]['key'], value: boolean) {
@@ -370,7 +378,10 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
 
   async function handleIssue() {
     try {
-      const result = await issueCredential.mutateAsync({ organizationId })
+      const result = await issueCredential.mutateAsync({
+        organizationId,
+        ...(credentialExpiry === 'never' ? {} : { expiresInDays: Number(credentialExpiry) }),
+      })
       setIssuedSecret(result.secret)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to issue credential'))
@@ -401,10 +412,6 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
       toast.error(getErrorMessage(error, 'Reconciliation failed'))
     }
   }
-
-  const activeCredentials = connection.credentials.filter(
-    (credential) => !credential.expiresAt || new Date(credential.expiresAt) > new Date()
-  )
 
   return (
     <>
@@ -461,11 +468,18 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
               />
             ))
           )}
-          <div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <ChipSelect
+              aria-label='Credential expiry'
+              align='start'
+              value={credentialExpiry}
+              onChange={(next) => setCredentialExpiry(next as CredentialExpiry)}
+              options={[...CREDENTIAL_EXPIRY_OPTIONS]}
+            />
             <Chip
               variant='primary'
               onClick={handleIssue}
-              disabled={issueCredential.isPending || activeCredentials.length >= 2}
+              disabled={issueCredential.isPending || connection.credentials.length >= 2}
             >
               {issueCredential.isPending ? 'Issuing...' : 'Issue credential'}
             </Chip>

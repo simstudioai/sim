@@ -11,8 +11,6 @@ import {
   projectResource,
   resolvePage,
   type ScimAttributeProjection,
-  type ScimUserResource,
-  toListResponse,
   toUserResource,
 } from '@/lib/scim/protocol/resources'
 import {
@@ -27,12 +25,6 @@ export interface ListScimUsersInput {
   startIndex?: number | undefined
   count?: number | undefined
   projection: ScimAttributeProjection
-}
-
-export interface ListScimUsersResult {
-  resources: ScimUserResource[]
-  totalResults: number
-  startIndex: number
 }
 
 export const listScimUsers = defineAuthorizedScimUseCase({

@@ -81,6 +81,11 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         } else if (key === 'members') {
           applyFullMembers(readMemberList(nested))
         } else if (key === 'id' || key === 'schemas' || key.startsWith('meta')) {
+          /**
+           * Okta echoes the group's `id` inside a path-less rename. Read-only
+           * attributes sent this way are ignored rather than refused, because
+           * refusing would fail every Okta group rename.
+           */
         } else {
           throw invalidPath(`Group PATCH path ${attribute} is not supported`)
         }

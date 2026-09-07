@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { scimUserResourceSchema } from '@/lib/api/contracts/scim'
 import { SCIM_MAX_PAGE_SIZE } from '@/lib/scim/protocol/constants'
 import type { ScimError } from '@/lib/scim/protocol/errors'
 import {
@@ -95,6 +96,17 @@ describe('toUserResource', () => {
 })
 
 describe('attribute projection', () => {
+  it('keeps a projected resource valid against the response contract', () => {
+    const excluded = parseAttributeProjection({ excludedAttributes: 'groups,emails' })
+    const projected = projectResource(toUserResource(userRow(), BASE_URL), excluded)
+    expect(() => scimUserResourceSchema.parse(projected)).not.toThrow()
+
+    const only = parseAttributeProjection({ attributes: 'userName' })
+    const narrow = projectResource(toUserResource(userRow(), BASE_URL), only)
+    expect(() => scimUserResourceSchema.parse(narrow)).not.toThrow()
+    expect(narrow).not.toHaveProperty('emails')
+  })
+
   it('honours the members exclusion Entra sends on every group list', () => {
     const projection = parseAttributeProjection({ excludedAttributes: 'members' })
     expect(projectionWants(projection, 'members')).toBe(false)

@@ -54,8 +54,7 @@ export function normalizeAttributePath(path: string): string {
   try {
     value = decodeURIComponent(value)
   } catch {
-    // A path that is not valid percent-encoding is used as written; the caller's
-    // closed path table rejects it with `invalidPath` either way.
+    /** Invalid percent-encoding is used as written; the closed path table rejects it as `invalidPath`. */
   }
   const lowered = value.toLowerCase()
   const coreUserPrefix = 'urn:ietf:params:scim:schemas:core:2.0:user:'
@@ -66,6 +65,7 @@ export function normalizeAttributePath(path: string): string {
   if (lowered.startsWith(enterprisePrefix)) {
     return `enterprise.${value.slice(enterprisePrefix.length)}`
   }
+  if (lowered === enterprisePrefix.slice(0, -1)) return 'enterprise'
   return value
 }
 

@@ -149,13 +149,13 @@ Sim also re-applies every group mapping on a schedule, so drift cannot persist. 
 - Base URL: `https://<your-sim-domain>/api/scim/v2`
 - Authentication: `Authorization: Bearer <credential>`
 - Resources: `/Users`, `/Groups`, plus `/ServiceProviderConfig`, `/ResourceTypes`, and `/Schemas`
-- Filters: `eq`, joined with `and`, on `userName`, `externalId`, `emails.value`, and `displayName`
+- Filters: `eq`, joined with `and`, on `id`, `userName`, `externalId`, `emails.value`, `active`, and `displayName`
 - Page size: up to 100 per request
 
 <FAQ items={[
   {
     question: "What happens to someone's workflows when they are deactivated?",
-    answer: "Nothing. A deactivation blocks sign-in and stops their API keys, and leaves every workspace, workflow, and credential they own exactly as it was. Reactivating them restores access. Only a removal — which your provider sends explicitly — reassigns what they owned."
+    answer: "Nothing. A deactivation blocks sign-in and stops their API keys, and leaves every workspace, workflow, and credential they own exactly as it was. Reactivating them restores access. Only a removal — which your provider sends explicitly — reassigns what they owned. A deactivated member also keeps their seat until they are removed."
   },
   {
     question: "Can the directory provision someone outside our verified domains?",
