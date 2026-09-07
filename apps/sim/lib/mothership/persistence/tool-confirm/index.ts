@@ -9,7 +9,10 @@ import {
   type AsyncConfirmationState,
   isAsyncEphemeralConfirmationStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
-import { getAsyncToolCalls } from '@/lib/mothership/async-runs/repository'
+import {
+  getAsyncToolCalls,
+  revokeExpiredSimToolExecutions,
+} from '@/lib/mothership/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 
 const logger = createLogger('CopilotOrchestratorPersistence')
@@ -116,6 +119,7 @@ export async function waitForToolConfirmation(
   abortSignal?: AbortSignal,
   options: {
     acceptStatus?: (status: AsyncConfirmationState['status']) => boolean
+    executionScope?: { runId: string; userId: string }
   } = {}
 ): Promise<AsyncConfirmationState | null> {
   const acceptStatus = options.acceptStatus ?? (() => true)
@@ -142,6 +146,17 @@ export async function waitForToolConfirmation(
     const onAbort = () => settle(null)
 
     const checkDurableConfirmation = async (source: 'subscribe' | 'pubsub' | 'poll') => {
+      if (options.executionScope) {
+        try {
+          await revokeExpiredSimToolExecutions(options.executionScope)
+        } catch (error) {
+          logger.warn('Could not verify retained tool execution ownership', {
+            toolCallId,
+            error: toError(error).message,
+          })
+          return false
+        }
+      }
       const latest = await getToolConfirmation(toolCallId)
       if (!latest || !acceptStatus(latest.status)) return false
       logger.info('Resolved tool confirmation from durable state', {

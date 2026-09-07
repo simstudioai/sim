@@ -83,10 +83,16 @@ import {
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
   completeAsyncToolCall,
+  completeOwnedSimToolCall,
   detachAsyncToolCall,
   getUnsettledClientWorkflowExecutions,
   prepareWorkbenchAccess,
+  recordSimSandboxProcess,
+  renewSimToolExecutionLease,
   requestRunStop,
+  revokeExpiredSimToolExecutions,
+  settleClientWorkflowToolExecution,
+  settleSimSandboxProcess,
   settleSimToolExecution,
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
@@ -1045,6 +1051,174 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       expect(savedRun.status).toBe('active')
     })
 
+    async function admitLeasedTool(chatId = generateId(), existingRunId?: string) {
+      const runId = existingRunId ?? generateId()
+      const streamId = generateId()
+      const toolCallId = generateId()
+      const ownerToken = generateId()
+      if (!existingRunId)
+        await db.insert(copilotRuns).values({
+          id: runId,
+          streamId,
+          chatId,
+          workspaceId,
+          userId: 'run-reader',
+          executionId: generateId(),
+          status: 'active',
+          toolExecutionVersion: 2,
+        })
+      await db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId,
+        toolName: 'sim_cli',
+        status: 'running',
+      })
+      const owner = { runId, toolCallId, ownerToken, userId: 'run-reader' }
+      expect(await claimSimToolExecution(owner)).toEqual({ outcome: 'claimed' })
+      return { owner, chatId, streamId }
+    }
+
+    async function expireTool(toolCallId: string) {
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'`,
+        })
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+    }
+
+    async function readTool(toolCallId: string) {
+      const [tool] = await db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      return tool
+    }
+
+    it('renews the live handler after a visible timeout without reopening its terminal result', async () => {
+      const { owner, streamId } = await admitLeasedTool()
+      await completeOwnedSimToolCall(
+        { toolCallId: owner.toolCallId, status: 'failed', error: 'timeout' },
+        owner.ownerToken
+      )
+      await closeStreamToolAdmission(streamId, owner.userId)
+      expect(await renewSimToolExecutionLease(owner)).toBe(true)
+      expect(await revokeExpiredSimToolExecutions(owner)).toEqual([])
+      expect(await areStreamToolExecutionsSettled(streamId, owner.userId)).toBe(false)
+      await settleSimToolExecution(owner.toolCallId, owner.ownerToken)
+      expect(await renewSimToolExecutionLease(owner)).toBe(false)
+      expect((await readTool(owner.toolCallId)).error).toBe('timeout')
+    })
+
+    it.each(['ownerToken', 'runId', 'userId'] as const)(
+      'does not renew another %s or revoke another actor',
+      async (field) => {
+        const { owner } = await admitLeasedTool()
+        expect(await renewSimToolExecutionLease({ ...owner, [field]: generateId() })).toBe(false)
+        await expireTool(owner.toolCallId)
+        expect(await revokeExpiredSimToolExecutions({ ...owner, userId: 'another-user' })).toEqual(
+          []
+        )
+        expect((await readTool(owner.toolCallId)).executionRevokedAt).toBeNull()
+      }
+    )
+
+    it('revokes a lost handler once, forbids late success and automatic reacquisition, and retains unknown physical work', async () => {
+      const { owner, streamId, chatId } = await admitLeasedTool()
+      await expireTool(owner.toolCallId)
+      expect(await renewSimToolExecutionLease(owner)).toBe(false)
+      await expect(
+        completeOwnedSimToolCall(
+          { toolCallId: owner.toolCallId, status: 'completed', result: { created: true } },
+          owner.ownerToken
+        )
+      ).rejects.toThrow('outcome is unknown')
+      expect(await revokeExpiredSimToolExecutions(owner)).toHaveLength(1)
+      expect(await revokeExpiredSimToolExecutions(owner)).toEqual([])
+      expect(await claimSimToolExecution({ ...owner, ownerToken: generateId() })).toEqual({
+        outcome: 'existing',
+      })
+      const saved = await readTool(owner.toolCallId)
+      expect(saved.status).toBe('failed')
+      expect(saved.error).toContain('outcome is unknown')
+      expect(saved.executionRevokedAt).not.toBeNull()
+      expect(saved.executionSettledAt).toBeNull()
+      await expect(
+        prepareWorkbenchAccess({ ...owner, sessionKey: chatSandboxSessionKey(chatId) })
+      ).rejects.toThrow('active tool execution')
+      await expect(
+        recordSimSandboxProcess({
+          ...owner,
+          process: {
+            id: generateId(),
+            sandboxId: 'local-proof',
+            sessionKey: chatSandboxSessionKey(chatId),
+          },
+        })
+      ).rejects.toThrow('ownership')
+      await closeStreamToolAdmission(streamId, owner.userId)
+      expect(await areStreamToolExecutionsSettled(streamId, owner.userId)).toBe(false)
+      await expect(settleSimToolExecution(owner.toolCallId, generateId())).rejects.toThrow(
+        'settlement'
+      )
+      await settleSimToolExecution(owner.toolCallId, owner.ownerToken)
+      expect(await areStreamToolExecutionsSettled(streamId, owner.userId)).toBe(true)
+      expect((await readTool(owner.toolCallId)).status).toBe('failed')
+    })
+
+    it.each(['completed', 'failed', 'cancelled'] as const)(
+      'retains a %s receipt when its retained handler expires',
+      async (status) => {
+        const { owner } = await admitLeasedTool()
+        await completeOwnedSimToolCall(
+          { toolCallId: owner.toolCallId, status, result: { original: status } },
+          owner.ownerToken
+        )
+        await expireTool(owner.toolCallId)
+        await revokeExpiredSimToolExecutions(owner)
+        const tool = await readTool(owner.toolCallId)
+        expect(tool.status).toBe(status)
+        expect(tool.result).toEqual({ original: status })
+        expect(tool.executionRevokedAt).not.toBeNull()
+        expect(tool.executionSettledAt).toBeNull()
+      }
+    )
+
+    it.each(['same turn', 'next turn'])(
+      'recovers recorded commands from an expired handler before workbench reuse in the %s',
+      async (kind) => {
+        const prior = await admitLeasedTool()
+        const process = {
+          id: generateId(),
+          sandboxId: 'local-proof',
+          sessionKey: chatSandboxSessionKey(prior.chatId),
+        }
+        await recordSimSandboxProcess({ ...prior.owner, process })
+        const next = await admitLeasedTool(
+          prior.chatId,
+          kind === 'same turn' ? prior.owner.runId : undefined
+        )
+        const access = { ...next.owner, sessionKey: process.sessionKey }
+        const live = await prepareWorkbenchAccess(access)
+        expect(live.handlersPending).toBe(kind === 'next turn')
+        await expireTool(prior.owner.toolCallId)
+        const recovery = await prepareWorkbenchAccess(access)
+        expect(recovery.handlersPending).toBe(false)
+        expect(recovery.processes).toEqual([{ ...process, toolCallId: prior.owner.toolCallId }])
+        expect((await readTool(prior.owner.toolCallId)).executionSettledAt).toBeNull()
+        await expect(
+          recordSimSandboxProcess({ ...prior.owner, process: { ...process, id: generateId() } })
+        ).rejects.toThrow()
+        await settleSimSandboxProcess(prior.owner.toolCallId, process.id)
+        expect(await prepareWorkbenchAccess(access)).toEqual({
+          handlersPending: false,
+          processes: [],
+        })
+        expect(await renewSimToolExecutionLease(prior.owner)).toBe(false)
+        await settleSimToolExecution(next.owner.toolCallId, next.owner.ownerToken)
+      }
+    )
+
     it.each(['active', 'complete', 'cancelled', 'error'] as const)(
       'refuses a late workflow pickup after the parent run closes: %s',
       async (status) => {
@@ -1207,7 +1381,14 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           args: { workflowId },
         })
         expect(await claimWorkflowToolExecution(toolCallId, executionId, 'client')).not.toBeNull()
-        expect(await claimSimToolExecution({ runId, toolCallId, userId: 'run-reader' })).toEqual({
+        expect(
+          await claimSimToolExecution({
+            runId,
+            toolCallId,
+            userId: 'run-reader',
+            ownerToken: toolCallId,
+          })
+        ).toEqual({
           outcome: 'existing',
         })
         if (status === 'delivered') {
@@ -1227,7 +1408,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         expect(await getUnsettledClientWorkflowExecutions(streamId, 'another-user')).toEqual([])
         expect(await getUnsettledClientWorkflowExecutions(generateId(), 'run-reader')).toEqual([])
         expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'client')).toBeNull()
-        await settleSimToolExecution(toolCallId)
+        await settleClientWorkflowToolExecution(toolCallId, executionId)
         expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(true)
         expect(await getUnsettledClientWorkflowExecutions(streamId, 'run-reader')).toEqual([])
       }
@@ -1273,10 +1454,17 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         },
         { runId, toolCallId, toolName: 'run_code', status: 'running' },
       ])
-      await claimWorkflowToolExecution(priorToolId, generateId(), 'client')
-      await claimSimToolExecution({ runId, toolCallId, userId: 'run-reader' })
+      const priorExecutionId = generateId()
+      await claimWorkflowToolExecution(priorToolId, priorExecutionId, 'client')
+      await claimSimToolExecution({
+        runId,
+        toolCallId,
+        userId: 'run-reader',
+        ownerToken: toolCallId,
+      })
       expect(
         await prepareWorkbenchAccess({
+          ownerToken: toolCallId,
           runId,
           toolCallId,
           userId: 'run-reader',
@@ -1284,8 +1472,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         })
       ).toEqual({ handlersPending: false, processes: [] })
       expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(false)
-      await settleSimToolExecution(priorToolId)
-      await settleSimToolExecution(toolCallId)
+      await settleClientWorkflowToolExecution(priorToolId, priorExecutionId)
+      await settleSimToolExecution(toolCallId, toolCallId)
     })
 
     it('lets a server pickup acquire its handler without recording a browser execution', async () => {
@@ -1310,13 +1498,20 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         args: { workflowId },
       })
       expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
-      expect(await claimSimToolExecution({ runId, toolCallId, userId: 'run-reader' })).toEqual({
+      expect(
+        await claimSimToolExecution({
+          runId,
+          toolCallId,
+          userId: 'run-reader',
+          ownerToken: toolCallId,
+        })
+      ).toEqual({
         outcome: 'claimed',
       })
       await closeStreamToolAdmission(streamId, 'run-reader')
       expect(await getUnsettledClientWorkflowExecutions(streamId, 'run-reader')).toEqual([])
       expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(false)
-      await settleSimToolExecution(toolCallId)
+      await settleSimToolExecution(toolCallId, toolCallId)
       expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(true)
     })
 
