@@ -217,6 +217,7 @@ export const upsertScimGroupMapping = defineAuthorizedScimAdminUseCase({
       workspaceId: input.targetKind === 'workspace' ? input.workspaceId : null,
       permissionType: input.targetKind === 'workspace' ? input.permissionType : null,
       role: input.targetKind === 'org_role' ? input.role : null,
+      source: 'manual',
       createdBy: context.actorUserId,
     }
 

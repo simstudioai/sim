@@ -164,14 +164,16 @@ async function loadUserForUpdate(
   return current
 }
 
+/** Rendered inside the write transaction, so a concurrent delete cannot make a committed update unreadable. */
 async function renderUpdated(
+  tx: DbOrTx,
   connectionId: string,
   scimUserId: string,
   baseUrl: string
 ): Promise<ReturnType<typeof toUserResource>> {
-  const record = await findScimUserById(db, connectionId, scimUserId)
+  const record = await findScimUserById(tx, connectionId, scimUserId)
   if (!record) throw new ScimError(500, undefined, 'The updated user could not be read back')
-  const groups = (await loadGroupsForScimUsers(db, [record.id])).get(record.id) ?? []
+  const groups = (await loadGroupsForScimUsers(tx, [record.id])).get(record.id) ?? []
   return toUserResource(toUserResourceRow(record, groups), baseUrl)
 }
 
@@ -225,7 +227,7 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<ReplaceScimUserInput>): Promise<UpdateScimUserResult> {
-    const { scimUserId, userId, outcome } = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const current = await loadUserForUpdate(tx, context, input.scimUserId)
 
       /**
@@ -245,21 +247,16 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
        * changes nothing must not write, audit, or re-project, or a 2,000-user
        * organization produces 2,000 spurious audit rows per sync.
        */
-      if (userAttributesEqual(current.attributes, next)) {
-        return { scimUserId: current.id, userId: current.userId, outcome: null }
-      }
+      const outcome = userAttributesEqual(current.attributes, next)
+        ? null
+        : await applyUserUpdate(tx, context, current, next)
       return {
         scimUserId: current.id,
         userId: current.userId,
-        outcome: await applyUserUpdate(tx, context, current, next),
+        outcome,
+        resource: await renderUpdated(tx, context.connection.id, current.id, context.baseUrl),
       }
     })
-    return {
-      scimUserId,
-      userId,
-      outcome,
-      resource: await renderUpdated(context.connection.id, scimUserId, context.baseUrl),
-    }
   },
   projectAudit: ({ result }) => auditEntries(result),
   afterSuccess: async ({ result, context }) =>
@@ -277,7 +274,7 @@ export const patchScimUser = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<PatchScimUserInput>): Promise<UpdateScimUserResult> {
-    const { scimUserId, userId, outcome } = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const current = await loadUserForUpdate(tx, context, input.scimUserId)
 
       const { next, changed } = applyUserPatch(current.attributes, input.operations)
@@ -289,19 +286,14 @@ export const patchScimUser = defineAuthorizedScimUseCase({
        * projection pass, and a `lastModified` bump for a request that meant
        * nothing.
        */
-      if (!changed) return { scimUserId: current.id, userId: current.userId, outcome: null }
+      const outcome = changed ? await applyUserUpdate(tx, context, current, next) : null
       return {
         scimUserId: current.id,
         userId: current.userId,
-        outcome: await applyUserUpdate(tx, context, current, next),
+        outcome,
+        resource: await renderUpdated(tx, context.connection.id, current.id, context.baseUrl),
       }
     })
-    return {
-      scimUserId,
-      userId,
-      outcome,
-      resource: await renderUpdated(context.connection.id, scimUserId, context.baseUrl),
-    }
   },
   projectAudit: ({ result }) => auditEntries(result),
   afterSuccess: async ({ result, context }) =>

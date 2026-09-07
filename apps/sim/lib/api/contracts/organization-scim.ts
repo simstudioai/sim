@@ -39,7 +39,6 @@ const scimConnectionSchema = z.object({
   status: z.enum(['active', 'disabled']),
   baseUrl: z.string(),
   settings: scimConnectionSettingsSchema,
-  ssoProviderId: z.string().nullable(),
   lastRequestAt: z.string().nullable(),
   reconciledAt: z.string().nullable(),
   createdAt: z.string(),
@@ -65,7 +64,6 @@ export const configureScimConnectionContract = defineRouteContract({
   body: z.object({
     status: z.enum(['active', 'disabled']).optional(),
     settings: scimConnectionSettingsSchema.optional(),
-    ssoProviderId: z.string().min(1).max(128).nullable().optional(),
   }),
   response: { mode: 'json', schema: z.object({ connection: scimConnectionSchema }) },
 })

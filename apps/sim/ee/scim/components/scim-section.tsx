@@ -205,8 +205,17 @@ interface GroupMappingsProps {
 }
 
 function GroupMappings({ organizationId }: GroupMappingsProps) {
-  const { data: groups, isLoading } = useScimGroupMappings(organizationId)
-  const { data: permissionGroups = [] } = usePermissionGroups(organizationId)
+  const {
+    data: groups,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useScimGroupMappings(organizationId)
+  const { data: allPermissionGroups = [] } = usePermissionGroups(organizationId)
+  /** The default group governs by having no members, so it cannot be a membership target. */
+  const permissionGroups = allPermissionGroups.filter((group) => !group.isDefault)
   const { data: workspaces = [] } = useOrganizationWorkspaces(organizationId)
   const deleteMapping = useDeleteScimGroupMapping()
 
@@ -226,6 +235,17 @@ function GroupMappings({ organizationId }: GroupMappingsProps) {
 
   if (isLoading) {
     return <SettingsEmptyState variant='inline'>Loading groups...</SettingsEmptyState>
+  }
+  if (isError) {
+    return (
+      <SettingsQueryErrorState
+        error={error}
+        fallback='Failed to load directory groups'
+        isRetrying={isFetching}
+        onRetry={() => void refetch()}
+        variant='inline'
+      />
+    )
   }
   if (!groups || groups.length === 0) {
     return (
@@ -278,10 +298,28 @@ interface ActivityListProps {
 }
 
 function ActivityList({ organizationId }: ActivityListProps) {
-  const { data: entries, isLoading } = useScimActivity(organizationId)
+  const {
+    data: entries,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useScimActivity(organizationId)
 
   if (isLoading) {
     return <SettingsEmptyState variant='inline'>Loading activity...</SettingsEmptyState>
+  }
+  if (isError) {
+    return (
+      <SettingsQueryErrorState
+        error={error}
+        fallback='Failed to load directory activity'
+        isRetrying={isFetching}
+        onRetry={() => void refetch()}
+        variant='inline'
+      />
+    )
   }
   if (!entries || entries.length === 0) {
     return <SettingsEmptyState variant='inline'>No requests yet.</SettingsEmptyState>

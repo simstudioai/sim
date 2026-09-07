@@ -27,12 +27,11 @@ const LEASE_TTL_MS = 15 * 60 * 1000
 /**
  * How often a connection is swept when nothing else triggers it.
  *
- * The cron fires hourly; each connection is picked up once this interval has
- * passed since its last sweep, oldest first. Drift is rare and corrected on the
- * next membership change anyway, so a few passes a day is plenty without
- * re-walking every tenant every hour.
+ * Matches the cron's cadence: every connection is re-walked once an hour, oldest
+ * first. A pass over an in-sync tenant is reads only, so the hourly guarantee
+ * the docs make costs little.
  */
-const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
+const RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 
 /** Users reconciled per transaction, so no single one holds locks for long. */
 const BATCH_SIZE = 200
@@ -144,18 +143,6 @@ export async function reconcileConnection(connection: {
 
   let completed = false
   try {
-    /**
-     * Settings are read after the lease is held, not from the row the due query
-     * returned: an administrator may have changed them in between, and projecting
-     * with the old settings would then stamp the connection as reconciled.
-     */
-    const [fresh] = await db
-      .select({ settings: scimConnection.settings })
-      .from(scimConnection)
-      .where(eq(scimConnection.id, connection.id))
-      .limit(1)
-    const settings = fresh?.settings ?? connection.settings
-
     let cursor: string | undefined
     for (;;) {
       const page = await listScimUserIds(db, {
@@ -170,6 +157,19 @@ export async function reconcileConnection(connection: {
         })
         return null
       }
+
+      /**
+       * Settings are read per batch rather than from the row the due query
+       * returned: an administrator may change them while a long pass runs, and
+       * projecting a later batch with the old settings would then stamp the
+       * connection as reconciled against a policy it no longer has.
+       */
+      const [fresh] = await db
+        .select({ settings: scimConnection.settings })
+        .from(scimConnection)
+        .where(eq(scimConnection.id, connection.id))
+        .limit(1)
+      const settings = fresh?.settings ?? connection.settings
 
       await db.transaction(async (tx) => {
         for (const row of page) {

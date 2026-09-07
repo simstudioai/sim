@@ -146,13 +146,14 @@ async function applyGrant(
         params.previousPermission &&
         permissionRank(params.previousPermission) > permissionRank(grant.permissionType)
       ) {
-        await lowerWorkspaceAccessTx(tx, {
+        const lowered = await lowerWorkspaceAccessTx(tx, {
           workspaceId: grant.targetId,
           userId: params.userId,
           from: params.previousPermission,
           to: grant.permissionType,
         })
-        return 'applied'
+        if (lowered === 'lowered') return 'applied'
+        /** The row is no longer at the level the directory set; ensure at least the desired level. */
       }
       const outcome = await grantWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,

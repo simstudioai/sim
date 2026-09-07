@@ -103,7 +103,19 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
        * A stale row for someone who already left — and may since have joined
        * another organization — must not sign them out or revoke their keys there.
        */
-      if (membership) {
+      const [rejoined] = membership
+        ? await tx
+            .select({ id: member.id })
+            .from(member)
+            .where(
+              and(
+                eq(member.organizationId, context.organizationId),
+                eq(member.userId, current.userId)
+              )
+            )
+            .limit(1)
+        : []
+      if (membership && !rejoined) {
         await revokeUserSessionsTx(tx, {
           userId: current.userId,
           organizationId: context.organizationId,

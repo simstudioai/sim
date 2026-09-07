@@ -16,8 +16,13 @@ import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  getInstanceOrganizationId,
+  isInstanceOrganizationMode,
+} from '@/lib/organizations/instance-org'
+import {
   invalidateAfterSessionRevocation,
   suspendMemberTx,
+  unsuspendMemberTx,
 } from '@/lib/organizations/members/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -127,6 +132,22 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
      * hang off them. Reimplementing that with a direct insert would skip every
      * one.
      */
+    /**
+     * In instance-organization mode every account is placed in the instance
+     * organization at creation, and an account belongs to one organization. A
+     * connection for any other organization could never admit anyone.
+     */
+    if (isInstanceOrganizationMode()) {
+      const instanceOrganizationId = await getInstanceOrganizationId()
+      if (instanceOrganizationId && instanceOrganizationId !== context.organizationId) {
+        throw new ScimError(
+          409,
+          undefined,
+          'This deployment places every account in its instance organization, so directory provisioning is available only for that organization.'
+        )
+      }
+    }
+
     const resolution = await resolveProvisionedIdentity(db, {
       connectionId: context.connection.id,
       organizationId: context.organizationId,
@@ -209,6 +230,8 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
          */
         if (resolution.action === 'link') {
           await syncAccountIdentityTx(tx, { userId, email, name: attributes.name.formatted })
+          /** A relinked account may still carry the suspension a lost deprovisioning left behind. */
+          if (attributes.active) await unsuspendMemberTx(tx, { userId, source: 'scim' })
         }
 
         const inserted = await insertScimUser(tx, {

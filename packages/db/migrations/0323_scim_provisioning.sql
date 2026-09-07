@@ -1,7 +1,6 @@
 CREATE TABLE "scim_connection" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
-	"sso_provider_id" text,
 	"status" text DEFAULT 'active' NOT NULL,
 	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"last_request_at" timestamp,
@@ -46,6 +45,7 @@ CREATE TABLE "scim_group_mapping" (
 	"workspace_id" text,
 	"permission_type" "permission_type",
 	"role" text,
+	"source" text DEFAULT 'manual' NOT NULL,
 	"created_by" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "scim_group_mapping_target_shape" CHECK ((
@@ -112,7 +112,6 @@ ALTER TABLE "permission_group" ADD COLUMN "membership_mode" text DEFAULT 'inheri
 ALTER TABLE "user" ADD COLUMN "suspended_at" timestamp;--> statement-breakpoint
 ALTER TABLE "user" ADD COLUMN "suspension_source" text;--> statement-breakpoint
 ALTER TABLE "scim_connection" ADD CONSTRAINT "scim_connection_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scim_connection" ADD CONSTRAINT "scim_connection_sso_provider_id_sso_provider_id_fk" FOREIGN KEY ("sso_provider_id") REFERENCES "public"."sso_provider"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scim_connection" ADD CONSTRAINT "scim_connection_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scim_credential" ADD CONSTRAINT "scim_credential_connection_id_scim_connection_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."scim_connection"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scim_credential" ADD CONSTRAINT "scim_credential_revoked_by_user_id_fk" FOREIGN KEY ("revoked_by") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint

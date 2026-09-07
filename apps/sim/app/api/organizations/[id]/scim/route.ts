@@ -39,7 +39,6 @@ export const PUT = defineInternalJsonRoute({
     organizationId: params.id,
     ...(body.status !== undefined ? { status: body.status } : {}),
     ...(body.settings !== undefined ? { settings: body.settings } : {}),
-    ...(body.ssoProviderId !== undefined ? { ssoProviderId: body.ssoProviderId } : {}),
   }),
   useCase: configureScimConnection,
   present: ({ connection }) => ({ connection }),

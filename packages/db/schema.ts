@@ -5920,9 +5920,6 @@ export const scimConnection = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
     /** The SSO provider this directory pairs with, shown in settings. */
-    ssoProviderId: text('sso_provider_id').references(() => ssoProvider.id, {
-      onDelete: 'set null',
-    }),
     /** `active` or `disabled`. Disabling refuses every credential immediately. */
     status: text('status').notNull().default('active'),
     settings: jsonb('settings').$type<ScimConnectionSettings>().notNull().default({}),
@@ -6131,6 +6128,13 @@ export const scimGroupMapping = pgTable(
     permissionType: permissionTypeEnum('permission_type'),
     /** Organization role granted, for `org_role` targets. Only `admin` is accepted. */
     role: text('role'),
+    /**
+     * `automatic` mappings were made by name matching and are replaced when the
+     * group is renamed; `manual` ones were made by an administrator and are
+     * never removed by a sync. Kept apart from `createdBy`, which goes null when
+     * its author's account is deleted.
+     */
+    source: text('source').notNull().default('manual'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

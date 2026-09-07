@@ -167,6 +167,8 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
           if (request.method !== options.contract.method) {
             throw new ScimError(405, undefined, `${request.method} is not supported here`)
           }
+          /** A deployment without the feature exposes no provisioning surface at all. */
+          if (!isScimEnabled) throw new ScimError(404, undefined, 'Not found')
           assertAcceptableMediaType(request)
 
           /**

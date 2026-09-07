@@ -114,7 +114,6 @@ export async function loadConnectionView(
     status: row.status === 'disabled' ? 'disabled' : 'active',
     baseUrl: scimBaseUrl(),
     settings: row.settings,
-    ssoProviderId: row.ssoProviderId,
     lastRequestAt: row.lastRequestAt?.toISOString() ?? null,
     reconciledAt: row.reconciledAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),

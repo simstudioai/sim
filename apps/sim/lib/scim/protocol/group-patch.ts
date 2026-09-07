@@ -130,7 +130,11 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
     const key = path.toLowerCase()
     if (key === 'members') {
       if (operation.op === 'replace') {
-        applyFullMembers(readMemberList(operation.value ?? []))
+        /** Clearing a group is an explicit `[]` or a value-less remove, never a missing value. */
+        if (operation.value === undefined || operation.value === null) {
+          throw invalidValue('A replace of members requires a value')
+        }
+        applyFullMembers(readMemberList(operation.value))
         continue
       }
       if (operation.op === 'remove' && operation.value === undefined) {

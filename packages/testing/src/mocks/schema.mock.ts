@@ -1167,7 +1167,6 @@ export const schemaMock = {
   scimConnection: {
     id: 'scimConnection.id',
     organizationId: 'scimConnection.organizationId',
-    ssoProviderId: 'scimConnection.ssoProviderId',
     status: 'scimConnection.status',
     settings: 'scimConnection.settings',
     lastRequestAt: 'scimConnection.lastRequestAt',
@@ -1231,6 +1230,7 @@ export const schemaMock = {
     groupId: 'scimGroupMapping.groupId',
     targetKind: 'scimGroupMapping.targetKind',
     permissionGroupId: 'scimGroupMapping.permissionGroupId',
+    source: 'scimGroupMapping.source',
     workspaceId: 'scimGroupMapping.workspaceId',
     permissionType: 'scimGroupMapping.permissionType',
     role: 'scimGroupMapping.role',

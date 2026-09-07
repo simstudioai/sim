@@ -1,13 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import {
-  type ScimConnectionSettings,
-  scimConnection,
-  scimRequestLog,
-  ssoProvider,
-} from '@sim/db/schema'
+import { type ScimConnectionSettings, scimConnection, scimRequestLog } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import type { ScimConnectionSettingsInput } from '@/lib/api/contracts/organization-scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -40,31 +35,11 @@ export interface ConfigureScimConnectionInput {
   organizationId: string
   status?: 'active' | 'disabled'
   settings?: ScimConnectionSettingsInput
-  ssoProviderId?: string | null
 }
 
 export const configureScimConnection = defineAuthorizedScimAdminUseCase({
   operation: scimAdminOperations.configure,
   async execute({ input, context }: ScimAdminUseCaseArgs<ConfigureScimConnectionInput>) {
-    if (input.ssoProviderId) {
-      const [provider] = await db
-        .select({ id: ssoProvider.id })
-        .from(ssoProvider)
-        .where(
-          and(
-            eq(ssoProvider.id, input.ssoProviderId),
-            eq(ssoProvider.organizationId, context.organizationId)
-          )
-        )
-        .limit(1)
-      if (!provider) {
-        throw new OrchestrationError(
-          'not_found',
-          'That SSO provider does not belong to this organization'
-        )
-      }
-    }
-
     /**
      * A default grant hands every provisioned member a workspace, so the
      * workspace must be this organization's — the same check a group mapping
@@ -80,7 +55,7 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
      * carrying a stale copy of the earlier one's field — and two first-time
      * enables, where there is no row yet to lock, cannot both insert.
      */
-    const { created, status } = await db.transaction(async (tx) => {
+    const { created, previousStatus, status } = await db.transaction(async (tx) => {
       await acquireOrganizationMutationLock(tx, context.organizationId)
       const [existing] = await tx
         .select({
@@ -111,7 +86,6 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
           .set({
             status: nextStatus,
             settings: nextSettings,
-            ...(input.ssoProviderId !== undefined ? { ssoProviderId: input.ssoProviderId } : {}),
             updatedAt: new Date(),
           })
           .where(eq(scimConnection.id, existing.id))
@@ -119,28 +93,28 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
         await tx.insert(scimConnection).values({
           id: generateId(),
           organizationId: context.organizationId,
-          ssoProviderId: input.ssoProviderId ?? null,
           status: nextStatus,
           settings: nextSettings,
           createdBy: context.actorUserId,
         })
       }
-      return { created: !existing, status: nextStatus }
+      return { created: !existing, previousStatus: existing?.status ?? null, status: nextStatus }
     })
 
     const view = await loadConnectionView(context.organizationId)
     if (!view || view.status !== status) {
       throw new OrchestrationError('internal', 'The connection could not be read back')
     }
-    return { connection: view, created }
+    return { connection: view, created, previousStatus }
   },
+  /** The action names the transition: enabling (first time or again), disabling, or editing in place. */
   projectAudit: ({ result }) => ({
     action:
-      result.connection.status === 'active'
-        ? result.created
+      result.connection.status !== result.previousStatus
+        ? result.connection.status === 'active'
           ? AuditAction.SCIM_CONNECTION_ENABLED
-          : AuditAction.SCIM_CONNECTION_SETTINGS_UPDATED
-        : AuditAction.SCIM_CONNECTION_DISABLED,
+          : AuditAction.SCIM_CONNECTION_DISABLED
+        : AuditAction.SCIM_CONNECTION_SETTINGS_UPDATED,
     resourceType: AuditResourceType.SCIM_CONNECTION,
     resourceId: result.connection.id,
     metadata: { status: result.connection.status },

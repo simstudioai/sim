@@ -1,5 +1,5 @@
 {
-  "id": "21abba38-933e-49f5-987c-7e2ec982c472",
+  "id": "cae748d7-69a8-436e-8aac-9dd0f2a894dd",
   "prevId": "43e7d6af-94da-4f1c-8bfc-568d5937765c",
   "version": "7",
   "dialect": "postgresql",
@@ -12378,12 +12378,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "sso_provider_id": {
-          "name": "sso_provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -12483,15 +12477,6 @@
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "scim_connection_sso_provider_id_sso_provider_id_fk": {
-          "name": "scim_connection_sso_provider_id_sso_provider_id_fk",
-          "tableFrom": "scim_connection",
-          "tableTo": "sso_provider",
-          "columnsFrom": ["sso_provider_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "scim_connection_created_by_user_id_fk": {
@@ -12833,6 +12818,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
         },
         "created_by": {
           "name": "created_by",
