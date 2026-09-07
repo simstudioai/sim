@@ -182,8 +182,8 @@ describe('processContextsServer - workflow references', () => {
       { id: 'folder-1', name: 'Leads / new', parentId: 'root' },
     ] })
     expect(await resolveActiveResourceContext('folder', 'folder-1', 'workspace-1', 'reader')).toMatchObject({
-      type: 'folder',
-      path: 'workflows/Sales%20team/Leads%20%2F%20new',
+      type: 'active_resource',
+      content: JSON.stringify({ resourceType: 'workflow', folderPath: '/Sales%20team/Leads%20%2F%20new' }),
     })
     expect(listWorkflowFolders).toHaveBeenCalledWith({
       principal: expect.objectContaining({ subjectUserId: 'reader', workspaceId: 'workspace-1' }),
@@ -841,7 +841,7 @@ describe('processContextsServer - logs contexts', () => {
         workflowName: 'My Flow',
       },
     ])
-    readWorkflowMetadata.mockRejectedValue(new DelegatedWorkspaceAuthorizationError())
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({ allowed: false })
 
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
@@ -851,6 +851,31 @@ describe('processContextsServer - logs contexts', () => {
     )
 
     expect(result).toEqual([])
+  })
+})
+
+describe('file folder context', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('uses the CLI folder path while preserving literal slashes inside folder names', async () => {
+    resolveFileFolderPath.mockResolvedValueOnce({ path: 'Reports/Client \\/ notes' })
+    expect(await resolveActiveResourceContext('filefolder', 'folder-1', 'ws-1', 'reader')).toEqual({
+      type: 'active_resource',
+      tag: '@active_resource',
+      content: JSON.stringify({
+        resourceType: 'file',
+        folderPath: '/Reports/Client%20%2F%20notes',
+      }),
+    })
+    expect(resolveFileFolderPath).toHaveBeenCalledWith({
+      principal: expect.objectContaining({ subjectUserId: 'reader', workspaceId: 'ws-1' }),
+      input: { workspaceId: 'ws-1', folderId: 'folder-1' },
+    })
+  })
+
+  it('omits unavailable folders instead of substituting the root', async () => {
+    resolveFileFolderPath.mockResolvedValueOnce({ path: null })
+    expect(await resolveActiveResourceContext('filefolder', 'missing', 'ws-1', 'reader')).toBeNull()
   })
 })
 
@@ -1441,7 +1466,7 @@ describe('folder and foldered-resource chat pointers', () => {
     ['knowledge', 'knowledgebases', listKnowledgeFolders],
   ] as const)(
     'resolves nested %s folders identically for mentions and active resources',
-    async (_kind, root, list) => {
+    async (_kind, _root, list) => {
       list.mockResolvedValue({ folders: nestedFolders })
       const context: ChatContext = { kind: 'folder', folderId: 'child', label: 'Chosen folder' }
       const [mention] = await processContextsServer(
@@ -1458,10 +1483,10 @@ describe('folder and foldered-resource chat pointers', () => {
         'user-1',
         'chat-1'
       )
-      const path = `${root}/Finance%2FLegal/Q4%20100%25`
-      expect(mention).toMatchObject({ type: context.kind, tag: '@Chosen folder', path })
-      expect(mention.content).toBe('')
-      expect(active).toMatchObject({ type: 'folder', tag: '@active_resource', path })
+      const content = JSON.stringify({ resourceType: _kind === 'knowledge' ? 'knowledge_base' : _kind, folderPath: '/Finance%2FLegal/Q4%20100%25' })
+      expect(mention).toMatchObject({ type: context.kind, tag: '@Chosen folder', content })
+      expect(mention.path).toBeUndefined()
+      expect(active).toMatchObject({ type: 'active_resource', tag: '@active_resource', content })
       expect(list).toHaveBeenCalledWith({
         principal: expect.objectContaining({
           kind: 'delegated',
@@ -1491,12 +1516,12 @@ describe('folder and foldered-resource chat pointers', () => {
       'user-1',
       'chat-1'
     )
-    expect(result.path).toBe('files/Finance%2FLegal/Q4%20100%25')
-    expect(result.content).toBe('')
+    expect(result.path).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ resourceType: 'file', folderPath: '/Finance%2FLegal/Q4%20100%25' })
     expect(active).toMatchObject({
-      type: 'filefolder',
+      type: 'active_resource',
       tag: '@active_resource',
-      path: result.path,
+      content: result.content,
     })
     expect(resolveFileFolderPath).toHaveBeenCalledWith({
       principal: expect.objectContaining({
@@ -1521,7 +1546,7 @@ describe('folder and foldered-resource chat pointers', () => {
       folders: [{ id: 'child', name: 'Moved', parentId: null }],
     })
     const [result] = await processContextsServer([contexts[1]], 'user-1', '', 'ws-1')
-    expect(result.path).toBe('tables/Moved')
+    expect(JSON.parse(result.content)).toEqual({ resourceType: 'table', folderPath: '/Moved' })
     expect(listTableFolders).toHaveBeenCalledTimes(2)
   })
 
@@ -1534,7 +1559,7 @@ describe('folder and foldered-resource chat pointers', () => {
       '',
       'ws-1'
     )
-    expect(result.path).toBe('tables/Finance%2FLegal/Q4%20100%25')
+    expect(JSON.parse(result.content)).toEqual({ resourceType: 'table', folderPath: '/Finance%2FLegal/Q4%20100%25' })
   })
 
   it.each(['missing', 'deleted', 'other-workspace'])(
