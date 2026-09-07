@@ -13,9 +13,17 @@ export interface StreamBatchEvent {
 export function toReplayEnvelope(
   envelope: PersistedStreamEventEnvelope
 ): PersistedStreamEventEnvelope {
-  return envelope.type === 'resource'
-    ? { ...envelope, payload: { ...envelope.payload, replay: true } }
-    : envelope
+  if (envelope.type === 'resource') {
+    return { ...envelope, payload: { ...envelope.payload, replay: true } }
+  }
+  if (
+    envelope.type === 'tool' &&
+    'phase' in envelope.payload &&
+    envelope.payload.phase === 'result'
+  ) {
+    return { ...envelope, payload: { ...envelope.payload, replay: true } }
+  }
+  return envelope
 }
 
 export function toStreamBatchEvent(envelope: PersistedStreamEventEnvelope): StreamBatchEvent {

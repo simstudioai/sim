@@ -2548,11 +2548,9 @@ export function useWorkflowExecution() {
           releaseReconnectPersistenceOwnership()
           return
         }
-        handleExecutionErrorConsole({
+        logger.warn('Execution updates unavailable after reconnect; outcome is unknown', {
           workflowId: reconnectWorkflowId,
           executionId: capturedExecutionId,
-          error: 'Execution state is no longer available after reconnect',
-          blockLogs: [],
         })
         setCurrentExecutionId(reconnectWorkflowId, null)
         finishReconnectExecution()

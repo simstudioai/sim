@@ -355,7 +355,11 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
-  const { data: viewsData, isError: viewsErrored } = useTableViews({
+  const {
+    data: viewsData,
+    isError: viewsErrored,
+    isFetching: viewsFetching,
+  } = useTableViews({
     workspaceId,
     tableId,
   })
@@ -388,13 +392,14 @@ export function Table({
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const deleteViewMutation = useDeleteTableView({ workspaceId, tableId })
 
-  /** Resolve the restored or default view synchronously so the grid, autosave
-   *  owner, and menu agree before the URL effect records the adopted view id. */
-  const { selectedView, defaultView, activeView } = resolveTableViewSelection(
-    views,
-    activeViewId,
-    embedded ? initialViewId : undefined
-  )
+  /** Resolve the default synchronously so the grid, autosave owner, and menu all
+   *  agree before the URL effect records the adopted view id. */
+  const {
+    selectedView,
+    defaultView,
+    activeView,
+    pending: viewSelectionPending,
+  } = resolveTableViewSelection(views, activeViewId, embedded ? initialViewId : undefined, viewsFetching)
   const activeViewConfig = useMemo(
     () => resolveTableViewConfig(tableData?.metadata, activeView?.config ?? null),
     [tableData?.metadata, activeView?.config]
@@ -571,7 +576,8 @@ export function Table({
       resolvePendingLayout(null)
       return
     }
-    if (!viewsAvailable || !tableAvailable) return
+    /** A tool can select a newly saved view before invalidation has refreshed the cached list. */
+    if (!viewsAvailable || !tableAvailable || viewSelectionPending) return
     ownerResolvedRef.current = true
     if (appliedViewRevisionRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -702,6 +708,7 @@ export function Table({
     if (activeView) flushPendingViewConfig(activeView.id)
   }, [
     viewsAvailable,
+    viewSelectionPending,
     viewsErrored,
     tableAvailable,
     views,
