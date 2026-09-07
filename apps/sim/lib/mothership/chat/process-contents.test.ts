@@ -10,6 +10,7 @@ import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/mothership/chat/selection-context'
+import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
@@ -54,6 +55,7 @@ const {
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
 vi.mock('@/lib/permission-groups/resolve.server', () => ({ getUserPermissionConfig }))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({ validateMcpToolsAllowed: vi.fn() }))
 vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
 }))
@@ -505,7 +507,7 @@ describe('processContextsServer - MCP contexts', () => {
     vi.clearAllMocks()
   })
 
-  it('lists only the tools from the slash-selected MCP server', async () => {
+  it('references the selected service while the request catalog owns tool discovery', async () => {
     discoverServerTools.mockResolvedValue([
       {
         serverId: 'mcp-server-1',
@@ -523,14 +525,36 @@ describe('processContextsServer - MCP contexts', () => {
       'ws-1'
     )
 
-    expect(discoverServerTools).toHaveBeenCalledWith('user-1', 'mcp-server-1', 'ws-1')
     expect(result).toEqual([
-      expect.objectContaining({
+      {
         type: 'mcp',
         tag: '/Docs',
-        content: expect.stringContaining('mcp-server-1-search'),
-      }),
+        content: JSON.stringify({ serverId: 'mcp-server-1', service: 'mcp:mcp-server-1' }),
+      },
     ])
+    expect(discoverServerTools).not.toHaveBeenCalled()
+    const catalog = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
+    expect(discoverServerTools).toHaveBeenCalledTimes(1)
+    expect(discoverServerTools).toHaveBeenCalledWith('user-1', 'mcp-server-1', 'ws-1')
+    expect(catalog).toMatchObject([
+      { name: 'mcp-server-1-search', service: JSON.parse(result[0].content).service },
+    ])
+  })
+
+  it('keeps the selected service reference when discovery is unavailable', async () => {
+    discoverServerTools.mockRejectedValue(new Error('Server temporarily unavailable'))
+    const result = await processContextsServer(
+      [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+      'user-1',
+      '/Docs find auth docs',
+      'ws-1'
+    )
+    expect(result).toHaveLength(1)
+    expect(JSON.parse(result[0].content)).toEqual({
+      serverId: 'mcp-server-1',
+      service: 'mcp:mcp-server-1',
+    })
+    expect(discoverServerTools).not.toHaveBeenCalled()
   })
 })
 
@@ -557,7 +581,8 @@ describe('processContextsServer - browser and terminal selections', () => {
       },
     ])
     expect(result[0].content).toContain('cannot read or drive browser tabs')
-    expect(result[1].content).toContain('terminal list operation')
+    expect(result[1].content).toContain('cannot read or drive terminals')
+    expect(result[1].content).not.toContain('terminal list operation')
   })
 
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {

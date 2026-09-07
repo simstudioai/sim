@@ -13,8 +13,6 @@ import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integration
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
-import { mcpService } from '@/lib/mcp/service'
-import { createMcpToolId } from '@/lib/mcp/utils'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { createCopilotChatTablePrincipal } from '@/lib/mothership/application/execute-table-use-case'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
@@ -76,13 +74,7 @@ interface AgentContext {
   type: AgentContextType
   tag: string
   content: string
-  /**
-   * Canonical, URL-encoded VFS path for the tagged resource (e.g.
-   * `agent/skills/My%20Skill.json`). Tagged resources are sent as path
-   * pointers so the model reads them on demand via VFS tools instead of the
-   * full body bloating the request. Skills are the exception: they carry both
-   * `path` and the full `content` so the skill is autoloaded.
-   */
+  /** A CLI-readable file address; other resources carry canonical references in content. */
   path?: string
 }
 
@@ -138,21 +130,11 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
-        const tools = await mcpService.discoverServerTools(userId, ctx.serverId, currentWorkspaceId)
-        if (tools.length === 0) return null
-        const toolLines = tools.map((tool) => {
-          const name = createMcpToolId(tool.serverId, tool.name)
-          return `- ${name}: ${tool.description || tool.name}`
-        })
+        /** The authorized request catalog owns discovery; context identifies the selected service. */
         return {
           type: 'mcp',
           tag: ctx.label ? `/${ctx.label}` : '/',
-          content: [
-            `The user explicitly enabled the MCP server "${ctx.label || ctx.serverId}". It stays enabled for the rest of this chat, and its tools remain callable on every later turn.`,
-            'Its tools are listed below and are callable directly by the exact name shown — there is no loading step.',
-            'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
-            ...toolLines,
-          ].join('\n'),
+          content: JSON.stringify({ serverId: ctx.serverId, service: `mcp:${ctx.serverId}` }),
         }
       }
       if (ctx.kind === 'past_chat' && ctx.chatId) {
@@ -198,9 +180,7 @@ export async function processContextsServer(
           currentWorkspaceId
         )
       }
-      // Every tab context retains its live pointer. An explicit user selection
-      // additionally carries the quoted snapshot they chose, while the pointer
-      // lets the agent inspect or act on the current page/shell when needed.
+      /** Desktop context carries a reference and optional selection; v1 has no desktop control tools. */
       if (ctx.kind === 'browser_tab' && ctx.tabId) {
         if (ctx.tabId === BROWSER_SESSION_RESOURCE_ID) {
           return {
@@ -225,7 +205,7 @@ export async function processContextsServer(
             type: 'terminal_tab',
             tag: ctx.label ? `@${ctx.label}` : '@Terminal',
             content:
-              'The user tagged the Terminal resource as a whole, not a specific shell. Inspect the live terminals with the terminal list operation and choose the relevant one from their request. If no terminal is open yet, create one as needed.',
+              'The user tagged the Terminal resource as a whole, not a specific shell. You cannot read or drive terminals here: work from output the user shares.',
           }
         }
         const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). You cannot read or drive terminals here: ask the user to paste the relevant output rather than assuming what is in it.`

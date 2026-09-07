@@ -483,9 +483,9 @@ async function resolveAgentContexts(params: {
             tag: resource.active ? '@active_tab' : '@open_tab',
             content: `The user's ${
               resource.active ? 'currently visible browser tab' : 'other open browser tab'
-            } (driven by the browser subagent) is open on: ${
+            } is open on: ${
               title ? `"${title}" — ` : ''
-            }${resource.url}`,
+            }${resource.url}. You cannot read or drive browser tabs here; this attachment supplies only the title and URL.`,
           }
         }
         const ctx = await resolveActiveResourceContext(

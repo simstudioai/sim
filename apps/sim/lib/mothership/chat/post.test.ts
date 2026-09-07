@@ -648,6 +648,40 @@ describe('handleUnifiedChatPost', () => {
     expect(processContextsServer).not.toHaveBeenCalled()
   })
 
+  it('passes browser attachment metadata without advertising an unavailable browser agent', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Explain the selected page',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [
+            {
+              type: 'browser',
+              id: 'browser-session',
+              title: 'Documentation',
+              url: 'https://docs.example.com/guide',
+              active: true,
+            },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    const payload = buildCopilotRequestPayload.mock.calls[0]?.[0]
+    expect(payload.contexts).toEqual([
+      expect.objectContaining({
+        type: 'active_resource',
+        tag: '@active_tab',
+        content: expect.stringContaining('cannot read or drive browser tabs'),
+      }),
+    ])
+    expect(payload.contexts[0].content).toContain('https://docs.example.com/guide')
+    expect(payload.contexts[0].content).toContain('Documentation')
+    expect(payload.contexts[0].content).not.toContain('browser subagent')
+  })
+
   it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
