@@ -2234,6 +2234,13 @@
       "when": 1788725017174,
       "tag": "0319_mothership_client_workflow_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1788738943278,
+      "tag": "0320_copilot_tool_execution_leases",
+      "breakpoints": true
     }
   ]
 }

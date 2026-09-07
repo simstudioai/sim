@@ -4,14 +4,16 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getAsyncToolCalls } = vi.hoisted(() => ({
+const { getAsyncToolCalls, revokeExpiredSimToolExecutions } = vi.hoisted(() => ({
   getAsyncToolCalls: vi.fn(),
+  revokeExpiredSimToolExecutions: vi.fn(),
 }))
 
 const channelHandlers = new Set<(event: any) => void>()
 
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getAsyncToolCalls,
+  revokeExpiredSimToolExecutions,
 }))
 
 vi.mock('@/lib/events/pubsub', () => ({
@@ -46,6 +48,7 @@ describe('copilot orchestrator persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     channelHandlers.clear()
+    revokeExpiredSimToolExecutions.mockResolvedValue([])
     row = null
     getAsyncToolCalls.mockImplementation(async () => (row ? [row] : []))
   })
@@ -288,6 +291,45 @@ describe('copilot orchestrator persistence', () => {
       const callsAfterAbort = getAsyncToolCalls.mock.calls.length
       await vi.advanceTimersByTimeAsync(5_000)
       expect(getAsyncToolCalls).toHaveBeenCalledTimes(callsAfterAbort)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('detects execution expiry while a recovered waiter runs without any browser polls', async () => {
+    vi.useFakeTimers()
+    try {
+      row = { status: 'running', updatedAt: new Date() }
+      const scope = { runId: 'run-1', userId: 'user-1' }
+      const waiting = waitForToolConfirmation('tool-1', 60_000, undefined, {
+        executionScope: scope,
+        acceptStatus: (status) => status === 'error',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      revokeExpiredSimToolExecutions.mockImplementationOnce(async () => {
+        row = { status: 'failed', error: 'Outcome unknown', updatedAt: new Date() }
+        return [{ toolCallId: 'tool-1' }]
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(await waiting).toMatchObject({ status: 'error', message: 'Outcome unknown' })
+      expect(revokeExpiredSimToolExecutions).toHaveBeenCalledWith(scope)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps polling after a transient ownership lookup failure', async () => {
+    vi.useFakeTimers()
+    try {
+      row = { status: 'completed', result: 'saved result', updatedAt: new Date() }
+      revokeExpiredSimToolExecutions.mockRejectedValueOnce(new Error('database unavailable'))
+      const waiting = waitForToolConfirmation('tool-1', 60_000, undefined, {
+        executionScope: { runId: 'run-1', userId: 'user-1' },
+        acceptStatus: (status) => status === 'success',
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(await waiting).toMatchObject({ status: 'success', data: 'saved result' })
+      expect(revokeExpiredSimToolExecutions).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }

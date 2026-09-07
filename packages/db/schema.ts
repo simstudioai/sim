@@ -3455,6 +3455,10 @@ export const copilotAsyncToolCalls = pgTable(
     /** Separate from the model-facing terminal result, which can precede cleanup. */
     executionStartedAt: timestamp('execution_started_at'),
     executionSettledAt: timestamp('execution_settled_at'),
+    /** Independent of stream ownership and terminal result delivery. */
+    executionOwnerToken: text('execution_owner_token'),
+    executionLeaseExpiresAt: timestamp('execution_lease_expires_at', { withTimezone: true }),
+    executionRevokedAt: timestamp('execution_revoked_at', { withTimezone: true }),
     /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
     clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')

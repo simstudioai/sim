@@ -49,7 +49,7 @@ const {
   mockCheckHybridAuth,
   mockClaimExecutionId,
   mockClaimWorkflowToolExecution,
-  mockSettleSimToolExecution,
+  mockSettleClientWorkflowToolExecution,
   mockCheckNeedsRedeployment,
   mockEnqueue,
   mockExecuteWorkflowJob,
@@ -81,7 +81,7 @@ const {
   mockCheckHybridAuth: vi.fn<typeof checkHybridAuth>(),
   mockClaimExecutionId: vi.fn(),
   mockClaimWorkflowToolExecution: vi.fn(),
-  mockSettleSimToolExecution: vi.fn().mockResolvedValue(undefined),
+  mockSettleClientWorkflowToolExecution: vi.fn().mockResolvedValue(undefined),
   mockCheckNeedsRedeployment: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
   mockExecuteWorkflowJob: vi.fn(),
@@ -159,7 +159,7 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
 
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   claimWorkflowToolExecution: mockClaimWorkflowToolExecution,
-  settleSimToolExecution: mockSettleSimToolExecution,
+  settleClientWorkflowToolExecution: mockSettleClientWorkflowToolExecution,
   getAsyncToolCall: mockGetAsyncToolCall,
   getRunSegment: mockGetRunSegment,
   releaseWorkflowToolExecutionClaim: mockReleaseWorkflowToolExecutionClaim,
@@ -707,7 +707,7 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(200)
     expect(streamCompleted).toBe(false)
-    expect(mockSettleSimToolExecution).not.toHaveBeenCalled()
+    expect(mockSettleClientWorkflowToolExecution).not.toHaveBeenCalled()
     expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
       'copilot-tool-1',
       'execution-123',
@@ -730,7 +730,10 @@ describe('workflow execute async route', () => {
     const body = await bodyPromise
     expect(body).toContain('execution:completed')
     await vi.waitFor(() =>
-      expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+      expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+        'copilot-tool-1',
+        expect.any(String)
+      )
     )
   })
 
@@ -741,7 +744,10 @@ describe('workflow execute async route', () => {
     })
     expect(await response.text()).toContain('execution:error')
     await vi.waitFor(() =>
-      expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+      expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+        'copilot-tool-1',
+        expect.any(String)
+      )
     )
   })
 
@@ -782,16 +788,19 @@ describe('workflow execute async route', () => {
       await vi.waitFor(() => expect(ownedSignal).toBeDefined())
       const detached = response.body?.cancel()
       expect(ownedSignal?.aborted).toBe(false)
-      expect(mockSettleSimToolExecution).not.toHaveBeenCalled()
+      expect(mockSettleClientWorkflowToolExecution).not.toHaveBeenCalled()
       expect(abortManualExecution('execution-123')).toBe(true)
       expect(ownedSignal?.aborted).toBe(true)
       expect(unrelatedAbort).not.toHaveBeenCalled()
       await vi.waitFor(() => expect(releaseCleanup).toBeDefined())
-      expect(mockSettleSimToolExecution).not.toHaveBeenCalled()
+      expect(mockSettleClientWorkflowToolExecution).not.toHaveBeenCalled()
       releaseCleanup?.()
       await detached
       await vi.waitFor(() =>
-        expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+        expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+          'copilot-tool-1',
+          expect.any(String)
+        )
       )
     } finally {
       releaseCleanup?.()
@@ -1058,7 +1067,10 @@ describe('workflow execute async route', () => {
       'execution-123'
     )
     expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
-    expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+    expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+      'copilot-tool-1',
+      expect.any(String)
+    )
   })
 
   it('retains a bound Copilot workflow claim when preprocessing created a durable error log', async () => {
@@ -1222,7 +1234,10 @@ describe('workflow execute async route', () => {
     })
 
     expect(response.status).toBe(202)
-    expect(mockSettleSimToolExecution).toHaveBeenCalledExactlyOnceWith('copilot-tool-1')
+    expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+      'copilot-tool-1',
+      expect.any(String)
+    )
     expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
       'copilot-tool-1',
       'execution-123',

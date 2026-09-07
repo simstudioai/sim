@@ -41,6 +41,8 @@ vi.mock('@/lib/mothership/tool-executor', () => ({
 
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   completeAsyncToolCall,
+  completeOwnedSimToolCall: completeAsyncToolCall,
+  renewSimToolExecutionLease: vi.fn().mockResolvedValue(true),
   markAsyncToolRunning,
   upsertAsyncToolCall,
   claimSimToolExecution,
@@ -301,6 +303,33 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(settleSimToolExecution).toHaveBeenCalledOnce()
   })
 
+  it('returns an interrupted result when ownership rejects a late successful handler receipt', async () => {
+    const tool = buildPendingToolCall()
+    executeTool.mockResolvedValue({ success: true, output: { created: true } })
+    completeAsyncToolCall.mockRejectedValue(
+      new Error('Tool outcome is unknown after ownership loss')
+    )
+    const completion = await executeToolAndReport(
+      tool.id,
+      buildStreamingContext(tool),
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      },
+      { onEvent }
+    )
+    expect(executeTool).toHaveBeenCalledOnce()
+    expect(completion.status).toBe('error')
+    expect(completion.message).toContain('outcome is unknown')
+    expect(
+      onEvent.mock.calls.some(
+        ([event]) => event.payload?.phase === 'result' && event.payload?.success === true
+      )
+    ).toBe(false)
+  })
+
   it.each(['success', 'error', 'cancelled'] as const)(
     'observes another controller until its durable %s result without repeating or settling its execution',
     async (status) => {
@@ -408,9 +437,10 @@ describe('executeToolAndReport provenance isolation', () => {
     })
     expect(result.status).toBe('cancelled')
     expect(completeAsyncToolCall).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: tool.id, status: 'cancelled' })
+      expect.objectContaining({ toolCallId: tool.id, status: 'cancelled' }),
+      expect.any(String)
     )
-    expect(settleSimToolExecution).toHaveBeenCalledExactlyOnceWith(tool.id)
+    expect(settleSimToolExecution).toHaveBeenCalledExactlyOnceWith(tool.id, expect.any(String))
   })
 
   it('aborts a timed-out handler without cancelling a parallel tool', async () => {
@@ -622,7 +652,8 @@ describe('executeToolAndReport provenance isolation', () => {
       data: statusMessage,
     })
     expect(completeAsyncToolCall).toHaveBeenCalledWith(
-      expect.objectContaining({ result: statusMessage })
+      expect.objectContaining({ result: statusMessage }),
+      expect.any(String)
     )
     expect(JSON.stringify([completion, completeAsyncToolCall.mock.calls])).not.toContain(
       generatedKey

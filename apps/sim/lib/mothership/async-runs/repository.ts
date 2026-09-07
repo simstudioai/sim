@@ -12,8 +12,26 @@ import {
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
 import { sanitizeValueForJsonb } from '@sim/utils/string'
-import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
+import {
+  INTERRUPTED_SIM_TOOL_MESSAGE,
+  SIM_TOOL_EXECUTION_LEASE_SECONDS,
+  SimToolExecutionLeaseLostError,
+  type SimToolExecutionOwner,
+} from '@/lib/mothership/async-runs/execution-lease'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { markSpanForError } from '@/lib/mothership/request/otel'
@@ -396,7 +414,8 @@ async function markAsyncToolStatus(
     completedAt?: Date | null
   } = {},
   expectedStatuses?: CopilotAsyncToolStatus[],
-  expectedClaimedBy?: string
+  expectedClaimedBy?: string,
+  expectedExecutionOwnerToken?: string
 ) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -433,7 +452,14 @@ async function markAsyncToolStatus(
           and(
             eq(copilotAsyncToolCalls.toolCallId, toolCallId),
             expectedStatuses ? inArray(copilotAsyncToolCalls.status, expectedStatuses) : undefined,
-            expectedClaimedBy ? eq(copilotAsyncToolCalls.claimedBy, expectedClaimedBy) : undefined
+            expectedClaimedBy ? eq(copilotAsyncToolCalls.claimedBy, expectedClaimedBy) : undefined,
+            expectedExecutionOwnerToken
+              ? and(
+                  eq(copilotAsyncToolCalls.executionOwnerToken, expectedExecutionOwnerToken),
+                  isNull(copilotAsyncToolCalls.executionRevokedAt),
+                  sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+                )
+              : undefined
           )
         )
         .returning()
@@ -453,11 +479,9 @@ export type SimToolExecutionClaim =
   | { outcome: 'existing' }
 
 /** Serializes admission with Stop; a terminal tool result never releases this execution claim. */
-export async function claimSimToolExecution(input: {
-  toolCallId: string
-  runId: string
-  userId: string
-}): Promise<SimToolExecutionClaim> {
+export async function claimSimToolExecution(
+  input: SimToolExecutionOwner
+): Promise<SimToolExecutionClaim> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
@@ -489,6 +513,8 @@ export async function claimSimToolExecution(input: {
             claimedBy: 'sim-stream',
             claimedAt: startedAt,
             executionStartedAt: startedAt,
+            executionOwnerToken: input.ownerToken,
+            executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
             updatedAt: startedAt,
           })
           .where(
@@ -519,8 +545,101 @@ export async function claimSimToolExecution(input: {
   )
 }
 
+/** Expired ownership cannot be renewed, even before a follower has observed the expiry. */
+export async function renewSimToolExecutionLease(owner: SimToolExecutionOwner): Promise<boolean> {
+  const [renewed] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, owner.toolCallId),
+        eq(copilotAsyncToolCalls.runId, owner.runId),
+        eq(copilotAsyncToolCalls.executionOwnerToken, owner.ownerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`,
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.user_id = ${owner.userId})`
+      )
+    )
+    .returning({ id: copilotAsyncToolCalls.id })
+  return !!renewed
+}
+
+/** Revocation ends local execution authority; recorded remote commands remain independently unsettled. */
+export async function revokeExpiredSimToolExecutions(input: { runId: string; userId: string }) {
+  return db.transaction((tx) =>
+    revokeExpiredExecutions(
+      tx,
+      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`
+    )
+  )
+}
+
+async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) {
+  const revoked = await tx
+    .update(copilotAsyncToolCalls)
+    .set({ executionRevokedAt: sql`now()` })
+    .where(
+      and(
+        scope,
+        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
+      )
+    )
+    .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+  if (revoked.length) {
+    await tx
+      .update(copilotAsyncToolCalls)
+      .set({
+        status: ASYNC_TOOL_STATUS.failed,
+        result: { error: INTERRUPTED_SIM_TOOL_MESSAGE },
+        error: INTERRUPTED_SIM_TOOL_MESSAGE,
+        claimedBy: null,
+        claimedAt: null,
+        completedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          inArray(
+            copilotAsyncToolCalls.toolCallId,
+            revoked.map((row) => row.toolCallId)
+          ),
+          inArray(copilotAsyncToolCalls.status, [
+            ASYNC_TOOL_STATUS.pending,
+            ASYNC_TOOL_STATUS.running,
+          ])
+        )
+      )
+  }
+  return revoked
+}
+
 /** Called only by the owner after its handler and result processing have both ended. */
-export async function settleSimToolExecution(toolCallId: string): Promise<void> {
+export async function settleSimToolExecution(
+  toolCallId: string,
+  ownerToken: string
+): Promise<void> {
+  return settleToolExecution(toolCallId, eq(copilotAsyncToolCalls.executionOwnerToken, ownerToken))
+}
+
+/** Browser workflow settlement proves completion using its reserved execution identity. */
+export async function settleClientWorkflowToolExecution(
+  toolCallId: string,
+  executionId: string
+): Promise<void> {
+  return settleToolExecution(
+    toolCallId,
+    eq(copilotAsyncToolCalls.clientWorkflowExecutionId, executionId)
+  )
+}
+
+async function settleToolExecution(toolCallId: string, ownership: SQL): Promise<void> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
@@ -535,6 +654,7 @@ export async function settleSimToolExecution(toolCallId: string): Promise<void> 
         .where(
           and(
             eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            ownership,
             isNotNull(copilotAsyncToolCalls.executionStartedAt),
             isNull(copilotAsyncToolCalls.executionSettledAt)
           )
@@ -546,12 +666,11 @@ export async function settleSimToolExecution(toolCallId: string): Promise<void> 
 }
 
 /** Stop and command dispatch serialize on the same run row, including commands within a running tool. */
-export async function recordSimSandboxProcess(input: {
-  toolCallId: string
-  runId: string
-  userId: string
-  process: SessionProcessIdentity
-}): Promise<void> {
+export async function recordSimSandboxProcess(
+  input: SimToolExecutionOwner & {
+    process: SessionProcessIdentity
+  }
+): Promise<void> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
@@ -589,6 +708,9 @@ export async function recordSimSandboxProcess(input: {
               eq(copilotAsyncToolCalls.runId, input.runId),
               isNotNull(copilotAsyncToolCalls.executionStartedAt),
               isNull(copilotAsyncToolCalls.executionSettledAt),
+              eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+              isNull(copilotAsyncToolCalls.executionRevokedAt),
+              sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`,
               sql`NOT (${copilotAsyncToolCalls.sandboxProcesses} ? ${id})`
             )
           )
@@ -668,12 +790,11 @@ export interface WorkbenchRecoveryState {
 }
 
 /** A successor fences prior admission before checking the handlers and commands that already started. */
-export async function prepareWorkbenchAccess(input: {
-  runId: string
-  userId: string
-  toolCallId: string
-  sessionKey: string
-}): Promise<WorkbenchRecoveryState> {
+export async function prepareWorkbenchAccess(
+  input: SimToolExecutionOwner & {
+    sessionKey: string
+  }
+): Promise<WorkbenchRecoveryState> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
     const [owner] = await tx
@@ -693,7 +814,10 @@ export async function prepareWorkbenchAccess(input: {
           eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
           isNotNull(copilotAsyncToolCalls.executionStartedAt),
           isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
-          isNull(copilotAsyncToolCalls.executionSettledAt)
+          isNull(copilotAsyncToolCalls.executionSettledAt),
+          eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+          isNull(copilotAsyncToolCalls.executionRevokedAt),
+          sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
         )
       )
       .limit(1)
@@ -738,9 +862,14 @@ export async function prepareWorkbenchAccess(input: {
           isNull(copilotRuns.toolAdmissionClosedAt)
         )
       )
+    await revokeExpiredExecutions(
+      tx,
+      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`
+    )
     const previous = await tx
       .select({
         settledAt: copilotAsyncToolCalls.executionSettledAt,
+        revokedAt: copilotAsyncToolCalls.executionRevokedAt,
         toolCallId: copilotAsyncToolCalls.toolCallId,
         processes: copilotAsyncToolCalls.sandboxProcesses,
       })
@@ -750,8 +879,14 @@ export async function prepareWorkbenchAccess(input: {
         and(
           eq(copilotRuns.chatId, owner.chatId),
           eq(copilotRuns.userId, input.userId),
-          ne(copilotRuns.id, input.runId),
-          olderThanOwner,
+          or(
+            and(ne(copilotRuns.id, input.runId), olderThanOwner),
+            and(
+              eq(copilotRuns.id, input.runId),
+              ne(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+              isNotNull(copilotAsyncToolCalls.executionRevokedAt)
+            )
+          ),
           isNotNull(copilotAsyncToolCalls.executionStartedAt),
           isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
           or(
@@ -777,7 +912,7 @@ export async function prepareWorkbenchAccess(input: {
     if (processes.some((process) => process.sessionKey !== input.sessionKey))
       throw new Error('Recorded workbench ownership does not match this chat')
     return {
-      handlersPending: previous.some((row) => !row.settledAt),
+      handlersPending: previous.some((row) => !row.settledAt && !row.revokedAt),
       processes,
     }
   })
@@ -1026,7 +1161,7 @@ export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: s
   )
 }
 
-interface CompleteAsyncToolCallInput {
+export interface CompleteAsyncToolCallInput {
   toolCallId: string
   status: Extract<CopilotAsyncToolStatus, 'completed' | 'failed' | 'cancelled'>
   result?: AsyncCompletionData | null
@@ -1036,7 +1171,8 @@ interface CompleteAsyncToolCallInput {
 async function completeAsyncToolCallFromStatuses(
   input: CompleteAsyncToolCallInput,
   expectedStatuses: CopilotAsyncToolStatus[],
-  expectedClaimedBy?: string
+  expectedClaimedBy?: string,
+  expectedExecutionOwnerToken?: string
 ) {
   return await markAsyncToolStatus(
     input.toolCallId,
@@ -1049,7 +1185,8 @@ async function completeAsyncToolCallFromStatuses(
       completedAt: new Date(),
     },
     expectedStatuses,
-    expectedClaimedBy
+    expectedClaimedBy,
+    expectedExecutionOwnerToken
   )
 }
 
@@ -1058,6 +1195,21 @@ export async function completeAsyncToolCall(input: CompleteAsyncToolCallInput) {
     ASYNC_TOOL_STATUS.pending,
     ASYNC_TOOL_STATUS.running,
   ])
+}
+
+/** A stale handler cannot publish a success after losing its execution lease. */
+export async function completeOwnedSimToolCall(
+  input: CompleteAsyncToolCallInput,
+  ownerToken: string
+) {
+  const row = await completeAsyncToolCallFromStatuses(
+    input,
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running],
+    undefined,
+    ownerToken
+  )
+  if (!row) throw new SimToolExecutionLeaseLostError()
+  return row
 }
 
 /**
