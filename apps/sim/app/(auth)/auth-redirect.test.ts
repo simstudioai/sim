@@ -32,7 +32,7 @@ describe('resolvePostSignupDestination', () => {
   it('never routes to verify when no mail provider is configured', () => {
     expect(
       resolvePostSignupDestination({ emailVerificationEnabled: false, redirectUrl: '' })
-    ).toEqual({ kind: 'workspace' })
+    ).toEqual({ kind: 'entry' })
   })
 
   it('preserves the callback URL when verification is not enforceable', () => {

@@ -70,7 +70,6 @@ export interface WorkspaceItem {
   href: string
   isCurrent?: boolean
   logoUrl?: string | null
-  color?: string
 }
 
 export interface PageItem {

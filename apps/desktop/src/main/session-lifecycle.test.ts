@@ -75,9 +75,9 @@ describe('decideStartRoute', () => {
   })
 
   it('falls back to /workspace for missing, unsafe, or auth-surface last routes', () => {
-    expect(decideStartRoute(undefined)).toBe('/workspace')
-    expect(decideStartRoute('//evil.example')).toBe('/workspace')
-    expect(decideStartRoute('/login')).toBe('/workspace')
+    expect(decideStartRoute(undefined)).toBe('/home')
+    expect(decideStartRoute('//evil.example')).toBe('/home')
+    expect(decideStartRoute('/login')).toBe('/home')
   })
 })
 
@@ -94,11 +94,11 @@ describe('resolveStartRoute', () => {
     )
   })
 
-  it('falls back to the workspace picker after confirmed access denial', async () => {
+  it('falls back to the app entry after confirmed access denial', async () => {
     const session = sessionWithResponse(403, { error: 'Workspace access denied' })
 
     await expect(resolveStartRoute(session, APP, '/workspace/revoked/chat/c1')).resolves.toBe(
-      '/workspace'
+      '/home'
     )
   })
 

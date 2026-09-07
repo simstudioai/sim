@@ -4,6 +4,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { prepareCredentialConnection } from '@/lib/credentials/application/prepare-credential-connection'
 import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
@@ -83,7 +84,7 @@ export async function executeOAuthGetAuthLink(
     }
     const workspaceUrl = context.workspaceId
       ? `${baseUrl}/workspace/${context.workspaceId}`
-      : `${baseUrl}/workspace`
+      : `${baseUrl}${APP_ENTRY_PATH}`
     return {
       success: false,
       error: message,

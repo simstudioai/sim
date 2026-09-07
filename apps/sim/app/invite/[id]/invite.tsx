@@ -10,6 +10,7 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useInvitationDetails } from '@/hooks/queries/invitations'
@@ -459,7 +460,7 @@ export default function Invite({ registrationDisabled }: InviteProps) {
             description={error.message}
             icon='users'
             actions={[
-              { label: 'Manage Team Settings', onClick: () => router.push('/workspace') },
+              { label: 'Manage Team Settings', onClick: () => router.push(APP_ENTRY_PATH) },
               { label: 'Return to Home', onClick: () => router.push('/') },
             ]}
           />

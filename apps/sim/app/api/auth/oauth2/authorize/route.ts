@@ -13,6 +13,7 @@ import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/app
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_AUTHORIZATION_URL } from '@/lib/oauth/quickbooks-constants'
 import { createQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'
@@ -64,7 +65,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       } catch (error) {
         if (!(error instanceof OrchestrationError)) throw error
         logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
-        return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_invalid`)
+        return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_invalid`)
       }
     }
 
@@ -83,7 +84,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         : connectionCompleteUrl.toString()
       : requestedCallback?.startsWith(`${baseUrl}/`)
         ? requestedCallback
-        : `${baseUrl}/workspace`
+        : `${baseUrl}${APP_ENTRY_PATH}`
 
     if (!fromConnectionDraft) {
       try {
@@ -100,22 +101,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         connectionDraftId = connection.draftId
       } catch (error) {
         if (error instanceof CredentialConnectionProviderMismatchError) {
-          return NextResponse.redirect(`${baseUrl}/workspace?error=credential_provider_mismatch`)
+          return NextResponse.redirect(
+            `${baseUrl}${APP_ENTRY_PATH}?error=credential_provider_mismatch`
+          )
         }
         if (
           credentialId &&
           error instanceof ForbiddenOperationError &&
           error.detailCode === 'CREDENTIAL_ADMIN_ACCESS_REQUIRED'
         ) {
-          return NextResponse.redirect(`${baseUrl}/workspace?error=credential_access_denied`)
+          return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=credential_access_denied`)
         }
         if (error instanceof OrchestrationError && error.code === 'not_found') {
           return NextResponse.redirect(
-            `${baseUrl}/workspace?error=${credentialId ? 'credential_access_denied' : 'workspace_access_denied'}`
+            `${baseUrl}${APP_ENTRY_PATH}?error=${credentialId ? 'credential_access_denied' : 'workspace_access_denied'}`
           )
         }
         if (error instanceof OrchestrationError && error.code === 'forbidden') {
-          return NextResponse.redirect(`${baseUrl}/workspace?error=workspace_access_denied`)
+          return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=workspace_access_denied`)
         }
         throw error
       }
@@ -183,7 +186,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         providerId,
         status: linkResponse.status,
       })
-      return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_failed`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_failed`)
     }
 
     const response = NextResponse.redirect(payload.url)
@@ -198,6 +201,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return response
   } catch (error) {
     logger.error('Failed to initiate OAuth2 authorization', { providerId, error })
-    return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_failed`)
+    return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_failed`)
   }
 })

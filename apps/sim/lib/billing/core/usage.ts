@@ -38,6 +38,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient } from '@/lib/db/types'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
 const logger = createLogger('UsageManagement')
 
@@ -711,7 +712,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
-      : `${baseUrl}/workspace`
+      : `${baseUrl}${APP_ENTRY_PATH}`
     /**
      * Organization billing is reached through the workspace the usage occurred in
      * — that is the only plane that serves it. Without a workspace there is no such

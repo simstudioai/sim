@@ -22,7 +22,7 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
-import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { buildAuthCrossLink, DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -108,7 +108,7 @@ export default function LoginPage({
     invalidCallbackRef.current = true
     logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
   }
-  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
+  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : DEFAULT_POST_AUTH_ROUTE
   const isInviteFlow = searchParams?.get('invite_flow') === 'true'
   const signupHref = buildAuthCrossLink('/signup', {
     callbackUrl: isValidCallbackUrl ? callbackUrl : null,

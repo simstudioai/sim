@@ -1,13 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import {
   ChipConfirmModal,
   chipIconSlotClass,
   chipVariants,
   cn,
   OverflowText,
+  scrollFadeAttributes,
+  scrollFadeClass,
   Tooltip,
+  useScrollEdges,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -18,17 +21,19 @@ import {
   type StandaloneSettingsPlane,
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components'
+import {
+  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /**
  * The marketing landing page. `?home` is required: the proxy bounces a
- * signed-in user off `/` to `/workspace` unless the param is present.
+ * signed-in user off `/` to the app entry unless the param is present.
  */
 const LANDING_HREF = '/?home'
-
-/** Where the Back chip goes on planes that don't show the wordmark. */
-const WORKSPACE_HREF = '/workspace'
 
 interface SettingsNavigationGroup {
   key: string
@@ -85,26 +90,23 @@ export function SettingsSidebar<Section extends SettingsSection>({
   const confirmLeave = useSettingsDirtyStore((state) => state.confirmLeave)
   const cancelLeave = useSettingsDirtyStore((state) => state.cancelLeave)
   const pendingLeave = useSettingsDirtyStore((state) => state.pendingLeave)
-  const [hasOverflowTop, setHasOverflowTop] = useState(false)
-
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-    const updateScrollState = () => setHasOverflowTop(container.scrollTop > 1)
-    updateScrollState()
-    container.addEventListener('scroll', updateScrollState, { passive: true })
-    const observer = new ResizeObserver(updateScrollState)
-    observer.observe(container)
-    if (scrollContentRef.current) observer.observe(scrollContentRef.current)
-    return () => {
-      container.removeEventListener('scroll', updateScrollState)
-      observer.disconnect()
-    }
-  }, [isCollapsed])
+  const scrollEdges = useScrollEdges(scrollContainerRef, {
+    contentRef: scrollContentRef,
+    enabled: !isCollapsed,
+  })
 
   return (
     <>
-      <div className='flex shrink-0 flex-col gap-0.5 px-2 pb-1.5'>
+      {/* The divider is the pinned block's bottom rule, not the scroll region's top one:
+          the region's edge fade masks its own first pixels, which would erase a rule
+          drawn there exactly when it should show. Same construction as the footer. */}
+      <div
+        className={cn(
+          SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+          'flex shrink-0 flex-col gap-0.5 border-b px-2 transition-colors duration-150',
+          !scrollEdges.top && 'border-transparent'
+        )}
+      >
         {/* Both stay buttons, not Links: leaving settings must run the unsaved-changes guard. */}
         {SETTINGS_PLANE_CHROME[plane].showWordmark ? (
           <button
@@ -119,7 +121,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
           <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
             <button
               type='button'
-              onClick={() => requestLeave(() => router.push(WORKSPACE_HREF))}
+              onClick={() => requestLeave(() => router.push(APP_ENTRY_PATH))}
               className={chipVariants({ fullWidth: true })}
             >
               {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
@@ -135,9 +137,12 @@ export function SettingsSidebar<Section extends SettingsSection>({
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 pb-2 transition-colors duration-150',
-          !hasOverflowTop && 'border-transparent'
+          SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+          SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+          scrollFadeClass,
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden'
         )}
+        {...scrollFadeAttributes(scrollEdges)}
       >
         <div ref={scrollContentRef} className='flex flex-col'>
           {groups

@@ -46,11 +46,11 @@ describe('CommandFadedList', () => {
     vi.unstubAllGlobals()
   })
 
-  it('fades the palette with the short pixel-anchored mask and the shared search surface', () => {
+  it('keeps the list unfogged at rest, insets the fade under the search field, and shares the search surface', () => {
     act(() => {
       root.render(
         <Command>
-          <CommandFadedList fade='palette' />
+          <CommandFadedList />
           <CommandSearch surface='palette' aria-label='Search' />
         </Command>
       )
@@ -59,7 +59,9 @@ describe('CommandFadedList', () => {
     const list = container.querySelector('[cmdk-list]')
     const input = container.querySelector<HTMLInputElement>('[cmdk-input]')
     const search = container.querySelector('[cmdk-input]')?.parentElement
-    expect(list?.className).toContain('transparent_36px,black_58px,black_calc(100%_-_13px)')
+    expect(list?.className).toContain('[--scroll-fade-inset:3rem]')
+    expect(list?.hasAttribute('data-scroll-fade-top')).toBe(false)
+    expect(list?.hasAttribute('data-scroll-fade-bottom')).toBe(false)
     expect(list?.className).not.toContain('scrollbar-track')
     expect(input?.className).toContain('-ml-1')
     expect(input?.className).toContain('indent-1')
@@ -71,7 +73,7 @@ describe('CommandFadedList', () => {
       root.render(
         <Command loop>
           <CommandSearch surface='palette' aria-label='Search' cycleResultsOnTab />
-          <CommandFadedList fade='palette'>
+          <CommandFadedList>
             <Command.Item value='first'>First</Command.Item>
             <Command.Item value='second'>Second</Command.Item>
           </CommandFadedList>

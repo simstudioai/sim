@@ -7,6 +7,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import {
@@ -224,7 +225,7 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
       })
 
       if (isSelfRemoval) {
-        window.location.href = '/workspace'
+        window.location.href = APP_ENTRY_PATH
       }
     } catch (error) {
       logger.error('Failed to remove member', error)
@@ -266,7 +267,7 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
         setTransferDialogOpen(false)
 
         if (result.left) {
-          window.location.href = '/workspace'
+          window.location.href = APP_ENTRY_PATH
         }
       } catch (error) {
         logger.error('Failed to transfer ownership', error)
@@ -282,7 +283,7 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
       {
         context: 'organization',
         organizationId,
-        returnUrl: `${getBaseUrl()}/workspace`,
+        returnUrl: `${getBaseUrl()}${APP_ENTRY_PATH}`,
       },
       {
         onSuccess: (data) => {

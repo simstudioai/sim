@@ -140,7 +140,7 @@ describe('QuickBooks OAuth callback', () => {
 
     expect(mockCompleteQuickBooksConnection).not.toHaveBeenCalled()
     expect(response.headers.get('location')).toBe(
-      'https://sim.test/workspace?error=quickbooks_callback_error'
+      'https://sim.test/home?error=quickbooks_callback_error'
     )
   })
 })

@@ -1,4 +1,4 @@
-import { type ComponentType, type MouseEvent as ReactMouseEvent, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useState } from 'react'
 import {
   Chip,
   chipVariants,
@@ -15,7 +15,7 @@ import {
   Loader,
   OverflowText,
 } from '@sim/emcn'
-import { Folder, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
@@ -32,8 +32,6 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 interface CollapsedResourceFlyoutProps {
   entries: FlyoutEntry[]
-  /** Icon for the resource rows. Folders always carry the folder glyph. */
-  icon: ComponentType<{ className?: string }>
   /** Resource open on the current route, so its row reads as selected. */
   currentItemId?: string
   /**
@@ -49,11 +47,12 @@ interface CollapsedResourceFlyoutProps {
 /**
  * Rail flyout body for a foldered workspace resource (Tables, Files). Every row
  * is a link — the flyout is a jump list, so folders open as submenus rather than
- * navigating, and an empty one has nowhere to go and is inert.
+ * navigating, and an empty one has nowhere to go and is inert. Rows carry no
+ * glyph: the rail chip the flyout hangs off already names the resource, so a
+ * repeated icon on every row is noise in a list that exists only to be scanned.
  */
 export function CollapsedResourceFlyout({
   entries,
-  icon,
   currentItemId,
   isLoading = false,
   emptyLabel,
@@ -69,7 +68,7 @@ export function CollapsedResourceFlyout({
   if (entries.length === 0) {
     return <DropdownMenuItem disabled>{emptyLabel}</DropdownMenuItem>
   }
-  return <CollapsedFlyoutRows entries={entries} icon={icon} currentItemId={currentItemId} />
+  return <CollapsedFlyoutRows entries={entries} currentItemId={currentItemId} />
 }
 
 /**
@@ -85,9 +84,8 @@ function PinnedGlyph() {
 
 function CollapsedFlyoutRows({
   entries,
-  icon: Icon,
   currentItemId,
-}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'icon' | 'currentItemId'>) {
+}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'currentItemId'>) {
   return (
     <>
       {entries.map((entry) => {
@@ -95,7 +93,6 @@ function CollapsedFlyoutRows({
           return (
             <DropdownMenuItem key={entry.id} asChild active={currentItemId === entry.id}>
               <Link href={entry.href}>
-                <Icon className='size-[14px]' />
                 <OverflowText label={entry.name} />
                 {entry.pinned && <PinnedGlyph />}
               </Link>
@@ -106,7 +103,6 @@ function CollapsedFlyoutRows({
         if (entry.children.length === 0) {
           return (
             <DropdownMenuItem key={entry.id} disabled>
-              <Folder className='size-[14px]' />
               <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuItem>
@@ -116,16 +112,11 @@ function CollapsedFlyoutRows({
         return (
           <DropdownMenuSub key={entry.id}>
             <DropdownMenuSubTrigger>
-              <Folder className='size-[14px]' />
               <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <CollapsedFlyoutRows
-                entries={entry.children}
-                icon={Icon}
-                currentItemId={currentItemId}
-              />
+              <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
@@ -520,7 +511,6 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
         if (!hasChildren) {
           return (
             <DropdownMenuItem key={folder.id} disabled>
-              <Folder className='size-[14px]' />
               <OverflowText label={folder.name} />
             </DropdownMenuItem>
           )
@@ -529,7 +519,6 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
         return (
           <DropdownMenuSub key={folder.id}>
             <DropdownMenuSubTrigger>
-              <Folder className='size-[14px]' />
               <OverflowText label={folder.name} />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>

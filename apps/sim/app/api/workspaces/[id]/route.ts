@@ -78,11 +78,10 @@ export const PATCH = withRouteHandler(
 
     try {
       const body = parsed.data.body
-      const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
+      const { name, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
       if (
         name === undefined &&
-        color === undefined &&
         logoUrl === undefined &&
         billedAccountUserId === undefined &&
         allowPersonalApiKeys === undefined
@@ -104,10 +103,6 @@ export const PATCH = withRouteHandler(
 
       if (name !== undefined) {
         updateData.name = name
-      }
-
-      if (color !== undefined) {
-        updateData.color = color
       }
 
       if (logoUrl !== undefined) {
@@ -198,7 +193,6 @@ export const PATCH = withRouteHandler(
         metadata: {
           changes: {
             ...(name !== undefined && { name: { from: existingWorkspace.name, to: name } }),
-            ...(color !== undefined && { color: { from: existingWorkspace.color, to: color } }),
             ...(logoUrl !== undefined && {
               logoUrl: { from: existingWorkspace.logoUrl, to: logoUrl },
             }),

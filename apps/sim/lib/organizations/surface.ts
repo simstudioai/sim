@@ -1,0 +1,87 @@
+import { cache } from 'react'
+import { db } from '@sim/db'
+import { member, organization } from '@sim/db/schema'
+import { asc, eq } from 'drizzle-orm'
+import type { OrganizationRole } from '@/lib/api/contracts/primitives'
+import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
+
+export interface OrganizationSurfaceOrganization {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+}
+
+interface OrganizationSurfaceViewer {
+  role: OrganizationRole
+  isAdmin: boolean
+}
+
+/**
+ * Everything the organization surface (`/o/[organizationId]`) needs before it renders:
+ * the routed organization's identity and the viewer's standing in it. A `null`
+ * result is an explicit access denial — the viewer is not a member, or there is no
+ * such organization.
+ */
+export interface OrganizationSurfaceContext {
+  organization: OrganizationSurfaceOrganization
+  viewer: OrganizationSurfaceViewer
+}
+
+/**
+ * Resolves the surface context from membership in the organization named by the
+ * route. Session active-organization state is intentionally not consulted: it
+ * describes the viewer's account, not the organization being viewed.
+ */
+async function resolveOrganizationSurfaceContext(
+  organizationId: string,
+  userId: string
+): Promise<OrganizationSurfaceContext | null> {
+  const access = await getOrganizationSettingsAccess(organizationId, userId)
+  if (!access.isMember || access.role === null) return null
+
+  const [row] = await db
+    .select({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      logo: organization.logo,
+    })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1)
+  if (!row) return null
+
+  return {
+    organization: { id: row.id, name: row.name, slug: row.slug, logo: row.logo ?? null },
+    viewer: { role: access.role, isAdmin: access.isAdmin },
+  }
+}
+
+/**
+ * Request-memoized surface context for nested Server Components, so the layout and
+ * any page under it share one membership lookup.
+ */
+export const getOrganizationSurfaceContext = cache(resolveOrganizationSurfaceContext)
+
+/**
+ * Picks the organization `/o` lands on: the session's active organization when the
+ * viewer belongs to it, otherwise the one they joined first. `null` when the viewer
+ * belongs to no organization at all.
+ */
+export async function resolveOrganizationLanding(
+  userId: string,
+  activeOrganizationId: string | null
+): Promise<string | null> {
+  const memberships = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .orderBy(asc(member.createdAt))
+  if (memberships.length === 0) return null
+
+  const isActiveMember =
+    activeOrganizationId !== null &&
+    memberships.some((row) => row.organizationId === activeOrganizationId)
+  return isActiveMember ? activeOrganizationId : memberships[0].organizationId
+}

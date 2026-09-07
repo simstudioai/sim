@@ -14,6 +14,17 @@ export interface SidebarNavItemData {
   additionalActivePaths?: string[]
 }
 
+/**
+ * Whether `pathname` matches `item.href` or any of its `additionalActivePaths` at a
+ * segment boundary, so `/foo` never lights up for `/foo-bar`.
+ */
+export function isNavItemActive(item: SidebarNavItemData, pathname: string | null): boolean {
+  if (!pathname) return false
+  const matches = (p: string) => pathname === p || pathname.startsWith(`${p}/`)
+  if (item.href && matches(item.href)) return true
+  return item.additionalActivePaths?.some(matches) ?? false
+}
+
 interface SidebarNavChipProps extends React.HTMLAttributes<HTMLElement> {
   item: SidebarNavItemData
   active: boolean

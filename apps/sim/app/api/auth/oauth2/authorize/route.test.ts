@@ -146,7 +146,7 @@ describe('OAuth2 authorize route', () => {
 
     const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
 
-    expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_failed`)
     expect(mocks.requireClient).toHaveBeenCalledWith('google-email')
     expect(mocks.createConnection).not.toHaveBeenCalled()
   })
@@ -227,7 +227,7 @@ describe('OAuth2 authorize route', () => {
     )
 
     expect(response.headers.get('location')).toBe(
-      `${BASE_URL}/workspace?error=credential_provider_mismatch`
+      `${BASE_URL}/home?error=credential_provider_mismatch`
     )
   })
 
@@ -267,9 +267,7 @@ describe('OAuth2 authorize route', () => {
       })
     )
 
-    expect(response.headers.get('location')).toBe(
-      `${BASE_URL}/workspace?error=workspace_access_denied`
-    )
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=workspace_access_denied`)
   })
 
   it('redirects a draft launch infrastructure failure through the browser error contract', async () => {
@@ -277,7 +275,7 @@ describe('OAuth2 authorize route', () => {
 
     const response = await GET(request({ draftId: 'draft-1' }))
 
-    expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_failed`)
   })
 
   it('routes custom providers through the exact application draft', async () => {

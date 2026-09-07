@@ -60,6 +60,10 @@ Use `DropdownMenuItemLabel` for a human label beside menu icons, checks, shortcu
 
 Do not apply the fade universally to editable or mirrored input values, code, logs, paths, filenames that use intentional middle truncation, dense or virtualized grids, or a composite container that also holds icons/actions. Those keep their purpose-built overflow behavior. Multiline copy uses an intentional `line-clamp-*` treatment.
 
+## Scroll Edges
+
+A scroll region that can hide rows past an edge uses `useScrollEdges` with `scrollFadeClass` + `scrollFadeAttributes` from `@sim/emcn`: a 12px fade at an edge only while content is hidden beyond it, never at rest. The region's baseline padding lives on the scroll box itself (so rows pass through it under the fade), and the divider at that edge is drawn by the neighboring block, conditional on the same edge. Never hand-roll a `mask-image` gradient or a `scrollTop > 0` effect for this.
+
 ## Font Weight
 
 Three steps, Tailwind's stock scale, nothing else: **`font-normal` (400)**, **`font-medium` (500)**, **`font-semibold` (600)**. 400 is the document default, so body text, chip labels, sidebar items, and headings carry **no weight class at all** — they inherit. Reach for a class only to step *up* from body.
@@ -70,7 +74,7 @@ Headings inherit their weight. Tailwind preflight resets `h1`–`h6` to `font-we
 
 ## Color Tokens
 
-Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; neutral borders and dividers `--border` (`--border-1` and `--border-muted` are legacy aliases resolving to it; `--divider` is retired); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
+Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; progress and completion (a checked step, a done state) `--brand-blue` — `--selection` stays the interactive highlight; neutral borders and dividers `--border` (`--border-1` and `--border-muted` are legacy aliases resolving to it; `--divider` is retired); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
 
 ### Line weight
 

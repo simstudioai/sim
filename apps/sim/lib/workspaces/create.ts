@@ -7,7 +7,6 @@ import { createWorkspaceAccountsGroup } from '@/lib/credential-groups/workspace-
 import type { DbOrTx } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
   getWorkspaceInvitePolicy,
   lockWorkspaceCreationContext,
@@ -24,7 +23,6 @@ export interface CreateWorkspaceParams {
   observedOrganizationId: string | null
   name: string
   skipDefaultWorkflow?: boolean
-  explicitColor?: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
@@ -42,7 +40,6 @@ export interface CreateWorkspaceParams {
 export interface CreatedWorkspace {
   id: string
   name: string
-  color: string
   ownerId: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
@@ -90,7 +87,6 @@ export async function createWorkspaceInTransaction(
     observedOrganizationId,
     name,
     skipDefaultWorkflow = false,
-    explicitColor,
     organizationId,
     workspaceMode,
     billedAccountUserId,
@@ -100,7 +96,6 @@ export async function createWorkspaceInTransaction(
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
-  const color = explicitColor || getRandomWorkspaceColor()
   /** Built before the locks: it takes no arguments, so nothing makes it wait for them. */
   const defaultWorkflowArtifacts = skipDefaultWorkflow ? null : buildDefaultWorkflowArtifacts()
   const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
@@ -117,7 +112,6 @@ export async function createWorkspaceInTransaction(
   await tx.insert(workspace).values({
     id: workspaceId,
     name,
-    color,
     ownerId: userId,
     organizationId,
     workspaceMode,
@@ -183,7 +177,6 @@ export async function createWorkspaceInTransaction(
   return {
     id: workspaceId,
     name,
-    color,
     ownerId: userId,
     organizationId,
     workspaceMode,

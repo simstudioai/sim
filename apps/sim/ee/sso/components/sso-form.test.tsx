@@ -87,7 +87,7 @@ async function submitForm() {
 /**
  * `renderToString` produces the markup of the first frame with no effects run,
  * which is exactly the window in which a callback URL seeded from an effect is
- * still the `/workspace` default.
+ * still the app-entry default.
  */
 describe('SSOForm callback URL', () => {
   beforeEach(() => {
@@ -100,17 +100,17 @@ describe('SSOForm callback URL', () => {
     expect(html).toContain(encodeURIComponent('/workspace/abc/w/xyz'))
   })
 
-  it('falls back to /workspace when no callbackUrl is present', () => {
+  it('falls back to the app entry when no callbackUrl is present', () => {
     const html = renderFirstFrame('')
 
-    expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/workspace')}`)
+    expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/home')}`)
   })
 
-  it('rejects an off-origin callbackUrl and falls back to /workspace', () => {
+  it('rejects an off-origin callbackUrl and falls back to the app entry', () => {
     const html = renderFirstFrame('callbackUrl=https://evil.example.com/steal')
 
     expect(html).not.toContain('evil.example.com')
-    expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/workspace')}`)
+    expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/home')}`)
   })
 })
 

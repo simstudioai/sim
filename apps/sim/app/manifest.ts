@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +44,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: 'Create Workflow',
         short_name: 'New',
         description: 'Create a new AI workflow',
-        url: '/workspace',
+        url: WORKSPACES_PATH,
       },
     ],
     lang: 'en-US',

@@ -1,5 +1,6 @@
 import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { LogoShell } from '@/app/(landing)/components'
 
 export const metadata: Metadata = {
@@ -30,7 +31,7 @@ export default async function CredentialConnectedPage({
             ? 'The credential is ready to use. You can close this tab and return to the app that started the connection.'
             : 'The credential could not be connected. Return to the app that started the connection and try again.'}
         </p>
-        <ChipLink variant='primary' href='/workspace' className='mt-3'>
+        <ChipLink variant='primary' href={APP_ENTRY_PATH} className='mt-3'>
           Open Sim
         </ChipLink>
       </div>
