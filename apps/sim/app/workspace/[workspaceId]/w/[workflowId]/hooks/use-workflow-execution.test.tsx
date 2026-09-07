@@ -596,6 +596,35 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     unmount()
   })
 
+  it('releases unavailable reconnect state without recording a false execution failure', async () => {
+    terminalStoreState._hasHydrated = true
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...idleExecution,
+      status: 'running',
+      isExecuting: true,
+      currentExecutionId: 'execution-1',
+    })
+    executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+    mockLoadExecutionPointer.mockResolvedValue({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 3,
+    })
+    mockReconnect.mockRejectedValueOnce(
+      new Error('Execution events pruned before requested event id')
+    )
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mockReconnect).toHaveBeenCalledOnce()
+    expect(mockHandleExecutionErrorConsole).not.toHaveBeenCalled()
+    expect(mockHandleExecutionCancelledConsole).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
+    unmount()
+  })
+
   it('releases only its persistence ownership when a reconnect retry is superseded', async () => {
     const persistenceExecution = {}
     terminalStoreState._hasHydrated = true

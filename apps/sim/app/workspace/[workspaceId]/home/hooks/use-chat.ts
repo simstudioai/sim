@@ -505,6 +505,7 @@ export function selectDeletedWorkflowResources(
 
 export interface ResourceEventOptions {
   activate?: boolean
+  tableViewId?: string
 }
 
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
@@ -736,8 +737,9 @@ export function useChat(
     [resources, activeResourceId, nativeActiveTabIds]
   )
 
-  const activeResourceIdRef = useRef(effectiveActiveResourceId)
-  activeResourceIdRef.current = effectiveActiveResourceId
+  /** Keep the requested selection while the resource list is still loading. */
+  const activeResourceIdRef = useRef(activeResourceId ?? effectiveActiveResourceId)
+  activeResourceIdRef.current = activeResourceId ?? effectiveActiveResourceId
   const selectedResourceIdRef = useRef(activeResourceId)
   selectedResourceIdRef.current = activeResourceId
   const {
@@ -1628,7 +1630,10 @@ export function useChat(
     setError(null)
     setTransportIdle()
     setResources([])
-    setActiveResourceId(null)
+    /** A controlled selection belongs to the destination URL, including on first mount. */
+    if (!options?.activeResourceState && initialChatId !== streamOwnerId) {
+      setActiveResourceId(null)
+    }
     useTableViewPinStore.getState().reset()
     resetEphemeralPreviewState()
     // Rotate the bucket key; the previous chat's queue stays in the store.

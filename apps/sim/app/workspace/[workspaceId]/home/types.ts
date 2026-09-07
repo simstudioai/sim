@@ -117,7 +117,6 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   options: 'options',
   stopped: 'stopped',
-  plan: 'plan',
   task: 'task',
 } as const
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
@@ -125,8 +124,6 @@ export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlo
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
-  /** The agent's plan checklist (plan blocks only); whole-list, latest wins. */
-  planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
   /** The background task this block announces (task blocks only). */
   task?: import('@/lib/mothership/request/types').TaskBlockInfo
   subagent?: string

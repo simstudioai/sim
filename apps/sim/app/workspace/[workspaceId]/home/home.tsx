@@ -45,6 +45,10 @@ import {
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
+import {
+  tableDetailParsers,
+  tableDetailUrlKeys,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -117,6 +121,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
+  const [, setTableParams] = useQueryStates(tableDetailParsers, tableDetailUrlKeys)
   const activeResourceParamRef = useRef(activeResourceParam)
   activeResourceParamRef.current = activeResourceParam
   /**
@@ -254,6 +259,10 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       next.delete(resourceId)
       return next
     })
+    if (presentation.activateResource && options?.tableViewId) {
+      /** A live view request replaces the host URL's previous table selection. */
+      void setTableParams({ view: options.tableViewId, sort: null, dir: null })
+    }
     if (presentation.activateResource && activeResourceId !== resourceId) {
       activeResourceParamRef.current = resourceId
       setActiveResourceUrl(resourceId)

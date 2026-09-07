@@ -196,8 +196,6 @@ function mapContentBlock(block: ContentBlock): PersistedContentBlock {
 
 function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
   switch (block.type) {
-    case 'plan':
-      return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
     case 'task':
       return { type: 'task', ...(block.task ? { task: block.task } : {}) }
     case 'text':
@@ -448,7 +446,6 @@ interface RawBlock {
   type: string
   lane?: string
   task?: import('@/lib/mothership/request/types').TaskBlockInfo
-  planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
   agent?: string
   /** Orchestrator-chosen subagent display name (legacy blocks store it as `subagentName`). */
   name?: string
@@ -636,13 +633,9 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
     }
   }
 
-  // Non-contract blocks the write path stores as-is: the plan checklist and a
-  // background-task pill. Without these they reloaded as empty text blocks.
+  /** Background-task blocks preserve their structured state on reload. */
   if (block.type === 'task') {
     return { type: 'task', ...(block.task ? { task: block.task } : {}) }
-  }
-  if (block.type === 'plan') {
-    return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
   }
 
   return {
