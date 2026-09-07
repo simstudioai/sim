@@ -134,6 +134,7 @@ import {
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
+import { calculateNextRunTime, getScheduleTimeValues } from '@/lib/workflows/schedules/utils'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
@@ -155,6 +156,7 @@ import {
   POST as createRowsRoute,
   GET as tableRowsRoute,
 } from '@/app/api/v2/tables/[tableId]/rows/route'
+import { POST as deployWorkflowRoute } from '@/app/api/v2/workflows/[workflowId]/deploy/route'
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
 import { POST as workflowOperationsRoute } from '@/app/api/v2/workflows/[workflowId]/operations/route'
 import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
@@ -540,6 +542,9 @@ const identity = {
     const execution = request.nextUrl.pathname.match(/^\/api\/v2\/workflows\/([^/]+)\/execute$/)
     if (execution)
       return executeRoute(request, { params: Promise.resolve({ workflowId: execution[1] }) })
+    const deploy = request.nextUrl.pathname.match(/^\/api\/v2\/workflows\/([^/]+)\/deploy$/)
+    if (deploy)
+      return deployWorkflowRoute(request, { params: Promise.resolve({ workflowId: deploy[1] }) })
     const run = request.nextUrl.pathname.match(/^\/api\/v2\/workflows\/([^/]+)\/runs\/([^/]+)$/)
     if (run) {
       return runRoute(request, {
@@ -3726,6 +3731,341 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         if (mode === 'valid') expect(fixture.saved.get(workflowId)).toEqual(saved)
         expect(executeInSandbox).not.toHaveBeenCalled()
         expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
+    it.skipIf(process.env.SIM_HELPERS_SMOKE !== '1').each(['loop', 'parallel'] as const)(
+      'constructs a %s through the CLI and verifies every actual iteration from saved output',
+      async (kind) => {
+        fixture.permission = 'admin'
+        const id = generateId()
+        await db.insert(workflow).values({
+          id,
+          workspaceId,
+          userId: 'run-reader',
+          name: `${kind} composition`,
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+        })
+        fixture.physicalWorkflows.add(id)
+        const initial = runnableState('return 0;')
+        initial.edges = []
+        const startId = generateId()
+        initial.blocks = {
+          [startId]: {
+            ...initial.blocks.start,
+            id: startId,
+            outputs: { items: { type: 'array' } },
+          },
+        }
+        await replaceWorkflowNormalizedState({
+          workflowId: id,
+          workspaceId,
+          attributedUserId: 'run-reader',
+          state: initial,
+        })
+        const itemId = generateId()
+        const operations = [
+          {
+            operation_type: 'add',
+            block_id: 'batch',
+            params: {
+              type: kind,
+              name: 'batch',
+              inputs:
+                kind === 'loop'
+                  ? { loopType: 'forEach', collection: '<start.items>' }
+                  : { parallelType: 'collection', collection: '<start.items>' },
+              nestedNodes: {
+                [itemId]: {
+                  type: 'function',
+                  name: 'doubleitem',
+                  inputs: { language: 'javascript', code: `return <${kind}.currentItem> * 2;` },
+                },
+              },
+              connections: { [`${kind}-start-source`]: itemId, [`${kind}-end-source`]: 'report' },
+            },
+          },
+          {
+            operation_type: 'add',
+            block_id: 'report',
+            params: {
+              type: 'function',
+              name: 'report',
+              inputs: { language: 'javascript', code: 'return <batch.results>;' },
+            },
+          },
+          {
+            operation_type: 'edit',
+            block_id: startId,
+            params: { connections: { source: 'batch' } },
+          },
+        ]
+        const applied = await runCli(
+          [
+            'workflows',
+            'operations',
+            'apply',
+            id,
+            '--atomic',
+            '--yes',
+            '--operations',
+            JSON.stringify(operations),
+          ],
+          identity,
+          null
+        )
+        expect(applied.exitCode, applied.stderr).toBe(0)
+        expect(JSON.parse(applied.stdout).skipped).toEqual([])
+        for (const items of [[1, 3, 5], [7]]) {
+          const executed = await runCli(
+            ['workflows', 'run', id, '--manual', '--input', JSON.stringify({ items })],
+            identity,
+            null
+          )
+          expect(executed.exitCode, JSON.stringify({ ...executed, errors: fixture.errors })).toBe(0)
+          const run = v2ExecuteWorkflowDataSchema.parse(JSON.parse(executed.stdout))
+          await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+          clearLargeValueCacheForTests()
+          const saved = await runCli(
+            ['workflows', 'runs', 'get', run.runId, '--workflow', id, '--include-output'],
+            identity,
+            null
+          )
+          expect(saved.exitCode, saved.stderr).toBe(0)
+          const output = v2WorkflowRunStatusSchema.parse(JSON.parse(saved.stdout))
+          expect(output.status).toBe('completed')
+          expect(output.output).toEqual(run.output)
+          const numbers: number[] = []
+          const pending: unknown[] = [output.output]
+          while (pending.length) {
+            const value = pending.pop()
+            if (typeof value === 'number') numbers.push(value)
+            else if (Array.isArray(value)) pending.push(...value)
+            else if (value && typeof value === 'object') pending.push(...Object.values(value))
+          }
+          expect(
+            numbers.sort((a, b) => a - b),
+            JSON.stringify(output.output)
+          ).toEqual(items.map((item) => item * 2))
+        }
+        expect(executeInSandbox).not.toHaveBeenCalled()
+        expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
+    it.skipIf(process.env.SIM_HELPERS_SMOKE !== '1')(
+      'constructs condition routing through the CLI and executes both sides of each threshold',
+      async () => {
+        fixture.permission = 'admin'
+        const id = generateId()
+        await db.insert(workflow).values({
+          id,
+          workspaceId,
+          userId: 'run-reader',
+          name: 'Routing composition',
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+        })
+        fixture.physicalWorkflows.add(id)
+        const initial = runnableState('return 0;')
+        initial.edges = []
+        const startId = generateId()
+        initial.blocks = { [startId]: { ...initial.blocks.start, id: startId } }
+        await replaceWorkflowNormalizedState({
+          workflowId: id,
+          workspaceId,
+          attributedUserId: 'run-reader',
+          state: initial,
+        })
+        const operations = [
+          {
+            operation_type: 'add',
+            block_id: 'gate',
+            params: {
+              type: 'condition',
+              name: 'gate',
+              inputs: {
+                conditions: [
+                  { title: 'If', value: '<start.amount> < 100' },
+                  { title: 'Else If', value: '<start.amount> < 500' },
+                  { title: 'Else', value: '' },
+                ],
+              },
+              connections: { if: 'small', 'else-if-0': 'medium', else: 'large' },
+            },
+          },
+          ...['small', 'medium', 'large'].map((label) => ({
+            operation_type: 'add',
+            block_id: label,
+            params: {
+              type: 'function',
+              name: label,
+              inputs: { language: 'javascript', code: `return '${label}:' + <start.amount>;` },
+            },
+          })),
+          {
+            operation_type: 'edit',
+            block_id: startId,
+            params: { connections: { source: 'gate' } },
+          },
+        ]
+        const applied = await runCli(
+          [
+            'workflows',
+            'operations',
+            'apply',
+            id,
+            '--atomic',
+            '--yes',
+            '--operations',
+            JSON.stringify(operations),
+          ],
+          identity,
+          null
+        )
+        expect(applied.exitCode, applied.stderr).toBe(0)
+        expect(JSON.parse(applied.stdout).skipped).toEqual([])
+        for (const [amount, label] of [
+          [42, 'small'],
+          [99, 'small'],
+          [100, 'medium'],
+          [499, 'medium'],
+          [500, 'large'],
+          [750, 'large'],
+        ] as const) {
+          const executed = await runCli(
+            ['workflows', 'run', id, '--manual', '--input', JSON.stringify({ amount })],
+            identity,
+            null
+          )
+          expect(executed.exitCode, JSON.stringify({ ...executed, errors: fixture.errors })).toBe(0)
+          const run = v2ExecuteWorkflowDataSchema.parse(JSON.parse(executed.stdout))
+          expect(run.status).toBe('completed')
+          expect(run.output).toMatchObject({ result: `${label}:${amount}` })
+        }
+        await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+        expect(executeInSandbox).not.toHaveBeenCalled()
+        expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
+    it.skipIf(process.env.SIM_HELPERS_SMOKE !== '1')(
+      'constructs a weekday schedule, executes its error route, and enforces deployment permissions',
+      async () => {
+        fixture.permission = 'admin'
+        const id = generateId()
+        await db.insert(workflow).values({
+          id,
+          workspaceId,
+          userId: 'run-reader',
+          name: 'Schedule composition',
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+        })
+        fixture.physicalWorkflows.add(id)
+        await replaceWorkflowNormalizedState({
+          workflowId: id,
+          workspaceId,
+          attributedUserId: 'run-reader',
+          state: { blocks: {}, edges: [] },
+        })
+        const operations = [
+          {
+            operation_type: 'add',
+            block_id: 'schedule',
+            params: {
+              type: 'schedule',
+              name: 'weekday',
+              inputs: { scheduleType: 'custom', cronExpression: '30 6 * * 1-5', timezone: 'UTC' },
+              connections: { source: 'fail' },
+            },
+          },
+          {
+            operation_type: 'add',
+            block_id: 'fail',
+            params: {
+              type: 'function',
+              name: 'fail',
+              inputs: {
+                language: 'javascript',
+                code: 'throw new Error("synthetic schedule failure");',
+              },
+              connections: { error: 'report' },
+            },
+          },
+          {
+            operation_type: 'add',
+            block_id: 'report',
+            params: {
+              type: 'function',
+              name: 'report',
+              inputs: { language: 'javascript', code: 'return { handled: <fail.error> };' },
+            },
+          },
+        ]
+        const applied = await runCli(
+          [
+            'workflows',
+            'operations',
+            'apply',
+            id,
+            '--atomic',
+            '--yes',
+            '--operations',
+            JSON.stringify(operations),
+          ],
+          identity,
+          null
+        )
+        expect(applied.exitCode, applied.stderr).toBe(0)
+        expect(JSON.parse(applied.stdout).skipped).toEqual([])
+        const stateRead = await runCli(['workflows', 'state', 'get', id], identity, null)
+        expect(stateRead.exitCode, stateRead.stderr).toBe(0)
+        const state: WorkflowState = JSON.parse(stateRead.stdout)
+        const scheduled = Object.values(state.blocks).find((block) => block.type === 'schedule')
+        if (!scheduled) throw new Error('Schedule was not persisted')
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-04T06:31:00Z'))
+          expect(
+            calculateNextRunTime('custom', getScheduleTimeValues(scheduled)).toISOString()
+          ).toBe('2026-09-07T06:30:00.000Z')
+        } finally {
+          vi.useRealTimers()
+        }
+        const executed = await runCli(
+          ['workflows', 'run', id, '--manual', '--trigger', scheduled.id],
+          identity,
+          null
+        )
+        expect(executed.exitCode, JSON.stringify({ ...executed, errors: fixture.errors })).toBe(0)
+        const run = v2ExecuteWorkflowDataSchema.parse(JSON.parse(executed.stdout))
+        expect(run.output).toMatchObject({
+          result: { handled: expect.stringContaining('synthetic schedule failure') },
+        })
+        await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+        fixture.permission = 'read'
+        const deploy = await runCli(['workflows', 'deploy', id], identity, null)
+        expect(deploy.exitCode).not.toBe(0)
+        expect(deploy.stderr).toMatch(/FORBIDDEN|NOT_FOUND|permission|access/i)
+        const [stored] = await db.select().from(workflow).where(eq(workflow.id, id))
+        expect(stored.isDeployed).toBe(false)
+        expect(
+          await db
+            .select()
+            .from(workflowDeploymentVersion)
+            .where(eq(workflowDeploymentVersion.workflowId, id))
+        ).toEqual([])
       },
       60_000
     )
