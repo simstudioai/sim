@@ -64,6 +64,33 @@ const createRedisStub = () => {
       return Promise.resolve('OK')
     }),
     get: vi.fn().mockImplementation((key: string) => Promise.resolve(values.get(key) ?? null)),
+    /**
+     * Stands in for `APPEND_EVENTS_SCRIPT`. It reproduces the script's observable
+     * effects — dedupe, zadd, rank-trim, seq — so the read-path tests still exercise
+     * real data, and exposes `budgetRefusal` so the refusal branch can be driven
+     * without reimplementing the budget arithmetic here.
+     */
+    budgetRefusal: null as null | [number, string, number],
+    eval: vi.fn().mockImplementation((...args: unknown[]) => {
+      const numKeys = Number(args[1])
+      const keys = args.slice(2, 2 + numKeys) as string[]
+      const argv = args.slice(2 + numKeys) as Array<string | number>
+      if (api.budgetRefusal) return Promise.resolve(api.budgetRefusal)
+
+      const [eventsKey, seqKey] = keys
+      const eventLimit = Number(argv[1])
+      const lastSeq = String(argv[5])
+      const entries = sortedSets.get(eventsKey) ?? []
+      for (let i = 6; i < argv.length; i += 2) {
+        const score = Number(argv[i])
+        const value = String(argv[i + 1])
+        if (!entries.some((entry) => entry.value === value)) entries.push({ score, value })
+      }
+      entries.sort((a, b) => a.score - b.score)
+      sortedSets.set(eventsKey, entries.slice(Math.max(0, entries.length - eventLimit)))
+      values.set(seqKey, lastSeq)
+      return Promise.resolve([1])
+    }),
     pipeline: vi.fn().mockImplementation(() => {
       const operations: Array<() => Promise<unknown>> = []
       const pipeline = {
@@ -103,6 +130,7 @@ let mockRedis: ReturnType<typeof createRedisStub>
 import {
   allocateCursor,
   appendEvent,
+  appendEvents,
   clearBuffer,
   readEvents,
   scheduleBufferCleanup,
@@ -161,11 +189,84 @@ describe('mothership-stream-outbox', () => {
       })
     )
 
-    expect(mockRedis.zremrangebyrank).toHaveBeenCalledWith(
-      'mothership_stream:stream-1:events',
-      0,
-      -100_001
-    )
+    // KEYS: [events, seq, budgetOwner]; ARGV follows.
+    const [, numKeys, eventsKey, seqKey, ownerKey, ...argv] = mockRedis.eval.mock.calls[0]
+    expect(numKeys).toBe(3)
+    expect(eventsKey).toBe('mothership_stream:stream-1:events')
+    expect(seqKey).toBe('mothership_stream:stream-1:seq')
+    expect(ownerKey).toBe('execution:redis-budget:copilot_stream:stream-1')
+    // ARGV: [ttl, eventLimit, ownerLimit, userLimit, budgetTtl, lastSeq, ...zaddArgs]
+    expect(argv[1]).toBe(100_000)
+  })
+
+  /**
+   * The stream's replay copy is charged to a budget, and a refusal is reported rather
+   * than thrown: `flush()` rethrows what it is handed, and that throw reaches the
+   * error-path finalize, which would reject a response stream whose bytes the user
+   * already received.
+   */
+  it('reports a budget refusal instead of throwing', async () => {
+    const cursor = await allocateCursor('stream-1')
+    mockRedis.budgetRefusal = [0, 'owner_redis_bytes', 40_000_000]
+
+    const result = await appendEvents([
+      createEvent({
+        streamId: 'stream-1',
+        cursor: cursor.cursor,
+        seq: cursor.seq,
+        requestId: 'req-1',
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
+      }),
+    ])
+
+    expect(result.persisted).toBe(false)
+    if (!result.persisted) {
+      expect(result.refusal.resource).toBe('owner_redis_bytes')
+      expect(result.refusal.currentBytes).toBe(40_000_000)
+    }
+  })
+
+  it('refuses a batch past the single-write ceiling without reaching Redis', async () => {
+    const cursor = await allocateCursor('stream-1')
+
+    const result = await appendEvents([
+      createEvent({
+        streamId: 'stream-1',
+        cursor: cursor.cursor,
+        seq: cursor.seq,
+        requestId: 'req-1',
+        type: MothershipStreamV1EventType.text,
+        payload: {
+          channel: MothershipStreamV1TextChannel.assistant,
+          text: 'x'.repeat(2 * 1024 * 1024),
+        },
+      }),
+    ])
+
+    expect(result.persisted).toBe(false)
+    expect(mockRedis.eval).not.toHaveBeenCalled()
+  })
+
+  it('charges the user ceiling only when a user is in scope', async () => {
+    const cursor = await allocateCursor('stream-1')
+    const envelope = createEvent({
+      streamId: 'stream-1',
+      cursor: cursor.cursor,
+      seq: cursor.seq,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
+    })
+
+    await appendEvents([envelope], { streamId: 'stream-1' })
+    expect(mockRedis.eval.mock.calls[0][1]).toBe(3)
+    expect(mockRedis.eval.mock.calls[0][4]).toBe('execution:redis-budget:copilot_stream:stream-1')
+
+    mockRedis.eval.mockClear()
+    await appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' })
+    expect(mockRedis.eval.mock.calls[0][1]).toBe(4)
+    expect(mockRedis.eval.mock.calls[0][5]).toBe('execution:redis-budget:user:user-1')
   })
 
   it('clears persisted stream state during teardown cleanup', async () => {

@@ -4,6 +4,14 @@ import { sleep } from '@sim/utils/helpers'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
+  getRedisBudgetKeys,
+  getRedisBudgetLimits,
+  logRedisBudgetRefusal,
+  parseRedisBudgetRefusal,
+  type RedisBudgetRefusal,
+  renderRedisBudgetLua,
+} from '@/lib/core/redis/byte-budget.server'
+import {
   type PersistedStreamEventEnvelope,
   parsePersistedStreamEventEnvelopeJson,
 } from './contract'
@@ -125,38 +133,163 @@ export async function scheduleBufferCleanup(
   }
 }
 
+/**
+ * Appends a batch, trims the ring, refreshes both TTLs and charges the net bytes to
+ * the stream's budget — in one script, so the reservation and the write it pays for
+ * commit together.
+ *
+ * Entries already present are skipped when counting, which makes the script
+ * idempotent: `withRedisRetry` may run it up to three times, and a retry after a
+ * partial failure must not charge the same bytes twice.
+ *
+ * KEYS: [events, seq, budgetOwner, budgetUser?]
+ * ARGV: [ttlSeconds, eventLimit, ownerLimit, userLimit, budgetTtlSeconds, lastSeq,
+ *        score, member, ...]
+ * Returns {1} on success, or {0, resource, currentBytes} when the budget refuses.
+ */
+const APPEND_EVENTS_SCRIPT = `
+local ttl_seconds = tonumber(ARGV[1])
+local event_limit = tonumber(ARGV[2])
+local owner_limit = tonumber(ARGV[3])
+local user_limit = tonumber(ARGV[4])
+local budget_ttl_seconds = tonumber(ARGV[5])
+local last_seq = ARGV[6]
+
+local new_count = 0
+local new_bytes = 0
+local new_members = {}
+for i = 7, #ARGV, 2 do
+  local member = ARGV[i + 1]
+  if not redis.call('ZSCORE', KEYS[1], member) then
+    new_count = new_count + 1
+    new_bytes = new_bytes + string.len(member)
+    table.insert(new_members, member)
+  end
+end
+
+local current_count = redis.call('ZCARD', KEYS[1])
+local prune_count = current_count + new_count - event_limit
+if prune_count < 0 then
+  prune_count = 0
+end
+local existing_prune_count = math.min(prune_count, current_count)
+local pruned_bytes = 0
+if existing_prune_count > 0 then
+  local pruned = redis.call('ZRANGE', KEYS[1], 0, existing_prune_count - 1)
+  for _, member in ipairs(pruned) do
+    pruned_bytes = pruned_bytes + string.len(member)
+  end
+end
+for i = 1, prune_count - existing_prune_count do
+  local member = new_members[i]
+  if member then
+    pruned_bytes = pruned_bytes + string.len(member)
+  end
+end
+
+local net_bytes = new_bytes - pruned_bytes
+${renderRedisBudgetLua(2)}
+
+for i = 7, #ARGV, 2 do
+  redis.call('ZADD', KEYS[1], ARGV[i], ARGV[i + 1])
+end
+redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -event_limit - 1)
+redis.call('EXPIRE', KEYS[1], ttl_seconds)
+redis.call('SET', KEYS[2], last_seq, 'EX', ttl_seconds)
+return {1}
+`
+
+/** What a stream is charged against. `userId` adds the cross-stream user ceiling. */
+export interface StreamBudgetScope {
+  streamId: string
+  userId?: string
+}
+
+export type AppendEventsResult =
+  | { persisted: true }
+  | { persisted: false; refusal: RedisBudgetRefusal }
+
+/**
+ * Persists a batch for replay.
+ *
+ * A refusal is returned, never thrown. A throw here reaches
+ * `finalizeStream`'s second flush, which runs inside the error handler and so
+ * escapes to reject the response stream — a stream that has already delivered every
+ * byte to the user would end in an error because its *replay copy* did not fit.
+ * Refusing to persist costs a resume; throwing costs the turn.
+ */
 export async function appendEvents(
-  envelopes: PersistedStreamEventEnvelope[]
-): Promise<PersistedStreamEventEnvelope[]> {
+  envelopes: PersistedStreamEventEnvelope[],
+  scope?: StreamBudgetScope
+): Promise<AppendEventsResult> {
   if (envelopes.length === 0) {
-    return envelopes
+    return { persisted: true }
   }
 
-  const streamId = envelopes[0].stream.streamId
+  const streamId = scope?.streamId ?? envelopes[0].stream.streamId
   const config = getStreamConfig()
+  const limits = getRedisBudgetLimits('copilot_stream')
+  const budgetScope = {
+    kind: 'copilot_stream' as const,
+    id: streamId,
+    ...(scope?.userId ? { userId: scope.userId } : {}),
+  }
+  const budgetKeys = getRedisBudgetKeys(budgetScope)
 
-  await withRedisRetry({ operation: 'append_event', streamId }, async (redis) => {
-    const key = getEventsKey(streamId)
-    const seqKey = getSeqKey(streamId)
-    const pipeline = redis.pipeline()
-    const zaddArgs: Array<number | string> = []
-    for (const envelope of envelopes) {
-      zaddArgs.push(envelope.seq, JSON.stringify(envelope))
+  const zaddArgs: Array<number | string> = []
+  let batchBytes = 0
+  for (const envelope of envelopes) {
+    const member = JSON.stringify(envelope)
+    batchBytes += member.length
+    zaddArgs.push(envelope.seq, member)
+  }
+
+  /*
+    A single batch past the per-write ceiling can never land, and retrying it would
+    stall every later batch behind it. Refuse it the same way the budget would.
+  */
+  if (batchBytes > limits.maxSingleWriteBytes) {
+    const refusal: RedisBudgetRefusal = {
+      resource: 'owner_redis_bytes',
+      currentBytes: 0,
+      limitBytes: limits.maxSingleWriteBytes,
+      attemptedBytes: batchBytes,
     }
-    pipeline.zadd(key, ...(zaddArgs as [number, string, ...Array<number | string>]))
-    pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
-    pipeline.expire(key, config.ttlSeconds)
-    pipeline.set(seqKey, String(envelopes[envelopes.length - 1].seq), 'EX', config.ttlSeconds)
-    await pipeline.exec()
-  })
+    logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })
+    return { persisted: false, refusal }
+  }
 
-  return envelopes
+  const result = await withRedisRetry({ operation: 'append_event', streamId }, async (redis) =>
+    redis.eval(
+      APPEND_EVENTS_SCRIPT,
+      2 + budgetKeys.length,
+      getEventsKey(streamId),
+      getSeqKey(streamId),
+      ...budgetKeys,
+      config.ttlSeconds,
+      config.eventLimit,
+      limits.maxOwnerBytes,
+      limits.maxUserBytes,
+      limits.ttlSeconds,
+      String(envelopes[envelopes.length - 1].seq),
+      ...zaddArgs
+    )
+  )
+
+  const refusal = parseRedisBudgetRefusal(result, batchBytes, limits)
+  if (refusal) {
+    logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })
+    return { persisted: false, refusal }
+  }
+
+  return { persisted: true }
 }
 
 export async function appendEvent(
-  envelope: PersistedStreamEventEnvelope
+  envelope: PersistedStreamEventEnvelope,
+  scope?: StreamBudgetScope
 ): Promise<PersistedStreamEventEnvelope> {
-  await appendEvents([envelope])
+  await appendEvents([envelope], scope)
   return envelope
 }
 

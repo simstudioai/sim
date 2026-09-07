@@ -23,26 +23,59 @@ const logger = createLogger('EventLog')
 
 /**
  * Atomic append: INCR the seq counter to mint a new eventId, splice it into the
- * adapter-supplied entry JSON, ZADD it, refresh TTLs, trim to cap, and record the
- * resulting earliestEventId in meta — one round-trip. Without atomicity a slow
- * reader could observe the trim before the meta update and miss the prune signal.
+ * adapter-supplied entry JSON, ZADD it, refresh TTLs, trim, and record the resulting
+ * earliestEventId in meta — one round-trip. Without atomicity a slow reader could
+ * observe the trim before the meta update and miss the prune signal.
+ *
+ * The buffer is bounded twice: to `cap` entries, and to `maxBytes`. The entry bound
+ * alone bounds cardinality and says nothing about size — an entry here carries a
+ * cell's outputs, which a dispatch resends cumulatively, so `cap` entries of a few
+ * hundred KB is gigabytes for one table. Both trims drop the oldest, which is the
+ * behaviour readers already handle: `earliestEventId` moves, `readEventsSince`
+ * returns `pruned`, and the client refetches and resumes from latest.
+ *
+ * The running total is kept in meta rather than summed per append, and both keys
+ * share a TTL so the counter cannot outlive the bytes it counts.
  *
  * KEYS: [events, seq, meta]
- * ARGV: [ttlSec, cap, updatedAtIso, entryPrefix, entrySuffix]
+ * ARGV: [ttlSec, cap, updatedAtIso, entryPrefix, entrySuffix, maxBytes]
  *   The new eventId is spliced between prefix/suffix to form the entry JSON.
  * Returns the new eventId.
  */
 const APPEND_EVENT_SCRIPT = `
+local ttl_seconds = tonumber(ARGV[1])
+local cap = tonumber(ARGV[2])
+local max_bytes = tonumber(ARGV[6])
+
 local eventId = redis.call('INCR', KEYS[2])
 local entry = ARGV[4] .. eventId .. ARGV[5]
 redis.call('ZADD', KEYS[1], eventId, entry)
-redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
-redis.call('EXPIRE', KEYS[2], tonumber(ARGV[1]))
-redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -tonumber(ARGV[2]) - 1)
+redis.call('EXPIRE', KEYS[1], ttl_seconds)
+redis.call('EXPIRE', KEYS[2], ttl_seconds)
+
+local total = tonumber(redis.call('HGET', KEYS[3], 'bytes') or '0') + string.len(entry)
+
+local over = redis.call('ZCARD', KEYS[1]) - cap
+if over > 0 then
+  local dropped = redis.call('ZRANGE', KEYS[1], 0, over - 1)
+  for _, member in ipairs(dropped) do
+    total = total - string.len(member)
+  end
+  redis.call('ZREMRANGEBYRANK', KEYS[1], 0, over - 1)
+end
+
+while max_bytes > 0 and total > max_bytes and redis.call('ZCARD', KEYS[1]) > 1 do
+  local oldest_member = redis.call('ZRANGE', KEYS[1], 0, 0)
+  if not oldest_member[1] then break end
+  total = total - string.len(oldest_member[1])
+  redis.call('ZREMRANGEBYRANK', KEYS[1], 0, 0)
+end
+if total < 0 then total = 0 end
+
 local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
 if oldest[2] then
-  redis.call('HSET', KEYS[3], 'earliestEventId', tostring(math.floor(tonumber(oldest[2]))), 'updatedAt', ARGV[3])
-  redis.call('EXPIRE', KEYS[3], tonumber(ARGV[1]))
+  redis.call('HSET', KEYS[3], 'earliestEventId', tostring(math.floor(tonumber(oldest[2]))), 'bytes', tostring(total), 'updatedAt', ARGV[3])
+  redis.call('EXPIRE', KEYS[3], ttl_seconds)
 end
 return eventId
 `
@@ -57,6 +90,13 @@ export interface EventLogConfig {
   prefix: string
   ttlSeconds: number
   cap: number
+  /**
+   * Byte ceiling for one stream's buffer. Entries are dropped oldest-first until the
+   * buffer fits, exactly as `cap` does — an entry cap bounds how many entries a key
+   * holds and nothing about how large each one is, which is how a key of a few
+   * hundred entries reaches hundreds of megabytes.
+   */
+  maxBytes: number
   /** Max entries returned by one read; the SSE route drains in chunks. */
   readChunk: number
 }
@@ -149,8 +189,18 @@ export async function appendEvent<E extends EventLogEntry>(
         stream.events.push(entry)
         if (stream.events.length > config.cap) {
           stream.events = stream.events.slice(-config.cap)
-          stream.earliestEventId = stream.events[0]?.eventId
         }
+        if (config.maxBytes > 0) {
+          let bytes = stream.events.reduce(
+            (total, event) => total + JSON.stringify(event).length,
+            0
+          )
+          while (bytes > config.maxBytes && stream.events.length > 1) {
+            bytes -= JSON.stringify(stream.events[0]).length
+            stream.events = stream.events.slice(1)
+          }
+        }
+        stream.earliestEventId = stream.events[0]?.eventId
         stream.expiresAt = Date.now() + config.ttlSeconds * 1000
         return entry
       } catch (error) {
@@ -174,7 +224,8 @@ export async function appendEvent<E extends EventLogEntry>(
       config.cap,
       new Date().toISOString(),
       serializer.entryPrefix,
-      serializer.entrySuffix
+      serializer.entrySuffix,
+      config.maxBytes
     )
     const eventId = typeof result === 'number' ? result : Number(result)
     if (!Number.isFinite(eventId)) return null

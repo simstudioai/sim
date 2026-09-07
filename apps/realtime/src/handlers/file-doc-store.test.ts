@@ -128,6 +128,7 @@ vi.mock('redis', () => ({ createClient: () => makeClient() }))
 import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
 
 const REDIS_URL = 'redis://fake'
+const COMPACT_THRESHOLD_ENTRIES = 400
 const NAME = 'workspace-file-doc:file-1'
 
 function docWithText(text: string): Y.Doc {
@@ -398,6 +399,40 @@ describe('FileDocStore', () => {
     const pending = (a as any).appendUpdate(NAME, updateFor('real user edit'))
     expect(room.realEdited).toBe(true)
     await pending
+    doc.destroy()
+  })
+
+  it('compacts on appended bytes, before the entry threshold is anywhere near reached', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    // A handful of large pastes: far below COMPACT_THRESHOLD entries, far above the byte ceiling.
+    // Before bytes were counted this stream held tens of megabytes and never compacted.
+    const updates: Uint8Array[] = []
+    doc.on('update', (u: Uint8Array) => updates.push(u))
+    for (let i = 0; i < 4; i++) {
+      doc.getText('body').insert(0, 'x'.repeat(3 * 1024 * 1024))
+    }
+    for (const update of updates) {
+      await a.publishAndWait(NAME, update)
+    }
+
+    await vi.waitFor(
+      () => {
+        const stream = state.backing!.streams.get(streamKey)!
+        expect(stream.length).toBeLessThan(COMPACT_THRESHOLD_ENTRIES)
+        expect(stream.some((entry) => entry.message.s === '1')).toBe(true)
+      },
+      { timeout: 5000 }
+    )
+
+    // Compaction must be lossless: the whole document is still reconstructable from what remains.
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(4 * 3 * 1024 * 1024)
+    rebuilt.destroy()
     doc.destroy()
   })
 

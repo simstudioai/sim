@@ -4,6 +4,7 @@ import { randomInt } from '@sim/utils/random'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import {
   getExecutionSignalChannel,
   publishLocalExecutionSignal,
@@ -11,11 +12,6 @@ import {
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
-import {
-  type ExecutionRedisBudgetReservation,
-  getExecutionRedisBudgetKeys,
-  getExecutionRedisBudgetLimits,
-} from '@/lib/execution/redis-budget.server'
 import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
@@ -47,9 +43,9 @@ const MAX_ACTIVE_BLOCK_SNAPSHOT_BYTES = 256 * 1024
  * run has actually buffered its way into the danger zone, so a short run keeps
  * full-fidelity output and a runaway one stops accumulating.
  */
-const EXECUTION_EVENT_OFFLOAD_PRESSURE_BYTES = getExecutionRedisBudgetLimits().maxExecutionBytes / 2
+const EXECUTION_EVENT_OFFLOAD_PRESSURE_BYTES = getRedisBudgetLimits('execution').maxOwnerBytes / 2
 const EXECUTION_EVENT_PRESSURE_VALUE_BYTES =
-  getExecutionRedisBudgetLimits().maxExecutionBytes / EVENT_LIMIT
+  getRedisBudgetLimits('execution').maxOwnerBytes / EVENT_LIMIT
 const ACTIVE_META_ATTEMPTS = 3
 const FINALIZE_FLUSH_ATTEMPTS = 2
 const FLUSH_EVENTS_SCRIPT = `
@@ -562,15 +558,7 @@ export async function resetExecutionStreamBuffer(executionId: string): Promise<b
     const metaKey = getMetaKey(executionId)
     const meta = (await redis.hgetall(metaKey).catch(() => ({}))) as Record<string, string>
     const userId = typeof meta.userId === 'string' ? meta.userId : undefined
-    const budgetReservation: ExecutionRedisBudgetReservation = {
-      executionId,
-      userId,
-      category: 'event_buffer',
-      operation: 'reset_events',
-      bytes: 0,
-      logger,
-    }
-    const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+    const budgetKeys = getRedisBudgetKeys({ kind: 'execution', id: executionId, userId })
     await redis.eval(
       RESET_STREAM_SCRIPT,
       2 + budgetKeys.length,
@@ -580,7 +568,7 @@ export async function resetExecutionStreamBuffer(executionId: string): Promise<b
       String(replayStartEventId),
       new Date().toISOString(),
       ACTIVE_TTL_SECONDS,
-      getExecutionRedisBudgetLimits().ttlSeconds
+      getRedisBudgetLimits('execution').ttlSeconds
     )
     return true
   } catch (error) {
@@ -1043,7 +1031,7 @@ export function createExecutionEventWriter(
     let batch: ExecutionEventEntry[] = []
     let batchBytes = 0
     try {
-      const limits = getExecutionRedisBudgetLimits()
+      const limits = getRedisBudgetLimits('execution')
       const chunk = takeFlushChunk(limits.maxSingleWriteBytes)
       batch = chunk.entries
       batchBytes = chunk.bytes
@@ -1051,14 +1039,6 @@ export function createExecutionEventWriter(
       // Only authoritative once the final chunk lands.
       const chunkTerminalStatus = pending.length === 0 ? pendingTerminalStatus : undefined
       const key = getEventsKey(executionId)
-      const budgetReservation: ExecutionRedisBudgetReservation = {
-        executionId,
-        userId: context.userId,
-        category: 'event_buffer',
-        operation: chunkTerminalStatus ? 'write_terminal_events' : 'write_events',
-        bytes: batchBytes,
-        logger,
-      }
       if (batchBytes > limits.maxSingleWriteBytes) {
         // A single entry above the cap can never be written; dropping it is the
         // only way the rest of the buffer makes progress.
@@ -1068,7 +1048,11 @@ export function createExecutionEventWriter(
           limitBytes: limits.maxSingleWriteBytes,
         })
       }
-      const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+      const budgetKeys = getRedisBudgetKeys({
+        kind: 'execution',
+        id: executionId,
+        userId: context.userId,
+      })
       const flushResult = getFlushScriptResult(
         await redis.eval(
           FLUSH_EVENTS_SCRIPT,
@@ -1083,7 +1067,7 @@ export function createExecutionEventWriter(
           new Date().toISOString(),
           chunkTerminalStatus ?? '',
           batchBytes,
-          limits.maxExecutionBytes,
+          limits.maxOwnerBytes,
           limits.maxUserBytes,
           limits.ttlSeconds,
           ...zaddArgs
@@ -1100,7 +1084,7 @@ export function createExecutionEventWriter(
           limitBytes:
             flushResult.resource === 'user_redis_bytes'
               ? limits.maxUserBytes
-              : limits.maxExecutionBytes,
+              : limits.maxOwnerBytes,
         })
       }
       consecutiveFlushFailures = 0

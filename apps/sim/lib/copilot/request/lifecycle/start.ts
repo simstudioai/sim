@@ -116,7 +116,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   const abortController = new AbortController()
   registerActiveStream(streamId, abortController)
 
-  const publisher = new StreamWriter({ streamId, chatId, requestId })
+  const publisher = new StreamWriter({ streamId, chatId, requestId, userId })
 
   // Declared at function scope (same rationale as `cancelReason` below) so the
   // leak backstop in the orchestration's outer finally can always reach them:

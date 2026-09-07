@@ -140,6 +140,20 @@ const IDLE_POLL_MS = 250
 const READ_COUNT = 200
 /** Compact a stream once it exceeds this many entries (snapshot + trim). */
 const COMPACT_THRESHOLD = 400
+/**
+ * Compact a stream once its appended deltas exceed this many bytes, whichever comes first.
+ *
+ * The entry threshold alone bounds how many entries a stream holds and says nothing about
+ * how large each one is: one pasted block is a single entry carrying megabytes, so a stream
+ * can sit at a few dozen entries and hundreds of megabytes and never reach
+ * {@link COMPACT_THRESHOLD} before its TTL. Folding by bytes as well keeps a stream's cost
+ * proportional to its document rather than to the size of the edits that produced it.
+ *
+ * Compaction is the only safe way to shrink one of these streams: a task attaching later
+ * replays every entry to rebuild the doc, so dropping the oldest entries — what a native
+ * `MAXLEN` retention bound would do — loses edits outright. A snapshot folds them first.
+ */
+const COMPACT_BYTES_THRESHOLD = 8 * 1024 * 1024
 /** Check whether compaction is due only every Nth local publish, to avoid an XLEN per keystroke. */
 const COMPACT_CHECK_EVERY = 64
 /** Compaction critical section (snapshot + xAdd + xTrim) is fast; a generous TTL covers a slow Redis
@@ -218,6 +232,13 @@ interface StoreRoom {
   lastId: string
   /** Local publish count, to pace compaction checks. */
   publishes: number
+  /**
+   * Bytes this task has appended since the last compaction it observed, so the byte threshold
+   * costs no extra round-trip. Locally tracked, so it under-counts a peer task's appends — it
+   * is a trigger, not an accounting, and {@link COMPACT_THRESHOLD} still covers the case where
+   * many small edits arrive from elsewhere.
+   */
+  appendedBytes: number
   /** Set once the doc has been observed seeded, so the seed transition itself is never mistaken for an
    * edit (mirrors the relay's `seededObserved`). */
   seededObserved: boolean
@@ -299,6 +320,7 @@ export class FileDocStore {
       doc,
       lastId: '0',
       publishes: 0,
+      appendedBytes: 0,
       seededObserved: false,
       realEdited: false,
     }
@@ -379,7 +401,15 @@ export class FileDocStore {
     }
     await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
-    if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
+    if (!room) return
+    room.appendedBytes += encoded.length
+    // Bytes are checked every publish: one entry can cross the ceiling on its own, so pacing this
+    // check the way the entry count is paced would let a stream sit far over the ceiling for up to
+    // COMPACT_CHECK_EVERY more appends. The check itself is a local comparison.
+    const overBytes = room.appendedBytes >= COMPACT_BYTES_THRESHOLD
+    if (overBytes || ++room.publishes % COMPACT_CHECK_EVERY === 0) {
+      void this.maybeCompact(name, overBytes)
+    }
   }
 
   /**
@@ -734,12 +764,12 @@ export class FileDocStore {
    * only one task compacts a given stream at a time (concurrent snapshot+trim would race). Trims only up
    * to what the snapshot provably contains — never un-integrated peer entries (see below).
    */
-  private async maybeCompact(name: string): Promise<void> {
+  private async maybeCompact(name: string, force = false): Promise<void> {
     if (!this.write) return
     const room = this.rooms.get(name)
     if (!room) return
     try {
-      if ((await this.write.xLen(streamKey(name))) < COMPACT_THRESHOLD) return
+      if (!force && (await this.write.xLen(streamKey(name))) < COMPACT_THRESHOLD) return
       const key = `${COMPACT_LOCK_PREFIX}${name}`
       const token = await this.acquireLock(key, COMPACT_LOCK_TTL_MS)
       if (!token) return
@@ -752,6 +782,10 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
+        // The folded deltas are about to be trimmed; what remains of this task's contribution is the
+        // snapshot. Reset before the appends so a concurrent publish's bytes are counted against the
+        // new baseline rather than the one being retired.
+        room.appendedBytes = snapshot.length
         // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
         // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
         // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
