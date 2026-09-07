@@ -12,6 +12,7 @@ import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciDevopsTool } from '@/lib/internal/oci-devops/execute-tool'
 import { getRegisteredInternalToolOperationIds } from '@/lib/internal/tool-operations/registry.server'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciDevopsBlock } from '@/blocks/blocks/oci_devops'
 import * as ociDevopsTools from '@/tools/oci_devops'
 
 function request(toolId = 'oci_devops_get_project'): InternalToolOperationCall {
@@ -26,6 +27,38 @@ function request(toolId = 'oci_devops_get_project'): InternalToolOperationCall {
 
 describe('OCI DevOps internal dispatcher', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it.each([
+    'list_build_pipelines',
+    'list_connections',
+    'list_deploy_artifacts',
+    'list_deploy_environments',
+    'list_deploy_pipelines',
+    'list_repositories',
+    'list_triggers',
+  ])('%s can execute from a compartment-only block configuration', (operation) => {
+    const input = OciDevopsBlock.tools.config?.params?.({
+      operation,
+      credential: 'credential',
+      compartmentId: 'compartment',
+      projectId: '',
+    })
+    expect(input).toMatchObject({ compartmentId: 'compartment', projectId: undefined })
+    expect(Object.hasOwn(input!, 'projectId')).toBe(true)
+    for (const id of ['projectIdSelector', 'projectIdManual']) {
+      const required = OciDevopsBlock.subBlocks.find((field) => field.id === id)?.required
+      expect(required).toEqual(
+        expect.objectContaining({ value: expect.not.arrayContaining([operation]) })
+      )
+      expect(required).toEqual(
+        expect.objectContaining({
+          value: expect.arrayContaining(['get_project', 'create_repository']),
+        })
+      )
+    }
+    const tool = Object.values(ociDevopsTools).find((tool) => tool.id === `oci_devops_${operation}`)
+    expect(tool?.params.projectId.required).toBe(false)
+  })
 
   it('forwards trusted execution context and cancellation', async () => {
     const call = { ...request(), signal: new AbortController().signal }

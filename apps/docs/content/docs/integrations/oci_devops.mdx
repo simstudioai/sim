@@ -1112,7 +1112,7 @@ List Build Pipelines in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
 | `lifecycleState` | string | No | A filter to return only build pipelines that matches the given lifecycle state. Allowed: CREATING, UPDATING, ACTIVE, INACTIVE, DELETING, DELETED, FAILED. |
 | `displayName` | string | No | A filter to return only resources that match the entire display name given. |
@@ -1213,7 +1213,7 @@ List Connections in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
 | `lifecycleState` | string | No | A filter to return only connections that matches the given lifecycle state. Allowed: ACTIVE, DELETING. |
 | `displayName` | string | No | A filter to return only resources that match the entire display name given. |
@@ -1247,7 +1247,7 @@ List Deploy Artifacts in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
 | `lifecycleState` | string | No | A filter to return only DeployArtifacts that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED. |
 | `displayName` | string | No | A filter to return only resources that match the entire display name given. |
@@ -1279,7 +1279,7 @@ List Deploy Environments in OCI DevOps
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
 | `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
 | `lifecycleState` | string | No | A filter to return only DeployEnvironments that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED, NEEDS_ATTENTION. |
@@ -1313,7 +1313,7 @@ List Deploy Pipelines in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `id` | string | No | Unique identifier or OCID for listing a single resource by ID. |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
 | `lifecycleState` | string | No | A filter to return only DeployPipelines that matches the given lifecycleState. Allowed: CREATING, UPDATING, ACTIVE, INACTIVE, DELETING, DELETED, FAILED. |
 | `displayName` | string | No | A filter to return only resources that match the entire display name given. |
@@ -1516,7 +1516,7 @@ List Repositories in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `repositoryId` | string | No | Unique repository identifier. |
 | `lifecycleState` | string | No | A filter to return only resources whose lifecycle state matches the given lifecycle state. Allowed: ACTIVE, CREATING, DELETED, FAILED, DELETING. |
 | `name` | string | No | A filter to return only resources that match the entire name given. |
@@ -1550,7 +1550,7 @@ List Triggers in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
-| `projectId` | string | Yes | unique project identifier |
+| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
 | `lifecycleState` | string | No | A filter to return only triggers that matches the given lifecycle state. Allowed: ACTIVE, DELETING. |
 | `displayName` | string | No | A filter to return only resources that match the entire display name given. |
 | `id` | string | No | Unique trigger identifier. |

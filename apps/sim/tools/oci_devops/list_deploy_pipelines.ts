@@ -34,9 +34,9 @@ export const ociDevopsListDeployPipelinesTool: InternalToolConfig<
     },
     projectId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'unique project identifier',
+      description: 'Project OCID. Provide a project ID or compartment ID to scope the list.',
     },
     compartmentId: {
       type: 'string',

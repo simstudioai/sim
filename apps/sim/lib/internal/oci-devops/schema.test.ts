@@ -7,6 +7,38 @@ const submission = { ...credential, retryToken: 'one-logical-submission' }
 const predecessors = { items: [{ id: 'pipeline' }] }
 
 describe('OCI DevOps request contracts', () => {
+  it.each([
+    'list_build_pipelines',
+    'list_connections',
+    'list_deploy_artifacts',
+    'list_deploy_environments',
+    'list_deploy_pipelines',
+    'list_repositories',
+    'list_triggers',
+  ] as const)(
+    '%s accepts compartment or project scope but rejects unscoped discovery',
+    (operation) => {
+      const schema = operationSchemas[operation]
+      for (const scope of [
+        { compartmentId: 'compartment' },
+        { projectId: 'project' },
+        { compartmentId: 'compartment', projectId: 'project' },
+      ]) {
+        expect(schema.parse({ ...credential, ...scope })).toMatchObject({ ...scope, limit: 50 })
+      }
+      for (const scope of [
+        {},
+        { compartmentId: '' },
+        { projectId: ' ' },
+        { compartmentId: null },
+        { projectId: 1 },
+        { compartmentId: 'compartment', projectId: '' },
+      ]) {
+        expect(schema.safeParse({ ...credential, ...scope }).success).toBe(false)
+      }
+    }
+  )
+
   it('defaults to one 50-item page and rejects out-of-range pagination', () => {
     const schema = operationSchemas.list_projects
     expect(schema.parse({ ...credential, compartmentId: 'c' }).limit).toBe(50)

@@ -134,6 +134,32 @@ describe('OCI DevOps operations', () => {
     expect(mocks.request).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    ['list_build_pipelines', 'buildPipelines'],
+    ['list_connections', 'connections'],
+    ['list_deploy_artifacts', 'deployArtifacts'],
+    ['list_deploy_environments', 'deployEnvironments'],
+    ['list_deploy_pipelines', 'deployPipelines'],
+    ['list_repositories', 'repositories'],
+    ['list_triggers', 'triggers'],
+  ] as const)(
+    '%s lists an empty compartment without requiring a project',
+    async (operation, resource) => {
+      mocks.request.mockResolvedValue(response({ items: [] }))
+      await execute(operation, { compartmentId: 'compartment' })
+      expect(mocks.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'GET',
+          encodedPath: `/20210630/${resource}`,
+          queryPairs: [
+            ['compartmentId', 'compartment'],
+            ['limit', '50'],
+          ],
+        })
+      )
+    }
+  )
+
   it('submits a build with a caller-stable retry token, preserving acceptance and ETag', async () => {
     mocks.request.mockResolvedValue(
       response({ id: 'run', lifecycleState: 'ACCEPTED' }, 200, { etag: 'version-1' })

@@ -2509,8 +2509,8 @@ export const listBuildPipelinesInputSchema = z
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
     id: z.string().max(8192).optional(),
-    projectId: z.string().trim().min(1).max(255),
-    compartmentId: z.string().max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
     lifecycleState: z
       .enum(['CREATING', 'UPDATING', 'ACTIVE', 'INACTIVE', 'DELETING', 'DELETED', 'FAILED'])
       .optional(),
@@ -2521,6 +2521,10 @@ export const listBuildPipelinesInputSchema = z
     sortBy: z.enum(['timeCreated', 'displayName']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listBuildRunsInputSchema = z
   .object({
@@ -2563,8 +2567,8 @@ export const listConnectionsInputSchema = z
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
     id: z.string().max(8192).optional(),
-    projectId: z.string().trim().min(1).max(255),
-    compartmentId: z.string().max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
     lifecycleState: z.enum(['ACTIVE', 'DELETING']).optional(),
     displayName: z.string().min(1).max(255).optional(),
     connectionType: z
@@ -2583,14 +2587,18 @@ export const listConnectionsInputSchema = z
     sortBy: z.enum(['timeCreated', 'displayName']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listDeployArtifactsInputSchema = z
   .object({
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
     id: z.string().max(8192).optional(),
-    projectId: z.string().trim().min(1).max(255),
-    compartmentId: z.string().max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
     lifecycleState: z
       .enum(['CREATING', 'UPDATING', 'ACTIVE', 'DELETING', 'DELETED', 'FAILED'])
       .optional(),
@@ -2601,13 +2609,17 @@ export const listDeployArtifactsInputSchema = z
     sortBy: z.enum(['timeCreated', 'displayName']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listDeployEnvironmentsInputSchema = z
   .object({
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
-    projectId: z.string().trim().min(1).max(255),
-    compartmentId: z.string().max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
     id: z.string().max(8192).optional(),
     lifecycleState: z
       .enum(['CREATING', 'UPDATING', 'ACTIVE', 'DELETING', 'DELETED', 'FAILED', 'NEEDS_ATTENTION'])
@@ -2619,14 +2631,18 @@ export const listDeployEnvironmentsInputSchema = z
     sortBy: z.enum(['timeCreated', 'displayName']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listDeployPipelinesInputSchema = z
   .object({
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
     id: z.string().max(8192).optional(),
-    projectId: z.string().trim().min(1).max(255),
-    compartmentId: z.string().max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
     lifecycleState: z
       .enum(['CREATING', 'UPDATING', 'ACTIVE', 'INACTIVE', 'DELETING', 'DELETED', 'FAILED'])
       .optional(),
@@ -2637,6 +2653,10 @@ export const listDeployPipelinesInputSchema = z
     sortBy: z.enum(['timeCreated', 'displayName']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listDeployStagesInputSchema = z
   .object({
@@ -2729,8 +2749,8 @@ export const listRepositoriesInputSchema = z
   .object({
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
-    compartmentId: z.string().max(8192).optional(),
-    projectId: z.string().trim().min(1).max(255),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
     repositoryId: z.string().max(8192).optional(),
     lifecycleState: z.enum(['ACTIVE', 'CREATING', 'DELETED', 'FAILED', 'DELETING']).optional(),
     name: z.string().min(1).max(255).optional(),
@@ -2740,13 +2760,17 @@ export const listRepositoriesInputSchema = z
     sortBy: z.enum(['timeCreated', 'name']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listTriggersInputSchema = z
   .object({
     oauthCredential: z.string().trim().min(1).max(255),
     region: z.string().trim().min(1).max(255).optional(),
-    compartmentId: z.string().max(8192).optional(),
-    projectId: z.string().trim().min(1).max(255),
+    compartmentId: z.string().trim().min(1).max(8192).optional(),
+    projectId: z.string().trim().min(1).max(255).optional(),
     lifecycleState: z.enum(['ACTIVE', 'DELETING']).optional(),
     displayName: z.string().min(1).max(255).optional(),
     id: z.string().max(8192).optional(),
@@ -2756,6 +2780,10 @@ export const listTriggersInputSchema = z
     sortBy: z.enum(['timeCreated', 'displayName']).optional(),
   })
   .strict()
+  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
+    message: 'Provide a compartment ID or project ID',
+    path: ['compartmentId'],
+  })
 
 export const listWorkRequestErrorsInputSchema = z
   .object({
