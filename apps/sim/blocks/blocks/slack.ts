@@ -775,7 +775,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       id: 'channelMaxPages',
       title: 'Max Pages',
       type: 'short-input',
-      placeholder: '10',
+      placeholder: '200',
       condition: {
         field: 'operation',
         value: 'list_channels',
@@ -2155,8 +2155,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
               (typeof channelMaxPages !== 'string' || Boolean(channelMaxPages.trim()))
             if (hasChannelMaxPages) {
               const parsedMaxPages = Number(channelMaxPages)
-              if (!Number.isInteger(parsedMaxPages) || parsedMaxPages < 1 || parsedMaxPages > 10) {
-                throw new Error('Max pages must be an integer between 1 and 10')
+              if (!Number.isInteger(parsedMaxPages) || parsedMaxPages < 1 || parsedMaxPages > 200) {
+                throw new Error('Max pages must be an integer between 1 and 200')
               }
               baseParams.maxPages = parsedMaxPages
             }
@@ -2426,7 +2426,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     // List Channels inputs
     includePrivate: { type: 'string', description: 'Include private channels (true/false)' },
     channelLimit: { type: 'string', description: 'Conversations to request per Slack page' },
-    channelMaxPages: { type: 'string', description: 'Maximum Slack pages to fetch (max 10)' },
+    channelMaxPages: { type: 'string', description: 'Maximum Slack pages to fetch (max 200)' },
     // List Members inputs
     memberLimit: { type: 'string', description: 'Maximum number of members to return' },
     // List Users inputs
@@ -2657,7 +2657,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     channels: {
       type: 'json',
       description:
-        'Array of accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
+        'Array of up to 10,000 accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
     },
     count: {
       type: 'number',

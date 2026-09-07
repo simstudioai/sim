@@ -6,6 +6,7 @@ import {
   DEFAULT_CONVERSATION_PAGE_LIMIT,
   MAX_CONVERSATION_PAGE_LIMIT,
   MAX_CONVERSATION_PAGES,
+  MAX_CONVERSATIONS,
 } from '@/tools/slack/list_channels'
 import type { SlackListChannelsParams, SlackListChannelsResponse } from '@/tools/slack/types'
 import {
@@ -130,7 +131,8 @@ export const executeSlackListConversationsOperation: InternalToolOperationImplem
   let nextCursor: string | null = null
   let pages = 0
 
-  while (pages < maxPages) {
+  while (pages < maxPages && channels.length < MAX_CONVERSATIONS) {
+    const pageLimit = Math.min(limit, MAX_CONVERSATIONS - channels.length)
     const { data } = await requestSlackApi({
       accessToken,
       method: 'conversations.list',
@@ -138,7 +140,7 @@ export const executeSlackListConversationsOperation: InternalToolOperationImplem
       query: {
         types,
         exclude_archived: String(excludeArchived),
-        limit,
+        limit: pageLimit,
         cursor,
       },
       signal,
@@ -147,6 +149,9 @@ export const executeSlackListConversationsOperation: InternalToolOperationImplem
     assertSlackApiSuccess(parsed, 'Failed to list conversations from Slack')
     if (!parsed.channels) {
       throw new Error('Slack returned a malformed conversations list')
+    }
+    if (parsed.channels.length > pageLimit) {
+      throw new Error(`Slack returned more than the requested ${pageLimit} conversations`)
     }
 
     channels.push(...parsed.channels.map(mapSlackConversation))

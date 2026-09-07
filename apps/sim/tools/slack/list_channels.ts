@@ -9,8 +9,11 @@ export const DEFAULT_CONVERSATION_PAGE_LIMIT = 100
 /** Slack's recommended upper bound for conversations.list page size. */
 export const MAX_CONVERSATION_PAGE_LIMIT = 200
 
-/** Default and hard cap on Slack conversation pages fetched per invocation. */
-export const MAX_CONVERSATION_PAGES = 10
+/** Default and hard cap on Slack conversation provider pages fetched per invocation. */
+export const MAX_CONVERSATION_PAGES = 200
+
+/** Hard cap on Slack conversations accumulated per invocation. */
+export const MAX_CONVERSATIONS = 10_000
 
 export const slackListChannelsTool: InternalToolConfig<
   SlackListChannelsParams,
@@ -19,8 +22,8 @@ export const slackListChannelsTool: InternalToolConfig<
   id: 'slack_list_channels',
   name: 'Slack List Channels',
   description:
-    'List accessible Slack conversations across multiple cursor pages. Credential-group user tokens also return one-to-one and group direct messages.',
-  version: '1.2.0',
+    'List up to 10,000 accessible Slack conversations across as many cursor pages as Slack supplies, capped at 200 provider pages. Credential-group user tokens also return one-to-one and group direct messages.',
+  version: '1.3.0',
 
   oauth: {
     required: true,
@@ -81,7 +84,7 @@ export const slackListChannelsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of Slack pages to fetch (default: 10, max: 10)',
+      description: 'Maximum number of Slack pages to fetch (default: 200, max: 200)',
     },
   },
 
@@ -93,7 +96,7 @@ export const slackListChannelsTool: InternalToolConfig<
     channels: {
       type: 'array',
       description:
-        'Accessible public and private channels, plus direct and group DMs for credential-group user tokens',
+        'Up to 10,000 accessible public and private channels, plus direct and group DMs for credential-group user tokens',
       items: {
         type: 'object',
         properties: CONVERSATION_LIST_OUTPUT_PROPERTIES,
@@ -111,7 +114,7 @@ export const slackListChannelsTool: InternalToolConfig<
     },
     count: {
       type: 'number',
-      description: 'Total number of conversations returned across all fetched pages',
+      description: 'Total number of conversations returned across all fetched pages, up to 10,000',
     },
     hasMore: {
       type: 'boolean',

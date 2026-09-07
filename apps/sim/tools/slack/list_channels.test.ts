@@ -178,13 +178,60 @@ describe('Slack list channels', () => {
     })
   })
 
+  it('continues beyond ten pages by default until Slack exhausts its cursor', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const cursor = new URL(String(input)).searchParams.get('cursor')
+      const page = cursor ? Number(cursor.replace('cursor-', '')) : 1
+      return slackResponse({
+        ok: true,
+        channels: [{ id: `C${page}` }],
+        response_metadata: { next_cursor: page < 12 ? `cursor-${page + 1}` : '' },
+      })
+    })
+
+    const result = await executeSlackListConversationsOperation(BASE_PARAMS)
+
+    expect(fetchMock).toHaveBeenCalledTimes(12)
+    expect(result.output).toMatchObject({
+      count: 12,
+      hasMore: false,
+      nextCursor: null,
+      pages: 12,
+    })
+  })
+
+  it('stops at 10,000 conversations and preserves the cursor for resumption', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const cursor = new URL(String(input)).searchParams.get('cursor')
+      const page = cursor ? Number(cursor.replace('cursor-', '')) : 1
+      return slackResponse({
+        ok: true,
+        channels: Array.from({ length: 200 }, (_, index) => ({ id: `C${page}-${index}` })),
+        response_metadata: { next_cursor: `cursor-${page + 1}` },
+      })
+    })
+
+    const result = await executeSlackListConversationsOperation({
+      ...BASE_PARAMS,
+      limit: 200,
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(50)
+    expect(result.output).toMatchObject({
+      count: 10_000,
+      hasMore: true,
+      nextCursor: 'cursor-51',
+      pages: 50,
+    })
+  })
+
   it('fails fast on invalid pagination inputs before a provider request', async () => {
     await expect(
       executeSlackListConversationsOperation({ ...BASE_PARAMS, limit: 0 })
     ).rejects.toThrow('Conversation page size must be an integer between 1 and 200')
     await expect(
-      executeSlackListConversationsOperation({ ...BASE_PARAMS, maxPages: 11 })
-    ).rejects.toThrow('Maximum conversation pages must be an integer between 1 and 10')
+      executeSlackListConversationsOperation({ ...BASE_PARAMS, maxPages: 201 })
+    ).rejects.toThrow('Maximum conversation pages must be an integer between 1 and 200')
     await expect(
       executeSlackListConversationsOperation({ ...BASE_PARAMS, cursor: ' ' })
     ).rejects.toThrow('Pagination cursor is required')
@@ -229,5 +276,16 @@ describe('Slack list channels', () => {
     await expect(
       executeSlackListConversationsOperation({ ...BASE_PARAMS, cursor: 'same-cursor' })
     ).rejects.toThrow('Slack returned a repeated conversation pagination cursor')
+
+    fetchMock.mockResolvedValueOnce(
+      slackResponse({
+        ok: true,
+        channels: [{ id: 'C1' }, { id: 'C2' }],
+        response_metadata: { next_cursor: '' },
+      })
+    )
+    await expect(
+      executeSlackListConversationsOperation({ ...BASE_PARAMS, limit: 1 })
+    ).rejects.toThrow('Slack returned more than the requested 1 conversations')
   })
 })
