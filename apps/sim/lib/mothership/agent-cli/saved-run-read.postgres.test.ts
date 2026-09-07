@@ -619,6 +619,45 @@ const tables = [
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
   'saved-run evidence through the real CLI',
   () => {
+    it('saves complete panel addresses through the real chat resource route', async () => {
+      const chatId = generateId()
+      const resources = [
+        { type: 'table', id: generateId(), title: 'Invoices', viewId: generateId() },
+        { type: 'file', id: generateId(), title: 'Report.csv', path: 'reports/Report.csv' },
+        { type: 'log', id: generateId(), title: 'Invoice run', executionId: generateId() },
+      ]
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: 'run-reader',
+        workspaceId,
+        type: 'mothership',
+        resources: [],
+      })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'run-reader' },
+        session: { id: 'resource-test' },
+      })
+      for (const resource of resources) {
+        const response = await addChatResourceRoute(
+          new NextRequest('http://localhost/api/mothership/chat/resources', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ chatId, resource }),
+          }),
+          undefined
+        )
+        expect(response.status).toBe(200)
+        expect(await response.json()).toMatchObject({
+          resources: expect.arrayContaining([resource]),
+        })
+      }
+      const [chat] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, chatId))
+      expect(chat.resources).toEqual(resources)
+    })
+
     it.each(['upsert', 'remove'] as const)(
       'replayed resource %s effects preserve the later user choice across independent transactions',
       async (kind) => {
