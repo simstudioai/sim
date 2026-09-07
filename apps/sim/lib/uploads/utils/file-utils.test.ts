@@ -329,6 +329,8 @@ describe('ensureFileNameExtension', () => {
       'download (641).jpg'
     )
     expect(ensureFileNameExtension('hero.png', 'image/jpeg')).toBe('hero.png')
+    expect(ensureFileNameExtension('site.webmanifest', 'application/json')).toBe('site.webmanifest')
+    expect(ensureFileNameExtension('Sim.ai <> RVTech', 'text/html')).toBe('Sim.ai <> RVTech.html')
     expect(ensureFileNameExtension('blob', 'application/octet-stream')).toBe('blob')
     expect(ensureFileNameExtension('blob', null)).toBe('blob')
   })
