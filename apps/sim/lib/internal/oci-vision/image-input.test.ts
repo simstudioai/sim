@@ -86,24 +86,46 @@ describe('OCI Vision authorized image input', () => {
     })
   })
 
-  it('rejects an unauthorized stored key before reading bytes', async () => {
-    mocks.authorize.mockRejectedValueOnce(new Error('Denied'))
-    await expect(
-      readOciVisionImage({ ...file, key: 'workspace/other-workspace/image.png' }, context)
-    ).rejects.toThrow('Denied')
-    expect(mocks.download).not.toHaveBeenCalled()
-  })
+  it.each([undefined, 'inline-override'])(
+    'rejects an unauthorized stored key with base64 %s before reading bytes',
+    async (base64) => {
+      mocks.authorize.mockRejectedValueOnce(new Error('Denied'))
+      await expect(
+        readOciVisionImage({ ...file, base64, key: 'workspace/other-workspace/image.png' }, context)
+      ).rejects.toThrow('Denied')
+      expect(mocks.download).not.toHaveBeenCalled()
+    }
+  )
 
-  it('rejects persisted resolved-secret image content before model egress', async () => {
-    mocks.modelSafe.mockResolvedValueOnce(false)
-    await expect(readOciVisionImage(file, context)).rejects.toThrow('not safe for model input')
-    expect(mocks.download).not.toHaveBeenCalled()
-  })
+  it.each([undefined, 'inline-override'])(
+    'rejects persisted resolved-secret image content with base64 %s before model egress',
+    async (base64) => {
+      mocks.modelSafe.mockResolvedValueOnce(false)
+      await expect(readOciVisionImage({ ...file, base64 }, context)).rejects.toThrow(
+        'not safe for model input'
+      )
+      expect(mocks.download).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([png.toString('base64'), Buffer.from('forged image bytes').toString('base64'), ''])(
+    'ignores redundant inline bytes and reads authorized storage %#',
+    async (base64) => {
+      await expect(readOciVisionImage({ ...file, base64 }, context)).resolves.toEqual(png)
+      expect(mocks.authorize).toHaveBeenCalledTimes(1)
+      expect(mocks.download).toHaveBeenCalledWith(
+        expect.objectContaining({ key: file.key, context: 'workspace' })
+      )
+      expect(mocks.authorize.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.download.mock.invocationCallOrder[0]
+      )
+    }
+  )
 
   it.each([
-    { ...file, base64: 'inline-override' },
-    { ...file, context: 'execution' },
-  ])('rejects forged file metadata %#', async (input) => {
+    { name: 'image.png', size: 100, base64: png.toString('base64') },
+    { ...file, context: 'execution', base64: png.toString('base64') },
+  ])('rejects missing or mismatched storage references despite inline bytes %#', async (input) => {
     await expect(readOciVisionImage(input, context)).rejects.toThrow()
     expect(mocks.download).not.toHaveBeenCalled()
   })

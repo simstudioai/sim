@@ -14,7 +14,10 @@ import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/appli
 import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { OCI_VISION_MAX_IMAGE_BYTES } from '@/tools/oci_vision/shared'
 
-/** Reads only authorized stored image bytes, never a caller-supplied URL or inline override. */
+/**
+ * Reads only authorized stored image bytes, never a caller-supplied URL or inline override.
+ * Workflow outputs may include redundant base64 metadata; storage remains authoritative.
+ */
 export async function readOciVisionImage(
   file: RawFileInput,
   context: InternalToolOperationContext,
@@ -23,9 +26,6 @@ export async function readOciVisionImage(
   signal?.throwIfAborted()
   if (!context.workspaceId || !context.executorDelegationOrigin) {
     throw new OciVisionOperationError('Trusted execution context is required for image files', 403)
-  }
-  if (file.base64 !== undefined) {
-    throw new OciVisionOperationError('Stored image files cannot include inline byte overrides')
   }
   const key = file.key || extractStorageKey(file.path || file.url || '')
   if (!key || key.length > 4096)

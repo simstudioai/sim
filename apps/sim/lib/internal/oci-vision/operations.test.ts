@@ -175,21 +175,31 @@ describe('OCI Vision operations', () => {
     expect(mocks.request.mock.calls[0][0].method).toBe('GET')
   })
 
-  it('reads only the authorized file path and forwards the operation abort signal', async () => {
-    const file = { name: 'a.png', key: 'workspace/workspace-1/a.png', size: 42 }
-    await execute({
-      credentialId: 'resolved-credential',
-      operation: 'analyze_image',
-      source: 'file',
-      file: JSON.stringify(file),
-      features: ['TEXT_DETECTION'],
-    })
-    expect(mocks.readImage).toHaveBeenCalledWith(file, context, expect.any(AbortSignal))
-    expect(JSON.parse(Buffer.from(mocks.request.mock.calls[0][0].body).toString()).image).toEqual({
-      source: 'INLINE',
-      data: Buffer.from('authorized-image').toString('base64'),
-    })
-  })
+  it.each([undefined, Buffer.from('forged inline bytes').toString('base64')])(
+    'sends only authorized stored bytes with redundant base64 %s',
+    async (base64) => {
+      const file = {
+        name: 'a.png',
+        key: 'workspace/workspace-1/a.png',
+        size: 42,
+        ...(base64 !== undefined ? { base64 } : {}),
+      }
+      await execute({
+        credentialId: 'resolved-credential',
+        operation: 'analyze_image',
+        source: 'file',
+        file: JSON.stringify(file),
+        features: ['TEXT_DETECTION'],
+      })
+      expect(mocks.readImage).toHaveBeenCalledWith(file, context, expect.any(AbortSignal))
+      expect(JSON.parse(Buffer.from(mocks.request.mock.calls[0][0].body).toString()).image).toEqual(
+        {
+          source: 'INLINE',
+          data: Buffer.from('authorized-image').toString('base64'),
+        }
+      )
+    }
+  )
 
   it('fails closed on opaque model provenance before any client or file operation', async () => {
     mocks.provenance.mockReturnValue({
