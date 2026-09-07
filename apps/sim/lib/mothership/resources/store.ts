@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, mothershipResourceEffects } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -59,7 +59,8 @@ export type ChatResourceChange =
 /** The caller resolves and authorizes this canonical chat before entering its atomic resource update. */
 export async function changeStoredChatResources(
   chatId: string,
-  change: ChatResourceChange
+  change: ChatResourceChange,
+  effectId?: string
 ): Promise<MothershipResource[]> {
   return serializeChatResourceWrite(chatId, () => db.transaction(async (tx) => {
     await setChatResourceTxTimeouts(tx)
@@ -70,6 +71,14 @@ export async function changeStoredChatResources(
       .for('update')
     if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
     const existing = sanitizeChatResources(Array.isArray(chat.resources) ? chat.resources : [])
+    if (effectId) {
+      const [applied] = await tx
+        .insert(mothershipResourceEffects)
+        .values({ chatId, effectId })
+        .onConflictDoNothing()
+        .returning({ effectId: mothershipResourceEffects.effectId })
+      if (!applied) return existing
+    }
     let resources: MothershipResource[]
     if (change.kind === 'remove') {
       resources = existing.filter(

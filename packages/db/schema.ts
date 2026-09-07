@@ -3847,6 +3847,19 @@ export const copilotChats = pgTable(
   })
 )
 
+/** Resource effects and panel state commit together; replay cannot undo a later user edit. */
+export const mothershipResourceEffects = pgTable(
+  'mothership_resource_effects',
+  {
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    effectId: text('effect_id').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({ pk: primaryKey({ columns: [table.chatId, table.effectId] }) })
+)
+
 export const copilotMessages = pgTable(
   'copilot_messages',
   {
