@@ -22,13 +22,12 @@ export const MAX_TABLE_SELECTION_ROWS = 500
 export const MAX_TABLE_SELECTION_COLUMNS = 200
 
 /**
- * Max characters of rendered markdown a `table_selection` contributes to the
- * prompt. Row and column caps alone don't bound this — 500 rows of wide cells
- * dwarf a file selection — so the renderer spends this budget and reports what
- * it dropped. Deliberately equal to {@link MAX_FILE_SELECTION_TEXT_LENGTH} so
- * both selection kinds cost the prompt the same at worst.
+ * Max characters of the cell preview for a `table_selection`. Its separate
+ * canonical selection descriptor retains all fetched row IDs and selected column
+ * IDs, including rows omitted from the preview. The worker's shared output budget
+ * stores oversized attachments and provides a continuation for the full selection.
  */
-export const MAX_TABLE_SELECTION_CONTENT_LENGTH = MAX_FILE_SELECTION_TEXT_LENGTH
+export const MAX_TABLE_SELECTION_PREVIEW_LENGTH = MAX_FILE_SELECTION_TEXT_LENGTH
 
 /** Length of the ellipsis {@link truncate} appends when it shortens a string. */
 const TRUNCATE_SUFFIX_LENGTH = 3

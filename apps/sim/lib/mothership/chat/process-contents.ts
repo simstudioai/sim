@@ -20,7 +20,7 @@ import { createCopilotChatTablePrincipal } from '@/lib/mothership/application/ex
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
 import {
-  MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   safeBrowserSelectionUrl,
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
@@ -1021,8 +1021,9 @@ function renderTableCell(value: unknown): string {
  * Resolves a table selection into an inline markdown table. Rows are re-fetched
  * by id from the DB (never trusting client-sent cell values); when `columnIds`
  * is present the projection is narrowed to that cell range, otherwise every
- * column is included. Output is bounded by
- * {@link MAX_TABLE_SELECTION_CONTENT_LENGTH}, not just the row and column caps.
+ * column is included. The complete canonical selection precedes a bounded
+ * preview, so omitted cell values never erase the user's selected row identities.
+ * The worker's shared output budget stores any oversized attachment for retrieval.
  */
 async function resolveTableSelectionResource(
   tableId: string,
@@ -1049,11 +1050,16 @@ async function resolveTableSelectionResource(
     : allColumns
   if (columns.length === 0) return null
 
-  const header = `| ${columns.map((c) => c.name).join(' | ')} |`
-  const divider = `| ${columns.map(() => '---').join(' | ')} |`
+  const selection = JSON.stringify({
+    tableId: table.id,
+    rowIds: rows.map((row) => row.id),
+    columns: columns.map((column) => ({ id: getColumnId(column), name: column.name })),
+  })
+  const header = `| Row ID | ${columns.map((c) => renderTableCell(c.name)).join(' | ')} |`
+  const divider = `| --- | ${columns.map(() => '---').join(' | ')} |`
   const scope = hasColumnScope ? 'cell range' : 'rows'
   const describe = (size: string) =>
-    `Selected ${scope} from table "${table.name}" (tableId: ${table.id}; ${size}):\n\n${header}\n${divider}\n`
+    `Cell preview for selected ${scope} from table ${JSON.stringify(table.name)} (${size}):\n\n${header}\n${divider}\n`
 
   /**
    * The size clause, e.g. `5 rows` or `189 rows of 500, 311 omitted for length`.
@@ -1075,17 +1081,15 @@ async function resolveTableSelectionResource(
   // and forces the plural. A few characters of unused slack beats overshooting.
   const lines: string[] = []
   let remaining =
-    MAX_TABLE_SELECTION_CONTENT_LENGTH - describe(sizeClause(rows.length, rows.length)).length
+    MAX_TABLE_SELECTION_PREVIEW_LENGTH - describe(sizeClause(rows.length, rows.length)).length
   for (const row of rows) {
-    const line = `| ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
-    // The first row always goes in, so a single oversized row still yields a
-    // table rather than an empty one.
-    if (lines.length > 0 && line.length + 1 > remaining) break
+    const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
+    if (line.length + 1 > remaining) break
     lines.push(line)
     remaining -= line.length + 1
   }
 
-  const content = `${describe(sizeClause(lines.length, rows.length - lines.length))}${lines.join('\n')}`
+  const content = `${selection}\n\n${describe(sizeClause(lines.length, rows.length - lines.length))}${lines.join('\n')}`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',
