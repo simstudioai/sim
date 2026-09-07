@@ -7,6 +7,8 @@ import {
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
   setEnvFlags,
 } from '@sim/testing'
 import { eq, ne } from 'drizzle-orm'
@@ -84,6 +86,7 @@ import { getTrigger } from '@/triggers'
 
 afterAll(() => {
   resetDbChainMock()
+  resetEnvMock()
   resetEnvFlagsMock()
 })
 
@@ -151,6 +154,7 @@ function makeBlock(
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  setEnv({ SLACK_SIGNING_SECRET: 'test-secret' })
   setEnvFlags({ isSlackExtendedScopesEnabled: true })
   ;(getProviderHandler as unknown as Mock).mockImplementation((provider: string) =>
     provider === 'quickbooks' ? quickBooksHandler : {}
@@ -301,8 +305,9 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     })
   }
 
-  it('routes a custom bot credential by credential id on the slack provider', async () => {
+  it('routes a custom bot credential without the native app signing secret', async () => {
     setEnvFlags({ isSlackExtendedScopesEnabled: false })
+    setEnv({ SLACK_SIGNING_SECRET: undefined })
     mockGetSlackBotCredential.mockResolvedValue({
       workspaceId: 'ws-1',
       botToken: 'xoxb-token',
@@ -397,6 +402,24 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     if (result?.success) throw new Error('expected failure')
     expect(result?.error).toEqual({
       message: 'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+      status: 400,
+    })
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+    expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+
+  it('rejects a Sim-app credential when its signing secret is not configured', async () => {
+    setEnv({ SLACK_SIGNING_SECRET: undefined })
+    mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+
+    const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_oauth_1' })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error).toEqual({
+      message:
+        'The Sim Slack app trigger is not configured for this deployment. Configure its signing secret or select a custom bot.',
       status: 400,
     })
     expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()

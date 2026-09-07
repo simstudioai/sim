@@ -28,6 +28,7 @@ import {
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
+import { getSlackNativeSigningSecret } from '@/lib/webhooks/slack-native-config'
 import {
   isSlackStreamResponseRequested,
   normalizeSlackStreamResponseConfig,
@@ -513,6 +514,16 @@ export async function resolveWebhookConfigForBlock(input: {
           error: {
             message:
               'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      if (!getSlackNativeSigningSecret()) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The Sim Slack app trigger is not configured for this deployment. Configure its signing secret or select a custom bot.',
             status: 400,
           },
         }
