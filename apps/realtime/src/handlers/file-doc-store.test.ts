@@ -128,6 +128,31 @@ vi.mock('redis', () => ({ createClient: () => makeClient() }))
 import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
 
 const REDIS_URL = 'redis://fake'
+
+interface StoreRoomInternals {
+  lastId: string
+  pendingDeltas: Map<string, number>
+  realEdited: boolean
+  publishes: number
+  compactRetryAfter: number
+  doc: Y.Doc
+  seededObserved: boolean
+}
+
+interface FileDocStoreInternals {
+  rooms: Map<string, StoreRoomInternals>
+  applyEntry(room: StoreRoomInternals, id: string, message: Record<string, string>): void
+  appendUpdate(name: string, update: Uint8Array, agent?: boolean): Promise<void>
+  write: { xTrim: (...args: unknown[]) => Promise<unknown> }
+  maybeCompact(name: string, force?: boolean): Promise<void>
+}
+
+/** Reaches the private state these tests assert on, without `any`. */
+function internals(store: object): FileDocStoreInternals {
+  return store as unknown as FileDocStoreInternals
+}
+
+const COMPACT_THRESHOLD_ENTRIES = 400
 const NAME = 'workspace-file-doc:file-1'
 
 function docWithText(text: string): Y.Doc {
@@ -338,14 +363,16 @@ describe('FileDocStore', () => {
     const a = await newStore()
     // This task has integrated only up to entry 400 (all no-ops) — its local doc is empty and lags the
     // two peer entries. Inject that lagging room directly (a real edit was integrated → realEdited).
-    ;(a as any).rooms.set(NAME, {
+    internals(a).rooms.set(NAME, {
       doc: new Y.Doc(),
       lastId: '400-0',
       publishes: 0,
+      compactRetryAfter: 0,
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: true,
     })
-    await (a as any).maybeCompact(NAME)
+    await internals(a).maybeCompact(NAME)
 
     // A fresh catch-up must still reconstruct the peer content — compaction must not have trimmed 401/402.
     const doc = new Y.Doc()
@@ -391,13 +418,238 @@ describe('FileDocStore', () => {
     const a = await newStore()
     const doc = new Y.Doc()
     await a.attachRoom(NAME, doc)
-    const room = (a as any).rooms.get(NAME)
+    const room = internals(a).rooms.get(NAME)!
     expect(room.realEdited).toBe(false)
     // Kick off a real (non-agent) append but do NOT await it: realEdited must already be true before the
     // xAdd/expire awaits resolve, so any compaction racing on the awaits sees the real edit.
-    const pending = (a as any).appendUpdate(NAME, updateFor('real user edit'))
+    const pending = internals(a).appendUpdate(NAME, updateFor('real user edit'))
     expect(room.realEdited).toBe(true)
     await pending
+    doc.destroy()
+  })
+
+  it('compacts on appended bytes, before the entry threshold is anywhere near reached', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    // A handful of large pastes: far below COMPACT_THRESHOLD entries, far above the byte ceiling.
+    // Before bytes were counted this stream held tens of megabytes and never compacted.
+    const updates: Uint8Array[] = []
+    doc.on('update', (u: Uint8Array) => updates.push(u))
+    for (let i = 0; i < 4; i++) {
+      doc.getText('body').insert(0, 'x'.repeat(3 * 1024 * 1024))
+    }
+    for (const update of updates) {
+      await a.publishAndWait(NAME, update)
+    }
+
+    await vi.waitFor(
+      () => {
+        const stream = state.backing!.streams.get(streamKey)!
+        expect(stream.length).toBeLessThan(COMPACT_THRESHOLD_ENTRIES)
+        expect(stream.some((entry) => entry.message.s === '1')).toBe(true)
+      },
+      { timeout: 5000 }
+    )
+
+    // Compaction must be lossless: the whole document is still reconstructable from what remains.
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(4 * 3 * 1024 * 1024)
+    rebuilt.destroy()
+    doc.destroy()
+  })
+
+  it('does not re-compact on every publish once the document itself exceeds the byte ceiling', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    const updates: Uint8Array[] = []
+    doc.on('update', (u: Uint8Array) => updates.push(u))
+    // Grow the document past the byte ceiling so its own snapshot exceeds it, then keep editing.
+    // Counting the snapshot as appended bytes would leave the threshold permanently breached and
+    // force a full snapshot append per keystroke — the amplification the threshold exists to stop.
+    doc.getText('body').insert(0, 'x'.repeat(12 * 1024 * 1024))
+    for (let i = 0; i < 30; i++) doc.getText('body').insert(0, 'tiny')
+    for (const update of updates) {
+      await a.publishAndWait(NAME, update)
+    }
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(streamKey)!
+      expect(stream.some((entry) => entry.message.s === '1')).toBe(true)
+    })
+
+    const snapshots = state
+      .backing!.streams.get(streamKey)!
+      .filter((entry) => entry.message.s === '1').length
+    expect(snapshots).toBeLessThanOrEqual(2)
+
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').toString().startsWith('tiny')).toBe(true)
+    expect(rebuilt.getText('body').length).toBe(12 * 1024 * 1024 + 30 * 4)
+    rebuilt.destroy()
+    doc.destroy()
+  })
+
+  it('keeps the byte trigger armed when compaction fails', async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = internals(a).rooms.get(NAME)!
+    room.pendingDeltas = new Map([['1-0', 9 * 1024 * 1024]])
+    room.realEdited = true
+
+    const write = internals(a).write
+    const original = write.xTrim.bind(write)
+    write.xTrim = async () => {
+      throw new Error('redis blip')
+    }
+    await internals(a).maybeCompact(NAME, true)
+
+    // A failed fold must not disarm the trigger — otherwise the stream stays oversized until
+    // this task happens to append another full threshold's worth of deltas.
+    expect([...room.pendingDeltas]).toEqual([['1-0', 9 * 1024 * 1024]])
+
+    // But it must not retry immediately either: the snapshot XADD lands before the XTRIM, so a
+    // persistent trim failure would append a full-document snapshot on every attempt.
+    const snapshotsAfterFailure = state.backing!.streams.get(`filedoc:stream:${NAME}`)?.length ?? 0
+    await internals(a).maybeCompact(NAME, true)
+    await internals(a).maybeCompact(NAME, true)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)?.length ?? 0).toBe(
+      snapshotsAfterFailure
+    )
+
+    write.xTrim = original
+    doc.destroy()
+  })
+
+  it('keeps counting deltas the trim retained because they sit past the fold boundary', async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = internals(a).rooms.get(NAME)!
+    room.realEdited = true
+    // The tailer has integrated up to 5-0, so `MINID 5-0` retains both 5-0 (the boundary is
+    // INCLUSIVE) and 9-0. Their bytes are still in Redis, and dropping them would disarm the
+    // byte trigger while the stream kept growing.
+    room.lastId = '5-0'
+    room.pendingDeltas = new Map([
+      ['3-0', 4 * 1024 * 1024],
+      ['5-0', 6 * 1024 * 1024],
+      ['9-0', 7 * 1024 * 1024],
+    ])
+
+    await internals(a).maybeCompact(NAME, true)
+
+    expect([...room.pendingDeltas]).toEqual([
+      ['5-0', 6 * 1024 * 1024],
+      ['9-0', 7 * 1024 * 1024],
+    ])
+    doc.destroy()
+  })
+
+  it('adopts accounting for a stream it takes over, and folds it if already over the ceiling', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    // A stream left behind by a previous task: two entries, so far under the entry threshold, and
+    // far over the byte ceiling. A fresh room starting from an empty ledger would never fold it,
+    // while its own heartbeat kept refreshing the TTL.
+    const seedDoc = new Y.Doc()
+    const updates: Uint8Array[] = []
+    seedDoc.on('update', (u: Uint8Array) => updates.push(u))
+    seedDoc.getText('body').insert(0, 'x'.repeat(9 * 1024 * 1024))
+    seedDoc.getText('body').insert(0, 'tail')
+    state.backing!.streams.set(
+      streamKey,
+      updates.map((update, index) => ({
+        id: `${index + 1}-0`,
+        message: { u: Buffer.from(update).toString('base64') },
+      }))
+    )
+    state.backing!.seq = updates.length
+
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    // Either marker counts as a fold: this room only ever replayed entries, so it never observed
+    // a real edit and its snapshot is stamped as an agent frame (the no-persist guarantee).
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(streamKey)!
+      expect(stream.some((entry) => entry.message.s === '1' || entry.message.a === '1')).toBe(true)
+    })
+
+    // Lossless: the adopted content survives the fold it triggered.
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(9 * 1024 * 1024 + 4)
+    rebuilt.destroy()
+    doc.destroy()
+    seedDoc.destroy()
+  })
+
+  it('counts agent preview deltas, which share a marker with an agent-only snapshot', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    // Agent preview frames are the LARGE ones — a copilot file edit re-serialising a document is
+    // what filled Redis. They carry the same marker as a fold of an agent-only stream, so keying
+    // exclusion on that marker would drop exactly the payloads this bound exists for.
+    const seedDoc = new Y.Doc()
+    const updates: Uint8Array[] = []
+    seedDoc.on('update', (u: Uint8Array) => updates.push(u))
+    seedDoc.getText('body').insert(0, 'x'.repeat(9 * 1024 * 1024))
+    seedDoc.getText('body').insert(0, 'tail')
+    state.backing!.streams.set(
+      streamKey,
+      updates.map((update, index) => ({
+        id: `${index + 1}-0`,
+        message: { u: Buffer.from(update).toString('base64'), a: '1' },
+      }))
+    )
+    state.backing!.seq = updates.length
+
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(streamKey)!
+      expect(stream.some((entry) => entry.message.c === '1')).toBe(true)
+    })
+
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(9 * 1024 * 1024 + 4)
+    rebuilt.destroy()
+    doc.destroy()
+    seedDoc.destroy()
+  })
+
+  it("never counts a fold's own output, so a large document cannot arm the trigger against itself", async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = internals(a).rooms.get(NAME)!
+
+    internals(a).applyEntry(room, '7-0', { u: 'x'.repeat(9 * 1024 * 1024), a: '1', c: '1' })
+
+    expect(room.pendingDeltas.has('7-0')).toBe(false)
+    doc.destroy()
+  })
+
+  it('counts a delta published by a peer task, which this room only ever tails', async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = internals(a).rooms.get(NAME)!
+
+    // Never published locally, so publish-side accounting would miss it entirely.
+    internals(a).applyEntry(room, '4-0', { u: 'x'.repeat(1024) })
+
+    expect(room.pendingDeltas.get('4-0')).toBe(1024)
     doc.destroy()
   })
 
@@ -414,14 +666,16 @@ describe('FileDocStore', () => {
     state.backing!.seq = 400
 
     const a = await newStore()
-    ;(a as any).rooms.set(NAME, {
+    internals(a).rooms.set(NAME, {
       doc: agentDoc,
       lastId: '400-0',
       publishes: 0,
+      compactRetryAfter: 0,
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: false,
     })
-    await (a as any).maybeCompact(NAME)
+    await internals(a).maybeCompact(NAME)
 
     // The snapshot must carry the AGENT marker, NOT the snapshot marker, so a peer catch-up applies it as
     // REDIS_AGENT_ORIGIN and never marks the doc edited — the no-persist guarantee survives compaction.
@@ -580,21 +834,25 @@ describe('FileDocStore', () => {
     const b = await newStore()
     const docA = new Y.Doc()
     Y.applyUpdate(docA, peerUpdates[0]) // A integrated up to 401
-    ;(a as any).rooms.set(NAME, {
+    internals(a).rooms.set(NAME, {
       doc: docA,
       lastId: '401-0',
       publishes: 0,
+      compactRetryAfter: 0,
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: true,
     })
-    ;(b as any).rooms.set(NAME, {
+    internals(b).rooms.set(NAME, {
       doc: new Y.Doc(),
       lastId: '400-0',
       publishes: 0,
+      compactRetryAfter: 0,
+      pendingDeltas: new Map(),
       seededObserved: true,
       realEdited: true,
     })
-    await Promise.all([(a as any).maybeCompact(NAME), (b as any).maybeCompact(NAME)])
+    await Promise.all([internals(a).maybeCompact(NAME), internals(b).maybeCompact(NAME)])
 
     const doc = new Y.Doc()
     Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
