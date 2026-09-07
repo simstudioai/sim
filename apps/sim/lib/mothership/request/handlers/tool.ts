@@ -852,6 +852,12 @@ async function dispatchToolExecution(
         if (isWorkflowToolName(toolName)) {
           const race = await raceWorkflowToolClientPickup({
             toolCallId,
+            select:
+              args &&
+              Array.isArray(args.select) &&
+              args.select.every((value) => typeof value === 'string')
+                ? args.select
+                : undefined,
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
             timeoutMs,
             // The caller declared its executors at turn setup (ChatRequest.clientCapabilities):

@@ -43,14 +43,15 @@ import {
   sealClientToolCompletion,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
-  type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
-  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
+  getWorkflowToolLaunchError,
   isWorkflowToolName,
   resolveWorkflowToolTargetId,
+  WORKFLOW_EXECUTION_BUSY,
+  type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
 import { getTrustedWorkflowToolExecution } from '@/lib/workflows/executor/execution-state'
 
@@ -313,7 +314,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         let effectiveStatus = status
         let executionId = submittedExecutionId
-        let deploymentError: AsyncWorkflowDeploymentError | undefined
+        let launchError: WorkflowToolLaunchError | undefined
 
         if (isWorkflowTool) {
           const claimedExecutionId = getClaimedWorkflowExecutionId(existing.claimedBy)
@@ -368,25 +369,28 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
           if (
             effectiveStatus === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
-            executionId === undefined &&
-            existing.toolName === 'run_workflow' &&
-            isPlainRecord(existing.args) &&
-            existing.args.async === true
+            executionId === undefined
           ) {
-            deploymentError = getAsyncWorkflowDeploymentError(data)
+            const submittedError = getWorkflowToolLaunchError(data)
+            if (
+              submittedError?.code === WORKFLOW_EXECUTION_BUSY.code ||
+              (existing.toolName === 'run_workflow' &&
+                isPlainRecord(existing.args) &&
+                existing.args.async === true)
+            )
+              launchError = submittedError
           }
         }
 
         span.setAttribute(TraceAttr.ToolConfirmationStatus, effectiveStatus)
         const projected = isWorkflowTool
           ? {
-              message:
-                deploymentError?.message ?? getWorkflowToolCompletionMessage(effectiveStatus),
+              message: launchError?.message ?? getWorkflowToolCompletionMessage(effectiveStatus),
               data: createStructuralWorkflowToolCompletionData(
                 effectiveStatus,
                 workflowId,
                 executionId,
-                deploymentError
+                launchError
               ),
             }
           : {

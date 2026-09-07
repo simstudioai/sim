@@ -28,11 +28,21 @@ export const ASYNC_WORKFLOW_DEPLOYMENT_ERRORS = {
   },
 } as const
 
-export type AsyncWorkflowDeploymentError =
-  (typeof ASYNC_WORKFLOW_DEPLOYMENT_ERRORS)[keyof typeof ASYNC_WORKFLOW_DEPLOYMENT_ERRORS]
+export const WORKFLOW_EXECUTION_BUSY = {
+  code: 'WORKFLOW_EXECUTION_BUSY',
+  message:
+    'Workflow is already executing. Wait for the current execution to finish before running it again.',
+} as const
 
-const ASYNC_WORKFLOW_DEPLOYMENT_ERROR_BY_CODE = new Map<string, AsyncWorkflowDeploymentError>(
-  Object.values(ASYNC_WORKFLOW_DEPLOYMENT_ERRORS).map((error) => [error.code, error])
+export type WorkflowToolLaunchError =
+  | (typeof ASYNC_WORKFLOW_DEPLOYMENT_ERRORS)[keyof typeof ASYNC_WORKFLOW_DEPLOYMENT_ERRORS]
+  | typeof WORKFLOW_EXECUTION_BUSY
+
+const WORKFLOW_TOOL_LAUNCH_ERROR_BY_CODE = new Map<string, WorkflowToolLaunchError>(
+  [...Object.values(ASYNC_WORKFLOW_DEPLOYMENT_ERRORS), WORKFLOW_EXECUTION_BUSY].map((error) => [
+    error.code,
+    error,
+  ])
 )
 
 /**
@@ -154,12 +164,10 @@ export function getWorkflowToolCompletionExecutionId(data: unknown): string | un
     : undefined
 }
 
-/** Restores only server-defined async deployment failures from client confirmation data. */
-export function getAsyncWorkflowDeploymentError(
-  data: unknown
-): AsyncWorkflowDeploymentError | undefined {
+/** Restores only server-defined launch failures from client confirmation data. */
+export function getWorkflowToolLaunchError(data: unknown): WorkflowToolLaunchError | undefined {
   if (!isPlainRecord(data) || typeof data.code !== 'string') return undefined
-  return ASYNC_WORKFLOW_DEPLOYMENT_ERROR_BY_CODE.get(data.code)
+  return WORKFLOW_TOOL_LAUNCH_ERROR_BY_CODE.get(data.code)
 }
 
 export function getWorkflowToolCompletionMessage(status: AsyncConfirmationStatus): string {
@@ -187,7 +195,7 @@ export function createStructuralWorkflowToolCompletionData(
   status: AsyncConfirmationStatus,
   workflowId?: string,
   executionId?: string,
-  deploymentError?: AsyncWorkflowDeploymentError
+  launchError?: WorkflowToolLaunchError
 ): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   if (status === ASYNC_TOOL_CONFIRMATION_STATUS.success) data.success = true
@@ -199,9 +207,9 @@ export function createStructuralWorkflowToolCompletionData(
   }
   if (workflowId) data.workflowId = workflowId
   if (executionId) data.executionId = executionId
-  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.error && deploymentError) {
-    data.code = deploymentError.code
-    data.error = deploymentError.message
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.error && launchError) {
+    data.code = launchError.code
+    data.error = launchError.message
   }
   if (status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled) {
     data.reason = 'user_cancelled'

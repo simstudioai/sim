@@ -14,13 +14,14 @@ import {
   unsealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
 import {
-  type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
-  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
+  getWorkflowToolLaunchError,
+  type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
 import { getTrustedWorkflowToolExecution } from '@/lib/workflows/executor/execution-state'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -211,6 +212,7 @@ export async function waitForClientToolCompletion({
 }
 
 interface WaitForWorkflowToolCompletionOptions {
+  select?: string[]
   toolCallId: string
   workflowId?: string
   timeoutMs: number
@@ -222,17 +224,12 @@ function structuralWorkflowCompletion(
   status: AsyncTerminalCompletionSnapshot['status'],
   workflowId?: string,
   executionId?: string,
-  deploymentError?: AsyncWorkflowDeploymentError
+  launchError?: WorkflowToolLaunchError
 ): AsyncTerminalCompletionSnapshot {
   return {
     status,
-    message: deploymentError?.message ?? getWorkflowToolCompletionMessage(status),
-    data: createStructuralWorkflowToolCompletionData(
-      status,
-      workflowId,
-      executionId,
-      deploymentError
-    ),
+    message: launchError?.message ?? getWorkflowToolCompletionMessage(status),
+    data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId, launchError),
   }
 }
 
@@ -241,6 +238,7 @@ function structuralWorkflowCompletion(
  * The browser confirmation is only a wakeup and structural identity carrier.
  */
 export async function waitForWorkflowToolCompletion({
+  select,
   toolCallId,
   workflowId,
   timeoutMs,
@@ -260,7 +258,7 @@ export async function waitForWorkflowToolCompletion({
     }
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
-    const deploymentError = getAsyncWorkflowDeploymentError(completion.data)
+    const launchError = getWorkflowToolLaunchError(completion.data)
     if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
       toolRegistry?.markIncomplete('client-tool-completion-deferred')
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
@@ -271,12 +269,7 @@ export async function waitForWorkflowToolCompletion({
         completion.status === MothershipStreamV1ToolOutcome.success
           ? MothershipStreamV1ToolOutcome.error
           : completion.status
-      return structuralWorkflowCompletion(
-        structuralStatus,
-        workflowId,
-        executionId,
-        deploymentError
-      )
+      return structuralWorkflowCompletion(structuralStatus, workflowId, executionId, launchError)
     }
 
     try {
@@ -381,8 +374,10 @@ export async function waitForWorkflowToolCompletion({
   )
   const projected = projection.result
   const projectedData = isPlainRecord(projected.output) ? projected.output : {}
+  const { logs, ...projectedFields } = projectedData
   const data = {
-    ...projectedData,
+    ...projectedFields,
+    ...(Object.hasOwn(projectedData, 'logs') ? presentWorkflowLogs(logs, select) : {}),
     ...createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
   }
   const message =

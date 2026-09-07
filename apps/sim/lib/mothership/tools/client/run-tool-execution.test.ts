@@ -156,6 +156,19 @@ describe('run tool execution cancellation', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
   })
 
+  it('reports a typed busy reason before launching into an already-running workflow', async () => {
+    getWorkflowExecution.mockReturnValueOnce({ isExecuting: true })
+    await executeRunToolOnClient('busy-tool', 'run_workflow', { workflowId: 'wf-1' })
+    expect(executeWorkflowWithFullLogging).not.toHaveBeenCalled()
+    const [url, options] = vi.mocked(fetch).mock.calls[0]!
+    expect(url).toBe('/api/copilot/confirm')
+    expect(JSON.parse(String(options?.body))).toMatchObject({
+      toolCallId: 'busy-tool',
+      status: 'error',
+      data: { code: 'WORKFLOW_EXECUTION_BUSY' },
+    })
+  })
+
   it('passes an abort signal into executeWorkflowWithFullLogging and aborts it', async () => {
     let capturedSignal: AbortSignal | undefined
     executeWorkflowWithFullLogging.mockImplementationOnce(

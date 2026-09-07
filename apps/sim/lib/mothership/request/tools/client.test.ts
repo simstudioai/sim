@@ -106,6 +106,67 @@ describe('workflow client tool completion', () => {
     replaceTerminalAsyncToolCallResult.mockResolvedValue({ status: 'completed' })
   })
 
+  it('keeps a safe busy reason when no execution was launched', async () => {
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'error',
+      data: { code: 'WORKFLOW_EXECUTION_BUSY', error: 'untrusted text' },
+    })
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+    })
+    expect(completion?.data).toEqual({
+      success: false,
+      workflowId: 'workflow-1',
+      code: 'WORKFLOW_EXECUTION_BUSY',
+      error:
+        'Workflow is already executing. Wait for the current execution to finish before running it again.',
+    })
+    expect(completion?.message).toBe(
+      'Workflow is already executing. Wait for the current execution to finish before running it again.'
+    )
+    expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
+  })
+
+  it('selects requested trusted outputs after redaction and omits full client logs', async () => {
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { executionId: 'execution-1' },
+    })
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        { blockId: 'b1', blockName: 'Read Value', output: { result: 'earlier' } },
+        {
+          blockId: 'b1',
+          blockName: 'Read Value',
+          output: { result: 'parent-secret-value', count: 3 },
+        },
+      ],
+    })
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+      select: ['readvalue.result', 'b1.count', 'Missing.result'],
+    })
+    expect(completion?.data).toMatchObject({
+      selected: {
+        'readvalue.result': '{{PARENT_SECRET}}',
+        'b1.count': 3,
+        'Missing.result': { unresolved: 'no executed block named "Missing"' },
+      },
+      logsOmitted: true,
+    })
+    expect(completion?.data).not.toHaveProperty('logs')
+    expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
+    expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith(
+      expect.objectContaining({ result: completion?.data })
+    )
+  })
+
   it('projects a parent secret laundered through a child workflow before every live sink', async () => {
     const registry = createParentRegistry()
     waitForToolConfirmation.mockResolvedValue({
