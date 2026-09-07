@@ -24,9 +24,10 @@ import {
   reportClientToolCompletion as reportCompletion,
 } from '@/lib/mothership/tools/client/completion'
 import {
-  type AsyncWorkflowDeploymentError,
-  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionMessage,
+  getWorkflowToolLaunchError,
+  WORKFLOW_EXECUTION_BUSY,
+  type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import {
@@ -118,7 +119,7 @@ async function enqueueAsyncWorkflowRun(
 
   let responseExecutionId = requestedExecutionId
   let acceptanceIsAmbiguous = false
-  let deploymentError: AsyncWorkflowDeploymentError | undefined
+  let launchError: WorkflowToolLaunchError | undefined
   try {
     // boundary-raw-fetch: this execution endpoint switches to a JSON 202 response via X-Execution-Mode
     const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -138,7 +139,7 @@ async function enqueueAsyncWorkflowRun(
       }),
     })
     const responseBody: unknown = await response.json().catch(() => undefined)
-    deploymentError = getAsyncWorkflowDeploymentError(responseBody)
+    launchError = getWorkflowToolLaunchError(responseBody)
     responseExecutionId =
       isPlainRecord(responseBody) && typeof responseBody.executionId === 'string'
         ? responseBody.executionId
@@ -160,7 +161,7 @@ async function enqueueAsyncWorkflowRun(
 
     if (!response.ok && !acceptanceIsAmbiguous) {
       const responseError =
-        deploymentError?.message ??
+        launchError?.message ??
         (isPlainRecord(responseBody) && typeof responseBody.error === 'string'
           ? responseBody.error
           : `Async workflow queue request failed with status ${response.status}`)
@@ -176,7 +177,7 @@ async function enqueueAsyncWorkflowRun(
     await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, message, {
       success: false,
       workflowId,
-      ...(deploymentError ? { code: deploymentError.code } : {}),
+      ...(launchError ? { code: launchError.code } : {}),
     })
     return
   }
@@ -510,7 +511,8 @@ async function doExecuteRunTool(
     await reportCompletion(
       toolCallId,
       MothershipStreamV1ToolOutcome.error,
-      'Workflow is already being executed by another tool. Wait for it to complete.'
+      WORKFLOW_EXECUTION_BUSY.message,
+      { code: WORKFLOW_EXECUTION_BUSY.code }
     )
     return
   }
@@ -528,7 +530,8 @@ async function doExecuteRunTool(
     await reportCompletion(
       toolCallId,
       MothershipStreamV1ToolOutcome.error,
-      'Workflow is already executing. Try again later'
+      WORKFLOW_EXECUTION_BUSY.message,
+      { code: WORKFLOW_EXECUTION_BUSY.code }
     )
     return
   }

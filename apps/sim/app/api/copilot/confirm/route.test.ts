@@ -667,6 +667,41 @@ describe('Copilot Confirm API Route', () => {
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
+  it.each(['run_workflow', 'run_block', 'run_from_block', 'run_workflow_until_block'])(
+    'preserves a safe busy reason for an unlaunched %s without trusting client text',
+    async (toolName) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        args: { workflowId: 'workflow-1' },
+        claimedBy: null,
+      })
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'error',
+          message: 'untrusted detail',
+          data: { code: 'WORKFLOW_EXECUTION_BUSY', error: 'untrusted detail' },
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(completeAsyncToolCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          result: {
+            success: false,
+            workflowId: 'workflow-1',
+            code: 'WORKFLOW_EXECUTION_BUSY',
+            error:
+              'Workflow is already executing. Wait for the current execution to finish before running it again.',
+          },
+        })
+      )
+      expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain('untrusted detail')
+      expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
+    }
+  )
+
   it('preserves a canonical preflight failure before an execution is bound', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,

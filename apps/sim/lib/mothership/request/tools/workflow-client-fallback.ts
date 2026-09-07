@@ -28,6 +28,7 @@ export interface WorkflowToolRaceOutcome {
 }
 
 interface RaceWorkflowToolClientPickupParams {
+  select?: string[]
   toolCallId: string
   workflowId?: string
   timeoutMs: number
@@ -68,6 +69,7 @@ export async function raceWorkflowToolClientPickup(
   // Exactly one waiter for the whole race — a second one would double-consume
   // the confirmation and emit a duplicate tool result.
   const clientWait = waitForWorkflowToolCompletion({
+    select: params.select,
     toolCallId,
     workflowId,
     timeoutMs,
