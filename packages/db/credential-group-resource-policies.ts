@@ -446,6 +446,9 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           AS $$
           BEGIN
             IF TG_OP = 'INSERT' THEN
+              IF NEW."workspace_id" IS NULL THEN
+                RETURN NEW;
+              END IF;
               INSERT INTO "public"."resource_policy" (
                 "id",
                 "workspace_id",
@@ -516,6 +519,7 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           cg.created_by AS "createdBy"
         FROM credential_group cg
         WHERE cg.id > ${afterId}
+          AND cg.workspace_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1
             FROM resource_policy rp
@@ -573,6 +577,7 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           cg.created_by
         FROM credential_group cg
         WHERE cg.id = ANY(${ids}::text[])
+          AND cg.workspace_id IS NOT NULL
         ON CONFLICT (resource_type, resource_id) DO NOTHING
         RETURNING resource_id AS "resourceId"
       `
@@ -593,8 +598,9 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           LEFT JOIN resource_policy rp
             ON rp.resource_type = 'credential_group'
             AND rp.resource_id = cg.id
-          WHERE rp.resource_id IS NULL
-            OR rp.workspace_id IS DISTINCT FROM cg.workspace_id
+          WHERE cg.workspace_id IS NOT NULL
+            AND (rp.resource_id IS NULL
+              OR rp.workspace_id IS DISTINCT FROM cg.workspace_id)
 
           UNION ALL
 
@@ -602,7 +608,7 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           FROM resource_policy rp
           LEFT JOIN credential_group cg ON cg.id = rp.resource_id
           WHERE rp.resource_type = 'credential_group'
-            AND cg.id IS NULL
+            AND (cg.id IS NULL OR cg.workspace_id IS NULL)
         ) violations
         ORDER BY resource_id
         LIMIT 1

@@ -3,6 +3,7 @@
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
@@ -13,6 +14,7 @@ import type {
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
 export interface ConnectorConfigFieldsProps {
+  scope?: ResourceScope
   accessMode?: ConnectorAccessMode
   /** Registry definition whose `configFields` drive the rendered rows. */
   connectorConfig: ConnectorMeta
@@ -41,6 +43,7 @@ export interface ConnectorConfigFieldsProps {
  * switch stays identical in both flows.
  */
 export function ConnectorConfigFields({
+  scope,
   accessMode = 'workspace',
   connectorConfig,
   sourceConfig,
@@ -123,6 +126,7 @@ export function ConnectorConfigFields({
           >
             {field.type === 'selector' && field.selectorKey ? (
               <ConnectorSelectorField
+                scope={scope}
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
                 value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
                 onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}

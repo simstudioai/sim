@@ -1,15 +1,23 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  flattenMockConditions,
+  hasMockCondition,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerifyCronAuth, mockConnectorRows, mockDispatch, mockClaim } = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn(() => null),
-  mockConnectorRows: vi.fn(),
-  mockDispatch: vi.fn(),
-  mockClaim: vi.fn(),
-}))
+const { mockVerifyCronAuth, mockConnectorRows, mockDispatch, mockClaim, mockWhere } = vi.hoisted(
+  () => ({
+    mockVerifyCronAuth: vi.fn(() => null),
+    mockConnectorRows: vi.fn(),
+    mockDispatch: vi.fn(),
+    mockClaim: vi.fn(),
+    mockWhere: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
 vi.mock('@/lib/knowledge/connectors/directory-queue', () => ({
@@ -21,7 +29,10 @@ vi.mock('@sim/db', () => ({
     select: () => ({
       from: () => ({
         innerJoin: () => ({
-          where: () => ({ orderBy: () => ({ limit: () => mockConnectorRows() }) }),
+          where: (condition: unknown) => {
+            mockWhere(condition)
+            return { orderBy: () => ({ limit: () => mockConnectorRows() }) }
+          },
         }),
       }),
     }),
@@ -59,6 +70,62 @@ describe('connector directory sync scheduler', () => {
     const [, first] = mockDispatch.mock.calls[0]
     const [, second] = mockDispatch.mock.calls[1]
     expect(first.tickAt).toBe(second.tickAt)
+  })
+
+  it('includes either canonical owner while retaining mirrored-source eligibility', async () => {
+    mockConnectorRows.mockResolvedValue([connector({ id: 'org-source' })])
+    await run()
+    const condition = mockWhere.mock.calls[0][0]
+    const ownerChoice = flattenMockConditions(condition).find((entry) => entry.type === 'or')
+    expect(ownerChoice).toBeDefined()
+    expect(ownerChoice?.conditions).toHaveLength(2)
+    const [workspaceOwner, organizationOwner] = Array.isArray(ownerChoice?.conditions)
+      ? ownerChoice.conditions
+      : []
+    expect(
+      hasMockCondition(
+        workspaceOwner,
+        (node) => node.type === 'isNotNull' && node.column === schemaMock.knowledgeBase.workspaceId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        workspaceOwner,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.organizationId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        organizationOwner,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.workspaceId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        organizationOwner,
+        (node) =>
+          node.type === 'isNotNull' && node.column === schemaMock.knowledgeBase.organizationId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.deletedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        condition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.deletedAt
+      )
+    ).toBe(true)
+    expect(mockDispatch).toHaveBeenCalledExactlyOnceWith('org-source', expect.anything())
   })
 
   it('contains a dispatch failure to the connector that caused it', async () => {

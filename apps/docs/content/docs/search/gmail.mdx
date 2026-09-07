@@ -7,18 +7,20 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search email threads from your own Gmail account. A workspace admin enables the source; each teammate connects their own account. An admin's connection does not make their mailbox available to the team.
+Search email threads from your own Gmail account. An organization admin enables the source; each teammate connects their own account. An admin's connection does not make their mailbox available to the team.
+
+These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Set up the source
 
-These steps require a Sim workspace admin.
+These steps require a Sim organization admin.
 
 <Steps>
 <Step>
 
 ### Add Gmail
 
-Open **Search → Add source → Gmail**. Gmail uses **Member accounts**; there is no domain-wide or service-account crawl in Search.
+Open **Integrations → Add source → Gmail**. Gmail uses **Member accounts**; there is no domain-wide or service-account crawl in Search.
 
 </Step>
 <Step>
@@ -32,7 +34,7 @@ Keep the defaults to search all dates and labels, excluding Promotions, Social, 
 
 ### Create the source
 
-Click **Create & Invite**. Gmail appears in the **Sources** list. Each person, including the admin, then connects their own account.
+Click **Add source**. Gmail appears in the **Sources** list. Each person, including the admin, then connects their own account.
 
 </Step>
 </Steps>
@@ -41,11 +43,11 @@ Click **Create & Invite**. Gmail appears in the **Sources** list. Each person, i
 
 ## Connect your account
 
-1. Join the Sim workspace and verify your Sim email address. Open **Search** and click **Connect account** beside Gmail.
+1. Join the Sim organization and verify your Sim email address. Open **Integrations** and click **Connect account** beside Gmail.
 2. Complete the connection in the tab that opens. Choose the Google account whose verified email matches your Sim email, and grant the requested permissions.
-3. Return to Search. The source shows its indexing status and the number of documents you can search.
+3. Return to Integrations. The source shows its indexing status and the number of documents you can search.
 
-Teammates follow these same steps after joining the workspace. They do not configure the source again. If Gmail has not been added yet, ask a workspace admin to add it.
+Teammates follow these same steps after joining the organization. They do not configure the source again. If Gmail has not been added yet, ask an organization admin to add it.
 
 ## Source options
 
@@ -76,7 +78,7 @@ Search schedules syncs hourly. The first sync and large mailboxes can take longe
 | No searchable documents | Check the source's labels, date range, category exclusions, and search filter. Allow the first sync to finish. |
 | Finish connecting in the other tab | Complete the Google flow. If the tab was blocked or closed, allow pop-ups and click **Open again**. |
 | Reconnect | Click **Reconnect** and authorize the same account again. |
-| Unavailable or needs admin attention | Ask the workspace admin to check source status and the deployment's Google OAuth configuration. |
+| Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 
 ## Self-hosted operator setup
 

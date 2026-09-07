@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import {
   normalizeMessage,
   type PersistedMessage,
@@ -40,6 +41,10 @@ export const POST = withRouteHandler((req: NextRequest) =>
         return parsed.response
       }
       const { chatId, streamId, content, contentBlocks, requestId } = parsed.data.body
+      const chat = await getAccessibleCopilotChatAuth(chatId, session.user.id, {
+        principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      })
+      if (!chat) return NextResponse.json({ success: true })
       span.setAttributes({
         [TraceAttr.ChatId]: chatId,
         [TraceAttr.StreamId]: streamId,

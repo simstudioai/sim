@@ -7,13 +7,15 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search issue titles, descriptions, and metadata from selected Jira Cloud projects. A workspace admin sets up the source; each teammate connects their own Jira account to search the issues they can access.
+Search issue titles, descriptions, and metadata from selected Jira Cloud projects. An organization admin sets up the source; each teammate connects their own Jira account to search the issues they can access.
 
 This Search connector uses **Member accounts**. It does not offer a central admin crawl. Comments, attachment contents, dashboards, and saved filters are not indexed.
 
+These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+
 ## Before you start
 
-- You must be a **Sim workspace admin** to add the source. Teammates can connect after it exists.
+- You must be a **Sim organization admin** to add the source. Teammates can connect after it exists.
 - Use an Atlassian Cloud site such as `your-team.atlassian.net`. Jira Server and Data Center are not supported by this connector.
 - Each person needs a verified Sim email matching the email on their active Atlassian account, plus access to the selected Jira site and projects. Jira's **Browse Projects** and issue security permissions still determine which issues they can search.
 
@@ -30,7 +32,7 @@ Sim uses its existing Jira OAuth integration. Search uses `read:jira-work` to re
 
 ### Choose Jira
 
-Open **Search** in your workspace, click **Add source**, and choose **Jira**. Click **Set up** or **Continue setup** if prompted. The connection method is **Member accounts**.
+Open **Integrations** in your organization, click **Add source**, and choose **Jira**. Click **Set up** or **Continue setup** if prompted. The connection method is **Member accounts**.
 
 </Step>
 <Step>
@@ -57,7 +59,7 @@ If you already know the project keys, use the switch beside **Projects** to sele
 
 Leave **JQL Filter** empty to include all accessible issues in the selected projects, or add a condition such as `status = "Done"`. Open **Document details (optional)** only if you want to change metadata tags.
 
-Click **Create & Invite**. The source appears in the shared source list, and Sim starts preparing member connections in the background.
+Click **Add source**. The source appears in the shared source list, and Sim starts preparing member connections in the background.
 
 </Step>
 <Step>
@@ -66,7 +68,7 @@ Click **Create & Invite**. The source appears in the shared source list, and Sim
 
 On the new Jira row, click **Connect account**. Complete the connection in the new tab using the Atlassian email that matches your verified Sim email. Select the configured Atlassian site when asked and grant the requested permissions.
 
-Return to Search to see connection and indexing status. Each teammate follows this same step. A previously authorized account may already be connected.
+Return to Integrations to see connection and indexing status. Each teammate follows this same step. A previously authorized account may already be connected.
 
 </Step>
 </Steps>
@@ -84,7 +86,7 @@ Search manages the sync schedule. Item limits and sync frequency are not setup d
 
 ## Teammates and ongoing sync
 
-Existing workspace members see the same source configuration and their own **Connect account**, **Reconnect**, or indexing status. They do not choose projects again. Invite new teammates to the Sim workspace through your usual workspace or SSO onboarding, then have them open Search and connect Jira. A Jira authorization does not grant Sim workspace membership.
+Existing organization members see the same source configuration and their own **Connect account**, **Reconnect**, or indexing status. They do not choose projects again. Invite new teammates to the Sim organization through its Members settings or SSO onboarding, then have them open Integrations and connect Jira. A Jira authorization does not grant Sim organization membership.
 
 Sim checks Jira separately using each connected person's account. Issue content and tags become searchable as processing finishes; changes and lost issue access are picked up by later syncs. The source row reports the number of documents searchable by the current viewer. Admins can open **Manage** to review sync status or update the source.
 
@@ -92,7 +94,7 @@ Sim checks Jira separately using each connected person's account. Issue content 
 
 | What you see | What to do |
 | --- | --- |
-| No **Add source** button | Ask a Sim workspace admin to add Jira. |
+| No **Add source** button | Ask a Sim organization admin to add Jira. |
 | Projects are empty or disabled | Enter the domain and connect a browsing account, or switch to manual project keys. Check that the account can browse those projects. |
 | Connected, but no issues | Confirm the authorized site matches the configured domain. Check project access, issue security, and the JQL filter. An admin's Jira access does not grant access to other members. |
 | Email mismatch | Sign in to Atlassian with the email shown by Sim's connection flow. |

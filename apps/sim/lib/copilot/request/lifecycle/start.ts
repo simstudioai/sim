@@ -9,6 +9,7 @@ import {
   type BillingAttributionSnapshot,
   createAttributedBillingRequestEnvelope,
   resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { chatPubSub } from '@/lib/copilot/chat-status'
@@ -72,6 +73,7 @@ export interface StreamingOrchestrationParams {
   titleProvider?: string
   requestId: string
   workspaceId?: string
+  organizationId?: string
   orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
   /**
    * Pre-started root; child spans bind to it and `finish()` fires on
@@ -95,6 +97,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     titleProvider,
     requestId,
     workspaceId,
+    organizationId,
     orchestrateOptions,
     otelRoot,
   } = params
@@ -252,6 +255,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             titleModel,
             titleProvider,
             workspaceId,
+            organizationId,
             billingAttribution: orchestrateOptions.billingAttribution,
             requestId,
             publisher,
@@ -457,6 +461,7 @@ function fireTitleGeneration(params: {
   titleModel: string
   titleProvider?: string
   workspaceId?: string
+  organizationId?: string
   billingAttribution?: BillingAttributionSnapshot
   requestId: string
   publisher: StreamWriter
@@ -471,6 +476,7 @@ function fireTitleGeneration(params: {
     titleModel,
     titleProvider,
     workspaceId,
+    organizationId,
     billingAttribution,
     requestId,
     publisher,
@@ -479,11 +485,13 @@ function fireTitleGeneration(params: {
   if (!chatId || currentChat?.title || !isNewChat) return
 
   requestChatTitle({
+    chatId,
     message,
     model: titleModel,
     provider: titleProvider,
     userId,
     workspaceId,
+    organizationId,
     billingAttribution,
     otelContext,
   })
@@ -520,15 +528,27 @@ function fireTitleGeneration(params: {
 // Chat title helper
 
 export async function requestChatTitle(params: {
+  chatId?: string
   message: string
   model: string
   provider?: string
   userId?: string
   workspaceId?: string
+  organizationId?: string
   billingAttribution?: BillingAttributionSnapshot
   otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, userId, workspaceId, billingAttribution, otelContext } = params
+  const {
+    chatId,
+    message,
+    model,
+    provider,
+    userId,
+    workspaceId,
+    organizationId,
+    billingAttribution,
+    otelContext,
+  } = params
   if (!message || !model) return null
 
   const headers: Record<string, string> = {
@@ -540,14 +560,23 @@ export async function requestChatTitle(params: {
   Object.assign(headers, getMothershipSourceEnvHeaders())
 
   try {
+    if (organizationId && (!chatId || workspaceId)) {
+      throw new Error('Organization titles require a private chat without a workspace')
+    }
     if (isHosted) {
-      if (!userId || !workspaceId) {
+      if (!userId || (!workspaceId && !organizationId)) {
         throw new Error('Title generation requires a billing actor and workspace')
       }
       const attribution = billingAttribution
         ? assertBillingAttributionSnapshot(billingAttribution)
-        : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
-      if (attribution.actorUserId !== userId || attribution.workspaceId !== workspaceId) {
+        : organizationId
+          ? await resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
+          : await resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! })
+      if (
+        attribution.actorUserId !== userId ||
+        attribution.workspaceId !== (workspaceId ?? null) ||
+        (organizationId && attribution.organizationId !== organizationId)
+      ) {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }
 
@@ -565,6 +594,7 @@ export async function requestChatTitle(params: {
         model,
         ...(provider ? { provider } : {}),
         ...(workspaceId ? { workspaceId } : {}),
+        ...(organizationId ? { organizationId, chatId } : {}),
         ...(userId ? { userId } : {}),
       }),
       otelContext,

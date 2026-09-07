@@ -1,3 +1,4 @@
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
@@ -16,6 +17,7 @@ export type NotificationStatus = (typeof NotificationStatus)[keyof typeof Notifi
 export interface CopilotAuthResult {
   userId: string | null
   isAuthenticated: boolean
+  principal?: SessionPrincipal
 }
 
 export function createUnauthorizedResponse(): NextResponse {
@@ -81,6 +83,9 @@ export async function authenticateCopilotRequestSessionOnly(): Promise<CopilotAu
   return {
     userId,
     isAuthenticated: userId !== null,
+    ...(userId && session?.session?.id
+      ? { principal: { kind: 'session' as const, userId, sessionId: session.session.id } }
+      : {}),
   }
 }
 

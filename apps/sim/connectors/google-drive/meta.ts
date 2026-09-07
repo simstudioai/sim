@@ -58,6 +58,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
       title: 'Openly shared files',
       type: 'dropdown',
       required: false,
+      hideInMemberMode: true,
       description:
         'Files shared beyond named people and groups. Kept out of search by default, because a domain-wide or public share is more often an accident than an intention. Never applies to link-only shares, which stay unsearchable.',
       options: [

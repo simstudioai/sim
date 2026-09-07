@@ -21,7 +21,7 @@ const logger = createLogger('CreateApiKeyModal')
 interface CreateApiKeyModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
   existingKeyNames?: string[]
   allowPersonalApiKeys?: boolean
   canManageWorkspaceKeys?: boolean
@@ -77,7 +77,8 @@ export function CreateApiKeyModal({
     }
   }
 
-  const canCreateKeyType = keyType === 'personal' ? allowPersonalApiKeys : canManageWorkspaceKeys
+  const canCreateKeyType =
+    keyType === 'personal' ? allowPersonalApiKeys : canManageWorkspaceKeys && Boolean(workspaceId)
 
   const handleCreateKey = async () => {
     const trimmedName = keyName.trim()
@@ -97,12 +98,17 @@ export function CreateApiKeyModal({
 
     setCreateError(null)
     try {
-      const data = await createApiKeyMutation.mutateAsync({
-        workspaceId,
-        name: trimmedName,
-        keyType,
-        source,
-      })
+      if (keyType === 'workspace' && !workspaceId) return
+      const data = await createApiKeyMutation.mutateAsync(
+        keyType === 'workspace' && workspaceId
+          ? {
+              workspaceId,
+              name: trimmedName,
+              keyType,
+              source,
+            }
+          : { keyType: 'personal', name: trimmedName, source }
+      )
 
       setNewKey(data.key)
       setShowNewKeyDialog(true)

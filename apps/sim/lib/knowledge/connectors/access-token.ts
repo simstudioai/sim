@@ -1,5 +1,6 @@
 import { normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { getConnectorApiKeyConfig } from '@/connectors/auth'
@@ -126,11 +127,15 @@ export async function resolveConnectorAccessToken(params: {
  */
 export async function resolveConnectorTokenUserId(input: {
   credentialId: string | null
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   fallbackUserId: string
 }): Promise<string | null> {
   if (!input.credentialId) return input.fallbackUserId
-  const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  const identity = await resolveCredentialTokenIdentity(
+    input.credentialId,
+    resourceScopeFromOwner(input)
+  )
   if (!identity) return null
   return identity.kind === 'oauth' ? identity.userId : input.fallbackUserId
 }

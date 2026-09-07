@@ -4,7 +4,11 @@ import {
   knowledgeConnectorParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  resourceOwnerSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { CONNECTOR_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -337,15 +341,14 @@ export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
 export const listSearchSourcesContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/sim-search/sources',
-  query: z.object({ workspaceId: workspaceIdSchema }),
+  query: resourceOwnerSchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.array(searchSourceSummarySchema)),
   },
 })
 
-export const connectSimSearchConnectorBodySchema = z.object({
-  workspaceId: workspaceIdSchema,
+export const connectSimSearchConnectorBodySchema = resourceOwnerSchema.safeExtend({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
   connectorId: knowledgeConnectorParamsSchema.shape.connectorId.max(255).optional(),
   /** Settings identify a compatible source, or assert the configuration of a selected source. */
@@ -353,8 +356,7 @@ export const connectSimSearchConnectorBodySchema = z.object({
 })
 export type ConnectSimSearchConnectorBody = z.input<typeof connectSimSearchConnectorBodySchema>
 
-export const prepareSearchSourceBodySchema = z.object({
-  workspaceId: workspaceIdSchema,
+export const prepareSearchSourceBodySchema = resourceOwnerSchema.safeExtend({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
   accessMode: z.enum(['admin', 'members']).optional().default('admin'),
 })
@@ -471,5 +473,18 @@ export const patchKnowledgeConnectorDocumentsContract = defineRouteContract({
         })
         .passthrough()
     ),
+  },
+})
+
+export const readSearchIndexContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/sim-search/index',
+  query: resourceOwnerSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: z.object({ knowledgeBaseId: z.string().nullable() }),
+    }),
   },
 })

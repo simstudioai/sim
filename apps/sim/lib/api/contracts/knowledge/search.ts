@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   resolvedSecretTraceProvenanceSchema,
-  workspaceIdSchema,
+  resourceOwnerSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
@@ -179,8 +179,7 @@ export const workspaceSearchFiltersSchema = z.object({
 })
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
-export const workspaceKnowledgeSearchBodySchema = z.object({
-  workspaceId: workspaceIdSchema,
+export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend({
   filters: workspaceSearchFiltersSchema.optional(),
   query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
   topK: z.number().int().min(1).max(50).optional().default(20),

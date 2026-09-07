@@ -17,8 +17,14 @@ import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import {
   type CredentialGroupCredentialListContext,
-  loadWorkspaceAccountsCredentialListContext,
+  loadScopedAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
@@ -51,7 +57,10 @@ export interface ProvisionedMembersBinding {
 /** An identity connection proves who may read mirrored ACLs; it grants no crawler token access. */
 export function sourceIdentityBinding(
   connectorMeta: ConnectorMeta | undefined,
-  group: CredentialGroupCredentialListContext | null
+  group: Pick<
+    CredentialGroupCredentialListContext,
+    'credentialGroupId' | 'status' | 'options'
+  > | null
 ): ProvisionedMembersBinding | null {
   if (
     !connectorMeta?.mirrorsSourceAcls ||
@@ -73,7 +82,8 @@ export function sourceIdentityBinding(
 }
 
 export async function provisionKnowledgeConnectorMembersBinding(input: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
   userId: string
 }): Promise<ProvisionedMembersBinding> {
@@ -91,7 +101,7 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
   }
 
   const group = await ensureWorkspaceAccountsGroup(
-    input.workspaceId,
+    resourceScopeFromOwner(input),
     input.userId,
     isCredentialGroupStandardOAuthProvider(provider)
       ? { provider, label: connectorMeta.name, required: false }
@@ -232,7 +242,8 @@ export function deriveViewerConnectorMembership(input: {
  */
 export async function resolveViewerConnectorMemberships(input: {
   userId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   connectors: ReadonlyArray<{
     id: string
     connectorType: string
@@ -251,12 +262,12 @@ export async function resolveViewerConnectorMemberships(input: {
       getConnectorMeta(connector.connectorType)?.requiresMemberIdentity
   )
   const availability = identitySources
-    ? await resolveKnowledgeAccessAvailability({ workspaceId: input.workspaceId })
+    ? await resolveKnowledgeAccessAvailability(resourceScopeFields(resourceScopeFromOwner(input)))
     : null
   if (
     !(
       availability?.memberScoped ??
-      (await isKnowledgeMemberAccessAvailable({ workspaceId: input.workspaceId }))
+      (await isKnowledgeMemberAccessAvailable(resourceScopeFields(resourceScopeFromOwner(input))))
     )
   )
     return result
@@ -264,8 +275,13 @@ export async function resolveViewerConnectorMemberships(input: {
     (connector) => connector.accessMode === 'members'
   )
   if (!hasMemberConnectors && !availability?.sourceMirrored) return result
-  const group = await loadWorkspaceAccountsCredentialListContext(input.workspaceId)
-  if (!group || group.workspaceId !== input.workspaceId || group.status !== 'active') return result
+  const group = await loadScopedAccountsCredentialListContext(resourceScopeFromOwner(input))
+  if (
+    !group ||
+    !sameResourceScope(resourceScopeFromOwner(group), resourceScopeFromOwner(input)) ||
+    group.status !== 'active'
+  )
+    return result
   const memberConnectors = input.connectors.flatMap((connector) => {
     const meta = getConnectorMeta(connector.connectorType)
     if (
@@ -304,7 +320,7 @@ export async function resolveViewerConnectorMemberships(input: {
             if (!isCredentialGroupProvider(option.provider)) return null
             try {
               await getCredentialGroupProviderAdapter(option.provider).getPolicy(option, {
-                workspaceId: input.workspaceId,
+                ...resourceScopeFields(resourceScopeFromOwner(input)),
                 credentialGroupId: group.credentialGroupId,
                 credentialGroupOptionId: option.id,
               })
@@ -338,13 +354,13 @@ export async function resolveViewerConnectorMemberships(input: {
       credential,
       and(
         eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id),
-        eq(credential.workspaceId, input.workspaceId),
+        resourceScopeCondition(credential, resourceScopeFromOwner(input)),
         eq(credential.type, 'managed_oauth')
       )
     )
     .where(
       and(
-        eq(credentialGroup.workspaceId, input.workspaceId),
+        resourceScopeCondition(credentialGroup, resourceScopeFromOwner(input)),
         eq(credentialGroup.id, group.credentialGroupId),
         eq(credentialGroupEnrollment.email, email)
       )

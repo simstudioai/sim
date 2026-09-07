@@ -12,6 +12,8 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { listSlackCredentialGroupConfigurationsForBot } from '@/lib/credential-groups/provider-configuration'
 import {
@@ -448,7 +450,7 @@ export async function updateCredentialRecord(
     // The flag rides the environment snapshot into every run's redaction catalog, so a flip
     // must not serve stale from the same-process snapshot cache. Cross-process readers are
     // bounded by that cache's short TTL instead.
-    if (updates.unredacted !== undefined) {
+    if (updates.unredacted !== undefined && params.credential.workspaceId) {
       invalidateEffectiveDecryptedEnvCache({ workspaceId: params.credential.workspaceId })
     }
 
@@ -473,7 +475,7 @@ export async function updateCredentialRecord(
         : { ...(rotatedAuditMetadata ?? {}), unredacted: params.unredacted }
     return {
       success: true,
-      workspaceId: params.credential.workspaceId,
+      workspaceId: params.credential.workspaceId ?? undefined,
       updatedFields,
       previousDisplayName: params.credential.displayName,
       auditMetadata,
@@ -562,7 +564,7 @@ export async function deleteCredentialRecord(
       .from(credentialGroup)
       .where(
         and(
-          eq(credentialGroup.workspaceId, credentialRow.workspaceId),
+          resourceScopeCondition(credentialGroup, resourceScopeFromOwner(credentialRow)),
           sql`EXISTS (
             SELECT 1
             FROM jsonb_array_elements(${credentialGroup.options}) AS option
@@ -626,7 +628,7 @@ export async function deleteCredentialRecord(
   }
 
   if (credentialRow.type === 'env_workspace') {
-    if (!credentialRow.envKey) {
+    if (!credentialRow.envKey || !credentialRow.workspaceId) {
       throw new Error('Workspace environment credential is missing its source identity')
     }
     const { envKey, workspaceId } = credentialRow
@@ -677,7 +679,7 @@ export async function deleteCredentialRecord(
   if (credentialRow.type === 'oauth') {
     const deleted = await deleteConnectionCredential({
       credentialId: credentialRow.id,
-      workspaceId: credentialRow.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(credentialRow)),
       reason: params.reason,
     })
     if (deleted && credentialRow.accountId) {
@@ -688,7 +690,7 @@ export async function deleteCredentialRecord(
 
   return deleteConnectionCredential({
     credentialId: credentialRow.id,
-    workspaceId: credentialRow.workspaceId,
+    ...resourceScopeColumns(resourceScopeFromOwner(credentialRow)),
     reason: params.reason,
   })
 }

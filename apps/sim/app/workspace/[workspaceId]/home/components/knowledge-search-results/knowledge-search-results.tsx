@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import type {
   WorkspaceKnowledgeSearchResult,
   WorkspaceSearchFilters,
 } from '@/lib/api/contracts/knowledge'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
@@ -22,13 +23,11 @@ import {
   UPDATED_WINDOWS,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import {
-  useWorkspaceMemberConnectors,
+  useSearchIndex,
+  useSearchSources,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
-import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
-import { useMemberAccessAvailable } from '@/hooks/use-member-access'
-
-const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
+import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 /** Filters appear only once a list is long and mixed enough for them to help. */
 const FILTERS_MIN_RESULTS = 10
@@ -80,12 +79,12 @@ export function indexingSourceNames(
 function toSource(
   result: WorkspaceKnowledgeSearchResult,
   query: string,
-  workspaceId: string
+  scope: ResourceScope
 ): SourceTagData {
   return {
     url: isHttpUrl(result.sourceUrl)
       ? result.sourceUrl
-      : `${getBaseUrl()}/workspace/${encodeURIComponent(workspaceId)}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`,
+      : `${getBaseUrl()}${scope.kind === 'organization' ? `/o/${encodeURIComponent(scope.organizationId)}` : `/workspace/${encodeURIComponent(scope.workspaceId)}`}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`,
     title: result.documentName ?? undefined,
     siteName: result.connectorType
       ? connectorDisplayName(result.connectorType)
@@ -113,8 +112,10 @@ function handleResultsKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
   links[next].focus()
 }
 
-interface KnowledgeSearchResultsProps {
-  workspaceId: string
+type KnowledgeSearchResultsProps = (
+  | { workspaceId: string; scope?: never }
+  | { scope: ResourceScope; workspaceId?: never }
+) & {
   query: string
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
@@ -131,18 +132,13 @@ interface KnowledgeSearchResultsProps {
  */
 export function KnowledgeSearchResults({
   workspaceId,
+  scope: suppliedScope,
   query,
   onSummarize,
 }: KnowledgeSearchResultsProps) {
-  const {
-    data: knowledgeBases = [],
-    isPending: basesPending,
-    error: basesError,
-  } = useKnowledgeBasesQuery(workspaceId)
-  const index = knowledgeBases.find(
-    (base) => base.workspaceId === workspaceId && base.isSearchIndex
-  )
-  const knowledgeBaseIds = index ? [index.id] : []
+  const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
+  const { data: index, isPending: basesPending, error: basesError } = useSearchIndex(scope)
+  const knowledgeBaseIds = index?.knowledgeBaseId ? [index.knowledgeBaseId] : []
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const searchFilters = useMemo<WorkspaceSearchFilters>(() => {
     const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
@@ -158,20 +154,15 @@ export function KnowledgeSearchResults({
     isPending,
     isFetching,
     error,
-  } = useWorkspaceKnowledgeSearch(workspaceId, query, searchFilters)
-  /**
-   * With per-member access off, member-scoped documents are hidden, so the
-   * indexing list is not worth asking for.
-   */
-  const memberAccessAvailable = useMemberAccessAvailable()
-  const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
-    enabled: memberAccessAvailable,
-  })
-  /** Rows cached before the feature went off are not this surface's to show. */
-  const memberConnectors = memberAccessAvailable
-    ? (memberConnectorRows ?? EMPTY_MEMBER_CONNECTORS)
-    : EMPTY_MEMBER_CONNECTORS
-  const indexing = indexingSourceNames(memberConnectors, knowledgeBaseIds)
+  } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
+  const { data: sources = [] } = useSearchSources(scope)
+  const indexing = [
+    ...new Set(
+      sources
+        .filter((source) => source.isSyncing)
+        .map((source) => connectorDisplayName(source.connectorType))
+    ),
+  ]
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
   const sourceTypes = [
     ...new Set([
@@ -190,9 +181,18 @@ export function KnowledgeSearchResults({
   }
   if (!basesPending && knowledgeBaseIds.length === 0) {
     return (
-      <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-        Nothing to search yet. Clear the query and connect a source to index what you can open.
-      </p>
+      <div className='flex items-center gap-2 px-2 py-2'>
+        <p className='text-[var(--text-muted)] text-caption'>No sources are set up yet.</p>
+        <ChipLink
+          href={
+            scope.kind === 'organization'
+              ? `/o/${scope.organizationId}/integrations`
+              : `/workspace/${scope.workspaceId}/search`
+          }
+        >
+          View sources
+        </ChipLink>
+      </div>
     )
   }
   if (isPending || (isFetching && !results)) {
@@ -256,7 +256,7 @@ export function KnowledgeSearchResults({
       ) : (
         <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
           {documents.map((result) => {
-            const source = toSource(result, query, workspaceId)
+            const source = toSource(result, query, scope)
             return (
               <SourceCard
                 key={result.documentId}

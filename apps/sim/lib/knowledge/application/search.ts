@@ -13,6 +13,7 @@ import {
   checkAndBillPayerOverageThreshold,
 } from '@/lib/billing/threshold-billing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
@@ -30,6 +31,7 @@ import {
 } from '@/lib/knowledge/application/billing'
 import {
   type KnowledgeResourceContext,
+  resolveKnowledgeOrganizationContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -84,6 +86,7 @@ export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 export interface SearchKnowledgeInput {
   /** Optional assertion from a trusted adapter or public contract. */
   workspaceId?: string
+  organizationId?: string
   knowledgeBaseIds: string[]
   query?: string
   topK: number
@@ -193,7 +196,13 @@ async function resolveKnowledgeSearchContext(
       `Knowledge bases not found or access denied: ${missingIds.join(', ')}`
     )
   }
-  const canonicalWorkspaceIds = new Set(knowledgeBases.map((kb) => kb?.workspaceId ?? null))
+  const canonicalWorkspaceIds = new Set(
+    knowledgeBases.map((kb) =>
+      kb?.organizationId || kb?.workspaceId
+        ? resourceScopeKey(resourceScopeFromOwner(kb))
+        : `personal:${kb?.userId}`
+    )
+  )
   if (canonicalWorkspaceIds.size !== 1) {
     throw new OrchestrationError(
       'validation',
@@ -201,11 +210,25 @@ async function resolveKnowledgeSearchContext(
     )
   }
   const canonicalWorkspaceId = knowledgeBases[0]?.workspaceId ?? null
-  if (input.workspaceId && input.workspaceId !== canonicalWorkspaceId) {
+  const canonicalOrganizationId = knowledgeBases[0]?.organizationId
+  if (
+    (input.organizationId && input.organizationId !== canonicalOrganizationId) ||
+    (input.workspaceId && input.workspaceId !== canonicalWorkspaceId)
+  ) {
     throw new OrchestrationError(
       'not_found',
       `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
     )
+  }
+  if (canonicalOrganizationId) {
+    const context = await resolveKnowledgeOrganizationContext({
+      organizationId: canonicalOrganizationId,
+    })
+    return {
+      ...context,
+      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+      access: createKnowledgeAccessProvider(principal, context),
+    }
   }
   if (!canonicalWorkspaceId) {
     const ownerUserIds = new Set(knowledgeBases.map((knowledgeBase) => knowledgeBase?.userId))
@@ -256,8 +279,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       principal.serviceId === 'executor'
     )
     const billingAttribution =
-      hasQuery && context.workspaceId
-        ? input.resolveBillingAttribution
+      hasQuery && (context.workspaceId || context.organizationId)
+        ? input.resolveBillingAttribution && context.workspaceId
           ? await input.resolveBillingAttribution(context.workspaceId)
           : await resolveKnowledgeBillingAttribution(principal, context)
         : undefined
@@ -335,6 +358,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       context.access.get(),
       resolveKnowledgeSearchDefaults({
         workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
+
         /** The signed-in person, if any; never the billing owner or a key's creator. */
         userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
         requestedMode: input.searchMode,
@@ -433,6 +458,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
               model: input.rerankerModel!,
               topN: input.topK,
               workspaceId: context.workspaceId,
+
               apiKey: input.rerankerApiKey,
               signal: input.signal,
             }
@@ -611,6 +637,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           cause: 'durable-provenance-unknown',
           affectedCount: unrecordedCount,
           workspaceId: context.workspaceId,
+
           actorUserId: userId,
         })
       }

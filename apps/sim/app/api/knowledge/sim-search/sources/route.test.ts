@@ -2,7 +2,13 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
+const mocks = vi.hoisted(() => ({ execute: vi.fn(), connect: vi.fn() }))
+vi.mock('@/lib/knowledge/application/sim-search', () => ({
+  connectSimSearchConnector: {
+    operation: { id: 'knowledge.simSearch.connect' },
+    execute: mocks.connect,
+  },
+}))
 vi.mock('@/lib/knowledge/application/search-sources', () => ({
   listSearchSources: { operation: { id: 'knowledge.search.sources.list' }, execute: mocks.execute },
 }))
@@ -14,6 +20,7 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
 }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
+import { POST as connectSource } from '@/app/api/knowledge/sim-search/connect/route'
 import { GET } from '@/app/api/knowledge/sim-search/sources/route'
 
 const WORKSPACE_ID = '7d28e5e2-fb03-4118-9c52-4ab77ccff369'
@@ -44,6 +51,33 @@ beforeEach(() => {
 })
 
 describe('GET Search sources', () => {
+  it('preserves the explicit organization in source listing and member enrollment', async () => {
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost/api/knowledge/sim-search/sources?organizationId=${WORKSPACE_ID}`
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { organizationId: WORKSPACE_ID },
+      })
+    )
+
+    mocks.connect.mockResolvedValue({
+      knowledgeBaseId: 'index',
+      connectorId: 'source',
+      url: 'http://localhost/credential-groups/enroll/token',
+    })
+    const body = { organizationId: WORKSPACE_ID, connectorType: 'gmail' }
+    const connected = await connectSource(createMockRequest('POST', body))
+    expect(connected.status).toBe(200)
+    expect(mocks.connect).toHaveBeenCalledWith(expect.objectContaining({ input: body }))
+  })
+
   it('authenticates before parsing the workspace query', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
     const response = await GET(createMockRequest('GET'))

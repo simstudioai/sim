@@ -11,9 +11,11 @@ import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
@@ -731,7 +733,11 @@ export async function executeSync(
   }
 
   const kbRows = await db
-    .select({ userId: knowledgeBase.userId, workspaceId: knowledgeBase.workspaceId })
+    .select({
+      userId: knowledgeBase.userId,
+      workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
+    })
     .from(knowledgeBase)
     .where(
       and(
@@ -773,17 +779,17 @@ export async function executeSync(
   const userId = kbRows[0].userId
   // Resolved once per sync and threaded into add/updateDocument so every synced
   // kb/ object records a trusted ownership binding without an N+1 KB lookup.
-  const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
-  if (!kbOwner.workspaceId) {
+  const kbOwner: KnowledgeBaseOwner = {
+    workspaceId: kbRows[0].workspaceId,
+    organizationId: kbRows[0].organizationId,
+    userId,
+  }
+  if (!kbOwner.workspaceId && !kbOwner.organizationId) {
     throw new Error(
       `Knowledge base ${connectorBeforeLock.knowledgeBaseId} is missing workspace billing context`
     )
   }
-  if (billingAttribution.workspaceId !== kbOwner.workspaceId) {
-    throw new Error(
-      `Connector sync billing attribution does not match knowledge base workspace ${kbOwner.workspaceId}`
-    )
-  }
+  assertBillingAttributionOwner(billingAttribution, kbOwner)
   /**
    * Identifies this run for the terminal writes. Generated before the CAS and
    * written by it, so ownership is established atomically with the lock — and
@@ -890,7 +896,7 @@ export async function executeSync(
      */
     const credentialUserId = await resolveConnectorTokenUserId({
       credentialId: connector.credentialId,
-      workspaceId: kbOwner.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(kbOwner)),
       fallbackUserId: userId,
     })
     if (!credentialUserId) {
@@ -1028,7 +1034,7 @@ export async function executeSync(
        * The terminal sync write below still reports directory failures.
        */
       directoryRefreshed = refreshMirroredDirectory({
-        workspaceId: kbOwner.workspaceId,
+        ...resourceScopeFields(resourceScopeFromOwner(kbOwner)),
         connectorConfig,
         sourceConfig,
         syncContext,

@@ -31,6 +31,8 @@ describe('organizationRoutes', () => {
     const routes = organizationRoutes('org-1')
     expect(routes.root).toBe('/o/org-1')
     expect(routes.home).toBe('/o/org-1/home')
+    expect(routes.settings).toBe('/o/org-1/settings')
+    expect(routes.settingsSection('members')).toBe('/o/org-1/settings/members')
     expect(routes.workspaces).toBe('/o/org-1/workspaces')
     expect(routes.chat('c-1')).toBe('/o/org-1/chat/c-1')
   })

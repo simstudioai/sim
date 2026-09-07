@@ -647,6 +647,27 @@ describe('Assistant payload', () => {
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
   })
+  it('forwards organization scope without workspace, integration, or desktop authority', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Find the policy',
+        userId: 'user-1',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        mode: 'assistant',
+        model: '',
+        browser: true,
+        terminalCapable: true,
+        desktopLocalFilesystem: true,
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.organizationId).toBe('org-1')
+    expect(payload).not.toHaveProperty('workspaceId')
+    expect(payload).not.toHaveProperty('desktopCapabilities')
+    expect(payload.integrationTools ?? []).toEqual([])
+  })
+
   it('keeps the shared search scope and only personally authenticated integrations', async () => {
     clearIntegrationToolSchemaCacheForTests()
     const payload = await buildCopilotRequestPayload(

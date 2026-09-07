@@ -210,6 +210,60 @@ describe('credential group OAuth persistence', () => {
     expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.credential)
   })
 
+  it.each([true, false])(
+    'rechecks organization membership after the provider exchange (member=%s)',
+    async (currentMember) => {
+      const context = {
+        ...CONTEXT,
+        workspaceId: undefined,
+        workspaceOwnerId: null,
+        organizationId: 'org-1',
+        credentialOwnerId: 'person-1',
+      }
+      const attempt = {
+        state: 'state-1',
+        provider: 'gmail' as const,
+        nonceHash: 'nonce',
+        organizationId: 'org-1',
+        email: CONTEXT.email,
+        enrollmentId: CONTEXT.enrollmentId,
+        credentialGroupId: CONTEXT.credentialGroupId,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        redirectUri: 'https://sim.ai/callback',
+        codeVerifier: 'verifier',
+        invitationToken: 'invitation',
+        createdAt: Date.now(),
+      }
+      queueTableRows(schemaMock.member, currentMember ? [{ id: 'member-1' }] : [])
+      queueTableRows(schemaMock.credentialGroupEnrollment, [{ status: 'invited' }])
+      queueTableRows(schemaMock.credentialGroup, [GROUP])
+      queueTableRows(schemaMock.credential, [])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ id: 'credential-1' }])
+        .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
+      if (currentMember) {
+        await expect(
+          completeCredentialGroupOAuth(context, attempt, 'authorization-code')
+        ).resolves.toMatchObject({ credentialId: 'credential-1', created: true })
+        expect(dbChainMockFns.values).toHaveBeenCalledWith(
+          expect.objectContaining({
+            organizationId: 'org-1',
+            workspaceId: null,
+            createdBy: 'person-1',
+          })
+        )
+      } else {
+        await expect(
+          completeCredentialGroupOAuth(context, attempt, 'authorization-code')
+        ).rejects.toBeInstanceOf(CredentialGroupInvitationUnavailableError)
+        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      }
+    }
+  )
+
   it('preserves completed enrollment state when an account reconnects', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
     queueTableRows(schemaMock.credentialGroup, [GROUP])

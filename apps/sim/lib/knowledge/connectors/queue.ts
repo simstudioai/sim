@@ -7,6 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { idempotencyKeys, tasks } from '@trigger.dev/sdk'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
@@ -302,6 +303,7 @@ export async function dispatchSync(
       connectorDeletedAt: knowledgeConnector.deletedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
     })
     .from(knowledgeConnector)
@@ -382,19 +384,15 @@ export async function dispatchSync(
       reason: 'The connector sync schedule changed after this run was scheduled',
     }
   }
-  if (!row.workspaceId) {
+  if (!row.workspaceId && !row.organizationId) {
     throw new Error(`Connector ${connectorId} is missing workspace billing context`)
   }
-  if (payload.billingAttribution.workspaceId !== row.workspaceId) {
-    throw new Error(
-      `Connector sync billing attribution does not match connector workspace ${row.workspaceId}`
-    )
-  }
+  assertBillingAttributionOwner(payload.billingAttribution, row)
 
   const tags = [
     `connectorId:${connectorId}`,
     `knowledgeBaseId:${row.knowledgeBaseId}`,
-    `workspaceId:${row.workspaceId}`,
+    row.workspaceId ? `workspaceId:${row.workspaceId}` : `organizationId:${row.organizationId}`,
     `userId:${payload.billingAttribution.actorUserId}`,
   ]
 

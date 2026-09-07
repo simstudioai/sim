@@ -1,5 +1,12 @@
 /** @vitest-environment node */
-import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
+import {
+  document,
+  embedding,
+  knowledgeBase,
+  knowledgeConnector,
+  member,
+  user,
+} from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,11 +19,15 @@ const mocks = vi.hoisted(() => ({
   predicate: vi.fn(),
 }))
 vi.mock('@sim/platform-authz/workspace', () => ({
+  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
   permissionSatisfies: (actual: string | null) => actual !== null,
   resolveEffectiveWorkspacePermission: mocks.permission,
 }))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: async () => null,
+}))
 vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.context,
+  resolveKnowledgeOwnerContext: mocks.context,
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   resolveKnowledgeAccessAvailability: mocks.availability,
@@ -129,7 +140,11 @@ describe('Search source summaries', () => {
         /secret-fixture|admin@example|group-secret|option-secret|sourceConfig/
       )
       expect(mocks.context).toHaveBeenCalledWith(input)
-      expect(mocks.access).toHaveBeenCalledWith(principal, { workspaceId: 'workspace' })
+      expect(mocks.access).toHaveBeenCalledWith(principal, {
+        workspaceId: 'workspace',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+      })
       expect(mocks.predicate).toHaveBeenCalledWith(access)
     }
   )
@@ -250,7 +265,13 @@ describe('Search source summaries', () => {
     expect(dbChainMockFns.where.mock.calls[0][0]).toEqual({
       type: 'and',
       conditions: expect.arrayContaining([
-        { type: 'eq', left: knowledgeBase.workspaceId, right: 'workspace' },
+        {
+          type: 'and',
+          conditions: [
+            { type: 'eq', left: knowledgeBase.workspaceId, right: 'workspace' },
+            { type: 'isNull', column: knowledgeBase.organizationId },
+          ],
+        },
         { type: 'eq', left: knowledgeBase.isSearchIndex, right: true },
         { type: 'isNull', column: knowledgeBase.deletedAt },
         { type: 'isNull', column: knowledgeConnector.archivedAt },
@@ -327,5 +348,44 @@ describe('Search source summaries', () => {
     await expect(listSearchSources.execute({ principal, input })).rejects.toThrow(
       'availability backend unavailable'
     )
+  })
+})
+
+describe('organization Search source summaries', () => {
+  it.each(['member', 'admin'])(
+    'returns only the current %s viewer ACL counts without a workspace membership',
+    async (role) => {
+      mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+      queueTableRows(member, [{ role }])
+      seed([source('drive')])
+      queueTableRows(document, [{ connectorId: 'drive', count: 2, isIndexing: false }])
+      const result = await listSearchSources.execute({
+        principal,
+        input: { organizationId: 'org-1' },
+      })
+      expect(result.sources[0]).toMatchObject({
+        connectorId: 'drive',
+        viewerDocumentCount: 2,
+        viewerEmailVerified: true,
+      })
+      expect(mocks.access).toHaveBeenCalledWith(principal, { organizationId: 'org-1' })
+      expect(mocks.predicate).toHaveBeenCalledWith(access)
+      expect(mocks.memberships).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1', userId: 'reader' })
+      )
+      expect(mocks.permission).not.toHaveBeenCalled()
+      expect(JSON.stringify(result)).not.toMatch(
+        /secret-fixture|admin@example|group-secret|option-secret/
+      )
+    }
+  )
+  it('rejects a removed organization member without exposing configured sources', async () => {
+    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+    queueTableRows(member, [])
+    await expect(
+      listSearchSources.execute({ principal, input: { organizationId: 'org-1' } })
+    ).rejects.toThrow('Organization not found')
+    expect(mocks.memberships).not.toHaveBeenCalled()
+    expect(mocks.access).not.toHaveBeenCalled()
   })
 })

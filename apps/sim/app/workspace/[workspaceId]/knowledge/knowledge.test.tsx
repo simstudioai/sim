@@ -87,7 +87,7 @@ vi.mock('@/hooks/use-resource-list-preferences', () => ({
 }))
 vi.mock('@/blocks/brand-icon', () => ({ BrandIcon: () => null }))
 vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
-vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components', () => ({
+vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal', () => ({
   BaseTagsModal: () => null,
 }))
 vi.mock('@/app/workspace/[workspaceId]/knowledge/components', () => ({

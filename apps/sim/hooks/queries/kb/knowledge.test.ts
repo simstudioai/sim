@@ -126,6 +126,11 @@ function captureQuery(build: () => unknown): CapturedQuery {
 }
 
 describe('knowledge query placeholder scope', () => {
+  it('waits for a nonempty owner before searching', () => {
+    const query = captureQuery(() => useWorkspaceKnowledgeSearch('', 'query'))
+    expect(query).toMatchObject({ enabled: false })
+  })
+
   it('forwards search cancellation and leaves provider retries to the server', async () => {
     mocks.requestJson.mockResolvedValueOnce({ data: { results: [] } })
     const query = captureQuery(() =>

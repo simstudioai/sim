@@ -14,6 +14,12 @@ import { Search } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import { canConnectPersonally, getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
@@ -29,8 +35,11 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { useConnectorList, usePrepareSearchSource } from '@/hooks/queries/kb/connectors'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import {
+  useConnectorList,
+  usePrepareSearchSource,
+  useSearchIndex,
+} from '@/hooks/queries/kb/connectors'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const AddConnectorModal = dynamic(
@@ -53,7 +62,8 @@ const SOURCE_TYPES = Object.entries(CONNECTOR_META_REGISTRY)
   .sort(([, left], [, right]) => left.name.localeCompare(right.name))
 
 interface SearchSourceSetupProps {
-  workspaceId: string
+  workspaceId?: string
+  scope?: ResourceScope
   canAdmin: boolean
   memberAccessAvailable: boolean
   mirroredAccessAvailable: boolean
@@ -62,10 +72,12 @@ interface SearchSourceSetupProps {
 /** Owns admin setup and existing source management, including bookmarked OAuth return URLs. */
 export function SearchSourceSetup({
   workspaceId,
+  scope: explicitScope,
   canAdmin,
   memberAccessAvailable,
   mirroredAccessAvailable,
 }: SearchSourceSetupProps) {
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const { data: session } = useSession()
   const {
     integrationAvailability,
@@ -87,8 +99,8 @@ export function SearchSourceSetup({
   const [search, setSearch] = useState('')
   const prepare = usePrepareSearchSource()
   const open = selectedType !== null || managedSource !== null
-  const bases = useKnowledgeBasesQuery(workspaceId, { enabled: canAdmin && open })
-  const knowledgeBaseId = bases.data?.find((base) => base.isSearchIndex === true)?.id
+  const index = useSearchIndex(scope, { enabled: canAdmin && open })
+  const knowledgeBaseId = index.data?.knowledgeBaseId ?? undefined
   const connectors = useConnectorList(canAdmin && managedSource ? knowledgeBaseId : undefined)
 
   if (!canAdmin || !open) return null
@@ -98,8 +110,8 @@ export function SearchSourceSetup({
     if (selectedType !== null) void setSelectedType(null)
     if (managedSource !== null) void setManagedSource(null)
   }
-  const failedQuery = bases.isError
-    ? bases
+  const failedQuery = index.isError
+    ? index
     : managedSource && connectors.isError
       ? connectors
       : null
@@ -141,10 +153,11 @@ export function SearchSourceSetup({
             if (!nextOpen) void setSelectedType(null)
           }}
           knowledgeBaseId={knowledgeBaseId}
+          scope={scope}
           isSearchIndex
           initialConnectorType={selectedType}
           initialAccessMode={initialMode(selectedType)}
-          setupDraftKey={`${session.user.id}:${workspaceId}:${knowledgeBaseId}:${selectedType}`}
+          setupDraftKey={`${session.user.id}:${resourceScopeKey(scope)}:${knowledgeBaseId}:${selectedType}`}
           onConnectorTypeChange={(type) =>
             void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
           }
@@ -154,7 +167,7 @@ export function SearchSourceSetup({
     if (managedSource && (connectors.isPending || managedType)) {
       return (
         <SearchSourceStatus
-          workspaceId={workspaceId}
+          scope={scope}
           knowledgeBaseId={knowledgeBaseId}
           connectorType={managedType ?? ''}
           connectors={managedConnectors}
@@ -212,7 +225,7 @@ export function SearchSourceSetup({
         ) : managedSource ? (
           <ChipModalField type='custom' title='Source'>
             <SettingsEmptyState variant='inline'>
-              {bases.isPending ? 'Loading source…' : 'This source is no longer available.'}
+              {index.isPending ? 'Loading source…' : 'This source is no longer available.'}
             </SettingsEmptyState>
           </ChipModalField>
         ) : (
@@ -249,7 +262,7 @@ export function SearchSourceSetup({
                       title={meta.name}
                       description={
                         !available
-                          ? 'Not available in this workspace'
+                          ? `Not available in this ${scope.kind}`
                           : central
                             ? meta.adminSetupHint
                             : undefined
@@ -259,14 +272,14 @@ export function SearchSourceSetup({
                         available ? (
                           <Chip
                             variant='primary'
-                            disabled={prepare.isPending || bases.isPending}
+                            disabled={prepare.isPending || index.isPending}
                             onClick={() => {
                               if (knowledgeBaseId)
                                 void setSelectedType(searchSetupParam.parser.parse(type))
                               else
                                 prepare.mutate(
                                   {
-                                    workspaceId,
+                                    ...resourceScopeFields(scope),
                                     connectorType: type,
                                     accessMode: central ? 'admin' : 'members',
                                   },

@@ -14,8 +14,18 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
+import {
+  hasWorkspaceLiveSyncAccess,
+  isOrganizationOnEnterprisePlan,
+} from '@/lib/billing/core/subscription'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -83,7 +93,7 @@ export interface ConnectorMembersBinding {
  */
 export async function lockCredentialGroupOption(
   tx: DbOrTx,
-  binding: ConnectorMembersBinding & { workspaceId: string }
+  binding: ConnectorMembersBinding & ResourceOwner
 ): Promise<void> {
   const [group] = await tx
     .select({ options: credentialGroup.options })
@@ -91,7 +101,7 @@ export async function lockCredentialGroupOption(
     .where(
       and(
         eq(credentialGroup.id, binding.credentialGroupId),
-        eq(credentialGroup.workspaceId, binding.workspaceId)
+        resourceScopeCondition(credentialGroup, resourceScopeFromOwner(binding))
       )
     )
     .limit(1)
@@ -124,6 +134,7 @@ export interface ConnectorKnowledgeBase {
   id: string
   name: string
   workspaceId: string | null
+  organizationId?: string | null
 }
 
 function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
@@ -136,13 +147,19 @@ function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
  * `0` disables scheduled syncs and is always allowed.
  */
 async function assertLiveSyncAllowed(
-  workspaceId: string,
+  scope: string | ResourceScope,
   syncIntervalMinutes: number | undefined
 ): Promise<void> {
   if (syncIntervalMinutes === undefined || syncIntervalMinutes <= 0 || syncIntervalMinutes >= 60) {
     return
   }
-  if (!(await hasWorkspaceLiveSyncAccess(workspaceId))) {
+  const allowed =
+    typeof scope === 'string'
+      ? await hasWorkspaceLiveSyncAccess(scope)
+      : scope.kind === 'workspace'
+        ? await hasWorkspaceLiveSyncAccess(scope.workspaceId)
+        : await isOrganizationOnEnterprisePlan(scope.organizationId, 'throw')
+  if (!allowed) {
     throw new OrchestrationError('forbidden', 'Live sync requires a Max or Enterprise plan')
   }
 }
@@ -222,10 +239,11 @@ export async function performCreateKnowledgeConnector(
   } = params
   const requestId = params.requestId ?? generateRequestId()
 
-  if (!kb.workspaceId) {
+  if (!kb.workspaceId && !kb.organizationId) {
     return fail('Knowledge base is missing workspace billing context', 'conflict')
   }
   const workspaceId = kb.workspaceId
+  const owner = resourceScopeFields(resourceScopeFromOwner(kb))
 
   const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
   const connectorConfig = CONNECTOR_REGISTRY[connectorType]
@@ -234,7 +252,7 @@ export async function performCreateKnowledgeConnector(
   }
 
   try {
-    await assertLiveSyncAllowed(workspaceId, syncIntervalMinutes)
+    await assertLiveSyncAllowed(resourceScopeFromOwner(kb), syncIntervalMinutes)
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Create ${connectorType} connector`)
   }
@@ -389,7 +407,7 @@ export async function performCreateKnowledgeConnector(
    * its grant; a failed insert revokes it again. The id is fixed above, so the
    * policy names exactly the row about to be written.
    */
-  if (membersBinding) {
+  if (membersBinding && workspaceId) {
     try {
       await grantKnowledgeConnectorCredentialAccess(
         {
@@ -455,7 +473,7 @@ export async function performCreateKnowledgeConnector(
         }
       }
       if (membersBinding) {
-        await lockCredentialGroupOption(tx, { workspaceId, ...membersBinding })
+        await lockCredentialGroupOption(tx, { ...owner, ...membersBinding })
       }
 
       for (const [semanticId, slot] of Object.entries(newTagSlots)) {
@@ -518,7 +536,7 @@ export async function performCreateKnowledgeConnector(
       return row
     })
   } catch (error) {
-    if (membersBinding) {
+    if (membersBinding && workspaceId) {
       await revokeKnowledgeConnectorCredentialAccess(
         { workspaceId, credentialGroupId: membersBinding.credentialGroupId, connectorId },
         params.userId
@@ -533,10 +551,11 @@ export async function performCreateKnowledgeConnector(
   }
 
   if (reused && membersBinding) {
-    await revokeKnowledgeConnectorCredentialAccess(
-      { workspaceId, credentialGroupId: membersBinding.credentialGroupId, connectorId },
-      params.userId
-    )
+    if (workspaceId)
+      await revokeKnowledgeConnectorCredentialAccess(
+        { workspaceId, credentialGroupId: membersBinding.credentialGroupId, connectorId },
+        params.userId
+      )
     return { success: true, connector: withoutSecret(created), reused: true }
   }
 
@@ -548,12 +567,13 @@ export async function performCreateKnowledgeConnector(
       'knowledge_base_connector_added',
       {
         knowledge_base_id: kb.id,
-        workspace_id: workspaceId,
+        workspace_id: workspaceId ?? undefined,
+        organization_id: kb.organizationId ?? undefined,
         connector_type: connectorType,
         sync_interval_minutes: syncIntervalMinutes,
       },
       {
-        groups: { workspace: workspaceId },
+        groups: workspaceId ? { workspace: workspaceId } : { organization: kb.organizationId! },
         setOnce: { first_connector_added_at: new Date().toISOString() },
       }
     )
@@ -747,12 +767,17 @@ export async function performUpdateKnowledgeConnector(
   }
 
   if (updates.syncIntervalMinutes !== undefined) {
-    if (!kb.workspaceId && updates.syncIntervalMinutes > 0 && updates.syncIntervalMinutes < 60) {
+    if (
+      !kb.workspaceId &&
+      !kb.organizationId &&
+      updates.syncIntervalMinutes > 0 &&
+      updates.syncIntervalMinutes < 60
+    ) {
       return fail('Knowledge base is missing workspace billing context', 'conflict')
     }
-    if (kb.workspaceId) {
+    if (kb.workspaceId || kb.organizationId) {
       try {
-        await assertLiveSyncAllowed(kb.workspaceId, updates.syncIntervalMinutes)
+        await assertLiveSyncAllowed(resourceScopeFromOwner(kb), updates.syncIntervalMinutes)
       } catch (error) {
         return classifyKnowledgeFailure(error, requestId, `Update connector ${connectorId}`)
       }
@@ -1223,7 +1248,7 @@ export async function performSyncKnowledgeConnector(
   if (connector.status === 'paused' || connector.status === 'disabled') {
     return fail(`Connector is ${connector.status}. Resume it before triggering a sync.`, 'conflict')
   }
-  if (!kb.workspaceId) {
+  if (!kb.workspaceId && !kb.organizationId) {
     return fail('Knowledge base is missing workspace billing context', 'conflict')
   }
   // Resolved before the audit is written, so a rejected payer lookup returns a

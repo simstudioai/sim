@@ -12,11 +12,12 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { ChevronLeft } from '@sim/emcn/icons'
+import { Building, ChevronLeft, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
   type DesktopSettingsSurface,
+  getOrganizationSettingsHref,
   isSelfHostedOverrideEnabled,
   ORGANIZATION_PLANE_UNIFIED_SECTIONS,
 } from '@/components/settings/navigation'
@@ -144,6 +145,9 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (hostContext.hostOrganizationId && ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id)) {
+        return false
+      }
       if (item.requiresSelfHosted && hosted) {
         return false
       }
@@ -359,7 +363,13 @@ export function SettingsSidebar({
                 .filter((item) => item.section === key)
                 .sort((left, right) => left.order - right.order),
             }))
-            .filter(({ items }) => items.length > 0)
+            .filter(
+              ({ key, items }) =>
+                items.length > 0 ||
+                (key === 'organization' &&
+                  hostContext.hostOrganizationId &&
+                  hostContext.viewer.isHostOrganizationMember)
+            )
             .map(({ key, title, items: sectionItems }, index) => (
               <SidebarSection
                 key={key}
@@ -368,6 +378,35 @@ export function SettingsSidebar({
                 className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'shrink-0')}
               >
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                  {key === 'organization' &&
+                    hostContext.hostOrganizationId &&
+                    hostContext.viewer.isHostOrganizationMember && (
+                      <SidebarTooltip label='Organization' enabled={showCollapsedTooltips}>
+                        <SettingsIntentLink
+                          href={getOrganizationSettingsHref(
+                            hostContext.hostOrganizationId,
+                            'members'
+                          )}
+                          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+                          onNavigate={(event) => {
+                            if (!useSettingsDirtyStore.getState().isDirty) return
+                            event.preventDefault()
+                            const organizationId = hostContext.hostOrganizationId
+                            if (organizationId)
+                              requestLeave(() =>
+                                router.push(getOrganizationSettingsHref(organizationId, 'members'))
+                              )
+                          }}
+                        >
+                          <Building className={chipContentIconClass} />
+                          <OverflowText
+                            label='Organization'
+                            className='sidebar-collapse-hide text-[var(--text-body)]'
+                          />
+                          <SquareArrowUpRight className='sidebar-collapse-hide ml-auto size-[14px] text-[var(--text-icon)]' />
+                        </SettingsIntentLink>
+                      </SidebarTooltip>
+                    )}
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id

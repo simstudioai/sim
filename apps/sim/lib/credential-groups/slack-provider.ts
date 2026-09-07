@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import { credentialGroup } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
+import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type {
   CredentialGroupProviderAdapter,
@@ -30,7 +32,8 @@ import type { DbOrTx } from '@/lib/db/types'
 const PROVIDER = 'slack' as const
 
 async function getSlackPolicy(params: {
-  workspaceId: string
+  workspaceId?: string | null
+  organizationId?: string | null
   credentialGroupId: string
   slackBotCredentialId?: string
   requiredScopes?: readonly string[]
@@ -45,7 +48,7 @@ async function getSlackPolicy(params: {
   }
 > {
   const managed = await getSlackCredentialGroupConfiguration({
-    workspaceId: params.workspaceId,
+    ...resourceScopeColumns(resourceScopeFromOwner(params)),
     credentialGroupId: params.credentialGroupId,
     ...(params.executor ? { executor: params.executor } : {}),
   })
@@ -58,7 +61,7 @@ async function getSlackPolicy(params: {
     )
   }
   const app = await getSlackCustomBotCredential({
-    workspaceId: params.workspaceId,
+    ...resourceScopeColumns(resourceScopeFromOwner(params)),
     credentialId: managed.slackBotCredentialId,
     ...(params.executor ? { executor: params.executor } : {}),
   })
@@ -123,7 +126,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
         .where(
           and(
             eq(credentialGroup.id, context.credentialGroupId),
-            eq(credentialGroup.workspaceId, context.workspaceId),
+            resourceScopeCondition(credentialGroup, resourceScopeFromOwner(context)),
             eq(credentialGroup.status, 'active')
           )
         )
@@ -142,7 +145,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
     }
     const slackBotCredentialId = option?.slackBotCredentialId
     return getSlackPolicy({
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
       requiredScopes: option?.requiredScopes,
       ...(slackBotCredentialId ? { slackBotCredentialId } : {}),
@@ -151,7 +154,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
   },
   async prepareAuthorization(context, policy) {
     const currentPolicy = await getSlackPolicy({
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
       requiredScopes: context.option.requiredScopes,
@@ -178,7 +181,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
   },
   async exchangeAndVerify({ context, attempt, code, policy }) {
     const currentPolicy = await getSlackPolicy({
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
       requiredScopes: context.option.requiredScopes,

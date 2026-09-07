@@ -11,7 +11,10 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import type { InternalSelectorKey } from '@/lib/selectors/manifest'
-import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
+import {
+  SelectorContextUnavailableError,
+  SelectorOptionsUnavailableError,
+} from '@/lib/selectors/server/errors'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,
@@ -72,6 +75,7 @@ export const internalSelectorAttachments = {
   'knowledge.documents': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const knowledgeBaseId = args.context.knowledgeBaseId!
       if (args.request.kind === 'detail') {
         const result = await readKnowledgeDocument.execute({
@@ -113,6 +117,7 @@ export const internalSelectorAttachments = {
   'sim.workflows': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const workflows = (await loadWorkflows(args.principal, args.workspaceId)).filter(
         (workflow) => workflow.id !== args.context.excludeWorkflowId
       )
@@ -141,6 +146,7 @@ export const internalSelectorAttachments = {
   'table.columns': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const { table } = await readTableUseCase.execute({
         principal: args.principal,
         input: { tableId: args.context.tableId!, workspaceId: args.workspaceId },
@@ -158,6 +164,7 @@ export const internalSelectorAttachments = {
   'table.outputColumns': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const { table } = await readTableUseCase.execute({
         principal: args.principal,
         input: { tableId: args.context.tableId!, workspaceId: args.workspaceId },
@@ -176,6 +183,7 @@ export const internalSelectorAttachments = {
   'workspace.credentialProviders': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const result = await listInternalCredentials.execute({
         principal: args.principal,
         input: { workspaceId: args.workspaceId, type: 'oauth' },
@@ -205,6 +213,7 @@ export const internalSelectorAttachments = {
   'workspace.credentialGroupProviders': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const { credentialGroup: group } = await getWorkspaceAccountsSettings.execute({
         principal: args.principal,
         input: { workspaceId: args.workspaceId },
@@ -226,6 +235,7 @@ export const internalSelectorAttachments = {
   'workspace.secretNames': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const names = await getEffectiveEnvironmentVariableNames(
         args.requesterUserId,
         args.workspaceId
@@ -236,6 +246,7 @@ export const internalSelectorAttachments = {
   'workspace.rawSecretNames': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const result = await listInternalCredentials.execute({
         principal: args.principal,
         input: { workspaceId: args.workspaceId },
@@ -256,6 +267,7 @@ export const internalSelectorAttachments = {
   'workspace.sandboxes': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       const sandboxes = await listWorkspaceSandboxes(args.workspaceId)
       const language = args.context.language
       if (args.request.kind === 'detail') {
@@ -279,6 +291,7 @@ export const internalSelectorAttachments = {
   'providers.ollamaEmbeddingModels': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       if (isProviderBlacklisted('ollama')) return listSelectorResult([])
       const models = await fetchOllamaEmbeddingModelCatalog(args.signal)
       return listSelectorResult(
@@ -300,6 +313,7 @@ export const internalSelectorAttachments = {
   'providers.openrouterEmbeddingModels': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
       if (isProviderBlacklisted('openrouter')) return listSelectorResult([])
       const models = filterBlacklistedModels(
         (await fetchOpenRouterEmbeddingModelCatalog(args.signal)).map((model) => model.id)

@@ -1,2 +1,6 @@
-export { OrganizationPage, type OrganizationPageTab } from './organization-page'
-export { useOrganizationPageFilters } from './use-organization-page-filters'
+export {
+  OrganizationPage,
+  OrganizationPageLoading,
+  type OrganizationPageTab,
+} from '@/app/o/[organizationId]/components/organization-page/organization-page'
+export { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'

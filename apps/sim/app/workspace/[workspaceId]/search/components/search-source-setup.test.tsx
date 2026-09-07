@@ -111,7 +111,34 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () =>
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canAdmin: mocks.canAdmin }),
 }))
+vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope', () => ({
+  useConnectorScope: (
+    scope?:
+      | { kind: 'workspace'; workspaceId: string }
+      | { kind: 'organization'; organizationId: string }
+  ) => ({
+    scope: scope ?? { kind: 'workspace', workspaceId: 'workspace-1' },
+    canAdmin: mocks.canAdmin,
+    memberAccessAvailable: mocks.features.knowledgeMemberAccess,
+    mirroredAccessAvailable: mocks.features.knowledgeSourceMirroredAccess,
+    hasMaxAccess: true,
+  }),
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
+  useSearchIndex: (
+    scope: { workspaceId?: string; organizationId?: string },
+    options: { enabled: boolean }
+  ) => {
+    mocks.basesQuery(scope.workspaceId ?? scope.organizationId, options)
+    return {
+      data: { knowledgeBaseId: mocks.bases.find((base) => base.isSearchIndex)?.id ?? null },
+      isPending: mocks.basesPending,
+      isError: Boolean(mocks.basesError),
+      error: mocks.basesError,
+      isFetching: false,
+      refetch: mocks.refetchBases,
+    }
+  },
   useCreateConnector: () => ({ mutate: mocks.create, isPending: mocks.createPending }),
   useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.updatePending }),
   useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
@@ -137,19 +164,6 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
   useExcludeConnectorDocument: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreConnectorDocument: () => ({ mutate: vi.fn(), isPending: false }),
 }))
-vi.mock('@/hooks/queries/kb/knowledge', () => ({
-  useKnowledgeBasesQuery: (id: string, options: { enabled: boolean }) => {
-    mocks.basesQuery(id, options)
-    return {
-      data: mocks.bases,
-      isPending: mocks.basesPending,
-      isError: Boolean(mocks.basesError),
-      error: mocks.basesError,
-      isFetching: false,
-      refetch: mocks.refetchBases,
-    }
-  },
-}))
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   useOAuthCredentials: () => ({
     data: mocks.credentials,
@@ -157,8 +171,8 @@ vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
     refetch: vi.fn(),
   }),
 }))
-vi.mock('@/hooks/queries/credential-groups', () => ({
-  useWorkspaceAccounts: () => ({
+vi.mock('@/hooks/queries/source-accounts', () => ({
+  useSourceAccounts: () => ({
     data: { credentialGroup: mocks.credentialGroup },
     isLoading: false,
     isPending: false,

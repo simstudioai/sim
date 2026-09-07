@@ -1,3 +1,5 @@
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   type SearchSetupReturnSource,
   searchSetupParam,
@@ -12,16 +14,32 @@ export function searchSetupDestination(path: string, source: SearchSetupReturnSo
 }
 
 export function searchSetupReturnHref(
-  workspaceId: string,
+  owner: string | ResourceScope,
   source: SearchSetupReturnSource
 ): string {
-  const path = `/workspace/${workspaceId}/search`
+  const scope =
+    typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+  const path =
+    scope.kind === 'organization'
+      ? organizationRoutes(scope.organizationId).integrations
+      : `/workspace/${scope.workspaceId}/search`
   return source === 'search'
     ? path
     : `${path}?${new URLSearchParams({ [searchSetupParam.key]: source })}`
 }
 
 /** Opens the Slack account configuration within the existing settings surface. */
-export function slackSearchSetupHref(workspaceId: string, source: 'slack' | 'search'): string {
-  return `${searchSetupDestination(`/workspace/${workspaceId}/settings/credential-groups`, source)}&${new URLSearchParams({ [credentialGroupProviderSearchParam.key]: 'slack' })}`
+export function slackSearchSetupHref(
+  owner: string | ResourceScope,
+  source: 'slack' | 'search'
+): string {
+  const scope =
+    typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+  const path =
+    scope.kind === 'organization'
+      ? organizationRoutes(scope.organizationId).integrations
+      : `/workspace/${scope.workspaceId}/settings/credential-groups`
+  const providerKey =
+    scope.kind === 'organization' ? 'connectedAccounts' : credentialGroupProviderSearchParam.key
+  return `${searchSetupDestination(path, source)}&${new URLSearchParams({ [providerKey]: 'slack' })}`
 }

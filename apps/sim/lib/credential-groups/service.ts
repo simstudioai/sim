@@ -12,12 +12,19 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decodeCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
+import { credentialGroupScope } from '@/lib/credential-groups/scope'
 import { resolveSlackManagedUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type {
   CredentialGroupMcpServer,
@@ -25,8 +32,17 @@ import type {
   CredentialGroupRecord,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
-import { createWorkspaceAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
+import {
+  createOrganizationAccountsGroup,
+  createWorkspaceAccountsGroup,
+} from '@/lib/credential-groups/workspace-accounts'
 import type { DbOrTx } from '@/lib/db/types'
+
+type WorkspaceCredentialGroupRecord = CredentialGroupRecord & { workspaceId: string }
+type OrganizationCredentialGroupRecord = CredentialGroupRecord & {
+  workspaceId: null
+  organizationId: string
+}
 
 async function listLinkedMcpServers(
   credentialGroupId: string,
@@ -65,14 +81,14 @@ function scopesEqual(left: string[], right: string[]): boolean {
 }
 
 async function buildOption(
-  workspaceId: string,
+  scope: ResourceScope,
   option: CredentialGroupOptionInput,
   credentialGroupId?: string,
   executor: DbOrTx = db
 ): Promise<CredentialGroupOptionConfig> {
   const providerConfig = await getCredentialGroupProviderAdapter(option.provider).getPolicy(
     option,
-    { workspaceId, credentialGroupId, executor }
+    { ...resourceScopeFields(scope), credentialGroupId, executor }
   )
   return {
     id: generateId(),
@@ -88,7 +104,7 @@ async function buildOption(
 }
 
 async function updateOptions(
-  workspaceId: string,
+  scope: ResourceScope,
   credentialGroupId: string,
   inputs: NonNullable<UpdateCredentialGroupInput['options']>,
   existingOptions: CredentialGroupOptionConfig[],
@@ -97,7 +113,7 @@ async function updateOptions(
   const existingById = new Map(existingOptions.map((option) => [option.id, option]))
   return Promise.all(
     inputs.map(async (input) => {
-      if (!input.id) return buildOption(workspaceId, input, credentialGroupId, executor)
+      if (!input.id) return buildOption(scope, input, credentialGroupId, executor)
       const existing = existingById.get(input.id)
       if (!existing) throw new Error(`Credential group option ${input.id} does not exist`)
       if (input.provider !== existing.provider) {
@@ -106,7 +122,7 @@ async function updateOptions(
 
       const providerConfig = await getCredentialGroupProviderAdapter(input.provider).getPolicy(
         { ...input, requiredScopes: existing.requiredScopes },
-        { workspaceId, credentialGroupId, executor }
+        { ...resourceScopeFields(scope), credentialGroupId, executor }
       )
       return {
         id: existing.id,
@@ -133,6 +149,7 @@ async function toCredentialGroup(
   return {
     id: row.id,
     workspaceId: row.workspaceId,
+    ...(row.organizationId ? { organizationId: row.organizationId } : {}),
     name: row.name,
     description: row.description,
     options: row.options.map((option) => {
@@ -180,23 +197,40 @@ async function toCredentialGroup(
 
 export async function getWorkspaceAccountsGroup(
   workspaceId: string
-): Promise<CredentialGroupRecord | null> {
+): Promise<WorkspaceCredentialGroupRecord | null> {
   const [row] = await db
     .select()
     .from(credentialGroup)
     .where(eq(credentialGroup.workspaceId, workspaceId))
     .limit(1)
-  return row ? toCredentialGroup(row, await listLinkedMcpServers(row.id)) : null
+  if (!row?.workspaceId) return null
+  return {
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    workspaceId: row.workspaceId,
+  }
 }
 
-export async function getCredentialGroup(
+export function getCredentialGroup(
+  scope: Extract<ResourceScope, { kind: 'organization' }>,
+  groupId: string
+): Promise<OrganizationCredentialGroupRecord | null>
+export function getCredentialGroup(
   workspaceId: string,
   groupId: string
+): Promise<WorkspaceCredentialGroupRecord | null>
+export function getCredentialGroup(
+  scope: ResourceScope,
+  groupId: string
+): Promise<CredentialGroupRecord | null>
+export async function getCredentialGroup(
+  scopeInput: string | ResourceScope,
+  groupId: string
 ): Promise<CredentialGroupRecord | null> {
+  const scope = credentialGroupScope(scopeInput)
   const [row] = await db
     .select()
     .from(credentialGroup)
-    .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+    .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
     .limit(1)
   return row ? toCredentialGroup(row, await listLinkedMcpServers(row.id)) : null
 }
@@ -205,26 +239,40 @@ export async function getCredentialGroup(
  * Settings and Search share the workspace container, provisioned on demand for older workspaces.
  * Provider policy is resolved before the transaction; only database provisioning holds the lock.
  */
-export async function ensureWorkspaceAccountsGroup(
+export function ensureWorkspaceAccountsGroup(
+  scope: Extract<ResourceScope, { kind: 'organization' }>,
+  userId: string,
+  option?: CredentialGroupOptionInput
+): Promise<OrganizationCredentialGroupRecord & { created: boolean }>
+export function ensureWorkspaceAccountsGroup(
   workspaceId: string,
   userId: string,
   option?: CredentialGroupOptionInput
+): Promise<WorkspaceCredentialGroupRecord & { created: boolean }>
+export function ensureWorkspaceAccountsGroup(
+  scope: ResourceScope,
+  userId: string,
+  option?: CredentialGroupOptionInput
+): Promise<CredentialGroupRecord & { created: boolean }>
+export async function ensureWorkspaceAccountsGroup(
+  scopeInput: string | ResourceScope,
+  userId: string,
+  option?: CredentialGroupOptionInput
 ): Promise<CredentialGroupRecord & { created: boolean }> {
+  const scope = credentialGroupScope(scopeInput)
   if (option?.provider === 'slack') {
     throw new OrchestrationError('validation', 'Configure Slack sign-in in Connected accounts')
   }
-  const preparedOption = option
-    ? await buildOption(workspaceId, { ...option, required: false })
-    : null
+  const preparedOption = option ? await buildOption(scope, { ...option, required: false }) : null
   let wasCreated = false
   const row = await db.transaction(async (tx) => {
     await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`search-accounts:${workspaceId}`}, 0))`
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`search-accounts:${resourceScopeKey(scope)}`}, 0))`
     )
     const [existing] = await tx
       .select()
       .from(credentialGroup)
-      .where(eq(credentialGroup.workspaceId, workspaceId))
+      .where(resourceScopeCondition(credentialGroup, scope))
       .limit(1)
       .for('update')
     if (existing) {
@@ -258,20 +306,26 @@ export async function ensureWorkspaceAccountsGroup(
         }
         return existing
       }
-      const [policy] = await tx
-        .select({ document: resourcePolicy.document })
-        .from(resourcePolicy)
-        .where(
-          and(
-            eq(resourcePolicy.resourceType, 'credential_group'),
-            eq(resourcePolicy.resourceId, existing.id),
-            eq(resourcePolicy.workspaceId, workspaceId)
-          )
-        )
-        .limit(1)
-        .for('update')
-      if (!policy) throw new Error('Connected accounts has no resource policy')
-      const workflowAccess = decodeCredentialGroupWorkflowAccessPolicy(policy.document, existing.id)
+      const [policy] =
+        scope.kind === 'workspace'
+          ? await tx
+              .select({ document: resourcePolicy.document })
+              .from(resourcePolicy)
+              .where(
+                and(
+                  eq(resourcePolicy.resourceType, 'credential_group'),
+                  eq(resourcePolicy.resourceId, existing.id),
+                  eq(resourcePolicy.workspaceId, scope.workspaceId)
+                )
+              )
+              .limit(1)
+              .for('update')
+          : []
+      if (scope.kind === 'workspace' && !policy)
+        throw new Error('Connected accounts has no resource policy')
+      const workflowAccess = policy
+        ? decodeCredentialGroupWorkflowAccessPolicy(policy.document, existing.id)
+        : []
       const linkedMcpServers = await listLinkedMcpServers(existing.id, tx)
       if (workflowAccess.length > 0 || linkedMcpServers.length > 0) {
         throw new OrchestrationError(
@@ -300,12 +354,20 @@ export async function ensureWorkspaceAccountsGroup(
       if (!updated) throw new Error('Search accounts update returned no row')
       return updated
     }
-    const created = await createWorkspaceAccountsGroup(
-      tx,
-      workspaceId,
-      userId,
-      preparedOption ? [preparedOption] : []
-    )
+    const created =
+      scope.kind === 'workspace'
+        ? await createWorkspaceAccountsGroup(
+            tx,
+            scope.workspaceId,
+            userId,
+            preparedOption ? [preparedOption] : []
+          )
+        : await createOrganizationAccountsGroup(
+            tx,
+            scope.organizationId,
+            userId,
+            preparedOption ? [preparedOption] : []
+          )
     wasCreated = true
     return created
   })
@@ -328,7 +390,7 @@ export async function ensureWorkspaceAccountsGroup(
  */
 async function refuseIfServingMemberConnectors(
   executor: DbOrTx,
-  workspaceId: string,
+  scope: ResourceScope,
   groupId: string,
   optionIds: readonly string[]
 ): Promise<void> {
@@ -342,7 +404,7 @@ async function refuseIfServingMemberConnectors(
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
     .where(
       and(
-        eq(knowledgeBase.workspaceId, workspaceId),
+        resourceScopeCondition(knowledgeBase, scope),
         eq(knowledgeConnector.accessMode, 'members'),
         eq(knowledgeConnector.credentialGroupId, groupId),
         inArray(knowledgeConnector.credentialGroupOptionId, [...optionIds]),
@@ -360,16 +422,32 @@ async function refuseIfServingMemberConnectors(
   )
 }
 
-export async function updateCredentialGroup(
+export function updateCredentialGroup(
+  scope: Extract<ResourceScope, { kind: 'organization' }>,
+  groupId: string,
+  body: UpdateCredentialGroupInput
+): Promise<OrganizationCredentialGroupRecord | null>
+export function updateCredentialGroup(
   workspaceId: string,
   groupId: string,
   body: UpdateCredentialGroupInput
+): Promise<WorkspaceCredentialGroupRecord | null>
+export function updateCredentialGroup(
+  scope: ResourceScope,
+  groupId: string,
+  body: UpdateCredentialGroupInput
+): Promise<CredentialGroupRecord | null>
+export async function updateCredentialGroup(
+  scopeInput: string | ResourceScope,
+  groupId: string,
+  body: UpdateCredentialGroupInput
 ): Promise<CredentialGroupRecord | null> {
+  const scope = credentialGroupScope(scopeInput)
   return db.transaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(credentialGroup)
-      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+      .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
       .limit(1)
       .for('update')
     if (!existing) return null
@@ -378,7 +456,7 @@ export async function updateCredentialGroup(
       const keptOptionIds = new Set(body.options.map((option) => option.id))
       await refuseIfServingMemberConnectors(
         tx,
-        workspaceId,
+        scope,
         groupId,
         existing.options
           .filter((option) => !keptOptionIds.has(option.id))
@@ -387,7 +465,7 @@ export async function updateCredentialGroup(
     }
     const nextOptions =
       body.options !== undefined
-        ? await updateOptions(workspaceId, groupId, body.options, existing.options, tx)
+        ? await updateOptions(scope, groupId, body.options, existing.options, tx)
         : existing.options
     const keepsSlack = nextOptions.some((option) => option.provider === 'slack')
     const encryptedProviderConfiguration = keepsSlack
@@ -415,7 +493,7 @@ export async function updateCredentialGroup(
         ...(body.status !== undefined ? { status: body.status } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+      .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
       .returning()
 
     if (!updated) throw new Error('Credential group update returned no row')
@@ -437,4 +515,21 @@ export async function updateCredentialGroup(
     }
     return toCredentialGroup(updated, await listLinkedMcpServers(updated.id, tx))
   })
+}
+
+/** Reads the single account container belonging to an organization. */
+export async function getOrganizationAccountsGroup(
+  organizationId: string
+): Promise<OrganizationCredentialGroupRecord | null> {
+  const [row] = await db
+    .select()
+    .from(credentialGroup)
+    .where(resourceScopeCondition(credentialGroup, { kind: 'organization', organizationId }))
+    .limit(1)
+  if (!row?.organizationId || row.workspaceId) return null
+  return {
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    workspaceId: null,
+    organizationId: row.organizationId,
+  }
 }

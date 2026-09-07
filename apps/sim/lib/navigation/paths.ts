@@ -33,6 +33,8 @@ export function organizationRoutes(organizationId: string) {
     home: `${root}/home`,
     integrations: `${root}/integrations`,
     skills: `${root}/skills`,
+    settings: `${root}/settings`,
+    settingsSection: (section: string) => `${root}/settings/${section}`,
     workspaces: `${root}/workspaces`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
   } as const

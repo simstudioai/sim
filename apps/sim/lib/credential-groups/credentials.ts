@@ -6,9 +6,12 @@ import {
   credentialGroup,
   credentialGroupEnrollment,
   foldedEmail,
+  member,
   user,
 } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
   getCredentialGroupProviderId,
   isCredentialGroupProvider,
@@ -50,7 +53,8 @@ export interface CredentialGroupOptionCredentialReference
 /** Where a managed credential sits: its group and the option it was collected under. */
 export interface ManagedCredentialGroupBinding {
   credentialId: string
-  workspaceId: string
+  workspaceId: string | null
+  organizationId?: string | null
   providerId: string
   credentialGroupId: string
   credentialGroupOptionId: string
@@ -98,7 +102,8 @@ export class CredentialGroupCredentialCursorNotFoundError extends Error {
 }
 
 interface ListCredentialGroupCredentialReferencesInput {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
   limit: number
   cursor?: string
@@ -108,7 +113,8 @@ interface ListCredentialGroupCredentialReferencesInput {
 }
 
 interface ListCredentialGroupOptionCredentialReferencesInput {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
   credentialGroupOptionId: string
   limit: number
@@ -203,7 +209,7 @@ async function loadCredentialGroupContext(
     .from(credentialGroup)
     .where(scope)
     .limit(1)
-  return row ?? null
+  return row?.workspaceId ? { ...row, workspaceId: row.workspaceId } : null
 }
 
 /** Loads where a managed credential sits without selecting token material. */
@@ -213,7 +219,9 @@ export async function loadManagedCredentialGroupBinding(
   const [row] = await db
     .select({
       credentialId: credential.id,
+      createdBy: credential.createdBy,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       providerId: credential.providerId,
       credentialGroupId: credentialGroupEnrollment.credentialGroupId,
       credentialGroupOptionId: credential.credentialGroupOptionId,
@@ -228,9 +236,35 @@ export async function loadManagedCredentialGroupBinding(
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .where(and(eq(credential.id, credentialId), eq(credential.type, 'managed_oauth')))
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        eq(credential.type, 'managed_oauth'),
+        or(
+          and(
+            eq(credential.workspaceId, credentialGroup.workspaceId),
+            isNull(credential.organizationId),
+            isNull(credentialGroup.organizationId)
+          ),
+          and(
+            eq(credential.organizationId, credentialGroup.organizationId),
+            isNull(credential.workspaceId),
+            isNull(credentialGroup.workspaceId)
+          )
+        )
+      )
+    )
     .limit(1)
   if (!row) return null
+  if (row.organizationId) {
+    if (!row.createdBy) return null
+    const [membership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.organizationId, row.organizationId), eq(member.userId, row.createdBy)))
+      .limit(1)
+    if (!membership) return null
+  }
   if (!row.providerId) throw new Error(`Managed credential ${row.credentialId} has no provider ID`)
   if (!row.credentialGroupOptionId) {
     throw new Error(`Managed credential ${row.credentialId} has no credential option`)
@@ -241,6 +275,7 @@ export async function loadManagedCredentialGroupBinding(
   return {
     credentialId: row.credentialId,
     workspaceId: row.workspaceId,
+    organizationId: row.organizationId,
     providerId: row.providerId,
     credentialGroupId: row.credentialGroupId,
     credentialGroupOptionId: row.credentialGroupOptionId,
@@ -358,6 +393,7 @@ function toCredentialReference(
 /** Lists one bounded page of active managed credentials without selecting token material. */
 export async function listCredentialGroupCredentialReferences({
   workspaceId,
+  organizationId,
   credentialGroupId,
   limit,
   cursor,
@@ -375,7 +411,7 @@ export async function listCredentialGroupCredentialReferences({
 
   const page = await pageCredentialReferences(
     [
-      eq(credential.workspaceId, workspaceId),
+      resourceScopeCondition(credential, resourceScopeFromOwner({ workspaceId, organizationId })),
       eq(credential.type, 'managed_oauth'),
       eq(credential.managedOauthStatus, 'active'),
       eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
@@ -400,6 +436,7 @@ export async function listCredentialGroupCredentialReferences({
  */
 export async function listCredentialGroupOptionCredentialReferences({
   workspaceId,
+  organizationId,
   credentialGroupId,
   credentialGroupOptionId,
   limit,
@@ -410,7 +447,7 @@ export async function listCredentialGroupOptionCredentialReferences({
 }> {
   const page = await pageCredentialReferences(
     [
-      eq(credential.workspaceId, workspaceId),
+      resourceScopeCondition(credential, resourceScopeFromOwner({ workspaceId, organizationId })),
       eq(credential.type, 'managed_oauth'),
       eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
       eq(credential.credentialGroupOptionId, credentialGroupOptionId),
@@ -431,4 +468,29 @@ export async function listCredentialGroupOptionCredentialReferences({
     }),
     nextCursor: page.nextCursor,
   }
+}
+
+/** Resolves an account container using its explicit ownership, without token material. */
+export async function loadScopedAccountsCredentialListContext(
+  scope: ResourceScope,
+  credentialGroupId?: string
+) {
+  const [row] = await db
+    .select({
+      credentialGroupId: credentialGroup.id,
+      workspaceId: credentialGroup.workspaceId,
+      organizationId: credentialGroup.organizationId,
+      name: credentialGroup.name,
+      status: credentialGroup.status,
+      options: credentialGroup.options,
+    })
+    .from(credentialGroup)
+    .where(
+      and(
+        resourceScopeCondition(credentialGroup, scope),
+        credentialGroupId ? eq(credentialGroup.id, credentialGroupId) : undefined
+      )
+    )
+    .limit(1)
+  return row ?? null
 }

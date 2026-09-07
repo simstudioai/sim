@@ -16,7 +16,7 @@ export const GET = defineInternalJsonRoute({
     reason: 'Workspace source summaries for the Search page and indexing status polling',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ query }) => ({ workspaceId: query.workspaceId }),
+  mapInput: ({ query }) => query,
   useCase: listSearchSources,
   present: ({ sources }) => ({ success: true as const, data: sources }),
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },

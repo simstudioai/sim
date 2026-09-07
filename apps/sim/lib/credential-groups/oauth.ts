@@ -1,9 +1,17 @@
 import { db } from '@sim/db'
-import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
+import { credential, credentialGroup, credentialGroupEnrollment, member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne, sql } from 'drizzle-orm'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
+import {
+  resourceScopeColumns,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
   type CredentialGroupOAuthContext,
   lockCredentialGroupEnrollmentLifecycle,
@@ -77,7 +85,7 @@ async function assertCurrentPolicy(
   attempt?: CredentialGroupOAuthAttempt
 ): Promise<CredentialGroupProviderPolicy> {
   const policy = await adapter.getPolicy(context.option, {
-    workspaceId: context.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(context)),
     credentialGroupId: context.credentialGroupId,
   })
   const optionMatches = context.option.provider === policy.provider
@@ -109,7 +117,7 @@ export async function startCredentialGroupOAuth(
   const prepared = await adapter.prepareAuthorization(context, policy)
   const { state, nonce } = await createCredentialGroupOAuthAttempt({
     provider: policy.provider,
-    workspaceId: context.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(context)),
     email: context.email,
     enrollmentId: context.enrollmentId,
     credentialGroupId: context.credentialGroupId,
@@ -137,6 +145,24 @@ async function persistGrant(
   }
 
   const completion: CredentialGroupOAuthCompletion = await db.transaction(async (tx) => {
+    if (context.organizationId) {
+      if (!context.credentialOwnerId) throw new CredentialGroupInvitationUnavailableError()
+      await acquireOrganizationUserMutationLocks(tx, {
+        userId: context.credentialOwnerId,
+        organizationIds: [context.organizationId],
+      })
+      const [membership] = await tx
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(
+            eq(member.organizationId, context.organizationId),
+            eq(member.userId, context.credentialOwnerId)
+          )
+        )
+        .limit(1)
+      if (!membership) throw new CredentialGroupInvitationUnavailableError()
+    }
     await lockCredentialGroupEnrollmentLifecycle(tx, context.enrollmentId)
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
@@ -165,7 +191,7 @@ async function persistGrant(
       .where(
         and(
           eq(credentialGroup.id, context.credentialGroupId),
-          eq(credentialGroup.workspaceId, context.workspaceId)
+          resourceScopeCondition(credentialGroup, resourceScopeFromOwner(context))
         )
       )
       .limit(1)
@@ -184,7 +210,7 @@ async function persistGrant(
       )
     }
     const currentPolicy = await adapter.getPolicy(currentOption, {
-      workspaceId: context.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
       executor: tx,
     })
@@ -236,7 +262,7 @@ async function persistGrant(
     const now = new Date()
     const service = getCredentialGroupProviderService(policy.provider)
     const values = {
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       type: 'managed_oauth' as const,
       displayName: grant.displayName,
       description: `Managed ${service.name} account for ${context.workspaceName}`,
@@ -275,7 +301,7 @@ async function persistGrant(
         .values({
           id: generateId(),
           ...values,
-          createdBy: context.workspaceOwnerId,
+          createdBy: context.credentialOwnerId ?? context.workspaceOwnerId,
           createdAt: now,
         })
         .returning({ id: credential.id })
@@ -322,7 +348,7 @@ async function persistGrant(
       '@/lib/knowledge/connectors/member-queue'
     )
     await dispatchMemberSyncsForCredentialOption({
-      workspaceId: context.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(context)),
       credentialGroupOptionId: context.option.id,
     })
   } catch (error) {
@@ -341,7 +367,7 @@ export async function completeCredentialGroupOAuth(
   code: string
 ): Promise<CredentialGroupOAuthCompletion> {
   if (
-    attempt.workspaceId !== context.workspaceId ||
+    !sameResourceScope(resourceScopeFromOwner(attempt), resourceScopeFromOwner(context)) ||
     attempt.email !== context.email ||
     attempt.enrollmentId !== context.enrollmentId ||
     attempt.credentialGroupId !== context.credentialGroupId ||

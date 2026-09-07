@@ -39,6 +39,7 @@ interface BuildPayloadParams {
   workflowId?: string
   workflowName?: string
   workspaceId?: string
+  organizationId?: string
   userId: string
   userMessageId: string
   mode: string
@@ -384,7 +385,7 @@ export async function buildCopilotRequestPayload(
   let integrationTools: ToolSchema[] = []
   let mothershipTools: ToolSchema[] = []
 
-  if (effectiveMode === 'build' || isAssistant) {
+  if (!params.organizationId && (effectiveMode === 'build' || isAssistant)) {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
       { schemaSurface: 'copilot', personalAccountsOnly: isAssistant },
@@ -405,6 +406,7 @@ export async function buildCopilotRequestPayload(
     ...(!isAssistant && workflowId ? { workflowId } : {}),
     ...(!isAssistant && params.workflowName ? { workflowName: params.workflowName } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
+    ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
     ...(selectedModel ? { model: selectedModel } : {}),
     ...(provider ? { provider } : {}),
@@ -430,7 +432,8 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-    ...((!isAssistant && params.desktopLocalFilesystem) || params.browser || params.terminalCapable
+    ...(!params.organizationId &&
+    ((!isAssistant && params.desktopLocalFilesystem) || params.browser || params.terminalCapable)
       ? {
           desktopCapabilities: {
             ...(!isAssistant && params.desktopLocalFilesystem ? { localFilesystem: true } : {}),

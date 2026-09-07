@@ -6,8 +6,13 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
+import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
 import { aclIsDerived, type ContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
@@ -68,7 +73,8 @@ export interface ResolvedMembersBinding extends ConnectorMembersBinding {
  * switch, so both refuse exactly the same bindings.
  */
 export async function resolveKnowledgeConnectorMembersBinding(input: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth' | 'permissionScopedListing' | 'configFields'>
   /** The admin acting, recorded as the creator of a provisioned group. */
   actingUserId: string
@@ -78,7 +84,7 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
    * Judged by the workspace alone, as the member engine is: a person's own
    * flag clause must not open a mode the engine will then refuse to run.
    */
-  await requireKnowledgeMemberAccessAvailable({ workspaceId: input.workspaceId })
+  await requireKnowledgeMemberAccessAvailable(resourceScopeFields(resourceScopeFromOwner(input)))
   if (!input.connectorMeta.permissionScopedListing) {
     throw new OrchestrationError(
       'validation',
@@ -87,12 +93,16 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
   }
   const sourceConfig = stripListingCapFields(input.connectorMeta, input.sourceConfig)
   const binding = await provisionKnowledgeConnectorMembersBinding({
-    workspaceId: input.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(input)),
     connectorMeta: input.connectorMeta,
     userId: input.actingUserId,
   })
-  const group = await loadCredentialGroupCredentialListContext(binding.credentialGroupId)
-  if (!group || group.workspaceId !== input.workspaceId) {
+  const group = await loadScopedAccountsCredentialListContext(resourceScopeFromOwner(input))
+  if (
+    !group ||
+    group.credentialGroupId !== binding.credentialGroupId ||
+    !sameResourceScope(resourceScopeFromOwner(group), resourceScopeFromOwner(input))
+  ) {
     throw new OrchestrationError('validation', 'Credential Group was not found in this workspace')
   }
   const validation = validateKnowledgeConnectorMembersBinding({
@@ -180,7 +190,7 @@ export type ConnectorAccessTarget =
   | { accessMode: ContentEngineAccessMode; credentialId: string | null }
 
 export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOperationContext {
-  knowledgeBase: { id: string; name: string; workspaceId: string }
+  knowledgeBase: { id: string; name: string; workspaceId?: string; organizationId?: string }
   connectorId: string
   target: ConnectorAccessTarget
   resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
@@ -324,15 +334,16 @@ export async function performUpdateKnowledgeConnectorAccess(
 
   try {
     if (target.accessMode === 'members') {
-      await grantKnowledgeConnectorCredentialAccess(
-        {
-          workspaceId: kb.workspaceId,
-          credentialGroupId: target.binding.credentialGroupId,
-          credentialGroupOptionId: target.binding.credentialGroupOptionId,
-          connectorId,
-        },
-        params.userId
-      )
+      if (kb.workspaceId)
+        await grantKnowledgeConnectorCredentialAccess(
+          {
+            workspaceId: kb.workspaceId,
+            credentialGroupId: target.binding.credentialGroupId,
+            credentialGroupOptionId: target.binding.credentialGroupOptionId,
+            connectorId,
+          },
+          params.userId
+        )
       try {
         const rewritten = await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
           deadlineAt: deadlineAt,
@@ -347,7 +358,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         const flippedAt = new Date()
         await db.transaction(async (tx) => {
           await lockCredentialGroupOption(tx, {
-            workspaceId: kb.workspaceId,
+            ...resourceScopeFields(resourceScopeFromOwner(kb)),
             credentialGroupId: target.binding.credentialGroupId,
             credentialGroupOptionId: target.binding.credentialGroupOptionId,
           })
@@ -392,30 +403,31 @@ export async function performUpdateKnowledgeConnectorAccess(
          * rather than leaving the connector on none.
          */
         const previousOptionId = existing.credentialGroupOptionId
-        await (previousOptionId
-          ? grantKnowledgeConnectorCredentialAccess(
-              {
-                workspaceId: kb.workspaceId,
-                credentialGroupId: target.binding.credentialGroupId,
-                credentialGroupOptionId: previousOptionId,
-                connectorId,
-              },
-              params.userId
-            )
-          : revokeKnowledgeConnectorCredentialAccess(
-              {
-                workspaceId: kb.workspaceId,
-                credentialGroupId: target.binding.credentialGroupId,
-                connectorId,
-              },
-              params.userId
-            )
-        ).catch((undoError) => {
-          logger.error(`[${requestId}] Failed to undo the grant of an abandoned switch`, {
-            connectorId,
-            error: getErrorMessage(undoError),
+        if (kb.workspaceId)
+          await (previousOptionId
+            ? grantKnowledgeConnectorCredentialAccess(
+                {
+                  workspaceId: kb.workspaceId,
+                  credentialGroupId: target.binding.credentialGroupId,
+                  credentialGroupOptionId: previousOptionId,
+                  connectorId,
+                },
+                params.userId
+              )
+            : revokeKnowledgeConnectorCredentialAccess(
+                {
+                  workspaceId: kb.workspaceId,
+                  credentialGroupId: target.binding.credentialGroupId,
+                  connectorId,
+                },
+                params.userId
+              )
+          ).catch((undoError) => {
+            logger.error(`[${requestId}] Failed to undo the grant of an abandoned switch`, {
+              connectorId,
+              error: getErrorMessage(undoError),
+            })
           })
-        })
         throw error
       }
     }
@@ -484,9 +496,13 @@ export async function performUpdateKnowledgeConnectorAccess(
       if (!row) throw new SwitchLeaseLostError()
     })
     if (!hidesOnEntry) rewritten = await rewriteEntryAcls()
-    if (existing.credentialGroupId) {
+    if (existing.credentialGroupId && kb.workspaceId) {
       await revokeKnowledgeConnectorCredentialAccess(
-        { workspaceId: kb.workspaceId, credentialGroupId: existing.credentialGroupId, connectorId },
+        {
+          workspaceId: kb.workspaceId,
+          credentialGroupId: existing.credentialGroupId,
+          connectorId,
+        },
         params.userId
       ).catch((error) => {
         logger.error(`[${requestId}] Failed to revoke the grant after leaving members mode`, {

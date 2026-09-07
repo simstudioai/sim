@@ -121,13 +121,13 @@ export async function loadManagedMcpCredentialApplicationContext(
     .innerJoin(mcpServers, eq(mcpServers.id, credential.mcpServerId))
     .where(and(eq(credential.id, credentialId), eq(credential.type, 'managed_mcp')))
     .limit(1)
-  if (!row) return null
+  if (!row?.workspaceId) return null
   if (!row.managedConnectorId) {
     throw new Error(`Managed MCP server ${row.mcpServerId} has no connector ID`)
   }
   getManagedMcpConnector(row.managedConnectorId)
   const workspaceContext = await loadActiveWorkspaceApplicationContext(row.workspaceId)
-  return workspaceContext ? { ...workspaceContext, ...row } : null
+  return workspaceContext ? { ...row, ...workspaceContext } : null
 }
 
 export async function loadManagedMcpRuntimeCredential(
@@ -195,7 +195,7 @@ export async function loadManagedMcpRuntimeCredential(
   if (!row.tools) throw new ManagedMcpCredentialError('Managed MCP tool metadata is missing', 500)
   return {
     credentialId: row.credentialId,
-    workspaceId: row.workspaceId,
+    workspaceId,
     mcpServerId: row.mcpServerId,
     mcpServerName: row.mcpServerName,
     tokenVersion: row.encryptedTokens,

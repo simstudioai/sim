@@ -58,6 +58,7 @@ const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionOwner: vi.fn(),
   assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
 }))
 

@@ -5,7 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
+vi.mock('@/components/icons', () => ({ GmailIcon: () => null, GoogleDriveIcon: () => null }))
 
 import {
   type UseConnectorConfigFieldsOptions,
@@ -13,6 +13,7 @@ import {
   useConnectorConfigFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import type { ConnectorMeta } from '@/connectors/types'
 
 describe('useConnectorConfigFields member configuration', () => {
@@ -150,5 +151,21 @@ describe('useConnectorConfigFields member configuration', () => {
     act(() => current.handleFieldChange('label', 'Engineering'))
     expect(missingRequiredFields()).toEqual([])
     expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering'] })
+  })
+
+  it('hides mirrored sharing settings for members without discarding a saved central policy', () => {
+    const field = googleDriveConnectorMeta.configFields.find((field) => field.id === 'openSharing')!
+    render({
+      connectorConfig: googleDriveConnectorMeta,
+      accessMode: 'members',
+      initialSourceConfig: { openSharing: 'domain' },
+    })
+
+    expect(current!.isFieldVisible(field)).toBe(false)
+    expect(current!.resolveSourceConfig()).toMatchObject({ openSharing: 'domain' })
+
+    render({ connectorConfig: googleDriveConnectorMeta, accessMode: 'admin' })
+    expect(current!.isFieldVisible(field)).toBe(true)
+    expect(current!.resolveSourceConfig()).toMatchObject({ openSharing: 'domain' })
   })
 })

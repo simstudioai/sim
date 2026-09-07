@@ -571,7 +571,10 @@ describe('knowledge connector application use cases', () => {
       mocks.updateConnector.mock.invocationCallOrder[0]
     )
     expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
-    expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith('credential-1', 'workspace-a')
+    expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith('credential-1', {
+      kind: 'workspace',
+      workspaceId: 'workspace-a',
+    })
     expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
       'credential-1',
       'credential-owner',

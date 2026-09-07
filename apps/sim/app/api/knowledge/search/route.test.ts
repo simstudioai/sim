@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ search: vi.fn() }))
 vi.mock('@/lib/knowledge/application/workspace-search', () => ({
-  searchWorkspaceKnowledge: { operation: { id: 'knowledge.search' }, execute: mocks.search },
+  searchScopedKnowledge: { operation: { id: 'knowledge.search' }, execute: mocks.search },
 }))
 
 import { POST } from '@/app/api/knowledge/search/route'

@@ -3,13 +3,18 @@ import { z } from 'zod'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import {
   executeCopilotKnowledgeUseCase,
+  executeCopilotOrganizationKnowledgeUseCase,
   messageForCopilotKnowledgeError,
-  requireCopilotKnowledgeWorkspaceId,
+  requireCopilotKnowledgeScope,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
-import { searchWorkspaceKnowledge } from '@/lib/knowledge/application/workspace-search'
+import {
+  searchOrganizationKnowledge,
+  searchWorkspaceKnowledge,
+} from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -26,12 +31,15 @@ const readInputSchema = z.object({
 })
 
 function documentCitation(
-  workspaceId: string,
+  scope: ResourceScope,
   knowledgeBaseId: string,
   documentId: string,
   sourceUrl: string | null
 ) {
-  const localUrl = `${getBaseUrl()}/workspace/${encodeURIComponent(workspaceId)}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
+  const localUrl =
+    scope.kind === 'organization'
+      ? `${getBaseUrl()}/o/${encodeURIComponent(scope.organizationId)}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
+      : `${getBaseUrl()}/workspace/${encodeURIComponent(scope.workspaceId)}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
   let citationUrl = localUrl
   if (sourceUrl) {
     try {
@@ -50,7 +58,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
   name: 'search_workspace',
   async execute(raw, context?: ServerToolContext) {
     try {
-      const workspaceId = requireCopilotKnowledgeWorkspaceId(context)
+      const scope = requireCopilotKnowledgeScope(context)
       const { query, topK, ...requestedFilters } = searchInputSchema.parse(raw)
       const registry = context?.resolvedSecretTraceRegistry
       if (!registry) throw new Error('Knowledge result provenance is unavailable')
@@ -61,15 +69,24 @@ export const searchWorkspaceServerTool: BaseServerTool = {
           message: 'Search query contains protected content. Rephrase the query.',
         }
       }
-      const result = await executeCopilotKnowledgeUseCase(context, searchWorkspaceKnowledge, {
-        workspaceId,
+      const input = {
         query: projected.value,
         topK,
         filters: intersectWorkspaceSearchFilters(requestedFilters, context?.assistantSearch),
         surface: 'copilot',
         resultSecretRegistry: registry,
         signal: context?.abortSignal,
-      })
+      } as const
+      const result =
+        scope.kind === 'organization'
+          ? await executeCopilotOrganizationKnowledgeUseCase(context, searchOrganizationKnowledge, {
+              ...input,
+              organizationId: scope.organizationId,
+            })
+          : await executeCopilotKnowledgeUseCase(context, searchWorkspaceKnowledge, {
+              ...input,
+              workspaceId: scope.workspaceId,
+            })
       const names = new Map(result.knowledgeBases.map((base) => [base.id, base.name]))
       return {
         success: true,
@@ -88,7 +105,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             content: item.content,
             chunkIndex: item.chunkIndex,
             similarity: item.similarity,
-            ...documentCitation(workspaceId, item.knowledgeBaseId, item.documentId, item.sourceUrl),
+            ...documentCitation(scope, item.knowledgeBaseId, item.documentId, item.sourceUrl),
           })),
         },
       }
@@ -109,31 +126,32 @@ export const readDocumentServerTool: BaseServerTool = {
   name: 'read_document',
   async execute(raw, context?: ServerToolContext) {
     try {
-      const workspaceId = requireCopilotKnowledgeWorkspaceId(context)
+      const scope = requireCopilotKnowledgeScope(context)
       const input = readInputSchema.parse(raw)
       const registry = context?.resolvedSecretTraceRegistry
       if (!registry) throw new Error('Knowledge result provenance is unavailable')
-      const result = await executeCopilotKnowledgeUseCase(context, readSearchDocument, {
+      const readInput = {
         ...input,
-        assertedWorkspaceId: workspaceId,
+        ...(scope.kind === 'organization'
+          ? { assertedOrganizationId: scope.organizationId }
+          : { assertedWorkspaceId: scope.workspaceId }),
         filters: intersectWorkspaceSearchFilters(
           { documentIds: [input.documentId] },
           context?.assistantSearch
         ),
         resultSecretRegistry: registry,
         signal: context?.abortSignal,
-      })
+      }
+      const result =
+        scope.kind === 'organization'
+          ? await executeCopilotOrganizationKnowledgeUseCase(context, readSearchDocument, readInput)
+          : await executeCopilotKnowledgeUseCase(context, readSearchDocument, readInput)
       return {
         success: true,
         message: CITATION_INSTRUCTION,
         data: {
           ...result,
-          ...documentCitation(
-            workspaceId,
-            result.knowledgeBaseId,
-            result.documentId,
-            result.sourceUrl
-          ),
+          ...documentCitation(scope, result.knowledgeBaseId, result.documentId, result.sourceUrl),
         },
       }
     } catch (error) {

@@ -42,6 +42,9 @@ const BOUNDARY_POLICY_BASELINE = {
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
+  /** Shared MCP protocol factory validates the owner and JSON-RPC envelope before SDK dispatch. */
+  'apps/sim/app/api/mcp/search/[workspaceId]/route.ts',
+  'apps/sim/app/api/mcp/search/organizations/[organizationId]/route.ts',
   // Catch-all JSON 404 for unknown /api/v2 paths. It has no contract by
   // construction: it exists precisely for requests that match no operation, so
   // there is no input to validate and its only response is the fixed v2 error

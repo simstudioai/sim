@@ -193,19 +193,12 @@ export class ConflictingPendingInvitationError extends Error {
 }
 
 /**
- * Thrown when an invitation carries no workspace grants. Every invitation names
- * at least one workspace, so accepting always lands the invitee somewhere
- * concrete and the email can say what they are being given. Admins would derive
- * access to every organization workspace anyway, but a grantless admin invite
- * still reads as "join this organization" with nothing to open, so it is
- * rejected too. Enforced here so every creation path — routes, admin tooling,
- * future callers — hits the same rule.
+ * Workspace and external invitations must grant a workspace. An internal
+ * organization invitation can instead land directly in organization Home.
  */
 export class GrantlessInvitationError extends Error {
   constructor() {
-    super(
-      'Invitations must include at least one workspace so the invitee has a workspace to land in.'
-    )
+    super('Workspace and external invitations must include at least one workspace.')
     this.name = 'GrantlessInvitationError'
   }
 }
@@ -227,7 +220,12 @@ export class GrantlessInvitationError extends Error {
 export async function createPendingInvitation(
   input: CreatePendingInvitationInput
 ): Promise<CreatePendingInvitationResult> {
-  if (input.grants.length === 0) {
+  if (
+    input.grants.length === 0 &&
+    (input.kind !== 'organization' ||
+      !input.organizationId ||
+      input.membershipIntent === 'external')
+  ) {
     throw new GrantlessInvitationError()
   }
 

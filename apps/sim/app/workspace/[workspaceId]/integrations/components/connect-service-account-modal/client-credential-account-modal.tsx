@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useEffect, useState } from 'react'
+import { type ComponentType, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -14,6 +14,11 @@ import {
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
+import {
   AUTH_METHOD_FIELD_ID,
   type ClientCredentialAccountDescriptor,
   type ClientCredentialAccountField,
@@ -22,9 +27,9 @@ import {
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import {
-  useCreateWorkspaceCredential,
-  useUpdateWorkspaceCredential,
-} from '@/hooks/queries/credentials'
+  useCreateScopedCredential,
+  useUpdateScopedCredential,
+} from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('ClientCredentialAccountModal')
 
@@ -74,7 +79,8 @@ function openDocs(url: string): void {
 interface ClientCredentialAccountModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   descriptor: ClientCredentialAccountDescriptor
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
@@ -99,10 +105,21 @@ interface ClientCredentialAccountModalProps {
  * selecting a method shows only that branch's fields and gates submit on that
  * branch's requirements, mirroring the server-side secret builder.
  */
-export function ClientCredentialAccountModal({
+export function ClientCredentialAccountModal(props: ClientCredentialAccountModalProps) {
+  if (!props.open) return null
+  return (
+    <ClientCredentialAccountModalForm
+      key={`${resourceScopeKey(resourceScopeFromOwner(props))}:${props.descriptor.providerId}:${props.credentialId ?? 'new'}`}
+      {...props}
+    />
+  )
+}
+
+function ClientCredentialAccountModalForm({
   open,
   onOpenChange,
   workspaceId,
+  organizationId,
   descriptor,
   serviceName,
   serviceIcon: ServiceIcon,
@@ -116,16 +133,8 @@ export function ClientCredentialAccountModal({
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
 
-  const createCredential = useCreateWorkspaceCredential()
-  const updateCredential = useUpdateWorkspaceCredential()
-
-  useEffect(() => {
-    if (open) return
-    setValues({})
-    setDisplayName(initialDisplayName ?? '')
-    setDescription(initialDescription ?? '')
-    setError(null)
-  }, [open, initialDisplayName, initialDescription])
+  const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
 
   const authMethodField = descriptor.fields.find((field) => field.id === AUTH_METHOD_FIELD_ID)
   /**
@@ -185,6 +194,7 @@ export function ClientCredentialAccountModal({
       }
       if (credentialId) {
         await updateCredential.mutateAsync({
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           credentialId,
           ...secretFields,
           displayName: displayName.trim() || undefined,
@@ -192,7 +202,7 @@ export function ClientCredentialAccountModal({
         })
       } else {
         const created = await createCredential.mutateAsync({
-          workspaceId,
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           type: 'service_account',
           providerId: descriptor.providerId,
           ...secretFields,

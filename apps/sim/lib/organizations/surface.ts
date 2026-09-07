@@ -3,7 +3,13 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { asc, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
+import {
+  type KnowledgeAccessAvailability,
+  resolveKnowledgeAccessAvailability,
+} from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 
 export interface OrganizationSurfaceOrganization {
   id: string
@@ -15,6 +21,7 @@ export interface OrganizationSurfaceOrganization {
 interface OrganizationSurfaceViewer {
   role: OrganizationRole
   isAdmin: boolean
+  canUsePersonalApiKeys: boolean
 }
 
 /**
@@ -26,6 +33,7 @@ interface OrganizationSurfaceViewer {
 export interface OrganizationSurfaceContext {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
+  searchAccess: KnowledgeAccessAvailability
 }
 
 /**
@@ -52,9 +60,17 @@ async function resolveOrganizationSurfaceContext(
     .limit(1)
   if (!row) return null
 
+  const config = await getUserPermissionConfigForOrganization(organizationId)
   return {
     organization: { id: row.id, name: row.name, slug: row.slug, logo: row.logo ?? null },
-    viewer: { role: access.role, isAdmin: access.isAdmin },
+    viewer: {
+      role: access.role,
+      isAdmin: access.isAdmin,
+      canUsePersonalApiKeys:
+        !capabilityDeniedBy('personal_api_key.use', config) &&
+        !capabilityDeniedBy('api_keys.manage', config),
+    },
+    searchAccess: await resolveKnowledgeAccessAvailability({ organizationId }),
   }
 }
 

@@ -1,3 +1,5 @@
+import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
+
 export interface OrganizationChat {
   id: string
   name: string
@@ -9,13 +11,16 @@ export interface OrganizationChat {
   isPinned?: boolean
 }
 
-/** Stable identity for the empty list, so the section's memos don't churn. */
-const EMPTY_CHATS: OrganizationChat[] = []
-
-/**
- * Chats listed in the organization sidebar. The organization surface has no chat
- * source of its own, so the list is empty and never loading.
- */
-export function useOrganizationChats(_organizationId: string) {
-  return { chats: EMPTY_CHATS, isLoading: false }
+/** Lists only the current member's private organization conversations. */
+export function useOrganizationChats(organizationId: string) {
+  const query = useOrganizationMothershipChats(organizationId)
+  const chats: OrganizationChat[] = (query.data ?? []).map((chat) => ({
+    id: chat.id,
+    name: chat.name,
+    href: `/o/${organizationId}/chat/${chat.id}`,
+    isActive: chat.isActive,
+    isUnread: chat.isUnread,
+    isPinned: chat.isPinned,
+  }))
+  return { chats, isLoading: query.isPending }
 }

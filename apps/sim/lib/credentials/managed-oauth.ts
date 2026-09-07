@@ -3,16 +3,21 @@ import { credential, credentialGroupEnrollment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
-import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
+import {
+  type ResourceOwner,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import {
   type CredentialGroupProviderAdapter,
   CredentialGroupProviderConfigurationError,
   type CredentialGroupProviderPolicy,
 } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('ManagedOAuthCredential')
@@ -61,7 +66,8 @@ type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 interface ResolveManagedOAuthTokenParams {
   credentialId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   expectedProviderId: string
   requiredScopes: string[]
 }
@@ -137,11 +143,12 @@ export async function decryptManagedOAuthTokenSet(
   }
 }
 
-async function getManagedCredential(exec: DbOrTx, credentialId: string, workspaceId?: string) {
+async function getManagedCredential(exec: DbOrTx, credentialId: string, owner?: ResourceOwner) {
   const [row] = await exec
     .select({
       id: credential.id,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       type: credential.type,
       providerId: credential.providerId,
       authorizationAppId: credential.authorizationAppId,
@@ -164,7 +171,7 @@ async function getManagedCredential(exec: DbOrTx, credentialId: string, workspac
       and(
         eq(credential.id, credentialId),
         eq(credential.type, 'managed_oauth'),
-        workspaceId ? eq(credential.workspaceId, workspaceId) : undefined
+        owner ? resourceScopeCondition(credential, resourceScopeFromOwner(owner)) : undefined
       )
     )
     .limit(1)
@@ -176,7 +183,7 @@ export async function loadManagedOAuthCredentialApplicationContext(
   credentialId: string
 ): Promise<ManagedOAuthCredentialApplicationContext | null> {
   const row = await getManagedCredential(db, credentialId)
-  if (!row) return null
+  if (!row?.workspaceId) return null
 
   const workspaceContext = await loadActiveWorkspaceApplicationContext(row.workspaceId)
   if (!workspaceContext) return null
@@ -226,7 +233,7 @@ async function assertManagedCredentialUsable(
   let policy: CredentialGroupProviderPolicy
   try {
     policy = await adapter.getPolicy(undefined, {
-      workspaceId: row.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(row)),
       credentialGroupId: row.credentialGroupId,
       credentialGroupOptionId: row.credentialGroupOptionId ?? undefined,
       authorizationAppId: row.authorizationAppId,
@@ -285,12 +292,13 @@ async function markManagedCredentialNeedsReauth(
 /** Rechecks rejected tokens through refresh when possible; a concurrent reconnect wins the conditional write. */
 export async function rejectManagedOAuthToken(input: {
   credentialId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   expectedProviderId: string
   requiredScopes: string[]
   rejectedAccessToken: string
 }): Promise<boolean> {
-  const current = await getManagedCredential(db, input.credentialId, input.workspaceId)
+  const current = await getManagedCredential(db, input.credentialId, input)
   if (
     !current ||
     current.providerId !== input.expectedProviderId ||
@@ -311,7 +319,7 @@ export async function rejectManagedOAuthToken(input: {
     .where(
       and(
         eq(credential.id, current.id),
-        eq(credential.workspaceId, input.workspaceId),
+        resourceScopeCondition(credential, resourceScopeFromOwner(input)),
         eq(credential.providerId, input.expectedProviderId),
         eq(credential.managedOauthStatus, 'active'),
         eq(credential.encryptedOauthTokenSet, current.encryptedOauthTokenSet)
@@ -348,7 +356,7 @@ export async function rejectManagedOAuthToken(input: {
 export async function resolveManagedOAuthToken(
   params: ResolveManagedOAuthTokenParams
 ): Promise<ResolvedManagedOAuthToken> {
-  const initial = await getManagedCredential(db, params.credentialId, params.workspaceId)
+  const initial = await getManagedCredential(db, params.credentialId, params)
   if (!initial) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_NOT_FOUND',
@@ -357,8 +365,7 @@ export async function resolveManagedOAuthToken(
     )
   }
 
-  const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(initial.workspaceId)
-  if (!(await isCredentialGroupsAvailable({ workspaceId: initial.workspaceId, ownerBilling }))) {
+  if (!(await isScopedCredentialGroupsAvailable(resourceScopeFromOwner(initial)))) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_UNAVAILABLE',
       'Managed credentials are not available for this workspace',
@@ -391,7 +398,7 @@ export async function resolveManagedOAuthToken(
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`managed-oauth:${params.credentialId}`}, 0))`
     )
-    const current = await getManagedCredential(tx, params.credentialId, params.workspaceId)
+    const current = await getManagedCredential(tx, params.credentialId, params)
     if (!current) {
       return {
         error: new ManagedOAuthCredentialError(

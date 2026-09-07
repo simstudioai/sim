@@ -28,6 +28,7 @@ export interface KnowledgeBaseWithCounts {
   updatedAt: Date
   deletedAt: Date | null
   workspaceId: string | null
+  organizationId?: string | null
   /** Folder in the workspace's `knowledge_base` folder tree; `null` at the root. */
   folderId: string | null
   docCount: number
@@ -123,6 +124,7 @@ export interface KnowledgeBaseData {
   updatedAt: string
   deletedAt: string | null
   workspaceId: string | null
+  organizationId?: string | null
   /** Folder in the workspace's `knowledge_base` folder tree; `null` at the root. */
   folderId: string | null
   docCount?: number

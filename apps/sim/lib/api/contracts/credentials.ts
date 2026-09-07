@@ -133,125 +133,131 @@ export const serviceAccountJsonSchema = z
     }
   })
 
-export const createCredentialBodySchema = z
-  .object({
-    workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-    type: creatableWorkspaceCredentialTypeSchema,
-    displayName: z.string().trim().min(1).max(255).optional(),
-    description: z.string().trim().max(500).optional(),
-    providerId: z.string().trim().min(1).optional(),
-    accountId: z.string().trim().min(1).optional(),
-    envKey: z.string().trim().min(1).optional(),
-    envOwnerUserId: z.string().trim().min(1).optional(),
-    serviceAccountJson: z.string().optional(),
-    apiToken: z.string().trim().min(1).optional(),
-    domain: z.string().trim().min(1).optional(),
-    atlassianProduct: atlassianProductSchema.optional(),
-    /**
-     * Client-supplied credential id, honored only for `slack-custom-bot` creates:
-     * the setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}`
-     * before secrets exist, so the id must be known up front.
-     */
-    id: z.string().uuid('id must be a valid UUID').optional(),
-    signingSecret: z.string().trim().min(1).optional(),
-    botToken: z.string().trim().min(1).optional(),
-    clientId: z.string().trim().min(1).max(512).optional(),
-    clientSecret: z.string().trim().min(1).max(1024).optional(),
-    certificateId: z.string().trim().min(1).max(512).optional(),
-    orgId: z.string().trim().min(1).max(255).optional(),
-    /** Optional provider region selector (Zoho Desk data center). */
-    dataCenter: z.string().trim().min(1).max(32).optional(),
-    /**
-     * Grant selector for providers offering more than one server-to-server
-     * flow (Salesforce: `client_credentials` | `jwt_bearer`). The descriptor's
-     * option list is the real allowlist — an unrecognized value resolves to the
-     * provider's default rather than failing, so this only bounds length.
-     */
-    authMethod: z.string().trim().min(1).max(64).optional(),
-    /** PEM private key for certificate/JWT-based grants (for example Salesforce or NetSuite). */
-    privateKey: z.string().trim().min(1).max(8192).optional(),
-    /** Run-as username for key-based grants (Salesforce JWT `sub`). */
-    username: z.string().trim().min(1).max(255).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.type === 'oauth') {
-      if (!data.accountId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'accountId is required for oauth credentials',
-          path: ['accountId'],
-        })
-      }
-      if (!data.providerId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'providerId is required for oauth credentials',
-          path: ['providerId'],
-        })
-      }
-      if (!data.displayName) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'displayName is required for oauth credentials',
-          path: ['displayName'],
-        })
-      }
-      return
-    }
+export const createCredentialFieldsSchema = z.object({
+  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
+  type: creatableWorkspaceCredentialTypeSchema,
+  displayName: z.string().trim().min(1).max(255).optional(),
+  description: z.string().trim().max(500).optional(),
+  providerId: z.string().trim().min(1).optional(),
+  accountId: z.string().trim().min(1).optional(),
+  envKey: z.string().trim().min(1).optional(),
+  envOwnerUserId: z.string().trim().min(1).optional(),
+  serviceAccountJson: z.string().optional(),
+  apiToken: z.string().trim().min(1).optional(),
+  domain: z.string().trim().min(1).optional(),
+  atlassianProduct: atlassianProductSchema.optional(),
+  /**
+   * Client-supplied credential id, honored only for `slack-custom-bot` creates:
+   * the setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}`
+   * before secrets exist, so the id must be known up front.
+   */
+  id: z.string().uuid('id must be a valid UUID').optional(),
+  signingSecret: z.string().trim().min(1).optional(),
+  botToken: z.string().trim().min(1).optional(),
+  clientId: z.string().trim().min(1).max(512).optional(),
+  clientSecret: z.string().trim().min(1).max(1024).optional(),
+  certificateId: z.string().trim().min(1).max(512).optional(),
+  orgId: z.string().trim().min(1).max(255).optional(),
+  /** Optional provider region selector (Zoho Desk data center). */
+  dataCenter: z.string().trim().min(1).max(32).optional(),
+  /**
+   * Grant selector for providers offering more than one server-to-server
+   * flow (Salesforce: `client_credentials` | `jwt_bearer`). The descriptor's
+   * option list is the real allowlist — an unrecognized value resolves to the
+   * provider's default rather than failing, so this only bounds length.
+   */
+  authMethod: z.string().trim().min(1).max(64).optional(),
+  /** PEM private key for certificate/JWT-based grants (for example Salesforce or NetSuite). */
+  privateKey: z.string().trim().min(1).max(8192).optional(),
+  /** Run-as username for key-based grants (Salesforce JWT `sub`). */
+  username: z.string().trim().min(1).max(255).optional(),
+})
 
-    if (data.type === 'personal_token') {
-      if (data.providerId !== 'gitlab')
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Personal tokens are supported for GitLab',
-          path: ['providerId'],
-        })
-      if (!data.apiToken || data.apiToken.length > 4096)
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Enter a GitLab personal access token',
-          path: ['apiToken'],
-        })
-      if (data.domain && data.domain.length > 255)
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'GitLab host is too long',
-          path: ['domain'],
-        })
-      return
-    }
-
-    if (data.type === 'service_account') {
-      for (const field of getServiceAccountRequiredFields(data.providerId)) {
-        if (!data[field]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
-            path: [field],
-          })
-        }
-      }
-      return
-    }
-
-    const normalizedEnvKey = data.envKey ? normalizeCredentialEnvKey(data.envKey) : ''
-    if (!normalizedEnvKey) {
+export function refineCredentialCreate(
+  data: Omit<z.input<typeof createCredentialFieldsSchema>, 'workspaceId'>,
+  ctx: z.RefinementCtx
+) {
+  if (data.type === 'oauth') {
+    if (!data.accountId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'envKey is required for env credentials',
-        path: ['envKey'],
+        message: 'accountId is required for oauth credentials',
+        path: ['accountId'],
       })
-      return
     }
-
-    if (!ENV_VAR_NAME_REGEX.test(normalizedEnvKey)) {
+    if (!data.providerId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'envKey must contain only letters, numbers, and underscores',
-        path: ['envKey'],
+        message: 'providerId is required for oauth credentials',
+        path: ['providerId'],
       })
     }
-  })
+    if (!data.displayName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'displayName is required for oauth credentials',
+        path: ['displayName'],
+      })
+    }
+    return
+  }
+
+  if (data.type === 'personal_token') {
+    if (data.providerId !== 'gitlab')
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Personal tokens are supported for GitLab',
+        path: ['providerId'],
+      })
+    if (!data.apiToken || data.apiToken.length > 4096)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a GitLab personal access token',
+        path: ['apiToken'],
+      })
+    if (data.domain && data.domain.length > 255)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'GitLab host is too long',
+        path: ['domain'],
+      })
+    return
+  }
+
+  if (data.type === 'service_account') {
+    for (const field of getServiceAccountRequiredFields(data.providerId)) {
+      if (!data[field]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
+          path: [field],
+        })
+      }
+    }
+    return
+  }
+
+  const normalizedEnvKey = data.envKey ? normalizeCredentialEnvKey(data.envKey) : ''
+  if (!normalizedEnvKey) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'envKey is required for env credentials',
+      path: ['envKey'],
+    })
+    return
+  }
+
+  if (!ENV_VAR_NAME_REGEX.test(normalizedEnvKey)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'envKey must contain only letters, numbers, and underscores',
+      path: ['envKey'],
+    })
+  }
+}
+
+export const createCredentialBodySchema =
+  createCredentialFieldsSchema.superRefine(refineCredentialCreate)
 
 export const updateCredentialByIdBodySchema = z
   .object({

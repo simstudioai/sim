@@ -14,7 +14,11 @@ export const selectorKeys = {
       ...selectorKeys.all,
       selectorKey,
       scope?.kind ?? 'local',
-      scope?.kind === 'workflow' ? scope.workflowId : (scope?.workspaceId ?? 'none'),
+      scope?.kind === 'workflow'
+        ? scope.workflowId
+        : scope?.kind === 'organization'
+          ? scope.organizationId
+          : (scope?.workspaceId ?? 'none'),
       scope?.kind === 'workflow' ? (scope.workspaceId ?? 'none') : 'none',
       surfaceId,
     ] as const,

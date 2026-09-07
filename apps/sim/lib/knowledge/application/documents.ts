@@ -83,6 +83,7 @@ const logger = createLogger('KnowledgeDocumentApplication')
 export interface ListKnowledgeDocumentsInput {
   knowledgeBaseId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
   enabledFilter?: 'all' | 'enabled' | 'disabled'
   search?: string
   limit?: number
@@ -103,11 +104,13 @@ export interface ReadKnowledgeDocumentInput {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
 }
 
 export interface UploadKnowledgeDocumentAdmissionInput {
   knowledgeBaseId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
 }
 
 export interface KnowledgeDocumentInput {

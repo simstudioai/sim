@@ -112,9 +112,27 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
  * Workspace IDs are chunked before the SELECT — see
  * `DEFAULT_WORKSPACE_CHUNK_SIZE` for why.
  */
-export async function chunkedBatchDelete<TRow extends { id: string }>({
+export async function chunkedBatchDelete<TRow extends { id: string }>(
+  options: ChunkedBatchDeleteOptions<TRow>
+): Promise<TableCleanupResult> {
+  const { workspaceIds, workspaceChunkSize, ...rest } = options
+  return chunkedBatchDeleteByScope({
+    ...rest,
+    scopeIds: workspaceIds,
+    scopeChunkSize: workspaceChunkSize,
+  })
+}
+
+export interface ScopedChunkedBatchDeleteOptions<TRow extends { id: string }>
+  extends Omit<ChunkedBatchDeleteOptions<TRow>, 'workspaceIds' | 'workspaceChunkSize'> {
+  scopeIds: string[]
+  scopeChunkSize?: number
+}
+
+/** Shares bounded deletion and side effects across explicit workspace and organization owners. */
+export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
   tableDef,
-  workspaceIds,
+  scopeIds,
   tableName,
   selectChunk,
   onBatch,
@@ -122,17 +140,17 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
   totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
-  workspaceChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
+  scopeChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
   dbClient = db,
-}: ChunkedBatchDeleteOptions<TRow>): Promise<TableCleanupResult> {
+}: ScopedChunkedBatchDeleteOptions<TRow>): Promise<TableCleanupResult> {
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
 
-  if (workspaceIds.length === 0) {
-    logger.info(`[${tableName}] Skipped — no workspaces in scope`)
+  if (scopeIds.length === 0) {
+    logger.info(`[${tableName}] Skipped — no resource owners in scope`)
     return result
   }
 
-  const chunks = chunkArray(workspaceIds, workspaceChunkSize)
+  const chunks = chunkArray(scopeIds, scopeChunkSize)
   let stoppedEarly = false
   let attempted = 0
 

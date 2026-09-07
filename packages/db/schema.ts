@@ -2183,6 +2183,9 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
@@ -2263,6 +2266,11 @@ export const workspaceFiles = pgTable(
     chatDisplayNameUnique: uniqueIndex('workspace_files_chat_display_name_unique')
       .on(table.chatId, table.displayName)
       .where(sql`${table.context} = 'mothership' AND ${table.chatId} IS NOT NULL`),
+    organizationBindingCheck: check(
+      'workspace_files_organization_binding_check',
+      sql`${table.organizationId} IS NULL OR (${table.workspaceId} IS NULL AND ${table.context} = 'knowledge-base' AND ${table.folderId} IS NULL AND ${table.chatId} IS NULL)`
+    ),
+    organizationIdIdx: index('workspace_files_organization_id_idx').on(table.organizationId),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
@@ -2724,6 +2732,9 @@ export const knowledgeBase = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
@@ -2750,6 +2761,21 @@ export const knowledgeBase = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'kb_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) <= 1`
+    ),
+    organizationIdIdx: index('kb_organization_id_idx').on(table.organizationId),
+    organizationFolderCheck: check(
+      'kb_organization_folder_check',
+      sql`${table.organizationId} IS NULL OR ${table.folderId} IS NULL`
+    ),
+    organizationSearchIndexUnique: uniqueIndex('kb_organization_search_index_unique')
+      .on(table.organizationId)
+      .where(sql`${table.isSearchIndex} = true AND ${table.deletedAt} IS NULL`),
+    organizationNameActiveUnique: uniqueIndex('kb_organization_name_active_unique')
+      .on(table.organizationId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
     // Primary access patterns
     userIdIdx: index('kb_user_id_idx').on(table.userId),
     workspaceIdIdx: index('kb_workspace_id_idx').on(table.workspaceId),
@@ -3301,6 +3327,9 @@ export const copilotChats = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
@@ -3325,6 +3354,21 @@ export const copilotChats = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'copilot_chats_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) <= 1`
+    ),
+    organizationIdIdx: index('copilot_chats_organization_id_idx').on(table.organizationId),
+    organizationWorkflowCheck: check(
+      'copilot_chats_organization_workflow_check',
+      sql`${table.organizationId} IS NULL OR ${table.workflowId} IS NULL`
+    ),
+    userOrganizationCreatedIdx: index('copilot_chats_user_org_created_idx').on(
+      table.userId,
+      table.organizationId,
+      table.createdAt,
+      table.id
+    ),
     // Primary access patterns
     userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
@@ -4342,9 +4386,10 @@ export const credential = pgTable(
   'credential',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
@@ -4390,6 +4435,27 @@ export const credential = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'credential_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('credential_organization_id_idx').on(table.organizationId),
+    organizationTypeCheck: check(
+      'credential_organization_type_check',
+      sql`${table.organizationId} IS NULL OR ${table.type} IN ('oauth', 'managed_oauth', 'service_account', 'personal_token')`
+    ),
+    organizationAccountUnique: uniqueIndex('credential_organization_account_unique')
+      .on(table.organizationId, table.accountId)
+      .where(sql`${table.accountId} IS NOT NULL`),
+    organizationPersonalTokenUnique: uniqueIndex('credential_org_personal_token_unique')
+      .on(
+        table.organizationId,
+        table.createdBy,
+        table.providerId,
+        table.providerTenantId,
+        table.providerSubjectId
+      )
+      .where(sql`${table.type} = 'personal_token'`),
     workspaceIdIdx: index('credential_workspace_id_idx').on(table.workspaceId),
     typeIdx: index('credential_type_idx').on(table.type),
     providerIdIdx: index('credential_provider_id_idx').on(table.providerId),
@@ -4531,9 +4597,10 @@ export const credentialGroup = pgTable(
   'credential_group',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     publicId: text('public_id').notNull(),
     name: text('name').notNull(),
     description: text('description'),
@@ -4545,6 +4612,14 @@ export const credentialGroup = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'credential_group_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('credential_group_organization_id_idx').on(table.organizationId),
+    organizationUnique: uniqueIndex('credential_group_organization_unique').on(
+      table.organizationId
+    ),
     publicIdUnique: uniqueIndex('credential_group_public_id_unique').on(table.publicId),
     workspaceUnique: uniqueIndex('credential_group_workspace_unique').on(table.workspaceId),
   })
@@ -4646,9 +4721,10 @@ export const pendingCredentialDraft = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     providerId: text('provider_id').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
@@ -4658,6 +4734,16 @@ export const pendingCredentialDraft = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'pending_draft_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('pending_draft_organization_id_idx').on(table.organizationId),
+    uniqueOrganizationDraft: uniqueIndex('pending_draft_user_provider_org').on(
+      table.userId,
+      table.providerId,
+      table.organizationId
+    ),
     uniqueDraft: uniqueIndex('pending_draft_user_provider_ws').on(
       table.userId,
       table.providerId,
@@ -4998,9 +5084,10 @@ export const knowledgeConnectorMember = pgTable(
   'knowledge_connector_member',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     connectorId: text('connector_id')
       .notNull()
       .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
@@ -5045,6 +5132,11 @@ export const knowledgeConnectorMember = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'kcm_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('kcm_organization_id_idx').on(table.organizationId),
     connectorCredentialUnique: uniqueIndex('kcm_connector_credential_unique').on(
       table.connectorId,
       table.credentialId
@@ -5097,9 +5189,10 @@ export const knowledgeDocumentObservation = pgTable(
 export const knowledgeExternalDirectory = pgTable(
   'knowledge_external_directory',
   {
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     providerId: text('provider_id').notNull(),
     tenantId: text('tenant_id').notNull(),
     syncLockToken: text('sync_lock_token'),
@@ -5110,10 +5203,21 @@ export const knowledgeExternalDirectory = pgTable(
     lastCompleteSyncAt: timestamp('last_complete_sync_at'),
   },
   (table) => ({
-    identity: primaryKey({
-      name: 'ked_identity_pk',
-      columns: [table.workspaceId, table.providerId, table.tenantId],
-    }),
+    ownerCheck: check(
+      'ked_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('ked_organization_id_idx').on(table.organizationId),
+    workspaceIdentity: uniqueIndex('ked_workspace_identity_unique').on(
+      table.workspaceId,
+      table.providerId,
+      table.tenantId
+    ),
+    organizationIdentity: uniqueIndex('ked_organization_identity_unique').on(
+      table.organizationId,
+      table.providerId,
+      table.tenantId
+    ),
   })
 )
 
@@ -5135,7 +5239,10 @@ export const knowledgeExternalGroup = pgTable(
   'knowledge_external_group',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     /** Matches the provider segment of the `g:` token, e.g. `google-drive`. */
     providerId: text('provider_id').notNull(),
     /** The directory this group belongs to: a Workspace domain for Google, a site's cloud id for Confluence. */
@@ -5157,6 +5264,21 @@ export const knowledgeExternalGroup = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'keg_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('keg_organization_id_idx').on(table.organizationId),
+    organizationIdentityUnique: uniqueIndex('keg_organization_identity_unique').on(
+      table.organizationId,
+      table.providerId,
+      table.tenantId,
+      table.externalGroupId
+    ),
+    organizationSyncedIdx: index('keg_organization_synced_idx').on(
+      table.organizationId,
+      table.lastSyncedAt.asc().nullsFirst()
+    ),
     /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
     workspaceFk: foreignKey({
       name: 'keg_workspace_fk',

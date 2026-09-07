@@ -1,20 +1,19 @@
 'use client'
 
 import {
+  Chip,
   ChipChevronDown,
-  chipContentLabelClass,
-  chipVariants,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
-  OverflowText,
 } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { PanelLeft, Settings } from '@sim/emcn/icons'
+import Link from 'next/link'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import type { OrganizationSurfaceOrganization } from '@/lib/organizations/surface'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 function getOrganizationInitial(name: string): string {
   return (name.trim()[0] || 'O').toUpperCase()
@@ -41,24 +40,25 @@ export function OrganizationHeader({
   if (isCollapsed) {
     return (
       <div className='min-w-0 flex-1'>
-        <button
-          type='button'
+        <Chip
           aria-label='Expand sidebar'
           onClick={onExpandSidebar}
-          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
-        >
-          <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
-            <IdentityTile
-              initial={getOrganizationInitial(organization.name)}
-              logoUrl={organization.logo}
-              className='group-hover:invisible'
-            />
-            <PanelLeft
-              aria-hidden
-              className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
-            />
-          </div>
-        </button>
+          fullWidth
+          className={SIDEBAR_RAIL_CHIP_CLASS}
+          leftAdornment={
+            <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
+              <IdentityTile
+                initial={getOrganizationInitial(organization.name)}
+                logoUrl={organization.logo}
+                className='group-hover:invisible'
+              />
+              <PanelLeft
+                aria-hidden
+                className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
+              />
+            </div>
+          }
+        />
       </div>
     )
   }
@@ -67,31 +67,33 @@ export function OrganizationHeader({
     <div className='min-w-0 flex-1'>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type='button'
+          <Chip
             aria-label='Organization menu'
-            className={cn(chipVariants(), 'min-w-0 max-w-full')}
+            className='min-w-0 max-w-full'
+            leftAdornment={
+              <IdentityTile
+                initial={getOrganizationInitial(organization.name)}
+                logoUrl={organization.logo}
+              />
+            }
+            rightAdornment={<ChipChevronDown />}
           >
-            <IdentityTile
-              initial={getOrganizationInitial(organization.name)}
-              logoUrl={organization.logo}
-            />
-            <OverflowText
-              label={organization.name}
-              className={cn('flex-1', chipContentLabelClass)}
-              focusTarget='nearest-interactive'
-            />
-            <ChipChevronDown />
-          </button>
+            {organization.name}
+          </Chip>
         </DropdownMenuTrigger>
-        {/* Sized like the workspace switcher so the two menus open to the same footprint. */}
         <DropdownMenuContent
           align='start'
           side='bottom'
           sideOffset={8}
-          style={{ width: `${SIDEBAR_WIDTH.DEFAULT}px`, maxWidth: 'calc(100vw - 24px)' }}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        />
+          className='w-64 max-w-[calc(100vw-24px)]'
+        >
+          <DropdownMenuItem asChild>
+            <Link href={getOrganizationSettingsHref(organization.id, 'members')}>
+              <Settings className='size-[14px]' />
+              Organization settings
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
       </DropdownMenu>
     </div>
   )

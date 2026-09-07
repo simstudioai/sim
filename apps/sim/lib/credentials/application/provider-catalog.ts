@@ -10,7 +10,11 @@ import {
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
-import { allowedIntegrationTypes, principalUserId } from '@/lib/integrations/principal-scope.server'
+import {
+  allowedIntegrationTypes,
+  allowedOrganizationIntegrationTypes,
+  principalUserId,
+} from '@/lib/integrations/principal-scope.server'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -71,10 +75,9 @@ export type CredentialProviderCatalogEntry =
   | OAuthCredentialProviderCatalogEntry
   | ServiceAccountCredentialProviderCatalogEntry
 
-interface CredentialProviderCatalogContext {
-  workspaceId: string
-  workspaceOrganizationId: string | null
-}
+type CredentialProviderCatalogContext =
+  | { workspaceId: string; workspaceOrganizationId: string | null }
+  | { organizationId: string }
 
 interface ServiceAccountDescriptor {
   name: string
@@ -233,11 +236,15 @@ export async function listCredentialProviderCatalog(
   oauthType: 'oauth' | 'managed_oauth' = 'oauth'
 ): Promise<CredentialProviderCatalogEntry[]> {
   const userId = principalUserId(principal)
+  const organizationId =
+    'organizationId' in context ? context.organizationId : context.workspaceOrganizationId
   const [allowedIntegrations, blockVisibility] = await Promise.all([
-    allowedIntegrationTypes(principal, context.workspaceId),
+    'organizationId' in context
+      ? allowedOrganizationIntegrationTypes(context.organizationId)
+      : allowedIntegrationTypes(principal, context.workspaceId),
     getBlockVisibility({
       ...(userId ? { userId } : {}),
-      ...(context.workspaceOrganizationId ? { orgId: context.workspaceOrganizationId } : {}),
+      ...(organizationId ? { orgId: organizationId } : {}),
     }),
   ])
   const services = getAllOAuthServices()

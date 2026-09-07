@@ -420,3 +420,15 @@ export const upsertKnowledgeDocumentContract = defineRouteContract({
     ),
   },
 })
+
+/** Bounded indexed text returned by Search's document reader. */
+export const readSearchDocumentResultSchema = z.object({
+  documentId: z.string().min(1),
+  knowledgeBaseId: z.string().min(1),
+  documentName: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  chunks: z.array(z.object({ content: z.string(), chunkIndex: z.number().int().min(0) })).max(50),
+  hasMore: z.boolean(),
+  nextOffset: z.number().int().min(0).nullable(),
+})
+export type ReadSearchDocumentResult = z.output<typeof readSearchDocumentResultSchema>

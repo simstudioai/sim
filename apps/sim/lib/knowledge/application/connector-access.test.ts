@@ -56,7 +56,8 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 }))
 vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupCredentialListContext: mocks.loadGroup,
-  loadWorkspaceAccountsCredentialListContext: mocks.loadWorkspaceAccounts,
+  loadScopedAccountsCredentialListContext: (scope: unknown, groupId?: string) =>
+    groupId ? mocks.loadGroup(groupId) : mocks.loadWorkspaceAccounts(scope),
 }))
 vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   validateKnowledgeConnectorMembersBinding: mocks.validateBinding,
@@ -98,7 +99,7 @@ beforeEach(() => {
     billedAccountUserId: 'payer',
     knowledgeBaseId: 'kb',
     connectorId: 'source',
-    knowledgeBase: { id: 'kb', name: 'Search' },
+    knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search' },
   })
   mocks.role.mockResolvedValue('admin')
   mocks.connector.mockResolvedValue(row)
@@ -112,7 +113,7 @@ beforeEach(() => {
   })
   mocks.update.mockResolvedValue({ success: true, changed: false, connector: row })
   mocks.enrollment.mockResolvedValue('https://fixture.test/enroll')
-  mocks.loadGroup.mockResolvedValue({ id: 'group', workspaceId: 'workspace' })
+  mocks.loadGroup.mockResolvedValue({ credentialGroupId: 'group', workspaceId: 'workspace' })
   mocks.validateBinding.mockReturnValue({ ok: true })
   mocks.loadWorkspaceAccounts.mockResolvedValue({
     credentialGroupId: 'accounts',
@@ -133,7 +134,7 @@ describe('source member enrollment', () => {
         allowPersonalApiKeys: true,
         knowledgeBaseId: 'kb',
         connectorId: 'source',
-        knowledgeBase: { id: 'kb', name: 'Search', isSearchIndex: true },
+        knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search', isSearchIndex: true },
       })
       mocks.connector.mockResolvedValue({
         ...row,
@@ -172,7 +173,10 @@ describe('source member enrollment', () => {
     await expect(
       startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
     ).resolves.toEqual({ url: 'https://fixture.test/enroll' })
-    expect(mocks.loadWorkspaceAccounts).toHaveBeenCalledExactlyOnceWith('workspace')
+    expect(mocks.loadWorkspaceAccounts).toHaveBeenCalledExactlyOnceWith({
+      kind: 'workspace',
+      workspaceId: 'workspace',
+    })
     expect(mocks.enrollment).toHaveBeenCalledExactlyOnceWith({
       userId: 'admin',
       workspaceId: 'workspace',
@@ -257,7 +261,7 @@ describe('connector access application boundary', () => {
       allowPersonalApiKeys: true,
       knowledgeBaseId: 'kb',
       connectorId: 'source',
-      knowledgeBase: { id: 'kb', name: 'Search', isSearchIndex: true },
+      knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search', isSearchIndex: true },
     })
     await expect(
       updateKnowledgeConnectorAccess.execute({

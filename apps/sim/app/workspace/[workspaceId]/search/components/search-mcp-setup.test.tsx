@@ -163,7 +163,6 @@ describe('Search MCP setup', () => {
     await clickButton('Create', getDialog('Create new API key'))
 
     expect(mocks.createKey).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'workspace-1',
       name: 'Search client',
       keyType: 'personal',
       source: 'settings',

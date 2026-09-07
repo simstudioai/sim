@@ -1,4 +1,5 @@
 import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -13,7 +14,10 @@ import {
 } from '@/lib/api/contracts/knowledge/search'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { chatOperations } from '@/lib/copilot/application/operations'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
@@ -21,6 +25,7 @@ import {
 } from '@/lib/copilot/chat/desktop-capabilities'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
+import { authorizeOrganizationChat } from '@/lib/copilot/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
@@ -69,6 +74,7 @@ import {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
@@ -80,8 +86,6 @@ import {
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
-
-export const maxDuration = 3600
 
 const logger = createLogger('UnifiedChatAPI')
 const DEFAULT_MODEL = 'claude-opus-4-8'
@@ -279,6 +283,7 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
+  organizationId: z.string().min(1).max(200).optional(),
   workflowName: z.string().optional(),
   model: z.string().optional().default(DEFAULT_MODEL),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
@@ -380,15 +385,16 @@ type UnifiedChatBranch =
         messageId: string
       }) => Promise<ExecutionContext>
     }
-  | {
-      kind: 'workspace'
-      workspaceId: string
+  | ((
+      | { kind: 'workspace'; workspaceId: string; organizationId?: never }
+      | { kind: 'organization'; organizationId: string; workspaceId?: never }
+    ) & {
       workspacePermission: PermissionType | null
       effectiveModel: string
       goRoute: '/api/mothership'
       titleModel: string
       titleProvider?: undefined
-      notifyWorkspaceStatus: true
+      notifyWorkspaceStatus: boolean
       buildPayload: (params: {
         message: string
         userId: string
@@ -416,7 +422,7 @@ type UnifiedChatBranch =
         userTimezone?: string
         messageId: string
       }) => Promise<ExecutionContext>
-    }
+    })
 
 function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
   if (!Array.isArray(contexts)) {
@@ -645,12 +651,22 @@ async function buildInitialExecutionContext(params: {
   userId: string
   workflowId?: string
   workspaceId?: string
+  organizationId?: string
   chatId?: string
   messageId: string
   userTimezone?: string
   requestMode: string
 }): Promise<ExecutionContext> {
-  const { userId, workflowId, workspaceId, chatId, messageId, userTimezone, requestMode } = params
+  const {
+    userId,
+    workflowId,
+    workspaceId,
+    organizationId,
+    chatId,
+    messageId,
+    userTimezone,
+    requestMode,
+  } = params
 
   if (workflowId && !workspaceId) {
     const context = await prepareExecutionContext(userId, workflowId, chatId)
@@ -667,14 +683,17 @@ async function buildInitialExecutionContext(params: {
     prepareCopilotEnvironmentContext(userId, workspaceId, {
       includeSecrets: requestMode !== 'assistant',
     }),
-    workspaceId
-      ? resolveBillingAttribution({ actorUserId: userId, workspaceId })
-      : Promise.resolve(undefined),
+    organizationId
+      ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
+      : workspaceId
+        ? resolveBillingAttribution({ actorUserId: userId, workspaceId })
+        : Promise.resolve(undefined),
   ])
   return {
     userId,
     workflowId: workflowId ?? '',
     workspaceId,
+    organizationId,
     chatId,
     ...environmentContext,
     billingAttribution,
@@ -831,6 +850,8 @@ async function resolveBranch(params: {
   workflowId?: string
   workflowName?: string
   workspaceId?: string
+  organizationId?: string
+  principal?: SessionPrincipal
   model?: string
   mode?: UnifiedChatRequest['mode']
   provider?: string
@@ -840,10 +861,50 @@ async function resolveBranch(params: {
     workflowId: providedWorkflowId,
     workflowName,
     workspaceId: requestedWorkspaceId,
+    organizationId,
+    principal,
     model,
     mode,
     provider,
   } = params
+
+  if (organizationId) {
+    if (!principal) return createUnauthorizedResponse()
+    if (requestedWorkspaceId || providedWorkflowId || workflowName || mode !== 'assistant') {
+      return createBadRequestResponse(
+        'Organization conversations support Assistant mode without a workspace or workflow'
+      )
+    }
+    await authorizeOrganizationChat.execute({ principal, input: { organizationId } })
+    return {
+      kind: 'organization',
+      organizationId,
+      workspacePermission: null,
+      effectiveModel: DEFAULT_MODEL,
+      goRoute: '/api/mothership',
+      titleModel: DEFAULT_MODEL,
+      notifyWorkspaceStatus: false,
+      buildPayload: async (payloadParams) =>
+        buildCopilotRequestPayload(
+          {
+            ...payloadParams,
+            organizationId,
+            mode: 'assistant',
+            model: '',
+          },
+          { selectedModel: '' }
+        ),
+      buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
+        buildInitialExecutionContext({
+          userId,
+          organizationId,
+          chatId,
+          messageId,
+          userTimezone,
+          requestMode: 'assistant',
+        }),
+    }
+  }
 
   if (providedWorkflowId || workflowName) {
     const resolved = await resolveWorkflowIdForUser(
@@ -1131,6 +1192,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             workflowId: body.workflowId,
             workflowName: body.workflowName,
             workspaceId: body.workspaceId,
+            organizationId: body.organizationId,
+            principal: session.session?.id
+              ? { kind: 'session', userId: authenticatedUserId, sessionId: session.session.id }
+              : undefined,
             model: body.model,
             mode: body.mode,
             provider: body.provider,
@@ -1199,7 +1264,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       let chatIsNew = false
       actualChatId = body.chatId
 
-      if (body.chatId || body.createNewChat) {
+      if (body.chatId || body.createNewChat || branch.kind === 'organization') {
         const chatResult = await withCopilotSpan(
           TraceSpan.CopilotChatResolveOrCreateChat,
           {
@@ -1212,6 +1277,16 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               userId: authenticatedUserId,
               ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
               workspaceId: branch.workspaceId,
+              ...(branch.kind === 'organization'
+                ? {
+                    organizationId: branch.organizationId,
+                    principal: {
+                      kind: 'session' as const,
+                      userId: authenticatedUserId,
+                      sessionId: session.session.id,
+                    },
+                  }
+                : {}),
               model: branch.titleModel,
               type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
             }),
@@ -1533,11 +1608,13 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         ...(branch.titleProvider ? { titleProvider: branch.titleProvider } : {}),
         requestId,
         workspaceId,
+        ...(branch.kind === 'organization' ? { organizationId: branch.organizationId } : {}),
         otelRoot: activeOtelRoot,
         orchestrateOptions: {
           userId: authenticatedUserId,
           ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
           ...(workspaceId ? { workspaceId } : {}),
+          ...(branch.kind === 'organization' ? { organizationId: branch.organizationId } : {}),
           chatId: actualChatId,
           executionId,
           runId,
@@ -1545,6 +1622,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           autoExecuteTools: true,
           interactive: true,
           executionContext,
+          billingAttribution: executionContext.billingAttribution,
           onComplete: buildOnComplete({
             chatId: actualChatId,
             userMessageId,
@@ -1618,6 +1696,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return validationErrorResponse(error, 'Invalid request data')
     }
 
+    const applicationError = asOrchestrationError(error)
+    if (applicationError?.code === 'forbidden' || applicationError?.code === 'not_found') {
+      return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
+    }
     if (isWorkspaceAccessDeniedError(error)) {
       return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
     }

@@ -14,9 +14,9 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
 }))
 
-vi.mock('@/hooks/queries/credential-groups', () => ({
-  useWorkspaceAccounts: (workspaceId?: string) => {
-    mocks.accounts(workspaceId)
+vi.mock('@/hooks/queries/source-accounts', () => ({
+  useSourceAccounts: (scope?: { kind: 'workspace' | 'organization' }) => {
+    mocks.accounts(scope)
     return {
       data: {
         credentialGroup: mocks.configured
@@ -200,7 +200,10 @@ describe('Slack setup continuity', () => {
     await act(async () => link?.click())
     expect(onNavigate).toHaveBeenCalledOnce()
     expect(container.textContent).toContain('Apply changes')
-    expect(mocks.accounts).toHaveBeenLastCalledWith('workspace-1')
+    expect(mocks.accounts).toHaveBeenLastCalledWith({
+      kind: 'workspace',
+      workspaceId: 'workspace-1',
+    })
   })
 
   it.each(['loading', 'configured'] as const)('hides the Slack detour while %s', async (state) => {

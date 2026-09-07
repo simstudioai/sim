@@ -35,6 +35,14 @@ export interface WorkspaceDocumentProcessingBillingContext {
   billingAttribution: BillingAttributionSnapshot
 }
 
+export interface OrganizationDocumentProcessingBillingContext {
+  billingScope: 'organization'
+  actorUserId: string
+  workspaceId: null
+  organizationId: string
+  billingAttribution: BillingAttributionSnapshot
+}
+
 export interface NonWorkspaceDocumentProcessingBillingContext {
   billingScope: 'non-workspace'
   actorUserId: string
@@ -44,6 +52,7 @@ export interface NonWorkspaceDocumentProcessingBillingContext {
 
 export type DocumentProcessingBillingContext =
   | WorkspaceDocumentProcessingBillingContext
+  | OrganizationDocumentProcessingBillingContext
   | NonWorkspaceDocumentProcessingBillingContext
 
 export type DocumentProcessingPayload = DocumentProcessingPayloadBase &
@@ -93,6 +102,26 @@ export function assertDocumentProcessingBillingContext(
     }
   }
 
+  if (value.billingScope === 'organization') {
+    const attribution = assertBillingAttributionSnapshot(value.billingAttribution)
+    if (
+      !isNonEmptyString(value.organizationId) ||
+      value.workspaceId !== null ||
+      attribution.workspaceId !== null ||
+      attribution.organizationId !== value.organizationId ||
+      attribution.actorUserId !== value.actorUserId
+    ) {
+      throw new Error('Document processing organization does not match billing attribution')
+    }
+    return {
+      billingScope: 'organization',
+      workspaceId: null,
+      organizationId: value.organizationId,
+      actorUserId: value.actorUserId,
+      billingAttribution: attribution,
+    }
+  }
+
   if (value.billingScope === 'non-workspace') {
     if (value.workspaceId !== null) {
       throw new Error('Non-workspace document processing must use a null workspace ID')
@@ -114,6 +143,8 @@ export function createWorkspaceDocumentProcessingBillingContext(
   value: unknown
 ): WorkspaceDocumentProcessingBillingContext {
   const billingAttribution = assertBillingAttributionSnapshot(value)
+  if (!billingAttribution.workspaceId)
+    throw new Error('Workspace processing requires workspace attribution')
   return {
     billingScope: 'workspace',
     actorUserId: billingAttribution.actorUserId,
@@ -242,4 +273,20 @@ export function createDocumentProcessingPayload(
   billingContext: DocumentProcessingBillingContext
 ): DocumentProcessingPayload {
   return assertDocumentProcessingPayload({ ...payload, ...billingContext })
+}
+
+export function createOrganizationDocumentProcessingBillingContext(
+  value: unknown
+): OrganizationDocumentProcessingBillingContext {
+  const attribution = assertBillingAttributionSnapshot(value)
+  const context = assertDocumentProcessingBillingContext({
+    billingScope: 'organization',
+    workspaceId: null,
+    organizationId: attribution.organizationId,
+    actorUserId: attribution.actorUserId,
+    billingAttribution: attribution,
+  })
+  if (context.billingScope !== 'organization')
+    throw new Error('Expected organization billing scope')
+  return context
 }

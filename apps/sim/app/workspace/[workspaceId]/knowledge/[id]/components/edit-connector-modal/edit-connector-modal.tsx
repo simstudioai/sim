@@ -20,8 +20,8 @@ import {
 } from '@sim/emcn'
 import { Plus, RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   getProviderIdFromServiceId,
@@ -43,7 +43,6 @@ import {
   ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
-import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import {
   BROWSE_WITH_HINT,
   connectorSyncFrequencyHint,
@@ -55,8 +54,7 @@ import type {
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
@@ -71,7 +69,6 @@ import {
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
-import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('EditConnectorModal')
@@ -165,6 +162,7 @@ function didCanonicalModesChange(
 }
 
 interface EditConnectorModalProps {
+  scope?: ResourceScope
   open: boolean
   onOpenChange: (open: boolean) => void
   knowledgeBaseId: string
@@ -178,6 +176,7 @@ export function EditConnectorModal({
   knowledgeBaseId,
   isSearchIndex = false,
   connector,
+  scope: explicitScope,
 }: EditConnectorModalProps) {
   const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
 
@@ -251,14 +250,11 @@ export function EditConnectorModal({
     initialCanonicalModes,
   })
 
-  const { ownerBilling, features } = useWorkspaceHostContext()
-  const { canAdmin } = useUserPermissionsContext()
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { scope, canAdmin, memberAccessAvailable, mirroredAccessAvailable, hasMaxAccess } =
+    useConnectorScope(explicitScope)
   const { mutate: updateConnector, isPending: isSavingSettings } = useUpdateConnector()
   const { mutate: updateAccess, isPending: isSwitchingAccess } = useUpdateConnectorAccess()
   const isSaving = isSavingSettings || isSwitchingAccess
-  const memberAccessAvailable = useMemberAccessAvailable()
-  const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const {
     integrationAvailability,
     oauthServiceAvailability,
@@ -289,8 +285,6 @@ export function EditConnectorModal({
   /** Keep existing permission-scoped settings visible after their feature is disabled. */
   const showAccessField =
     memberAccessAvailable || mirroredAccessAvailable || persistedAccess.accessMode !== 'workspace'
-
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const accessModeChanged = persistedAccess.accessMode !== access.accessMode
   const accessDirty =
@@ -479,6 +473,7 @@ export function EditConnectorModal({
 
         {activeTab === 'settings' ? (
           <SettingsTab
+            isSearchIndex={isSearchIndex}
             connectorConfig={connectorConfig}
             sourceConfig={sourceConfig}
             credentialId={connector.credentialId}
@@ -515,7 +510,7 @@ export function EditConnectorModal({
             }}
             contentCredentialId={contentCredentialId}
             onContentCredentialChange={setContentCredentialId}
-            workspaceId={workspaceId}
+            scope={scope}
             needsWorkspaceCredential={needsWorkspaceCredential}
             workspaceCredentialId={workspaceCredentialId}
             onWorkspaceCredentialChange={setWorkspaceCredentialId}
@@ -552,6 +547,7 @@ export function EditConnectorModal({
 }
 
 interface SettingsTabProps {
+  isSearchIndex: boolean
   connectorConfig: ConnectorMeta | null
   /** The mode the connector is saved in, which the draft `access` may differ from. */
   sourceConfig: ConfigFieldMap
@@ -581,7 +577,7 @@ interface SettingsTabProps {
   isSwitchingAccess: boolean
   onApplyAccess: () => void
   onResetAccess: () => void
-  workspaceId: string
+  scope: ResourceScope
   needsWorkspaceCredential: boolean
   workspaceCredentialId: string | null
   contentCredentialId: string | null
@@ -590,6 +586,7 @@ interface SettingsTabProps {
 }
 
 function SettingsTab({
+  isSearchIndex,
   connectorConfig,
   sourceConfig,
   credentialId,
@@ -618,7 +615,7 @@ function SettingsTab({
   isSwitchingAccess,
   onApplyAccess,
   onResetAccess,
-  workspaceId,
+  scope,
   needsWorkspaceCredential,
   workspaceCredentialId,
   contentCredentialId,
@@ -653,7 +650,7 @@ function SettingsTab({
     providerId ?? undefined,
     {
       enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
-      workspaceId,
+      ...resourceScopeFields(scope),
     }
   )
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
@@ -691,7 +688,7 @@ function SettingsTab({
       )}
       {connectorConfig && showAccessField && (
         <ConnectorAccessField
-          workspaceId={workspaceId}
+          scope={scope}
           connectorConfig={connectorConfig}
           value={access}
           onChange={onAccessChange}
@@ -789,7 +786,7 @@ function SettingsTab({
         <ConnectServiceAccountModal
           open
           onOpenChange={setShowServiceAccountModal}
-          workspaceId={workspaceId}
+          {...resourceScopeFields(scope)}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
@@ -816,6 +813,7 @@ function SettingsTab({
 
       {connectorConfig && (
         <ConnectorConfigFields
+          scope={scope}
           accessMode={access.accessMode}
           connectorConfig={connectorConfig}
           sourceConfig={sourceConfig}
@@ -829,31 +827,33 @@ function SettingsTab({
         />
       )}
 
-      <ChipModalField
-        type='custom'
-        title='Sync Frequency'
-        hint={connectorSyncFrequencyHint(
-          access.accessMode,
-          syncInterval,
-          Boolean(contentCredentialId)
-        )}
-      >
-        <ButtonGroup
-          value={String(syncInterval)}
-          onValueChange={(val) => setSyncInterval(Number(val))}
+      {!isSearchIndex && (
+        <ChipModalField
+          type='custom'
+          title='Sync Frequency'
+          hint={connectorSyncFrequencyHint(
+            access.accessMode,
+            syncInterval,
+            Boolean(contentCredentialId)
+          )}
         >
-          {SYNC_INTERVALS.map((interval) => (
-            <ButtonGroupItem
-              key={interval.value}
-              value={String(interval.value)}
-              disabled={interval.requiresMax && !hasMaxAccess}
-            >
-              {interval.label}
-              {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-            </ButtonGroupItem>
-          ))}
-        </ButtonGroup>
-      </ChipModalField>
+          <ButtonGroup
+            value={String(syncInterval)}
+            onValueChange={(val) => setSyncInterval(Number(val))}
+          >
+            {SYNC_INTERVALS.map((interval) => (
+              <ButtonGroupItem
+                key={interval.value}
+                value={String(interval.value)}
+                disabled={interval.requiresMax && !hasMaxAccess}
+              >
+                {interval.label}
+                {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
+              </ButtonGroupItem>
+            ))}
+          </ButtonGroup>
+        </ChipModalField>
+      )}
 
       <ChipModalError>{error}</ChipModalError>
     </>

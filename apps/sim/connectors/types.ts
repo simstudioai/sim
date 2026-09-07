@@ -249,7 +249,7 @@ export interface ConnectorConfigField {
   placeholder?: string
   required?: boolean
   description?: string
-  /** Account-local selector IDs cannot be reused across members; keep the manual sibling instead. */
+  /** Excludes settings unused by member crawls and account-local selectors that need a manual sibling. */
   hideInMemberMode?: true
   options?: { label: string; id: string }[]
 

@@ -11,7 +11,7 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
-import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
+import { launchScopedCredentialConnection } from '@/lib/credentials/application/launch-scoped-credential-connection'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
@@ -46,18 +46,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   let { providerId, workspaceId, callbackURL: requestedCallback, credentialId } = parsed.data.query
 
   try {
+    let organizationId: string | undefined
     let fromConnectionDraft = false
     let connectionDraftId: string | undefined
     let encryptedQuickBooksClientConfig: string | null | undefined
     if (draftId) {
       try {
-        const { draft } = await launchCredentialConnection.execute({
+        const { draft } = await launchScopedCredentialConnection({
           principal,
           input: { draftId },
           request,
         })
         providerId = draft.providerId
-        workspaceId = draft.workspaceId
+        workspaceId = draft.workspaceId ?? undefined
+        organizationId = draft.organizationId ?? undefined
         credentialId = draft.credentialId ?? undefined
         connectionDraftId = draft.id
         encryptedQuickBooksClientConfig = draft.oauthConfig
@@ -69,7 +71,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    if (!providerId || !workspaceId) {
+    if (!providerId || (!workspaceId && !organizationId)) {
       throw new Error('Validated OAuth authorization request is missing its target')
     }
     if (providerId !== 'quickbooks') {
@@ -87,6 +89,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         : `${baseUrl}${APP_ENTRY_PATH}`
 
     if (!fromConnectionDraft) {
+      if (!workspaceId) throw new Error('Workspace OAuth launch is missing its owner')
       try {
         const connection = await createCredentialConnection.execute({
           principal,
@@ -130,7 +133,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (providerId === 'quickbooks') {
       if (!encryptedQuickBooksClientConfig) {
-        const { draft } = await launchCredentialConnection.execute({
+        const { draft } = await launchScopedCredentialConnection({
           principal,
           input: { draftId: connectionDraftId },
           request,

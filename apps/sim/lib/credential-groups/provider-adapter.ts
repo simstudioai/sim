@@ -50,7 +50,8 @@ export interface CredentialGroupProviderAdapter {
           Partial<Pick<CredentialGroupOptionConfig, 'requiredScopes'>>)
       | undefined,
     context: {
-      workspaceId: string
+      workspaceId?: string | null
+      organizationId?: string | null
       credentialGroupId?: string
       credentialGroupOptionId?: string
       authorizationAppId?: string

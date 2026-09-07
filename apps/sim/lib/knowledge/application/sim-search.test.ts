@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   isMemberAccessAvailable: vi.fn(),
   requireMirroredAccess: vi.fn(),
   createKnowledgeBase: vi.fn(),
+  createOrganizationKnowledgeBase: vi.fn(),
   deleteKnowledgeBase: vi.fn(),
   createConnector: vi.fn(),
   deleteConnector: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@sim/audit', () => ({
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
+  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
   permissionSatisfies: (actual: string | null, required: string) => {
     const rank = { read: 1, write: 2, admin: 3 } as const
     return (
@@ -41,7 +43,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
+  resolveKnowledgeOwnerContext: mocks.resolveWorkspace,
 }))
 
 vi.mock('@/lib/knowledge/access/availability', async () => {
@@ -59,6 +61,12 @@ vi.mock('@/lib/knowledge/access/availability', async () => {
   }
 })
 
+vi.mock('@/lib/knowledge/service', () => ({
+  createAuthorizedKnowledgeBase: mocks.createOrganizationKnowledgeBase,
+}))
+vi.mock('@/lib/knowledge/embeddings', () => ({
+  getConfiguredKbEmbedding: async () => ({ model: 'test-embedding', dimensions: 1536 }),
+}))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   createKnowledgeBase: { execute: mocks.createKnowledgeBase },
   deleteKnowledgeBaseOperation: { execute: mocks.deleteKnowledgeBase },
@@ -75,6 +83,7 @@ vi.mock('@/lib/knowledge/application/connector-access', () => ({
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
+  getUserPermissionConfigForOrganization: async () => null,
 }))
 
 vi.mock('@/lib/sim-search/connectors', () => ({
@@ -183,7 +192,9 @@ describe('connectSimSearchConnector', () => {
         input: { workspaceId: 'workspace-1', connectorType: 'gitlab' },
       })
     ).resolves.toEqual({ knowledgeBaseId: 'kb-existing' })
-    expect(mocks.requireMirroredAccess).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+    expect(mocks.requireMirroredAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1' })
+    )
     expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
   })
 
@@ -196,7 +207,10 @@ describe('connectSimSearchConnector', () => {
         input: { workspaceId: 'workspace-1', connectorType: 'google_drive', accessMode: 'members' },
       })
     ).resolves.toEqual({ knowledgeBaseId: 'kb-existing', credentialGroupId: 'accounts-group' })
-    expect(mocks.ensureAccounts).toHaveBeenCalledWith('workspace-1', 'user-1')
+    expect(mocks.ensureAccounts).toHaveBeenCalledWith(
+      { kind: 'workspace', workspaceId: 'workspace-1' },
+      'user-1'
+    )
     expect(mocks.requireMirroredAccess).not.toHaveBeenCalled()
   })
 
@@ -444,5 +458,86 @@ describe('connectSimSearchConnector', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization Search setup', () => {
+  const owner = { organizationId: 'org-1' }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.resolveWorkspace.mockResolvedValue(owner)
+    mocks.isMemberAccessAvailable.mockResolvedValue(true)
+    mocks.ensureAccounts.mockResolvedValue({ id: 'org-accounts' })
+    mocks.createOrganizationKnowledgeBase.mockResolvedValue({ id: 'org-index' })
+    mocks.enroll.mockResolvedValue({ url: 'https://fixture.test/enroll' })
+  })
+  function asRole(role: string) {
+    for (let i = 0; i < 4; i++) queueTableRows(member, [{ role }])
+  }
+  it('lets an admin prepare an organization source with no workspace creation or membership', async () => {
+    asRole('admin')
+    queueTableRows(knowledgeBase, [])
+    await expect(
+      prepareSearchSource.execute({
+        principal,
+        input: { ...owner, connectorType: 'google_drive', accessMode: 'members' },
+      })
+    ).resolves.toEqual({ knowledgeBaseId: 'org-index', credentialGroupId: 'org-accounts' })
+    expect(mocks.ensureAccounts).toHaveBeenCalledWith(
+      { kind: 'organization', organizationId: 'org-1' },
+      'user-1'
+    )
+    expect(mocks.createOrganizationKnowledgeBase).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1', isSearchIndex: true }),
+      expect.any(String)
+    )
+    expect(mocks.createOrganizationKnowledgeBase.mock.calls[0][0]).not.toHaveProperty('workspaceId')
+    expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+  it('lets a member connect to an existing organization source without configuring a second crawler', async () => {
+    asRole('member')
+    queueConnectorLookups(existingConnector)
+    await expect(
+      connectSimSearchConnector.execute({
+        principal,
+        input: { ...owner, connectorType: 'google_drive' },
+      })
+    ).resolves.toMatchObject(existingConnector)
+    expect(mocks.enroll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: expect.objectContaining({
+          assertedOrganizationId: 'org-1',
+          connectorId: 'connector-drive',
+        }),
+      })
+    )
+    expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+  it('refuses organization source setup by a member before provisioning accounts or an index', async () => {
+    asRole('member')
+    await expect(
+      prepareSearchSource.execute({
+        principal,
+        input: { ...owner, connectorType: 'google_drive', accessMode: 'members' },
+      })
+    ).rejects.toThrow('administrator')
+    expect(mocks.ensureAccounts).not.toHaveBeenCalled()
+    expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
+  })
+  it('refuses a former organization member before looking up any configured source', async () => {
+    queueTableRows(member, [])
+    await expect(
+      connectSimSearchConnector.execute({
+        principal,
+        input: { ...owner, connectorType: 'google_drive' },
+      })
+    ).rejects.toThrow('Organization not found')
+    expect(mocks.enroll).not.toHaveBeenCalled()
+    expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
   })
 })

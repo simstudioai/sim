@@ -18,6 +18,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { SlackIcon } from '@/components/icons'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   SLACK_MANAGED_USER_SCOPES,
@@ -25,9 +26,9 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
-  useCreateWorkspaceCredential,
-  useUpdateWorkspaceCredential,
-} from '@/hooks/queries/credentials'
+  useCreateScopedCredential,
+  useUpdateScopedCredential,
+} from '@/hooks/queries/scoped-credentials'
 import {
   buildSlackManifest,
   getSlackManagedUserAuthorizationManifestConfig,
@@ -90,7 +91,8 @@ function getAgentDescriptionError(description: string): string | null {
 interface ConnectSlackBotModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   /**
    * When set, the modal reconnects (rotates secrets on) this existing credential
    * instead of creating a new one — the id is reused so the Slack ingest URL
@@ -108,7 +110,7 @@ interface ConnectSlackBotModalProps {
 
 /**
  * One-time setup for a reusable custom Slack bot credential — the same guided
- * wizard as the legacy in-block setup, but it persists a workspace credential
+ * wizard as the legacy in-block setup, but it persists a scoped credential
  * instead of writing sub-block values. The credential id is pre-generated so the
  * ingest URL `/api/webhooks/slack/custom/{id}` (and the manifest that embeds it)
  * can be shown up front; the credential is created on the final step once the
@@ -118,11 +120,14 @@ export function ConnectSlackBotModal({
   open,
   onOpenChange,
   workspaceId,
+  organizationId,
   credentialId: reconnectCredentialId,
   initialDisplayName,
   initialDescription,
   onCreated,
 }: ConnectSlackBotModalProps) {
+  const scope = resourceScopeFromOwner({ workspaceId, organizationId })
+  const searchOnly = scope.kind === 'organization'
   const isReconnect = Boolean(reconnectCredentialId)
   const [step, setStep] = useState(0)
   const [credentialId, setCredentialId] = useState(() => reconnectCredentialId ?? generateId())
@@ -138,8 +143,8 @@ export function ConnectSlackBotModal({
   const [createError, setCreateError] = useState<string | null>(null)
   const [created, setCreated] = useState(false)
 
-  const createCredential = useCreateWorkspaceCredential()
-  const updateCredential = useUpdateWorkspaceCredential()
+  const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
 
   useEffect(() => {
     if (open) return
@@ -169,26 +174,33 @@ export function ConnectSlackBotModal({
   const requestUrl = buildSlackCustomBotRequestUrl(credentialId)
 
   const descriptionError = getAgentDescriptionError(appDescription)
-  const slashCommandsError = getSlashCommandsError(slashCommands)
+  const slashCommandsError = searchOnly ? null : getSlashCommandsError(slashCommands)
   const manifestConfigurationError = descriptionError ?? slashCommandsError
 
   const manifestJson = useMemo(() => {
     if (manifestConfigurationError) return ''
-    const managedUserAuthorization = selected.has(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id)
+    const capabilities = searchOnly ? ALL_CAPABILITIES : selected
+    const managedUserAuthorization = capabilities.has(
+      SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id
+    )
       ? getSlackManagedUserAuthorizationManifestConfig(
           getBaseUrl(),
-          memberAccess === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES
+          searchOnly || memberAccess === 'search'
+            ? SLACK_SEARCH_USER_SCOPES
+            : SLACK_MANAGED_USER_SCOPES
         )
       : undefined
-    const manifest = buildSlackManifest(selected, {
+    const manifest = buildSlackManifest(capabilities, {
       appName: appName.trim() || DEFAULT_APP_NAME,
       webhookUrl: requestUrl,
       description: appDescription,
-      slashCommands: slashCommands.map(({ command, description, usageHint }) => ({
-        command,
-        description,
-        usageHint,
-      })),
+      slashCommands: (searchOnly ? [] : slashCommands).map(
+        ({ command, description, usageHint }) => ({
+          command,
+          description,
+          usageHint,
+        })
+      ),
       ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
     return JSON.stringify(manifest, null, 2)
@@ -200,9 +212,10 @@ export function ConnectSlackBotModal({
     slashCommands,
     requestUrl,
     memberAccess,
+    searchOnly,
   ])
 
-  const capabilityIds = useMemo(() => [...selected], [selected])
+  const capabilityIds = [...selected]
   const setCapabilityIds = (next: string[]) => setSelected(new Set(next))
 
   const isPending = createCredential.isPending || updateCredential.isPending
@@ -214,6 +227,7 @@ export function ConnectSlackBotModal({
         // Rotate secrets on the existing credential in place — same id, so the
         // Slack app's Request URL and any shares stay intact.
         await updateCredential.mutateAsync({
+          ...resourceScopeFields(scope),
           credentialId,
           signingSecret: signingSecret.trim(),
           botToken: botToken.trim(),
@@ -222,7 +236,7 @@ export function ConnectSlackBotModal({
         })
       } else {
         await createCredential.mutateAsync({
-          workspaceId,
+          ...resourceScopeFields(scope),
           type: 'service_account',
           providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
           id: credentialId,
@@ -253,17 +267,24 @@ export function ConnectSlackBotModal({
       onStepChange={handleStepChange}
       size='lg'
       icon={SlackIcon}
-      title={isReconnect ? 'Reconnect a custom Slack bot' : 'Create a custom Slack bot'}
+      title={
+        searchOnly
+          ? 'Set up Slack for search'
+          : isReconnect
+            ? 'Reconnect a custom Slack bot'
+            : 'Create a custom Slack bot'
+      }
       doneLabel='Done'
     >
       {/* Bot name is required so the credential name, the manifest app name, and
           uniqueness all use the user's choice — never the shared Slack team name
           fallback, which collides for a second bot in the same workspace. */}
       <Wizard.Step
-        title='Configure your bot'
+        title={searchOnly ? 'Name your Slack app' : 'Configure your bot'}
         canAdvance={appName.trim().length > 0 && !descriptionError && !slashCommandsError}
       >
         <StepConfigure
+          searchOnly={searchOnly}
           appName={appName}
           onAppNameChange={setAppName}
           appDescription={appDescription}
@@ -288,7 +309,13 @@ export function ConnectSlackBotModal({
         <StepToken value={botToken} onChange={setBotToken} />
       </Wizard.Step>
       <Wizard.Step title='All set'>
-        <StepDone pending={isPending} created={created} error={createError} onRetry={runCreate} />
+        <StepDone
+          searchOnly={searchOnly}
+          pending={isPending}
+          created={created}
+          error={createError}
+          onRetry={runCreate}
+        />
       </Wizard.Step>
     </Wizard>
   )
@@ -319,6 +346,7 @@ function SubStep({ n, children }: SubStepProps) {
 }
 
 interface StepConfigureProps {
+  searchOnly: boolean
   appName: string
   onAppNameChange: (next: string) => void
   appDescription: string
@@ -333,6 +361,7 @@ interface StepConfigureProps {
   onMemberAccessChange: (access: 'search' | 'workflow') => void
 }
 function StepConfigure({
+  searchOnly,
   appName,
   onAppNameChange,
   appDescription,
@@ -352,7 +381,7 @@ function StepConfigure({
     <>
       <ChipModalField
         type='input'
-        title='Bot name'
+        title={searchOnly ? 'App name' : 'Bot name'}
         value={appName}
         onChange={onAppNameChange}
         placeholder={DEFAULT_APP_NAME}
@@ -366,26 +395,28 @@ function StepConfigure({
         maxLength={140}
         error={descriptionError}
       />
-      <ChipModalField
-        type='custom'
-        title='Additional permissions'
-        hint={
-          allSelected
-            ? 'All additional permissions enabled — the bot can read messages, react, access files and users, and people can authorize it through Connected accounts.'
-            : undefined
-        }
-      >
-        <ChipDropdown
-          multiple
-          fullWidth
-          value={capabilityIds}
-          onChange={onCapabilityIdsChange}
-          options={CAPABILITY_OPTIONS}
-          allLabel='No additional permissions'
-          showAllOption={false}
-        />
-      </ChipModalField>
-      {capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
+      {!searchOnly && (
+        <ChipModalField
+          type='custom'
+          title='Additional permissions'
+          hint={
+            allSelected
+              ? 'All additional permissions enabled — the bot can read messages, react, access files and users, and people can authorize it through Connected accounts.'
+              : undefined
+          }
+        >
+          <ChipDropdown
+            multiple
+            fullWidth
+            value={capabilityIds}
+            onChange={onCapabilityIdsChange}
+            options={CAPABILITY_OPTIONS}
+            allLabel='No additional permissions'
+            showAllOption={false}
+          />
+        </ChipModalField>
+      )}
+      {!searchOnly && capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
         <ChipModalField
           type='dropdown'
           title='Member access'
@@ -400,11 +431,13 @@ function StepConfigure({
           hint='Choose the same access when configuring this app for member accounts.'
         />
       )}
-      <SlashCommandsEditor
-        commands={slashCommands}
-        onChange={onSlashCommandsChange}
-        error={slashCommandsError}
-      />
+      {!searchOnly && (
+        <SlashCommandsEditor
+          commands={slashCommands}
+          onChange={onSlashCommandsChange}
+          error={slashCommandsError}
+        />
+      )}
     </>
   )
 }
@@ -582,12 +615,13 @@ function SecretField({ label, value, onChange, placeholder }: SecretFieldProps) 
 }
 
 interface StepDoneProps {
+  searchOnly: boolean
   pending: boolean
   created: boolean
   error: string | null
   onRetry: () => void
 }
-function StepDone({ pending, created, error, onRetry }: StepDoneProps) {
+function StepDone({ searchOnly, pending, created, error, onRetry }: StepDoneProps) {
   if (pending) {
     return (
       <div className='flex flex-col items-center gap-3 py-10 text-center'>
@@ -608,10 +642,13 @@ function StepDone({ pending, created, error, onRetry }: StepDoneProps) {
     return (
       <div className='flex flex-col items-center gap-4 py-10 text-center'>
         <div className='space-y-1'>
-          <p className='text-[var(--text-primary)] text-base'>Bot connected</p>
+          <p className='text-[var(--text-primary)] text-base'>
+            {searchOnly ? 'Slack app connected' : 'Bot connected'}
+          </p>
           <p className='max-w-sm text-[var(--text-secondary)] text-sm leading-relaxed'>
-            It's now selectable in Slack triggers and actions across this workspace. Click Done to
-            finish.
+            {searchOnly
+              ? 'Click Done to verify member access.'
+              : "It's now selectable in Slack triggers and actions across this workspace. Click Done to finish."}
           </p>
         </div>
       </div>

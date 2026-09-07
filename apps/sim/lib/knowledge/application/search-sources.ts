@@ -1,25 +1,25 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
 import { and, asc, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
-import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/contexts'
+import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorMeta } from '@/connectors/registry'
 
-export interface ListSearchSourcesInput {
-  workspaceId: string
-}
+export interface ListSearchSourcesInput extends ResourceOwner {}
 
 /** Viewer-safe setup and indexing state; source credentials and other members never leave this use case. */
 export const listSearchSources = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listSearchSources,
   resolveContext: ({ input }: { input: ListSearchSourcesInput }) =>
-    resolveKnowledgeWorkspaceContext(input),
+    resolveKnowledgeOwnerContext(input),
   async execute({ principal, context }) {
     const rows = await db
       .select({
@@ -39,7 +39,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
       .where(
         and(
-          eq(knowledgeBase.workspaceId, context.workspaceId),
+          resourceScopeCondition(knowledgeBase, resourceScopeFromOwner(context)),
           eq(knowledgeBase.isSearchIndex, true),
           isNull(knowledgeBase.deletedAt),
           inArray(knowledgeConnector.accessMode, ['admin', 'members']),
@@ -51,10 +51,11 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     if (rows.length === 0) return { sources: [] }
 
     const [availability, memberships, viewers, access] = await Promise.all([
-      resolveKnowledgeAccessAvailability({ workspaceId: context.workspaceId }),
+      resolveKnowledgeAccessAvailability(context),
       resolveViewerConnectorMemberships({
         userId: principal.userId,
         workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
         connectors: rows,
       }),
       db
@@ -62,7 +63,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         .from(user)
         .where(eq(user.id, principal.userId))
         .limit(1),
-      createKnowledgeAccessProvider(principal, { workspaceId: context.workspaceId }).get(),
+      createKnowledgeAccessProvider(principal, context).get(),
     ])
     const documentStates = await db
       .select({

@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { readNodeStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   getStorageConfig,
@@ -87,19 +88,43 @@ async function insertFileMetadataHelper(
   context: StorageContext,
   fileName: string,
   contentType: string,
-  fileSize: number
+  fileSize: number,
+  uploadId?: string
 ): Promise<void> {
-  const { insertFileMetadata } = await import('../server/metadata')
-  await insertFileMetadata({
-    key,
-    userId: metadata.userId,
-    workspaceId: metadata.workspaceId || null,
-    folderId: metadata.folderId || null,
-    context,
-    originalName: metadata.originalName || fileName,
-    contentType,
-    size: fileSize,
-  })
+  const { insertFileMetadata, insertImmutableFileMetadata } = await import(
+    '@/lib/uploads/server/metadata'
+  )
+  const insertMetadata =
+    context === 'knowledge-base' ? insertImmutableFileMetadata : insertFileMetadata
+  try {
+    await insertMetadata({
+      key,
+      userId: metadata.userId,
+      workspaceId: metadata.workspaceId || null,
+      organizationId: metadata.organizationId || null,
+      folderId: metadata.folderId || null,
+      context,
+      originalName: metadata.originalName || fileName,
+      contentType,
+      size: fileSize,
+    })
+  } catch (error) {
+    if (uploadId) {
+      try {
+        const { cleanupUnboundKnowledgeUpload } = await import(
+          '@/lib/uploads/core/knowledge-upload-cleanup'
+        )
+        await cleanupUnboundKnowledgeUpload(key, uploadId)
+      } catch (cleanupError) {
+        logger.error('Failed to clean up an unbound knowledge upload', {
+          key,
+          uploadId,
+          error: cleanupError,
+        })
+      }
+    }
+    throw error
+  }
 }
 
 /**
@@ -122,6 +147,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
   const config = getStorageConfig(context)
 
   const keyToUse = customKey || fileName
+  const uploadId =
+    context === 'knowledge-base' && metadata && persistMetadata ? generateId() : undefined
+  const objectMetadata = uploadId ? { ...metadata, uploadId } : metadata
 
   if (USE_BLOB_STORAGE) {
     const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
@@ -132,7 +160,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       createBlobConfig(config),
       file.length,
       preserveKey,
-      metadata
+      objectMetadata,
+      Boolean(uploadId)
     )
 
     if (metadata && persistMetadata) {
@@ -142,7 +171,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         context,
         fileName,
         contentType,
-        file.length
+        file.length,
+        uploadId
       )
     }
 
@@ -158,7 +188,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       createS3Config(config),
       file.length,
       preserveKey,
-      metadata
+      objectMetadata,
+      Boolean(uploadId)
     )
 
     if (metadata && persistMetadata) {
@@ -168,7 +199,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         context,
         fileName,
         contentType,
-        file.length
+        file.length,
+        uploadId
       )
     }
 
@@ -184,7 +216,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       createGcsConfig(config),
       file.length,
       preserveKey,
-      metadata
+      objectMetadata,
+      Boolean(uploadId)
     )
 
     if (metadata && persistMetadata) {
@@ -194,7 +227,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         context,
         fileName,
         contentType,
-        file.length
+        file.length,
+        uploadId
       )
     }
 
@@ -211,7 +245,24 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   await mkdir(dirname(filesystemPath), { recursive: true })
 
-  await writeFile(filesystemPath, file)
+  if (uploadId) {
+    const { writeLocalPutObject } = await import('@/lib/uploads/upload-session/provider')
+    await writeLocalPutObject({
+      uploadId,
+      key: storageKey,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(file)
+          controller.close()
+        },
+      }),
+      expectedSize: file.length,
+      contentType,
+      metadata: objectMetadata ?? {},
+    })
+  } else {
+    await writeFile(filesystemPath, file)
+  }
 
   if (metadata && persistMetadata) {
     await insertFileMetadataHelper(
@@ -220,7 +271,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       context,
       fileName,
       contentType,
-      file.length
+      file.length,
+      uploadId
     )
   }
 

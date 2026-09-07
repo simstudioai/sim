@@ -261,6 +261,7 @@ export interface UpdatePersonalTokenParams {
 export async function updatePersonalTokenCredential(input: UpdatePersonalTokenParams) {
   const current = input.credential
   if (
+    !current.workspaceId ||
     !current.createdBy ||
     !current.providerTenantId ||
     !current.providerSubjectId ||
@@ -268,6 +269,7 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
   )
     throw new Error('Personal token identity is incomplete')
   const {
+    workspaceId,
     createdBy: ownerUserId,
     providerTenantId: instanceUrl,
     providerSubjectId: subjectId,
@@ -330,7 +332,7 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
           eq(credential.id, current.id),
           eq(credential.type, 'personal_token'),
           eq(credential.createdBy, ownerUserId),
-          eq(credential.workspaceId, current.workspaceId),
+          eq(credential.workspaceId, workspaceId),
           eq(credential.providerTenantId, instanceUrl),
           eq(credential.providerSubjectId, subjectId)
         )

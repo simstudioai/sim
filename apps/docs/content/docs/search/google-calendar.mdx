@@ -7,18 +7,20 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search meetings and event details available to your Google account. A workspace admin enables the source; every teammate connects their own account. Google controls which calendar and event details each person can read.
+Search meetings and event details available to your Google account. An organization admin enables the source; every teammate connects their own account. Google controls which calendar and event details each person can read.
+
+These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Set up the source
 
-These steps require a Sim workspace admin.
+These steps require a Sim organization admin.
 
 <Steps>
 <Step>
 
 ### Add Google Calendar
 
-Open **Search → Add source → Google Calendar**. Search uses **Member accounts**; an admin or service account cannot connect on behalf of everyone.
+Open **Integrations → Add source → Google Calendar**. Search uses **Member accounts**; an admin or service account cannot connect on behalf of everyone.
 
 </Step>
 <Step>
@@ -34,7 +36,7 @@ Leave **Calendars** empty to search each person's primary calendar. To include s
 
 ### Create the source
 
-Keep the default date range for the previous and next 30 days, then click **Create & Invite**. Each person, including the admin, connects their own account from the **Sources** list.
+Keep the default date range for the previous and next 30 days, then click **Add source**. Each person, including the admin, connects their own account from the **Sources** list.
 
 </Step>
 </Steps>
@@ -47,11 +49,11 @@ Keep the default date range for the previous and next 30 days, then click **Crea
 
 ## Connect your account
 
-1. Join the Sim workspace and verify your Sim email. Open **Search** and click **Connect account** beside Google Calendar.
+1. Join the Sim organization and verify your Sim email. Open **Integrations** and click **Connect account** beside Google Calendar.
 2. In the connection tab, choose the Google account whose verified email matches your Sim email. Grant the requested permissions.
-3. Return to Search to see indexing status and your searchable document count.
+3. Return to Integrations to see indexing status and your searchable document count.
 
-Teammates repeat only these connection steps after joining the workspace. They do not need to configure the source. Connecting Gmail or Google Drive does not replace the Calendar connection.
+Teammates repeat only these connection steps after joining the organization. They do not need to configure the source. Connecting Gmail or Google Drive does not replace the Calendar connection.
 
 ## Source options
 
@@ -83,7 +85,7 @@ Search schedules syncs hourly. Event edits, cancellations, access changes, and e
 | Busy times without event details | Google may expose only availability or hide private details. Ask the calendar owner to review sharing if more access is appropriate. |
 | A different email is requested | Choose the Google account matching your verified Sim email. |
 | Reconnect | Click **Reconnect** and complete Google authorization again. Allow pop-ups if the connection tab does not open. |
-| Unavailable or needs admin attention | Ask the workspace admin to check source status and the deployment's Google OAuth configuration. |
+| Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 
 ## Self-hosted operator setup
 

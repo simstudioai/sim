@@ -31,6 +31,11 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
@@ -63,7 +68,8 @@ import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-tri
 const logger = createLogger('ConnectorsSection')
 
 interface ConnectorsSectionProps {
-  workspaceId: string
+  scope?: ResourceScope
+  workspaceId?: string
   knowledgeBaseId: string
   isSearchIndex?: boolean
   connectors: ConnectorData[]
@@ -106,6 +112,7 @@ const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
 
 export function ConnectorsSection({
   workspaceId,
+  scope: explicitScope,
   knowledgeBaseId,
   isSearchIndex = false,
   connectors,
@@ -113,6 +120,7 @@ export function ConnectorsSection({
   canEdit,
   className,
 }: ConnectorsSectionProps) {
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const { mutate: triggerSync } = useTriggerSync()
   const {
     mutate: updateConnector,
@@ -213,7 +221,7 @@ export function ConnectorsSection({
             <ConnectorCard
               key={connector.id}
               connector={connector}
-              workspaceId={workspaceId}
+              scope={scope}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
               isSearchIndex={isSearchIndex}
@@ -236,6 +244,7 @@ export function ConnectorsSection({
 
       {editingConnector && (
         <EditConnectorModal
+          scope={scope}
           open={editingConnector !== null}
           onOpenChange={(val) => !val && setEditingConnector(null)}
           knowledgeBaseId={knowledgeBaseId}
@@ -285,7 +294,7 @@ export function ConnectorsSection({
 
 interface ConnectorCardProps {
   connector: ConnectorData
-  workspaceId: string
+  scope: ResourceScope
   knowledgeBaseId: string
   canEdit: boolean
   isSearchIndex: boolean
@@ -298,7 +307,7 @@ interface ConnectorCardProps {
 
 function ConnectorCard({
   connector,
-  workspaceId,
+  scope,
   knowledgeBaseId,
   canEdit,
   isSearchIndex,
@@ -341,7 +350,7 @@ function ConnectorCard({
     isFetching: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(providerId, {
-    workspaceId,
+    ...resourceScopeFields(scope),
   })
 
   const selectedCredential = useMemo(() => {
@@ -352,7 +361,7 @@ function ConnectorCard({
   useCredentialRefreshTriggers(
     refetchCredentials,
     selectedCredential?.provider ?? providerId ?? '',
-    workspaceId
+    scope
   )
 
   const missingScopes = useMemo(
@@ -618,7 +627,7 @@ function ConnectorCard({
                       displayName: connectorDef?.name ?? connector.connectorType,
                       providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
-                      workspaceId,
+                      ...resourceScopeFields(scope),
                       reconnect: true,
                       requestedAt: Date.now(),
                     })
@@ -653,7 +662,7 @@ function ConnectorCard({
                       displayName: connectorDef?.name ?? connector.connectorType,
                       providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
-                      workspaceId,
+                      ...resourceScopeFields(scope),
                       reconnect: true,
                       requestedAt: Date.now(),
                     })
@@ -694,7 +703,7 @@ function ConnectorCard({
           providerId={providerId}
           docsUrl={docsUrl}
           requiredScopes={getCanonicalScopesForProvider(providerId)}
-          workspaceId={workspaceId}
+          {...resourceScopeFields(scope)}
           knowledgeBaseId={knowledgeBaseId}
         />
       )}
@@ -720,7 +729,7 @@ function ConnectorCard({
             providerId={selectedCredential.provider}
             docsUrl={docsUrl}
             reconnectTarget={{
-              workspaceId,
+              ...resourceScopeFields(scope),
               credentialId: selectedCredential.id,
               displayName: selectedCredential.name,
             }}

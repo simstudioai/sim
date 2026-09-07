@@ -4,10 +4,14 @@
 import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Credential } from '@/lib/oauth'
+import type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   accountsQuery: vi.fn(),
+  configFields: vi.fn(),
+  credentials: [] as Pick<Credential, 'id' | 'name' | 'type'>[],
   memberAccess: true,
   mirroredAccess: true,
   accountState: 'missing' as
@@ -31,6 +35,19 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () =>
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canAdmin: true }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope', () => ({
+  useConnectorScope: (
+    scope?:
+      | { kind: 'workspace'; workspaceId: string }
+      | { kind: 'organization'; organizationId: string }
+  ) => ({
+    scope: scope ?? { kind: 'workspace', workspaceId: 'workspace-1' },
+    canAdmin: true,
+    memberAccessAvailable: mocks.memberAccess,
+    mirroredAccessAvailable: mocks.mirroredAccess,
+    hasMaxAccess: true,
+  }),
 }))
 vi.mock('@/hooks/use-member-access', () => ({
   useMemberAccessAvailable: () => mocks.memberAccess,
@@ -61,9 +78,9 @@ vi.mock('@/hooks/use-permission-config', () => ({
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useCreateConnector: () => ({ mutate: mocks.create, isPending: false }),
 }))
-vi.mock('@/hooks/queries/credential-groups', () => ({
-  useWorkspaceAccounts: (workspaceId?: string) => {
-    mocks.accountsQuery(workspaceId)
+vi.mock('@/hooks/queries/source-accounts', () => ({
+  useSourceAccounts: (scope?: { workspaceId?: string; organizationId?: string }) => {
+    mocks.accountsQuery(scope?.organizationId ?? scope?.workspaceId)
     return {
       data:
         mocks.accountState === 'loading' || mocks.accountState === 'error'
@@ -96,7 +113,7 @@ vi.mock('@/hooks/queries/credential-groups', () => ({
 }))
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   useOAuthCredentials: () => ({
-    data: [{ id: 'credential-1', name: 'Source account' }],
+    data: mocks.credentials,
     isLoading: false,
     refetch: vi.fn(),
   }),
@@ -116,7 +133,10 @@ vi.mock(
   })
 )
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields', () => ({
-  ConnectorConfigFields: () => null,
+  ConnectorConfigFields: (props: ConnectorConfigFieldsProps) => {
+    mocks.configFields(props)
+    return null
+  },
 }))
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields', () => ({
   useConnectorConfigFields: () => ({
@@ -134,6 +154,8 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config
 }))
 
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/add-connector-modal'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 let root: Root
 let container: HTMLDivElement
@@ -167,6 +189,8 @@ beforeEach(() => {
   mocks.memberAccess = true
   mocks.mirroredAccess = true
   mocks.accountState = 'missing'
+  mocks.credentials = [{ id: 'credential-1', name: 'Source account', type: 'oauth' }]
+  useConnectorSetupStore.getState().reset()
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   vi.stubGlobal(
     'ResizeObserver',
@@ -188,6 +212,17 @@ afterEach(async () => {
 })
 
 describe('Slack member setup readiness', () => {
+  it('uses the organization account container and returns to organization setup', async () => {
+    await render({ scope: { kind: 'organization', organizationId: 'org-1' } })
+    expect(mocks.accountsQuery).toHaveBeenCalledWith('org-1')
+    const setup = Array.from(document.querySelectorAll('a')).find(
+      (link) => link.textContent?.trim() === 'Set up Slack'
+    )
+    expect(setup?.getAttribute('href')).toBe(
+      '/o/org-1/integrations?search-setup=slack&connectedAccounts=slack'
+    )
+    expect(document.body.textContent).not.toContain('Create & Invite')
+  })
   it.each(['missing', 'loading', 'error', 'inactive', 'unconfigured'] as const)(
     'refuses creation while workspace Slack setup is %s',
     async (state) => {
@@ -282,4 +317,87 @@ describe('Search methods requiring member identity', () => {
     expect(button('Admin or service account')).toBeDisabled()
     expect(button('Workspace')).toBeEnabled()
   })
+})
+
+describe('Service-account source fields', () => {
+  it.each([
+    {
+      name: 'connected members with no browsing account',
+      browse: null,
+      content: null,
+      show: false,
+    },
+    { name: 'connected members browsing with OAuth', browse: 'oauth', content: null, show: false },
+    {
+      name: 'connected members browsing with a service account',
+      browse: 'service',
+      content: null,
+      show: false,
+    },
+    {
+      name: 'a dedicated OAuth indexing account',
+      browse: 'service',
+      content: 'oauth',
+      show: false,
+    },
+    {
+      name: 'a dedicated service indexing account',
+      browse: 'oauth',
+      content: 'service',
+      show: true,
+    },
+  ])(
+    'only offers an impersonation subject for $name when applicable',
+    async ({ browse, content, show }) => {
+      mocks.credentials = [
+        { id: 'oauth', name: 'Google account', type: 'oauth' },
+        { id: 'service', name: 'Indexing account', type: 'service_account' },
+      ]
+      const setupDraftKey = 'drive-setup'
+      useConnectorSetupStore.getState().saveDraft(setupDraftKey, {
+        sourceConfig: {},
+        canonicalModes: {},
+        accessMode: 'members',
+        credentialId: browse,
+        contentCredentialId: content,
+        disabledTagIds: [],
+        savedAt: Date.now(),
+      })
+      await render({
+        initialConnectorType: 'google_drive',
+        setupDraftKey,
+        scope: { kind: 'organization', organizationId: 'org-1' },
+      })
+
+      const fields: ConnectorConfigFieldsProps = mocks.configFields.mock.lastCall![0]
+      const subjectField = googleDriveConnectorMeta.configFields.find(
+        (field) => field.id === 'adminEmail'
+      )!
+      expect(fields.isFieldVisible(subjectField)).toBe(show)
+      expect(
+        fields.isFieldVisible(
+          googleDriveConnectorMeta.configFields.find((field) => field.id === 'folderSelector')!
+        )
+      ).toBe(true)
+    }
+  )
+
+  it.each(['admin', 'workspace'] as const)(
+    'keeps the service-account subject available for %s indexing',
+    async (accessMode) => {
+      mocks.credentials = [{ id: 'service', name: 'Indexing account', type: 'service_account' }]
+      await render({
+        initialConnectorType: 'google_drive',
+        initialAccessMode: accessMode,
+        isSearchIndex: accessMode === 'admin',
+      })
+
+      const fields: ConnectorConfigFieldsProps = mocks.configFields.mock.lastCall![0]
+      expect(
+        fields.isFieldVisible(
+          googleDriveConnectorMeta.configFields.find((field) => field.id === 'adminEmail')!
+        )
+      ).toBe(true)
+    }
+  )
 })

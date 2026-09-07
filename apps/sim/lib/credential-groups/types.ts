@@ -51,7 +51,8 @@ export type CredentialGroupOption =
 
 export interface CredentialGroupRecord {
   id: string
-  workspaceId: string
+  workspaceId: string | null
+  organizationId?: string
   name: string
   description: string | null
   options: CredentialGroupOption[]

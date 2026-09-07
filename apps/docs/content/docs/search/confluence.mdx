@@ -7,9 +7,11 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search pages and blog posts from selected Confluence Cloud spaces. A Sim workspace admin configures the source, and each teammate connects their Confluence account.
+Search pages and blog posts from selected Confluence Cloud spaces. A Sim organization admin configures the source, and each teammate connects their Confluence account.
 
 Search indexes each page's own text, including supported local callouts and code blocks. It does not expand Include Page, Excerpt Include, or third-party macros into that page. Referenced pages can be indexed separately with their own access rules.
+
+These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Choose a connection method
 
@@ -18,13 +20,13 @@ Search indexes each page's own text, including supported local callouts and code
 | **Admin or service account** | One account syncs content, space permissions, page restrictions, and group membership. | Connect their own Confluence account so Sim can match their Atlassian identity to those permissions. |
 | **Member accounts** | Sim syncs content separately through connected members' accounts. | Connect their own Confluence account to establish which pages they can access. |
 
-Use **Admin or service account** when you have a dedicated account that can read the intended spaces and their permissions. Use **Member accounts** when each person should supply their own connection. Available methods depend on your workspace's enabled features.
+Use **Admin or service account** when you have a dedicated account that can read the intended spaces and their permissions. Use **Member accounts** when each person should supply their own connection. Available methods depend on your organization's enabled features.
 
 **Everyone still connects in both methods.** With a central account, teammates supply their identity; they do not configure another central crawl or choose spaces again.
 
 ## Before you start
 
-- Be a **Sim workspace admin** to add the source.
+- Be a **Sim organization admin** to add the source.
 - Use a Confluence Cloud site such as `your-team.atlassian.net`. This connector does not connect to Server or Data Center.
 - Each teammate needs a verified Sim email matching their active Atlassian account's email.
 - For a central crawl, grant its account access to Confluence, the chosen spaces, and any restricted pages you want indexed. Admin status alone does not bypass page restrictions. It also needs permission to read space permissions and the user/group directory.
@@ -38,7 +40,7 @@ On hosted Sim, personal connections authorize the existing Sim app. Teammates do
 
 ### Choose Confluence
 
-Open **Search**, click **Add source**, and choose **Confluence**. Click **Set up** or **Continue setup** if prompted. Select your **Connection method**.
+Open **Integrations**, click **Add source**, and choose **Confluence**. Click **Set up** or **Continue setup** if prompted. Select your **Connection method**.
 
 </Step>
 <Step>
@@ -70,9 +72,9 @@ Keep **Content Type** at its default for pages, or choose blog posts or both. Le
 
 ### Save and connect your identity
 
-Click **Connect & Sync** for a central account, or **Create & Invite** for member accounts. Back in Search, click **Connect account** on the Confluence row and finish the connection in the new tab. Sign in using the Atlassian email that matches your verified Sim email, and authorize the configured site.
+Click **Connect & Sync** for a central account, or **Add source** for member accounts. Back in Integrations, click **Connect account** on the Confluence row and finish the connection in the new tab. Sign in using the Atlassian email that matches your verified Sim email, and authorize the configured site.
 
-Each teammate completes this last step. A previously authorized account may already be connected. Return to Search to see indexing status and your searchable document count.
+Each teammate completes this last step. A previously authorized account may already be connected. Return to Integrations to see indexing status and your searchable document count.
 
 </Step>
 </Steps>
@@ -158,9 +160,9 @@ Search manages the schedule and hides item limits. Published/current content is 
 
 ## Teammates and ongoing sync
 
-Existing workspace members see the configured Confluence source and their own **Connect account** or **Reconnect** action. Add new teammates through your usual Sim workspace or SSO onboarding, then have them connect Confluence from Search. Connecting a Confluence account does not add someone to the Sim workspace.
+Existing organization members see the configured Confluence source and their own **Connect account** or **Reconnect** action. Add new teammates through your Sim organization invitation or SSO onboarding, then have them connect Confluence from Integrations. Connecting a Confluence account does not add someone to the Sim organization.
 
-With a central account, Sim applies space access together with the page's restrictions and inherited ancestor restrictions. Group membership is refreshed in the background. With member accounts, each person's provider listing determines the pages available to them. A Sim workspace admin does not automatically receive access to every Confluence document.
+With a central account, Sim applies space access together with the page's restrictions and inherited ancestor restrictions. Group membership is refreshed in the background. With member accounts, each person's provider listing determines the pages available to them. A Sim organization admin does not automatically receive access to every Confluence document.
 
 New content and permission changes require a sync and processing before Search reflects them. Open **Manage** on the source to inspect errors, edit its configuration, or trigger a sync. If your own account needs authorization again, use **Reconnect** on the source row.
 

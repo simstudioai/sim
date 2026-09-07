@@ -64,7 +64,7 @@ import {
   KnowledgeEmptyState,
   ResourceNoResults,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal'
 import {
   CreateBaseModal,
   DeleteKnowledgeBaseModal,

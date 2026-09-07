@@ -85,6 +85,63 @@ describe('knowledge operation registry', () => {
     }
   })
 
+  it('uses the same semantic IDs and permission-group capabilities for organization access', () => {
+    for (const operation of Object.values(knowledgeOperations)) {
+      expect(operation.organizationOperation.id).toBe(operation.id)
+      expect(operation.organizationOperation.capability).toBe(operation.capability)
+      expect(operation.organizationOperation.principalKinds).not.toContain('workspace_api_key')
+      expect(operation.organizationOperation.principalKinds).not.toContain('delegated')
+      expect(operation.organizationOperation.principalKinds).not.toContain('system')
+      expect(Object.isFrozen(operation.organizationOperation)).toBe(true)
+      expect(Object.isFrozen(operation)).toBe(true)
+    }
+  })
+
+  it('requires organization admin authority for writes while allowing members to search and enroll', () => {
+    for (const operation of [
+      knowledgeOperations.create,
+      knowledgeOperations.update,
+      knowledgeOperations.delete,
+      knowledgeOperations.uploadDocument,
+      knowledgeOperations.prepareSearchSource,
+      knowledgeOperations.updateConnectorAccess,
+    ]) {
+      expect(operation.organizationOperation.minimumRole).toBe('admin')
+      expect(operation.organizationOperation.principalKinds).toEqual([
+        'session',
+        'personal_api_key',
+      ])
+      expect(operation.organizationOperation.delegationAudience).toBeUndefined()
+    }
+    for (const operation of [
+      knowledgeOperations.search,
+      knowledgeOperations.readSearchIndex,
+      knowledgeOperations.enrollConnectorMember,
+      knowledgeOperations.simSearchConnect,
+    ]) {
+      expect(operation.organizationOperation.minimumRole).toBe('member')
+    }
+  })
+
+  it('permits organization delegation only for Copilot reads', () => {
+    for (const operation of Object.values(knowledgeOperations)) {
+      if (!operation.organizationOperation.principalKinds.includes('organization_delegated'))
+        continue
+      expect(operation.minimumRole).toBe('read')
+      expect(operation.delegatedServices).toContain('copilot')
+      expect(operation.organizationOperation.delegationAudience).toBe('sim:knowledge')
+    }
+    expect(knowledgeOperations.search.organizationOperation.principalKinds).toContain(
+      'organization_delegated'
+    )
+    expect(knowledgeOperations.readDocument.organizationOperation.principalKinds).toContain(
+      'organization_delegated'
+    )
+    expect(knowledgeOperations.listFolders.organizationOperation.principalKinds).not.toContain(
+      'organization_delegated'
+    )
+  })
+
   /**
    * Reading the tag vocabulary is the one tag operation a workspace key may
    * perform. It is required input for the tag-name filters on document listing

@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { addMothershipChatResourceBodySchema } from '@/lib/api/contracts/mothership-chats'
+import {
+  addMothershipChatResourceBodySchema,
+  createMothershipChatBodySchema,
+} from '@/lib/api/contracts/mothership-chats'
 
 const TABLE_RESOURCE = {
   type: 'table' as const,
@@ -58,4 +61,19 @@ describe('addMothershipChatResourceBodySchema', () => {
       }).success
     ).toBe(false)
   })
+})
+
+describe('chat owner contract', () => {
+  it.each([{ workspaceId: 'ws-1' }, { organizationId: 'org-1' }])(
+    'accepts exactly one owner: %j',
+    (input) => {
+      expect(createMothershipChatBodySchema.parse(input)).toEqual(input)
+    }
+  )
+  it.each([{}, { workspaceId: 'ws-1', organizationId: 'org-1' }, { organizationId: '' }])(
+    'rejects missing or ambiguous owners: %j',
+    (input) => {
+      expect(createMothershipChatBodySchema.safeParse(input).success).toBe(false)
+    }
+  )
 })

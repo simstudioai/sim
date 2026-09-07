@@ -10,6 +10,7 @@ import {
   type ComboboxOption,
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
@@ -18,7 +19,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
-import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
+import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 
 export interface ConnectorAccessSelection {
   accessMode: ConnectorAccessMode
@@ -63,7 +64,8 @@ export function ConnectorContentCredentialField({
 }
 
 interface ConnectorAccessFieldProps {
-  workspaceId: string
+  workspaceId?: string
+  scope?: ResourceScope
   connectorConfig: ConnectorMeta
   value: ConnectorAccessSelection
   onChange: (value: ConnectorAccessSelection) => void
@@ -101,6 +103,7 @@ function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): 
 /** Chooses how a source connects while preserving its document permissions. */
 export function ConnectorAccessField({
   workspaceId,
+  scope: explicitScope,
   connectorConfig,
   value,
   onChange,
@@ -113,14 +116,15 @@ export function ConnectorAccessField({
   searchSetupSource,
   onSetupNavigate,
 }: ConnectorAccessFieldProps) {
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   /**
    * Member access needs a supported sign-in provider. Source permissions may
    * also be available for providers authenticated with an API key.
    */
   const provider = connectorMemberProvider(connectorConfig)
   const membersSupported = provider !== null
-  const accountsQuery = useWorkspaceAccounts(
-    canAdmin && provider && value.accessMode === 'members' ? workspaceId : undefined
+  const accountsQuery = useSourceAccounts(
+    canAdmin && provider && value.accessMode === 'members' ? scope : undefined
   )
   const accounts = accountsQuery.data?.credentialGroup
   const showSlackSetup =
@@ -161,7 +165,7 @@ export function ConnectorAccessField({
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
         canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
-          ? 'This connection method is not available in this workspace.'
+          ? `This connection method is not available in this ${scope.kind}.`
           : accessHint(value.accessMode, connectorConfig)
       }
     >
@@ -200,7 +204,7 @@ export function ConnectorAccessField({
             <SettingsEmptyState variant='inline'>Checking Slack setup…</SettingsEmptyState>
           ) : accountsQuery.isSuccess && !configured ? (
             <SlackMemberSetup
-              workspaceId={workspaceId}
+              scope={scope}
               searchSetupSource={searchSetupSource}
               onNavigate={onSetupNavigate}
             />
@@ -213,7 +217,8 @@ export function ConnectorAccessField({
 }
 
 interface SlackMemberSetupProps {
-  workspaceId: string
+  workspaceId?: string
+  scope?: ResourceScope
   searchSetupSource?: 'slack' | 'search'
   onNavigate?: () => void
 }
@@ -221,16 +226,19 @@ interface SlackMemberSetupProps {
 /** Uses the existing app and credential-group setup to collect Slack user authorization. */
 export function SlackMemberSetup({
   workspaceId,
+  scope: explicitScope,
   searchSetupSource,
   onNavigate,
 }: SlackMemberSetupProps) {
-  const href = searchSetupSource
-    ? slackSearchSetupHref(workspaceId, searchSetupSource)
-    : `/workspace/${workspaceId}/settings/credential-groups`
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
+  const href =
+    scope.kind === 'organization' || searchSetupSource
+      ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
+      : `/workspace/${scope.workspaceId}/settings/credential-groups`
   return (
     <div className='flex flex-col items-start gap-2'>
       <p className='text-[var(--text-muted)] text-caption leading-snug'>
-        Set up your workspace’s Slack app to continue.
+        Set up your Slack app to continue.
       </p>
       <div className='flex flex-wrap items-center gap-2'>
         <ChipLink href={href} onClick={onNavigate}>

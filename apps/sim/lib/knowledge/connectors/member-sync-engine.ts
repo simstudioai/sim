@@ -17,9 +17,12 @@ import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, gt, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
   CredentialGroupCredentialCursorNotFoundError,
   type CredentialGroupOptionCredentialReference,
@@ -333,7 +336,8 @@ export function nextMemberSyncTime(
 interface MemberSyncRun {
   connectorId: string
   knowledgeBaseId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   runId: string
   runStartedAt: Date
   deadlineAt: number
@@ -363,6 +367,7 @@ function createMemberTokenCache(input: {
       const minted = await mintKnowledgeConnectorMemberToken({
         connectorId: input.run.connectorId,
         workspaceId: input.run.workspaceId,
+        organizationId: input.run.organizationId,
         credentialId,
         expectedProviderId: auth.provider,
         requiredScopes: auth.requiredScopes ?? [],
@@ -381,6 +386,7 @@ function createMemberTokenCache(input: {
       return rejectKnowledgeConnectorMemberToken({
         connectorId: input.run.connectorId,
         workspaceId: input.run.workspaceId,
+        organizationId: input.run.organizationId,
         credentialId,
         expectedProviderId: auth.provider,
         requiredScopes: auth.requiredScopes ?? [],
@@ -619,6 +625,7 @@ async function reconcileMembership(
 
   const fingerprint = listingFingerprint({
     workspaceId: run.workspaceId,
+    organizationId: run.organizationId,
     ...binding,
     option,
     status: group.status,
@@ -649,6 +656,7 @@ async function reconcileMembership(
     try {
       page = await listKnowledgeConnectorMemberCredentials({
         workspaceId: run.workspaceId,
+        organizationId: run.organizationId,
         ...binding,
         connectorId: run.connectorId,
         limit: MEMBER_CREDENTIAL_PAGE_SIZE,
@@ -704,6 +712,7 @@ async function reconcileMembership(
             inserts.push({
               id: generateId(),
               workspaceId: run.workspaceId,
+              organizationId: run.organizationId,
               connectorId: run.connectorId,
               credentialId: snapshot.credentialId,
               subjectToken: snapshot.subjectToken,
@@ -792,7 +801,7 @@ async function reconcileMembership(
                 .where(
                   and(
                     eq(credential.id, knowledgeConnectorMember.credentialId),
-                    eq(credential.workspaceId, run.workspaceId),
+                    resourceScopeCondition(credential, resourceScopeFromOwner(run)),
                     eq(credential.type, 'managed_oauth'),
                     eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
                     eq(credentialGroupEnrollment.credentialGroupId, binding.credentialGroupId)
@@ -906,7 +915,7 @@ async function countDueMembers(
     .from(credential)
     .where(
       and(
-        eq(credential.workspaceId, run.workspaceId),
+        resourceScopeCondition(credential, resourceScopeFromOwner(run)),
         eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
@@ -1310,6 +1319,7 @@ async function syncDedicatedMemberContent(input: {
   const userId = await resolveConnectorTokenUserId({
     credentialId: connector.credentialId,
     workspaceId: run.workspaceId,
+    organizationId: run.organizationId,
     fallbackUserId: kbOwner.userId,
   })
   if (!userId) throw new Error('The content credential is no longer available in this workspace')
@@ -1653,7 +1663,11 @@ export async function executeMemberSync(
   }
 
   const [kbRow] = await db
-    .select({ userId: knowledgeBase.userId, workspaceId: knowledgeBase.workspaceId })
+    .select({
+      userId: knowledgeBase.userId,
+      workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
+    })
     .from(knowledgeBase)
     .where(
       and(
@@ -1677,17 +1691,17 @@ export async function executeMemberSync(
       .where(eq(knowledgeConnector.id, connectorId))
     return skipped(result, 'knowledge_base_deleted')
   }
-  if (!kbRow.workspaceId) {
+  if (!kbRow.workspaceId && !kbRow.organizationId) {
     throw new Error(
       `Knowledge base ${connectorBeforeLock.knowledgeBaseId} is missing workspace billing context`
     )
   }
-  if (billingAttribution.workspaceId !== kbRow.workspaceId) {
-    throw new Error(
-      `Member sync billing attribution does not match knowledge base workspace ${kbRow.workspaceId}`
-    )
+  assertBillingAttributionOwner(billingAttribution, kbRow)
+  const kbOwner: KnowledgeBaseOwner = {
+    workspaceId: kbRow.workspaceId,
+    organizationId: kbRow.organizationId,
+    userId: kbRow.userId,
   }
-  const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRow.workspaceId, userId: kbRow.userId }
 
   const runId = generateId()
   const connector = await acquireMemberSyncLock(connectorId, runId, options.dispatchToken)
@@ -1725,7 +1739,7 @@ export async function executeMemberSync(
   const run: MemberSyncRun = {
     connectorId,
     knowledgeBaseId: connector.knowledgeBaseId,
-    workspaceId: kbRow.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(kbRow)),
     runId,
     runStartedAt,
     deadlineAt: runStartedAt.getTime() + MEMBER_SYNC_SOFT_BUDGET_SECONDS * 1000,
@@ -1740,7 +1754,7 @@ export async function executeMemberSync(
      * reach its source — nothing changes: readers already see no member-scoped
      * document, and the run waits for the next schedule to look again.
      */
-    if (!(await isKnowledgeMemberAccessAvailable({ workspaceId: run.workspaceId }))) {
+    if (!(await isKnowledgeMemberAccessAvailable(run))) {
       await deferMemberSync(run, connector.syncIntervalMinutes)
       return {
         ...skipped(result, 'connector_not_syncable'),
@@ -1811,18 +1825,20 @@ export async function executeMemberSync(
      * Anyone who joined the workspace since the last run is invited now, so
      * membership grows on its own; the invitation is the only thing they need.
      */
-    const invited = await inviteWorkspaceMembersToCredentialGroup({
-      workspaceId: run.workspaceId,
-      credentialGroupId: connector.credentialGroupId,
-      beforeBatch: run.lease.beatIfDue,
-      deadlineAt: run.deadlineAt,
-    }).catch((error) => {
-      logger.warn('Failed to invite new workspace members during a member run', {
-        connectorId,
-        error: getErrorMessage(error),
-      })
-      return null
-    })
+    const invited = run.workspaceId
+      ? await inviteWorkspaceMembersToCredentialGroup({
+          workspaceId: run.workspaceId,
+          credentialGroupId: connector.credentialGroupId,
+          beforeBatch: run.lease.beatIfDue,
+          deadlineAt: run.deadlineAt,
+        }).catch((error) => {
+          logger.warn('Failed to invite new workspace members during a member run', {
+            connectorId,
+            error: getErrorMessage(error),
+          })
+          return null
+        })
+      : null
     if (invited && invited.invited > 0) {
       logger.info('Invited new workspace members to the connector credential group', {
         connectorId,

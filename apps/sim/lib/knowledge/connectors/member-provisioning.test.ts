@@ -82,7 +82,7 @@ describe('provisionKnowledgeConnectorMembersBinding', () => {
       credentialGroupOptionId: 'option-1',
     })
     expect(ensureWorkspaceAccountsGroup).toHaveBeenCalledExactlyOnceWith(
-      'ws-1',
+      { kind: 'workspace', workspaceId: 'ws-1' },
       'user-1',
       undefined
     )
@@ -96,11 +96,15 @@ describe('provisionKnowledgeConnectorMembersBinding', () => {
       credentialGroupId: 'accounts-1',
       credentialGroupOptionId: 'option-1',
     })
-    expect(ensureWorkspaceAccountsGroup).toHaveBeenCalledExactlyOnceWith('ws-1', 'user-1', {
-      provider: 'gmail',
-      label: 'Gmail',
-      required: false,
-    })
+    expect(ensureWorkspaceAccountsGroup).toHaveBeenCalledExactlyOnceWith(
+      { kind: 'workspace', workspaceId: 'ws-1' },
+      'user-1',
+      {
+        provider: 'gmail',
+        label: 'Gmail',
+        required: false,
+      }
+    )
   })
 
   it.each([
@@ -124,6 +128,25 @@ describe('provisionKnowledgeConnectorMembersBinding', () => {
     )
     await expect(provision(gmailMeta)).rejects.toThrow('Connected accounts is disabled')
     expect(ensureWorkspaceAccountsGroup).toHaveBeenCalledOnce()
+  })
+
+  it('provisions organization accounts without creating or depending on workspace access', async () => {
+    vi.mocked(ensureWorkspaceAccountsGroup).mockResolvedValue(
+      group([{ ...readyOption, provider: 'gmail' }]) as never
+    )
+    await expect(
+      provisionKnowledgeConnectorMembersBinding({
+        organizationId: 'org-1',
+        connectorMeta: gmailMeta,
+        userId: 'user-1',
+      })
+    ).resolves.toEqual({ credentialGroupId: 'accounts-1', credentialGroupOptionId: 'option-1' })
+    expect(ensureWorkspaceAccountsGroup).toHaveBeenCalledExactlyOnceWith(
+      { kind: 'organization', organizationId: 'org-1' },
+      'user-1',
+      { provider: 'gmail', label: 'Gmail', required: false }
+    )
+    expect(inviteCredentialGroupEnrollment).not.toHaveBeenCalled()
   })
 
   it('refuses non-OAuth connectors before provisioning', async () => {

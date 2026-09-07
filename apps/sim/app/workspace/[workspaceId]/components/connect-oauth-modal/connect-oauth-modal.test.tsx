@@ -136,7 +136,10 @@ vi.mock('@/hooks/queries/credentials', () => ({
     mutateAsync: mocks.createDraft,
     isPending: false,
   }),
-  useWorkspaceCredentials: mocks.workspaceCredentials,
+}))
+
+vi.mock('@/hooks/queries/scoped-credentials', () => ({
+  useScopedCredentials: mocks.workspaceCredentials,
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({

@@ -1,6 +1,9 @@
 /** Held by every principal in the workspace; the default ACL of an upload. */
 export const WORKSPACE_ACCESS_TOKEN = 'ws' as const
 
+/** Held by current organization members only, within the canonical organization index. */
+export const ORGANIZATION_ACCESS_TOKENS = ['org', 'pub'] as const
+
 /** Held by every principal; a document the source itself makes public. */
 export const PUBLIC_ACCESS_TOKEN = 'pub' as const
 

@@ -166,6 +166,29 @@ describe('GCS Client', () => {
   })
 
   describe('uploadToGcs', () => {
+    it('adds a generation-zero precondition for an immutable upload', async () => {
+      mockFile.save.mockResolvedValueOnce(undefined)
+
+      await uploadToGcs(
+        Buffer.from('new'),
+        'kb/new.txt',
+        'text/plain',
+        undefined,
+        undefined,
+        true,
+        { uploadId: 'attempt-1' },
+        true
+      )
+
+      expect(mockFile.save).toHaveBeenCalledWith(
+        Buffer.from('new'),
+        expect.objectContaining({
+          preconditionOpts: { ifGenerationMatch: 0 },
+          metadata: { metadata: expect.objectContaining({ uploadId: 'attempt-1' }) },
+        })
+      )
+    })
+
     it('should upload a file to GCS and return file info', async () => {
       mockFile.save.mockResolvedValueOnce(undefined)
 

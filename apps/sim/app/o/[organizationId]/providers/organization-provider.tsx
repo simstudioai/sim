@@ -30,3 +30,7 @@ export function useOrganizationContext(): OrganizationSurfaceContext {
   }
   return context
 }
+
+export function useOptionalOrganizationContext(): OrganizationSurfaceContext | null {
+  return useContext(OrganizationContextValue)
+}

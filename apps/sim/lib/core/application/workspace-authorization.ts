@@ -46,6 +46,8 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'system':
     case 'credential_group_enrollment':
       return null
+    case 'organization_delegated':
+      return principal.subjectUserId
     case 'delegated': {
       if (principal.serviceId === 'executor') return null
       const subject = resolvePrincipalSubject(principal)
@@ -344,6 +346,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new WorkspaceApiKeyAuthorizationError()
       }
       return
+    case 'organization_delegated':
+      throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
     case 'delegated': {
       const delegation = options?.delegation
       if (!delegation) {

@@ -76,6 +76,38 @@ describe('Slack managed-user authorization', () => {
     vi.unstubAllGlobals()
   })
 
+  it('stores exact organization ownership in the encrypted setup attempt and rejects ambiguous ownership', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
+      .mockResolvedValueOnce([
+        { id: 'bot-1', updatedAt: new Date(2), encryptedServiceAccountKey: 'encrypted-bot' },
+      ])
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          slackResponse({ ok: true, team_id: 'T123', user_id: 'U123', bot_id: 'B123' })
+        )
+        .mockResolvedValueOnce(slackResponse({ ok: true, bot: { app_id: 'A123' } }))
+    )
+    const created = await createSlackManagedUsersAttempt({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      credentialGroupId: 'group-1',
+      slackBotCredentialId: 'bot-1',
+      clientId: 'client-1',
+      clientSecret: 'private-client-secret',
+    })
+    const loaded = await loadSlackManagedUsersAttempt(created.state)
+    expect(loaded).toMatchObject({ organizationId: 'org-1', userId: 'user-1' })
+    expect(loaded).not.toHaveProperty('workspaceId')
+    const [key, stored] = [...attempts.entries()][0]
+    expect(stored).not.toContain('private-client-secret')
+    attempts.set(key, JSON.stringify({ ...JSON.parse(stored), workspaceId: 'workspace-1' }))
+    await expect(loadSlackManagedUsersAttempt(created.state)).rejects.toThrow('malformed')
+  })
+
   it('binds the bot token to Slack app and workspace identities', async () => {
     const fetchMock = vi
       .fn()

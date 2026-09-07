@@ -7,7 +7,9 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-GitHub Search indexes text files from a repository on `github.com`. A workspace admin chooses the repository, then each person connects their GitHub account. Installing the GitHub App alone does not connect your teammates.
+GitHub Search indexes text files from a repository on `github.com`. An organization admin chooses the repository, then each person connects their GitHub account. Installing the GitHub App alone does not connect your teammates.
+
+These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Before you start
 
@@ -100,7 +102,7 @@ In the App's sidebar, choose **Install App**, select the target account, and gra
 
 ### Open GitHub setup
 
-As a Sim workspace admin, open **Search**, choose **Add source**, then **GitHub**.
+As a Sim organization admin, open **Integrations**, choose **Add source**, then **GitHub**.
 
 </Step>
 <Step>
@@ -116,7 +118,7 @@ Enter the repository and keep **Sync documents with → Connected members** for 
 | Path Filter | Optional prefix such as `docs/`. |
 | File Extensions | Optional comma-separated list, such as `.md, .txt, .mdx`. |
 
-**Document details** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Create & Invite** to save the source.
+**Document details** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Add source** to save the source.
 
 You can instead select an existing account under **Sync documents with** to supply file contents centrally. Teammates still connect their own accounts to establish which files they may find.
 
@@ -125,7 +127,7 @@ You can instead select an existing account under **Sync documents with** to supp
 
 ### Connect your account
 
-On the GitHub source row, select **Connect account** and authorize the App. Teammates repeat this step after joining the Sim workspace. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
+On the GitHub source row, select **Connect account** and authorize the App. Teammates repeat this step after joining the Sim organization. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
 
 With **Connected members**, indexing begins after someone connects. A dedicated indexing account can start syncing immediately; each teammate still connects before searching. Admins can open **Manage** on the source to inspect sync progress and errors.
 

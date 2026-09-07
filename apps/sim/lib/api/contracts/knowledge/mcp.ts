@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { mcpJsonRpcMessageSchema } from '@/lib/api/contracts/mcp'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const knowledgeMcpParamsSchema = z.object({ workspaceId: workspaceIdSchema })
@@ -9,6 +9,14 @@ export const knowledgeMcpContract = defineRouteContract({
   method: 'POST',
   path: '/api/mcp/search/[workspaceId]',
   params: knowledgeMcpParamsSchema,
+  body: mcpJsonRpcMessageSchema,
+  response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
+})
+
+export const organizationKnowledgeMcpContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mcp/search/organizations/[organizationId]',
+  params: z.object({ organizationId: organizationIdSchema }),
   body: mcpJsonRpcMessageSchema,
   response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
 })

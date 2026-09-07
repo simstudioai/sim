@@ -96,6 +96,7 @@ interface AccountInsertData {
 export interface ResolvedCredential {
   accountId: string
   workspaceId?: string
+  organizationId?: string
   usedCredentialTable: boolean
   credentialType?: string
   credentialId?: string
@@ -117,6 +118,7 @@ export async function resolveOAuthAccountId(
       type: credential.type,
       accountId: credential.accountId,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       providerId: credential.providerId,
     })
     .from(credential)
@@ -129,7 +131,8 @@ export async function resolveOAuthAccountId(
         accountId: '',
         credentialId: credentialRow.id,
         credentialType: 'service_account',
-        workspaceId: credentialRow.workspaceId,
+        workspaceId: credentialRow.workspaceId ?? undefined,
+        organizationId: credentialRow.organizationId ?? undefined,
         providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
@@ -140,7 +143,8 @@ export async function resolveOAuthAccountId(
         accountId: '',
         credentialId: credentialRow.id,
         credentialType: 'managed_oauth',
-        workspaceId: credentialRow.workspaceId,
+        workspaceId: credentialRow.workspaceId ?? undefined,
+        organizationId: credentialRow.organizationId ?? undefined,
         providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
@@ -151,7 +155,8 @@ export async function resolveOAuthAccountId(
     }
     return {
       accountId: credentialRow.accountId,
-      workspaceId: credentialRow.workspaceId,
+      workspaceId: credentialRow.workspaceId ?? undefined,
+      organizationId: credentialRow.organizationId ?? undefined,
       usedCredentialTable: true,
     }
   }

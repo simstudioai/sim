@@ -54,7 +54,7 @@ export class CredentialProviderOperationError extends OrchestrationError {
   }
 }
 
-function throwCredentialMutationFailure(result: {
+export function throwCredentialMutationFailure(result: {
   success: boolean
   error?: string
   errorCode?: PerformCredentialResult['errorCode']

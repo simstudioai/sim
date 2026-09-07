@@ -41,7 +41,7 @@ export const completeQuickBooksConnection = defineAuthorizedWorkspaceUseCase({
     input: CompleteQuickBooksConnectionInput
   }): Promise<CompleteQuickBooksConnectionContext> => {
     const draft = await getActiveConnectDraft(input.draftId, principal.userId)
-    if (!draft) {
+    if (!draft?.workspaceId) {
       throw new OrchestrationError('not_found', 'QuickBooks connection link is invalid or expired')
     }
     const workspace = await loadActiveWorkspaceApplicationContext(draft.workspaceId)

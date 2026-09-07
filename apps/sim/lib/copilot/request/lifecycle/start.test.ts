@@ -437,6 +437,41 @@ describe('requestChatTitle billing protocol', () => {
     )
   })
 
+  it('forwards the exact organization and private chat for title billing admission', async () => {
+    const attribution = { ...BILLING_ATTRIBUTION, workspaceId: null }
+    await expect(
+      requestChatTitle({
+        message: 'search connected sources',
+        model: 'claude-opus-4.8',
+        userId: 'user-1',
+        organizationId: 'org-1',
+        chatId: 'chat-1',
+        billingAttribution: attribution,
+      })
+    ).resolves.toBe('Billing Protocol')
+    const options = fetchGo.mock.calls[0]?.[1]
+    expect(JSON.parse(options.body)).toEqual(
+      expect.objectContaining({ organizationId: 'org-1', chatId: 'chat-1' })
+    )
+    expect(JSON.parse(options.body)).not.toHaveProperty('workspaceId')
+    expect(JSON.parse(decodeURIComponent(options.headers['x-sim-billing-attribution']))).toEqual(
+      attribution
+    )
+  })
+
+  it('does not send organization title work without a canonical private chat', async () => {
+    await expect(
+      requestChatTitle({
+        message: 'search connected sources',
+        model: 'claude-opus-4.8',
+        userId: 'user-1',
+        organizationId: 'org-1',
+        billingAttribution: { ...BILLING_ATTRIBUTION, workspaceId: null },
+      })
+    ).resolves.toBeNull()
+    expect(fetchGo).not.toHaveBeenCalled()
+  })
+
   it('fails before hosted title egress without a billing workspace', async () => {
     await expect(
       requestChatTitle({

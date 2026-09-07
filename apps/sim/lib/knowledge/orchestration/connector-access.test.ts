@@ -50,7 +50,7 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
 }))
 vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadCredentialGroupCredentialListContext: mocks.loadGroup,
+  loadScopedAccountsCredentialListContext: mocks.loadGroup,
 }))
 vi.mock('@/lib/knowledge/access/availability', async () => {
   const { OrchestrationError } = await import('@/lib/core/orchestration/types')
@@ -179,7 +179,12 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
       credentialGroupId: 'group-9',
       credentialGroupOptionId: 'option-9',
     })
-    mocks.loadGroup.mockResolvedValue({ workspaceId: 'ws-1', status: 'active', options: [] })
+    mocks.loadGroup.mockResolvedValue({
+      credentialGroupId: 'group-9',
+      workspaceId: 'ws-1',
+      status: 'active',
+      options: [],
+    })
     mocks.validateBinding.mockReturnValue({ ok: true, option: {} })
     await expect(
       resolveKnowledgeConnectorMembersBinding({
@@ -198,7 +203,7 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
       connectorMeta: SCOPED_META,
       userId: 'admin-1',
     })
-    expect(mocks.loadGroup).toHaveBeenCalledWith('group-9')
+    expect(mocks.loadGroup).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'ws-1' })
   })
 
   it('refuses members mode where the feature is off, before loading anything', async () => {
@@ -229,7 +234,12 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
   })
 
   it('surfaces the validator refusal as a validation error', async () => {
-    mocks.loadGroup.mockResolvedValue({ workspaceId: 'ws-1', status: 'active', options: [] })
+    mocks.loadGroup.mockResolvedValue({
+      credentialGroupId: 'group-1',
+      workspaceId: 'ws-1',
+      status: 'active',
+      options: [],
+    })
     mocks.validateBinding.mockReturnValue({ ok: false, message: 'Max Files cannot be set' })
     await expect(
       resolveKnowledgeConnectorMembersBinding({

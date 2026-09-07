@@ -43,6 +43,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     ensureWorkflowInRegistry,
     onResourceEventRef,
   } = ctx.deps
+  if (!workspaceId) return
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
   const shouldClearViewId =

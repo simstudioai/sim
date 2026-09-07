@@ -10,7 +10,7 @@ import {
  * supplies a fallback only; it cannot overwrite a subsequent mode switch.
  */
 export function chatUrl(
-  workspaceId: string,
+  owner: string | { organizationId: string },
   chatId: string,
   requestMode?: 'agent' | 'assistant'
 ): string {
@@ -29,5 +29,6 @@ export function chatUrl(
     if (value) carried.set(key, value)
   }
   const search = carried.toString()
-  return `/workspace/${workspaceId}/chat/${chatId}${search ? `?${search}` : ''}`
+  const basePath = typeof owner === 'string' ? `/workspace/${owner}` : `/o/${owner.organizationId}`
+  return `${basePath}/chat/${chatId}${search ? `?${search}` : ''}`
 }

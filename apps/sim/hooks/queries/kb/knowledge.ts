@@ -54,6 +54,11 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
@@ -1178,25 +1183,33 @@ async function searchWorkspaceKnowledge(
   return data.data.results
 }
 
-/** Searches the canonical workspace index under the signed-in person's ACLs. */
+/** Searches the canonical index under the signed-in person's ACLs. */
 export function useWorkspaceKnowledgeSearch(
-  workspaceId: string | undefined,
+  owner: string | ResourceScope | undefined,
   query: string,
   filters?: WorkspaceSearchFilters
 ) {
   const trimmed = query.trim()
+  const scope =
+    typeof owner === 'string'
+      ? owner
+        ? { kind: 'workspace' as const, workspaceId: owner }
+        : undefined
+      : owner
+  const scopeKey =
+    scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(workspaceId, trimmed, filters),
+    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
-          workspaceId: workspaceId as string,
+          ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
           filters,
         },
         signal
       ),
-    enabled: Boolean(workspaceId) && trimmed.length > 0,
+    enabled: Boolean(scope) && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
     retry: false,
   })

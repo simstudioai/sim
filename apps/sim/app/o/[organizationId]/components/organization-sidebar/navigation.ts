@@ -1,8 +1,8 @@
-import { Home, Integration, Slash, Workspaces } from '@sim/emcn/icons'
+import { Home, Integration, Workspaces } from '@sim/emcn/icons'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SidebarNavItemData } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 
-type OrganizationNavRoute = 'home' | 'integrations' | 'skills' | 'workspaces'
+type OrganizationNavRoute = 'home' | 'integrations' | 'workspaces'
 
 interface OrganizationNavEntry {
   id: string
@@ -22,7 +22,6 @@ export const WORKSPACES_NAV_ID = 'workspaces'
 const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
   { id: 'home', label: 'Home', icon: Home, route: 'home' },
   { id: 'integrations', label: 'Integrations', icon: Integration, route: 'integrations' },
-  { id: 'skills', label: 'Skills', icon: Slash, route: 'skills' },
   { id: 'workspaces', label: 'Workspaces', icon: Workspaces, route: 'workspaces' },
 ]
 

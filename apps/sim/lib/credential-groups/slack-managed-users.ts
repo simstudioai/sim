@@ -7,6 +7,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
@@ -47,7 +49,8 @@ interface SlackCustomBotSecret {
 
 interface StoredSlackManagedUsersAttempt {
   version: typeof SLACK_MANAGED_USERS_ATTEMPT_VERSION
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   userId: string
   credentialGroupId: string
   credentialGroupUpdatedAt: number
@@ -63,7 +66,8 @@ interface StoredSlackManagedUsersAttempt {
 }
 
 export interface SlackManagedUsersAttempt {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   userId: string
   credentialGroupId: string
   credentialGroupUpdatedAt: number
@@ -131,7 +135,12 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
   const candidate = value as Record<string, unknown>
   return (
     candidate.version === SLACK_MANAGED_USERS_ATTEMPT_VERSION &&
-    typeof candidate.workspaceId === 'string' &&
+    ((typeof candidate.workspaceId === 'string' &&
+      candidate.workspaceId.length > 0 &&
+      candidate.organizationId === undefined) ||
+      (typeof candidate.organizationId === 'string' &&
+        candidate.organizationId.length > 0 &&
+        candidate.workspaceId === undefined)) &&
     typeof candidate.userId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.credentialGroupUpdatedAt === 'number' &&
@@ -426,7 +435,8 @@ export function getSlackManagedUsersRedirectUri(): string {
 }
 
 export async function createSlackManagedUsersAttempt(params: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   userId: string
   credentialGroupId: string
   slackBotCredentialId: string
@@ -434,6 +444,7 @@ export async function createSlackManagedUsersAttempt(params: {
   clientSecret: string
   requiredScopes?: string[]
 }): Promise<{ state: string; authorizationUrl: string }> {
+  const scope = resourceScopeFromOwner(params)
   const [group] = await db
     .select({
       id: credentialGroup.id,
@@ -444,7 +455,7 @@ export async function createSlackManagedUsersAttempt(params: {
     .where(
       and(
         eq(credentialGroup.id, params.credentialGroupId),
-        eq(credentialGroup.workspaceId, params.workspaceId)
+        resourceScopeCondition(credentialGroup, scope)
       )
     )
     .limit(1)
@@ -456,7 +467,7 @@ export async function createSlackManagedUsersAttempt(params: {
       (existingOption ? undefined : SLACK_SEARCH_USER_SCOPES)
   )
   const bot = await getSlackCustomBotCredential({
-    workspaceId: params.workspaceId,
+    ...resourceScopeFields(scope),
     credentialId: params.slackBotCredentialId,
   })
   if (!bot) throw new SlackManagedUsersError('Custom Slack bot not found.', 'invalid_response')
@@ -473,7 +484,7 @@ export async function createSlackManagedUsersAttempt(params: {
   const encryptedClientSecret = await encryptSecret(params.clientSecret)
   const attempt: StoredSlackManagedUsersAttempt = {
     version: SLACK_MANAGED_USERS_ATTEMPT_VERSION,
-    workspaceId: params.workspaceId,
+    ...resourceScopeFields(scope),
     userId: params.userId,
     credentialGroupId: group.id,
     credentialGroupUpdatedAt: group.updatedAt.getTime(),
@@ -531,7 +542,7 @@ async function parseSlackManagedUsersAttempt(
   if (Date.now() - parsed.createdAt > SLACK_MANAGED_USERS_ATTEMPT_TTL_MS) return null
   const clientSecret = await decryptSecret(parsed.encryptedClientSecret)
   return {
-    workspaceId: parsed.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(parsed)),
     userId: parsed.userId,
     credentialGroupId: parsed.credentialGroupId,
     credentialGroupUpdatedAt: parsed.credentialGroupUpdatedAt,
@@ -614,7 +625,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       .where(
         and(
           eq(credentialGroup.id, params.attempt.credentialGroupId),
-          eq(credentialGroup.workspaceId, params.attempt.workspaceId)
+          resourceScopeCondition(credentialGroup, resourceScopeFromOwner(params.attempt))
         )
       )
       .limit(1)
@@ -635,7 +646,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       .where(
         and(
           eq(credential.id, params.attempt.slackBotCredentialId),
-          eq(credential.workspaceId, params.attempt.workspaceId),
+          resourceScopeCondition(credential, resourceScopeFromOwner(params.attempt)),
           eq(credential.type, 'service_account'),
           eq(credential.providerId, SLACK_CUSTOM_BOT_PROVIDER_ID)
         )
@@ -742,7 +753,8 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
 }
 
 export async function getSlackCustomBotCredential(params: {
-  workspaceId: string
+  workspaceId?: string | null
+  organizationId?: string | null
   credentialId: string
   executor?: DbOrTx
 }): Promise<{
@@ -764,7 +776,7 @@ export async function getSlackCustomBotCredential(params: {
     .from(credential)
     .where(
       and(
-        eq(credential.workspaceId, params.workspaceId),
+        resourceScopeCondition(credential, resourceScopeFromOwner(params)),
         eq(credential.type, 'service_account'),
         eq(credential.providerId, SLACK_CUSTOM_BOT_PROVIDER_ID),
         eq(credential.id, params.credentialId)

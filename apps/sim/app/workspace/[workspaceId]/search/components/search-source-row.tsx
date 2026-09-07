@@ -2,6 +2,7 @@
 
 import { Chip, ChipLink } from '@sim/emcn'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -11,7 +12,8 @@ import { CONNECTABLE_MEMBERSHIPS } from '@/hooks/use-member-enrollment'
 
 interface SearchSourceRowProps {
   source: SearchSourceSummary
-  workspaceId: string
+  workspaceId?: string
+  scope?: ResourceScope
   canAdmin: boolean
   available: boolean
   waiting: boolean
@@ -24,6 +26,7 @@ interface SearchSourceRowProps {
 export function SearchSourceRow({
   source,
   workspaceId,
+  scope: explicitScope,
   canAdmin,
   available,
   waiting,
@@ -31,6 +34,7 @@ export function SearchSourceRow({
   onConnect,
   onManage,
 }: SearchSourceRowProps) {
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const meta = CONNECTOR_META_REGISTRY[source.connectorType]
   const name = connectorDisplayName(source.connectorType)
   const membership = source.viewerMembership
@@ -47,7 +51,7 @@ export function SearchSourceRow({
   const count = `${source.viewerDocumentCount} searchable document${source.viewerDocumentCount === 1 ? '' : 's'}`
   let status: string
   if (!supported) status = 'Available in its knowledge base'
-  else if (!usable) status = 'Not available in this workspace'
+  else if (!usable) status = `Not available in this ${scope.kind}`
   else if (!source.enabled) status = 'Syncing is paused'
   else if (!source.viewerEmailVerified || membership === 'unverified_email')
     status = 'Verify your email to search this source'
@@ -78,8 +82,8 @@ export function SearchSourceRow({
       title={name}
       description={[source.sourceDescription, status].filter(Boolean).join(' · ')}
       trailing={
-        !supported ? (
-          <ChipLink href={`/workspace/${workspaceId}/knowledge/${source.knowledgeBaseId}`}>
+        !supported && scope.kind === 'workspace' ? (
+          <ChipLink href={`/workspace/${scope.workspaceId}/knowledge/${source.knowledgeBaseId}`}>
             {canAdmin ? 'Manage' : 'View'}
           </ChipLink>
         ) : (

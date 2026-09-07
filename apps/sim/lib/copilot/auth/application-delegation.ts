@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 
 /** Keeps delegated authority valid for the full bounded Copilot orchestration lifetime. */
@@ -8,6 +8,8 @@ export interface CopilotExecutionContext {
   requestMode?: string
   userId?: string
   workspaceId?: string
+  workflowId?: string
+  organizationId?: string
   chatId?: string
   executionId?: string
   toolCallId?: string
@@ -171,4 +173,56 @@ export function createCopilotApplicationPrincipal(
     },
     options
   )
+}
+
+/** Creates a chat-bound organization delegation from authenticated service context. */
+export function createTrustedOrganizationCopilotPrincipal(
+  input: { userId: string; organizationId: string; chatId: string; delegationId: string },
+  options: { audience: string; ttlMs: number }
+): OrganizationDelegatedPrincipal {
+  requireNonEmpty(input.userId, 'an authenticated user ID')
+  requireNonEmpty(input.organizationId, 'an organization ID')
+  requireNonEmpty(input.chatId, 'a chat ID')
+  requireNonEmpty(input.delegationId, 'a delegation ID')
+  requireNonEmpty(options.audience, 'a delegation audience')
+  if (!Number.isInteger(options.ttlMs) || options.ttlMs <= 0) {
+    throw new Error('Copilot application delegation requires a positive integer TTL')
+  }
+  const issuedAt = new Date()
+  return Object.freeze({
+    kind: 'organization_delegated',
+    serviceId: 'copilot',
+    subjectUserId: input.userId,
+    organizationId: input.organizationId,
+    delegationId: input.delegationId,
+    audience: options.audience,
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + options.ttlMs),
+    resourceScope: Object.freeze({ chatId: input.chatId }),
+  })
+}
+
+/** Organization tools require the server's explicit Assistant and private-chat context. */
+export function requireTrustedOrganizationCopilotContext(
+  context: CopilotExecutionContext | undefined
+) {
+  if (
+    !context ||
+    !context.copilotToolExecution ||
+    context.requestMode !== 'assistant' ||
+    context.workspaceId ||
+    context.workflowId
+  ) {
+    throw new Error('Organization Assistant requires trusted organization execution context')
+  }
+  requireNonEmpty(context.userId, 'an authenticated user ID')
+  requireNonEmpty(context.organizationId, 'an organization ID')
+  requireNonEmpty(context.chatId, 'a chat ID')
+  requireNonEmpty(context.toolCallId, 'a tool call ID')
+  return Object.freeze({
+    userId: context.userId,
+    organizationId: context.organizationId,
+    chatId: context.chatId,
+    toolCallId: context.toolCallId,
+  })
 }

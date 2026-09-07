@@ -75,7 +75,10 @@ export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollm
  * that {@link defineWorkspaceOperation} exists to carry. An operation that needs
  * delegation is a workspace operation.
  */
-export type UndelegatedPrincipalKind = Exclude<PrincipalKind, 'delegated'>
+export type UndelegatedPrincipalKind = Exclude<
+  PrincipalKind,
+  'delegated' | 'organization_delegated'
+>
 
 /**
  * An operation with no workspace scope and therefore no role, whose whole

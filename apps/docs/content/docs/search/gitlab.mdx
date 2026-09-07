@@ -7,13 +7,15 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim workspace with a verified email matching their confirmed GitLab email.
+GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed GitLab email.
 
 <Image src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={1280} height={720} />
 
+These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead.
+
 ## Before you start
 
-Use a self-managed GitLab instance running version **17.4 or later**. Setup needs both a Sim workspace admin and an active GitLab **instance administrator**. A project Maintainer or group Owner is insufficient.
+Use a self-managed GitLab instance running version **17.4 or later**. Setup needs both a Sim organization admin and an active GitLab **instance administrator**. A project Maintainer or group Owner is insufficient.
 
 <Callout type="info">
   This Search path requires GitLab's administrator directory and settings APIs. GitLab.com projects do not support this setup. General knowledge-base GitLab connectors can still use project-readable tokens, but their knowledge-base access rules are different from Search's source permissions.
@@ -47,7 +49,7 @@ The token must read the project, users, inherited project membership, instance s
 
 ### Configure the source in Sim
 
-Open **Search → Add source → GitLab**. Paste the token and enter your instance host explicitly.
+Open **Integrations → Add source → GitLab**. Paste the token and enter your instance host explicitly.
 
 | Field | What to enter |
 |---|---|
@@ -68,7 +70,7 @@ Select **Connect & Sync**. Sim validates the token and source policy, then start
 
 ### Let teammates search
 
-Invite teammates to the Sim workspace using their verified work email. Sim matches that email against the GitLab directory and applies project, feature, and confidential-issue permissions. No GitLab **Connect account** step is required.
+Invite teammates to the Sim organization using their verified work email. Sim matches that email against the GitLab directory and applies project, feature, and confidential-issue permissions. No GitLab **Connect account** step is required.
 
 Admins can open **Manage** on the source to review sync progress. Permission and membership changes are picked up during background refreshes.
 

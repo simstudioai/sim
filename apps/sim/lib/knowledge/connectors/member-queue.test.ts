@@ -5,12 +5,14 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAssertBillingOwner,
   mockExecuteMemberSync,
   mockIsTriggerAvailable,
   mockTrigger,
   mockResolveRegion,
   mockResolveSystemBilling,
 } = vi.hoisted(() => ({
+  mockAssertBillingOwner: vi.fn(),
   mockExecuteMemberSync: vi.fn(),
   mockIsTriggerAvailable: vi.fn(),
   mockTrigger: vi.fn(),
@@ -19,6 +21,7 @@ const {
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionOwner: mockAssertBillingOwner,
   assertBillingAttributionSnapshot: (value: unknown) => value,
   resolveSystemBillingAttribution: mockResolveSystemBilling,
 }))
@@ -243,12 +246,15 @@ describe('member sync queue', () => {
       expect(mockTrigger).not.toHaveBeenCalled()
     })
 
-    it('refuses billing attribution for another workspace', async () => {
+    it('refuses the queue handoff when billing owner validation fails', async () => {
+      mockAssertBillingOwner.mockImplementationOnce(() => {
+        throw new Error('Billing attribution does not match resource owner')
+      })
       queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])
 
       await expect(
         dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
-      ).rejects.toThrow('does not match connector workspace ws-2')
+      ).rejects.toThrow('Billing attribution does not match resource owner')
     })
 
     /**
@@ -323,6 +329,9 @@ describe('member sync queue', () => {
 
   describe('dispatchMemberSyncsForCredentialOption', () => {
     it('keeps dispatching the remaining connectors when one hand-off throws', async () => {
+      mockAssertBillingOwner.mockImplementationOnce(() => {
+        throw new Error('Billing attribution does not match resource owner')
+      })
       mockResolveSystemBilling.mockResolvedValue(BILLING)
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }, { id: 'c-2' }])
       queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])

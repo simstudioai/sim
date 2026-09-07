@@ -8,6 +8,7 @@ export interface ToolExecutionContext {
   userId: string
   workflowId: string
   workspaceId?: string
+  organizationId?: string
   chatId?: string
   messageId?: string
   executionId?: string

@@ -3,12 +3,15 @@ import { Chip, ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import type { ResourceOwner } from '@/lib/core/resource-scope'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { readPublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components'
@@ -68,10 +71,10 @@ function UnavailableInvitation({ rateLimited = false }: UnavailableInvitationPro
 }
 
 interface UnavailableSearchConnectionProps {
-  workspaceId: string
+  owner: ResourceOwner
 }
 
-function UnavailableSearchConnection({ workspaceId }: UnavailableSearchConnectionProps) {
+function UnavailableSearchConnection({ owner }: UnavailableSearchConnectionProps) {
   return (
     <PageShell>
       <AuthHeader
@@ -79,9 +82,7 @@ function UnavailableSearchConnection({ workspaceId }: UnavailableSearchConnectio
         description='Ask a workspace admin to check this source’s connected account settings.'
       />
       <div className='mt-6 flex justify-end'>
-        <ChipLink href={`/workspace/${encodeURIComponent(workspaceId)}/search`}>
-          Return to Search
-        </ChipLink>
+        <ChipLink href={searchReturnPath(owner)}>Return to Search</ChipLink>
       </div>
     </PageShell>
   )
@@ -138,7 +139,7 @@ export default async function CredentialGroupEnrollmentPage({
     })
   if (!enrollmentResult) return <UnavailableInvitation />
   const { enrollment } = enrollmentResult
-  if (!enrollment) return <UnavailableSearchConnection workspaceId={principal.workspaceId} />
+  if (!enrollment) return <UnavailableSearchConnection owner={principal} />
 
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')
   const connectedOptionId = getSearchParam(resolvedSearchParams, 'connected')
@@ -154,8 +155,7 @@ export default async function CredentialGroupEnrollmentPage({
   const focusedOption = returnToSearch
     ? activeOptions.find((option) => option.id === focusedOptionId)
     : undefined
-  if (returnToSearch && !focusedOption)
-    return <UnavailableSearchConnection workspaceId={principal.workspaceId} />
+  if (returnToSearch && !focusedOption) return <UnavailableSearchConnection owner={principal} />
   const visibleOptions = focusedOption ? [focusedOption] : activeOptions
   const focusedConnected = focusedOption?.connections[0]?.status === 'connected'
   const focusedProviderId = focusedOption
@@ -270,7 +270,7 @@ export default async function CredentialGroupEnrollmentPage({
               </ChipLink>
             )}
             <ChipLink
-              href={`/workspace/${encodeURIComponent(principal.workspaceId)}/search`}
+              href={searchReturnPath(principal)}
               variant={focusedConnected ? 'primary' : undefined}
             >
               Return to Search
@@ -290,4 +290,11 @@ export default async function CredentialGroupEnrollmentPage({
       </div>
     </PageShell>
   )
+}
+
+function searchReturnPath(owner: ResourceOwner): string {
+  const scope = resourceScopeFromOwner(owner)
+  return scope.kind === 'workspace'
+    ? `/workspace/${encodeURIComponent(scope.workspaceId)}/search`
+    : organizationRoutes(scope.organizationId).integrations
 }

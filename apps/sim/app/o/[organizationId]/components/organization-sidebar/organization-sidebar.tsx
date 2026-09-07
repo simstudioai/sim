@@ -1,13 +1,14 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
-import { PanelLeft, Search } from '@sim/emcn/icons'
+import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { usePathname } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   ChatsSection,
@@ -24,6 +25,7 @@ import {
   WORKSPACES_NAV_ID,
 } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -85,7 +87,9 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const workspacesHover = useHoverMenu()
 
   const isMac = isMacPlatform()
-  const navItems = useMemo(() => buildOrganizationNavItems(organization.id), [organization.id])
+  const navItems = buildOrganizationNavItems(organization.id)
+  const settingsPath = organizationRoutes(organization.id).settings
+  const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
   /**
    * One menu serves every href-bearing row (nav items, workspaces, chats): the
@@ -207,34 +211,14 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
               isCollapsed={isCollapsed}
               onExpandSidebar={toggleCollapsed}
             />
-            {/*
-             * The trailing chips collapse as one cluster on an unpadded wrapper with an
-             * explicit expanded width (2 icon chips × 32px + the 1px gap; 32px when the
-             * desktop inset title bar hides the collapse chip) — a chip's own `px-2`
-             * would leave a stub at `w-0`, and an `auto` width would crush the
-             * organization chip beside it. See the workspace sidebar's header.
-             */}
             <div
               className={cn(
                 'flex h-[30px] items-center gap-[1px] overflow-hidden',
                 isCollapsed
                   ? 'w-0 opacity-0'
-                  : 'w-[65px] [[data-sim-desktop-title-bar=inset]_&]:w-[32px]'
+                  : 'w-[32px] [[data-sim-desktop-title-bar=inset]_&]:w-0'
               )}
             >
-              <SidebarTooltip
-                label='Search'
-                enabled={!isCollapsed}
-                side='bottom'
-                shortcut={isMac ? '⌘K' : 'Ctrl+K'}
-              >
-                <Chip
-                  leftIcon={Search}
-                  aria-label='Search'
-                  tabIndex={isCollapsed ? -1 : undefined}
-                  className={DRAG_EXEMPT_CLASS}
-                />
-              </SidebarTooltip>
               <SidebarTooltip
                 label='Collapse sidebar'
                 enabled={!isCollapsed}
@@ -252,71 +236,83 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
             </div>
           </div>
 
-          {/* The divider is the pinned block's bottom rule, not the scroll region's top one:
+          {isSettings ? (
+            <OrganizationSettingsSidebar
+              isCollapsed={isCollapsed}
+              showCollapsedTooltips={showCollapsedTooltips}
+            />
+          ) : (
+            <>
+              {/* The divider is the pinned block's bottom rule, not the scroll region's top one:
               the region's edge fade masks its own first pixels, which would erase a rule
               drawn there exactly when it should show. Same construction as the footer. */}
-          <div
-            className={cn(
-              SIDEBAR_SECTION_GAP_CLASS,
-              SIDEBAR_ITEM_GAP_CLASS,
-              SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-              'flex shrink-0 flex-col border-b px-2 transition-colors duration-150',
-              !scrollEdges.top && 'border-transparent'
-            )}
-          >
-            {navItems.map((item) => {
-              const active = isNavItemActive(item, pathname)
-              /* The Workspaces chip grows a hover flyout of the organization's workspaces
+              <div
+                className={cn(
+                  SIDEBAR_SECTION_GAP_CLASS,
+                  SIDEBAR_ITEM_GAP_CLASS,
+                  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+                  'flex shrink-0 flex-col border-b px-2 transition-colors duration-150',
+                  !scrollEdges.top && 'border-transparent'
+                )}
+              >
+                {navItems.map((item) => {
+                  const active = isNavItemActive(item, pathname)
+                  /* The Workspaces chip grows a hover flyout of the organization's workspaces
                  while the rail is collapsed. The flyout replaces the collapsed tooltip
                  rather than stacking on it: both open on the same hover. Built inline —
                  Radix mounts menu content on open, so the flyout's query does not run
                  until the user actually hovers the chip. */
-              if (isCollapsed && item.id === WORKSPACES_NAV_ID) {
-                return (
-                  <CollapsedSidebarMenu
-                    key={item.id}
-                    hover={workspacesHover}
-                    navLink={{ item, active, onContextMenu: handleHrefContextMenu }}
-                  >
-                    <WorkspacesRailFlyout organizationId={organization.id} />
-                  </CollapsedSidebarMenu>
-                )
-              }
-              return (
-                <SidebarTooltip key={item.id} label={item.label} enabled={showCollapsedTooltips}>
-                  <SidebarNavChip
-                    item={item}
-                    active={active}
-                    onContextMenu={(e) => handleHrefContextMenu(e, item.href as string)}
+                  if (isCollapsed && item.id === WORKSPACES_NAV_ID) {
+                    return (
+                      <CollapsedSidebarMenu
+                        key={item.id}
+                        hover={workspacesHover}
+                        navLink={{ item, active, onContextMenu: handleHrefContextMenu }}
+                      >
+                        <WorkspacesRailFlyout organizationId={organization.id} />
+                      </CollapsedSidebarMenu>
+                    )
+                  }
+                  return (
+                    <SidebarTooltip
+                      key={item.id}
+                      label={item.label}
+                      enabled={showCollapsedTooltips}
+                    >
+                      <SidebarNavChip
+                        item={item}
+                        active={active}
+                        onContextMenu={(e) => handleHrefContextMenu(e, item.href as string)}
+                      />
+                    </SidebarTooltip>
+                  )
+                })}
+              </div>
+
+              <div
+                ref={scrollContainerRef}
+                className={cn(
+                  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+                  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+                  scrollFadeClass,
+                  'flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden'
+                )}
+                {...scrollFadeAttributes(scrollEdges)}
+              >
+                <div ref={scrollContentRef} className='flex flex-col'>
+                  <ChatsSection
+                    chats={chats}
+                    isLoading={chatsLoading}
+                    isCollapsed={isCollapsed}
+                    pathname={pathname}
+                    menuOpenHref={menuHref}
+                    onContextMenu={handleHrefContextMenu}
+                    onMoreClick={handleChatMoreClick}
                   />
-                </SidebarTooltip>
-              )
-            })}
-          </div>
-
-          <div
-            ref={scrollContainerRef}
-            className={cn(
-              SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-              SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-              scrollFadeClass,
-              'flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden'
-            )}
-            {...scrollFadeAttributes(scrollEdges)}
-          >
-            <div ref={scrollContentRef} className='flex flex-col'>
-              <ChatsSection
-                chats={chats}
-                isLoading={chatsLoading}
-                isCollapsed={isCollapsed}
-                pathname={pathname}
-                menuOpenHref={menuHref}
-                onContextMenu={handleHrefContextMenu}
-                onMoreClick={handleChatMoreClick}
-              />
-            </div>
-          </div>
-
+                </div>
+              </div>
+            </>
+          )}
           <OrganizationFooter
             showDivider={scrollEdges.bottom}
             isCollapsed={isCollapsed}

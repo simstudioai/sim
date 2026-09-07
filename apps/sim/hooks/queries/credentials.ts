@@ -20,6 +20,10 @@ import {
   type WorkspaceCredentialRole,
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
+import {
+  type CreateOrganizationCredentialDraftBody,
+  createOrganizationCredentialDraftContract,
+} from '@/lib/api/contracts/organization-credentials'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
@@ -78,7 +82,13 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
 
 export function useCreateCredentialDraft() {
   return useMutation({
-    mutationFn: async (payload: ContractBodyInput<typeof createCredentialDraftContract>) => {
+    mutationFn: async (
+      payload:
+        | ContractBodyInput<typeof createCredentialDraftContract>
+        | CreateOrganizationCredentialDraftBody
+    ) => {
+      if ('organizationId' in payload)
+        return requestJson(createOrganizationCredentialDraftContract, { body: payload })
       return requestJson(createCredentialDraftContract, { body: payload })
     },
   })

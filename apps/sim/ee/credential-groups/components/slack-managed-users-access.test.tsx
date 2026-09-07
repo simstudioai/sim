@@ -18,9 +18,9 @@ vi.mock('@/hooks/queries/credential-groups', () => ({
   }),
 }))
 
-vi.mock('@/hooks/queries/credentials', () => ({
-  useCreateWorkspaceCredential: () => ({ mutateAsync: mocks.create, isPending: false }),
-  useUpdateWorkspaceCredential: () => ({ mutateAsync: mocks.update, isPending: false }),
+vi.mock('@/hooks/queries/scoped-credentials', () => ({
+  useCreateScopedCredential: () => ({ mutateAsync: mocks.create, isPending: false }),
+  useUpdateScopedCredential: () => ({ mutateAsync: mocks.update, isPending: false }),
 }))
 
 import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
@@ -83,7 +83,11 @@ describe('Slack member access selection', () => {
     vi.unstubAllGlobals()
   })
 
-  async function render(initialRequiredScopes?: readonly string[], bots = [bot]) {
+  async function render(
+    initialRequiredScopes?: readonly string[],
+    bots = [bot],
+    organizationId?: string
+  ) {
     await act(async () =>
       root.render(
         <QueryClientProvider client={client}>
@@ -94,7 +98,8 @@ describe('Slack member access selection', () => {
             isLoading={false}
             error={null}
             credentialGroupId='group-1'
-            workspaceId='workspace-1'
+            workspaceId={organizationId ? undefined : 'workspace-1'}
+            organizationId={organizationId}
             initialRequiredScopes={initialRequiredScopes}
           />
         </QueryClientProvider>
@@ -131,9 +136,11 @@ describe('Slack member access selection', () => {
     await act(async () => button?.click())
   }
 
-  function appSetupDialog() {
+  function appSetupDialog(organization = false) {
     return Array.from(document.querySelectorAll('[role="dialog"]')).find((dialog) =>
-      dialog.textContent?.includes('Create a custom Slack bot')
+      dialog.textContent?.includes(
+        organization ? 'Set up Slack for search' : 'Create a custom Slack bot'
+      )
     )
   }
 
@@ -146,6 +153,9 @@ describe('Slack member access selection', () => {
     const dialog = appSetupDialog()
     expect(dialog).toBeDefined()
     expect(dialog?.querySelector('input[placeholder="Sim Bot"]')).not.toBeNull()
+    expect(dialog?.textContent).toContain('Additional permissions')
+    expect(dialog?.textContent).toContain('Member access')
+    expect(dialog?.textContent).toContain('Slash commands')
     await clickButton('Close', dialog)
 
     expect(appSetupDialog()).toBeUndefined()
@@ -155,6 +165,51 @@ describe('Slack member access selection', () => {
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.start).not.toHaveBeenCalled()
     expect(window.open).not.toHaveBeenCalled()
+  })
+
+  it('keeps organization Slack app setup focused on search and returns to member verification', async () => {
+    await render(undefined, [], 'org-1')
+    await clickButton('Set up Slack app')
+    const dialog = appSetupDialog(true)
+    expect(dialog).toBeDefined()
+    expect(dialog?.textContent).toContain('App name')
+    expect(dialog?.textContent).not.toContain('Additional permissions')
+    expect(dialog?.textContent).not.toContain('Member access')
+    expect(dialog?.textContent).not.toContain('Slash commands')
+    expect(dialog?.textContent).not.toContain('Workflow tools')
+
+    await fill('Sim Bot', 'Organization search')
+    await clickButton('Next')
+    const manifestText = Array.from(appSetupDialog(true)?.querySelectorAll('pre') ?? [])
+      .map((node) => node.textContent)
+      .join('\n')
+    const manifest = JSON.parse(manifestText)
+    expect(manifest.oauth_config.scopes.user).toEqual([...SLACK_SEARCH_USER_SCOPES].sort())
+    expect(manifest.oauth_config.scopes.bot).toContain('users:read')
+    expect(manifest.features).not.toHaveProperty('slash_commands')
+
+    await clickButton('Next')
+    await fill('Paste your signing secret', 'fixture-signing-secret')
+    await clickButton('Next')
+    await fill('xoxb-...', 'xoxb-fixture-token')
+    await clickButton('Next')
+
+    expect(mocks.create).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      type: 'service_account',
+      providerId: 'slack-custom-bot',
+      id: expect.any(String),
+      signingSecret: 'fixture-signing-secret',
+      botToken: 'xoxb-fixture-token',
+      displayName: 'Organization search',
+      description: undefined,
+    })
+    expect(appSetupDialog(true)?.textContent).toContain('Click Done to verify member access.')
+    expect(appSetupDialog(true)?.textContent).not.toContain('Slack triggers and actions')
+    await clickButton('Done')
+    expect(appSetupDialog(true)).toBeUndefined()
+    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+    expect(mocks.start).not.toHaveBeenCalled()
   })
 
   it('selects the created Slack app when credentials refresh and authorizes that app', async () => {
@@ -217,6 +272,23 @@ describe('Slack member access selection', () => {
     expect(mocks.start).toHaveBeenCalledWith(
       expect.objectContaining({ body: expect.objectContaining({ requiredScopes: [...expected] }) })
     )
+  })
+
+  it('org setup requests search scopes without exposing workflow access', async () => {
+    await render(SLACK_MANAGED_USER_SCOPES, [bot], 'org-1')
+    expect(document.body.textContent).not.toContain('Workflow tools')
+    expect(document.body.textContent).not.toContain('Search documents')
+    await submit()
+    expect(mocks.start).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      credentialGroupId: 'group-1',
+      body: {
+        slackBotCredentialId: bot.id,
+        clientId: 'fixture-client',
+        clientSecret: 'fixture-secret',
+        requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
+      },
+    })
   })
 
   it('only changes existing workflow access after the user selects Search documents', async () => {

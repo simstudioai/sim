@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import {
   InsufficientWorkspacePermissionsError,
   requireCurrentHumanRole,
@@ -11,6 +12,15 @@ import {
   OrchestrationError,
   type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
   requireKnowledgeMemberAccessAvailable,
@@ -20,12 +30,16 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
 import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import {
+  type KnowledgeOrganizationContext,
   type KnowledgeWorkspaceContext,
-  resolveKnowledgeWorkspaceContext,
+  resolveKnowledgeOwnerContext,
 } from '@/lib/knowledge/application/contexts'
 import { createKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { findWorkspaceSearchIndex } from '@/lib/knowledge/search/search-index'
+import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
+import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
+import { findSearchIndex } from '@/lib/knowledge/search/search-index'
+import { createAuthorizedKnowledgeBase } from '@/lib/knowledge/service'
 import {
   canConnectPersonally,
   missingSetupFields,
@@ -38,8 +52,7 @@ import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 const SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION =
   'What each person can open in the sources they connected, searched as them.'
 
-export interface ConnectSimSearchConnectorInput {
-  workspaceId: string
+export interface ConnectSimSearchConnectorInput extends ResourceOwner {
   /** `CONNECTOR_META_REGISTRY` key of the source to connect. */
   connectorType: string
   /** An existing source selected by the person, scoped to the canonical workspace index. */
@@ -66,7 +79,7 @@ async function findSimSearchConnector(input: ConnectSimSearchConnectorInput) {
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
     .where(
       and(
-        eq(knowledgeBase.workspaceId, input.workspaceId),
+        resourceScopeCondition(knowledgeBase, resourceScopeFromOwner(input)),
         eq(knowledgeBase.isSearchIndex, true),
         isNull(knowledgeBase.deletedAt),
         eq(knowledgeConnector.connectorType, input.connectorType),
@@ -102,26 +115,51 @@ async function findSimSearchConnector(input: ConnectSimSearchConnectorInput) {
 /** Resolves the current workspace search index without creating one. */
 export const readSearchIndex = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readSearchIndex,
-  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
-    resolveKnowledgeWorkspaceContext(input),
+  resolveContext: ({ input }: { input: ResourceOwner }) => resolveKnowledgeOwnerContext(input),
   async execute({ context }) {
     return {
       workspaceId: context.workspaceId,
-      knowledgeBaseId: (await findWorkspaceSearchIndex(context.workspaceId))?.id ?? null,
+      knowledgeBaseId: (await findSearchIndex(resourceScopeFromOwner(context)))?.id ?? null,
     }
   },
 })
 
 /** Admin setup adopts legacy indexes; reads and deletion always use the persisted index marker. */
 async function ensureSearchKnowledgeBase(
-  workspaceId: string,
+  scope: ResourceScope,
   principal: Principal,
   request?: OrchestrationRequestContext
 ): Promise<string> {
-  return coalesceLocally(`sim-search:base:${workspaceId}`, async () => {
-    const existing = await findWorkspaceSearchIndex(workspaceId)
+  return coalesceLocally(`sim-search:base:${resourceScopeKey(scope)}`, async () => {
+    const existing = await findSearchIndex(scope)
     if (existing) return existing.id
     try {
+      if (scope.kind === 'organization') {
+        const userId = resolvePrincipalSubjectUserId(principal)
+        if (!userId) throw new OrchestrationError('forbidden', 'Sign in to configure sources')
+        await requireOrganizationMembership(
+          principal,
+          scope.organizationId,
+          'admin',
+          'knowledge.create'
+        )
+        const embedding = await getConfiguredKbEmbedding()
+        const created = await createAuthorizedKnowledgeBase(
+          {
+            organizationId: scope.organizationId,
+            userId,
+            name: SIM_SEARCH_KNOWLEDGE_BASE_NAME,
+            isSearchIndex: true,
+            description: SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION,
+            embeddingModel: embedding.model,
+            embeddingDimension: embedding.dimensions,
+            chunkingConfig: DEFAULT_CHUNKING_CONFIG,
+          },
+          generateRequestId()
+        )
+        return created.id
+      }
+      const workspaceId = scope.workspaceId
       const [legacy] = await db
         .update(knowledgeBase)
         .set({ isSearchIndex: true, updatedAt: new Date() })
@@ -148,7 +186,7 @@ async function ensureSearchKnowledgeBase(
       })
       return created.knowledgeBase.id
     } catch (error) {
-      const concurrent = await findWorkspaceSearchIndex(workspaceId)
+      const concurrent = await findSearchIndex(scope)
       if (concurrent) return concurrent.id
       throw error
     }
@@ -161,28 +199,29 @@ export const prepareSearchSource = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({
     input,
   }: {
-    input: { workspaceId: string; connectorType: string; accessMode?: 'admin' | 'members' }
-  }) => resolveKnowledgeWorkspaceContext(input),
+    input: ResourceOwner & { connectorType: string; accessMode?: 'admin' | 'members' }
+  }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context, request }) {
+    const scope = resourceScopeFromOwner(context)
     const meta = CONNECTOR_META_REGISTRY[input.connectorType]
     if (input.accessMode === 'members') {
       if (!meta || !canConnectPersonally(meta))
         throw new OrchestrationError('validation', 'This source cannot connect member accounts')
-      await requireKnowledgeMemberAccessAvailable({ workspaceId: context.workspaceId })
+      await requireKnowledgeMemberAccessAvailable(context)
       const userId = resolvePrincipalSubjectUserId(principal)
       if (!userId)
         throw new OrchestrationError('forbidden', 'Sign in to configure workspace accounts')
-      const group = await ensureWorkspaceAccountsGroup(context.workspaceId, userId)
+      const group = await ensureWorkspaceAccountsGroup(scope, userId)
       return {
-        knowledgeBaseId: await ensureSearchKnowledgeBase(context.workspaceId, principal, request),
+        knowledgeBaseId: await ensureSearchKnowledgeBase(scope, principal, request),
         credentialGroupId: group.id,
       }
     }
     if (!meta?.search || !meta.mirrorsSourceAcls)
       throw new OrchestrationError('validation', 'This source cannot mirror source permissions')
-    await requireSourceMirroredAccessAvailable({ workspaceId: context.workspaceId })
+    await requireSourceMirroredAccessAvailable(context)
     return {
-      knowledgeBaseId: await ensureSearchKnowledgeBase(context.workspaceId, principal, request),
+      knowledgeBaseId: await ensureSearchKnowledgeBase(scope, principal, request),
     }
   },
 })
@@ -194,12 +233,23 @@ export const prepareSearchSource = defineAuthorizedKnowledgeUseCase({
  * reader learns whom to ask and for what.
  */
 async function requireSimSearchSetupAdmin(
-  userId: string,
-  context: KnowledgeWorkspaceContext,
+  principal: Principal,
+  context: KnowledgeWorkspaceContext | KnowledgeOrganizationContext,
   sourceName: string
 ): Promise<void> {
   try {
-    await requireCurrentHumanRole(userId, context, 'admin')
+    if (context.organizationId)
+      await requireOrganizationMembership(
+        principal,
+        context.organizationId,
+        'admin',
+        'knowledge.use'
+      )
+    else if (context.workspaceId) {
+      const userId = resolvePrincipalSubjectUserId(principal)
+      if (!userId) throw new OrchestrationError('forbidden', 'Sign in to configure sources')
+      await requireCurrentHumanRole(userId, context, 'admin')
+    }
   } catch (error) {
     if (!(error instanceof InsufficientWorkspacePermissionsError)) throw error
     throw new OrchestrationError(
@@ -224,7 +274,7 @@ async function requireSimSearchSetupAdmin(
 export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.simSearchConnect,
   resolveContext: ({ input }: { input: ConnectSimSearchConnectorInput }) =>
-    resolveKnowledgeWorkspaceContext(input),
+    resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context, request }): Promise<ConnectSimSearchConnectorResult> {
     const meta = CONNECTOR_META_REGISTRY[input.connectorType]
     if (!meta || !canConnectPersonally(meta)) {
@@ -233,8 +283,10 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         'This source cannot be connected per person; a workspace admin sets it up from a knowledge base'
       )
     }
+    const scope = resourceScopeFromOwner(context)
+    const owner = resourceScopeFields(scope)
     const workspaceId = context.workspaceId
-    let target = await findSimSearchConnector({ ...input, workspaceId })
+    let target = await findSimSearchConnector({ ...input, ...owner })
     if (!target) {
       const userId = resolvePrincipalSubjectUserId(principal)
       if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
@@ -251,20 +303,21 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
        * the same availability, but only after the knowledge base exists.
        */
       await Promise.all([
-        requireKnowledgeMemberAccessAvailable({ workspaceId }),
-        requireSimSearchSetupAdmin(userId, context, meta.name),
+        requireKnowledgeMemberAccessAvailable(owner),
+        requireSimSearchSetupAdmin(principal, context, meta.name),
       ])
-      const knowledgeBaseId = await ensureSearchKnowledgeBase(workspaceId, principal, request)
+      const knowledgeBaseId = await ensureSearchKnowledgeBase(scope, principal, request)
       target = await coalesceLocally(
-        `sim-search:connect:${workspaceId}:${input.connectorType}:${searchSourceIdentity(meta, sourceConfig)}`,
+        `sim-search:connect:${resourceScopeKey(scope)}:${input.connectorType}:${searchSourceIdentity(meta, sourceConfig)}`,
         async () => {
-          const existing = await findSimSearchConnector({ ...input, workspaceId })
+          const existing = await findSimSearchConnector({ ...input, ...owner })
           if (existing) return existing
           const created = await createKnowledgeConnector.execute({
             principal,
             input: {
               knowledgeBaseId,
               assertedWorkspaceId: workspaceId,
+              assertedOrganizationId: context.organizationId,
               connectorType: input.connectorType,
               sourceConfig,
               syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
@@ -284,6 +337,7 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         knowledgeBaseId: target.knowledgeBaseId,
         connectorId: target.connectorId,
         assertedWorkspaceId: workspaceId,
+        assertedOrganizationId: context.organizationId,
       },
       request,
     })

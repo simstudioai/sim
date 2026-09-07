@@ -15,7 +15,14 @@ import { truncate } from '@sim/utils/string'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
+import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   canUseCredential,
@@ -80,6 +87,7 @@ import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY, getConnectorMeta } from '@/connectors/registry'
@@ -88,6 +96,7 @@ import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
   source?: KnowledgeOperationSource
 }
 
@@ -180,11 +189,14 @@ const CONNECTOR_ALLOWLIST_RULE = CAPABILITY_RULES['knowledge.connectors']
  */
 async function assertConnectorTypeAllowed(
   userId: string | undefined,
-  workspaceId: string,
+  scope: ResourceScope,
   connectorType: string
 ): Promise<void> {
   if (!userId) return
-  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+  const config =
+    scope.kind === 'organization'
+      ? await getUserPermissionConfigForOrganization(scope.organizationId)
+      : await resolvePermissionGroupConfig(userId, scope.workspaceId, undefined)
   if (!config || !CONNECTOR_ALLOWLIST_RULE.deniedBy(config, connectorType)) return
 
   refuseCapability('knowledge.connectors')
@@ -206,6 +218,7 @@ function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
     id: context.knowledgeBaseId,
     name: context.knowledgeBase.name,
     workspaceId: context.workspaceId ?? null,
+    organizationId: context.organizationId ?? null,
   }
 }
 
@@ -218,7 +231,8 @@ export function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBase
 
 async function resolveAuthorizedConnectorCredentialIdentity(input: {
   credentialId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   actingUserId: string
   service?: ServiceProviderIdentity
   auth: ConnectorAuthConfig
@@ -227,7 +241,7 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
   const access = await getCredentialActorContext(input.credentialId, input.actingUserId)
   if (
     !access.credential ||
-    access.credential.workspaceId !== input.workspaceId ||
+    !sameResourceScope(resourceScopeFromOwner(access.credential), resourceScopeFromOwner(input)) ||
     !canUseCredential(access)
   ) {
     throw new OrchestrationError(
@@ -245,7 +259,10 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
       'Credential belongs to another service. Select a credential for the connector’s own provider.'
     )
   }
-  const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  const identity = await resolveCredentialTokenIdentity(
+    input.credentialId,
+    resourceScopeFromOwner(input)
+  )
   if (identity && !isConnectorCredentialTypeAllowed(input.auth, input.accessMode, identity.kind)) {
     throw new OrchestrationError(
       'validation',
@@ -262,7 +279,8 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
  */
 export async function resolveConnectorCredentialAccessToken(input: {
   credentialId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   actingUserId: string
   requestId: string
   service?: ServiceProviderIdentity
@@ -286,7 +304,8 @@ export async function resolveConnectorCredentialAccessToken(input: {
 export async function validateConnectorSourceConfig(input: {
   connector: KnowledgeConnectorRow
   sourceConfig: Record<string, unknown>
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   actingUserId: string
   requestId: string
 }): Promise<SourceConfigRejection | null> {
@@ -305,7 +324,11 @@ export async function validateConnectorSourceConfig(input: {
    */
   if (mirrorsSourceAcls(input.connector.accessMode)) {
     try {
-      await assertConnectorMirrorsSourceAcls(connectorConfig, input.sourceConfig, input.workspaceId)
+      await assertConnectorMirrorsSourceAcls(
+        connectorConfig,
+        input.sourceConfig,
+        resourceScopeFromOwner(input)
+      )
     } catch (error) {
       if (error instanceof OrchestrationError) {
         return { message: error.message, errorCode: error.code }
@@ -341,6 +364,7 @@ export async function validateConnectorSourceConfig(input: {
     const identity = await resolveAuthorizedConnectorCredentialIdentity({
       credentialId: input.connector.credentialId,
       workspaceId: input.workspaceId,
+      organizationId: input.organizationId,
       actingUserId: input.actingUserId,
       auth: connectorConfig.auth,
       accessMode: input.connector.accessMode,
@@ -419,10 +443,11 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
     const page = input.limit === undefined ? rows : rows.slice(0, input.limit)
     const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
-      viewerUserId && context.workspaceId
+      viewerUserId && (context.workspaceId || context.organizationId)
         ? await resolveViewerConnectorMemberships({
             userId: viewerUserId,
             workspaceId: context.workspaceId,
+            organizationId: context.organizationId,
             connectors: page,
           })
         : new Map<string, ViewerConnectorMembership>()
@@ -585,10 +610,11 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const { encryptedApiKey: _encryptedApiKey, ...connectorData } = connector
     const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
-      viewerUserId && context.workspaceId
+      viewerUserId && (context.workspaceId || context.organizationId)
         ? await resolveViewerConnectorMemberships({
             userId: viewerUserId,
             workspaceId: context.workspaceId,
+            organizationId: context.organizationId,
             connectors: [connector],
           })
         : new Map<string, ViewerConnectorMembership>()
@@ -643,12 +669,14 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ principal, input, context, request }) {
     const requestId = generateRequestId()
-    const workspaceId = requireConnectorWorkspaceId(context)
+    const scope = resourceScopeFromOwner(context)
+    const owner = resourceScopeFields(scope)
+    const workspaceId = context.workspaceId
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
     // permission-group-enforced: knowledge.connectors — needs the request's connector id, which the funnel never sees
     await assertConnectorTypeAllowed(
       resolvePrincipalSubjectUserId(principal),
-      workspaceId,
+      scope,
       input.connectorType
     )
     const connectorMeta = getConnectorMeta(input.connectorType)
@@ -682,7 +710,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
        * both take the admin role, even though creating a connector does not.
        */
       const subjectUserId = resolvePrincipalSubjectUserId(principal)
-      if (context.workspaceId === undefined) {
+      if (context.workspaceId === undefined && !context.organizationId) {
         throw new OrchestrationError(
           'validation',
           'Permission-scoped access needs a workspace knowledge base'
@@ -694,21 +722,28 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
           'Permission-scoped access needs a signed-in admin'
         )
       }
-      await requireCurrentHumanRole(subjectUserId, context, 'admin')
+      if (context.organizationId)
+        await requireOrganizationMembership(
+          principal,
+          context.organizationId,
+          'admin',
+          'knowledge.use'
+        )
+      else if (context.workspaceId) await requireCurrentHumanRole(subjectUserId, context, 'admin')
 
       if (input.accessMode === 'admin') {
-        await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, workspaceId)
+        await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, scope)
         if (connectorMeta.requiresMemberIdentity) {
-          await requireKnowledgeMemberAccessAvailable({ workspaceId })
+          await requireKnowledgeMemberAccessAvailable(owner)
           await provisionKnowledgeConnectorMembersBinding({
-            workspaceId,
+            ...owner,
             connectorMeta,
             userId: subjectUserId,
           })
         }
       } else {
         membersBinding = await resolveKnowledgeConnectorMembersBinding({
-          workspaceId,
+          ...owner,
           connectorMeta,
           actingUserId: subjectUserId,
           sourceConfig: input.sourceConfig,
@@ -727,12 +762,12 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       accessMode: input.accessMode,
       reuseSearchSource: input.reuseSearchSource,
       resolveBillingAttribution: () =>
-        input.resolveBillingAttribution?.(workspaceId) ??
+        (workspaceId ? input.resolveBillingAttribution?.(workspaceId) : undefined) ??
         resolveKnowledgeBillingAttribution(principal, context),
       resolveAccessToken: (credentialId) =>
         resolveConnectorCredentialAccessToken({
           credentialId,
-          workspaceId,
+          ...owner,
           actingUserId,
           requestId,
           auth: connectorMeta.auth,
@@ -798,18 +833,18 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       connectorId: context.connectorId,
       updates: input.updates,
       resolveBillingAttribution: () => {
-        const workspaceId = requireConnectorWorkspaceId(context)
+        const workspaceId = context.workspaceId
         return (
-          input.resolveBillingAttribution?.(workspaceId) ??
+          (workspaceId ? input.resolveBillingAttribution?.(workspaceId) : undefined) ??
           resolveKnowledgeBillingAttribution(principal, context)
         )
       },
       validateSourceConfig: (connector, sourceConfig) => {
-        const workspaceId = requireConnectorWorkspaceId(context)
+        const owner = resourceScopeFields(resourceScopeFromOwner(context))
         return validateConnectorSourceConfig({
           connector,
           sourceConfig,
-          workspaceId,
+          ...owner,
           actingUserId,
           requestId,
         })
@@ -919,18 +954,19 @@ export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     input: SyncKnowledgeConnectorInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ principal, input, context, request }) {
-    const workspaceId = requireConnectorWorkspaceId(context)
+    const workspaceId = context.workspaceId
+    const scope = resourceScopeFromOwner(context)
     // permission-group-enforced: knowledge.connectors — needs the persisted connector type, which the funnel never sees
     await assertConnectorTypeAllowed(
       resolvePrincipalSubjectUserId(principal),
-      workspaceId,
+      scope,
       context.connector.connectorType
     )
     const outcome = await performSyncKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
       resolveBillingAttribution: () =>
-        input.resolveBillingAttribution?.(workspaceId) ??
+        (workspaceId ? input.resolveBillingAttribution?.(workspaceId) : undefined) ??
         resolveKnowledgeBillingAttribution(principal, context),
       rehydrate: input.rehydrate,
       userId: resolveKnowledgeAttributedUserId(principal, context),

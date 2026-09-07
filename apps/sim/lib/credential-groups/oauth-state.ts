@@ -2,6 +2,7 @@ import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   type CredentialGroupProvider,
@@ -9,7 +10,8 @@ import {
 } from '@/lib/credential-groups/providers'
 
 const OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const OAUTH_ATTEMPT_VERSION = 3 as const
+const OAUTH_ATTEMPT_VERSION = 4 as const
+const LEGACY_OAUTH_ATTEMPT_VERSION = 3 as const
 const OAUTH_ATTEMPT_STATE_PREFIX = 'cg_'
 
 const CONSUME_SCRIPT = `
@@ -22,9 +24,10 @@ return value
 `
 
 interface StoredCredentialGroupOAuthAttempt {
-  version: typeof OAUTH_ATTEMPT_VERSION
+  version: typeof OAUTH_ATTEMPT_VERSION | typeof LEGACY_OAUTH_ATTEMPT_VERSION
   provider: CredentialGroupProvider
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentId: string
   credentialGroupId: string
@@ -45,7 +48,8 @@ export interface CredentialGroupOAuthAttempt {
   state: string
   provider: CredentialGroupProvider
   nonceHash: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentId: string
   credentialGroupId: string
@@ -63,7 +67,8 @@ export interface CredentialGroupOAuthAttempt {
 
 interface CreateCredentialGroupOAuthAttemptParams {
   provider: CredentialGroupProvider
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentId: string
   credentialGroupId: string
@@ -94,11 +99,17 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
   return (
-    candidate.version === OAUTH_ATTEMPT_VERSION &&
+    (candidate.version === OAUTH_ATTEMPT_VERSION ||
+      candidate.version === LEGACY_OAUTH_ATTEMPT_VERSION) &&
     typeof candidate.provider === 'string' &&
     isCredentialGroupProvider(candidate.provider) &&
-    typeof candidate.workspaceId === 'string' &&
-    candidate.workspaceId.length > 0 &&
+    ((typeof candidate.workspaceId === 'string' &&
+      candidate.workspaceId.length > 0 &&
+      candidate.organizationId === undefined) ||
+      (candidate.version === OAUTH_ATTEMPT_VERSION &&
+        candidate.workspaceId === undefined &&
+        typeof candidate.organizationId === 'string' &&
+        candidate.organizationId.length > 0)) &&
     typeof candidate.email === 'string' &&
     candidate.email.length >= 3 &&
     candidate.email.length <= 320 &&
@@ -135,9 +146,9 @@ export async function createCredentialGroupOAuthAttempt(
     encryptSecret(params.invitationToken),
   ])
   const attempt: StoredCredentialGroupOAuthAttempt = {
-    version: OAUTH_ATTEMPT_VERSION,
+    version: params.organizationId ? OAUTH_ATTEMPT_VERSION : LEGACY_OAUTH_ATTEMPT_VERSION,
     provider: params.provider,
-    workspaceId: params.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(params)),
     email: params.email,
     enrollmentId: params.enrollmentId,
     credentialGroupId: params.credentialGroupId,
@@ -190,7 +201,7 @@ export async function consumeCredentialGroupOAuthAttempt(
     state,
     provider: parsed.provider,
     nonceHash: parsed.nonceHash,
-    workspaceId: parsed.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(parsed)),
     email: parsed.email,
     enrollmentId: parsed.enrollmentId,
     credentialGroupId: parsed.credentialGroupId,

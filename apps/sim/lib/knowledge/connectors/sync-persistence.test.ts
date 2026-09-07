@@ -5,13 +5,15 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: vi.fn() }))
-vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
+const { mockUploadFile } = vi.hoisted(() => ({ mockUploadFile: vi.fn() }))
+vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
 vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: vi.fn() }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
 import {
+  addDocument,
   persistDocumentAcls,
   persistSourceDocumentFailures,
 } from '@/lib/knowledge/connectors/sync-persistence'
@@ -280,5 +282,63 @@ describe('persistSourceDocumentFailures', () => {
       persistSourceDocumentFailures({ ...input, priorByExternalId: new Map() })
     ).rejects.toThrow('reclaimed')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization source cache persistence', () => {
+  const source = {
+    externalId: 'source-1',
+    title: 'Source',
+    content: 'indexed text',
+    mimeType: 'text/plain',
+    contentHash: 'hash-1',
+  }
+  const owner = { workspaceId: null, organizationId: 'org-1', userId: 'creator' }
+  const lease = { stillHeld: () => schemaMock.knowledgeConnector.id }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockUploadFile.mockResolvedValue({
+      key: 'kb/source.txt',
+      path: '/api/files/serve/kb%2Fsource.txt',
+    })
+    dbChainMockFns.limit.mockResolvedValue([{ id: 'org-kb' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
+  })
+
+  it('stores the canonical organization binding while the document remains hidden until access sync', async () => {
+    await addDocument('org-kb', 'connector-1', 'gmail', source, owner, undefined, 'members', lease)
+    expect(mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: 'knowledge-base',
+        metadata: { organizationId: 'org-1', userId: 'creator', originalName: 'Source.txt' },
+      })
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        knowledgeBaseId: 'org-kb',
+        connectorId: 'connector-1',
+        storageKey: 'kb/source.txt',
+        acl: [],
+        processingStatus: 'pending',
+      })
+    )
+  })
+
+  it('rejects ambiguous ownership before writing provider bytes', async () => {
+    await expect(
+      addDocument(
+        'org-kb',
+        'connector-1',
+        'gmail',
+        source,
+        { ...owner, workspaceId: 'workspace-1' },
+        undefined,
+        'members',
+        lease
+      )
+    ).rejects.toThrow('exactly one')
+    expect(mockUploadFile).not.toHaveBeenCalled()
   })
 })

@@ -3,6 +3,7 @@ export type Principal =
   | PersonalApiKeyPrincipal
   | WorkspaceApiKeyPrincipal
   | DelegatedPrincipal
+  | OrganizationDelegatedPrincipal
   | SystemPrincipal
   | CredentialGroupEnrollmentPrincipal
 
@@ -124,15 +125,33 @@ export type BoundWorkflowExecutionDelegatedPrincipal = WorkflowExecutionDelegate
 
 export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDelegatedPrincipal
 
+/** Search-only authority delegated by a current organization member. */
+export interface OrganizationDelegatedPrincipal {
+  kind: 'organization_delegated'
+  serviceId: 'copilot'
+  organizationId: string
+  subjectUserId: string
+  delegationId: string
+  audience: string
+  issuedAt: Date
+  expiresAt: Date
+  resourceScope: { chatId: string }
+}
+
 /** Bearer identity established by a currently valid Credential Group invitation. */
-export interface CredentialGroupEnrollmentPrincipal {
+interface CredentialGroupEnrollmentIdentity {
   kind: 'credential_group_enrollment'
-  workspaceId: string
   credentialGroupId: string
   enrollmentId: string
   email: string
   invitationTokenHash: string
 }
+
+export type CredentialGroupEnrollmentPrincipal = CredentialGroupEnrollmentIdentity &
+  (
+    | { workspaceId: string; organizationId?: never }
+    | { organizationId: string; workspaceId?: never }
+  )
 
 export type DelegatedServiceId = DelegatedPrincipal['serviceId']
 
@@ -445,6 +464,13 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
 }
 
 export type PrincipalActor =
+  | {
+      kind: 'organization_delegated'
+      serviceId: 'copilot'
+      subjectUserId: string
+      organizationId: string
+      delegationId: string
+    }
   | { kind: 'session'; userId: string }
   | { kind: 'personal_api_key'; keyId: string; userId: string }
   | { kind: 'workspace_api_key'; keyId: string; workspaceId: string }
@@ -465,7 +491,8 @@ export type PrincipalActor =
     }
   | {
       kind: 'credential_group_enrollment'
-      workspaceId: string
+      workspaceId?: string
+      organizationId?: string
       credentialGroupId: string
       enrollmentId: string
       email: string
@@ -505,6 +532,8 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'session':
     case 'personal_api_key':
       return { kind: 'sim_user', userId: principal.userId }
+    case 'organization_delegated':
+      return { kind: 'sim_user', userId: principal.subjectUserId }
     case 'delegated':
       if (principal.serviceId !== 'executor') {
         return { kind: 'sim_user', userId: principal.subjectUserId }
@@ -558,10 +587,20 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
         ...(principal.subjectUserId ? { subjectUserId: principal.subjectUserId } : {}),
         delegationId: principal.delegationId,
       }
+    case 'organization_delegated':
+      return {
+        kind: principal.kind,
+        serviceId: principal.serviceId,
+        subjectUserId: principal.subjectUserId,
+        organizationId: principal.organizationId,
+        delegationId: principal.delegationId,
+      }
     case 'credential_group_enrollment':
       return {
         kind: principal.kind,
-        workspaceId: principal.workspaceId,
+        ...(principal.organizationId
+          ? { organizationId: principal.organizationId }
+          : { workspaceId: principal.workspaceId }),
         credentialGroupId: principal.credentialGroupId,
         enrollmentId: principal.enrollmentId,
         email: principal.email,
@@ -577,6 +616,8 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
       return { actor, actorId: actor.userId }
     case 'personal_api_key':
       return { actor, actorId: actor.userId }
+    case 'organization_delegated':
+      return { actor, actorId: actor.subjectUserId }
     case 'delegated':
       return actor.subjectUserId
         ? { actor, actorId: actor.subjectUserId }
@@ -614,6 +655,8 @@ export function resolvePrincipalAttribution(
     }
     case 'system':
       throw new Error('System principals do not support user attribution')
+    case 'organization_delegated':
+      return { actor, attributedUserId: actor.subjectUserId }
     case 'delegated': {
       if (actor.subjectUserId) return { actor, attributedUserId: actor.subjectUserId }
       if (actor.serviceId !== 'executor') throw new PrincipalSubjectUserRequiredError(actor.kind)

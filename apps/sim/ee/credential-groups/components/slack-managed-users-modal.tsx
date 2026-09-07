@@ -16,6 +16,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { SlackIcon } from '@/components/icons'
 import type { WorkspaceCredential } from '@/lib/api/contracts'
+import type { OrganizationCredential } from '@/lib/api/contracts/organization-credentials'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import {
   resolveSlackManagedUserScopes,
   SLACK_MANAGED_USER_SCOPES,
@@ -23,13 +25,14 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
+import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
 const CHANNEL_NAME = 'slack-managed-users'
 const AUTHORIZATION_TIMEOUT_MS = 10 * 60 * 1000
 
 interface SlackManagedUsersModalProps {
-  bots: WorkspaceCredential[]
+  bots: Array<WorkspaceCredential | OrganizationCredential>
   credentialGroupId: string
   error: Error | null
   initialCredentialId?: string
@@ -37,7 +40,8 @@ interface SlackManagedUsersModalProps {
   isLoading: boolean
   onOpenChange: (open: boolean) => void
   open: boolean
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
 }
 
 interface SlackManagedUsersMessage {
@@ -81,7 +85,9 @@ export function SlackManagedUsersModal({
   onOpenChange,
   open,
   workspaceId,
+  organizationId,
 }: SlackManagedUsersModalProps) {
+  const scope = resourceScopeFromOwner({ workspaceId, organizationId })
   const queryClient = useQueryClient()
   const startAuthorization = useStartSlackCredentialGroupConfiguration()
   const [appSetupOpen, setAppSetupOpen] = useState(false)
@@ -115,9 +121,11 @@ export function SlackManagedUsersModal({
       ? 'workflow'
       : 'search')
   const requiredScopes =
-    access === null
-      ? currentScopes
-      : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
+    scope.kind === 'organization'
+      ? [...SLACK_SEARCH_USER_SCOPES]
+      : access === null
+        ? currentScopes
+        : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
 
   const reset = () => {
     popup.current?.close()
@@ -162,12 +170,18 @@ export function SlackManagedUsersModal({
       toast.error('The verified Slack app is no longer available.')
       return
     }
-    void queryClient.invalidateQueries({
-      queryKey: credentialGroupKeys.workspace(workspaceId),
-    })
-    void queryClient.invalidateQueries({
-      queryKey: credentialGroupKeys.detail(workspaceId, credentialGroupId),
-    })
+    if (scope.kind === 'organization') {
+      void queryClient.invalidateQueries({
+        queryKey: organizationAccountsKeys.detail(scope.organizationId),
+      })
+    } else {
+      void queryClient.invalidateQueries({
+        queryKey: credentialGroupKeys.workspace(scope.workspaceId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: credentialGroupKeys.detail(scope.workspaceId, credentialGroupId),
+      })
+    }
     toast.success('Slack configured')
     onOpenChange(false)
     reset()
@@ -228,7 +242,7 @@ export function SlackManagedUsersModal({
     setPending(true)
     try {
       const result = await startAuthorization.mutateAsync({
-        workspaceId,
+        ...resourceScopeFields(scope),
         credentialGroupId,
         body: {
           slackBotCredentialId: selectedBot.id,
@@ -317,24 +331,26 @@ export function SlackManagedUsersModal({
               />
               {selectedBot ? (
                 <>
-                  <ChipModalField
-                    type='dropdown'
-                    title='Access'
-                    value={effectiveAccess}
-                    onChange={(value) => {
-                      if (value === 'search' || value === 'workflow') setAccess(value)
-                    }}
-                    options={[
-                      { value: 'search', label: 'Search documents' },
-                      { value: 'workflow', label: 'Workflow tools' },
-                    ]}
-                    hint={
-                      effectiveAccess === 'search'
-                        ? 'Read messages members can access. Changing access requires members to reconnect.'
-                        : 'Read and write Slack content for workflows. Changing access requires members to reconnect.'
-                    }
-                    disabled={pending}
-                  />
+                  {scope.kind === 'workspace' && (
+                    <ChipModalField
+                      type='dropdown'
+                      title='Access'
+                      value={effectiveAccess}
+                      onChange={(value) => {
+                        if (value === 'search' || value === 'workflow') setAccess(value)
+                      }}
+                      options={[
+                        { value: 'search', label: 'Search documents' },
+                        { value: 'workflow', label: 'Workflow tools' },
+                      ]}
+                      hint={
+                        effectiveAccess === 'search'
+                          ? 'Read messages members can access. Changing access requires members to reconnect.'
+                          : 'Read and write Slack content for workflows. Changing access requires members to reconnect.'
+                      }
+                      disabled={pending}
+                    />
+                  )}
                   <ChipModalField
                     type='input'
                     title='Client ID'
@@ -380,7 +396,7 @@ export function SlackManagedUsersModal({
         <ConnectSlackBotModal
           open
           onOpenChange={setAppSetupOpen}
-          workspaceId={workspaceId}
+          {...resourceScopeFields(scope)}
           onCreated={setSelectedCredentialId}
         />
       )}

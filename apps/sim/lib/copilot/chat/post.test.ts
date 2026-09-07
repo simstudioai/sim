@@ -17,6 +17,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
@@ -37,6 +38,8 @@ const {
   releasePendingChatStream,
   resolveOrCreateChat,
   resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+  authorizeOrganizationChat,
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   persistChatResources,
@@ -57,6 +60,8 @@ const {
   releasePendingChatStream: vi.fn(),
   resolveOrCreateChat: vi.fn(),
   resolveBillingAttribution: vi.fn(),
+  resolveOrganizationBillingAttribution: vi.fn(),
+  authorizeOrganizationChat: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   persistChatResources: vi.fn(),
@@ -123,6 +128,11 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+}))
+
+vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+  authorizeOrganizationChat: { execute: authorizeOrganizationChat },
 }))
 
 vi.mock('@/lib/credentials/application/personal-credentials', () => ({
@@ -218,6 +228,15 @@ describe('handleUnifiedChatPost', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     resolveBillingAttribution.mockResolvedValue(billingAttribution)
+    resolveOrganizationBillingAttribution.mockResolvedValue({
+      ...billingAttribution,
+      workspaceId: null,
+    })
+    authorizeOrganizationChat.mockResolvedValue({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      role: 'member',
+    })
     getEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: { API_KEY: 'encrypted-secret' },
       workspaceEncrypted: {},
@@ -251,6 +270,97 @@ describe('handleUnifiedChatPost', () => {
       outcome: 'appended_assistant',
     })
   })
+
+  it('denies removed organization membership before persisting a turn', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    authorizeOrganizationChat.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Organization not found')
+    )
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(403)
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  it('runs a private organization Assistant with its own billing scope and no workspace authority', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(authorizeOrganizationChat).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { organizationId: 'org-1' },
+    })
+    expect(resolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', type: 'mothership' })
+    )
+    expect(getUserEntityPermissions).not.toHaveBeenCalled()
+    expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+    expect(listPersonal).not.toHaveBeenCalled()
+    expect(resolveBillingAttribution).not.toHaveBeenCalled()
+    expect(resolveOrganizationBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      organizationId: 'org-1',
+    })
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', mode: 'assistant', contexts: [] }),
+      expect.anything()
+    )
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        orchestrateOptions: expect.objectContaining({
+          executionContext: expect.objectContaining({
+            organizationId: 'org-1',
+            userId: 'user-1',
+            requestMode: 'assistant',
+            billingAttribution: expect.objectContaining({
+              organizationId: 'org-1',
+              workspaceId: null,
+            }),
+          }),
+        }),
+      })
+    )
+  })
+
+  it.each([{ workspaceId: 'ws-1' }, { workflowId: 'wf-1' }, { mode: 'agent' }])(
+    'rejects mixed organization scope before persistence: %j',
+    async (extra) => {
+      getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Find the policy',
+            organizationId: 'org-1',
+            mode: 'assistant',
+            ...extra,
+          }),
+        })
+      )
+      expect(response.status).toBe(400)
+      expect(resolveOrCreateChat).not.toHaveBeenCalled()
+      expect(createSSEStream).not.toHaveBeenCalled()
+    }
+  )
 
   it('builds Assistant from only personal accounts and the selected Search scope', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
@@ -1149,6 +1259,15 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     resolveBillingAttribution.mockResolvedValue(billingAttribution)
+    resolveOrganizationBillingAttribution.mockResolvedValue({
+      ...billingAttribution,
+      workspaceId: null,
+    })
+    authorizeOrganizationChat.mockResolvedValue({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      role: 'member',
+    })
     getEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: {},

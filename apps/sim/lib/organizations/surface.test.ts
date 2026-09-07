@@ -4,6 +4,12 @@
 import { member, organization } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockSearchAccess } = vi.hoisted(() => ({ mockSearchAccess: vi.fn() }))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  resolveKnowledgeAccessAvailability: mockSearchAccess,
+}))
+
 import {
   getOrganizationSurfaceContext,
   resolveOrganizationLanding,
@@ -15,6 +21,7 @@ describe('getOrganizationSurfaceContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockSearchAccess.mockResolvedValue({ memberScoped: true, sourceMirrored: false })
   })
 
   it('returns the organization and the viewer standing for a member', async () => {
@@ -25,8 +32,10 @@ describe('getOrganizationSurfaceContext', () => {
 
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toEqual({
       organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: 'https://cdn/logo.png' },
-      viewer: { role: 'admin', isAdmin: true },
+      viewer: { role: 'admin', isAdmin: true, canUsePersonalApiKeys: true },
+      searchAccess: { memberScoped: true, sourceMirrored: false },
     })
+    expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })
   })
 
   it('normalizes a missing logo to null', async () => {
@@ -43,6 +52,7 @@ describe('getOrganizationSurfaceContext', () => {
     queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
 
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toBeNull()
+    expect(mockSearchAccess).not.toHaveBeenCalled()
   })
 
   it('denies a membership whose organization row is gone', async () => {

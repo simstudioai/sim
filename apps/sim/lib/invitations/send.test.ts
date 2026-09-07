@@ -71,7 +71,7 @@ describe('createPendingInvitation', () => {
   })
 
   it.each(['member', 'admin'] as const)(
-    'rejects a %s-role organization invitation with no workspace grants',
+    'creates a %s-role organization invitation without workspace grants',
     async (role) => {
       await expect(
         createPendingInvitation({
@@ -82,9 +82,27 @@ describe('createPendingInvitation', () => {
           role,
           grants: [],
         })
-      ).rejects.toThrow(GrantlessInvitationError)
+      ).resolves.toEqual(expect.objectContaining({ grants: [], created: true }))
     }
   )
+
+  it('rejects a grantless organization invitation without an internal organization target', async () => {
+    for (const input of [
+      { organizationId: null, membershipIntent: 'internal' as const },
+      { organizationId: 'org-1', membershipIntent: 'external' as const },
+    ]) {
+      await expect(
+        createPendingInvitation({
+          kind: 'organization',
+          email: 'invitee@example.com',
+          inviterId: 'inviter-1',
+          role: 'member',
+          grants: [],
+          ...input,
+        })
+      ).rejects.toThrow(GrantlessInvitationError)
+    }
+  })
 
   it('rejects a workspace invitation with no workspace grants', async () => {
     await expect(

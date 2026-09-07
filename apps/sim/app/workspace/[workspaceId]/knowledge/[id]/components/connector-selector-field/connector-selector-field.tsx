@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
@@ -21,6 +22,7 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
+  scope?: ResourceScope
   field: ConnectorConfigField & { selectorKey: SelectorKey }
   value: ConfigFieldValue
   onChange: (value: ConfigFieldValue) => void
@@ -32,6 +34,7 @@ interface ConnectorSelectorFieldProps {
 }
 
 export function ConnectorSelectorField({
+  scope: explicitScope,
   field,
   value,
   onChange,
@@ -41,7 +44,8 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const params = useParams<{ workspaceId?: string; organizationId?: string }>()
+  const scope = explicitScope ?? resourceScopeFromOwner(params)
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -92,7 +96,7 @@ export function ConnectorSelectorField({
     error,
   } = useSelectorOptions(field.selectorKey, {
     context,
-    scope: { kind: 'workspace', workspaceId },
+    scope,
     search: debouncedSearch,
     enabled: isEnabled,
     surfaceId: `connector:${field.id}`,
@@ -112,7 +116,7 @@ export function ConnectorSelectorField({
     field.selectorKey,
     {
       context,
-      scope: { kind: 'workspace', workspaceId },
+      scope,
       detailIds: isEnabled ? selectedIds : [],
       surfaceId: `connector:${field.id}`,
     }
@@ -127,7 +131,7 @@ export function ConnectorSelectorField({
   const resolvesUnknownIds = getSelectorManifestEntry(field.selectorKey).resolvesUnknownIds
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
-    scope: { kind: 'workspace', workspaceId },
+    scope,
     detailId:
       resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
     surfaceId: `connector:${field.id}`,

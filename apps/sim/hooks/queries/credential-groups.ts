@@ -13,12 +13,15 @@ import {
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
   resendCredentialGroupEnrollmentContract,
+  type StartSlackCredentialGroupConfigurationBody,
   startSlackCredentialGroupConfigurationContract,
   updateCredentialGroupAccessContract,
   updateCredentialGroupContract,
   updateCredentialGroupMcpConnectorContract,
 } from '@/lib/api/contracts/credential-groups'
+import { startOrganizationSlackConfigurationContract } from '@/lib/api/contracts/organization-accounts'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mcpKeys } from '@/hooks/queries/mcp'
 import {
   CREDENTIAL_GROUP_ACCESS_STALE_TIME,
@@ -268,17 +271,27 @@ export function useStartSlackCredentialGroupConfiguration() {
   return useMutation({
     mutationFn: async ({
       workspaceId,
+      organizationId,
       credentialGroupId,
       body,
     }: {
-      workspaceId: string
       credentialGroupId: string
-      body: ContractBodyInput<typeof startSlackCredentialGroupConfigurationContract>
-    }) =>
-      requestJson(startSlackCredentialGroupConfigurationContract, {
-        params: { id: workspaceId, groupId: credentialGroupId },
-        body,
-      }),
+      body: StartSlackCredentialGroupConfigurationBody
+    } & (
+      | { workspaceId: string; organizationId?: never }
+      | { organizationId: string; workspaceId?: never }
+    )) => {
+      const scope = resourceScopeFromOwner({ workspaceId, organizationId })
+      return scope.kind === 'organization'
+        ? requestJson(startOrganizationSlackConfigurationContract, {
+            params: { id: scope.organizationId, groupId: credentialGroupId },
+            body,
+          })
+        : requestJson(startSlackCredentialGroupConfigurationContract, {
+            params: { id: scope.workspaceId, groupId: credentialGroupId },
+            body,
+          })
+    },
   })
 }
 

@@ -1,7 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -21,12 +23,17 @@ export default async function OrganizationLayout({
   children: React.ReactNode
   params: Promise<{ organizationId: string }>
 }) {
+  const { organizationId } = await params
   const session = await getSession()
   if (!session?.user) {
-    redirect('/login')
+    redirect(
+      buildAuthCrossLink('/login', {
+        callbackUrl: organizationRoutes(organizationId).home,
+        isInviteFlow: false,
+      })
+    )
   }
 
-  const { organizationId } = await params
   const [context, cookieStore] = await Promise.all([
     getOrganizationSurfaceContext(organizationId, session.user.id),
     cookies(),

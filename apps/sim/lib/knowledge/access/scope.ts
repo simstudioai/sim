@@ -7,12 +7,15 @@ import {
   foldedEmail,
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
+  member,
   user,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
@@ -29,6 +32,7 @@ import {
 import {
   type KnowledgeAccessProvider,
   type KnowledgeAccessScope,
+  ORGANIZATION_ACCESS_TOKENS,
   WORKSPACE_ACCESS_TOKENS,
   type WorkspaceAccessScope,
 } from '@/lib/knowledge/access/types'
@@ -58,7 +62,7 @@ const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
 )`
 
 /**
- * The `g:` tokens a person holds in a workspace, from the external directory
+ * The `g:` tokens a person holds in the resource owner, from the external directory
  * groups a crawl has mirrored.
  *
  * A group whose membership has not been confirmed within
@@ -71,7 +75,7 @@ const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
  */
 async function loadExternalGroupTokens(
   memberTokens: readonly string[],
-  workspaceId: string
+  scope: ResourceScope
 ): Promise<string[]> {
   /**
    * A query of its own rather than a fourth join on the credential query in
@@ -95,7 +99,7 @@ async function loadExternalGroupTokens(
     .where(
       and(
         inArray(knowledgeExternalGroupMember.subjectToken, [...memberTokens]),
-        eq(knowledgeExternalGroup.workspaceId, workspaceId),
+        resourceScopeCondition(knowledgeExternalGroup, scope),
         gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
       )
     )
@@ -115,10 +119,11 @@ async function loadExternalGroupTokens(
 export interface KnowledgeAccessScopeContext {
   /** Undefined only for a legacy personal knowledge base, which cannot own connectors. */
   workspaceId?: string
+  organizationId?: string
 }
 
 /**
- * The tokens a person holds in a workspace: the workspace pair, one `s:` token
+ * The tokens a person holds in the resource owner: its baseline pair, one `s:` token
  * per active managed credential bound to them through a credential-group
  * enrollment, their own `u:` address, and a `g:` token per directory group it
  * belongs to. The person must be email-verified — every binding here is by
@@ -128,17 +133,29 @@ export interface KnowledgeAccessScopeContext {
  */
 async function loadUserAccessTokens(
   userId: string,
-  workspaceId: string | undefined
+  context: KnowledgeAccessScopeContext
 ): Promise<string[]> {
-  if (!workspaceId) return [...WORKSPACE_ACCESS_TOKENS]
+  const { workspaceId, organizationId } = context
+  if (!workspaceId && !organizationId) return [...WORKSPACE_ACCESS_TOKENS]
+  const scope = resourceScopeFromOwner(context)
+  const baseline = organizationId ? ORGANIZATION_ACCESS_TOKENS : WORKSPACE_ACCESS_TOKENS
 
   /**
-   * Member tokens belong to current workspace members. Resolved before any
-   * document is looked up, so someone who left the workspace but still holds
+   * Member tokens belong to current members of the resource owner. Resolved before any
+   * document is looked up, so someone who left but still holds
    * a managed credential cannot learn which documents their old tokens match.
    */
-  const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
-  if (!workspaceAccess.hasAccess) return [...WORKSPACE_ACCESS_TOKENS]
+  if (scope.kind === 'organization') {
+    const [membership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.organizationId, scope.organizationId), eq(member.userId, userId)))
+      .limit(1)
+    if (!membership) return []
+  } else {
+    const workspaceAccess = await checkWorkspaceAccess(scope.workspaceId, userId)
+    if (!workspaceAccess.hasAccess) return []
+  }
   /**
    * An identity token only counts where permission-aware knowledge is on, so
    * turning the feature off hides every permission-scoped document at once — on
@@ -146,9 +163,9 @@ async function loadUserAccessTokens(
    * people reading them until a run happens to land. Read first, so a workspace
    * without the feature never pays for the joins below.
    */
-  const availability = await resolveKnowledgeAccessAvailability({ workspaceId })
+  const availability = await resolveKnowledgeAccessAvailability(context)
   if (!availability.memberScoped && !availability.sourceMirrored) {
-    return [...WORKSPACE_ACCESS_TOKENS]
+    return [...baseline]
   }
 
   const rows = await db
@@ -162,7 +179,7 @@ async function loadUserAccessTokens(
     .from(user)
     .leftJoin(
       credentialGroup,
-      and(eq(credentialGroup.workspaceId, workspaceId), eq(credentialGroup.status, 'active'))
+      and(resourceScopeCondition(credentialGroup, scope), eq(credentialGroup.status, 'active'))
     )
     .leftJoin(
       credentialGroupEnrollment,
@@ -176,7 +193,7 @@ async function loadUserAccessTokens(
       credential,
       and(
         eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id),
-        eq(credential.workspaceId, workspaceId),
+        resourceScopeCondition(credential, scope),
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
         /** The option must still be live, exactly as the member engine requires. */
@@ -200,7 +217,7 @@ async function loadUserAccessTokens(
       userId,
       workspaceId,
     })
-    return [...WORKSPACE_ACCESS_TOKENS]
+    return [...baseline]
   }
 
   const identityTokens = new Set<string>()
@@ -232,13 +249,13 @@ async function loadUserAccessTokens(
     const groupMemberTokens = [...identityTokens]
     if (own && email) groupMemberTokens.push(domainMemberWildcard(emailDomain(email)))
     if (groupMemberTokens.length > 0) {
-      for (const token of await loadExternalGroupTokens(groupMemberTokens, workspaceId)) {
+      for (const token of await loadExternalGroupTokens(groupMemberTokens, scope)) {
         identityTokens.add(token)
       }
     }
   }
 
-  return sortAccessTokens(new Set([...WORKSPACE_ACCESS_TOKENS, ...identityTokens]))
+  return sortAccessTokens(new Set([...baseline, ...identityTokens]))
 }
 
 /**
@@ -259,11 +276,15 @@ export async function resolveKnowledgeAccessScope(
     )
   }
   const subject = resolvePrincipalSubject(principal)
-  if (subject?.kind !== 'sim_user') return WORKSPACE_ACCESS_SCOPE
+  if (subject?.kind !== 'sim_user') {
+    if (context.organizationId)
+      throw new OrchestrationError('forbidden', 'Organization search requires a user subject')
+    return WORKSPACE_ACCESS_SCOPE
+  }
   return {
     kind: 'user',
     userId: subject.userId,
-    tokens: await loadUserAccessTokens(subject.userId, context.workspaceId),
+    tokens: await loadUserAccessTokens(subject.userId, context),
   }
 }
 
@@ -277,7 +298,7 @@ export async function resolveUserKnowledgeAccessScope(
   userId: string,
   workspaceId: string | undefined
 ): Promise<KnowledgeAccessScope> {
-  return { kind: 'user', userId, tokens: await loadUserAccessTokens(userId, workspaceId) }
+  return { kind: 'user', userId, tokens: await loadUserAccessTokens(userId, { workspaceId }) }
 }
 
 /** Memoises {@link resolveKnowledgeAccessScope} for one operation; a failed lookup is retried on the next call. */

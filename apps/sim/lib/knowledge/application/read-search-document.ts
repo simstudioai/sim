@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import type { ReadSearchDocumentResult } from '@/lib/api/contracts/knowledge/documents'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
@@ -8,13 +9,14 @@ import { resolveCanonicalActiveKnowledgeDocumentContext } from '@/lib/knowledge/
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { queryChunks } from '@/lib/knowledge/chunks/service'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import { findWorkspaceSearchIndex } from '@/lib/knowledge/search/search-index'
+import { findSearchIndex } from '@/lib/knowledge/search/search-index'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ReadSearchDocumentInput {
   documentId: string
-  assertedWorkspaceId: string
+  assertedWorkspaceId?: string
+  assertedOrganizationId?: string
   filters?: WorkspaceSearchFilters
   offset: number
   limit: number
@@ -32,14 +34,20 @@ export const readSearchDocument = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ReadSearchDocumentInput
   }) => {
-    const index = await findWorkspaceSearchIndex(input.assertedWorkspaceId)
+    if (Boolean(input.assertedWorkspaceId) === Boolean(input.assertedOrganizationId))
+      throw new OrchestrationError('validation', 'Document reads require exactly one search owner')
+    const index = await findSearchIndex(
+      input.assertedOrganizationId
+        ? { kind: 'organization', organizationId: input.assertedOrganizationId }
+        : { kind: 'workspace', workspaceId: input.assertedWorkspaceId! }
+    )
     if (!index) throw new OrchestrationError('not_found', 'Document not found')
     return resolveCanonicalActiveKnowledgeDocumentContext(
       { ...input, knowledgeBaseId: index.id },
       principal
     )
   },
-  async execute({ input, context }) {
+  async execute({ input, context }): Promise<ReadSearchDocumentResult> {
     input.signal?.throwIfAborted()
     if (
       !Number.isInteger(input.offset) ||

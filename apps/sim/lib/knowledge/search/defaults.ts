@@ -17,15 +17,18 @@ export interface KnowledgeSearchDefaults {
  */
 export async function resolveKnowledgeSearchDefaults(input: {
   workspaceId: string | undefined
+  organizationId?: string
   userId: string | undefined
   requestedMode: KnowledgeSearchMode | undefined
 }): Promise<KnowledgeSearchDefaults> {
-  const enabled = input.workspaceId
-    ? await isKnowledgeMemberAccessAvailable({
-        workspaceId: input.workspaceId,
-        userId: input.userId,
-      })
-    : false
+  const enabled =
+    input.workspaceId || input.organizationId
+      ? await isKnowledgeMemberAccessAvailable({
+          workspaceId: input.workspaceId,
+          organizationId: input.organizationId,
+          userId: input.userId,
+        })
+      : false
   return {
     searchMode: input.requestedMode ?? (enabled ? 'hybrid' : 'vector'),
     boostRecency: enabled,

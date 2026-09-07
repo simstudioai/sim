@@ -42,9 +42,10 @@ async function getTurnEgressRegistry(
   userId: string,
   workspaceId: string | undefined,
   messageId: string | undefined,
-  requestMode?: string
+  requestMode?: string,
+  organizationId?: string
 ): Promise<ResolvedSecretTraceRegistry> {
-  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
+  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${organizationId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
   const now = Date.now()
   const hit = turnRegistryCache.get(key)
   if (hit && hit.expiresAt > now) {
@@ -110,6 +111,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         userId,
         workflowId,
         workspaceId,
+        organizationId,
         chatId,
         messageId,
         parentToolCallId,
@@ -126,7 +128,13 @@ export const POST = withRouteHandler((request: NextRequest) =>
       let toolRegistry: ResolvedSecretTraceRegistry
       let turnRegistry: ResolvedSecretTraceRegistry
       try {
-        turnRegistry = await getTurnEgressRegistry(userId, workspaceId, messageId, requestMode)
+        turnRegistry = await getTurnEgressRegistry(
+          userId,
+          workspaceId,
+          messageId,
+          requestMode,
+          organizationId
+        )
         toolRegistry = turnRegistry.forkForInputPaths([])
       } catch (err) {
         /**
@@ -172,6 +180,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
           userId,
           workflowId: workflowId ?? '',
           workspaceId,
+          organizationId,
           chatId,
           messageId,
           toolCallId,

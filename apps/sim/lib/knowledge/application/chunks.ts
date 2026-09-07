@@ -33,6 +33,7 @@ interface KnowledgeDocumentChunkInput {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
 }
 
 interface KnowledgeChunkInput extends KnowledgeDocumentChunkInput {

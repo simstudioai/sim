@@ -43,3 +43,26 @@ export async function createWorkspaceAccountsGroup(
   })
   return created
 }
+
+/** Creates an organization account container without granting workspace workflow access. */
+export async function createOrganizationAccountsGroup(
+  executor: DbOrTx,
+  organizationId: string,
+  userId: string,
+  options: CredentialGroupOptionConfig[] = []
+): Promise<typeof credentialGroup.$inferSelect> {
+  const [created] = await executor
+    .insert(credentialGroup)
+    .values({
+      id: generateId(),
+      organizationId,
+      publicId: generateId(),
+      name: 'Connected accounts',
+      description: 'Accounts connected for organization search.',
+      options,
+      createdBy: userId,
+    })
+    .returning()
+  if (!created) throw new Error('Connected accounts insert returned no row')
+  return created
+}

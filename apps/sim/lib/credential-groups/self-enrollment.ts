@@ -3,6 +3,7 @@ import { credentialGroupEnrollment, user } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import {
   CredentialGroupEnrollmentError,
   createCredentialGroupSelfEnrollmentLink,
@@ -11,7 +12,8 @@ import {
 /** Enrolls a verified workspace member without reviving access revoked by an administrator. */
 export async function createViewerCredentialGroupEnrollment(input: {
   userId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
 }) {
   const [viewer] = await db
@@ -29,12 +31,12 @@ export async function createViewerCredentialGroupEnrollment(input: {
   const email = normalizeEmail(viewer.email)
   const revoked = new OrchestrationError(
     'forbidden',
-    'A workspace admin removed your access to Connected accounts'
+    'An admin removed your access to Connected accounts'
   )
   if (await isEnrollmentRevoked(input.credentialGroupId, email)) throw revoked
   try {
     return await createCredentialGroupSelfEnrollmentLink(
-      input.workspaceId,
+      resourceScopeFromOwner(input),
       input.credentialGroupId,
       email
     )

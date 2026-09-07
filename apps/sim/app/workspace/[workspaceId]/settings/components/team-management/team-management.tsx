@@ -40,8 +40,8 @@ const logger = createLogger('TeamManagement')
 interface TeamManagementProps {
   organizationId: string
   /**
-   * Required: organization billing is reached only through a workspace, so the
-   * caller — which knows the workspace — is the only thing that can build it.
+   * The caller owns navigation so the same panel works in organization and
+   * legacy workspace settings.
    */
   billingHref: string
 }
@@ -427,6 +427,7 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
           open={inviteModalOpen}
           onOpenChange={setInviteModalOpen}
           organizationId={displayOrganization.id}
+          isOrganizationAdmin={adminOrOwner}
           canInvite={adminOrOwner}
         />
       )}

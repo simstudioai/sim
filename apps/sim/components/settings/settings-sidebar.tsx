@@ -2,8 +2,8 @@
 
 import { useRef } from 'react'
 import {
+  Chip,
   ChipConfirmModal,
-  chipIconSlotClass,
   chipVariants,
   cn,
   OverflowText,
@@ -53,6 +53,7 @@ interface SettingsSidebarProps<Section extends SettingsSection> {
   items: readonly SidebarSettingsItem<Section>[]
   isCollapsed?: boolean
   showCollapsedTooltips?: boolean
+  backHref?: string
 }
 
 function SidebarTooltip({
@@ -81,6 +82,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
   items,
   isCollapsed = false,
   showCollapsedTooltips = false,
+  backHref = APP_ENTRY_PATH,
 }: SettingsSidebarProps<Section>) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
@@ -119,17 +121,13 @@ export function SettingsSidebar<Section extends SettingsSection>({
           </button>
         ) : (
           <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-            <button
-              type='button'
-              onClick={() => requestLeave(() => router.push(APP_ENTRY_PATH))}
-              className={chipVariants({ fullWidth: true })}
+            <Chip
+              fullWidth
+              leftIcon={ChevronLeft}
+              onClick={() => requestLeave(() => router.push(backHref))}
             >
-              {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
-              <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
-                <ChevronLeft className='size-[14px]' />
-              </span>
-              <span className='sidebar-collapse-hide text-[var(--text-body)]'>Back</span>
-            </button>
+              <span className='sidebar-collapse-hide'>Back</span>
+            </Chip>
           </SidebarTooltip>
         )}
       </div>

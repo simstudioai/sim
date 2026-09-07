@@ -27,6 +27,12 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  resourceScopeColumns,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -201,6 +207,7 @@ async function readKnowledgeBaseRows(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       folderId: knowledgeBase.folderId,
       docCount: count(document.knowledgeBaseId),
     })
@@ -368,7 +375,8 @@ async function readLegacyPersonalKnowledgeBaseRows(
     and(
       knowledgeBaseScopeCondition(scope),
       eq(knowledgeBase.userId, userId),
-      isNull(knowledgeBase.workspaceId)
+      isNull(knowledgeBase.workspaceId),
+      isNull(knowledgeBase.organizationId)
     ),
     listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc')
   )
@@ -456,13 +464,15 @@ export async function createKnowledgeBase(
  * Callers outside the application layer must use {@link createKnowledgeBase}.
  */
 export async function createAuthorizedKnowledgeBase(
-  data: CreateKnowledgeBaseData,
+  data: Omit<CreateKnowledgeBaseData, 'workspaceId'> & ResourceOwner,
   requestId: string
 ): Promise<KnowledgeBaseWithCounts> {
+  const scope = resourceScopeFromOwner(data)
+  const owner = resourceScopeColumns(scope)
   const kbId = generateId()
   const now = new Date()
 
-  await assertKnowledgeBaseFolder(data.folderId, data.workspaceId)
+  await assertKnowledgeBaseFolder(data.folderId, owner.workspaceId)
 
   const folderId = data.folderId ?? null
 
@@ -471,7 +481,7 @@ export async function createAuthorizedKnowledgeBase(
     name: data.name,
     isSearchIndex: data.isSearchIndex ?? false,
     description: data.description ?? null,
-    workspaceId: data.workspaceId,
+    ...owner,
     folderId,
     userId: data.userId,
     tokenCount: 0,
@@ -488,7 +498,7 @@ export async function createAuthorizedKnowledgeBase(
     .from(knowledgeBase)
     .where(
       and(
-        eq(knowledgeBase.workspaceId, data.workspaceId),
+        resourceScopeCondition(knowledgeBase, scope),
         eq(knowledgeBase.name, data.name),
         isNull(knowledgeBase.deletedAt)
       )
@@ -522,7 +532,7 @@ export async function createAuthorizedKnowledgeBase(
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
-    workspaceId: data.workspaceId,
+    ...owner,
     folderId,
     docCount: 0,
     connectorTypes: [],
@@ -620,6 +630,7 @@ export async function updateKnowledgeBase(
     const [kbSnapshot] = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
         folderId: knowledgeBase.folderId,
       })
@@ -715,6 +726,7 @@ export async function updateKnowledgeBase(
       const [currentKb] = await tx
         .select({
           workspaceId: knowledgeBase.workspaceId,
+          organizationId: knowledgeBase.organizationId,
           userId: knowledgeBase.userId,
           isSearchIndex: knowledgeBase.isSearchIndex,
         })
@@ -947,6 +959,7 @@ export async function updateKnowledgeBase(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       folderId: knowledgeBase.folderId,
       docCount: count(document.knowledgeBaseId),
     })
@@ -1092,6 +1105,7 @@ export async function deleteKnowledgeBase(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         isSearchIndex: knowledgeBase.isSearchIndex,
       })
       .from(knowledgeBase)
@@ -1175,6 +1189,7 @@ export async function restoreKnowledgeBase(
       name: knowledgeBase.name,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       folderId: knowledgeBase.folderId,
     })
     .from(knowledgeBase)

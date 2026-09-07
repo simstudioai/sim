@@ -469,6 +469,7 @@ export function createUploadSessionAuthBinding(
         },
       }
     }
+    case 'organization_delegated':
     case 'credential_group_enrollment':
       throw new UploadSessionError(
         'forbidden',

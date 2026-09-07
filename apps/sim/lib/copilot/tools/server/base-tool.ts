@@ -8,6 +8,7 @@ export interface ServerToolContext {
   assistantSearch?: WorkspaceSearchFilters
   userId: string
   workspaceId?: string
+  organizationId?: string
   executionId?: string
   /** Stable, server-issued identity of the tool call currently executing. */
   toolCallId?: string

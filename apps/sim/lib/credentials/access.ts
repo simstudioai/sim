@@ -1,6 +1,11 @@
 import { db } from '@sim/db'
-import { account, credential, credentialMember, credentialTypeEnum } from '@sim/db/schema'
+import { account, credential, credentialMember, credentialTypeEnum, member } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import {
+  type ResourceScope,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   getUserEntityPermissions,
@@ -68,11 +73,15 @@ export type CredentialTokenIdentity =
  */
 export async function resolveCredentialTokenIdentity(
   credentialId: string,
-  workspaceId: string
+  owner: string | ResourceScope
 ): Promise<CredentialTokenIdentity | null> {
+  const scope: ResourceScope =
+    typeof owner === 'string' ? { kind: 'workspace', workspaceId: owner } : owner
   const [platformCredential] = await db
     .select({
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
+      createdBy: credential.createdBy,
       type: credential.type,
       accountId: credential.accountId,
     })
@@ -81,10 +90,28 @@ export async function resolveCredentialTokenIdentity(
     .limit(1)
 
   if (platformCredential) {
-    if (platformCredential.workspaceId !== workspaceId) return null
-    if (platformCredential.type === 'service_account') return { kind: 'service_account' }
+    if (!sameResourceScope(resourceScopeFromOwner(platformCredential), scope)) return null
+    if (platformCredential.type === 'service_account') {
+      if (scope.kind === 'organization') {
+        if (!platformCredential.createdBy) return null
+        const [membership] = await db
+          .select({ id: member.id })
+          .from(member)
+          .where(
+            and(
+              eq(member.organizationId, scope.organizationId),
+              eq(member.userId, platformCredential.createdBy)
+            )
+          )
+          .limit(1)
+        if (!membership) return null
+      }
+      return { kind: 'service_account' }
+    }
     if (platformCredential.type !== 'oauth' || !platformCredential.accountId) return null
   }
+
+  if (!platformCredential && scope.kind === 'organization') return null
 
   // Credentials predating the workspace-scoped `credential` table are raw account ids.
   const accountId = platformCredential?.accountId ?? credentialId
@@ -97,8 +124,24 @@ export async function resolveCredentialTokenIdentity(
 
   if (!accountRow) return null
 
-  const ownerPerm = await getUserEntityPermissions(accountRow.userId, 'workspace', workspaceId)
-  if (ownerPerm === null) return null
+  if (scope.kind === 'organization') {
+    if (platformCredential?.createdBy !== accountRow.userId) return null
+    const [membership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(
+        and(eq(member.organizationId, scope.organizationId), eq(member.userId, accountRow.userId))
+      )
+      .limit(1)
+    if (!membership) return null
+  } else {
+    const ownerPerm = await getUserEntityPermissions(
+      accountRow.userId,
+      'workspace',
+      scope.workspaceId
+    )
+    if (ownerPerm === null) return null
+  }
 
   return { kind: 'oauth', userId: accountRow.userId }
 }
@@ -160,7 +203,7 @@ export async function getCredentialActorContext(
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!credentialRow) {
+  if (!credentialRow?.workspaceId) {
     return {
       credential: null,
       member: null,

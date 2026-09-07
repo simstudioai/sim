@@ -11,6 +11,12 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import {
+  resourceScopeColumns,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import type { DbTransaction } from '@/lib/db/types'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
@@ -54,7 +60,8 @@ const DIRECTORY_LEASE_MS = 30 * 60 * 1000
 const GROUP_DELETE_BATCH_SIZE = 500
 
 type DirectoryIdentity = Pick<ConnectorDirectory, 'providerId' | 'tenantId'> & {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
 }
 interface DirectoryLease extends DirectoryIdentity {
   token: string
@@ -62,7 +69,7 @@ interface DirectoryLease extends DirectoryIdentity {
 
 function directoryIdentity(identity: DirectoryIdentity) {
   return and(
-    eq(knowledgeExternalDirectory.workspaceId, identity.workspaceId),
+    resourceScopeCondition(knowledgeExternalDirectory, resourceScopeFromOwner(identity)),
     eq(knowledgeExternalDirectory.providerId, identity.providerId),
     eq(knowledgeExternalDirectory.tenantId, identity.tenantId)
   )
@@ -99,7 +106,10 @@ async function claimDirectory(
   identity: DirectoryIdentity,
   force: boolean
 ): Promise<DirectoryLease | null> {
-  await db.insert(knowledgeExternalDirectory).values(identity).onConflictDoNothing()
+  await db
+    .insert(knowledgeExternalDirectory)
+    .values({ ...identity, ...resourceScopeColumns(resourceScopeFromOwner(identity)) })
+    .onConflictDoNothing()
   const lease = { ...identity, token: generateId() }
   const [claimed] = await db
     .update(knowledgeExternalDirectory)
@@ -144,13 +154,15 @@ async function claimDirectory(
  * empty directories. Interrupted passes cannot turn a fresh subset into completion.
  */
 export async function syncExternalDirectoryGroups(input: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   directory: ConnectorDirectory
   force?: boolean
 }): Promise<DirectorySyncResult> {
   const { workspaceId, directory } = input
+  const owner = resourceScopeFields(resourceScopeFromOwner(input))
   const { providerId, tenantId } = directory
-  const lease = await claimDirectory({ workspaceId, providerId, tenantId }, Boolean(input.force))
+  const lease = await claimDirectory({ ...owner, providerId, tenantId }, Boolean(input.force))
   if (!lease) return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
 
   try {
@@ -166,7 +178,7 @@ export async function syncExternalDirectoryGroups(input: {
     let firstError: Error | undefined
     for (const group of groups) {
       const groupId = await withDirectoryLease(lease, (tx) =>
-        upsertGroup({ workspaceId, providerId, tenantId, group }, tx)
+        upsertGroup({ ...owner, providerId, tenantId, group }, tx)
       )
       let membership: ConnectorDirectoryMembership
       try {
@@ -234,14 +246,16 @@ async function upsertGroup(
     .insert(knowledgeExternalGroup)
     .values({
       id: generateId(),
-      workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(input)),
       providerId,
       tenantId,
       externalGroupId: canonicalGroupId(group.id),
     })
     .onConflictDoUpdate({
       target: [
-        knowledgeExternalGroup.workspaceId,
+        input.organizationId
+          ? knowledgeExternalGroup.organizationId
+          : knowledgeExternalGroup.workspaceId,
         knowledgeExternalGroup.providerId,
         knowledgeExternalGroup.tenantId,
         knowledgeExternalGroup.externalGroupId,
@@ -285,7 +299,7 @@ async function pruneRemovedGroups(lease: DirectoryLease, keep: readonly string[]
         .from(knowledgeExternalGroup)
         .where(
           and(
-            eq(knowledgeExternalGroup.workspaceId, lease.workspaceId),
+            resourceScopeCondition(knowledgeExternalGroup, resourceScopeFromOwner(lease)),
             eq(knowledgeExternalGroup.providerId, lease.providerId),
             eq(knowledgeExternalGroup.tenantId, lease.tenantId),
             ...(keep.length > 0
@@ -321,7 +335,8 @@ async function pruneRemovedGroups(lease: DirectoryLease, keep: readonly string[]
  * sync status and retry policy.
  */
 export async function refreshMirroredDirectory(input: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   connectorConfig: ConnectorConfig
   sourceConfig: Record<string, unknown>
   syncContext: Record<string, unknown>
@@ -344,7 +359,11 @@ export async function refreshMirroredDirectory(input: {
       })
       return 'skipped'
     }
-    const result = await syncExternalDirectoryGroups({ workspaceId, directory, force: input.force })
+    const result = await syncExternalDirectoryGroups({
+      ...resourceScopeFields(resourceScopeFromOwner(input)),
+      directory,
+      force: input.force,
+    })
     if (result.keptStale > 0) {
       throw new Error(`${result.keptStale} group memberships could not be refreshed`, {
         cause: result.error,
@@ -390,6 +409,7 @@ export async function refreshConnectorDirectory(
       encryptedApiKey: knowledgeConnector.encryptedApiKey,
       sourceConfig: knowledgeConnector.sourceConfig,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       knowledgeBaseOwnerId: knowledgeBase.userId,
       updatedAt: knowledgeConnector.updatedAt,
       lastSyncError: knowledgeConnector.lastSyncError,
@@ -406,13 +426,20 @@ export async function refreshConnectorDirectory(
       )
     )
     .limit(1)
-  if (!connector || !mirrorsSourceAcls(connector.accessMode) || !connector.workspaceId) {
+  if (
+    !connector ||
+    !mirrorsSourceAcls(connector.accessMode) ||
+    (!connector.workspaceId && !connector.organizationId)
+  ) {
     return 'skipped'
   }
 
   if (
-    !(await resolveKnowledgeAccessAvailability({ workspaceId: connector.workspaceId }))
-      .sourceMirrored
+    !(
+      await resolveKnowledgeAccessAvailability(
+        resourceScopeFields(resourceScopeFromOwner(connector))
+      )
+    ).sourceMirrored
   ) {
     return 'skipped'
   }
@@ -422,7 +449,7 @@ export async function refreshConnectorDirectory(
 
   const credentialUserId = await resolveConnectorTokenUserId({
     credentialId: connector.credentialId,
-    workspaceId: connector.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(connector)),
     fallbackUserId: connector.knowledgeBaseOwnerId,
   })
   if (!credentialUserId) return 'unusable'
@@ -454,7 +481,7 @@ export async function refreshConnectorDirectory(
   }
   try {
     const outcome = await refreshMirroredDirectory({
-      workspaceId: connector.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(connector)),
       connectorConfig,
       sourceConfig,
       syncContext: syncContextForToken(token),

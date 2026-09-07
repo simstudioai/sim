@@ -35,7 +35,11 @@ describe('viewer account enrollment', () => {
       invitationLink: 'https://sim.test/enroll/token',
     })
     await createViewerCredentialGroupEnrollment(input)
-    expect(issue).toHaveBeenCalledWith('workspace', 'group', 'viewer@example.com')
+    expect(issue).toHaveBeenCalledWith(
+      { kind: 'workspace', workspaceId: 'workspace' },
+      'group',
+      'viewer@example.com'
+    )
   })
 
   it('requires a verified current user', async () => {

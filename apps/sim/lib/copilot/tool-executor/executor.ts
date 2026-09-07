@@ -43,6 +43,18 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (
+    context.organizationId &&
+    (context.workspaceId ||
+      context.workflowId ||
+      context.requestMode !== 'assistant' ||
+      !['search_workspace', 'read_document'].includes(toolId))
+  ) {
+    return {
+      success: false,
+      error: 'Organization Assistant can search and read connected documents.',
+    }
+  }
   if (context.requestMode === 'assistant' && !ASSISTANT_TOOLS.has(toolId)) {
     try {
       assertAssistantIntegrationCall(getToolMetadata(toolId), params)
@@ -71,6 +83,7 @@ export async function executeTool(
   const requiredPermission =
     getToolEntry(toolId)?.requiredPermission ?? (usesHeadlessClientFallback ? 'write' : undefined)
   if (
+    !context.organizationId &&
     requiredPermission &&
     !permissionSatisfies(
       (context.userPermission ?? null) as PermissionType | null,

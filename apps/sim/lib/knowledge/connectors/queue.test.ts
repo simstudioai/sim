@@ -624,7 +624,7 @@ describe('connector sync queue', () => {
         },
         requestId: 'request-1',
       })
-    ).rejects.toThrow('does not match connector workspace workspace-paid')
+    ).rejects.toThrow('Billing attribution does not match resource owner')
 
     expect(mockTrigger).not.toHaveBeenCalled()
   })

@@ -282,7 +282,7 @@ describe('Connector credential reauthorization', () => {
     expect(credentialRefreshTriggersMock).toHaveBeenLastCalledWith(
       expect.any(Function),
       'slack-custom',
-      'workspace-1'
+      { kind: 'workspace', workspaceId: 'workspace-1' }
     )
   })
 

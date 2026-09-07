@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import { credentialGroup } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -90,7 +92,8 @@ export async function decryptCredentialGroupProviderConfiguration(
 }
 
 export async function getSlackCredentialGroupConfiguration(params: {
-  workspaceId: string
+  workspaceId?: string | null
+  organizationId?: string | null
   credentialGroupId: string
   executor?: DbOrTx
 }): Promise<SlackCredentialGroupConfiguration | null> {
@@ -101,7 +104,7 @@ export async function getSlackCredentialGroupConfiguration(params: {
     .where(
       and(
         eq(credentialGroup.id, params.credentialGroupId),
-        eq(credentialGroup.workspaceId, params.workspaceId)
+        resourceScopeCondition(credentialGroup, resourceScopeFromOwner(params))
       )
     )
     .limit(1)
@@ -113,7 +116,8 @@ export async function getSlackCredentialGroupConfiguration(params: {
 }
 
 export async function listSlackCredentialGroupConfigurationsForBot(params: {
-  workspaceId: string
+  workspaceId?: string | null
+  organizationId?: string | null
   slackBotCredentialId: string
 }): Promise<SlackCredentialGroupConfiguration[]> {
   const rows = await db
@@ -121,7 +125,7 @@ export async function listSlackCredentialGroupConfigurationsForBot(params: {
     .from(credentialGroup)
     .where(
       and(
-        eq(credentialGroup.workspaceId, params.workspaceId),
+        resourceScopeCondition(credentialGroup, resourceScopeFromOwner(params)),
         sql`${credentialGroup.options} @> ${JSON.stringify([
           { provider: 'slack', slackBotCredentialId: params.slackBotCredentialId },
         ])}::jsonb`

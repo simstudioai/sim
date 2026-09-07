@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { credentialGroup, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -58,6 +60,7 @@ import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-gro
 import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import {
+  assertKnowledgeConnectorCredentialAccess,
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
   KnowledgeConnectorMemberAccessDeniedError,
@@ -633,5 +636,100 @@ describe('findListingCapViolation', () => {
 
   it.each([['5'], [5], ['abc']])('refuses %j', (value) => {
     expect(findListingCapViolation(meta, { maxFiles: value })).toContain('Max Files')
+  })
+})
+
+describe('organization member credential binding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const orgBinding = {
+    organizationId: 'org-1',
+    credentialGroupId: GROUP_ID,
+    credentialGroupOptionId: 'option-drive',
+    connectorId: 'connector-1',
+  }
+
+  it('uses the canonical organization connector binding without consulting a workspace policy', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'connector-1' }])
+    await assertKnowledgeConnectorCredentialAccess(orgBinding)
+    expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
+    const predicate = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    for (const column of [
+      knowledgeBase.workspaceId,
+      credentialGroup.workspaceId,
+      knowledgeBase.deletedAt,
+      knowledgeConnector.archivedAt,
+      knowledgeConnector.deletedAt,
+    ]) {
+      expect(
+        hasMockCondition(
+          predicate,
+          (condition) => condition.type === 'isNull' && condition.column === column
+        )
+      ).toBe(true)
+    }
+    for (const value of ['org-1', 'connector-1', GROUP_ID, 'option-drive', 'members']) {
+      expect(
+        hasMockCondition(
+          predicate,
+          (condition) => condition.type === 'eq' && condition.right === value
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('denies a connector whose current canonical owner or option no longer matches', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    await expect(assertKnowledgeConnectorCredentialAccess(orgBinding)).rejects.toBeInstanceOf(
+      KnowledgeConnectorMemberAccessDeniedError
+    )
+    expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
+    expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a credential in another organization before minting', async () => {
+    mocks.loadBinding.mockResolvedValue({ workspaceId: null, organizationId: 'org-other' })
+    await expect(
+      mintKnowledgeConnectorMemberToken({
+        ...orgBinding,
+        credentialId: 'credential-1',
+        expectedProviderId: 'google-drive',
+        requiredScopes: [],
+        runId: 'run-1',
+      })
+    ).rejects.toBeInstanceOf(KnowledgeConnectorMemberAccessDeniedError)
+    expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('mints a live credential with an exact organization owner after checking the connector binding', async () => {
+    mocks.loadBinding.mockResolvedValue({
+      ...orgBinding,
+      workspaceId: null,
+      credentialId: 'credential-1',
+      managedOauthStatus: 'active',
+      enrollmentStatus: 'completed',
+      groupStatus: 'active',
+      optionStatus: 'active',
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'connector-1' }])
+    mocks.resolveManagedOAuthToken.mockResolvedValue({ accessToken: 'opaque-token' })
+    await mintKnowledgeConnectorMemberToken({
+      ...orgBinding,
+      credentialId: 'credential-1',
+      expectedProviderId: 'google-drive',
+      requiredScopes: [],
+      runId: 'run-1',
+    })
+    expect(mocks.resolveManagedOAuthToken).toHaveBeenCalledWith({
+      credentialId: 'credential-1',
+      organizationId: 'org-1',
+      expectedProviderId: 'google-drive',
+      requiredScopes: [],
+    })
+    expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
   })
 })

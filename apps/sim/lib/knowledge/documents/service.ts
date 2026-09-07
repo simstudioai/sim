@@ -33,6 +33,7 @@ import {
 import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
@@ -62,6 +63,11 @@ import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   assertKnowledgeEmbeddingCapacity,
@@ -105,6 +111,7 @@ import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
   createNonWorkspaceDocumentProcessingBillingContext,
+  createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
   type DocumentProcessingBillingContext,
   type DocumentProcessingPayload,
@@ -734,6 +741,7 @@ async function resolveDocumentProcessingBillingContext(
     .select({
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
     })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
@@ -743,6 +751,12 @@ async function resolveDocumentProcessingBillingContext(
     throw new Error(`Knowledge base ${knowledgeBaseId} not found for document processing`)
   }
 
+  if (knowledgeBaseContext.organizationId) {
+    if (!providedBillingAttribution)
+      throw new Error('Organization processing requires billing attribution')
+    assertBillingAttributionOwner(providedBillingAttribution, knowledgeBaseContext)
+    return createOrganizationDocumentProcessingBillingContext(providedBillingAttribution)
+  }
   if (knowledgeBaseContext.workspaceId) {
     if (!providedBillingAttribution) {
       throw new Error('Workspace document processing requires a billing attribution snapshot')
@@ -1409,6 +1423,7 @@ export async function processDocumentAsync(
     const contextRows = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         knowledgeBaseUserId: knowledgeBase.userId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
@@ -1559,7 +1574,7 @@ export async function processDocumentAsync(
       ? assertDocumentProcessingBillingContext(providedBillingContext)
       : undefined
     const restoredBillingAttribution =
-      queuedBillingContext?.billingScope === 'workspace'
+      queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace'
         ? queuedBillingContext.billingAttribution
         : providedBillingContext && !queuedBillingContext
           ? assertBillingAttributionSnapshot(providedBillingContext)
@@ -1571,7 +1586,7 @@ export async function processDocumentAsync(
       ctx.billedAccountUserId ??
       ctx.knowledgeBaseUserId
     let billingAttribution: BillingAttributionSnapshot | undefined
-    if (ctx.workspaceId) {
+    if (ctx.workspaceId || ctx.organizationId) {
       if (queuedBillingContext?.billingScope === 'non-workspace') {
         throw new Error('Document processing billing scope does not match knowledge base workspace')
       }
@@ -1579,13 +1594,14 @@ export async function processDocumentAsync(
         throw new Error('Billing attribution is required for queued document processing')
       }
       billingAttribution = restoredBillingAttribution
-      if (
-        billingAttribution.actorUserId !== documentActorUserId ||
-        billingAttribution.workspaceId !== ctx.workspaceId
-      ) {
+      assertBillingAttributionOwner(billingAttribution, ctx)
+      if (billingAttribution.actorUserId !== documentActorUserId) {
         throw new Error('Document billing attribution does not match its actor and workspace')
       }
-    } else if (restoredBillingAttribution || queuedBillingContext?.billingScope === 'workspace') {
+    } else if (
+      restoredBillingAttribution ||
+      (queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace')
+    ) {
       throw new Error('Workspace-less document processing cannot use workspace billing attribution')
     }
 
@@ -2122,6 +2138,7 @@ async function resolveDocumentStorageAdmission(
   const [kb] = await db
     .select({
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       userId: knowledgeBase.userId,
     })
     .from(knowledgeBase)
@@ -2131,6 +2148,11 @@ async function resolveDocumentStorageAdmission(
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
+  if (kb.organizationId)
+    throw new OrchestrationError(
+      'validation',
+      'Add documents to organization Search through a connected source'
+    )
   if (bytes <= 0) {
     return { workspaceId: kb.workspaceId, knowledgeBaseUserId: kb.userId }
   }
@@ -2198,6 +2220,7 @@ export async function createDocumentRecords(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
@@ -2812,6 +2835,7 @@ export async function createSingleDocument(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
@@ -3648,7 +3672,7 @@ function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
 const STORAGE_DELETE_CONCURRENCY = 10
 
 export async function deleteDocumentStorageFiles(
-  documentsToDelete: Array<{ id: string; fileUrl: string | null; workspaceId?: string | null }>,
+  documentsToDelete: Array<{ id: string; fileUrl: string | null } & ResourceOwner>,
   requestId: string
 ): Promise<void> {
   const entries = documentsToDelete.map((doc) => ({
@@ -3683,24 +3707,17 @@ export async function deleteDocumentStorageFiles(
     }
 
     const binding = bindingByKey.get(storageKey)
-    if (!binding?.workspaceId || binding.context !== 'knowledge-base') {
+    if (!binding || binding.deletedAt || binding.context !== 'knowledge-base') {
       logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
         documentId: doc.id,
         storageKey,
       })
       return
     }
-    if (!doc.workspaceId || binding.workspaceId !== doc.workspaceId) {
-      logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
-        documentId: doc.id,
-        storageKey,
-        bindingWorkspaceId: binding.workspaceId,
-        documentWorkspaceId: doc.workspaceId ?? null,
-      })
-      return
-    }
-
     try {
+      if (!sameResourceScope(resourceScopeFromOwner(binding), resourceScopeFromOwner(doc))) {
+        throw new Error('Storage ownership binding does not match the document owner')
+      }
       const metadataDeleted = await deleteFileMetadataByIdentity({
         id: binding.id,
         key: binding.key,
@@ -3908,6 +3925,7 @@ async function hardDeleteDocumentBatch(
       uploadedBy: document.uploadedBy,
       connectorId: document.connectorId,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       kbUserId: knowledgeBase.userId,
     })
     .from(document)
@@ -3937,7 +3955,7 @@ async function hardDeleteDocumentBatch(
   const storageContextByWorkspace = new Map<string, StorageBillingContext>()
   const candidateUserIds = new Set<string>()
   for (const doc of documentsToDelete) {
-    if (doc.connectorId || doc.fileSize <= 0) continue
+    if (doc.organizationId || doc.connectorId || doc.fileSize <= 0) continue
     if (doc.workspaceId) {
       if (!storageContextByWorkspace.has(doc.workspaceId)) {
         storageContextByWorkspace.set(
@@ -3973,6 +3991,7 @@ async function hardDeleteDocumentBatch(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
@@ -3993,6 +4012,7 @@ async function hardDeleteDocumentBatch(
       if (
         !lockedKb ||
         lockedKb.workspaceId !== doc.workspaceId ||
+        (lockedKb.organizationId ?? null) !== (doc.organizationId ?? null) ||
         lockedKb.userId !== doc.kbUserId
       ) {
         throw new Error(
@@ -4067,7 +4087,7 @@ async function hardDeleteDocumentBatch(
     const bytesByWorkspace = new Map<string, number>()
     const legacyBytesByUser = new Map<string, number>()
     for (const doc of deletedDocs) {
-      if (doc.connectorId || doc.fileSize <= 0) continue
+      if (doc.organizationId || doc.connectorId || doc.fileSize <= 0) continue
       if (doc.workspaceId) {
         bytesByWorkspace.set(
           doc.workspaceId,

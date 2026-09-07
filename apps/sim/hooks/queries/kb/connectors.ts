@@ -38,8 +38,16 @@ import {
   type ConnectorAccessMode,
   type PrepareSearchSourceBody,
   prepareSearchSourceContract,
+  readSearchIndexContract,
 } from '@/lib/api/contracts/knowledge/connectors'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
+import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -274,6 +282,7 @@ function invalidateConnectorAccounts(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspaces() }),
     queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
+    queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.details() }),
   ])
 }
 
@@ -386,20 +395,54 @@ async function startConnectorMemberEnrollment({
 export const searchSourceKeys = {
   all: ['search-sources'] as const,
   lists: () => [...searchSourceKeys.all, 'list'] as const,
-  list: (workspaceId?: string) => [...searchSourceKeys.lists(), workspaceId ?? ''] as const,
+  list: (scope?: string | ResourceScope) =>
+    [
+      ...searchSourceKeys.lists(),
+      typeof scope === 'string'
+        ? scope
+        : scope?.kind === 'workspace'
+          ? scope.workspaceId
+          : scope
+            ? resourceScopeKey(scope)
+            : '',
+    ] as const,
 }
 
-export function useSearchSources(workspaceId?: string, options?: { enabled?: boolean }) {
+export const searchIndexKeys = {
+  all: ['search-index'] as const,
+  details: () => [...searchIndexKeys.all, 'detail'] as const,
+  detail: (scope: ResourceScope) =>
+    [...searchIndexKeys.details(), resourceScopeKey(scope)] as const,
+}
+
+export function useSearchIndex(scope: ResourceScope, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: searchSourceKeys.list(workspaceId),
+    queryKey: searchIndexKeys.detail(scope),
+    queryFn: async ({ signal }) =>
+      (await requestJson(readSearchIndexContract, { query: resourceScopeFields(scope), signal }))
+        .data,
+    enabled: options?.enabled ?? true,
+    staleTime: CONNECTOR_LIST_STALE_TIME,
+  })
+}
+
+export function useSearchSources(owner?: string | ResourceScope, options?: { enabled?: boolean }) {
+  const scope =
+    typeof owner === 'string'
+      ? owner
+        ? { kind: 'workspace' as const, workspaceId: owner }
+        : undefined
+      : owner
+  return useQuery({
+    queryKey: searchSourceKeys.list(scope),
     queryFn: async ({ signal }): Promise<SearchSourceSummary[]> =>
       (
         await requestJson(listSearchSourcesContract, {
-          query: { workspaceId: workspaceId as string },
+          query: scope ? resourceScopeFields(scope) : {},
           signal,
         })
       ).data,
-    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    enabled: Boolean(scope) && (options?.enabled ?? true),
     staleTime: CONNECTOR_LIST_STALE_TIME,
     refetchInterval: (query) =>
       query.state.data?.some((source) => source.isSyncing)
@@ -785,6 +828,7 @@ export function useConnectSimSearchConnector() {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(data.knowledgeBaseId) })
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: searchIndexKeys.details() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
@@ -801,10 +845,13 @@ export function usePrepareSearchSource() {
     onSuccess: (_data, body) =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: searchSourceKeys.list(body.workspaceId) }),
         queryClient.invalidateQueries({
-          queryKey: credentialGroupKeys.workspace(body.workspaceId),
+          queryKey: searchIndexKeys.detail(resourceScopeFromOwner(body)),
         }),
+        queryClient.invalidateQueries({
+          queryKey: searchSourceKeys.list(resourceScopeFromOwner(body)),
+        }),
+        invalidateConnectorAccounts(queryClient),
       ]),
   })
 }

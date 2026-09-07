@@ -27,18 +27,25 @@ import {
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
 
-const { mockVerifyCronAuth, mockDispatchSync, mockResolveSystemBillingAttribution } = vi.hoisted(
-  () => ({
-    mockVerifyCronAuth: vi.fn().mockReturnValue(null),
-    mockDispatchSync: vi.fn().mockResolvedValue(undefined),
-    mockResolveSystemBillingAttribution: vi.fn().mockResolvedValue({ workspaceId: 'ws-1' }),
-  })
-)
+const {
+  mockVerifyCronAuth,
+  mockDispatchSync,
+  mockResolveSystemBillingAttribution,
+  mockResolveSystemOrganizationBillingAttribution,
+} = vi.hoisted(() => ({
+  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
+  mockDispatchSync: vi.fn().mockResolvedValue(undefined),
+  mockResolveSystemBillingAttribution: vi.fn().mockResolvedValue({ workspaceId: 'ws-1' }),
+  mockResolveSystemOrganizationBillingAttribution: vi
+    .fn()
+    .mockResolvedValue({ workspaceId: null, organizationId: 'org-1' }),
+}))
 
 vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
+  resolveSystemOrganizationBillingAttribution: mockResolveSystemOrganizationBillingAttribution,
 }))
 
 import { GET } from '@/app/api/knowledge/connectors/sync/route'
@@ -131,6 +138,10 @@ beforeEach(() => {
   mockVerifyCronAuth.mockReturnValue(null)
   mockDispatchSync.mockResolvedValue(undefined)
   mockResolveSystemBillingAttribution.mockResolvedValue({ workspaceId: 'ws-1' })
+  mockResolveSystemOrganizationBillingAttribution.mockResolvedValue({
+    workspaceId: null,
+    organizationId: 'org-1',
+  })
   vi.useFakeTimers()
   vi.setSystemTime(NOW)
 })
@@ -550,7 +561,7 @@ describe('connector sync scheduler authentication and dispatch', () => {
     )
   })
 
-  it('skips a connector missing workspace billing context without failing the tick', async () => {
+  it('skips a connector missing resource billing context without failing the tick', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { id: 'due-1', workspaceId: null },
       { id: 'due-2', workspaceId: 'ws-2' },
@@ -561,6 +572,42 @@ describe('connector sync scheduler authentication and dispatch', () => {
     expect(response.status).toBe(200)
     expect(mockDispatchSync).toHaveBeenCalledTimes(1)
     expect(mockDispatchSync).toHaveBeenCalledWith('due-2', expect.anything())
+  })
+
+  it('dispatches org sources with their canonical organization payer', async () => {
+    const nextSyncAt = new Date('2026-09-01T00:00:00Z')
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'org-source', workspaceId: null, organizationId: 'org-1', nextSyncAt },
+    ])
+    await GET(cronRequest())
+    expect(dbChainMockFns.select).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: schemaMock.knowledgeBase.workspaceId,
+        organizationId: schemaMock.knowledgeBase.organizationId,
+      })
+    )
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveSystemOrganizationBillingAttribution).toHaveBeenCalledExactlyOnceWith('org-1')
+    expect(mockDispatchSync).toHaveBeenCalledExactlyOnceWith('org-source', {
+      billingAttribution: { workspaceId: null, organizationId: 'org-1' },
+      expectedNextSyncAt: nextSyncAt,
+      requestId: expect.any(String),
+      requireRunnable: true,
+    })
+  })
+
+  it('does not infer a payer for ambiguous ownership or failed org billing', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'ambiguous', workspaceId: 'ws-1', organizationId: 'org-1' },
+      { id: 'org-source', workspaceId: null, organizationId: 'org-1' },
+    ])
+    mockResolveSystemOrganizationBillingAttribution.mockRejectedValue(
+      new Error('Owner unavailable')
+    )
+    await GET(cronRequest())
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveSystemOrganizationBillingAttribution).toHaveBeenCalledExactlyOnceWith('org-1')
+    expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 
   it('reports a tick with nothing due', async () => {

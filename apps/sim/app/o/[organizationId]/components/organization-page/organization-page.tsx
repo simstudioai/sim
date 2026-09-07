@@ -12,6 +12,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { Search, X } from '@sim/emcn/icons'
+import { noop } from '@sim/utils/helpers'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import {
@@ -32,8 +33,7 @@ interface OrganizationPageProps {
   description?: string
   /** Header tabs; the first is the default. Omit for a page with one view. */
   tabs?: readonly OrganizationPageTab[]
-  /** Label of the page's primary action chip. Omit for a page without one. */
-  action?: string
+  action?: ReactNode
   children?: ReactNode
 }
 
@@ -48,20 +48,52 @@ interface OrganizationPageProps {
  * skeleton standing in for it. Pass `tabs` only once they are known; the row
  * simply gains them.
  */
-export function OrganizationPage({
+export function OrganizationPage(props: OrganizationPageProps) {
+  const filters = useOrganizationPageFilters()
+  return <OrganizationPageView {...props} filters={filters} />
+}
+
+/** Uses the same page chrome during both navigation and a suspended URL read. */
+export function OrganizationPageLoading({
+  title,
+  description,
+}: Pick<OrganizationPageProps, 'title' | 'description'>) {
+  return (
+    <OrganizationPageView
+      title={title}
+      description={description}
+      filters={{ tab: null, search: '', setTab: noop, setSearch: noop }}
+      loading
+    />
+  )
+}
+
+interface OrganizationPageViewProps extends OrganizationPageProps {
+  filters: {
+    tab: string | null
+    search: string
+    setTab: (value: string | null) => void
+    setSearch: (value: string) => void
+  }
+  loading?: boolean
+}
+
+function OrganizationPageView({
   title,
   description,
   tabs,
   action,
   children,
-}: OrganizationPageProps) {
+  filters,
+  loading = false,
+}: OrganizationPageViewProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const scrollEdges = useScrollEdges(scrollContainerRef, { contentRef: scrollContentRef })
   const tabsRef = useRef<HTMLDivElement>(null)
   const tabEdges = useScrollEdges(tabsRef, { axis: 'x' })
 
-  const { tab, search, setTab, setSearch } = useOrganizationPageFilters()
+  const { tab, search, setTab, setSearch } = filters
   const defaultTab = tabs?.[0]?.id
   const activeTab = tab ?? defaultTab
 
@@ -147,9 +179,14 @@ export function OrganizationPage({
                 }
               />
             ) : (
-              <Chip leftIcon={Search} aria-label='Search' onClick={() => setSearchOpened(true)} />
+              <Chip
+                disabled={loading}
+                leftIcon={Search}
+                aria-label='Search'
+                onClick={() => setSearchOpened(true)}
+              />
             )}
-            {action && <Chip variant='primary'>{action}</Chip>}
+            {action}
           </div>
         </div>
       </div>

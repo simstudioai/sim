@@ -37,10 +37,11 @@ export function useApiKeys(
 /**
  * Create API key mutation params
  */
-type CreateApiKeyParams = {
-  workspaceId: string
-  keyType: 'personal' | 'workspace'
-} & ContractBodyInput<typeof createWorkspaceApiKeyContract>
+type CreateApiKeyParams = (
+  | { workspaceId: string; keyType: 'workspace' }
+  | { workspaceId?: string; keyType: 'personal' }
+) &
+  ContractBodyInput<typeof createWorkspaceApiKeyContract>
 
 /**
  * Hook to create a new API key

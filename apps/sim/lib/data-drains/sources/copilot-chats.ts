@@ -30,6 +30,7 @@ const chatColumns = {
   userId: copilotChats.userId,
   workflowId: copilotChats.workflowId,
   workspaceId: copilotChats.workspaceId,
+  organizationId: copilotChats.organizationId,
   type: copilotChats.type,
   title: copilotChats.title,
   model: copilotChats.model,

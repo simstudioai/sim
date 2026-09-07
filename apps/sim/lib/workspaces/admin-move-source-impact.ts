@@ -55,6 +55,7 @@ import { getCustomBlockUsageCounts } from '@/lib/workflows/custom-blocks/operati
  * navigation module's React and icon imports.
  */
 const ENTERPRISE_GATED_SECTION_LABELS: Record<OrganizationSettingsSection, string | null> = {
+  'search-mcp': null,
   members: null,
   billing: null,
   usage: 'organization usage monitoring',

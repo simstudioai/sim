@@ -3,6 +3,11 @@ import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { credentialGroupEnrollmentOperations } from '@/lib/credential-groups/application/enrollment-operations'
 import {
   completeAuthorizedCredentialGroupEnrollment,
@@ -48,7 +53,7 @@ function requireMatchingContext(
   context: PublicCredentialGroupEnrollmentIdentity
 ): void {
   if (
-    context.workspaceId !== principal.workspaceId ||
+    !sameResourceScope(resourceScopeFromOwner(context), resourceScopeFromOwner(principal)) ||
     context.credentialGroupId !== principal.credentialGroupId ||
     context.enrollmentId !== principal.enrollmentId ||
     context.email !== principal.email ||
@@ -90,7 +95,7 @@ function identityFromPrincipal(
   principal: CredentialGroupEnrollmentPrincipal
 ): PublicCredentialGroupEnrollmentIdentity {
   return {
-    workspaceId: principal.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(principal)),
     credentialGroupId: principal.credentialGroupId,
     enrollmentId: principal.enrollmentId,
     email: principal.email,
@@ -146,7 +151,7 @@ export const completePublicCredentialGroupEnrollment =
     resolveContext: ({ principal }) => resolvePublicEnrollmentContext(principal),
     async execute({ context }) {
       const completion = await completeAuthorizedCredentialGroupEnrollment(context)
-      if (completion?.transitioned) {
+      if (completion?.transitioned && context.workspaceId) {
         await fireCredentialGroupTrigger({
           event: 'form_submitted',
           workspaceId: context.workspaceId,
@@ -209,12 +214,17 @@ function identityForOAuthAttempt(
   principal: CredentialGroupEnrollmentPrincipal,
   attempt: Pick<
     CredentialGroupOAuthAttempt,
-    'workspaceId' | 'credentialGroupId' | 'enrollmentId' | 'email' | 'invitationToken'
+    | 'workspaceId'
+    | 'organizationId'
+    | 'credentialGroupId'
+    | 'enrollmentId'
+    | 'email'
+    | 'invitationToken'
   >
 ): PublicCredentialGroupEnrollmentIdentity {
   requireInvitationToken(principal, attempt.invitationToken)
   if (
-    attempt.workspaceId !== principal.workspaceId ||
+    !sameResourceScope(resourceScopeFromOwner(attempt), resourceScopeFromOwner(principal)) ||
     attempt.email !== principal.email ||
     attempt.credentialGroupId !== principal.credentialGroupId ||
     attempt.enrollmentId !== principal.enrollmentId
@@ -246,22 +256,23 @@ export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGrou
   async execute({ principal, input, context }) {
     requireInvitationToken(principal, input.attempt.invitationToken)
     const completion = await completeCredentialGroupOAuth(context.oauth, input.attempt, input.code)
-    await fireCredentialGroupTrigger({
-      event: completion.created ? 'credential_added' : 'credential_reconnected',
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-      credentialGroupName: context.oauth.credentialGroupName,
-      enrollmentId: context.enrollmentId,
-      email: context.email,
-      enrollmentStatus: completion.enrollmentStatus,
-      credential: {
-        credentialId: completion.credentialId,
-        credentialGroupOptionId: completion.credentialGroupOptionId,
-        provider: completion.provider,
-        providerId: completion.providerId,
-        displayName: completion.displayName,
-      },
-    })
+    if (context.workspaceId)
+      await fireCredentialGroupTrigger({
+        event: completion.created ? 'credential_added' : 'credential_reconnected',
+        workspaceId: context.workspaceId,
+        credentialGroupId: context.credentialGroupId,
+        credentialGroupName: context.oauth.credentialGroupName,
+        enrollmentId: context.enrollmentId,
+        email: context.email,
+        enrollmentStatus: completion.enrollmentStatus,
+        credential: {
+          credentialId: completion.credentialId,
+          credentialGroupOptionId: completion.credentialGroupOptionId,
+          provider: completion.provider,
+          providerId: completion.providerId,
+          displayName: completion.displayName,
+        },
+      })
     return { connectedOptionId: context.oauth.option.id }
   },
 })

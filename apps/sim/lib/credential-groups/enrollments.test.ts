@@ -18,6 +18,13 @@ vi.mock('@/components/emails/render', () => ({
 
 vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: vi.fn() }))
 
+vi.mock('@/lib/billing/core/subscription', () => ({
+  getOrganizationSubscriptionUsable: vi.fn().mockResolvedValue({ plan: 'enterprise' }),
+}))
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: vi.fn().mockResolvedValue(true),
+}))
+
 vi.mock('@/lib/billing/core/workspace-access', () => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn().mockResolvedValue({}),
 }))
@@ -30,6 +37,8 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
   getCredentialGroupProviderAdapter: () => adapter,
 }))
 
+import { getOrganizationSubscriptionUsable } from '@/lib/billing/core/subscription'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   completeCredentialGroupEnrollment,
   createCredentialGroupInvitationLink,
@@ -700,5 +709,68 @@ describe('enrollment context for session-authorized or consumed-attempt OAuth', 
     expect(
       await getCredentialGroupMcpOAuthContextForEnrollment(identity, 'mcp-server-1')
     ).toBeNull()
+  })
+})
+
+describe('organization enrollment membership boundary', () => {
+  const identity = {
+    organizationId: 'organization-1',
+    credentialGroupId: 'group-1',
+    enrollmentId: ENROLLMENT.id,
+    email: ENROLLMENT.email,
+    invitationTokenHash: ENROLLMENT.invitationTokenHash,
+  }
+  const row = {
+    enrollment: ENROLLMENT,
+    groupId: 'group-1',
+    groupName: 'Accounts',
+    groupStatus: 'active',
+    options: [
+      { id: 'gmail-option', provider: 'gmail', label: 'Gmail', status: 'active', required: false },
+    ],
+    workspaceId: null,
+    organizationId: 'organization-1',
+    organizationName: 'Acme',
+    workspaceName: null,
+    workspaceOwnerId: null,
+    inviterName: 'Admin',
+  }
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.clearAllMocks()
+    vi.mocked(getOrganizationSubscriptionUsable).mockResolvedValue({ plan: 'enterprise' } as never)
+    vi.mocked(isFeatureEnabled).mockResolvedValue(true)
+    queueTableRows(schemaMock.credentialGroupEnrollment, [row])
+  })
+  it('accepts a verified organization member without any workspace', async () => {
+    queueTableRows(schemaMock.member, [{ userId: 'member-1' }])
+    await expect(
+      getAuthorizedCredentialGroupOAuthContext(identity, 'gmail-option')
+    ).resolves.toMatchObject({
+      organizationId: 'organization-1',
+      credentialOwnerId: 'member-1',
+      workspaceName: 'Acme',
+    })
+  })
+  it('denies a valid invitation after the person leaves the organization', async () => {
+    queueTableRows(schemaMock.member, [])
+    await expect(
+      getAuthorizedCredentialGroupOAuthContext(identity, 'gmail-option')
+    ).resolves.toBeNull()
+  })
+  it('denies ambiguous verified identities', async () => {
+    queueTableRows(schemaMock.member, [{ userId: 'member-1' }, { userId: 'member-2' }])
+    await expect(
+      getAuthorizedCredentialGroupOAuthContext(identity, 'gmail-option')
+    ).resolves.toBeNull()
+  })
+  it('conceals an enrollment from a different asserted organization', async () => {
+    queueTableRows(schemaMock.member, [{ userId: 'member-1' }])
+    await expect(
+      getAuthorizedCredentialGroupOAuthContext(
+        { ...identity, organizationId: 'organization-2' },
+        'gmail-option'
+      )
+    ).resolves.toBeNull()
   })
 })

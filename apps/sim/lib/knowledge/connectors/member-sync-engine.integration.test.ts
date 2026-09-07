@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionOwner: vi.fn(),
   assertBillingAttributionSnapshot: (value: unknown) => value,
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({

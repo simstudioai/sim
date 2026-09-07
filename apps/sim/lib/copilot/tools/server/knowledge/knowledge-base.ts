@@ -1025,6 +1025,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 requireKnowledgeBillingAttribution(context, billingWorkspaceId),
               source: 'agent',
             })
+          if (canonicalWorkspaceId !== workspaceId) {
+            throw new Error('Knowledge connector workspace does not match the authorized workspace')
+          }
           captureKnowledgeConnectorAdded(
             context.userId,
             canonicalWorkspaceId,
@@ -1141,6 +1144,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
             source: 'agent',
           })
+          if (outcome.workspaceId !== workspaceId) {
+            throw new Error('Knowledge connector workspace does not match the authorized workspace')
+          }
           captureKnowledgeConnectorSynced(
             context.userId,
             outcome.workspaceId,

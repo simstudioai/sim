@@ -4,7 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  resolveSystemBillingAttribution,
+  resolveSystemOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -300,6 +304,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         id: knowledgeConnector.id,
         nextSyncAt: knowledgeConnector.nextSyncAt,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
@@ -328,10 +333,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     await mapWithConcurrency(dueConnectors, DISPATCH_CONCURRENCY, async (connector) => {
       try {
-        if (!connector.workspaceId) {
-          throw new Error(`Connector ${connector.id} is missing workspace billing context`)
-        }
-        const billingAttribution = await resolveSystemBillingAttribution(connector.workspaceId)
+        const scope = resourceScopeFromOwner(connector)
+        const billingAttribution =
+          scope.kind === 'organization'
+            ? await resolveSystemOrganizationBillingAttribution(scope.organizationId)
+            : await resolveSystemBillingAttribution(scope.workspaceId)
         await dispatchSync(connector.id, {
           billingAttribution,
           expectedNextSyncAt: connector.nextSyncAt ?? undefined,

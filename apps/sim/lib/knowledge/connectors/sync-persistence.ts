@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
@@ -230,9 +231,10 @@ export function resolveTagMapping(
   return result
 }
 
-/** Owning workspace + user for a knowledge base, resolved once per sync. */
+/** Canonical owning scope and uploader attribution, resolved once per sync. */
 export interface KnowledgeBaseOwner {
   workspaceId: string | null
+  organizationId?: string | null
   userId: string
 }
 
@@ -244,10 +246,16 @@ export interface KnowledgeBaseOwner {
 function kbOwnershipMetadata(
   kbOwner: KnowledgeBaseOwner,
   originalName: string
-): { workspaceId: string; userId: string; originalName: string } | undefined {
-  return kbOwner.workspaceId
-    ? { workspaceId: kbOwner.workspaceId, userId: kbOwner.userId, originalName }
-    : undefined
+): Record<string, string> | undefined {
+  if (!kbOwner.workspaceId && !kbOwner.organizationId) return undefined
+  const scope = resourceScopeFromOwner(kbOwner)
+  return {
+    ...(scope.kind === 'organization'
+      ? { organizationId: scope.organizationId }
+      : { workspaceId: scope.workspaceId }),
+    userId: kbOwner.userId,
+    originalName,
+  }
 }
 
 /** Builds a content-less `failed` document row for a skipped (e.g. oversized) file. */

@@ -34,7 +34,10 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { prepareCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
+import {
+  prepareCopyableMarkdown,
+  toCopyableMarkdown,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
@@ -51,7 +54,7 @@ import type {
   QueuedMessage,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getWorkspaceFilesQueryOptions, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
@@ -59,7 +62,8 @@ import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
-  workspaceId: string
+  workspaceId?: string
+  composer?: ReactNode
   messages: ChatMessage[]
   isSending: boolean
   /** The composer's Search-mode results, shown above the input. */
@@ -238,7 +242,8 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   onOptionSelect,
   onAnimatingChange,
 }: AssistantMessageRowProps) {
-  const { canEdit } = useUserPermissionsContext()
+  const permissions = useOptionalWorkspacePermissionsContext()
+  const canEdit = permissions?.userPermissions.canEdit ?? false
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
   const hasAnyBlocks = blocks.length > 0
   const trimmedContent = message.content?.trim() ?? ''
@@ -329,6 +334,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 
 export function MothershipChat({
   workspaceId,
+  composer,
   messages: messagesProp,
   isSending,
   searchResults,
@@ -382,17 +388,19 @@ export function MothershipChat({
   const floorDrainRafRef = useRef(0)
   const prepareContentForCopy = useCallback(
     (content: string) =>
-      prepareCopyableMarkdown(
-        content,
-        queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
-          workspaceFilesKeys.list(workspaceId)
-        ) ?? EMPTY_WORKSPACE_FILES,
-        () =>
-          queryClient.fetchQuery({
-            ...getWorkspaceFilesQueryOptions(workspaceId),
-            staleTime: 0,
-          })
-      ),
+      workspaceId
+        ? prepareCopyableMarkdown(
+            content,
+            queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
+              workspaceFilesKeys.list(workspaceId)
+            ) ?? EMPTY_WORKSPACE_FILES,
+            () =>
+              queryClient.fetchQuery({
+                ...getWorkspaceFilesQueryOptions(workspaceId),
+                staleTime: 0,
+              })
+          )
+        : toCopyableMarkdown(content),
     [queryClient, workspaceId]
   )
   useEffect(() => () => cancelAnimationFrame(floorDrainRafRef.current), [])
@@ -859,23 +867,24 @@ export function MothershipChat({
               onEdit={handleEditQueued}
               onCancelEdit={onCancelQueueEdit}
             />
-            {!isLoading && (
-              <UserInput
-                key={draftScopeKey}
-                ref={userInputRef}
-                defaultValue={searchQuery}
-                onSubmit={onSubmit}
-                canSearch={canSearch}
-                clearOnSubmit={clearOnSubmit}
-                onCleared={onCleared}
-                isSending={isStreamActive}
-                onStopGeneration={onStopGeneration}
-                isInitialView={false}
-                onSendQueuedHead={handleSendQueuedHead}
-                onEditQueuedTail={handleEditQueuedTail}
-                draftScopeKey={draftScopeKey}
-              />
-            )}
+            {!isLoading &&
+              (composer ?? (
+                <UserInput
+                  key={draftScopeKey}
+                  ref={userInputRef}
+                  defaultValue={searchQuery}
+                  onSubmit={onSubmit}
+                  canSearch={canSearch}
+                  clearOnSubmit={clearOnSubmit}
+                  onCleared={onCleared}
+                  isSending={isStreamActive}
+                  onStopGeneration={onStopGeneration}
+                  isInitialView={false}
+                  onSendQueuedHead={handleSendQueuedHead}
+                  onEditQueuedTail={handleEditQueuedTail}
+                  draftScopeKey={draftScopeKey}
+                />
+              ))}
           </div>
         </div>
       </div>

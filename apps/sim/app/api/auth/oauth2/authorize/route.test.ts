@@ -44,11 +44,8 @@ vi.mock('@/lib/credentials/application/create-credential-connection', () => ({
     execute: mocks.createConnection,
   },
 }))
-vi.mock('@/lib/credentials/application/launch-credential-connection', () => ({
-  launchCredentialConnection: {
-    operation: { id: 'credentials.connections.launch' },
-    execute: mocks.launchConnection,
-  },
+vi.mock('@/lib/credentials/application/launch-scoped-credential-connection', () => ({
+  launchScopedCredentialConnection: mocks.launchConnection,
 }))
 vi.mock('@/lib/oauth/utils', () => ({
   getPerRequestOAuthLinkScopes: mocks.getPerRequestScopes,

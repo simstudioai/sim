@@ -326,11 +326,17 @@ describe('Credential Group resource policy lifecycle', () => {
     expect(queries[1]).toContain('CREATE OR REPLACE FUNCTION')
     expect(queries[1]).toContain("'sid', 'CredentialGroupActorCredentialAccess'")
     expect(queries[1]).toContain("'credential_group:ActorOwnsCredential', true")
+    expect(queries[1]).toContain('IF NEW."workspace_id" IS NULL THEN RETURN NEW; END IF;')
     expect(queries[2]).toContain('DROP TRIGGER IF EXISTS')
     expect(queries[3]).toContain('CREATE TRIGGER')
     expect(queries[4]).toContain('ON CONFLICT (resource_type, resource_id) DO NOTHING')
+    expect(queries[4]).toContain('AND cg.workspace_id IS NOT NULL')
     expect(queries[5]).toContain('octet_length(document::text)')
     expect(queries[5]).toContain('THEN document ELSE NULL')
+    await store.listMissingPolicies('', 2)
+    await store.findRelationalInvariantViolation()
+    expect(queries[6]).toContain('AND cg.workspace_id IS NOT NULL')
+    expect(queries[7]).toContain('WHERE cg.workspace_id IS NOT NULL AND (rp.resource_id IS NULL')
   })
 
   it('keeps table creation in 0309 and lifecycle reconciliation in the db:push post-step', async () => {

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -42,7 +42,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
         isNull(knowledgeBase.deletedAt),
-        isNotNull(knowledgeBase.workspaceId)
+        or(
+          and(isNotNull(knowledgeBase.workspaceId), isNull(knowledgeBase.organizationId)),
+          and(isNull(knowledgeBase.workspaceId), isNotNull(knowledgeBase.organizationId))
+        )
       )
     )
     .orderBy(asc(knowledgeConnector.nextDirectorySyncAt), asc(knowledgeConnector.id))

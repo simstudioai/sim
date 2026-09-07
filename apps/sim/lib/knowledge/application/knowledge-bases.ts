@@ -238,9 +238,11 @@ async function loadInternalActiveKnowledgeBase(
 
 async function authorizeInternalKnowledgeBase(
   principal: SessionPrincipal,
-  knowledgeBase: Pick<KnowledgeBaseWithCounts, 'userId' | 'workspaceId'>,
+  knowledgeBase: Pick<KnowledgeBaseWithCounts, 'userId' | 'workspaceId' | 'organizationId'>,
   operation: WorkspaceOperation
 ): Promise<void> {
+  if (knowledgeBase.organizationId)
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
   if (!knowledgeBase.workspaceId) {
     if (knowledgeBase.userId !== principal.userId) {
       throw new OrchestrationError('unauthorized', 'Unauthorized')

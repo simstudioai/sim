@@ -8,12 +8,14 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { ConnectorsSection } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 
 interface SearchSourceStatusProps {
-  workspaceId: string
+  scope: ResourceScope
   knowledgeBaseId: string
   connectorType: string
   connectors: ConnectorData[]
@@ -23,7 +25,7 @@ interface SearchSourceStatusProps {
 
 /** Search reuses the connector's sync status, history, and recovery controls. */
 export function SearchSourceStatus({
-  workspaceId,
+  scope,
   knowledgeBaseId,
   connectorType,
   connectors,
@@ -45,7 +47,7 @@ export function SearchSourceStatus({
       <ChipModalBody>
         <ChipModalField type='custom' title='Sync status'>
           <ConnectorsSection
-            workspaceId={workspaceId}
+            scope={scope}
             knowledgeBaseId={knowledgeBaseId}
             isSearchIndex
             connectors={connectors}
@@ -58,7 +60,10 @@ export function SearchSourceStatus({
         hideCancel
         primaryAction={{
           label: 'Start searching',
-          onClick: () => router.push(`/workspace/${workspaceId}/home?mode=search`),
+          onClick: () =>
+            router.push(
+              `${scope.kind === 'organization' ? organizationRoutes(scope.organizationId).home : `/workspace/${scope.workspaceId}/home`}?mode=search`
+            ),
         }}
       />
     </ChipModal>

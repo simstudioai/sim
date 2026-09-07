@@ -208,9 +208,12 @@ export async function listVisibleWorkspaceCredentials(params: {
   const rows = await (limit === undefined ? query : query.limit(limit + 1))
 
   const mapped = rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => {
+    if (!rest.workspaceId)
+      throw new Error('Workspace credential query returned an unscoped credential')
     if (!rest.createdBy) throw new Error(`Credential ${rest.id} has no creator`)
     return {
       ...rest,
+      workspaceId: rest.workspaceId,
       createdBy: rest.createdBy,
       hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
       /**
@@ -286,9 +289,12 @@ export async function listWorkspacePrincipalCredentials(params: {
   const rows = await query.limit(limit + 1)
 
   const mapped = rows.map((row) => {
+    if (!row.workspaceId)
+      throw new Error('Workspace credential query returned an unscoped credential')
     if (!row.createdBy) throw new Error(`Credential ${row.id} has no creator`)
     return {
       ...row,
+      workspaceId: row.workspaceId,
       createdBy: row.createdBy,
       envKey: null,
       envOwnerUserId: null,

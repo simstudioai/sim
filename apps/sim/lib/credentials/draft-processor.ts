@@ -7,6 +7,7 @@ import {
   handleCreateCredentialFromDraft,
   handleReconnectCredential,
 } from '@/lib/credentials/draft-hooks'
+import { completeOrganizationCredentialDraft } from '@/lib/credentials/organization-draft'
 
 const logger = createLogger('CredentialDraftProcessor')
 
@@ -145,6 +146,17 @@ export async function processCredentialDraft(params: ProcessCredentialDraftParam
     return
   }
 
+  if (draft.organizationId && !draft.workspaceId) {
+    await completeOrganizationCredentialDraft({
+      draftId: draft.id,
+      organizationId: draft.organizationId,
+      userId,
+      providerId,
+      accountId,
+    })
+    return
+  }
+  if (!draft.workspaceId) throw new Error('Credential draft has no valid owner')
   const now = new Date()
 
   if (draft.credentialId) {
@@ -157,7 +169,7 @@ export async function processCredentialDraft(params: ProcessCredentialDraftParam
     })
   } else {
     await handleCreateCredentialFromDraft({
-      draft,
+      draft: { ...draft, workspaceId: draft.workspaceId },
       accountId,
       providerId,
       userId,

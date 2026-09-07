@@ -229,6 +229,7 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   if (
+    params.principal.kind === 'organization_delegated' ||
     params.principal.kind === 'credential_group_enrollment' ||
     (params.principal.kind === 'delegated' && params.principal.serviceId === 'executor')
   ) {

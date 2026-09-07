@@ -7,6 +7,7 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   acceptInvitationContract,
   type BatchInvitationResult as BatchInvitationResultContract,
+  type BatchWorkspaceInvitationBody,
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
   getInvitationContract,
@@ -209,7 +210,7 @@ export function useDeclineMyInvitation() {
   })
 }
 
-type SendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitationsContract> & {
+type SendInvitationsParams = Omit<BatchWorkspaceInvitationBody, 'organizationId'> & {
   organizationId?: string | null
 }
 
@@ -230,9 +231,16 @@ export function useSendWorkspaceInvitations() {
       emails,
       permission,
       membership,
+      organizationId,
     }: SendInvitationsParams): Promise<SendInvitationsResult> => {
       const result = await requestJson(batchWorkspaceInvitationsContract, {
-        body: { workspaceIds, emails, permission, membership },
+        body: {
+          workspaceIds,
+          emails,
+          permission,
+          membership,
+          organizationId: organizationId ?? undefined,
+        },
       })
 
       return {

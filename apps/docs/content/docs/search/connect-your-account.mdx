@@ -12,16 +12,16 @@ Your admin configures the source once. You connect your own account so Sim can e
 <Steps>
 <Step>
 
-### Join your workspace
+### Join your organization
 
-Accept your Sim workspace invitation and sign in. Use a verified Sim email that matches your account at the source. If your company uses SSO, follow its sign-in process; SSO provisioning alone does not grant workspace access.
+Accept your Sim organization invitation or sign in through your organization's SSO. Use a verified Sim email that matches your account at the source. Organization Search does not require workspace access.
 
 </Step>
 <Step>
 
-### Open Search
+### Open Integrations
 
-Find the source under **Sources** and select **Connect account**. If it is missing, ask a workspace admin to add it.
+Open **Integrations**, find the source, and select **Connect account**. If it is missing, ask an organization admin to add it.
 
 <Image src="/static/search/connect-account.png" alt="Google Drive source row with Connect account" width={1280} height={720} />
 
@@ -32,17 +32,19 @@ Find the source under **Sources** and select **Connect account**. If it is missi
 
 In the new tab, select **Connect** and complete the provider's authorization. Choose the account associated with your verified Sim email. The provider may require your organization's SSO or app approval.
 
-Return to Search when the connection completes. Keep the original tab open; **Open again** resumes the connection if a popup was blocked or closed.
+Return to Integrations when the connection completes. Keep the original tab open; **Open again** resumes the connection if a popup was blocked or closed.
 
 </Step>
 <Step>
 
 ### Start searching
 
-The source row shows indexing status and how many documents are available to you. Search for something you can already open in the source. The first sync may take time, especially for large accounts.
+The source row shows indexing status and how many documents are available to you. Open **Home → Search** and search for something you can already open in the source. Use **Assistant** to ask a question about your connected documents. The first sync may take time, especially for large accounts.
 
 </Step>
 </Steps>
+
+For a source configured inside a workspace, join that workspace and use its **Search** page instead. Organization and workspace sources are separate.
 
 ## Do I always need to connect?
 
@@ -63,8 +65,8 @@ Connecting one Google service does not connect all of them. Gmail, Calendar, and
 | **Reconnect** | Authorize the same source account again. |
 | **Finish connecting in the other tab** | Finish authorization, or use **Open again**. Allow popups for Sim. |
 | No results | Check the source's filters and sync status with your admin. Confirm you can open the document at the source. |
-| Needs admin attention | Ask the workspace admin to inspect **Manage** for the source error. |
+| Needs admin attention | Ask your admin to inspect **Manage** for the source error. |
 
 <Callout type="info">
-  Your Sim workspace role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.
+  Your Sim role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.
 </Callout>

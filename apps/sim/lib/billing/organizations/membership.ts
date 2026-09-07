@@ -10,6 +10,7 @@ import {
   account,
   credential,
   invitation,
+  knowledgeBase,
   member,
   organization,
   permissionGroupMember,
@@ -18,6 +19,7 @@ import {
   user,
   userStats,
   workspace,
+  workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -506,7 +508,7 @@ export type MembershipAdditionFailureCode =
   | 'already-in-other-organization'
   | 'no-seats-available'
 
-async function reassignOwnedOrganizationWorkspacesTx({
+async function reassignOwnedOrganizationResourcesTx({
   tx,
   userId,
   organizationId,
@@ -517,8 +519,6 @@ async function reassignOwnedOrganizationWorkspacesTx({
   organizationId: string
   workspaceIds: string[]
 }) {
-  if (workspaceIds.length === 0) return 0
-
   const [ownerMembership] = await tx
     .select({ userId: member.userId })
     .from(member)
@@ -527,6 +527,30 @@ async function reassignOwnedOrganizationWorkspacesTx({
 
   const ownerId = ownerMembership?.userId
   if (!ownerId || ownerId === userId) return 0
+
+  /** Creator attribution must survive account deletion without changing document ACLs. */
+  await tx
+    .update(knowledgeBase)
+    .set({ userId: ownerId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(knowledgeBase.organizationId, organizationId),
+        isNull(knowledgeBase.workspaceId),
+        eq(knowledgeBase.userId, userId)
+      )
+    )
+  await tx
+    .update(workspaceFiles)
+    .set({ userId: ownerId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(workspaceFiles.organizationId, organizationId),
+        isNull(workspaceFiles.workspaceId),
+        eq(workspaceFiles.userId, userId)
+      )
+    )
+
+  if (workspaceIds.length === 0) return 0
 
   const reassignedWorkspaces = await tx
     .update(workspace)
@@ -978,7 +1002,7 @@ async function getOrganizationTransferCredentialDependenciesTx(
       id: credential.id,
       displayName: credential.displayName,
       type: credential.type,
-      workspaceId: credential.workspaceId,
+      workspaceId: workspace.id,
     })
     .from(credential)
     .innerJoin(workspace, eq(workspace.id, credential.workspaceId))
@@ -986,6 +1010,7 @@ async function getOrganizationTransferCredentialDependenciesTx(
     .where(
       and(
         eq(workspace.organizationId, organizationId),
+        isNull(credential.organizationId),
         or(
           and(eq(credential.type, 'oauth'), eq(account.userId, userId)),
           and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
@@ -1136,13 +1161,13 @@ export async function transferUserBetweenOrganizations(
 
         let workspaceAccessRevoked = 0
         let credentialMembershipsRevoked = 0
+        await reassignOwnedOrganizationResourcesTx({
+          tx,
+          userId: params.userId,
+          organizationId: params.sourceOrganizationId,
+          workspaceIds,
+        })
         if (workspaceIds.length > 0) {
-          await reassignOwnedOrganizationWorkspacesTx({
-            tx,
-            userId: params.userId,
-            organizationId: params.sourceOrganizationId,
-            workspaceIds,
-          })
           const workflowOwnershipReassignment =
             await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
               tx,
@@ -1330,6 +1355,13 @@ export async function removeUserFromOrganization(
             )
           )
 
+        await reassignOwnedOrganizationResourcesTx({
+          tx,
+          userId,
+          organizationId,
+          workspaceIds,
+        })
+
         if (workspaceIds.length === 0) {
           return {
             skipped: false as const,
@@ -1341,13 +1373,6 @@ export async function removeUserFromOrganization(
             pendingInvitationsCancelled: cancelledInvitations.length,
           }
         }
-
-        await reassignOwnedOrganizationWorkspacesTx({
-          tx,
-          userId,
-          organizationId,
-          workspaceIds,
-        })
 
         const workflowOwnershipReassignment =
           await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
@@ -1541,6 +1566,13 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           )
           .returning({ id: permissionGroupMember.id })
 
+        await reassignOwnedOrganizationResourcesTx({
+          tx,
+          userId,
+          organizationId,
+          workspaceIds,
+        })
+
         if (workspaceIds.length === 0) {
           return {
             workspaceAccessRevoked: 0,
@@ -1549,13 +1581,6 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
             pendingInvitationsCancelled: cancelledInvitations.length,
           }
         }
-
-        await reassignOwnedOrganizationWorkspacesTx({
-          tx,
-          userId,
-          organizationId,
-          workspaceIds,
-        })
 
         const workflowOwnershipReassignment =
           await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({

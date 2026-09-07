@@ -12,6 +12,7 @@ import {
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import { v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
 import type { ApplicationOperation } from '@/lib/core/application'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -33,10 +34,9 @@ const READ_ONLY = {
   openWorldHint: false,
 } as const
 
-interface KnowledgeMcpContext {
+interface KnowledgeMcpContext extends ResourceOwner {
   request: NextRequest
   auth: V2ApiKeyAuthContext
-  workspaceId: string
   searchIndexId: string | null
 }
 
@@ -63,7 +63,10 @@ function projectResult(value: unknown, registry: ResolvedSecretTraceRegistry): C
 
 /** A request owns its server; no credential or principal survives into another HTTP request. */
 export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServer {
-  const { request, auth, workspaceId, searchIndexId } = context
+  const { request, auth, searchIndexId } = context
+  const scope = resourceScopeFromOwner(context)
+  const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined
+  const organizationId = scope.kind === 'organization' ? scope.organizationId : undefined
   const principal = auth.principal
   const server = new McpServer({ name: 'Sim Search', version: '1.0.0' })
 
@@ -98,19 +101,20 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     'search_documents',
     {
       description:
-        'Search documents you can access. Defaults to this workspace’s Search index; optional knowledgeBaseIds restrict search to those knowledge bases. Use returned knowledgeBaseId and documentId to read a document or its chunks.',
+        'Search documents you can access. Defaults to this Search index; optional knowledgeBaseIds restrict search to those knowledge bases. Use returned knowledgeBaseId and documentId to read a document or its chunks.',
       inputSchema: searchDocumentsMcpSchema,
       annotations: READ_ONLY,
     },
     async ({ query, topK, knowledgeBaseIds }, extra) =>
       execute(knowledgeOperations.search, async (registry) => {
+        if (organizationId && knowledgeBaseIds?.some((id) => id !== searchIndexId))
+          return toolError('Knowledge base not found')
         const ids = knowledgeBaseIds ?? (searchIndexId ? [searchIndexId] : [])
         if (ids.length === 0) {
           return projectResult(
             {
               results: [],
-              message:
-                'No Search index is configured. Ask a workspace admin to connect a source in Search.',
+              message: 'No Search index is configured. Ask an admin to connect a source.',
             },
             registry
           )
@@ -119,6 +123,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
           principal,
           input: {
             workspaceId,
+            organizationId,
             knowledgeBaseIds: ids,
             query,
             topK,
@@ -157,9 +162,15 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     },
     async (input) =>
       execute(knowledgeOperations.readDocument, async (registry) => {
+        if (organizationId && input.knowledgeBaseId !== searchIndexId)
+          return toolError('Document not found')
         const result = await readKnowledgeDocument.execute({
           principal,
-          input: { ...input, assertedWorkspaceId: workspaceId },
+          input: {
+            ...input,
+            assertedWorkspaceId: workspaceId,
+            assertedOrganizationId: organizationId,
+          },
           request,
         })
         const doc = result.document
@@ -192,11 +203,14 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     },
     async (input) =>
       execute(knowledgeOperations.listChunks, async (registry) => {
+        if (organizationId && input.knowledgeBaseId !== searchIndexId)
+          return toolError('Document not found')
         const result = await listKnowledgeChunks.execute({
           principal,
           input: {
             ...input,
             assertedWorkspaceId: workspaceId,
+            assertedOrganizationId: organizationId,
             enabled: 'true',
             sortBy: 'chunkIndex',
             sortOrder: 'asc',

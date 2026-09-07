@@ -22,6 +22,7 @@ const workspaceFilesMock = {
   key: 'workspaceFiles.key',
   userId: 'workspaceFiles.userId',
   workspaceId: 'workspaceFiles.workspaceId',
+  organizationId: 'workspaceFiles.organizationId',
   folderId: 'workspaceFiles.folderId',
   context: 'workspaceFiles.context',
   chatId: 'workspaceFiles.chatId',
@@ -822,6 +823,7 @@ export const schemaMock = {
     id: 'knowledgeBase.id',
     userId: 'knowledgeBase.userId',
     workspaceId: 'knowledgeBase.workspaceId',
+    organizationId: 'knowledgeBase.organizationId',
     name: 'knowledgeBase.name',
     isSearchIndex: 'knowledgeBase.isSearchIndex',
     description: 'knowledgeBase.description',
@@ -968,6 +970,7 @@ export const schemaMock = {
     userId: 'copilotChats.userId',
     workflowId: 'copilotChats.workflowId',
     workspaceId: 'copilotChats.workspaceId',
+    organizationId: 'copilotChats.organizationId',
     type: 'copilotChats.type',
     title: 'copilotChats.title',
     messages: 'copilotChats.messages',
@@ -1247,6 +1250,7 @@ export const schemaMock = {
   credential: {
     id: 'credential.id',
     workspaceId: 'credential.workspaceId',
+    organizationId: 'credential.organizationId',
     type: 'credential.type',
     displayName: 'credential.displayName',
     description: 'credential.description',
@@ -1283,6 +1287,7 @@ export const schemaMock = {
   credentialGroup: {
     id: 'credentialGroup.id',
     workspaceId: 'credentialGroup.workspaceId',
+    organizationId: 'credentialGroup.organizationId',
     publicId: 'credentialGroup.publicId',
     name: 'credentialGroup.name',
     description: 'credentialGroup.description',
@@ -1340,6 +1345,7 @@ export const schemaMock = {
     id: 'pendingCredentialDraft.id',
     userId: 'pendingCredentialDraft.userId',
     workspaceId: 'pendingCredentialDraft.workspaceId',
+    organizationId: 'pendingCredentialDraft.organizationId',
     providerId: 'pendingCredentialDraft.providerId',
     displayName: 'pendingCredentialDraft.displayName',
     description: 'pendingCredentialDraft.description',
@@ -1441,6 +1447,7 @@ export const schemaMock = {
   },
   knowledgeExternalDirectory: {
     workspaceId: 'knowledgeExternalDirectory.workspaceId',
+    organizationId: 'knowledgeExternalDirectory.organizationId',
     providerId: 'knowledgeExternalDirectory.providerId',
     tenantId: 'knowledgeExternalDirectory.tenantId',
     syncLockToken: 'knowledgeExternalDirectory.syncLockToken',
@@ -1451,6 +1458,7 @@ export const schemaMock = {
   knowledgeExternalGroup: {
     id: 'knowledgeExternalGroup.id',
     workspaceId: 'knowledgeExternalGroup.workspaceId',
+    organizationId: 'knowledgeExternalGroup.organizationId',
     providerId: 'knowledgeExternalGroup.providerId',
     tenantId: 'knowledgeExternalGroup.tenantId',
     externalGroupId: 'knowledgeExternalGroup.externalGroupId',
@@ -1466,6 +1474,7 @@ export const schemaMock = {
   knowledgeConnectorMember: {
     id: 'knowledgeConnectorMember.id',
     workspaceId: 'knowledgeConnectorMember.workspaceId',
+    organizationId: 'knowledgeConnectorMember.organizationId',
     connectorId: 'knowledgeConnectorMember.connectorId',
     credentialId: 'knowledgeConnectorMember.credentialId',
     subjectToken: 'knowledgeConnectorMember.subjectToken',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo, useState } from 'react'
+import { useId, useState } from 'react'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -18,7 +18,7 @@ import {
   OverflowText,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   getCanonicalScopesForProvider,
@@ -44,7 +44,6 @@ import {
   ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
-import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import {
   BROWSE_WITH_HINT,
   connectorSyncFrequencyHint,
@@ -52,8 +51,7 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -62,12 +60,11 @@ import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/comp
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import type { ConnectorMeta } from '@/connectors/types'
-import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
@@ -77,6 +74,7 @@ const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 const WORKSPACE_ACCESS: ConnectorAccessSelection = { accessMode: 'workspace' }
 
 interface AddConnectorModalProps {
+  scope?: ResourceScope
   open: boolean
   onOpenChange: (open: boolean) => void
   onConnectorTypeChange?: (connectorType: string | null) => void
@@ -102,6 +100,7 @@ export function AddConnectorModal({
   initialSyncIntervalMinutes = 1440,
   onCreated,
   setupDraftKey,
+  scope: explicitScope,
 }: AddConnectorModalProps) {
   const metadataId = useId()
   const initialType =
@@ -109,7 +108,9 @@ export function AddConnectorModal({
     (!isSearchIndex || CONNECTOR_META_REGISTRY[initialConnectorType]?.search)
       ? initialConnectorType
       : null
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { scope, canAdmin, memberAccessAvailable, mirroredAccessAvailable, hasMaxAccess } =
+    useConnectorScope(explicitScope)
+  const owner = resourceScopeFields(scope)
   const [draft] = useState(() =>
     setupDraftKey ? useConnectorSetupStore.getState().getDraft(setupDraftKey) : undefined
   )
@@ -149,15 +150,10 @@ export function AddConnectorModal({
   useOAuthReturnForKBConnectors(
     isSearchIndex ? knowledgeBaseId : undefined,
     setSelectedCredentialId,
-    selectedType ?? undefined
+    selectedType ?? undefined,
+    scope
   )
-  const { ownerBilling, features } = useWorkspaceHostContext()
-  const { canAdmin } = useUserPermissionsContext()
-  const memberAccessAvailable = useMemberAccessAvailable()
-  const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
-
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const docsUrl = isSearchIndex ? connectorConfig?.searchDocsUrl : undefined
@@ -191,12 +187,12 @@ export function AddConnectorModal({
       })
     : { admin: false, members: false }
   const needsSlackSetup = selectedType === 'slack' && isMembersMode
-  const { data: workspaceAccounts } = useWorkspaceAccounts(
-    canAdmin && needsSlackSetup ? workspaceId : undefined
+  const { data: sourceAccounts } = useSourceAccounts(
+    canAdmin && needsSlackSetup ? scope : undefined
   )
   const slackConfigured =
-    workspaceAccounts?.credentialGroup?.status === 'active' &&
-    workspaceAccounts.credentialGroup.options.some(
+    sourceAccounts?.credentialGroup?.status === 'active' &&
+    sourceAccounts.credentialGroup.options.some(
       (option) =>
         option.provider === 'slack' &&
         option.status === 'active' &&
@@ -246,10 +242,10 @@ export function AddConnectorModal({
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
     enabled: Boolean(connectorConfig) && !isApiKeyMode,
-    workspaceId,
+    ...owner,
   })
 
-  useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? '', workspaceId)
+  useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? '', scope)
 
   const credentials = rawCredentials.filter(
     (credential) =>
@@ -272,7 +268,7 @@ export function AddConnectorModal({
     canonicalModes,
     setCanonicalModes,
     canonicalGroups,
-    isFieldVisible,
+    isFieldVisible: isConfigFieldVisible,
     isFieldPopulated,
     handleFieldChange,
     toggleCanonicalMode,
@@ -283,6 +279,20 @@ export function AddConnectorModal({
     initialSourceConfig: draft?.sourceConfig,
     initialCanonicalModes: draft?.canonicalModes,
   })
+
+  const indexingCredentialId = isApiKeyMode
+    ? null
+    : isMembersMode
+      ? contentCredentialId
+      : effectiveCredentialId
+  const indexingCredential = credentials.find(
+    (credential) => credential.id === indexingCredentialId
+  )
+  const isFieldVisible = (field: ConnectorConfigField) =>
+    isConfigFieldVisible(field) &&
+    (connectorConfig?.auth.mode !== 'oauth' ||
+      connectorConfig.auth.serviceAccountSubjectFieldId !== field.id ||
+      indexingCredential?.type === 'service_account')
 
   const showCredentialPicker =
     !isMembersMode ||
@@ -415,17 +425,17 @@ export function AddConnectorModal({
     )
   }
 
-  const filteredEntries = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim()
-    const entries = isSearchIndex
-      ? CONNECTOR_ENTRIES.filter(([, config]) => config.search)
-      : CONNECTOR_ENTRIES
-    if (!term) return entries
-    return entries.filter(
-      ([, config]) =>
-        config.name.toLowerCase().includes(term) || config.description.toLowerCase().includes(term)
-    )
-  }, [searchTerm, isSearchIndex])
+  const term = searchTerm.toLowerCase().trim()
+  const entries = isSearchIndex
+    ? CONNECTOR_ENTRIES.filter(([, config]) => config.search)
+    : CONNECTOR_ENTRIES
+  const filteredEntries = term
+    ? entries.filter(
+        ([, config]) =>
+          config.name.toLowerCase().includes(term) ||
+          config.description.toLowerCase().includes(term)
+      )
+    : entries
 
   return (
     <>
@@ -507,7 +517,7 @@ export function AddConnectorModal({
               )}
               {(memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
                 <ConnectorAccessField
-                  workspaceId={workspaceId}
+                  scope={scope}
                   connectorConfig={connectorConfig}
                   value={access}
                   onChange={setAccess}
@@ -632,6 +642,7 @@ export function AddConnectorModal({
                   )}
 
                   <ConnectorConfigFields
+                    scope={scope}
                     accessMode={access.accessMode}
                     connectorConfig={connectorConfig}
                     sourceConfig={sourceConfig}
@@ -753,7 +764,9 @@ export function AddConnectorModal({
                     ? 'Creating…'
                     : 'Connecting…'
                   : isMembersMode
-                    ? 'Create & Invite'
+                    ? scope.kind === 'organization'
+                      ? 'Add source'
+                      : 'Create & Invite'
                     : 'Connect & Sync',
                 onClick: handleSubmit,
                 disabled: !canSubmit || isCreating,
@@ -765,7 +778,7 @@ export function AddConnectorModal({
         <ConnectServiceAccountModal
           open
           onOpenChange={setShowServiceAccountModal}
-          workspaceId={workspaceId}
+          {...owner}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
@@ -791,7 +804,7 @@ export function AddConnectorModal({
             providerId={connectorProviderId}
             docsUrl={docsUrl}
             requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
-            workspaceId={workspaceId}
+            {...owner}
             knowledgeBaseId={knowledgeBaseId}
             connectorType={selectedType ?? undefined}
           />

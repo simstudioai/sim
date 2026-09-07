@@ -30,6 +30,7 @@ import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/wo
 import { CodeIcon, McpIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/workspaces'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
@@ -42,6 +43,7 @@ export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin
 export type SelfHostSettingsSection = 'general' | 'billing' | 'chat-keys'
 
 export type OrganizationSettingsSection =
+  | 'search-mcp'
   | 'members'
   | 'billing'
   | 'usage'
@@ -308,7 +310,7 @@ export const ACCOUNT_SETTINGS_GROUPS = [
 ] as const
 
 /** Planes with their own standalone shell; the workspace plane renders inside the editor. */
-export type StandaloneSettingsPlane = Exclude<SettingsPlane, 'workspace'>
+export type StandaloneSettingsPlane = Exclude<SettingsPlane, 'workspace'> | 'organization'
 
 /**
  * Per-plane sidebar chrome. Self-host is reached from outside the app (the CLI
@@ -321,6 +323,7 @@ export const SETTINGS_PLANE_CHROME: Record<
 > = {
   account: { label: 'Account', showWordmark: false },
   selfhost: { label: 'Self-host', showWordmark: true },
+  organization: { label: 'Organization', showWordmark: false },
 }
 
 export const SELFHOST_SETTINGS_GROUPS = [
@@ -413,7 +416,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'forks',
       description: 'Fork this workspace and sync changes with its parent.',
-      group: 'organization',
+      group: 'workspace',
       order: 3,
     },
     planes: {
@@ -766,7 +769,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'custom-blocks',
       description: 'Publish workflows as reusable blocks for your organization.',
-      group: 'organization',
+      group: 'workspace',
       order: 2,
       requiresHosted: true,
       requiresEnterprise: true,
@@ -877,6 +880,39 @@ export const ORGANIZATION_PLANE_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSec
   )
 )
 
+export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] = [
+  {
+    id: 'search-mcp',
+    label: 'Search MCP',
+    description: 'Search your sources from other apps.',
+    icon: Server,
+    group: 'organization',
+  },
+  ...buildUnifiedSettingsCatalog()
+    .filter((item) => item.organizationSection !== undefined)
+    .sort((left, right) => left.order - right.order)
+    .flatMap((item) =>
+      item.organizationSection
+        ? [{ ...item, id: item.organizationSection, group: 'organization' }]
+        : []
+    ),
+]
+
+export const ORGANIZATION_SETTINGS_GROUPS = [
+  { key: 'organization', title: 'Organization' },
+] as const
+
+export function getOrganizationSettingsHref(
+  organizationId: string,
+  section: OrganizationSettingsSection,
+  searchParams?: SettingsHrefSearchParams
+): string {
+  return withSettingsSearchParams(
+    organizationRoutes(organizationId).settingsSection(section),
+    searchParams
+  )
+}
+
 /**
  * Unified section id to the organization-scoped section it acts on, for the gates
  * that take an {@link OrganizationSettingsSection} (`canOpenOrganizationSettingsSection`,
@@ -920,6 +956,7 @@ export function resolveOrganizationSectionAccess({
   isTargetOrganizationAdmin,
 }: ResolveOrganizationSectionAccessOptions): OrganizationSectionAccess {
   if (!isTargetOrganizationMember) return 'unavailable'
+  if (section === 'search-mcp') return 'view'
   if (section === 'members') return isTargetOrganizationAdmin ? 'manage' : 'view'
   return isTargetOrganizationAdmin ? 'manage' : 'unavailable'
 }
@@ -961,7 +998,7 @@ export function isOrganizationSettingsSectionAvailable(
   section: OrganizationSettingsSection,
   features: OrganizationSettingsFeatures
 ): boolean {
-  if (section === 'members') return true
+  if (section === 'members' || section === 'search-mcp') return true
   if (section === 'billing') return features.billingEnabled
   if (features.hosted) return features.hasEnterprisePlan
   return features.selfHosted[section] ?? false

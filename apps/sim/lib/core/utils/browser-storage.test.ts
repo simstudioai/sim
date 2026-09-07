@@ -13,6 +13,22 @@ function chipContext(): ChatContext {
 }
 
 describe('MothershipHandoffStorage', () => {
+  it('keeps organization recovery separate from all workspace and other organization mounts', () => {
+    const handoff = {
+      message: 'Find the policy',
+      resumeUserMessageId: 'original-send',
+      requestMode: 'assistant' as const,
+    }
+    expect(MothershipHandoffStorage.store(handoff, { organizationId: 'org-1' })).toBe(true)
+    expect(MothershipHandoffStorage.consume('org-1')).toBeNull()
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-2' })).toBeNull()
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toEqual({
+      ...handoff,
+      contexts: [],
+    })
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toBeNull()
+  })
+
   beforeEach(() => {
     localStorage.clear()
   })

@@ -527,6 +527,10 @@ export const updateCredentialGroupAccessContract = defineRouteContract({
   response: { mode: 'json', schema: credentialGroupAccessPolicySchema },
 })
 
+export type StartSlackCredentialGroupConfigurationBody = z.input<
+  typeof startSlackCredentialGroupConfigurationBodySchema
+>
+
 export const startSlackCredentialGroupConfigurationContract = defineRouteContract({
   method: 'POST',
   path: '/api/workspaces/[id]/credential-groups/[groupId]/slack-managed-users',

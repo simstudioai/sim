@@ -254,3 +254,53 @@ describe('credential group OAuth state', () => {
     }
   )
 })
+
+describe('organization enrollment OAuth state', () => {
+  const input = {
+    provider: 'gmail' as const,
+    organizationId: 'org-1',
+    email: 'person@example.com',
+    enrollmentId: 'enrollment-1',
+    credentialGroupId: 'group-1',
+    optionId: 'option-1',
+    authorizationAppId: 'google:app',
+    scopeVersion: 1,
+    requiredScopes: ['openid', 'email'],
+    redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
+    invitationToken: 'invitation-token',
+    returnTo: 'search' as const,
+  }
+  beforeEach(() => {
+    values.clear()
+    vi.clearAllMocks()
+    vi.mocked(getRedisClient).mockReturnValue(mockRedis as never)
+  })
+  it('round trips explicit organization ownership and preserves the setup return destination', async () => {
+    const { state } = await createCredentialGroupOAuthAttempt(input)
+    const raw = JSON.parse([...values.values()][0]!)
+    expect(raw.version).toBe(4)
+    expect(raw.organizationId).toBe('org-1')
+    expect(raw.workspaceId).toBeUndefined()
+    const attempt = await consumeCredentialGroupOAuthAttempt(state)
+    expect(attempt).toMatchObject({
+      organizationId: 'org-1',
+      returnTo: 'search',
+      optionId: 'option-1',
+    })
+    expect(attempt?.workspaceId).toBeUndefined()
+    await expect(consumeCredentialGroupOAuthAttempt(state)).resolves.toBeNull()
+  })
+  it('rejects dual ownership before persisting an OAuth attempt', async () => {
+    await expect(
+      createCredentialGroupOAuthAttempt({ ...input, workspaceId: 'workspace-1' })
+    ).rejects.toThrow('exactly one')
+    expect(mockRedis.set).not.toHaveBeenCalled()
+  })
+  it('does not interpret old workspace-only state as organization authority', async () => {
+    const { state } = await createCredentialGroupOAuthAttempt(input)
+    const [key, raw] = [...values.entries()][0]!
+    values.set(key, JSON.stringify({ ...JSON.parse(raw), version: 3 }))
+    await expect(consumeCredentialGroupOAuthAttempt(state)).rejects.toThrow('malformed')
+    await expect(consumeCredentialGroupOAuthAttempt(state)).resolves.toBeNull()
+  })
+})

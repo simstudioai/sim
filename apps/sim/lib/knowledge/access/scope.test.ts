@@ -97,7 +97,7 @@ describe('resolveKnowledgeAccessScope', () => {
     await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
       kind: 'user',
       userId: 'user-1',
-      tokens: ['pub', 'ws'],
+      tokens: [],
     })
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
@@ -446,5 +446,76 @@ describe('each token family is gated by the feature it depends on', () => {
       userId: 'user-1',
       tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
     })
+  })
+})
+
+describe('organization document ACL scope', () => {
+  const organization = { organizationId: 'org-1' }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  it('uses current organization membership and org baseline without any workspace membership', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    queueSubjects([
+      {
+        email: 'viewer@example.com',
+        providerId: 'google-email',
+        providerTenantId: null,
+        providerSubjectId: 'gmail-subject',
+      },
+    ])
+    await expect(resolveKnowledgeAccessScope(SESSION, organization)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['org', 'pub', 's:google-email:-:gmail-subject', 'u:viewer@example.com'],
+    })
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+  })
+  it('grants nothing after removal, even when stored provider grants remain', async () => {
+    queueTableRows(schemaMock.member, [])
+    queueSubjects([
+      {
+        email: 'viewer@example.com',
+        providerId: 'google-email',
+        providerTenantId: null,
+        providerSubjectId: 'gmail-subject',
+      },
+    ])
+    await expect(resolveKnowledgeAccessScope(SESSION, organization)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: [],
+    })
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+  })
+  it('grants no identity-derived documents to an unverified org account', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    queueSubjects([])
+    await expect(resolveKnowledgeAccessScope(SESSION, organization)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['org', 'pub'],
+    })
+  })
+  it('does not inherit a workspace key creator identity for organization search', async () => {
+    await expect(
+      resolveKnowledgeAccessScope(
+        { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
+        organization
+      )
+    ).rejects.toThrow('requires a user subject')
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+  it('keeps a disabled permission-aware feature on the org baseline only', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    mockAvailability.mockResolvedValueOnce({ memberScoped: false, sourceMirrored: false })
+    await expect(resolveKnowledgeAccessScope(SESSION, organization)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['org', 'pub'],
+    })
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
   })
 })

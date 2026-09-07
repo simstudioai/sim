@@ -9,6 +9,13 @@ function withSearch(search: string) {
 }
 
 describe('chatUrl', () => {
+  it('routes organization conversations to their owner without inventing a workspace', () => {
+    window.history.replaceState(null, '', '/o/org-1/home')
+    expect(chatUrl({ organizationId: 'org-1' }, 'chat-1', 'assistant')).toBe(
+      '/o/org-1/chat/chat-1?mode=assistant'
+    )
+  })
+
   it('carries the mode and the open resource onto the chat path', () => {
     withSearch('?mode=assistant&resource=res-1')
     expect(chatUrl('ws-1', 'chat-1')).toBe(

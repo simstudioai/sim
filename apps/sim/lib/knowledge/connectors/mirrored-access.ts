@@ -1,4 +1,5 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { requireSourceMirroredAccessAvailable } from '@/lib/knowledge/access/availability'
 import { connectorServiceAccountSubject } from '@/lib/knowledge/connectors/access-token'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -17,9 +18,11 @@ import type { ConnectorMeta } from '@/connectors/types'
 export async function assertConnectorMirrorsSourceAcls(
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth' | 'mirrorsSourceAcls'>,
   sourceConfig: Record<string, unknown>,
-  workspaceId: string
+  scope: string | ResourceScope
 ): Promise<void> {
-  await requireSourceMirroredAccessAvailable({ workspaceId })
+  await requireSourceMirroredAccessAvailable(
+    typeof scope === 'string' ? { workspaceId: scope } : resourceScopeFields(scope)
+  )
   if (!connectorMeta.mirrorsSourceAcls) {
     throw new OrchestrationError(
       'validation',

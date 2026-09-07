@@ -1,8 +1,17 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ search: vi.fn(), read: vi.fn() }))
+const mocks = vi.hoisted(() => ({ search: vi.fn(), read: vi.fn(), authorizeChat: vi.fn() }))
+vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+  authorizeOrganizationChatDelegation: { execute: mocks.authorizeChat },
+}))
 vi.mock('@/lib/knowledge/application/workspace-search', () => ({
+  searchOrganizationKnowledge: {
+    get operation() {
+      return knowledgeOperations.search
+    },
+    execute: mocks.search,
+  },
   searchWorkspaceKnowledge: {
     get operation() {
       return knowledgeOperations.search
@@ -69,6 +78,63 @@ describe('Assistant retrieval tools', () => {
       nextOffset: null,
     })
   })
+  it('pins organization and private chat while reusing the canonical search index and citations', async () => {
+    const orgContext = {
+      ...context,
+      workspaceId: undefined,
+      organizationId: 'org-1',
+      chatId: 'chat-1',
+      requestMode: 'assistant',
+    }
+    const result = await searchWorkspaceServerTool.execute(
+      { query: 'policy', organizationId: 'forged' },
+      orgContext
+    )
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        results: [
+          expect.objectContaining({
+            citationUrl: expect.stringContaining('/o/org-1/knowledge/index/doc'),
+          }),
+        ],
+      },
+    })
+    expect(mocks.authorizeChat).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'organization_delegated',
+        subjectUserId: 'reader',
+        organizationId: 'org-1',
+        resourceScope: { chatId: 'chat-1' },
+      }),
+    })
+    expect(mocks.search).toHaveBeenCalledWith({
+      principal: expect.objectContaining({ organizationId: 'org-1' }),
+      input: expect.objectContaining({ organizationId: 'org-1', filters: context.assistantSearch }),
+    })
+    await readDocumentServerTool.execute({ documentId: 'doc' }, orgContext)
+    expect(mocks.read).toHaveBeenCalledWith({
+      principal: expect.objectContaining({ organizationId: 'org-1' }),
+      input: expect.objectContaining({ assertedOrganizationId: 'org-1' }),
+    })
+  })
+
+  it('rejects a removed member or another private chat before reading documents', async () => {
+    mocks.authorizeChat.mockRejectedValueOnce(new Error('Conversation not found'))
+    const result = await readDocumentServerTool.execute(
+      { documentId: 'doc' },
+      {
+        ...context,
+        workspaceId: undefined,
+        organizationId: 'org-1',
+        chatId: 'other-chat',
+        requestMode: 'assistant',
+      }
+    )
+    expect(result.success).toBe(false)
+    expect(mocks.read).not.toHaveBeenCalled()
+  })
+
   it('pins identity and workspace to the trusted turn and retains its search constraints', async () => {
     await searchWorkspaceServerTool.execute(
       { query: 'orion', workspaceId: 'forged', userId: 'other' },

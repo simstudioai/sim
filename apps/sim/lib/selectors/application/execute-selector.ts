@@ -5,11 +5,14 @@ import {
   selectorRequestSchema,
 } from '@/lib/api/contracts/selectors/execute'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import type { OperationUseCase } from '@/lib/core/application/operation'
+import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { selectorOperations } from '@/lib/selectors/application/operations'
 import {
   resolveSelectorApplicationContext,
   type SelectorApplicationContext,
+  type WorkspaceSelectorApplicationContext,
 } from '@/lib/selectors/application/resolve-scope'
 import { isSelectorReady, type ServerSelectorKey } from '@/lib/selectors/manifest'
 import { authorizeSelectorCredential } from '@/lib/selectors/server/credentials'
@@ -130,6 +133,8 @@ async function executeAuthorizedSelector(args: {
 
   try {
     const attachment = getServerSelectorAttachment(args.input.selectorKey as ServerSelectorKey)
+    const organizationId =
+      args.input.scope.kind === 'organization' ? args.input.scope.organizationId : undefined
     const resolved = await resolveSelectorReferences({
       selectorKey: args.input.selectorKey as ServerSelectorKey,
       context: args.input.context,
@@ -157,6 +162,7 @@ async function executeAuthorizedSelector(args: {
             context: resolvedContext,
             scope: args.input.scope,
             workspaceId: args.context.workspaceId,
+            organizationId,
             policy: attachment.credential,
             protectedValues,
             references: resolved.references,
@@ -182,6 +188,7 @@ async function executeAuthorizedSelector(args: {
     await assertSelectorIntegrationAllowed({
       principal: args.principal,
       workspaceId: args.context.workspaceId,
+      organizationId,
       blockTypes: selectorIntegrationBlockTypes(attachment),
     })
 
@@ -194,7 +201,7 @@ async function executeAuthorizedSelector(args: {
             credentialUseRecorded = true
             recordCredentialAccess({
               actorId: args.principal.userId,
-              workspaceId: args.context.workspaceId,
+              workspaceId: args.context.workspaceId ?? null,
               resourceId: credentialAccess.resolvedCredentialId!,
               providerId: credential?.providerId ?? providerId,
               credentialType:
@@ -210,6 +217,7 @@ async function executeAuthorizedSelector(args: {
       request: resolvedRequest,
       scope: args.input.scope,
       workspaceId: args.context.workspaceId,
+      organizationId,
       principal: args.principal,
       requesterUserId: args.principal.userId,
       credential,
@@ -287,14 +295,51 @@ async function executeAuthorizedSelector(args: {
   }
 }
 
-export const executeSelector = defineAuthorizedWorkspaceUseCase({
+const executeWorkspaceSelector = defineAuthorizedWorkspaceUseCase<
+  typeof selectorOperations.execute,
+  ExecuteSelectorInput,
+  WorkspaceSelectorApplicationContext,
+  SelectorExecutionResult
+>({
   operation: selectorOperations.execute,
-  resolveContext: ({ input }) =>
-    resolveSelectorApplicationContext({
+  resolveContext: async ({
+    input,
+  }: {
+    input: ExecuteSelectorInput
+  }): Promise<WorkspaceSelectorApplicationContext> => {
+    const context = await resolveSelectorApplicationContext({
       selectorKey: input.selectorKey as ServerSelectorKey,
       scope: input.scope,
-    }),
+    })
+    if (context.workspaceId === undefined) throw new SelectorContextUnavailableError()
+    return context
+  },
   authorizationOptions: {},
   authorizeResource: ({ input, context }) => validateAuthorizedInput(input, context),
   execute: executeAuthorizedSelector,
 })
+
+/** Organization pickers use the admin's scoped connection without a workspace context. */
+export const executeSelector: OperationUseCase<
+  typeof selectorOperations.execute,
+  ExecuteSelectorInput,
+  SelectorExecutionResult
+> = {
+  operation: selectorOperations.execute,
+  async execute(args) {
+    if (args.input.scope.kind !== 'organization') return executeWorkspaceSelector.execute(args)
+    if (args.principal.kind !== 'session') throw new SelectorContextUnavailableError()
+    await requireOrganizationMembership(
+      args.principal,
+      args.input.scope.organizationId,
+      'admin',
+      'knowledge.use'
+    )
+    const context = await resolveSelectorApplicationContext({
+      selectorKey: args.input.selectorKey as ServerSelectorKey,
+      scope: args.input.scope,
+    })
+    validateAuthorizedInput(args.input, context)
+    return executeAuthorizedSelector({ principal: args.principal, input: args.input, context })
+  },
+}
