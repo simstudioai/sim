@@ -9,7 +9,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
-import { getOutputFileReceipts } from '@/lib/mothership/request/tools/files'
+import { getOutputFileReceipts, outputWriteFailure } from '@/lib/mothership/request/tools/files'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/mothership/request/tools/permissions'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/mothership/request/types'
@@ -37,13 +37,7 @@ function printedStdout(rawOutput: unknown): string | undefined {
  * files so the caller sees what landed instead of re-running the code for it.
  */
 function outputTableFailure(error: string, rawOutput: unknown): ToolCallResult {
-  const files = getOutputFileReceipts(rawOutput)
-  if (files.length === 0) return { success: false, error }
-  return {
-    success: false,
-    error: `${error}. The declared output files were already written.`,
-    output: { files },
-  }
+  return outputWriteFailure(error, getOutputFileReceipts(rawOutput))
 }
 /**
  * Replaces a table's rows with wire rows keyed by column name. Translates the
