@@ -1339,7 +1339,10 @@ export function BrowserSession({
                           }
                         : null
                     setSuggestionsVisible(true)
-                    if (document.activeElement !== event.currentTarget) {
+                    if (
+                      document.activeElement !== event.currentTarget ||
+                      suggestionQuery === null
+                    ) {
                       setSuggestionOriginUrl(pageState?.url ?? '')
                       setSuggestionQuery('')
                     }
@@ -1433,6 +1436,9 @@ export function BrowserSession({
               // Focus has to stay in the omnibox: the user is still typing, and
               // the list is driven by arrow keys rather than by tabbing into it.
               onOpenAutoFocus={(event) => event.preventDefault()}
+              onInteractOutside={(event) => {
+                if (event.target === urlInputRef.current) event.preventDefault()
+              }}
             >
               {suggestions.map((suggestion, index) => (
                 <PopoverItem
