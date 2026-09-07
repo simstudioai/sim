@@ -264,6 +264,7 @@ To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In 
         result: result.output.result,
         stdout: result.output.stdout,
         files: result.output.files ?? [],
+        ...(result.output.exported ? { exported: result.output.exported } : {}),
         ...(result.output.cost ? { cost: result.output.cost } : {}),
         ...(result.output.sandboxSession ? { sandboxSession: result.output.sandboxSession } : {}),
       },

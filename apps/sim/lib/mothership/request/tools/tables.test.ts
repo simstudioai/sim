@@ -51,6 +51,7 @@ const table: TableDefinition = {
   workspaceId: 'workspace-1',
   createdBy: 'user-1',
   archivedAt: null,
+  locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
@@ -58,7 +59,7 @@ const table: TableDefinition = {
 const tableLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi
     .mocked(loggerMock.createLogger)
-    .mock.calls.findIndex(([name]) => name === 'CopilotToolResultTables')
+    .mock.calls.findIndex((call: readonly unknown[]) => call[0] === 'CopilotToolResultTables')
 ]?.value
 
 function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
@@ -254,6 +255,25 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(result.error).toContain('already written')
     expect(result.output).toEqual({ files })
     expect(mocks.executeReplace).not.toHaveBeenCalled()
+  })
+
+  it('keeps committed file receipts when the table application command throws', async () => {
+    const files = [{ fileId: 'file-1', vfsPath: 'files/report.csv' }]
+    mocks.executeReplace.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const result = await maybeWriteOutputToTable(
+      RunFunction.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: [{ name: 'Ada' }], exported: { files } } },
+      buildContext()
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'Failed to write to table: Table operation failed. The declared output files were already written.',
+      output: { files },
+    })
   })
 
   it('tells each language how to hand rows back when the shape is wrong', async () => {

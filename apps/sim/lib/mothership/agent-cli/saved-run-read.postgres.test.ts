@@ -4,6 +4,10 @@
  * Opt in with MSHIP_TEST_DATABASE_URL pointing to a local mship_audit_* database.
  * SIM_HELPERS_SMOKE=1 also runs the actual service/DAG/Function runtime and log writer.
  * MSHIP_WORKER_ROOT additionally runs the real controller with a local scripted worker.
+ * MSHIP_LOCAL_COMPUTE_IMAGE opts into local Docker shell computation (Python 3 required).
+ * Those cases run the actual Function adapter and Mothership file/table post-processors;
+ * mounts, session directories and result collection replace the remote provider boundary.
+ * They do not certify E2B lifecycle, the production image or CLI installation in the sandbox.
  * CLI, routes, canonical scope, application authorization, SQL and display projection
  * are real. Execution traces and workspace objects live in local files; cache clearing
  * forces physical reads. D4/B1/B4/A1 cases run the companion's canonical oracles; B1/B4/A1 also
@@ -12,14 +16,15 @@
  * and external effects are fixtures. Seeded cases also bypass execution/log writing.
  * Isolated columns plus required defaults/indexes do not prove migrations or all constraints.
  */
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createReadStream } from 'node:fs'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
+import { promisify } from 'node:util'
 import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
@@ -56,7 +61,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { authMockFns } from '@sim/testing'
+import { authMockFns, envFlagsMock, setEnvFlags } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
@@ -73,6 +78,7 @@ import { env } from '@/lib/core/config/env'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { executeInSandbox, executeShellInSandbox } from '@/lib/execution/remote-sandbox'
+import type { SandboxShellExecutionRequest } from '@/lib/execution/remote-sandbox/types'
 import type { CreateExecutorPrincipalFromExecutionContextInput } from '@/lib/internal/principals/executor'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
@@ -116,9 +122,15 @@ import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
+import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
+import { maybeWriteOutputToTable } from '@/lib/mothership/request/tools/tables'
+import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { changeStoredChatResources } from '@/lib/mothership/resources/store'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
-import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
+import {
+  executeFunctionExecute,
+  resolveInputFiles,
+} from '@/lib/mothership/tools/handlers/function-execute'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -165,6 +177,7 @@ const fixture = vi.hoisted(() => ({
   storageReads: [] as string[],
   storageKeys: new Map<string, string>(),
   inboxBytes: new Map<string, Buffer>(),
+  workbenchBootstrap: '',
 }))
 vi.mock('@/lib/mothership/request/http', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mothership/request/http')>()),
@@ -1166,6 +1179,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       })
       controlServer = createServer(async (incoming, outgoing) => {
         try {
+          if (incoming.url === '/api/workbench/bootstrap' && fixture.workbenchBootstrap) {
+            outgoing.writeHead(200, { 'content-type': 'application/json' })
+            outgoing.end(fixture.workbenchBootstrap)
+            return
+          }
           if (incoming.url !== '/api/mothership/runs/control') {
             outgoing.writeHead(404).end()
             return
@@ -2201,6 +2219,240 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         .where(eq(copilotChats.id, chatId))
       expect(chat.streamId).toBeNull()
     })
+
+    it
+      .skipIf(!process.env.MSHIP_LOCAL_COMPUTE_IMAGE || !process.env.MSHIP_WORKER_ROOT)
+      .each(['returned-value', 'sandbox-file', 'mixed-files', 'missing-table'] as const)(
+      'composes attachment computation, table replacement, durable export and fresh-chat re-import: %s',
+      async (mode) => {
+        fixture.permission = 'write'
+        const runProcess = promisify(execFile)
+        const tableId = generateId()
+        const chatId = generateId()
+        const attachmentId = generateId()
+        const filename = `orders-${attachmentId}.csv`
+        const exportName = `totals-${attachmentId}.csv`
+        const bytes = Buffer.from('account,amount\nalpha,17\nbeta,23\nalpha,5\n')
+        fixture.inboxBytes.set(attachmentId, bytes)
+        const previousWorkerUrl = fixture.workerUrl
+        const previousWorkbenchEnabled = envFlagsMock.isMothershipSandboxEnabled
+        const sessions = new Map<string, string>()
+        const context = (id: string): ExecutionContext => ({
+          userId: 'run-reader',
+          workspaceId,
+          workflowId: '',
+          chatId: id,
+          executionId: generateId(),
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          copilotInteractionMode: 'interactive',
+          sandboxProfile: 'mothership',
+          userPermission: 'write',
+          resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+            userId: 'run-reader',
+            workspaceId,
+          }),
+        })
+        /** Actual local code and mounted bytes; this seam does not certify hosted provider lifecycle. */
+        const compute = async (request: SandboxShellExecutionRequest) => {
+          expect(request.privateInputs ?? []).toHaveLength(0)
+          const key = request.session?.key
+          if (!key) throw new Error('Expected a chat-scoped workbench')
+          const reused = sessions.has(key)
+          const directory =
+            sessions.get(key) ?? (await mkdtemp(join(fixture.directory, 'compute-')))
+          sessions.set(key, directory)
+          const localPath = (path: string) => {
+            if (!path.startsWith('/home/user/') || path.split('/').includes('..')) {
+              throw new Error('Local compute fixture only mounts beneath /home/user')
+            }
+            return join(directory, path.slice('/home/user/'.length))
+          }
+          for (const file of request.sandboxFiles ?? []) {
+            if (file.type === 'url') throw new Error('Network mounts are outside this fixture')
+            const path = localPath(file.path)
+            await mkdir(dirname(path), { recursive: true })
+            await writeFile(
+              path,
+              Buffer.from(file.content, file.encoding === 'base64' ? 'base64' : 'utf8')
+            )
+          }
+          const { stdout, stderr } = await runProcess(
+            'docker',
+            [
+              'run',
+              '--rm',
+              '--network',
+              'none',
+              '--mount',
+              `type=bind,src=${directory},dst=/home/user`,
+              '--workdir',
+              '/home/user',
+              '--entrypoint',
+              '/bin/sh',
+              process.env.MSHIP_LOCAL_COMPUTE_IMAGE!,
+              '-c',
+              request.code,
+            ],
+            { timeout: request.timeoutMs, signal: request.signal, maxBuffer: 1024 * 1024 }
+          )
+          expect(stderr).toBe('')
+          const lines = stdout.trimEnd().split('\n')
+          const marker = [...lines].reverse().find((line) => line.startsWith('__SIM_RESULT__='))
+          if (!marker) throw new Error('Local code did not emit a result')
+          const exportedFiles: Record<string, string> = {}
+          for (const path of request.outputSandboxPaths ?? []) {
+            exportedFiles[path] = await readFile(localPath(path), 'utf8')
+          }
+          return {
+            result: JSON.parse(marker.slice('__SIM_RESULT__='.length)),
+            stdout: lines.filter((line) => !line.startsWith('__SIM_RESULT__=')).join('\n'),
+            exportedFiles,
+            sandboxSession: reused ? ('reused' as const) : ('created' as const),
+          }
+        }
+        try {
+          const bootstrap = await runProcess(
+            'bun',
+            [
+              '-e',
+              'import { workbenchBootstrap } from "./apps/server/src/workbench/bootstrap.ts"; process.stdout.write(JSON.stringify(workbenchBootstrap))',
+            ],
+            { cwd: process.env.MSHIP_WORKER_ROOT }
+          )
+          fixture.workbenchBootstrap = bootstrap.stdout
+          fixture.workerUrl = controlEndpoint
+          setEnvFlags({ isMothershipSandboxEnabled: true })
+          await db.insert(copilotChats).values([{ id: chatId, workspaceId, userId: 'run-reader' }])
+          await db.insert(userTableDefinitions).values({
+            id: tableId,
+            workspaceId,
+            name: `totals_${tableId}`,
+            createdBy: 'run-reader',
+            createdAt: now,
+            updatedAt: now,
+            maxRows: 10000,
+            rowCount: 0,
+            schema: {
+              columns: [
+                { id: 'col_account', name: 'account', type: 'string' },
+                { id: 'col_total', name: 'total', type: 'number' },
+              ],
+            },
+          })
+          const prepared = await prepareInboxAttachments({
+            attachments: [
+              {
+                attachment_id: attachmentId,
+                filename,
+                content_type: 'text/csv',
+                size: bytes.length,
+              },
+            ],
+            inboxProviderId: 'local-inbox',
+            messageId: 'composition-mail',
+            taskId: 'local-task',
+            workspaceId,
+            userId: 'run-reader',
+            chatId,
+            userMessageId: 'composition-message',
+          })
+          expect(prepared.storedAttachments).toHaveLength(1)
+          await vi.mocked(executeShellInSandbox).withImplementation(compute, async () => {
+            const callContext = context(chatId)
+            const params = {
+              language: 'shell',
+              timeout: 30,
+              inputs: {
+                files: [{ path: `uploads/${filename}`, sandboxPath: '/home/user/orders.csv' }],
+              },
+              code: `python3 - <<'PY'\nimport csv, json\nfrom collections import defaultdict\ntotals = defaultdict(int)\nwith open('/home/user/orders.csv') as f:\n    for row in csv.DictReader(f):\n        totals[row['account']] += int(row['amount'])\nrows = [{'account': name, 'total': total} for name, total in sorted(totals.items())]\nwith open('/home/user/totals.csv', 'w') as f:\n    writer = csv.DictWriter(f, fieldnames=['account', 'total'])\n    writer.writeheader()\n    writer.writerows(rows)\nprint('Aggregated 3 orders')\nprint('__SIM_RESULT__=' + json.dumps(rows))\nPY`,
+              outputs: {
+                files: [
+                  {
+                    path: `files/${exportName}`,
+                    ...(mode === 'sandbox-file' ? { sandboxPath: '/home/user/totals.csv' } : {}),
+                  },
+                  ...(mode === 'mixed-files'
+                    ? [{ path: `files/raw-${exportName}`, sandboxPath: '/home/user/totals.csv' }]
+                    : []),
+                ],
+              },
+              outputTable: mode === 'missing-table' ? generateId() : tableId,
+            }
+            let result = await executeFunctionExecute(params, callContext)
+            expect(result.success, JSON.stringify(result)).toBe(true)
+            result = await maybeWriteOutputToFile('run_function', params, result, callContext)
+            expect(result.success, JSON.stringify(result)).toBe(true)
+            result = await maybeWriteOutputToTable('run_function', params, result, callContext)
+            if (mode === 'missing-table') {
+              expect(result.success).toBe(false)
+              expect(result.error).toContain('already written')
+              expect(result.output).toMatchObject({
+                files: [expect.objectContaining({ vfsPath: `files/${exportName}` })],
+              })
+            } else {
+              expect(result.success, JSON.stringify(result)).toBe(true)
+              expect(result.output).toMatchObject({
+                tableId,
+                rowCount: 2,
+                stdout: 'Aggregated 3 orders',
+              })
+              if (mode === 'mixed-files') {
+                expect(result.output).toMatchObject({
+                  exported: {
+                    files: expect.arrayContaining([
+                      expect.objectContaining({ vfsPath: `files/${exportName}` }),
+                      expect.objectContaining({ vfsPath: `files/raw-${exportName}` }),
+                    ]),
+                  },
+                })
+              }
+            }
+            const rows = await db
+              .select()
+              .from(userTableRows)
+              .where(eq(userTableRows.tableId, tableId))
+            const expectedRows =
+              mode === 'missing-table'
+                ? []
+                : [
+                    { col_account: 'alpha', col_total: 22 },
+                    { col_account: 'beta', col_total: 23 },
+                  ]
+            expect(rows).toHaveLength(expectedRows.length)
+            expect(rows.map((row) => row.data)).toEqual(expect.arrayContaining(expectedRows))
+            const freshChatId = generateId()
+            await db
+              .insert(copilotChats)
+              .values({ id: freshChatId, workspaceId, userId: 'run-reader' })
+            const fresh = await executeFunctionExecute(
+              {
+                language: 'shell',
+                timeout: 30,
+                inputs: {
+                  files: [{ path: `files/${exportName}`, sandboxPath: '/home/user/export.csv' }],
+                },
+                code: `python3 - <<'PY'\nimport csv, json, os\nassert not os.path.exists('/home/user/orders.csv')\nwith open('/home/user/export.csv') as f:\n    rows = list(csv.DictReader(f))\nprint('__SIM_RESULT__=' + json.dumps({'total': sum(int(r['total']) for r in rows), 'accounts': [r['account'] for r in rows]}))\nPY`,
+              },
+              context(freshChatId)
+            )
+            expect(fresh.success, JSON.stringify(fresh)).toBe(true)
+            expect(fresh.output).toMatchObject({
+              result: { total: 45, accounts: ['alpha', 'beta'] },
+              sandboxSession: 'created',
+            })
+            expect(sessions.size).toBe(2)
+          })
+        } finally {
+          setEnvFlags({ isMothershipSandboxEnabled: previousWorkbenchEnabled })
+          fixture.workbenchBootstrap = ''
+          fixture.workerUrl = previousWorkerUrl
+          fixture.inboxBytes.delete(attachmentId)
+        }
+      },
+      60_000
+    )
 
     it('reads actual inbox attachment bytes after chat binding', async () => {
       const chatId = generateId()
