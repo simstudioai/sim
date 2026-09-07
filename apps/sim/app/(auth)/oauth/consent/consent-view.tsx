@@ -45,13 +45,8 @@ interface OAuthConsentViewProps {
 }
 
 /**
- * The host the authorization code will be delivered to, or `null` when the
- * request names none this page can read.
- *
- * A registered `client_name` is whatever the client called itself, so for a
- * public client the destination is the one part of the request an impostor
- * cannot borrow. A loopback address is named plainly rather than shown as an
- * IP, because "this computer" is what it means to the person reading it.
+ * Shows the redirect host beside the app name to help identify impersonation;
+ * names loopback callbacks as this computer.
  */
 function describeDestination(redirectUri: string | null): string | null {
   if (!redirectUri) return null
@@ -66,11 +61,8 @@ function describeDestination(redirectUri: string | null): string | null {
 }
 
 /**
- * The consent card: which app is asking, what it will be able to do, and as
- * whom. Every decision here is a real grant, so the copy names the app and the
- * account rather than a generic "an application" — the page is the only place
- * a relayed or phished authorization can be caught, which is also why the
- * first-party CLI never skips it.
+ * Always names the app and account, including for the CLI, so users can
+ * recognize relayed authorization attempts.
  */
 export function OAuthConsentView({
   refusal,

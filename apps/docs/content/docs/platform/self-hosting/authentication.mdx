@@ -98,14 +98,17 @@ returns 404 and the CLI falls back to the pairing-code handoff on its own.
 `DISABLE_AUTH=true` also forces the provider off because the authorization flow
 requires a real Better Auth user session.
 
-Access tokens are opaque and last an hour; refresh tokens rotate on every use
-and expire after thirty days. Nothing is cached, so revoking a grant under
+Access tokens are opaque and last an hour; refresh tokens rotate on every use.
+Each login has a fixed thirty-day lifetime that refreshing does not extend.
+Nothing is cached, so revoking a grant under
 **Settings → Authorized apps** stops the app on its very next request.
 
 ### Registering an app
 
 Dynamic client registration is switched off, so clients are created by an
-operator. The Sim CLI is seeded by the migration; register anything else with:
+operator. Both `db:migrate` and the development `db:push` command install the
+OAuth lifecycle triggers and register the Sim CLI. Repeating either command
+preserves existing grants and client customizations. Register other apps with:
 
 ```bash
 DATABASE_URL=… \

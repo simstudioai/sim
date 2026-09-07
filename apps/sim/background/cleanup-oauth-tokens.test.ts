@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -45,11 +45,16 @@ function selectChain(rows: unknown[], captured: unknown[]) {
 
 describe('runCleanupOAuthTokens', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
     mocks.transaction.mockImplementation((work) =>
       work({ select: mocks.txSelect, delete: mocks.txDelete })
     )
     mocks.txSelect.mockImplementation(() => selectChain([], []))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('deletes exactly the expired rows it selected, and reports both counts', async () => {
@@ -116,7 +121,7 @@ describe('runCleanupOAuthTokens', () => {
     expect(OAUTH_TOKEN_RETENTION_DAYS).toBeGreaterThan(0)
   })
 
-  it('bounds family cascades independently of direct token pages and stops a full backlog', async () => {
+  it('drains up to 50,000 families and access tokens with only ten families per transaction', async () => {
     const families = Array.from({ length: 10 }, (_, index) => ({
       id: `family-${index}`,
       clientId: 'client-1',
@@ -124,22 +129,84 @@ describe('runCleanupOAuthTokens', () => {
       userId: 'user-1',
       consentId: null,
     }))
-    for (let page = 0; page < 10; page += 1) {
-      mocks.select.mockReturnValueOnce(selectChain(families, []))
-    }
-    mocks.select.mockReturnValueOnce(selectChain([], []))
+    const accessTokens = Array.from({ length: 5_000 }, (_, index) => ({ id: `access-${index}` }))
+    mocks.select.mockImplementation((fields: Record<string, unknown>) =>
+      selectChain('clientId' in fields ? families : accessTokens, [])
+    )
     mocks.txDelete.mockReturnValue({
       where: () => ({ returning: async () => families.map(({ id }) => ({ id })) }),
     })
+    mocks.delete.mockReturnValue({
+      where: () => ({ returning: async () => accessTokens }),
+    })
 
     await expect(runCleanupOAuthTokens()).resolves.toEqual({
-      tokenFamilies: 100,
-      accessTokens: 0,
+      tokenFamilies: 50_000,
+      accessTokens: 50_000,
     })
-    expect(mocks.transaction).toHaveBeenCalledTimes(10)
-    expect(mocks.limits.mock.calls.map(([limit]) => limit)).toEqual([
-      ...Array.from({ length: 10 }, () => 10),
-      5_000,
-    ])
+    expect(mocks.transaction).toHaveBeenCalledTimes(5_000)
+    expect(mocks.delete).toHaveBeenCalledTimes(10)
+    const limits = mocks.limits.mock.calls.map(([limit]) => limit)
+    expect(limits.filter((limit) => limit === 10)).toHaveLength(5_000)
+    expect(limits.filter((limit) => limit === 5_000)).toHaveLength(10)
+    expect(limits.slice(0, 4)).toEqual([10, 5_000, 10, 5_000])
+  })
+
+  it('stops at its deadline with committed progress from both backlogs', async () => {
+    const startedAt = Date.now()
+    const families = Array.from({ length: 10 }, (_, index) => ({
+      id: `family-${index}`,
+      clientId: 'client-1',
+      sessionId: null,
+      userId: 'user-1',
+      consentId: null,
+    }))
+    const accessTokens = Array.from({ length: 5_000 }, (_, index) => ({ id: `access-${index}` }))
+    mocks.select.mockImplementation((fields: Record<string, unknown>) =>
+      selectChain('clientId' in fields ? families : accessTokens, [])
+    )
+    mocks.txDelete.mockReturnValue({
+      where: () => ({ returning: async () => families.map(({ id }) => ({ id })) }),
+    })
+    mocks.delete.mockReturnValue({
+      where: () => ({
+        returning: async () => {
+          vi.setSystemTime(startedAt + 45_000)
+          return accessTokens
+        },
+      }),
+    })
+
+    await expect(runCleanupOAuthTokens()).resolves.toEqual({
+      tokenFamilies: 10,
+      accessTokens: 5_000,
+    })
+    expect(mocks.transaction).toHaveBeenCalledOnce()
+    expect(mocks.delete).toHaveBeenCalledOnce()
+    expect(mocks.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not begin a delete when selection exhausts the deadline', async () => {
+    const startedAt = Date.now()
+    mocks.select.mockImplementation(() => {
+      vi.setSystemTime(startedAt + 45_000)
+      return selectChain(
+        [
+          {
+            id: 'family-1',
+            clientId: 'client-1',
+            sessionId: null,
+            userId: 'user-1',
+            consentId: null,
+          },
+        ],
+        []
+      )
+    })
+
+    await expect(runCleanupOAuthTokens()).resolves.toEqual({ tokenFamilies: 0, accessTokens: 0 })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.select).toHaveBeenCalledOnce()
   })
 })

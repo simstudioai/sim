@@ -6,6 +6,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runCleanupOAuthTokens } from '@/background/cleanup-oauth-tokens'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const logger = createLogger('CleanupOAuthTokensAPI')
 

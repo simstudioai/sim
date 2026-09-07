@@ -14,14 +14,8 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 /**
- * The OAuth provider's `consentPage`. The plugin sends a signed-in user here with
- * the signed authorization query; the view shows who is asking and for what, and
- * the consent call carries that same query back so the plugin can mint a code
- * for exactly the request the user saw.
- *
- * A signed-out visitor (a stale tab, a shared link) goes through the same
- * bounce the plugin uses for its `loginPage`, which re-enters authorize after
- * sign-in and lands back here with a fresh signature.
+ * Renders the plugin's signed request; signed-out visitors restart through the
+ * login bridge to obtain a fresh authorization query.
  */
 export default async function OAuthConsentPage({
   searchParams,
@@ -55,13 +49,15 @@ export default async function OAuthConsentPage({
   const authorizationRequestKey = refusal ? null : JSON.stringify(raw)
 
   return (
-    <OAuthConsentView
-      refusal={refusal}
-      clientId={params?.client_id ?? null}
-      authorizationRequestKey={authorizationRequestKey}
-      scope={params?.scope ?? null}
-      redirectUri={params?.redirect_uri ?? null}
-      email={session.user.email}
-    />
+    <div className='[overflow-wrap:anywhere]'>
+      <OAuthConsentView
+        refusal={refusal}
+        clientId={params?.client_id ?? null}
+        authorizationRequestKey={authorizationRequestKey}
+        scope={params?.scope ?? null}
+        redirectUri={params?.redirect_uri ?? null}
+        email={session.user.email}
+      />
+    </div>
   )
 }

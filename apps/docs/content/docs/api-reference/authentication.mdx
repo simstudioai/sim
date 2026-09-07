@@ -103,7 +103,7 @@ curl https://www.sim.ai/api/v2/workspaces \
 | Scope | Access |
 | --- | --- |
 | `api:read` | Read operations, including searches sent as POST requests |
-| `api:write` | Mutations and execution, including operations that can start external work |
+| `api:write` | Includes `api:read`, plus mutations and execution, including operations that can start external work |
 | `offline_access` | Refresh tokens for continued access after the access token expires |
 
 Scopes limit what an application may do; your current workspace membership and role still apply. Each endpoint documents its required scope. Some GET endpoints that perform external discovery require `api:write`, so HTTP method alone does not determine the permission.

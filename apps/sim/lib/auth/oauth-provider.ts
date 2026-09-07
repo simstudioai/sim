@@ -24,12 +24,8 @@ export const OAUTH_SCOPES = ['offline_access', OAUTH_API_READ_SCOPE, OAUTH_API_W
 export type OAuthScope = (typeof OAUTH_SCOPES)[number]
 
 /**
- * Token lifetimes, in seconds, as the plugin takes them.
- *
- * An hour of access matches what gcloud and the AWS CLI issue and limits the
- * lifetime of a copied token that is not otherwise revoked. Thirty days of
- * refresh is the plugin's own default and means a daily user signs in roughly
- * monthly.
+ * Lifetimes in seconds. An hour bounds copied access tokens; refresh families
+ * have a fixed thirty-day lifetime.
  */
 export const OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60
 export const OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60

@@ -26,8 +26,11 @@ export const OAUTH_TOKEN_RETENTION_DAYS = 7
  * batch small independently of direct access-token deletion.
  */
 const OAUTH_FAMILY_SWEEP_LIMIT = 10
+const OAUTH_FAMILY_SWEEP_MAX_PAGES = 5_000
 const OAUTH_ACCESS_TOKEN_SWEEP_LIMIT = 5_000
-const OAUTH_TOKEN_SWEEP_MAX_PAGES = 10
+const OAUTH_ACCESS_TOKEN_SWEEP_MAX_PAGES = 10
+/** Stops admitting batches before the Helm cron's 60-second request timeout. */
+const OAUTH_TOKEN_SWEEP_BUDGET_MS = 45_000
 
 export interface CleanupOAuthTokensResult {
   tokenFamilies: number
@@ -117,60 +120,79 @@ async function deleteExpiredFamilyBatch(
  * later reuse go unnoticed while descendants remained active. The family row
  * therefore owns retention and cascades every generation when it expires.
  *
- * Families go first and their refresh/access tokens follow by cascade. The
- * second pass catches expired access tokens for still-live families and access
- * tokens issued without a refresh grant. Both passes use bounded indexed pages.
+ * Interleaves family and access-token pages so neither backlog prevents the
+ * other from making progress before the deadline. Family deletion cascades its
+ * remaining tokens; access pages also catch tokens from still-live families or
+ * grants without refresh tokens. Both sweeps retain a 50,000-row run cap while
+ * family transactions stay small enough to bound their descendant cascades.
  */
 export async function runCleanupOAuthTokens(): Promise<CleanupOAuthTokensResult> {
-  const cutoff = new Date(Date.now() - OAUTH_TOKEN_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+  const startedAt = Date.now()
+  const deadline = startedAt + OAUTH_TOKEN_SWEEP_BUDGET_MS
+  const cutoff = new Date(startedAt - OAUTH_TOKEN_RETENTION_DAYS * 24 * 60 * 60 * 1000)
   let tokenFamilies = 0
   let accessTokens = 0
+  let moreFamilies = true
+  let moreAccessTokens = true
 
-  for (let page = 0; page < OAUTH_TOKEN_SWEEP_MAX_PAGES; page += 1) {
-    const staleFamilies = await db
-      .select({
-        id: oauthTokenFamily.id,
-        clientId: oauthTokenFamily.clientId,
-        sessionId: oauthTokenFamily.sessionId,
-        userId: oauthTokenFamily.userId,
-        consentId: oauthTokenFamily.consentId,
-      })
-      .from(oauthTokenFamily)
-      .where(lt(oauthTokenFamily.expiresAt, cutoff))
-      .orderBy(asc(oauthTokenFamily.expiresAt), asc(oauthTokenFamily.id))
-      .limit(OAUTH_FAMILY_SWEEP_LIMIT)
-    if (staleFamilies.length === 0) break
+  for (let page = 0; page < OAUTH_FAMILY_SWEEP_MAX_PAGES; page += 1) {
+    if (Date.now() >= deadline || (!moreFamilies && !moreAccessTokens)) break
 
-    tokenFamilies += await deleteExpiredFamilyBatch(staleFamilies, cutoff)
-    if (staleFamilies.length < OAUTH_FAMILY_SWEEP_LIMIT) break
-  }
+    if (moreFamilies) {
+      const staleFamilies = await db
+        .select({
+          id: oauthTokenFamily.id,
+          clientId: oauthTokenFamily.clientId,
+          sessionId: oauthTokenFamily.sessionId,
+          userId: oauthTokenFamily.userId,
+          consentId: oauthTokenFamily.consentId,
+        })
+        .from(oauthTokenFamily)
+        .where(lt(oauthTokenFamily.expiresAt, cutoff))
+        .orderBy(asc(oauthTokenFamily.expiresAt), asc(oauthTokenFamily.id))
+        .limit(OAUTH_FAMILY_SWEEP_LIMIT)
+      if (Date.now() >= deadline) break
 
-  for (let page = 0; page < OAUTH_TOKEN_SWEEP_MAX_PAGES; page += 1) {
-    const staleAccess = await db
-      .select({ id: oauthAccessToken.id })
-      .from(oauthAccessToken)
-      .where(lt(oauthAccessToken.expiresAt, cutoff))
-      .orderBy(asc(oauthAccessToken.expiresAt), asc(oauthAccessToken.id))
-      .limit(OAUTH_ACCESS_TOKEN_SWEEP_LIMIT)
-    if (staleAccess.length === 0) break
+      if (staleFamilies.length > 0) {
+        tokenFamilies += await deleteExpiredFamilyBatch(staleFamilies, cutoff)
+      }
+      moreFamilies = staleFamilies.length === OAUTH_FAMILY_SWEEP_LIMIT
+    }
 
-    const deleted = await db
-      .delete(oauthAccessToken)
-      .where(
-        inArray(
-          oauthAccessToken.id,
-          staleAccess.map((row) => row.id)
-        )
-      )
-      .returning({ id: oauthAccessToken.id })
-    accessTokens += deleted.length
-    if (staleAccess.length < OAUTH_ACCESS_TOKEN_SWEEP_LIMIT) break
+    if (Date.now() >= deadline) break
+    if (moreAccessTokens && page < OAUTH_ACCESS_TOKEN_SWEEP_MAX_PAGES) {
+      const staleAccess = await db
+        .select({ id: oauthAccessToken.id })
+        .from(oauthAccessToken)
+        .where(lt(oauthAccessToken.expiresAt, cutoff))
+        .orderBy(asc(oauthAccessToken.expiresAt), asc(oauthAccessToken.id))
+        .limit(OAUTH_ACCESS_TOKEN_SWEEP_LIMIT)
+      if (Date.now() >= deadline) break
+
+      if (staleAccess.length > 0) {
+        const deleted = await db
+          .delete(oauthAccessToken)
+          .where(
+            inArray(
+              oauthAccessToken.id,
+              staleAccess.map((row) => row.id)
+            )
+          )
+          .returning({ id: oauthAccessToken.id })
+        accessTokens += deleted.length
+      }
+      moreAccessTokens =
+        staleAccess.length === OAUTH_ACCESS_TOKEN_SWEEP_LIMIT &&
+        page + 1 < OAUTH_ACCESS_TOKEN_SWEEP_MAX_PAGES
+    }
   }
 
   const result = { tokenFamilies, accessTokens }
   logger.info('Swept expired OAuth tokens', {
     ...result,
     retentionDays: OAUTH_TOKEN_RETENTION_DAYS,
+    elapsedMs: Date.now() - startedAt,
+    deadlineReached: Date.now() >= deadline,
   })
   return result
 }

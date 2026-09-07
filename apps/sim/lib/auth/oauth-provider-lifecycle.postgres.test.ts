@@ -25,6 +25,7 @@ async function loadRuntime() {
     { reconcileOAuthProviderLifecycle },
     { default: postgres },
     { hashOAuthToken },
+    { runCleanupOAuthTokens, OAUTH_TOKEN_RETENTION_DAYS },
   ] = await Promise.all([
     import('@sim/db'),
     import('@sim/db/schema'),
@@ -37,6 +38,7 @@ async function loadRuntime() {
     import('@sim/db/oauth-provider-lifecycle'),
     import('postgres'),
     import('@/lib/auth/oauth-access-token'),
+    import('@/background/cleanup-oauth-tokens'),
   ])
   const adapter = createSimAuthAdapter({
     plugins: [
@@ -62,6 +64,8 @@ async function loadRuntime() {
     revokeAuthorizedAppUseCase,
     listAuthorizedAppsUseCase,
     hashOAuthToken,
+    runCleanupOAuthTokens,
+    OAUTH_TOKEN_RETENTION_DAYS,
   }
 }
 
@@ -133,7 +137,7 @@ describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL sch
     })
   }
 
-  async function issueFamily() {
+  async function issueFamily(issuedAt = new Date()) {
     const token = generateId()
     const { id } = await runtime.adapter.create<{ id: string }>({
       model: 'oauthRefreshToken',
@@ -142,8 +146,8 @@ describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL sch
         clientId,
         userId,
         scopes,
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 86_400_000),
+        createdAt: issuedAt,
+        expiresAt: new Date(issuedAt.getTime() + 86_400_000),
       },
     })
     await runtime.db.insert(runtime.schema.oauthAccessToken).values({
@@ -153,8 +157,8 @@ describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL sch
       userId,
       refreshId: id,
       scopes,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 3_600_000),
+      createdAt: issuedAt,
+      expiresAt: new Date(issuedAt.getTime() + 3_600_000),
     })
     return { id, refreshToken: `sim_ort_${token}` }
   }
@@ -362,6 +366,89 @@ describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL sch
       .from(schema.oauthAccessToken)
       .where(eq(schema.oauthAccessToken.clientId, clientId))
     expect(tokens).toHaveLength(1)
+  })
+
+  it('cleans expired families and every descendant while retaining active grants and the retention tail', async () => {
+    await grantConsent()
+    const { db, schema, eq, inArray } = runtime
+    const stale = await issueFamily()
+    await expect(
+      runtime.rotateOAuthRefreshToken({
+        credentials: { clientId, method: 'none' },
+        refreshToken: stale.refreshToken,
+      })
+    ).resolves.toMatchObject({ success: true })
+    const descendants = await db
+      .select({ id: schema.oauthRefreshToken.id })
+      .from(schema.oauthRefreshToken)
+      .where(eq(schema.oauthRefreshToken.familyId, stale.id))
+    expect(descendants).toHaveLength(2)
+    const descendantIds = descendants.map(({ id }) => id)
+    const expiredAt = new Date(Date.now() - (runtime.OAUTH_TOKEN_RETENTION_DAYS + 1) * 86_400_000)
+    const oldTimestamps = {
+      createdAt: new Date(expiredAt.getTime() - 86_400_000),
+      expiresAt: expiredAt,
+    }
+    await db
+      .update(schema.oauthTokenFamily)
+      .set(oldTimestamps)
+      .where(eq(schema.oauthTokenFamily.id, stale.id))
+    await db
+      .update(schema.oauthRefreshToken)
+      .set(oldTimestamps)
+      .where(inArray(schema.oauthRefreshToken.id, descendantIds))
+    await db
+      .update(schema.oauthAccessToken)
+      .set(oldTimestamps)
+      .where(inArray(schema.oauthAccessToken.refreshId, descendantIds))
+
+    const active = await issueFamily()
+    const recentlyExpired = await issueFamily(new Date(Date.now() - 2 * 86_400_000))
+    const activeUnlinkedId = generateId()
+    const staleUnlinkedId = generateId()
+    const staleLinkedId = generateId()
+    await db.insert(schema.oauthAccessToken).values(
+      [activeUnlinkedId, staleUnlinkedId, staleLinkedId].map((id) => ({
+        id,
+        token: generateId(),
+        clientId,
+        userId,
+        refreshId: id === staleLinkedId ? active.id : null,
+        scopes,
+        createdAt: oldTimestamps.createdAt,
+        expiresAt: id === activeUnlinkedId ? new Date(Date.now() + 3_600_000) : expiredAt,
+      }))
+    )
+
+    await expect(runtime.runCleanupOAuthTokens()).resolves.toMatchObject({
+      tokenFamilies: 1,
+      accessTokens: 2,
+    })
+    const remainingFamilies = await db
+      .select({ id: schema.oauthTokenFamily.id })
+      .from(schema.oauthTokenFamily)
+      .where(eq(schema.oauthTokenFamily.clientId, clientId))
+    expect(remainingFamilies.map(({ id }) => id).sort()).toEqual(
+      [active.id, recentlyExpired.id].sort()
+    )
+    expect(
+      await db
+        .select({ id: schema.oauthRefreshToken.id })
+        .from(schema.oauthRefreshToken)
+        .where(inArray(schema.oauthRefreshToken.id, descendantIds))
+    ).toHaveLength(0)
+    const remainingAccess = await db
+      .select({ id: schema.oauthAccessToken.id, refreshId: schema.oauthAccessToken.refreshId })
+      .from(schema.oauthAccessToken)
+      .where(eq(schema.oauthAccessToken.clientId, clientId))
+    expect(remainingAccess).toHaveLength(3)
+    expect(remainingAccess).toEqual(
+      expect.arrayContaining([
+        { id: activeUnlinkedId, refreshId: null },
+        expect.objectContaining({ refreshId: active.id }),
+        expect.objectContaining({ refreshId: recentlyExpired.id }),
+      ])
+    )
   })
 
   it('reconciles repeatedly without changing the existing CLI registration or grants', async () => {
