@@ -73,6 +73,62 @@ describe('executeMcpTool', () => {
     })
   })
 
+  it.each(['', 'workflow-1'])(
+    'uses the authenticated chat subject for a Copilot call with workflowId %j',
+    async (workflowId) => {
+      const response = await executeMcpTool({
+        toolId: 'mcp-server-lookup',
+        input: { query: 'sim', _context: { userId: 'forged', workspaceId: 'foreign' } },
+        headers: new Headers(),
+        context: {
+          ...CONTEXT,
+          workflowId,
+          copilotToolExecution: true,
+          copilotInteractionMode: 'interactive',
+          chatId: 'chat-1',
+          toolCallId: 'call-1',
+        },
+        requestId: 'request-copilot',
+      })
+      expect(response.status).toBe(200)
+      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mocks.executeUseCase).toHaveBeenCalledWith({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          audience: 'sim:mcp-servers',
+          delegationId: 'copilot-tool:call-1',
+          resourceScope: { chatId: 'chat-1' },
+        }),
+        input: expect.objectContaining({ arguments: { query: 'sim' } }),
+      })
+    }
+  )
+
+  it.each(['userId', 'toolCallId'] as const)(
+    'rejects incomplete trusted Copilot context without %s',
+    async (field) => {
+      const response = await executeMcpTool({
+        toolId: 'mcp-server-lookup',
+        input: { _context: { userId: 'forged', toolCallId: 'forged-call' } },
+        headers: new Headers(),
+        context: {
+          ...CONTEXT,
+          workflowId: '',
+          copilotToolExecution: true,
+          toolCallId: 'call-1',
+          [field]: undefined,
+        },
+        requestId: 'request-copilot',
+      })
+      expect(response.ok).toBe(false)
+      expect(mocks.executeUseCase).not.toHaveBeenCalled()
+      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    }
+  )
+
   it('parses direct block arguments and invokes the authorized use case', async () => {
     const response = await executeMcpTool({
       toolId: 'mcp-server-lookup',

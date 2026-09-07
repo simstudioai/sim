@@ -31,13 +31,13 @@ describe('MCP server operation registry', () => {
     })
   })
 
-  it('admits only the executor delegation for tool execution', () => {
+  it('admits executor and Copilot delegations for tool execution', () => {
     expect(mcpServerOperations.executeTool).toMatchObject({
       id: 'mcp_servers.tools.execute',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
+      delegatedServices: ['executor', 'copilot'],
     })
   })
 

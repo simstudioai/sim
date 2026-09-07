@@ -1,7 +1,10 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  BoundWorkflowExecutionDelegatedPrincipal,
+  SubjectDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -50,7 +53,7 @@ const SERVER = {
   workspaceId: WORKSPACE.workspaceId,
   enabled: true,
 }
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
+const PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
   serviceId: 'executor',
   subjectUserId: 'user-1',
@@ -62,7 +65,7 @@ const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
   resourceScope: { mcpServerId: SERVER.id },
 }
-const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
+const ACTORLESS_PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
   serviceId: 'executor',
   workspaceId: WORKSPACE.workspaceId,
@@ -87,7 +90,18 @@ const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   },
   resourceScope: { mcpServerId: SERVER.id },
 }
-const COMPATIBILITY_ACTOR_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
+const COPILOT_PRINCIPAL: SubjectDelegatedPrincipal = {
+  kind: 'delegated',
+  serviceId: 'copilot',
+  subjectUserId: 'chat-user',
+  workspaceId: WORKSPACE.workspaceId,
+  delegationId: 'copilot-tool:call-1',
+  audience: 'sim:mcp-servers',
+  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
+  expiresAt: new Date('2099-08-27T00:05:00.000Z'),
+  resourceScope: { chatId: 'chat-1' },
+}
+const COMPATIBILITY_ACTOR_PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   ...ACTORLESS_PRINCIPAL,
   delegationContext: {
     ...ACTORLESS_PRINCIPAL.delegationContext,
@@ -119,6 +133,80 @@ describe('executeMcpToolUseCase', () => {
       },
     ])
     mocks.executeTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
+  })
+
+  it.each(['read', 'write', 'admin'])(
+    'executes as the current Copilot subject with %s workspace permission',
+    async (permission) => {
+      mocks.resolvePermission.mockResolvedValue(permission)
+      await executeMcpToolUseCase.execute({
+        principal: COPILOT_PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+          arguments: { count: 1 },
+        },
+      })
+      expect(mocks.resolvePermission).toHaveBeenCalledWith(
+        'chat-user',
+        WORKSPACE.workspaceId,
+        null,
+        undefined,
+        { forUpdate: undefined }
+      )
+      expect(mocks.assertPermissionsAllowed).toHaveBeenCalledWith({
+        userId: 'chat-user',
+        workspaceId: WORKSPACE.workspaceId,
+        toolKind: 'mcp',
+      })
+      expect(mocks.executeTool).toHaveBeenCalledWith(
+        'chat-user',
+        SERVER.id,
+        { name: 'lookup', arguments: { count: 1 } },
+        WORKSPACE.workspaceId,
+        undefined,
+        undefined,
+        { signal: undefined, timeoutMs: undefined }
+      )
+    }
+  )
+
+  it.each([
+    { audience: 'sim:other' },
+    { workspaceId: 'foreign-workspace' },
+    { expiresAt: new Date(0) },
+  ])('rejects invalid Copilot delegation %j before discovery or execution', async (override) => {
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: { ...COPILOT_PRINCIPAL, ...override },
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+          arguments: { count: 1 },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('rechecks the Copilot subject after workspace membership is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: COPILOT_PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+          arguments: { count: 1 },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 
   it('authorizes, coerces the discovered schema, and preserves execution context', async () => {

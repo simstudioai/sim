@@ -25,6 +25,11 @@ import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 import { categorizeError, parseMcpToolTarget } from '@/lib/mcp/utils'
 import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createCopilotApplicationPrincipal,
+  requireTrustedCopilotExecutionContext,
+} from '@/lib/mothership/auth/application-delegation'
+import {
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -128,16 +133,25 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
 
   let provenance: ResolvedSecretTraceProvenanceAccumulator | undefined
   try {
-    const principal = await createExecutorPrincipalFromExecutionContext({
-      context: request.context,
-      audience:
-        target.kind === 'shared_server'
-          ? MCP_SERVER_DELEGATION_AUDIENCE
-          : MANAGED_MCP_DELEGATION_AUDIENCE,
-      ...(target.kind === 'managed_connection'
-        ? { resourceScope: { credentialId: target.credentialId } }
-        : { resourceScope: { mcpServerId: target.serverId } }),
-    })
+    const audience = target.kind === 'shared_server'
+      ? MCP_SERVER_DELEGATION_AUDIENCE
+      : MANAGED_MCP_DELEGATION_AUDIENCE
+    const resourceScope = target.kind === 'managed_connection'
+      ? { credentialId: target.credentialId }
+      : { mcpServerId: target.serverId }
+    /** Workspace chat tools act as their authenticated subject without requiring a workflow. */
+    const principal = request.context.copilotToolExecution
+      ? createCopilotApplicationPrincipal(requireTrustedCopilotExecutionContext(request.context), {
+          audience,
+          resourceScope,
+          ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+          createDelegationId: (context) => `copilot-tool:${context.toolCallId}`,
+        })
+      : await createExecutorPrincipalFromExecutionContext({
+          context: request.context,
+          audience,
+          resourceScope,
+        })
     request.signal?.throwIfAborted()
     const subject = resolvePrincipalSubject(principal)
     provenance =
