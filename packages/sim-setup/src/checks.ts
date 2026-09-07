@@ -467,6 +467,11 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       needs: ['STRIPE_SECRET_KEY'],
       label: 'billing',
     },
+    {
+      flag: 'SLACK_EXTENDED_SCOPES',
+      needs: ['SLACK_SIGNING_SECRET'],
+      label: 'native Slack triggers',
+    },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
   for (const rule of featureRules) {

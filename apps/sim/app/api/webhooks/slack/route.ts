@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
 import { dispatchSlackWebhooks, getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
+import { getSlackNativeSigningSecret } from '@/lib/webhooks/slack-native-config'
 
 const logger = createLogger('SlackAppWebhookAPI')
 
@@ -44,13 +44,7 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
   }
   const { body, rawBody } = parseResult
 
-  // Slack's endpoint verification handshake — echo the challenge back.
-  const challenge = handleSlackChallenge(body)
-  if (challenge) {
-    return challenge
-  }
-
-  const signingSecret = env.SLACK_SIGNING_SECRET
+  const signingSecret = getSlackNativeSigningSecret()
   if (!signingSecret) {
     logger.error(`[${requestId}] SLACK_SIGNING_SECRET is not configured`)
     return new NextResponse('Slack app not configured', { status: 500 })
@@ -59,6 +53,11 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
   const authError = verifySlackRequestSignature(signingSecret, request, rawBody, requestId)
   if (authError) {
     return authError
+  }
+
+  const challenge = handleSlackChallenge(body)
+  if (challenge) {
+    return challenge
   }
 
   const payload = body as Record<string, unknown>
