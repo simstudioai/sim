@@ -71,6 +71,13 @@ while max_bytes > 0 and total > max_bytes and redis.call('ZCARD', KEYS[1]) > 1 d
   redis.call('ZREMRANGEBYRANK', KEYS[1], 0, 0)
 end
 if total < 0 then total = 0 end
+-- Self-correct: the counter is an accumulator, so an independently evicted events key would leave
+-- it over-reporting forever and pin the buffer at a single entry. Whenever the buffer is down to one
+-- entry its exact size is known, so drift cannot outlive a trim.
+if redis.call('ZCARD', KEYS[1]) == 1 then
+  local only = redis.call('ZRANGE', KEYS[1], 0, 0)
+  if only[1] then total = string.len(only[1]) end
+end
 
 local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
 if oldest[2] then

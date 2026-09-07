@@ -436,6 +436,40 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it('does not re-compact on every publish once the document itself exceeds the byte ceiling', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    const updates: Uint8Array[] = []
+    doc.on('update', (u: Uint8Array) => updates.push(u))
+    // Grow the document past the byte ceiling so its own snapshot exceeds it, then keep editing.
+    // Counting the snapshot as appended bytes would leave the threshold permanently breached and
+    // force a full snapshot append per keystroke — the amplification the threshold exists to stop.
+    doc.getText('body').insert(0, 'x'.repeat(12 * 1024 * 1024))
+    for (let i = 0; i < 30; i++) doc.getText('body').insert(0, 'tiny')
+    for (const update of updates) {
+      await a.publishAndWait(NAME, update)
+    }
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(streamKey)!
+      expect(stream.some((entry) => entry.message.s === '1')).toBe(true)
+    })
+
+    const snapshots = state
+      .backing!.streams.get(streamKey)!
+      .filter((entry) => entry.message.s === '1').length
+    expect(snapshots).toBeLessThanOrEqual(2)
+
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').toString().startsWith('tiny')).toBe(true)
+    expect(rebuilt.getText('body').length).toBe(12 * 1024 * 1024 + 30 * 4)
+    rebuilt.destroy()
+    doc.destroy()
+  })
+
   it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')

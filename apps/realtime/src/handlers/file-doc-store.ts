@@ -152,6 +152,9 @@ const COMPACT_THRESHOLD = 400
  * Compaction is the only safe way to shrink one of these streams: a task attaching later
  * replays every entry to rebuild the doc, so dropping the oldest entries — what a native
  * `MAXLEN` retention bound would do — loses edits outright. A snapshot folds them first.
+ *
+ * Measured over deltas appended since the last fold, never over the resulting snapshot, so a
+ * stream settles at roughly one document snapshot plus this much churn.
  */
 const COMPACT_BYTES_THRESHOLD = 8 * 1024 * 1024
 /** Check whether compaction is due only every Nth local publish, to avoid an XLEN per keystroke. */
@@ -233,10 +236,12 @@ interface StoreRoom {
   /** Local publish count, to pace compaction checks. */
   publishes: number
   /**
-   * Bytes this task has appended since the last compaction it observed, so the byte threshold
-   * costs no extra round-trip. Locally tracked, so it under-counts a peer task's appends — it
-   * is a trigger, not an accounting, and {@link COMPACT_THRESHOLD} still covers the case where
-   * many small edits arrive from elsewhere.
+   * Delta bytes this task has appended since the last compaction it performed, so the byte
+   * threshold costs no extra round-trip. Counts deltas only — never the snapshot a compaction
+   * writes, which is a function of document size rather than of edit volume and would make a
+   * large document breach the threshold permanently. Locally tracked, so it under-counts a peer
+   * task's appends: it is a trigger, not an accounting, and {@link COMPACT_THRESHOLD} still
+   * covers many small edits arriving from elsewhere.
    */
   appendedBytes: number
   /** Set once the doc has been observed seeded, so the seed transition itself is never mistaken for an
@@ -782,10 +787,12 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
-        // The folded deltas are about to be trimmed; what remains of this task's contribution is the
-        // snapshot. Reset before the appends so a concurrent publish's bytes are counted against the
-        // new baseline rather than the one being retired.
-        room.appendedBytes = snapshot.length
+        // Counts deltas appended SINCE this fold, so it must not carry the snapshot's own size: a
+        // document whose snapshot already exceeds the ceiling would otherwise re-breach it the instant
+        // compaction finished and force a full snapshot append on every subsequent keystroke — the
+        // write amplification this threshold exists to prevent. Reset before the appends so a
+        // concurrent publish is counted against the new baseline rather than the one being retired.
+        room.appendedBytes = 0
         // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
         // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
         // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
