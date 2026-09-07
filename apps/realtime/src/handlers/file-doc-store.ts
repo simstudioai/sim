@@ -87,7 +87,7 @@ const REFRESH_DOCUMENT_TTLS_SCRIPT =
  * Carry the seed's generation forward and keep every entry at or beyond the captured prefix barrier.
  */
 const APPEND_SNAPSHOT_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; local id = redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4]); redis.call('xtrim', KEYS[1], 'MINID', ARGV[6]); return id"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; local id = redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4], ARGV[7], '1'); redis.call('xtrim', KEYS[1], 'MINID', ARGV[6]); return id"
 
 /**
  * Atomically deduplicate and append an acknowledged client update. Socket acknowledgements can be
@@ -160,6 +160,8 @@ const SNAPSHOT_FIELD = 's'
 /** Marks a stream entry as an AGENT-STREAMED preview frame, so the tailer applies it with
  * {@link REDIS_AGENT_ORIGIN} (never marks the doc edited). Present only on agent-frame entries. */
 const AGENT_FIELD = 'a'
+/** Distinguishes compacted agent snapshots from ordinary agent deltas, including older writers. */
+const COMPACTION_FIELD = 'c'
 /** Identifies a seed's document generation, allowing old rooms to reject every later update. */
 const GENERATION_FIELD = 'g'
 const INVALIDATED_GENERATION = '__invalidated__'
@@ -187,7 +189,7 @@ const REPLAY_MAX_ENTRIES = 2_000
 /** Base64 bytes accepted during one replay, including a full snapshot plus a bounded edit backlog. */
 const REPLAY_MAX_ENCODED_BYTES = FILE_DOC_LIMITS.updateBytes * 6
 /** Compact before a handful of individually valid large updates can exhaust the replay byte budget. */
-const COMPACT_ENCODED_BYTES = FILE_DOC_LIMITS.updateBytes * 2
+const COMPACT_ENCODED_BYTES = 8 * 1024 * 1024
 /** Compact a stream once it exceeds this many entries (snapshot + trim). */
 const COMPACT_THRESHOLD = 400
 /** Check whether compaction is due only every Nth local publish, to avoid an XLEN per keystroke. */
@@ -195,6 +197,8 @@ const COMPACT_CHECK_EVERY = 64
 /** Compaction critical section (snapshot + xAdd + xTrim) is fast; a generous TTL covers a slow Redis
  * round-trip without risking expiry mid-compact. Released via compare-and-delete regardless. */
 const COMPACT_LOCK_TTL_MS = 10_000
+/** Avoid repeated snapshot appends when a failed compaction leaves the byte trigger armed. */
+const COMPACT_RETRY_COOLDOWN_MS = 30_000
 /** Retry a failed stream append this many times before giving up, so a transient Redis blip doesn't
  * silently drop an edit from the shared log (which no peer would then ever see). */
 const PUBLISH_MAX_RETRIES = 3
@@ -305,6 +309,9 @@ interface StoreRoom {
   publishes: number
   /** Non-snapshot bytes observed since this replica last compacted. */
   uncompactedDeltaBytes: number
+  /** MINID retains the last applied entry; its bytes cannot trigger a fold until the cursor advances. */
+  lastDeltaBytes: number
+  compactRetryAfter: number
   compacting: boolean
   /** Document generation read from the seed entry; every later append is fenced against it. */
   generation: string | null
@@ -398,6 +405,8 @@ export class FileDocStore {
       lastId: '0',
       publishes: 0,
       uncompactedDeltaBytes: 0,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
       compacting: false,
       generation: null,
       generationInvalidated: false,
@@ -510,7 +519,7 @@ export class FileDocStore {
     if (room) {
       room.publishes += 1
       if (
-        room.uncompactedDeltaBytes >= COMPACT_ENCODED_BYTES ||
+        room.uncompactedDeltaBytes - room.lastDeltaBytes >= COMPACT_ENCODED_BYTES ||
         room.publishes % COMPACT_CHECK_EVERY === 0
       ) {
         void this.maybeCompact(name)
@@ -592,7 +601,7 @@ export class FileDocStore {
           room.realEdited = true
           room.publishes += 1
           if (
-            room.uncompactedDeltaBytes >= COMPACT_ENCODED_BYTES ||
+            room.uncompactedDeltaBytes - room.lastDeltaBytes >= COMPACT_ENCODED_BYTES ||
             room.publishes % COMPACT_CHECK_EVERY === 0
           ) {
             void this.maybeCompact(name)
@@ -1017,8 +1026,11 @@ export class FileDocStore {
     }
     if (room.generationInvalidated) return
     const isSnapshot =
-      message[GENERATION_FIELD] !== undefined || message[SNAPSHOT_FIELD] !== undefined
-    if (!isSnapshot) room.uncompactedDeltaBytes += message[UPDATE_FIELD]?.length ?? 0
+      message[GENERATION_FIELD] !== undefined ||
+      message[SNAPSHOT_FIELD] !== undefined ||
+      message[COMPACTION_FIELD] !== undefined
+    room.lastDeltaBytes = isSnapshot ? 0 : (message[UPDATE_FIELD]?.length ?? 0)
+    room.uncompactedDeltaBytes += room.lastDeltaBytes
     // A compaction snapshot folds seed + edits into one frame; stamp it so the relay's edit-tracker
     // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated). An
     // agent-streamed preview frame is stamped separately so the tracker NEVER marks it edited.
@@ -1037,7 +1049,7 @@ export class FileDocStore {
     if (origin === REDIS_SNAPSHOT_ORIGIN || (origin === REDIS_ORIGIN && seededBefore)) {
       room.realEdited = true
     }
-    if (!isSnapshot && room.uncompactedDeltaBytes >= COMPACT_ENCODED_BYTES) {
+    if (room.uncompactedDeltaBytes - room.lastDeltaBytes >= COMPACT_ENCODED_BYTES) {
       void this.maybeCompact(name)
     }
   }
@@ -1140,11 +1152,14 @@ export class FileDocStore {
   private async maybeCompact(name: string): Promise<void> {
     if (!this.write) return
     const room = this.rooms.get(name)
-    if (!room || room.compacting) return
+    if (!room || room.compacting || Date.now() < room.compactRetryAfter) return
     room.compacting = true
     try {
       const streamLength = await this.write.xLen(streamKey(name))
-      if (streamLength < COMPACT_THRESHOLD && room.uncompactedDeltaBytes < COMPACT_ENCODED_BYTES) {
+      if (
+        streamLength < COMPACT_THRESHOLD &&
+        room.uncompactedDeltaBytes - room.lastDeltaBytes < COMPACT_ENCODED_BYTES
+      ) {
         return
       }
       const key = `${COMPACT_LOCK_PREFIX}${name}`
@@ -1161,7 +1176,8 @@ export class FileDocStore {
         // them — only entries the snapshot provably subsumes (id <= lastId). Trimming to the freshly
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
-        const deltaBytesAtBarrier = room.uncompactedDeltaBytes
+        /** Ordered, deduplicated replay lets two counters represent the prefix without a per-entry map. */
+        const deltaBytesAtBarrier = room.uncompactedDeltaBytes - room.lastDeltaBytes
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
         // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
         // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
@@ -1177,15 +1193,17 @@ export class FileDocStore {
             room.generation ?? '',
             GENERATION_FIELD,
             upTo,
+            COMPACTION_FIELD,
           ],
         })
         if (typeof snapshotId !== 'string') return
-        /** Deltas observed after the barrier survive MINID; snapshots never contribute to this count. */
+        /** MINID retains the barrier entry and later deltas, including those observed during the await. */
         room.uncompactedDeltaBytes = Math.max(0, room.uncompactedDeltaBytes - deltaBytesAtBarrier)
       } finally {
         await this.releaseLock(key, token)
       }
     } catch (error) {
+      room.compactRetryAfter = Date.now() + COMPACT_RETRY_COOLDOWN_MS
       logger.warn(`FileDocStore compaction failed for ${name}`, {
         error: getErrorMessage(error),
       })

@@ -39,6 +39,7 @@ interface Backing {
   maxReadStreams: number
   maxReadCount: number
   onSnapshot?: () => Promise<void>
+  failSnapshotTrim?: boolean
   onLength?: () => Promise<void>
 }
 
@@ -213,7 +214,8 @@ function makeClient(): any {
       }
       if (script.includes('ARGV[5], ARGV[4]')) {
         const [, generationKey] = opts.keys
-        const [field, value, marker, expectedGeneration, generationField, upTo] = opts.arguments
+        const [field, value, marker, expectedGeneration, generationField, upTo, compactionField] =
+          opts.arguments
         const generation = b().kv.get(generationKey)
         if ((generation ?? '') !== expectedGeneration) return false
         const id = nextId()
@@ -224,10 +226,12 @@ function makeClient(): any {
             [field]: value,
             [marker]: '1',
             [generationField]: expectedGeneration,
+            ...(compactionField ? { [compactionField]: '1' } : {}),
           },
         })
         b().streams.set(key, arr)
         if (script.includes("redis.call('xtrim'")) {
+          if (b().failSnapshotTrim) throw new Error('snapshot trim failed')
           b().streams.set(
             key,
             arr.filter((entry) => compareStreamIds(entry.id, upTo) >= 0n)
@@ -280,22 +284,29 @@ import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-
 const REDIS_URL = 'redis://fake'
 const NAME = 'workspace-file-doc:file-1'
 
+interface StoreRoomTestAccess {
+  doc: Y.Doc
+  lastId: string
+  publishes: number
+  uncompactedDeltaBytes: number
+  lastDeltaBytes: number
+  compactRetryAfter: number
+  compacting: boolean
+  seededObserved: boolean
+  realEdited: boolean
+}
+
 interface StoreTestAccess {
   localInvalidations: Map<string, { version: number; expiresAt: number }>
-  rooms: Map<
-    string,
-    {
-      doc: Y.Doc
-      lastId: string
-      publishes: number
-      uncompactedDeltaBytes: number
-      compacting: boolean
-      seededObserved: boolean
-      realEdited: boolean
-    }
-  >
+  rooms: Map<string, StoreRoomTestAccess>
   maybeCompact(name: string): Promise<void>
   appendUpdate(name: string, update: Uint8Array): Promise<void>
+  applyEntry(
+    name: string,
+    room: StoreRoomTestAccess,
+    id: string,
+    message: Record<string, string>
+  ): void
 }
 
 function storeInternals(store: FileDocStore): StoreTestAccess {
@@ -958,6 +969,8 @@ describe('FileDocStore', () => {
       lastId: '400-0',
       publishes: 0,
       uncompactedDeltaBytes: 0,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
       compacting: false,
       seededObserved: true,
       realEdited: true,
@@ -1020,6 +1033,174 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it('compacts a burst of large edits below the entry threshold without losing content', async () => {
+    seedLegacyStream()
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    const source = new Y.Doc()
+    for (let index = 0; index < 4; index++) {
+      const before = Y.encodeStateVector(source)
+      source.getText('body').insert(0, 'x'.repeat(3 * 1024 * 1024))
+      await store.publishAndWait(NAME, Y.encodeStateAsUpdate(source, before))
+    }
+
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(`filedoc:stream:${NAME}`)!
+      expect(stream.length).toBeLessThan(400)
+      expect(stream.some((entry) => entry.message.c === '1')).toBe(true)
+    })
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await store.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(12 * 1024 * 1024)
+    store.detachRoom(NAME)
+    rebuilt.destroy()
+    source.destroy()
+    doc.destroy()
+  })
+
+  it('does not append a full snapshot per small edit after growing beyond the byte threshold', async () => {
+    seedLegacyStream()
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    const source = new Y.Doc()
+    for (let index = 0; index < 33; index++) {
+      const before = Y.encodeStateVector(source)
+      source.getText('body').insert(0, index < 3 ? 'x'.repeat(3 * 1024 * 1024) : 'tiny')
+      await store.publishAndWait(NAME, Y.encodeStateAsUpdate(source, before))
+      await store.catchUp(NAME)
+    }
+    const streamKey = `filedoc:stream:${NAME}`
+    await vi.waitFor(() => {
+      expect(storeInternals(store).rooms.get(NAME)!.compacting).toBe(false)
+      expect(state.backing!.streams.get(streamKey)!.some((entry) => entry.message.c === '1')).toBe(
+        true
+      )
+    })
+    expect(
+      state.backing!.streams.get(streamKey)!.filter((entry) => entry.message.c === '1').length
+    ).toBeLessThanOrEqual(2)
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await store.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(9 * 1024 * 1024 + 30 * 4)
+    expect(rebuilt.getText('body').toString().startsWith('tiny')).toBe(true)
+    store.detachRoom(NAME)
+    source.destroy()
+    rebuilt.destroy()
+    doc.destroy()
+  })
+
+  it.each([false, true])(
+    'adopts and compacts an oversized legacy stream (agent: %s)',
+    async (agent) => {
+      const source = new Y.Doc()
+      const updates: Uint8Array[] = []
+      source.on('update', (update: Uint8Array) => updates.push(update))
+      source.getText('body').insert(0, 'x'.repeat(7 * 1024 * 1024))
+      source.getText('body').insert(0, 'tail')
+      const streamKey = `filedoc:stream:${NAME}`
+      state.backing!.streams.set(
+        streamKey,
+        updates.map((update, index) => ({
+          id: `${index + 1}-0`,
+          message: { u: Buffer.from(update).toString('base64'), ...(agent ? { a: '1' } : {}) },
+        }))
+      )
+      state.backing!.seq = updates.length
+      const store = await newStore()
+      const doc = new Y.Doc()
+      await store.attachRoom(NAME, doc)
+
+      await vi.waitFor(() =>
+        expect(
+          state.backing!.streams.get(streamKey)!.some((entry) => entry.message.c === '1')
+        ).toBe(true)
+      )
+      const rebuilt = new Y.Doc()
+      Y.applyUpdate(rebuilt, (await store.getStreamState(NAME))!)
+      expect(rebuilt.getText('body').length).toBe(7 * 1024 * 1024 + 4)
+      store.detachRoom(NAME)
+      rebuilt.destroy()
+      source.destroy()
+      doc.destroy()
+    }
+  )
+
+  it('keeps failed compaction accounting armed without repeated snapshot appends', async () => {
+    seedLegacyStream()
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    const room = storeInternals(store).rooms.get(NAME)!
+    room.uncompactedDeltaBytes = 9 * 1024 * 1024
+    state.backing!.failSnapshotTrim = true
+
+    await storeInternals(store).maybeCompact(NAME)
+
+    expect(room.uncompactedDeltaBytes).toBe(9 * 1024 * 1024)
+    expect(room.compactRetryAfter).toBeGreaterThan(Date.now())
+    const entriesAfterFailure = state.backing!.streams.get(`filedoc:stream:${NAME}`)!.length
+    await storeInternals(store).maybeCompact(NAME)
+    await storeInternals(store).maybeCompact(NAME)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(entriesAfterFailure)
+
+    state.backing!.failSnapshotTrim = false
+    room.compactRetryAfter = 0
+    await storeInternals(store).maybeCompact(NAME)
+    expect(room.uncompactedDeltaBytes).toBeLessThan(9 * 1024 * 1024)
+    store.detachRoom(NAME)
+    doc.destroy()
+  })
+
+  it('retains the last delta without repeatedly folding an unreclaimable boundary', async () => {
+    seedLegacyStream()
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    const room = storeInternals(store).rooms.get(NAME)!
+    room.uncompactedDeltaBytes = 9 * 1024 * 1024
+    room.lastDeltaBytes = room.uncompactedDeltaBytes
+    await storeInternals(store).maybeCompact(NAME)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(1)
+    expect(room.uncompactedDeltaBytes).toBe(9 * 1024 * 1024)
+    store.detachRoom(NAME)
+    doc.destroy()
+  })
+
+  it('excludes older agent compaction output from delta bytes', async () => {
+    seedLegacyStream()
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    const room = storeInternals(store).rooms.get(NAME)!
+    const priorBytes = room.uncompactedDeltaBytes
+    const encoded = Buffer.from(updateFor('agent snapshot')).toString('base64')
+    storeInternals(store).applyEntry(NAME, room, '7-0', { u: encoded, a: '1', c: '1' })
+    expect(room.uncompactedDeltaBytes).toBe(priorBytes)
+    expect(room.lastDeltaBytes).toBe(0)
+    expect(doc.getText('body').toString()).toBe('agent snapshot')
+    store.detachRoom(NAME)
+    doc.destroy()
+  })
+
+  it('counts peer deltas once using ordered replay without retaining an entry ledger', async () => {
+    seedLegacyStream()
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    const room = storeInternals(store).rooms.get(NAME)!
+    const priorBytes = room.uncompactedDeltaBytes
+    const encoded = Buffer.from(updateFor('peer')).toString('base64')
+    storeInternals(store).applyEntry(NAME, room, '4-0', { u: encoded })
+    storeInternals(store).applyEntry(NAME, room, '4-0', { u: encoded })
+    storeInternals(store).applyEntry(NAME, room, '3-0', { u: encoded })
+    expect(room.uncompactedDeltaBytes).toBe(priorBytes + encoded.length)
+    expect(room.lastDeltaBytes).toBe(encoded.length)
+    store.detachRoom(NAME)
+    doc.destroy()
+  })
+
   it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')
@@ -1038,6 +1219,8 @@ describe('FileDocStore', () => {
       lastId: '400-0',
       publishes: 0,
       uncompactedDeltaBytes: 0,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
       compacting: false,
       seededObserved: true,
       realEdited: false,
@@ -1186,6 +1369,8 @@ describe('FileDocStore', () => {
       lastId: '1-0',
       publishes: 0,
       uncompactedDeltaBytes: 12 * 1024 * 1024,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
       compacting: false,
       seededObserved: true,
       realEdited: true,
@@ -1239,20 +1424,23 @@ describe('FileDocStore', () => {
     loaded.destroy()
   })
 
-  it('preserves exactly the delta bytes observed after a compaction barrier', async () => {
+  it('preserves the inclusive barrier and delta bytes observed during compaction', async () => {
     seedLegacyStream()
     const store = await newStore()
     const doc = new Y.Doc()
     await store.attachRoom(NAME, doc)
     const room = storeInternals(store).rooms.get(NAME)!
     room.uncompactedDeltaBytes = 12 * 1024 * 1024
+    const retainedBarrierBytes = room.lastDeltaBytes
     const lateUpdate = updateFor('concurrent edit')
     state.backing!.onSnapshot = async () => {
       await store.publishAndWait(NAME, lateUpdate)
       await store.catchUp(NAME)
     }
     await storeInternals(store).maybeCompact(NAME)
-    expect(room.uncompactedDeltaBytes).toBe(Buffer.from(lateUpdate).toString('base64').length)
+    expect(room.uncompactedDeltaBytes).toBe(
+      retainedBarrierBytes + Buffer.from(lateUpdate).toString('base64').length
+    )
     expect(doc.getText('body').toString()).toBe('concurrent edit')
     store.detachRoom(NAME)
     doc.destroy()
@@ -1546,6 +1734,8 @@ describe('FileDocStore', () => {
       lastId: '401-0',
       publishes: 0,
       uncompactedDeltaBytes: 0,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
       compacting: false,
       seededObserved: true,
       realEdited: true,
@@ -1555,6 +1745,8 @@ describe('FileDocStore', () => {
       lastId: '400-0',
       publishes: 0,
       uncompactedDeltaBytes: 0,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
       compacting: false,
       seededObserved: true,
       realEdited: true,
