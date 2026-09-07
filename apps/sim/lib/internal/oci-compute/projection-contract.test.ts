@@ -102,7 +102,7 @@ describe('OCI Compute input and resource projections', () => {
       size: 0,
       instanceDisplayNameFormatter: '',
     })
-    expect(values).not.toHaveProperty('isAutoTerminate')
+    expect(values.isAutoTerminate).toBeUndefined()
     expect(
       normalize({
         operation: 'oci_compute_detach_instance_pool_instance',

@@ -18,6 +18,13 @@ vi.mock('@/lib/internal/oci-compute/operations', () => ({
 }))
 
 import { executeOciComputeTool } from '@/lib/internal/oci-compute/execute-tool'
+import { OciComputeBlock } from '@/blocks/blocks/oci_compute'
+import { ociComputeListImagesTool } from '@/tools/oci_compute/list_images'
+import { ociComputeListInstanceConfigurationsTool } from '@/tools/oci_compute/list_instance_configurations'
+import { ociComputeListInstancePoolsTool } from '@/tools/oci_compute/list_instance_pools'
+import { ociComputeListInstancesTool } from '@/tools/oci_compute/list_instances'
+import { ociComputeListShapesTool } from '@/tools/oci_compute/list_shapes'
+import { ociComputeListSubnetsTool } from '@/tools/oci_compute/list_subnets'
 
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -42,6 +49,85 @@ beforeEach(() => {
 })
 
 describe('OCI Compute trusted execution wiring', () => {
+  it.each([
+    ociComputeListInstancesTool,
+    ociComputeListImagesTool,
+    ociComputeListShapesTool,
+    ociComputeListSubnetsTool,
+    ociComputeListInstanceConfigurationsTool,
+    ociComputeListInstancePoolsTool,
+  ])('normalizes native blank discovery filters for $id', async (tool) => {
+    for (const blank of [null, '', undefined]) {
+      const raw = {
+        operation: tool.id,
+        oauthCredential: 'submitted',
+        region: 'us-ashburn-1',
+        compartmentId: 'compartment',
+        limit: '10',
+        page: blank,
+        sortBy: blank,
+        sortOrder: blank,
+        displayName: blank,
+        availabilityDomain: blank,
+        lifecycleState: blank,
+        capacityReservationId: blank,
+        operatingSystemVersion: blank,
+        shape: blank,
+        imageId: blank,
+        vcnId: blank,
+      }
+      const params = { ...raw, ...OciComputeBlock.tools.config?.params?.(raw) }
+      const response = await executeOciComputeTool(
+        call({ toolId: tool.id, input: tool.operation.input(params) })
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.execute).toHaveBeenLastCalledWith(
+        expect.anything(),
+        tool.id.replace('oci_compute_', ''),
+        expect.objectContaining({ compartmentId: 'compartment', limit: 10 }),
+        undefined
+      )
+      expect(mocks.execute.mock.lastCall?.[2].page).toBeUndefined()
+    }
+  })
+
+  it('keeps meaningful zero, false and empty mutation values while rejecting invalid list input', async () => {
+    const raw = {
+      operation: 'oci_compute_update_instance',
+      capacityReservationId: '',
+      preserveBootVolume: false,
+    }
+    const params = { ...raw, ...OciComputeBlock.tools.config?.params?.(raw) }
+    expect(params.capacityReservationId).toBe('')
+    const resized = OciComputeBlock.tools.config?.params?.({
+      operation: 'oci_compute_update_instance_pool',
+      size: 0,
+    })
+    expect(resized?.size).toBe(0)
+    const terminated = OciComputeBlock.tools.config?.params?.({
+      operation: 'oci_compute_terminate_instance',
+      preserveBootVolume: false,
+    })
+    expect(terminated?.preserveBootVolume).toBe(false)
+    const invalid = {
+      operation: ociComputeListInstancesTool.id,
+      oauthCredential: 'submitted',
+      region: 'us-ashburn-1',
+      compartmentId: 'compartment',
+      page: 12,
+    }
+    const response = await executeOciComputeTool(
+      call({
+        toolId: ociComputeListInstancesTool.id,
+        input: ociComputeListInstancesTool.operation.input({
+          ...invalid,
+          ...OciComputeBlock.tools.config?.params?.(invalid),
+        }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
   it('authorizes submitted identity and binds only the resolved credential and trusted scope', async () => {
     const signal = new AbortController().signal
     expect((await executeOciComputeTool(call({ signal }))).status).toBe(200)

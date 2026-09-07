@@ -1686,7 +1686,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
               integer: true,
               min: field === 'size' ? 0 : 1,
             })
-          } else delete result[field]
+          } else result[field] = undefined
         }
         const booleanOperations: Record<string, readonly string[]> = {
           allowDenseRebootMigration: ALLOW_DENSE_REBOOT_MIGRATION_OPERATIONS,
@@ -1699,7 +1699,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
         }
         for (const [field, operations] of Object.entries(booleanOperations)) {
           if (operations.includes(params.operation)) result[field] = optionalBoolean(params[field])
-          else delete result[field]
+          else result[field] = undefined
         }
         if (params.operation === 'oci_compute_create_instance_pool') {
           if (result.instanceDisplayNameFormatter === '')
@@ -1708,7 +1708,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
         }
         if (
           params.operation === 'oci_compute_list_instances' &&
-          result.capacityReservationId === ''
+          (result.capacityReservationId === '' || result.capacityReservationId === null)
         ) {
           result.capacityReservationId = undefined
         }
@@ -1760,7 +1760,11 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
           'resourceId',
           'workRequestId',
         ]) {
-          if (result[field] === '') delete result[field]
+          if (
+            result[field] === '' ||
+            (result[field] === null && params.operation.startsWith('oci_compute_list_'))
+          )
+            result[field] = undefined
         }
         if (params.operation === 'oci_compute_launch_instance') {
           let vnic = result.createVnicDetails
