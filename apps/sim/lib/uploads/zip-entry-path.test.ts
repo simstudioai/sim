@@ -19,6 +19,16 @@ describe('buildZipEntryPaths', () => {
     ])
   })
 
+  it('appends the content-type extension to an extensionless name', () => {
+    expect(
+      buildZipEntryPaths([
+        { name: 'navbar_2', folderPath: 'Screenshots', contentType: 'image/png' },
+        { name: 'navbar_2', folderPath: 'Screenshots', contentType: 'image/png' },
+        { name: 'readme', folderPath: null },
+      ])
+    ).toEqual(['Screenshots/navbar_2.png', 'Screenshots/navbar_2 (1).png', 'readme'])
+  })
+
   it('sanitizes a slash within one escaped folder name instead of nesting it', () => {
     expect(
       buildZipEntryPaths([{ name: 'contract.pdf', folderPath: 'Finance\\/Legal/Quarterly' }])

@@ -1750,7 +1750,11 @@ export async function executeFileManageOperation(
         // Mirror the workspace folder layout, dropping the ancestor chain the whole
         // selection shares so archiving one folder does not nest it under its parents.
         const entryPaths = buildZipEntryPaths(
-          archiveEntries.map((entry) => ({ name: entry.file.name, folderPath: entry.folderPath })),
+          archiveEntries.map((entry) => ({
+            name: entry.file.name,
+            folderPath: entry.folderPath,
+            contentType: entry.file.type,
+          })),
           { rebaseOnCommonFolder: true }
         )
 
