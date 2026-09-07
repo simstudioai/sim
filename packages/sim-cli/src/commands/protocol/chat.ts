@@ -1,4 +1,6 @@
 import type { Command } from 'commander'
+import { embedStore } from '#sim-cli/embed-context'
+import { writeStderr, writeStdout } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { clientFrom } from '../../context'
 import { type ChatResponse, V2_OPERATIONS } from '../../generated/v2-api'
@@ -156,18 +158,19 @@ Examples:
       /** Closes off streamed text so nothing is glued onto the line after it. */
       const endStreamedLine = (): void => {
         if (streamed.length > 0 && !streamed.endsWith('\n')) {
-          process.stdout.write('\n')
+          writeStdout('\n')
           streamed += '\n'
         }
       }
 
-      const restorePipeHandling = streaming ? ignoreBrokenPipe(process.stdout) : undefined
+      const restorePipeHandling =
+        streaming && !embedStore.getStore() ? ignoreBrokenPipe(process.stdout) : undefined
 
       try {
         const result = await readChatStream(response, (content) => {
           if (!streaming) return
           streamed += content
-          process.stdout.write(content)
+          writeStdout(content)
         })
 
         if (!streaming) {
@@ -182,11 +185,11 @@ Examples:
         // rather than duplicating the reply.
         const content = sanitize(result.content ?? '')
         if (content.startsWith(streamed) && content.length > streamed.length) {
-          process.stdout.write(content.slice(streamed.length))
+          writeStdout(content.slice(streamed.length))
           streamed = content
         }
         endStreamedLine()
-        process.stderr.write(`${styles().dim(`conversation: ${result.conversationId}`)}\n`)
+        writeStderr(`${styles().dim(`conversation: ${result.conversationId}`)}\n`)
       } catch (error) {
         endStreamedLine()
         throw error

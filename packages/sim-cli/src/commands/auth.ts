@@ -1,3 +1,4 @@
+import { printLine } from '#sim-cli/output/io'
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
@@ -297,9 +298,9 @@ async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<Sele
     )
   }
 
-  console.log('\nAvailable workspaces:')
+  printLine('\nAvailable workspaces:')
   for (const [index, workspace] of workspaces.entries()) {
-    console.log(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
+    printLine(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
   }
 
   const prompt = createInterface({ input: process.stdin, output: process.stderr })
@@ -355,10 +356,10 @@ function addProfileCommand(): Command {
         })
       })
 
-      console.log(styles().green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
-      console.log(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
-      console.log(`  Authentication: ${safeOneLine(authProfile)}`)
-      console.log(styles().dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
+      printLine(styles().green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
+      printLine(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
+      printLine(`  Authentication: ${safeOneLine(authProfile)}`)
+      printLine(styles().dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
     })
 }
 
@@ -393,7 +394,7 @@ async function chooseLoginFlow(
     isLikelyRemoteSession() &&
     options.callbackPort === undefined
   ) {
-    console.log(
+    printLine(
       styles().dim(
         'This looks like a remote session; using the pairing code to create a personal API key. To use OAuth, forward a port and pass --method oauth --callback-port <port>.\n'
       )
@@ -411,7 +412,7 @@ async function chooseLoginFlow(
         0
       )
     }
-    console.log(
+    printLine(
       styles().dim(
         `${profile.endpoint} does not offer OAuth sign-in; using the pairing code to create a personal API key.\n`
       )
@@ -444,7 +445,7 @@ async function loginWithOAuth(
   callbackPort: number | undefined,
   expected: LoginProfileSnapshot
 ): Promise<void> {
-  console.log(
+  printLine(
     `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
   )
 
@@ -452,9 +453,9 @@ async function loginWithOAuth(
     scopes: options.readOnly ? OAUTH_SCOPES_READ_ONLY : OAUTH_SCOPES_FULL,
     callbackPort,
     onAuthorizeUrl: (url) => {
-      console.log(`\n${url}`)
+      printLine(`\n${url}`)
       if (options.browser) openBrowser(url)
-      console.log(styles().dim('\nWaiting for you to approve in the browser…'))
+      printLine(styles().dim('\nWaiting for you to approve in the browser…'))
     },
   })
 
@@ -487,7 +488,7 @@ async function loginWithOAuth(
           try {
             writeCredentialsProfile(profile.name, null)
           } catch {}
-          console.log(
+          printLine(
             styles().yellow(
               `Could not restore the previous profile safely (${safeOneLine(getErrorMessage(rollbackError))}). Its local login was cleared to avoid using it against the wrong endpoint. The new server login will still be revoked.`
             )
@@ -500,7 +501,7 @@ async function loginWithOAuth(
     try {
       await revokeToken(profile.endpoint, tokens.refreshToken)
     } catch (revocationError) {
-      console.log(
+      printLine(
         styles().yellow(
           `Could not revoke the uncommitted login (${safeOneLine(getErrorMessage(revocationError))}). Revoke Sim CLI in Settings → General → Authorized apps.`
         )
@@ -509,14 +510,14 @@ async function loginWithOAuth(
     throw error
   }
 
-  console.log(styles().green(`\n✓ Logged in. Login stored in ${credentialsPath()}`))
+  printLine(styles().green(`\n✓ Logged in. Login stored in ${credentialsPath()}`))
   /**
    * Read back from the granted scope rather than the requested flag. The
    * authorization server decides what it issued, and a person can narrow the
    * grant on the consent page, so `--read-only` is a request and this is the
    * answer.
    */
-  console.log(
+  printLine(
     styles().dim(
       grantsWriteAccess(tokens.scope)
         ? '  Renews itself; revoke it any time in Settings → General → Authorized apps, or with: sim logout'
@@ -524,7 +525,7 @@ async function loginWithOAuth(
     )
   )
   if (!profile.workspaceId) {
-    console.log(
+    printLine(
       styles().dim('  No default workspace. Set one with: sim configure --set-workspace <id>')
     )
   }
@@ -566,7 +567,7 @@ export function loginCommand(): Command {
       if (storedCredential && !options.yes) {
         const confirmed = await confirmProfileOverwrite(profile.name)
         if (!confirmed) {
-          console.log(styles().dim('Login cancelled; the existing profile was not changed.'))
+          printLine(styles().dim('Login cancelled; the existing profile was not changed.'))
           return
         }
       }
@@ -616,15 +617,15 @@ async function loginWithHandoff(
   const auth = createAuthRequest()
   const url = buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined)
 
-  console.log(
+  printLine(
     `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
   )
-  console.log(`\nPairing code: ${styles().bold(auth.pairing)}`)
-  console.log(styles().dim('Confirm this code matches what the browser shows before approving.\n'))
-  console.log(url)
+  printLine(`\nPairing code: ${styles().bold(auth.pairing)}`)
+  printLine(styles().dim('Confirm this code matches what the browser shows before approving.\n'))
+  printLine(url)
 
   if (options.browser) openBrowser(url)
-  console.log(styles().dim('\nWaiting for approval…'))
+  printLine(styles().dim('\nWaiting for approval…'))
 
   const key = await pollForKey(profile.endpoint, auth)
   try {
@@ -661,7 +662,7 @@ async function loginWithHandoff(
           try {
             writeCredentialsProfile(profile.name, null)
           } catch {}
-          console.log(
+          printLine(
             styles().yellow(
               `Could not restore the previous profile safely (${safeOneLine(getErrorMessage(rollbackError))}). Its local login was cleared to avoid using it against the wrong endpoint.`
             )
@@ -672,7 +673,7 @@ async function loginWithHandoff(
     })
   } catch (error) {
     const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
-    console.log(
+    printLine(
       styles().yellow(
         `API key ${keyId} was created but could not be stored safely. Revoke it in Settings → API keys.`
       )
@@ -680,17 +681,17 @@ async function loginWithHandoff(
     throw error
   }
 
-  console.log(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+  printLine(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
   if (key.workspaceBound && key.workspaceId) {
-    console.log(styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
+    printLine(styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
   } else if (key.workspaceId) {
-    console.log(
+    printLine(
       styles().dim(
         `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
       )
     )
   } else {
-    console.log(
+    printLine(
       styles().dim(
         '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
       )
@@ -727,9 +728,9 @@ async function revokeStoredOAuth(credential: StoredOAuthCredential): Promise<voi
     const endpoint = issuer.toString().replace(/\/$/, '')
     displayEndpoint = safeOneLine(endpoint)
     await revokeToken(endpoint, credential.refreshToken)
-    console.log(styles().dim('  Signed out of Sim; every token from this login was revoked.'))
+    printLine(styles().dim('  Signed out of Sim; every token from this login was revoked.'))
   } catch (error) {
-    console.log(
+    printLine(
       styles().yellow(
         `  Could not revoke the login on ${displayEndpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → General → Authorized apps.`
       )
@@ -759,12 +760,12 @@ export function logoutCommand(): Command {
           return { removed: deleteProfile(profileName), credential }
         })
         if (!removed.config && !removed.credentials) {
-          console.log(styles().dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
+          printLine(styles().dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
         }
-        console.log(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
+        printLine(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         if (credential?.kind === 'api_key') {
-          console.log(
+          printLine(
             styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
           )
         }
@@ -790,16 +791,16 @@ export function logoutCommand(): Command {
         return credential
       })
       if (!credential) {
-        console.log(styles().dim(`No stored login for profile "${safeOneLine(profileName)}".`))
+        printLine(styles().dim(`No stored login for profile "${safeOneLine(profileName)}".`))
         return
       }
 
-      console.log(
+      printLine(
         styles().green(`✓ Removed the stored login for profile "${safeOneLine(profileName)}".`)
       )
       if (credential.kind === 'api_key') {
         /** Local API-key removal cannot revoke the server-side key. */
-        console.log(
+        printLine(
           styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
         )
       }
@@ -1131,7 +1132,7 @@ export function profilesCommand(): Command {
     if (rows.length === 0) {
       // The prose belongs to the human formats; a script asking for json must
       // get an empty list, not a sentence it cannot parse.
-      if (output === 'table') console.log(styles().dim('No profiles yet. Run: sim login'))
+      if (output === 'table') printLine(styles().dim('No profiles yet. Run: sim login'))
       else printList(output, rows, PROFILE_COLUMNS)
       return
     }
