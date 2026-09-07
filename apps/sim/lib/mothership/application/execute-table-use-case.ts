@@ -1,6 +1,9 @@
 import type { OperationUseCase } from '@/lib/core/application'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
-import { COPILOT_APPLICATION_DELEGATION_TTL_MS } from '@/lib/mothership/auth/application-delegation'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createTrustedCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import type { CopilotTableDelegationContext } from '@/lib/mothership/auth/table-delegation'
 import { tableDelegationPolicy } from '@/lib/table/application/authorization'
 import { type TableOperation, tableOperations } from '@/lib/table/application/operations'
@@ -31,4 +34,26 @@ export function executeCopilotTableUseCase<O extends TableOperation, I, R>(
   options: ExecuteCopilotTableUseCaseOptions = {}
 ): Promise<R> {
   return executeTableUseCase(context, useCase, input, options)
+}
+
+/** Resolve chat references with the authenticated actor and an exact table scope. */
+export function createCopilotChatTablePrincipal(context: {
+  userId: string
+  workspaceId: string
+  tableId: string
+  chatId?: string
+}) {
+  return createTrustedCopilotPrincipal(
+    {
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      chatId: context.chatId,
+      delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}`,
+    },
+    {
+      audience: tableDelegationPolicy.audience,
+      ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+      resourceScope: { tableId: context.tableId },
+    }
+  )
 }

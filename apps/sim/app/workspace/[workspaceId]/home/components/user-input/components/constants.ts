@@ -124,7 +124,12 @@ const RESOURCE_TO_CONTEXT: Record<
   }),
   workflow: (r) => ({ kind: 'workflow', workflowId: r.id, label: r.title }),
   knowledgebase: (r) => ({ kind: 'knowledge', knowledgeId: r.id, label: r.title }),
-  table: (r) => ({ kind: 'table', tableId: r.id, label: r.title }),
+  table: (r) => ({
+    kind: 'table',
+    tableId: r.id,
+    label: r.title,
+    ...(r.viewId ? { viewId: r.viewId } : {}),
+  }),
   file: (r) => ({ kind: 'file', fileId: r.id, label: r.title }),
   folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
   filefolder: (r) => ({ kind: 'filefolder', fileFolderId: r.id, label: r.title }),
