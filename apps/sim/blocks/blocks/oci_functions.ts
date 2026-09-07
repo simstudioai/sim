@@ -611,7 +611,13 @@ export const OciFunctionsBlock: BlockConfig<OciFunctionsResponse> = {
             ? undefined
             : params.ociRegion
         for (const key of OPERATION_PARAMS[selected]) {
-          result[key] = params[key] === '' && key !== 'payload' ? undefined : params[key]
+          result[key] =
+            (params[key] === '' && key !== 'payload') ||
+            (params[key] === null &&
+              (selected === 'list_applications' || selected === 'list_functions') &&
+              ['displayName', 'id', 'lifecycleState', 'page', 'sortBy', 'sortOrder'].includes(key))
+              ? undefined
+              : params[key]
         }
         if (
           'configuration' in result &&

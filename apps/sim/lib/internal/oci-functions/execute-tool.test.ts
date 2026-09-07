@@ -23,6 +23,8 @@ vi.mock('@/app/api/files/authorization', () => ({ assertToolFileAccess: vi.fn() 
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciFunctionsTool } from '@/lib/internal/oci-functions/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciFunctionsBlock } from '@/blocks/blocks/oci_functions'
+import { ociFunctionsListApplicationsTool } from '@/tools/oci_functions/list_applications'
 
 function request(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -58,6 +60,52 @@ beforeEach(() => {
 })
 
 describe('OCI Functions credential execution boundary', () => {
+  it.each([null, '', undefined, 'application-name'])(
+    'normalizes optional list filters through the native merge (%s)',
+    async (displayName) => {
+      mocks.request.mockResolvedValue({
+        status: 200,
+        headers: {},
+        body: new TextEncoder().encode('[]'),
+      })
+      const raw = {
+        operation: 'list_applications',
+        oauthCredential: 'supplied-pointer',
+        compartmentId: 'compartment',
+        displayName,
+        page: null,
+        sortBy: null,
+        sortOrder: null,
+        lifecycleState: null,
+        id: null,
+      }
+      const params = { ...raw, ...OciFunctionsBlock.tools.config?.params?.(raw) }
+      const result = await executeOciFunctionsTool(
+        request({
+          toolId: ociFunctionsListApplicationsTool.id,
+          input: ociFunctionsListApplicationsTool.operation.input(params),
+        })
+      )
+      expect(result.status).toBe(200)
+      expect(mocks.request.mock.lastCall?.[0].queryPairs).toEqual([
+        ['compartmentId', 'compartment'],
+        ['limit', '10'],
+        ...(displayName ? [['displayName', displayName]] : []),
+      ])
+    }
+  )
+
+  it.each([null, false, 0])('preserves meaningful invocation JSON payload %s', (payload) => {
+    const raw = { operation: 'invoke', payloadType: 'json', payload, dryRun: false }
+    const params = { ...raw, ...OciFunctionsBlock.tools.config?.params?.(raw) }
+    expect(params.payload).toBe(payload)
+    expect(params.dryRun).toBe(false)
+  })
+
+  it('preserves an empty text invocation payload', () => {
+    const raw = { operation: 'invoke', payloadType: 'text', payload: '' }
+    expect({ ...raw, ...OciFunctionsBlock.tools.config?.params?.(raw) }.payload).toBe('')
+  })
   it('authorizes the supplied pointer but passes only the resolved ID and trusted context into the foundation', async () => {
     const result = await executeOciFunctionsTool(
       request({
