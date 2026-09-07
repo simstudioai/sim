@@ -28,6 +28,7 @@ import {
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import {
   cancelActiveBrowserTools,
@@ -237,6 +238,7 @@ export interface UseChatReturn {
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
   addResource: (resource: MothershipResourceUpdate) => boolean
+  setTableViewContext: (tableId: string, context: MothershipTableViewContext) => void
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
@@ -842,6 +844,32 @@ export function useChat(
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  const tableViewContextsRef = useRef({
+    scopeId: desktopScopeId,
+    views: new Map<string, MothershipTableViewContext>(),
+  })
+  if (tableViewContextsRef.current.scopeId !== desktopScopeId) {
+    tableViewContextsRef.current = { scopeId: desktopScopeId, views: new Map() }
+  }
+  for (const tableId of tableViewContextsRef.current.views.keys()) {
+    if (!resources.some((resource) => resource.type === 'table' && resource.id === tableId)) {
+      tableViewContextsRef.current.views.delete(tableId)
+    }
+  }
+  const setTableViewContext = useCallback(
+    (tableId: string, context: MothershipTableViewContext) => {
+      if (tableViewContextsRef.current.scopeId !== desktopScopeId) return
+      if (
+        !resourcesRef.current.some(
+          (resource) => resource.type === 'table' && resource.id === tableId
+        )
+      )
+        return
+      tableViewContextsRef.current.views.set(tableId, context)
+    },
+    [desktopScopeId]
+  )
+
   /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
@@ -1212,6 +1240,7 @@ export function useChat(
 
   const removeResource = useCallback(
     (resourceType: MothershipResourceType, resourceId: string) => {
+      if (resourceType === 'table') tableViewContextsRef.current.views.delete(resourceId)
       setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
       setActiveResourceId((prev) => (prev === resourceId ? null : prev))
 
@@ -3062,9 +3091,17 @@ export function useChat(
     async (
       message: string,
       fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[],
+      suppliedContexts?: ChatContext[],
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
+      const contexts = suppliedContexts?.map((context) =>
+        context.kind === 'table' &&
+        !context.currentView &&
+        tableViewContextsRef.current.views.has(context.tableId)
+          ? { ...context, currentView: tableViewContextsRef.current.views.get(context.tableId) }
+          : context
+      )
+
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return false
       const { onOptimisticSendApplied } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
@@ -3137,7 +3174,9 @@ export function useChat(
         ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
         ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
-        ...('viewId' in c && c.viewId ? { viewId: c.viewId } : {}),
+        ...(c.kind === 'table'
+          ? { viewId: (c.currentView ? c.currentView.viewId : c.viewId) ?? undefined }
+          : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
@@ -3361,7 +3400,8 @@ export function useChat(
             : buildResourceAttachments(
                 resourcesRef.current,
                 activeResourceIdRef.current,
-                desktopScopeIdRef.current
+                desktopScopeIdRef.current,
+                tableViewContextsRef.current.views
               )
         const desktopChatCapabilities = organizationId
           ? {}
@@ -4555,6 +4595,7 @@ export function useChat(
     resources,
     activeResourceId: effectiveActiveResourceId,
     setActiveResourceId,
+    setTableViewContext,
     addResource,
     removeResource,
     reorderResources,

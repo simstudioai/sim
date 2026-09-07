@@ -2,6 +2,7 @@
 
 import { forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -81,6 +82,7 @@ interface MothershipViewProps {
   workspaceId: string
   chatId?: string
   desktopScopeId: string
+  onTableViewContextChange?: (tableId: string, context: MothershipTableViewContext) => void
   resources: MothershipResource[]
   activeResourceId: string | null
   activityResourceIds?: ReadonlySet<string>
@@ -100,6 +102,7 @@ export const MothershipView = memo(
       chatId,
       desktopScopeId,
       resources,
+      onTableViewContextChange,
       activeResourceId,
       activityResourceIds,
       isCollapsed,
@@ -268,6 +271,7 @@ export const MothershipView = memo(
                 desktopScopeId={desktopScopeId}
                 resource={active}
                 downloadSourceRef={fileDownloadSourceRef}
+                onTableViewContextChange={onTableViewContextChange}
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
                 isAgentResponding={isAgentResponding}
