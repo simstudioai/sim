@@ -388,15 +388,18 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const compiled = await compileDocForWrite({
-            source: content,
-            fileName,
-            workspaceId,
-            principal,
-            ownerKey: `user:${context.userId}`,
-            signal: context.abortSignal,
-            fallbackMime: inferContentType(fileName, explicitType),
-          })
+          const compiled: CompileForWriteResult =
+            normalized.content === undefined
+              ? { ok: true, sourceMime: inferContentType(fileName, explicitType) }
+              : await compileDocForWrite({
+                  source: content,
+                  fileName,
+                  workspaceId,
+                  principal,
+                  ownerKey: `user:${context.userId}`,
+                  signal: context.abortSignal,
+                  fallbackMime: inferContentType(fileName, explicitType),
+                })
           if (!compiled.ok) {
             return { success: false, message: compiled.message }
           }
@@ -429,11 +432,27 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
           })
 
+          await storeFileIntent(workspaceId, result.file.id, {
+            operation: 'update',
+            fileId: result.file.id,
+            workspaceId,
+            userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
+            channelId: context.parentToolCallId,
+            fileRecord: result.file,
+            contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
+          })
+
           const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
 
           return {
             success: true,
-            message: `File "${fileName}" created successfully (${fileBuffer.length} bytes)${embedWarning}`,
+            message: withMessageId(
+              `File "${fileName}" created successfully (${fileBuffer.length} bytes). Ready for apply_file_edit with its content.${embedWarning}`
+            ),
             data: {
               id: result.file.id,
               name: result.file.name,
