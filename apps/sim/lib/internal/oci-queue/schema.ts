@@ -168,7 +168,10 @@ export const ociQueueSummarySchema = z.object({
   compartmentId: z.string(),
   displayName: z.string().optional(),
   lifecycleState: z.string(),
-  lifecycleDetails: z.string().optional(),
+  lifecycleDetails: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
   timeCreated: z.string(),
   timeUpdated: z.string(),
   messagesEndpoint: z.string(),

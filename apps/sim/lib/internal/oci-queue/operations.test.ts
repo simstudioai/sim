@@ -87,6 +87,23 @@ describe('OCI Queue operation contracts', () => {
     vi.mocked(client.prepareStaticEndpoint).mockResolvedValue(control)
   })
 
+  it.each([undefined, null, 'Ready for messages'])(
+    'projects optional lifecycle details from lists and details: %s',
+    async (lifecycleDetails) => {
+      request.mockResolvedValue(response({ items: [{ ...summary, lifecycleDetails }] }))
+      expect((await run('list_queues')).queues?.[0].lifecycleDetails).toBe(
+        lifecycleDetails ?? undefined
+      )
+      request.mockResolvedValue(response({ ...queue, lifecycleDetails }))
+      expect((await run('get_queue')).queue?.lifecycleDetails).toBe(lifecycleDetails ?? undefined)
+    }
+  )
+
+  it('rejects malformed lifecycle details instead of hiding them', async () => {
+    request.mockResolvedValue(response({ items: [{ ...summary, lifecycleDetails: 42 }] }))
+    await expect(run('list_queues')).rejects.toThrow('invalid response')
+  })
+
   it('coerces active workflow inputs while preserving zero, receipts, and key removal', () => {
     const map = OciQueueBlock.tools.config!.params!
     const receive = map({
