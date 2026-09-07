@@ -1,6 +1,6 @@
 import { Node } from '@tiptap/pm/model'
 import type { ProsemirrorBinding } from '@tiptap/y-tiptap'
-import { XmlElement, XmlFragment } from 'yjs'
+import { XmlElement } from 'yjs'
 
 export function getImageYTarget(binding: ProsemirrorBinding, node: Node): XmlElement | undefined {
   for (const [type, mappedNode] of binding.mapping) {
@@ -9,18 +9,18 @@ export function getImageYTarget(binding: ProsemirrorBinding, node: Node): XmlEle
 }
 
 /**
- * Yjs reconciliation can reuse image elements for insertions and reorders. Require unchanged
- * sibling images; text edits and the selected image's own metadata edits remain compatible.
+ * Yjs reconciliation can reuse images and their containers during a reorder. Require unchanged
+ * other images throughout the document; text edits and the target's own metadata remain compatible.
  */
 export function createImageTargetGuard(binding: ProsemirrorBinding, node: Node) {
   const target = getImageYTarget(binding, node)
   const parent = target?.parent
   const images = () =>
-    parent instanceof XmlFragment
-      ? parent
-          .toArray()
-          .filter((child) => child instanceof XmlElement && child.nodeName === 'image')
-      : []
+    Array.from(
+      binding.type.createTreeWalker(
+        (child) => child instanceof XmlElement && child.nodeName === 'image'
+      )
+    )
   const originalImages = images().map((element) => ({
     element,
     node: binding.mapping.get(element),

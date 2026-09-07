@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFileCollabState } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, lte, sql } from 'drizzle-orm'
 
 /**
  * The cached-collab-state cache (`workspace_file_collab_state`) lets a cold room open load the file's
@@ -30,33 +30,29 @@ export interface CachedCollabDocState {
  * document's identity, and a rebuilt document's items carry different client ids, so any client still
  * holding the old one would merge the two into duplicated content. Either way this row is the file's
  * collaborative document; there is only ever one.
+ * An optional byte cap filters oversized rows in SQL before their binary is loaded.
  */
-export async function loadCollabDocState(fileId: string): Promise<CachedCollabDocState | null> {
+export async function loadCollabDocState(
+  fileId: string,
+  options?: { maxBytes: number }
+): Promise<CachedCollabDocState | null> {
   const [row] = await db
     .select({
       docState: workspaceFileCollabState.docState,
       sourceHash: workspaceFileCollabState.sourceHash,
     })
     .from(workspaceFileCollabState)
-    .where(eq(workspaceFileCollabState.fileId, fileId))
+    .where(
+      and(
+        eq(workspaceFileCollabState.fileId, fileId),
+        options &&
+          lte(sql<number>`octet_length(${workspaceFileCollabState.docState})`, options.maxBytes)
+      )
+    )
     .limit(1)
 
   if (!row) return null
   return { docState: new Uint8Array(row.docState), sourceHash: row.sourceHash }
-}
-
-/**
- * The markdown hash this file's cached doc state was derived from — i.e. the exact bytes the live
- * document last projected onto the file — or `null` when nothing is cached. Selects only the tag, so a
- * caller asking "is what's on disk still our own last write?" never loads the binary to find out.
- */
-export async function collabDocStateSourceHash(fileId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ sourceHash: workspaceFileCollabState.sourceHash })
-    .from(workspaceFileCollabState)
-    .where(eq(workspaceFileCollabState.fileId, fileId))
-    .limit(1)
-  return row?.sourceHash ?? null
 }
 
 /**

@@ -1,6 +1,7 @@
-import type { JSONContent } from '@tiptap/core'
-import { Image } from '@tiptap/extension-image'
+import { InputRule, type JSONContent } from '@tiptap/core'
+import { Image, inputRegex } from '@tiptap/extension-image'
 import { Lexer, Tokenizer } from 'marked'
+import { createTextInputRulePlugins } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/text-input-rule'
 
 /**
  * React-free schema half of the image node. Lives apart from {@link ./image} (its React resize node
@@ -144,6 +145,26 @@ const hrefTitleAttr = { default: null, rendered: false }
  * round-trip path (no node view) and the live {@link ResizableImage}.
  */
 export const MarkdownImage = Image.extend({
+  addInputRules: () => [],
+  addProseMirrorPlugins() {
+    return createTextInputRulePlugins(
+      this.editor,
+      this.name,
+      new InputRule({
+        find: new RegExp(`${inputRegex.source}(?![\\s\\S])`),
+        handler: ({ state, range, match }) => {
+          const [, syntax, alt, src, title] = match
+          state.tr
+            .replaceRangeWith(
+              range.from + match[0].indexOf(syntax),
+              range.to,
+              this.type.create({ alt, src, title: title ?? null })
+            )
+            .scrollIntoView()
+        },
+      })
+    )
+  },
   addAttributes() {
     return {
       ...this.parent?.(),

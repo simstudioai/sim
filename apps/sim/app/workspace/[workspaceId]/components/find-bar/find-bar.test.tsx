@@ -46,6 +46,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   container = document.createElement('div')
   document.body.appendChild(container)
   act(() => {
@@ -56,6 +57,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.unstubAllGlobals()
 })
 
 function render(overrides: Partial<FindBarProps> = {}) {
@@ -180,6 +182,65 @@ describe('FindBar keyboard', () => {
     const props = render({ query: 'a', count: 3 })
     press('Escape')
     expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['Next match', 'Previous match', 'Clear search', 'Close find'])(
+    'handles Escape from the focused %s button',
+    (label) => {
+      const props = render({ query: 'a', count: 3 })
+      const button = buttonByLabel(label)
+      button.focus()
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      })
+      const parentKeyDown = vi.fn()
+      document.body.addEventListener('keydown', parentKeyDown)
+      act(() => button.dispatchEvent(event))
+      document.body.removeEventListener('keydown', parentKeyDown)
+      expect(props.onClose).toHaveBeenCalledOnce()
+      expect(event.defaultPrevented).toBe(true)
+      expect(parentKeyDown).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([{ isComposing: true }, { keyCode: 229 }])(
+    'does not close while Escape belongs to composition (%j)',
+    (init) => {
+      const props = render({ query: 'a', count: 3 })
+      press('Escape', init)
+      expect(props.onClose).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['Replace', 'All'])('retains focus after %s disables the last match', (label) => {
+    const replace = {
+      value: 'beta',
+      onChange: vi.fn(),
+      onReplace: vi.fn(),
+      onReplaceAll: vi.fn(),
+      canReplace: true,
+      canReplaceAll: true,
+    }
+    const props = render({ query: 'alpha', count: 1, replace })
+    act(() => buttonByLabel('Show replace').click())
+    const button = Array.from(container.querySelectorAll('button')).find(
+      (candidate) => candidate.textContent === label
+    )!
+    button.focus()
+    act(() => button.click())
+    render({
+      ...props,
+      count: 0,
+      replace: { ...replace, canReplace: false, canReplaceAll: false },
+    })
+    const replacement = container.querySelector('input[aria-label="Replace in document"]')
+    expect(document.activeElement).toBe(replacement)
+    act(() =>
+      replacement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    )
+    expect(props.onClose).toHaveBeenCalledOnce()
   })
 
   // Mid-debounce the visible matches still belong to the previous term, so

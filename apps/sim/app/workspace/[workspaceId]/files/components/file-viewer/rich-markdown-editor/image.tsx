@@ -304,6 +304,7 @@ export const ResizableImage = MarkdownImage.extend({
   addProseMirrorPlugins() {
     const nodeName = this.name
     return [
+      ...(this.parent?.() ?? []),
       new Plugin({
         props: {
           handleClickOn(view, _pos, node, nodePos, event) {

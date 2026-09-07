@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { memo, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { Button, ChipInput, cn } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, Loader, Search, X } from '@sim/emcn/icons'
 
@@ -79,6 +79,7 @@ export const FindBar = memo(function FindBar({
   inputRef,
   replace,
 }: FindBarProps) {
+  const replaceInputRef = useRef<HTMLInputElement>(null)
   const [showReplace, setShowReplace] = useState(false)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
@@ -93,10 +94,6 @@ export const FindBar = memo(function FindBar({
       else if (e.shiftKey) onPrev()
       else onNext()
       return
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
     }
   }
 
@@ -114,6 +111,13 @@ export const FindBar = memo(function FindBar({
 
   return (
     <div
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return
+        event.preventDefault()
+        onClose()
+      }}
       className={cn(
         'absolute top-2 right-2 z-[var(--z-dropdown)] flex max-w-[calc(100%_-_1rem)] flex-col gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1 shadow-medium',
         replace && 'w-[min(400px,calc(100%_-_1rem))]'
@@ -211,6 +215,7 @@ export const FindBar = memo(function FindBar({
         <div className='flex items-center gap-1.5'>
           <span aria-hidden className='w-6 shrink-0' />
           <ChipInput
+            ref={replaceInputRef}
             value={replace.value}
             placeholder='Replace'
             aria-label='Replace in document'
@@ -223,9 +228,6 @@ export const FindBar = memo(function FindBar({
               if (event.key === 'Enter' && replace.canReplace) {
                 event.preventDefault()
                 replace.onReplace()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                onClose()
               }
             }}
           />
@@ -234,7 +236,10 @@ export const FindBar = memo(function FindBar({
             variant='quiet'
             size='sm'
             disabled={!replace.canReplace}
-            onClick={replace.onReplace}
+            onClick={() => {
+              replace.onReplace()
+              replaceInputRef.current?.focus()
+            }}
           >
             Replace
           </Button>
@@ -247,7 +252,10 @@ export const FindBar = memo(function FindBar({
             }
             disabled={!replace.canReplaceAll}
             aria-label='Replace all matches'
-            onClick={replace.onReplaceAll}
+            onClick={() => {
+              replace.onReplaceAll()
+              replaceInputRef.current?.focus()
+            }}
           >
             All
           </Button>

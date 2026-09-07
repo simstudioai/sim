@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import * as Y from 'yjs'
+import { hashMarkdown, loadCollabDocState, saveCollabDocState } from '@/lib/collab-doc/collab-state'
+import { canonicalizeYDoc, yDocToFileMarkdown } from '@/lib/collab-doc/converter'
 import {
   ContentVersionConflictError,
   fetchWorkspaceFileBuffer,
@@ -8,20 +11,19 @@ import {
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { collabDocStateSourceHash, hashMarkdown, saveCollabDocState } from './collab-state'
-import { canonicalizeYDoc, yDocToFileMarkdown } from './converter'
 
 const logger = createLogger('FileDocPersist')
+
+/** Matches the decoded size of the persist endpoint's 16 MiB base64 snapshot limit. */
+const MAX_RECOVERY_STATE_BYTES = 12 * 1024 * 1024
 
 /**
  * Outcome of a persist attempt:
  * - `persisted` — the live doc was projected to markdown and written; `version` is the new durable
  *   CONTENT version (`content_updated_at`, epoch ms) the relay records as what its live doc is synced to.
  * - `missing` — the file is gone (deleted); nothing to write.
- * - `conflict` — the file changed out-of-band since the relay's live doc last synced, so writing the
- *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written; the relay leaves the
- *   durable content authoritative and does not advance its synced version (a later flush reconciles once
- *   the chokepoint merge lands). No `version` is returned — the relay never reads one on this path.
+ * - `conflict` — safe replacement of the current durable content could not be established.
+ *   Nothing was written; no version is returned, so the relay retains its synced version.
  */
 export type PersistFileDocResult =
   | { status: 'persisted'; version: number }
@@ -39,9 +41,8 @@ export type PersistFileDocResult =
  * synced from) is the optimistic-concurrency guard: the write commits only if the file is still at that
  * content version — a rename/move that only bumps `updatedAt` won't trip it, so a
  * projection built from a stale live doc can never silently overwrite an out-of-band edit. On a version
- * mismatch this returns `conflict` (the current durable version) instead of writing — the relay adopts
- * it as its new If-Match and retries against the current live stream. Omit `expectedVersion` to write
- * unconditionally (e.g. the first persist, before any synced version exists).
+ * mismatch, recovery requires proof that this snapshot contains the current persisted edits;
+ * otherwise the durable file remains authoritative. A missing `expectedVersion` defers the write.
  *
  * `userId` is attribution only (blob metadata); the caller is already trusted via the `x-api-key` gate.
  */
@@ -161,35 +162,26 @@ export async function persistFileDoc(
     return await write(expectedVersion)
   } catch (error) {
     if (!(error instanceof ContentVersionConflictError)) throw error
-    return recoverFromVersionConflict(workspaceId, fileId, markdownBuffer, write)
+    return recoverFromVersionConflict(workspaceId, fileId, cachedDocState, markdownBuffer, write)
   }
 }
 
 /**
- * A stale If-Match does not prove someone else wrote the file — so ask the CONTENT, not the clock.
- *
- * The relay's token is a remembered timestamp: it lives in the room (lost when the room is dropped) and
- * in a cluster key written best-effort, so a process that dies in the moments after a successful write
- * comes back holding a version older than the file's. Every later persist then fails the CAS, and
- * because a conflict deliberately neither writes nor advances the token, the room can never persist
- * again: the session's edits stay in the stream, the durable markdown freezes at the last write, and
- * every reload renders that stale markdown before the live document corrects it on screen.
- *
- * The guard exists to protect content the live document has never seen. The file's own bytes settle
- * that directly: if they hash to what this document last projected ({@link collabDocStateSourceHash},
- * written with every successful persist), then nothing out-of-band exists and the write is safe — retry
- * it once against the file's current version. If they hash to anything else, the change is real, the
- * conflict stands, and the durable content stays authoritative exactly as before.
+ * Recover a stale token only when the cached state matches the durable bytes and contributes no
+ * missing content to this snapshot. A newer concurrent save may have advanced both the file and its
+ * cache, so a matching hash alone cannot authorize retrying an older projection. The final CAS still
+ * protects against writes arriving after this proof.
  */
 async function recoverFromVersionConflict(
   workspaceId: string,
   fileId: string,
+  docState: Uint8Array,
   markdownBuffer: Buffer,
   write: (ifMatch: number) => Promise<PersistFileDocResult>
 ): Promise<PersistFileDocResult> {
   const conflict = (): PersistFileDocResult => {
     logger.warn(
-      `Persist conflict for file ${fileId}; durable content changed out-of-band since sync`
+      `Persist conflict for file ${fileId}; snapshot could not safely replace durable content`
     )
     return { status: 'conflict' }
   }
@@ -199,7 +191,14 @@ async function recoverFromVersionConflict(
     const durable = await fetchWorkspaceFileBuffer(current, {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     })
-    if (hashMarkdown(durable) !== (await collabDocStateSourceHash(fileId))) return conflict()
+    const cached = await loadCollabDocState(fileId, { maxBytes: MAX_RECOVERY_STATE_BYTES })
+    if (
+      !cached ||
+      hashMarkdown(durable) !== cached.sourceHash ||
+      !includesPersistedContent(docState, cached.docState, markdownBuffer)
+    ) {
+      return conflict()
+    }
     logger.info(
       `Persist token for file ${fileId} was stale, not the file; re-syncing and writing the projection`
     )
@@ -212,5 +211,31 @@ async function recoverFromVersionConflict(
       error: getErrorMessage(error),
     })
     return conflict()
+  }
+}
+
+/**
+ * Applying the persisted state must leave the candidate's projection unchanged, including deletions
+ * and marks (which a state-vector comparison alone cannot prove). Harmless canonicalization of
+ * detached cache snapshots is allowed; this never mutates the live document or the saved candidate.
+ */
+function includesPersistedContent(
+  docState: Uint8Array,
+  persistedState: Uint8Array,
+  markdown: Buffer
+): boolean {
+  const candidate = new Y.Doc()
+  const persisted = new Y.Doc()
+  try {
+    Y.applyUpdate(candidate, docState)
+    Y.applyUpdate(persisted, persistedState)
+    const generation = (doc: Y.Doc) =>
+      doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+    if (generation(candidate) !== generation(persisted)) return false
+    Y.applyUpdate(candidate, persistedState)
+    return Buffer.from(yDocToFileMarkdown(candidate), 'utf-8').equals(markdown)
+  } finally {
+    candidate.destroy()
+    persisted.destroy()
   }
 }
