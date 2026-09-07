@@ -11,6 +11,8 @@ vi.mock('@/lib/internal/oci-document-understanding/operations', () => ({
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciDocumentTool } from '@/lib/internal/oci-document-understanding/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciDocumentUnderstandingBlock } from '@/blocks/blocks/oci_document_understanding'
+import { ociDocumentListModelsTool } from '@/tools/oci_document_understanding/list_models'
 import {
   documentOperationInput,
   isDocumentJsonWithinLimit,
@@ -38,6 +40,42 @@ describe('document internal tool boundary', () => {
     vi.clearAllMocks()
     executeOperation.mockResolvedValue({ success: true, output: {} })
   })
+
+  it.each([null, '', undefined, 'project-1'])(
+    'normalizes an optional project filter through the native block merge (%s)',
+    async (projectId) => {
+      const raw = {
+        operation: ociDocumentListModelsTool.id,
+        oauthCredential: 'selected',
+        compartmentId: 'compartment-1',
+        projectId,
+        displayName: null,
+        page: '',
+        limit: '10',
+      }
+      const params = {
+        ...raw,
+        ...OciDocumentUnderstandingBlock.tools.config?.params?.(raw),
+        accessToken: 'authorized',
+      }
+      const response = await executeOciDocumentTool(
+        request('list_models', ociDocumentListModelsTool.operation.input(params))
+      )
+      expect(response.status).toBe(200)
+      expect(executeOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'list_models',
+          credentialId: 'authorized',
+          compartmentId: 'compartment-1',
+          limit: 10,
+        }),
+        expect.anything()
+      )
+      expect(executeOperation.mock.lastCall?.[0].projectId).toBe(projectId || undefined)
+      expect(executeOperation.mock.lastCall?.[0].displayName).toBeUndefined()
+      expect(executeOperation.mock.lastCall?.[0].page).toBeUndefined()
+    }
+  )
 
   it.each([
     ['analyze_document', analysisInput],

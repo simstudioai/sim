@@ -637,6 +637,12 @@ export const OciDocumentUnderstandingBlock: BlockConfig<OciDocumentResponse> = {
         if (typeof operation !== 'string' || !Object.hasOwn(OPERATION_FIELDS, operation))
           throw new Error('Select a Document Understanding operation')
         const output: Record<string, unknown> = {
+          /** Explicit undefined values overwrite blank or inactive inputs in the executor merge. */
+          ...Object.fromEntries(
+            Object.values(OPERATION_FIELDS)
+              .flat()
+              .map((key) => [key, undefined])
+          ),
           oauthCredential: params.oauthCredential,
           region: params.region || undefined,
         }
