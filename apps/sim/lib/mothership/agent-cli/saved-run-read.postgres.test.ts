@@ -97,6 +97,7 @@ import {
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -115,6 +116,11 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import {
+  POST as addChatResourceRoute,
+  DELETE as removeChatResourceRoute,
+  PATCH as reorderChatResourcesRoute,
+} from '@/app/api/mothership/chat/resources/route'
 import { POST as stopChatRoute } from '@/app/api/mothership/chat/stop/route'
 import { POST as forkChatRoute } from '@/app/api/mothership/chats/[chatId]/fork/route'
 import { POST as readControlRoute } from '@/app/api/mothership/runs/control/route'
@@ -205,7 +211,7 @@ vi.mock('@sim/db', async () => {
   const { drizzle } = await import('drizzle-orm/postgres-js')
   const client = postgres(url, {
     max: 4,
-    connection: { search_path: fixture.schemaName },
+    connection: { search_path: fixture.schemaName, application_name: fixture.schemaName },
     onnotice: () => {},
   })
   const database = drizzle(client)
@@ -610,6 +616,154 @@ const tables = [
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
   'saved-run evidence through the real CLI',
   () => {
+    it.each(['add', 'remove'] as const)(
+      'retains panels when concurrent resource additions overlap %s on the same chat',
+      async (operation) => {
+        const chatId = generateId()
+        const resources = ['First workflow', 'Second workflow'].map((title) => ({
+          type: 'workflow' as const,
+          id: generateId(),
+          title,
+        }))
+        await db.insert(copilotChats).values({
+          id: chatId,
+          userId: 'run-reader',
+          workspaceId,
+          type: 'mothership',
+          resources: operation === 'remove' ? [resources[1]] : [],
+        })
+        authMockFns.mockGetSession.mockResolvedValue({
+          user: { id: 'run-reader' },
+          session: { id: 'resource-test' },
+        })
+        const locked = createSignal()
+        const release = createSignal()
+        const lock = db.transaction(async (tx) => {
+          await tx.select().from(copilotChats).where(eq(copilotChats.id, chatId)).for('update')
+          locked.resolve()
+          await release.promise
+        })
+        await locked.promise
+        const writes = resources.map((resource, index) => {
+          const remove = operation === 'remove' && index === 1
+          return (remove ? removeChatResourceRoute : addChatResourceRoute)(
+            new NextRequest('http://localhost/api/mothership/chat/resources', {
+              method: remove ? 'DELETE' : 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(
+                remove
+                  ? { chatId, resourceType: resource.type, resourceId: resource.id }
+                  : { chatId, resource }
+              ),
+            }),
+            undefined
+          )
+        })
+        try {
+          await vi.waitFor(
+            async () => {
+              const waiting = await db.execute(
+                sql`SELECT count(*)::integer AS count FROM pg_stat_activity WHERE application_name = ${fixture.schemaName} AND wait_event_type = 'Lock'`
+              )
+              expect(waiting[0]?.count).toBe(2)
+            },
+            { timeout: 5000, interval: 10 }
+          )
+        } finally {
+          release.resolve()
+          await lock
+        }
+        const responses = await Promise.all(writes)
+        expect(responses.map((response) => response.status)).toEqual([200, 200])
+        const [chat] = await db
+          .select({ resources: copilotChats.resources })
+          .from(copilotChats)
+          .where(eq(copilotChats.id, chatId))
+        const expected = operation === 'remove' ? [resources[0]] : resources
+        expect(chat.resources).toEqual(expect.arrayContaining(expected))
+        expect(chat.resources).toHaveLength(expected.length)
+      }
+    )
+
+    it('resource reordering preserves current metadata and refuses stale or duplicate membership', async () => {
+      const chatId = generateId()
+      const resources = [
+        { type: 'table' as const, id: generateId(), title: 'Latest title', viewId: generateId() },
+        { type: 'workflow' as const, id: generateId(), title: 'Workflow' },
+      ]
+      await db
+        .insert(copilotChats)
+        .values({ id: chatId, userId: 'run-reader', workspaceId, type: 'mothership', resources })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'run-reader' },
+        session: { id: 'resource-test' },
+      })
+      for (const order of [[resources[0]], [resources[0], resources[0], resources[1]]]) {
+        const response = await reorderChatResourcesRoute(
+          new NextRequest('http://localhost/api/mothership/chat/resources', {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ chatId, resources: order }),
+          }),
+          undefined
+        )
+        expect(response.status).toBe(400)
+      }
+      const response = await reorderChatResourcesRoute(
+        new NextRequest('http://localhost/api/mothership/chat/resources', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            chatId,
+            resources: [resources[1], { ...resources[0], title: 'Stale title', viewId: undefined }],
+          }),
+        }),
+        undefined
+      )
+      expect(response.status).toBe(200)
+      const [chat] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, chatId))
+      expect(chat.resources).toEqual([resources[1], resources[0]])
+    })
+
+    it('resource writes reject a different chat owner and revoked workspace access', async () => {
+      const chatId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: 'run-reader',
+        workspaceId,
+        type: 'mothership',
+        resources: [],
+      })
+      const input = {
+        chatId,
+        change: {
+          kind: 'upsert' as const,
+          resources: [{ type: 'workflow' as const, id: generateId(), title: 'Private workflow' }],
+        },
+      }
+      await expect(
+        changeChatResources.execute({
+          principal: { kind: 'session', userId: 'other-user', sessionId: 'other-session' },
+          input,
+        })
+      ).rejects.toThrow('Chat not found')
+      fixture.permission = null
+      await expect(
+        changeChatResources.execute({
+          principal: { kind: 'session', userId: 'run-reader', sessionId: 'resource-session' },
+          input,
+        })
+      ).rejects.toThrow()
+      const [chat] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, chatId))
+      expect(chat.resources).toEqual([])
+    })
+
     beforeAll(async () => {
       fixture.directory = await mkdtemp(join(tmpdir(), 'mship-run-logs-'))
       await db.execute(sql`CREATE SCHEMA ${sql.identifier(schemaName)}`)

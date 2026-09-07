@@ -1,244 +1,54 @@
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { and, eq, isNull, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import {
   addCopilotChatResourceContract,
   removeCopilotChatResourceContract,
   reorderCopilotChatResourcesContract,
 } from '@/lib/api/contracts/copilot'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
-  createInternalServerErrorResponse,
-  createNotFoundResponse,
-  createUnauthorizedResponse,
-} from '@/lib/mothership/request/http'
-import {
-  type ChatResource,
-  serializeChatResourceWrite,
-  setChatResourceTxTimeouts,
-} from '@/lib/mothership/resources/persistence'
-import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
-import {
-  canonicalizeDesktopSessionResource,
-  mergeChatResource,
-  reorderStoredChatResources,
-  sanitizeChatResources,
-} from '@/lib/mothership/resources/types'
+  defineInternalJsonRoute,
+  internalJsonPresenters,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
 
-const logger = createLogger('CopilotChatResourcesAPI')
+const policy = {
+  auth: internalSessionAuth,
+  operation: changeChatResources.operation,
+  rateLimit: internalRateLimits.none({
+    reason: 'Personal chat layout updates have no separate rate bucket.',
+  }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  useCase: changeChatResources,
+  present: internalJsonPresenters.withSuccess,
+}
 
-export const POST = withRouteHandler(async (req: NextRequest) => {
-  try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-    if (!isAuthenticated || !userId) {
-      return createUnauthorizedResponse()
-    }
-
-    const parsed = await parseRequest(
-      addCopilotChatResourceContract,
-      req,
-      {},
-      {
-        validationErrorResponse: (error) =>
-          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
-      }
-    )
-    if (!parsed.success) return parsed.response
-    const { chatId, resource: requestedResource, clearViewId } = parsed.data.body
-    const resource = canonicalizeDesktopSessionResource(requestedResource)
-    const resourceUpdate: MothershipResourceUpdate =
-      clearViewId === true ? { ...resource, clearViewId: true } : resource
-
-    // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
-    if (resource.id === 'streaming-file') {
-      return NextResponse.json({ success: true })
-    }
-
-    const merged = await serializeChatResourceWrite(chatId, () =>
-      db.transaction(async (tx) => {
-        await setChatResourceTxTimeouts(tx)
-        const scope = and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, userId),
-          isNull(copilotChats.deletedAt)
-        )
-        const [chat] = await tx
-          .select({ resources: copilotChats.resources })
-          .from(copilotChats)
-          .where(scope)
-          .for('update')
-          .limit(1)
-
-        if (!chat) return null
-
-        const existing = sanitizeChatResources(
-          Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-        )
-        const key = `${resource.type}:${resource.id}`
-        const prev = existing.find((r) => `${r.type}:${r.id}` === key)
-        const next: ChatResource[] = prev
-          ? existing.map((r) =>
-              `${r.type}:${r.id}` === key ? mergeChatResource(r, resourceUpdate) : r
-            )
-          : [...existing, mergeChatResource(undefined, resourceUpdate)]
-
-        await tx
-          .update(copilotChats)
-          .set({ resources: sql`${JSON.stringify(next)}::jsonb`, updatedAt: new Date() })
-          .where(scope)
-
-        return next
-      })
-    )
-
-    if (!merged) {
-      return createNotFoundResponse('Chat not found or unauthorized')
-    }
-
-    logger.info('Added resource to chat', { chatId, resource })
-
-    return NextResponse.json({ success: true, resources: merged })
-  } catch (error) {
-    logger.error('Error adding chat resource:', error)
-    return createInternalServerErrorResponse('Failed to add resource')
-  }
+export const POST = defineInternalJsonRoute({
+  ...policy,
+  contract: addCopilotChatResourceContract,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    change: { kind: 'upsert' as const, resources: [{ ...body.resource, ...(body.clearViewId ? { clearViewId: true as const } : {}) }] },
+  }),
 })
 
-export const PATCH = withRouteHandler(async (req: NextRequest) => {
-  try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-    if (!isAuthenticated || !userId) {
-      return createUnauthorizedResponse()
-    }
-
-    const parsed = await parseRequest(
-      reorderCopilotChatResourcesContract,
-      req,
-      {},
-      {
-        validationErrorResponse: (error) =>
-          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
-      }
-    )
-    if (!parsed.success) return parsed.response
-    const { chatId, resources: newOrder } = parsed.data.body
-
-    const canonicalOrder = await serializeChatResourceWrite(chatId, () =>
-      db.transaction(async (tx): Promise<ChatResource[] | null | undefined> => {
-        await setChatResourceTxTimeouts(tx)
-        const scope = and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, userId),
-          isNull(copilotChats.deletedAt)
-        )
-        const [chat] = await tx
-          .select({ resources: copilotChats.resources })
-          .from(copilotChats)
-          .where(scope)
-          .for('update')
-          .limit(1)
-
-        if (!chat) return undefined
-
-        const existing = sanitizeChatResources(
-          Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-        )
-        const next = reorderStoredChatResources(existing, newOrder)
-        if (!next) return null
-
-        await tx
-          .update(copilotChats)
-          .set({ resources: sql`${JSON.stringify(next)}::jsonb`, updatedAt: new Date() })
-          .where(scope)
-
-        return next
-      })
-    )
-
-    if (canonicalOrder === undefined) {
-      return createNotFoundResponse('Chat not found or unauthorized')
-    }
-    if (!canonicalOrder) {
-      return createBadRequestResponse('Reordered resources must match existing resources')
-    }
-
-    logger.info('Reordered resources for chat', { chatId, count: canonicalOrder.length })
-
-    return NextResponse.json({ success: true, resources: canonicalOrder })
-  } catch (error) {
-    logger.error('Error reordering chat resources:', error)
-    return createInternalServerErrorResponse('Failed to reorder resources')
-  }
+export const PATCH = defineInternalJsonRoute({
+  ...policy,
+  contract: reorderCopilotChatResourcesContract,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    change: { kind: 'reorder' as const, resources: body.resources },
+  }),
 })
 
-export const DELETE = withRouteHandler(async (req: NextRequest) => {
-  try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-    if (!isAuthenticated || !userId) {
-      return createUnauthorizedResponse()
-    }
-
-    const parsed = await parseRequest(
-      removeCopilotChatResourceContract,
-      req,
-      {},
-      {
-        validationErrorResponse: (error) =>
-          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
-      }
-    )
-    if (!parsed.success) return parsed.response
-    const { chatId, resourceType, resourceId } = parsed.data.body
-
-    const merged = await serializeChatResourceWrite(chatId, () =>
-      db.transaction(async (tx) => {
-        await setChatResourceTxTimeouts(tx)
-        const scope = and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, userId),
-          isNull(copilotChats.deletedAt)
-        )
-        const [chat] = await tx
-          .select({ resources: copilotChats.resources })
-          .from(copilotChats)
-          .where(scope)
-          .for('update')
-          .limit(1)
-
-        if (!chat) return null
-
-        const existing = sanitizeChatResources(
-          Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-        )
-        const removeAllOfType = resourceType === 'browser' || resourceType === 'terminal'
-        const next = existing.filter(
-          (resource) =>
-            resource.type !== resourceType || (!removeAllOfType && resource.id !== resourceId)
-        )
-
-        await tx
-          .update(copilotChats)
-          .set({ resources: sql`${JSON.stringify(next)}::jsonb`, updatedAt: new Date() })
-          .where(scope)
-
-        return next
-      })
-    )
-
-    if (!merged) {
-      return createNotFoundResponse('Chat not found or unauthorized')
-    }
-
-    logger.info('Removed resource from chat', { chatId, resourceType, resourceId })
-
-    return NextResponse.json({ success: true, resources: merged })
-  } catch (error) {
-    logger.error('Error removing chat resource:', error)
-    return createInternalServerErrorResponse('Failed to remove resource')
-  }
+export const DELETE = defineInternalJsonRoute({
+  ...policy,
+  contract: removeCopilotChatResourceContract,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    change: {
+      kind: 'remove' as const,
+      resources: [{ type: body.resourceType, id: body.resourceId }],
+    },
+  }),
 })
