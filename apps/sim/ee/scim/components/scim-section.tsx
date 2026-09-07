@@ -35,6 +35,15 @@ import {
 } from '@/ee/access-control/hooks/permission-groups'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
+  CREDENTIAL_EXPIRY_OPTIONS,
+  type CredentialExpiry,
+  type MappingTargetKind,
+  PERMISSION_OPTIONS,
+  SETTING_TOGGLES,
+  TARGET_KIND_OPTIONS,
+  type WorkspacePermission,
+} from '@/ee/scim/constants'
+import {
   useConfigureScimConnection,
   useDeleteScimGroupMapping,
   useIssueScimCredential,
@@ -49,51 +58,6 @@ import {
 interface ScimSectionProps {
   organizationId: string
 }
-
-type MappingTargetKind = ScimGroupMappingView['targetKind']
-type WorkspacePermission = NonNullable<ScimGroupMappingView['permissionType']>
-
-const TARGET_KIND_OPTIONS = [
-  { value: 'permission_group', label: 'Permission group' },
-  { value: 'workspace', label: 'Workspace' },
-  { value: 'org_role', label: 'Organization admin' },
-] as const
-
-const PERMISSION_OPTIONS = [
-  { value: 'read', label: 'Read' },
-  { value: 'write', label: 'Write' },
-  { value: 'admin', label: 'Admin' },
-] as const
-
-const SETTING_TOGGLES = [
-  {
-    key: 'lockManualMembership',
-    label: 'Lock managed membership',
-    description:
-      'Refuse invitations, role changes, and manual grants for members the directory provisions. The next sync would revert them anyway.',
-  },
-  {
-    key: 'disableJit',
-    label: 'Disable just-in-time provisioning',
-    description:
-      'Refuse membership for someone signing in with SSO who the directory never provisioned. The directory becomes the only way in.',
-  },
-  {
-    key: 'autoMapPermissionGroupsByName',
-    label: 'Match permission groups by name',
-    description:
-      'When a pushed group has the same name as one of your permission groups, map them automatically. Nothing is created.',
-  },
-] as const
-
-/** Credential lifetimes offered at issue time; `never` matches what Okta and Entra expect by default. */
-const CREDENTIAL_EXPIRY_OPTIONS = [
-  { value: 'never', label: 'Never expires' },
-  { value: '90', label: 'Expires in 90 days' },
-  { value: '365', label: 'Expires in 1 year' },
-] as const
-
-type CredentialExpiry = (typeof CREDENTIAL_EXPIRY_OPTIONS)[number]['value']
 
 const RELATIVE_TIME = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 
@@ -367,10 +331,8 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
 
   async function handleToggleSetting(key: (typeof SETTING_TOGGLES)[number]['key'], value: boolean) {
     try {
-      await configure.mutateAsync({
-        organizationId,
-        settings: { ...connection.settings, [key]: value },
-      })
+      /** Only the changed key is sent; the server merges it, so a concurrent edit elsewhere is not reverted. */
+      await configure.mutateAsync({ organizationId, settings: { [key]: value } })
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to update setting'))
     }

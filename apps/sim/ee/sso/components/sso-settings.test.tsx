@@ -90,6 +90,11 @@ vi.mock('@/ee/sso/components/verified-domains-section', () => ({
   VerifiedDomainsSection: () => <div />,
 }))
 
+/** Directory provisioning has its own React Query hooks and its own tests; here it is a sibling section. */
+vi.mock('@/ee/scim/components/scim-section', () => ({
+  ScimSection: () => <div />,
+}))
+
 // Surface the real Save/Update action so submit paths are reachable from tests.
 vi.mock('@/components/settings/save-discard-actions', () => ({
   saveDiscardActions: ({ saveLabel, onSave }: { saveLabel?: string; onSave?: () => void }) => [
