@@ -136,6 +136,7 @@ import { GET as fileTextRoute } from '@/app/api/v2/files/[fileId]/text/route'
 import { GET as filesRoute } from '@/app/api/v2/files/route'
 import { GET as logRoute } from '@/app/api/v2/logs/[runId]/route'
 import { GET as logsRoute } from '@/app/api/v2/logs/route'
+import { GET as tableRowRoute } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
 import {
   POST as createRowsRoute,
   GET as tableRowsRoute,
@@ -506,6 +507,9 @@ const identity = {
       return (request.method === 'POST' ? createRowsRoute : tableRowsRoute)(request, {
         params: Promise.resolve({ tableId: rows[1] }),
       })
+    const row = request.nextUrl.pathname.match(/^\/api\/v2\/tables\/([^/]+)\/rows\/([^/]+)$/)
+    if (row)
+      return tableRowRoute(request, { params: Promise.resolve({ tableId: row[1], rowId: row[2] }) })
     const graph = request.nextUrl.pathname.match(
       /^\/api\/v2\/workflows\/([^/]+)\/(state|operations)$/
     )
@@ -679,6 +683,32 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       )
       expect(readableReference.exitCode, readableReference.stderr).toBe(0)
       expect(readableReference.stdout).toContain(rowId)
+      const selected = await processContextsServer(
+        [
+          {
+            kind: 'table_selection',
+            tableId,
+            tableName: `leads_${tableId}`,
+            rowIds: [rowId],
+            columnIds: ['col_status'],
+            label: 'One row',
+          },
+        ],
+        'run-reader',
+        'Inspect this selected row',
+        workspaceId
+      )
+      const selection = JSON.parse(selected[0]!.content.split('\n\n')[0]!)
+      expect(selection.rowIds).toEqual([rowId])
+      expect(selection.columns).toEqual([{ id: 'col_status', name: 'status' }])
+      expect(selected[0]!.content).not.toContain('col_score')
+      const selectedRow = await runCli(
+        ['tables', 'rows', 'get', selection.tableId, selection.rowIds[0]],
+        identity,
+        null
+      )
+      expect(selectedRow.exitCode, selectedRow.stderr).toBe(0)
+      expect(JSON.parse(selectedRow.stdout).id).toBe(rowId)
 
       expect(JSON.parse(tagged[0]!.content)).toEqual({
         tableId,
