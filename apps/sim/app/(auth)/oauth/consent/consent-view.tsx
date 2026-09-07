@@ -136,11 +136,7 @@ export function OAuthConsentView({
     <div className='space-y-6'>
       <AuthHeader
         title={`Authorize ${appName}`}
-        description={
-          isCli
-            ? 'Only continue if you started this from the Sim CLI in your terminal.'
-            : 'Only continue if you started this yourself.'
-        }
+        description={isCli ? undefined : 'Only continue if you started this yourself.'}
       />
       <div className='space-y-4'>
         {scopes.length > 0 && (

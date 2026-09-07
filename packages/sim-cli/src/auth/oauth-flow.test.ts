@@ -283,8 +283,9 @@ describe('loginWithBrowser', () => {
   })
 
   it('reports a declined consent as a cancellation, not a server failure', async () => {
-    const { login, fetchMock } = await completeInBrowser((_params, state) => ({
+    const { login, fetchMock, callback } = await completeInBrowser((_params, state) => ({
       error: 'access_denied',
+      error_description: 'Do not forward provider data to the completion page',
       state,
     }))
 
@@ -292,6 +293,11 @@ describe('loginWithBrowser', () => {
     expect(failure).toBeInstanceOf(SimApiError)
     expect(failure.message).toBe('Sign-in was declined in the browser.')
     expect(fetchMock).not.toHaveBeenCalled()
+    const response = await callback
+    expect(response.statusCode).toBe(302)
+    expect(response.headers.location).toBe(`${ENDPOINT}/cli/auth/done?status=cancelled`)
+    expect(response.headers['referrer-policy']).toBe('no-referrer')
+    expect(response.headers['cache-control']).toBe('no-store')
   })
 
   it('gives up after the timeout with the browserless fallback named', async () => {

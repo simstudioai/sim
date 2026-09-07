@@ -394,13 +394,6 @@ export async function revokeToken(endpoint: string, token: string): Promise<void
   }
 }
 
-const PAGE_STYLE =
-  'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;color:#111;background:#fff'
-
-function callbackPage(title: string, body: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title></head><body style="${PAGE_STYLE}"><main style="text-align:center;max-width:28rem;padding:2rem"><h1 style="font-weight:400;font-size:1.5rem;margin:0 0 .5rem">${title}</h1><p style="margin:0;color:#666">${body}</p></main></body></html>`
-}
-
 interface LoopbackResult {
   code: string
 }
@@ -468,22 +461,17 @@ function listenForCallback(
        */
       if (state !== expectedState) {
         response
-          .writeHead(400, { 'content-type': 'text/html; charset=utf-8' })
+          .writeHead(400, { 'content-type': 'text/plain; charset=utf-8' })
           .end(
-            callbackPage(
-              'Sign-in mismatch',
-              'This response did not come from the sign-in this terminal started. Return to your terminal.'
-            )
+            'Sign-in mismatch. This response did not come from the sign-in this terminal started. Return to your terminal.'
           )
         return
       }
       if (error || !code) {
         const description = url.searchParams.get('error_description') ?? undefined
-        response
-          .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-          .end(
-            callbackPage('Sign-in cancelled', 'You can close this tab and return to your terminal.')
-          )
+        const cancelledUrl = new URL(completionUrl)
+        cancelledUrl.searchParams.set('status', 'cancelled')
+        response.writeHead(302, { location: cancelledUrl.toString() }).end()
         finish({
           ok: false,
           error:
@@ -506,7 +494,7 @@ function listenForCallback(
 
 export interface BrowserLoginOptions {
   scopes: readonly string[]
-  /** Pin the loopback port, for a container that forwards a fixed one. */
+  /** Pin the loopback port when an SSH tunnel forwards that same port. */
   callbackPort?: number
   /** Called with the authorize URL once the listener is up, before waiting. */
   onAuthorizeUrl: (url: string) => void

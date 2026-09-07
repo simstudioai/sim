@@ -1,15 +1,19 @@
 import { AuthHeader } from '@/app/(auth)/components'
+import type { CliAuthDoneStatus } from '@/app/cli/auth/done/search-params'
 
-/**
- * Where the CLI's listener sends the browser once it has the authorization
- * code. Static by design: the key is minted server-side during the CLI's
- * exchange and never passes through this page.
- */
-export function CliAuthDoneView() {
+interface CliAuthDoneViewProps {
+  status: CliAuthDoneStatus
+}
+
+export function CliAuthDoneView({ status }: CliAuthDoneViewProps) {
   return (
     <AuthHeader
-      title='Approved'
-      description='Your terminal is finishing up — you can close this tab.'
+      title={status === 'cancelled' ? 'Sign-in cancelled' : 'Approved'}
+      description={
+        status === 'cancelled'
+          ? 'You can close this tab and return to your terminal.'
+          : 'Your terminal is finishing up — you can close this tab.'
+      }
     />
   )
 }
