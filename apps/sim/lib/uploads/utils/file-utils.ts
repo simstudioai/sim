@@ -609,12 +609,27 @@ const MIME_TO_EXTENSION: Record<string, string> = {
 }
 
 /**
- * Get file extension from MIME type
+ * Get file extension from MIME type. Parameters such as `; charset=utf-8` are ignored.
  * @param mimeType - MIME type string
  * @returns File extension without dot, or null if not found
  */
 export function getExtensionFromMimeType(mimeType: string): string | null {
-  return MIME_TO_EXTENSION[mimeType.toLowerCase()] || null
+  return MIME_TO_EXTENSION[mimeType.split(';')[0].trim().toLowerCase()] || null
+}
+
+const FILE_NAME_EXTENSION_RE = /\.[A-Za-z0-9]{1,8}$/
+
+/**
+ * Appends the extension the content type implies when a file name carries none, so a
+ * saved copy opens in the right application.
+ */
+export function ensureFileNameExtension(
+  fileName: string,
+  contentType: string | null | undefined
+): string {
+  if (!contentType || FILE_NAME_EXTENSION_RE.test(fileName)) return fileName
+  const extension = getExtensionFromMimeType(contentType)
+  return extension ? `${fileName}.${extension}` : fileName
 }
 
 /**

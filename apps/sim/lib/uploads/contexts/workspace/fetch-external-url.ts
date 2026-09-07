@@ -12,7 +12,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { ensureFileNameExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
 
@@ -92,8 +92,8 @@ export async function fetchExternalUrlToWorkspace(
     throw new ExternalUrlValidationError(urlValidation.error)
   }
 
-  const filename = new URL(url).pathname.split('/').pop() || 'download'
-  const extension = path.extname(filename).toLowerCase().substring(1)
+  const pathFilename = new URL(url).pathname.split('/').pop() || 'download'
+  const extension = path.extname(pathFilename).toLowerCase().substring(1)
 
   const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
     profile: 'contentFetch',
@@ -119,6 +119,7 @@ export async function fetchExternalUrlToWorkspace(
   })
 
   const mimeType = response.headers.get('content-type') || getMimeTypeFromExtension(extension)
+  const filename = ensureFileNameExtension(pathFilename, mimeType)
 
   let savedWorkspaceFile: UserFile | undefined
   if (workspaceId && saveToWorkspace) {
