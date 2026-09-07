@@ -88,7 +88,7 @@ export interface SandboxSessionRequest {
   /** Stable identity of the session (e.g. one per Mothership chat). */
   key: string
   /** Deployment-owned CLI artifact. Its versioned directory is prepended to this execution's PATH. */
-  cli?: { path: string; content: string }
+  cli?: { path: string; content: string; runtime?: { path: string; content: string } }
   /** Extra environment variables present on every execution in the session. */
   envs?: Record<string, string>
 }

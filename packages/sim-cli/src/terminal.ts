@@ -68,9 +68,9 @@ function explainFailure(error: unknown, program: Command): number | null {
  * failure is reported here, where its class and code are known; every other
  * way the process ends is reported from the exit listener telemetry installs.
  */
-export async function runTerminalCli(options: { workbench?: boolean } = {}): Promise<void> {
-  const telemetry = options.workbench ? undefined : createCommandTelemetry()
-  const program = buildProgram(options)
+export async function runTerminalCli(suppliedProgram?: Command): Promise<void> {
+  const telemetry = suppliedProgram ? undefined : createCommandTelemetry()
+  const program = suppliedProgram ?? buildProgram()
   telemetry?.observe(program)
   try {
     await program.parseAsync(process.argv)

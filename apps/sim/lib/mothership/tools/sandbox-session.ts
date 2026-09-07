@@ -7,21 +7,51 @@ import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { SandboxSessionRequest } from '@/lib/execution/remote-sandbox/types'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
+import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 const logger = createLogger('MothershipSandboxSession')
 
-/** The workbench CLI ships with Sim, so reconnect cannot silently reuse a different release. */
-async function workbenchCli(): Promise<{ path: string; content: string }> {
+/** Public runtime and private bootstrap share an immutable release directory. */
+async function workbenchCli(
+  userId: string,
+  signal?: AbortSignal
+): Promise<NonNullable<SandboxSessionRequest['cli']>> {
   const cwd = process.cwd()
   const path = resolve(
     cwd,
     cwd.endsWith('/apps/sim')
-      ? '../../packages/sim-cli/dist/workbench.js'
-      : 'packages/sim-cli/dist/workbench.js'
+      ? '../../packages/sim-cli/dist/runtime.js'
+      : 'packages/sim-cli/dist/runtime.js'
   )
-  const content = await readFile(path, 'utf8')
-  const digest = createHash('sha256').update(content).digest('hex')
-  return { path: `/home/user/.sim-cli/${digest}/cli.mjs`, content }
+  signal?.throwIfAborted()
+  const runtime = await readFile(path, 'utf8')
+  const baseURL = await getMothershipBaseURL({ userId })
+  const deadline = AbortSignal.timeout(15_000)
+  const response = await fetchGo(`${baseURL}/api/workbench/bootstrap`, {
+    headers: mothershipRequestHeaders(),
+    redirect: 'error',
+    signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+    spanName: 'sim → worker /api/workbench/bootstrap',
+    operation: 'workbench_bootstrap',
+  })
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error('Mothership workbench bootstrap is unavailable')
+  }
+  const { entrypoint } = WorkbenchBootstrap.parse(await response.json())
+  signal?.throwIfAborted()
+  const digest = createHash('sha256')
+    .update(JSON.stringify([runtime, entrypoint]))
+    .digest('hex')
+  const directory = `/home/user/.sim-cli/${digest}`
+  return {
+    path: `${directory}/cli.mjs`,
+    content: entrypoint,
+    runtime: { path: `${directory}/runtime.mjs`, content: runtime },
+  }
 }
 
 /**
@@ -40,8 +70,9 @@ export async function buildMothershipSandboxSession(args: {
   sessionKey: string
   workspaceId: string
   userId: string
+  signal?: AbortSignal
 }): Promise<SandboxSessionRequest> {
-  const cli = await workbenchCli()
+  const cli = await workbenchCli(args.userId, args.signal)
   let cliEnvs: Record<string, string> | undefined
   try {
     const apiKey = await mintDelegationToken({
