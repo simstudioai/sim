@@ -5,12 +5,12 @@ import {
   Chip,
   ChipConfirmModal,
   ChipTag,
+  chipContentIconClass,
   chipVariants,
   cn,
   OverflowText,
   scrollFadeAttributes,
   scrollFadeClass,
-  Tooltip,
   useScrollEdges,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
@@ -24,9 +24,14 @@ import {
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components'
+import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+  SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
@@ -55,24 +60,6 @@ interface SettingsSidebarProps<Section extends SettingsSection> {
   isCollapsed?: boolean
   showCollapsedTooltips?: boolean
   backHref?: string
-}
-
-function SidebarTooltip({
-  children,
-  label,
-  enabled,
-}: {
-  children: React.ReactElement
-  label: string
-  enabled: boolean
-}) {
-  if (!enabled) return children
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
-      <Tooltip.Content side='right'>{label}</Tooltip.Content>
-    </Tooltip.Root>
-  )
 }
 
 export function SettingsSidebar<Section extends SettingsSection>({
@@ -105,8 +92,10 @@ export function SettingsSidebar<Section extends SettingsSection>({
           drawn there exactly when it should show. Same construction as the footer. */}
       <div
         className={cn(
+          plane === 'organization' && SIDEBAR_SECTION_GAP_CLASS,
+          SIDEBAR_ITEM_GAP_CLASS,
           SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-          'flex shrink-0 flex-col gap-0.5 border-b px-2 transition-colors duration-150',
+          'flex shrink-0 flex-col border-b px-2 transition-colors duration-150',
           !scrollEdges.top && 'border-transparent'
         )}
       >
@@ -125,6 +114,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
             <Chip
               fullWidth
               leftIcon={ChevronLeft}
+              className={SIDEBAR_RAIL_CHIP_CLASS}
               onClick={() => requestLeave(() => router.push(backHref))}
             >
               <span className='sidebar-collapse-hide'>Back</span>
@@ -151,11 +141,13 @@ export function SettingsSidebar<Section extends SettingsSection>({
             }))
             .filter((group) => group.items.length > 0)
             .map((group, index) => (
-              <div key={group.key} className={cn(index > 0 && 'mt-6', 'flex shrink-0 flex-col')}>
-                <div className='px-4 pb-2'>
-                  <div className='text-[var(--text-muted)] text-small'>{group.title}</div>
-                </div>
-                <div className='flex flex-col gap-0.5 px-2'>
+              <SidebarSection
+                key={group.key}
+                title={group.title}
+                railCollapsed={isCollapsed}
+                className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'shrink-0')}
+              >
+                <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                   {group.items.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
@@ -171,21 +163,26 @@ export function SettingsSidebar<Section extends SettingsSection>({
                           replace
                           scroll={false}
                           aria-current={active ? 'page' : undefined}
-                          className={chipVariants({ active, fullWidth: true })}
+                          className={cn(
+                            chipVariants({ active, fullWidth: true }),
+                            SIDEBAR_RAIL_CHIP_CLASS
+                          )}
                           onNavigate={(event) => {
                             if (active) {
                               event.preventDefault()
                               return
                             }
-                            if (!useSettingsDirtyStore.getState().isDirty) return
+                            const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
+                            if (!isDirty && !navigationBlocked) return
                             event.preventDefault()
                             requestLeave(() => router.replace(href, { scroll: false }))
                           }}
                         >
-                          <Icon className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+                          <Icon className={chipContentIconClass} />
                           <OverflowText
                             label={item.label}
                             className='sidebar-collapse-hide text-[var(--text-body)]'
+                            tooltipEnabled={!showCollapsedTooltips}
                           />
                           {item.locked && (
                             <ChipTag
@@ -200,7 +197,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
                     )
                   })}
                 </div>
-              </div>
+              </SidebarSection>
             ))}
         </div>
       </div>

@@ -205,6 +205,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
               onExpandSidebar={toggleCollapsed}
             />
             <div
+              inert={isCollapsed}
               className={cn(
                 'flex h-[30px] items-center gap-[1px] overflow-hidden',
                 isCollapsed

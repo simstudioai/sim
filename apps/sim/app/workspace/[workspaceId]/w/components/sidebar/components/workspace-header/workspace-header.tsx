@@ -48,7 +48,6 @@ import {
 } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -458,31 +457,32 @@ function WorkspaceHeaderImpl({
   return (
     <div className='min-w-0 flex-1'>
       {isMounted && isCollapsed ? (
-        <button
-          type='button'
+        <Chip
           aria-label='Expand sidebar'
           onClick={onExpandSidebar}
-          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
-        >
-          <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
-            {activeWorkspace ? (
-              <>
-                <IdentityTile
-                  initial={workspaceInitial}
-                  logoUrl={activeWorkspaceFull?.logoUrl}
-                  alt={activeWorkspaceFull?.name || 'Workspace logo'}
-                  className='group-hover:invisible'
-                />
-                <PanelLeft
-                  aria-hidden
-                  className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
-                />
-              </>
-            ) : (
-              <Skeleton className='size-[16px] rounded-sm' />
-            )}
-          </div>
-        </button>
+          fullWidth
+          className={SIDEBAR_RAIL_CHIP_CLASS}
+          leftAdornment={
+            <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
+              {activeWorkspace ? (
+                <>
+                  <IdentityTile
+                    initial={workspaceInitial}
+                    logoUrl={activeWorkspaceFull?.logoUrl}
+                    alt={activeWorkspaceFull?.name || 'Workspace logo'}
+                    className='group-hover:invisible'
+                  />
+                  <PanelLeft
+                    aria-hidden
+                    className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
+                  />
+                </>
+              ) : (
+                <Skeleton className='size-[16px] rounded-sm' />
+              )}
+            </div>
+          }
+        />
       ) : isMounted && isWorkspaceReady ? (
         <DropdownMenu
           open={isWorkspaceMenuOpen}
@@ -508,36 +508,25 @@ function WorkspaceHeaderImpl({
           }}
         >
           <DropdownMenuTrigger asChild>
-            <button
-              type='button'
+            <Chip
               aria-label='Switch workspace'
-              className={cn(chipVariants(), 'min-w-0 max-w-full')}
+              className='min-w-0 max-w-full'
               onContextMenu={(e) => {
                 if (activeWorkspaceFull) {
                   handleContextMenu(e, activeWorkspaceFull)
                 }
               }}
-            >
-              {activeWorkspaceFull ? (
+              leftAdornment={
                 <IdentityTile
                   initial={workspaceInitial}
                   logoUrl={activeWorkspaceFull.logoUrl}
                   alt={activeWorkspaceFull.name || 'Workspace logo'}
                 />
-              ) : (
-                <Skeleton className='size-[16px] shrink-0 rounded-sm' />
-              )}
-              {!isCollapsed && activeWorkspace?.name && (
-                <>
-                  <OverflowText
-                    label={activeWorkspace.name}
-                    className={cn('flex-1', chipContentLabelClass)}
-                    focusTarget='nearest-interactive'
-                  />
-                  <ChipChevronDown />
-                </>
-              )}
-            </button>
+              }
+              rightAdornment={activeWorkspace?.name ? <ChipChevronDown /> : undefined}
+            >
+              {activeWorkspace?.name}
+            </Chip>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'
@@ -547,12 +536,7 @@ function WorkspaceHeaderImpl({
                still bounded by the space Radix measured — at six rows the menu is tall
                enough that a short viewport would otherwise push the footer actions off
                screen with nothing able to scroll to them. */
-            className='flex max-h-[var(--radix-dropdown-menu-content-available-height,400px)] flex-col overflow-y-auto'
-            style={{
-              width: `${SIDEBAR_WIDTH.DEFAULT}px`,
-              maxWidth: 'calc(100vw - 24px)',
-            }}
-            onCloseAutoFocus={(e) => e.preventDefault()}
+            className='flex max-h-[var(--radix-dropdown-menu-content-available-height,400px)] w-64 max-w-[calc(100vw-24px)] flex-col overflow-y-auto'
           >
             <OrganizationMenuItems onNavigate={() => setIsWorkspaceMenuOpen(false)} />
             {isWorkspacesLoading ? (

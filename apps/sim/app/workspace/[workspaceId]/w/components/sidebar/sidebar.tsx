@@ -1349,6 +1349,7 @@ export const Sidebar = memo(function Sidebar() {
                * flex-1`, so an `auto` width would crush the workspace chip instead.
                */}
               <div
+                inert={isCollapsed}
                 className={cn(
                   'flex h-[30px] items-center gap-[1px] overflow-hidden',
                   isCollapsed
