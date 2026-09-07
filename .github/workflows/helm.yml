@@ -344,11 +344,15 @@ jobs:
       - name: Publish Artifact Hub metadata
         env:
           REPOSITORY: ${{ steps.package.outputs.repository }}
+        # Run from `helm/` so the layer's title annotation is the bare
+        # `artifacthub-repo.yml`, matching Artifact Hub's documented command. A
+        # path-qualified argument records `helm/artifacthub-repo.yml` instead.
+        working-directory: helm
         run: |
           set -euo pipefail
           oras push "${REPOSITORY}:artifacthub.io" \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
-            helm/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 
       - name: Summary
         env:
