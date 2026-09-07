@@ -24,7 +24,7 @@ import type { DbOrTx } from '@/lib/db/types'
 export async function autoMapPermissionGroupByName(
   tx: DbOrTx,
   params: { organizationId: string; scimGroupId: string; displayName: string }
-): Promise<'mapped' | 'already-mapped' | 'no-match'> {
+): Promise<'mapped' | 'already-mapped' | 'unmapped' | 'no-match'> {
   const [target] = await tx
     .select({ id: permissionGroup.id, membershipMode: permissionGroup.membershipMode })
     .from(permissionGroup)
@@ -37,7 +37,7 @@ export async function autoMapPermissionGroupByName(
     )
     .limit(1)
 
-  await tx
+  const removed = await tx
     .delete(scimGroupMapping)
     .where(
       and(
@@ -47,7 +47,9 @@ export async function autoMapPermissionGroupByName(
         ...(target ? [ne(scimGroupMapping.permissionGroupId, target.id)] : [])
       )
     )
-  if (!target) return 'no-match'
+    .returning({ id: scimGroupMapping.id })
+  /** `unmapped` tells the caller access changed even though nothing new was mapped. */
+  if (!target) return removed.length > 0 ? 'unmapped' : 'no-match'
 
   const [existing] = await tx
     .select({ id: scimGroupMapping.id })

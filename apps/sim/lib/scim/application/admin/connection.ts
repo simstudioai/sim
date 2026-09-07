@@ -9,6 +9,7 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq } from 'drizzle-orm'
 import type { ScimConnectionSettingsInput } from '@/lib/api/contracts/organization-scim'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertWorkspaceInOrganization,
@@ -74,11 +75,13 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
     }
 
     /**
-     * Read, merge, and write under the row lock, so two administrators changing
-     * different settings at once both land instead of the later write carrying
-     * a stale copy of the earlier one's field.
+     * Read, merge, and write under the organization lock, so two administrators
+     * changing different settings at once both land instead of the later write
+     * carrying a stale copy of the earlier one's field — and two first-time
+     * enables, where there is no row yet to lock, cannot both insert.
      */
     const { created, status } = await db.transaction(async (tx) => {
+      await acquireOrganizationMutationLock(tx, context.organizationId)
       const [existing] = await tx
         .select({
           id: scimConnection.id,
@@ -88,7 +91,6 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
         .from(scimConnection)
         .where(eq(scimConnection.organizationId, context.organizationId))
         .limit(1)
-        .for('update')
 
       const nextSettings: ScimConnectionSettings = {
         /**

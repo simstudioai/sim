@@ -267,8 +267,9 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
           scimGroupId: current.id,
           displayName: input.group.displayName,
         })
-        /** A new mapping applies to everyone already in the group, not only to those moving today. */
-        if (mapped === 'mapped') for (const scimUserId of before) touched.add(scimUserId)
+        /** A mapping gained or lost applies to everyone already in the group, not only to those moving today. */
+        if (mapped === 'mapped' || mapped === 'unmapped')
+          for (const scimUserId of before) touched.add(scimUserId)
       }
 
       for (const scimUserId of before) {
@@ -393,7 +394,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
             scimGroupId: current.id,
             displayName: patch.displayName,
           })
-          if (mapped === 'mapped') {
+          if (mapped === 'mapped' || mapped === 'unmapped') {
             for (const scimUserId of await loadGroupMemberIds(tx, current.id)) {
               touched.add(scimUserId)
             }
