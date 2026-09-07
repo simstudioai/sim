@@ -271,7 +271,7 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(result).toEqual({
       success: false,
       error:
-        'Failed to write to table: Table operation failed. The declared output files were already written.',
+        'Failed to write to table: Table operation failed. The listed output files were already written.',
       output: { files },
     })
   })

@@ -35,6 +35,19 @@ export function getOutputFileReceipts(output: unknown): Record<string, unknown>[
   return Array.isArray(files) ? files.filter(isRecordLike) : []
 }
 
+/** Completed writes remain usable even when a later output operation fails. */
+export function outputWriteFailure(
+  error: string,
+  files: Record<string, unknown>[]
+): ToolCallResult {
+  if (files.length === 0) return { success: false, error }
+  return {
+    success: false,
+    error: `${error}. The listed output files were already written.`,
+    output: { files },
+  }
+}
+
 export const OUTPUT_PATH_TOOLS: Set<string> = new Set([RunFunction.id, UserTable.id])
 
 export type OutputFormat = 'json' | 'csv' | 'txt' | 'md' | 'html'
@@ -379,6 +392,7 @@ export async function maybeWriteOutputToFile(
       [TraceAttr.WorkspaceId]: workspaceId,
     },
     async (span) => {
+      const committedFiles = [...previousFiles]
       try {
         const preparedByFormat = new Map<
           OutputFormat,
@@ -439,6 +453,13 @@ export async function maybeWriteOutputToFile(
             inferredMimeType: contentType,
             secretProvenance,
           })
+          committedFiles.push({
+            fileId: written.id,
+            fileName: written.name,
+            vfsPath: written.vfsPath,
+            size: buffer.length,
+            downloadUrl: written.downloadUrl,
+          })
           writtenFiles.push({
             ...written,
             bytes: buffer.length,
@@ -468,16 +489,6 @@ export async function maybeWriteOutputToFile(
           })),
         })
 
-        const files = [
-          ...previousFiles,
-          ...writtenFiles.map((file) => ({
-            fileId: file.id,
-            fileName: file.name,
-            vfsPath: file.vfsPath,
-            size: file.bytes,
-            downloadUrl: file.downloadUrl,
-          })),
-        ]
         return {
           success: true,
           output: {
@@ -489,7 +500,7 @@ export async function maybeWriteOutputToFile(
               writtenFiles.length === 1
                 ? `Output ${firstWritten.mode === 'overwrite' ? 'updated' : 'written'} at ${firstWritten.vfsPath} (${firstWritten.bytes} bytes)`
                 : `Output written to ${writtenFiles.length} files`,
-            files,
+            files: committedFiles,
             fileId: firstWritten.id,
             fileName: firstWritten.name,
             vfsPath: firstWritten.vfsPath,
@@ -521,10 +532,10 @@ export async function maybeWriteOutputToFile(
         span.addEvent(TraceEvent.CopilotOutputFileError, {
           [TraceAttr.ErrorMessage]: projectedMessage.slice(0, 500),
         })
-        return {
-          success: false,
-          error: `Failed to write output file: ${message}`,
-        }
+        return outputWriteFailure(
+          `Failed to write output file: ${projectedMessage}`,
+          committedFiles
+        )
       }
     }
   )
