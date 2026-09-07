@@ -8,7 +8,7 @@ import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { buildFolderPathIndex } from '@/lib/folders/paths'
+import { buildFolderPath, buildFolderPathIndex } from '@/lib/folders/paths'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { toOverview } from '@/lib/logs/log-views'
@@ -29,23 +29,7 @@ import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/mothership/resources/types'
-import {
-  canonicalWorkspaceFilePath,
-  encodeVfsPathSegments,
-} from '@/lib/mothership/vfs/path-utils'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
-import {
-  projectCostTotal,
-  projectExecutionData,
-  resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
-import { toOverview } from '@/lib/logs/log-views'
-import type { TraceSpan } from '@/lib/logs/types'
-import { mcpService } from '@/lib/mcp/service'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
@@ -1104,12 +1088,13 @@ async function resolveFileFolderResource(
   try {
     const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
     if (!rawPath) return null
-    const encoded = encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(rawPath))
     return {
       type: 'active_resource',
       tag: '@active_resource',
-      content: '',
-      path: `files/${encoded}`,
+      content: JSON.stringify({
+        resourceType: 'file',
+        folderPath: buildFolderPath(parseWorkspaceFileFolderDisplayPath(rawPath)),
+      }),
     }
   } catch (error) {
     logger.error('Failed to resolve file folder resource', { folderId, error })
@@ -1134,6 +1119,10 @@ async function resolveFolderResource(
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: JSON.stringify({ folderPath: index.pathById.get(folderId), name: folder.folderName }),
+    content: JSON.stringify({
+      resourceType: 'workflow',
+      folderPath: index.pathById.get(folderId),
+      name: folder.folderName,
+    }),
   }
 }

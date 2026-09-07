@@ -30,6 +30,7 @@ const {
   isIntegrationDeploymentAvailable,
   searchDocsExecute,
   listFolders,
+  getWorkspaceFileFolderPath,
 } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   getBlock: vi.fn(),
@@ -47,6 +48,7 @@ const {
   isIntegrationDeploymentAvailable: vi.fn(() => true),
   searchDocsExecute: vi.fn(),
   listFolders: vi.fn(),
+  getWorkspaceFileFolderPath: vi.fn(),
 }))
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
@@ -59,6 +61,9 @@ vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/workflows/utils', () => ({ listFolders }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
+  getWorkspaceFileFolderPath,
+}))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
@@ -154,6 +159,7 @@ describe('processContextsServer - workflow references', () => {
       type: 'active_resource',
       tag: '@active_resource',
       content: JSON.stringify({
+        resourceType: 'workflow',
         folderPath: '/Sales%20team/Leads%20%2F%20new',
         name: 'Leads / new',
       }),
@@ -811,6 +817,28 @@ describe('processContextsServer - logs contexts', () => {
     )
 
     expect(result).toEqual([])
+  })
+})
+
+describe('file folder context', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('uses the CLI folder path while preserving literal slashes inside folder names', async () => {
+    getWorkspaceFileFolderPath.mockResolvedValueOnce('Reports/Client \\/ notes')
+    expect(await resolveActiveResourceContext('filefolder', 'folder-1', 'ws-1', 'reader')).toEqual({
+      type: 'active_resource',
+      tag: '@active_resource',
+      content: JSON.stringify({
+        resourceType: 'file',
+        folderPath: '/Reports/Client%20%2F%20notes',
+      }),
+    })
+    expect(getWorkspaceFileFolderPath).toHaveBeenCalledWith('ws-1', 'folder-1')
+  })
+
+  it('omits unavailable folders instead of substituting the root', async () => {
+    getWorkspaceFileFolderPath.mockResolvedValueOnce(null)
+    expect(await resolveActiveResourceContext('filefolder', 'missing', 'ws-1', 'reader')).toBeNull()
   })
 })
 
