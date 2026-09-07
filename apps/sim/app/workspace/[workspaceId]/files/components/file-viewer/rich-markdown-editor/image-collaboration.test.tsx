@@ -8,6 +8,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { ResizableImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import { ImageBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu'
 
 let host: HTMLDivElement
 let root: Root
@@ -39,9 +41,11 @@ beforeEach(async () => {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
+  vi.spyOn(local.view, 'coordsAtPos').mockReturnValue({ top: 10, bottom: 30, left: 10, right: 50 })
   await act(async () => {
     root.render(
       <Tooltip.Provider>
+        <ImageBubbleMenu editor={local} scrollContainerRef={{ current: host }} />
         <EditorContent editor={local} />
       </Tooltip.Provider>
     )
@@ -97,10 +101,250 @@ function beginResize(): void {
   })
   pointer(handle, 'pointerdown', 100)
   pointer(window, 'pointermove', 160)
+  expect(host.querySelector('img')).toBe(image)
+  expect(handle.setPointerCapture).toHaveBeenCalledWith(7)
   expect(image.style.width).toBe('260px')
 }
 
+function changeDraft(value: string): HTMLInputElement {
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Image editing"] input')!
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  return input
+}
+
+async function addPeerSibling(sameSource = true): Promise<number> {
+  const position = local.state.doc.firstChild!.nodeSize
+  peer.commands.insertContentAt(position + 1, {
+    type: 'image',
+    attrs: {
+      src: sameSource ? 'https://sim.ai/image.png' : 'https://sim.ai/second.png',
+      alt: 'Peer image',
+      title: 'Sibling identity',
+      width: '400',
+      height: '300',
+    },
+  })
+  await receivePeerUpdate()
+  act(() => local.commands.setNodeSelection(position))
+  return position
+}
+
+function movePeerImage(from: number, to: number): void {
+  const image = peer.state.doc.nodeAt(from)!
+  peer.commands.setNodeSelection(from)
+  vi.spyOn(peer.view, 'posAtCoords').mockReturnValue({ pos: to, inside: 0 })
+  expect(
+    moveDraggedImageNode(
+      peer.view,
+      new MouseEvent('drop', { clientX: 0, clientY: 0, cancelable: true }) as DragEvent,
+      { images: [], html: `<img src="${image.attrs.src}">` }
+    )
+  ).toBe(true)
+}
+
 describe('image interactions during real peer Yjs updates', () => {
+  it.each(
+    (['alt', 'href', 'resize'] as const).flatMap((interaction) =>
+      [false, true].flatMap((sameSource) =>
+        ['target', 'sibling'].map((moved) => ({ interaction, sameSource, moved }))
+      )
+    )
+  )(
+    'cancels $interaction after a peer moves the $moved image (same source: $sameSource)',
+    async ({ interaction, sameSource, moved }) => {
+      const position = await addPeerSibling(sameSource)
+      let input: HTMLInputElement | undefined
+      if (interaction === 'resize') beginResize()
+      else {
+        const label = interaction === 'alt' ? 'alt text' : 'link'
+        act(() =>
+          host.querySelector<HTMLButtonElement>(`[aria-label="Edit image ${label}"]`)!.click()
+        )
+        input = changeDraft(
+          interaction === 'alt' ? 'Draft for original' : 'https://sim.ai/for-original'
+        )
+      }
+      if (moved === 'target') movePeerImage(position, position + 2)
+      else movePeerImage(position + 1, position)
+      await receivePeerUpdate()
+      if (input) {
+        expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+        await act(async () => {
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        })
+      } else pointer(window, 'pointerup', 160)
+      expect(local.state.doc.nodeAt(position)?.attrs.alt).toBe('Peer image')
+      expect(local.getJSON()).toEqual(peer.getJSON())
+    }
+  )
+
+  it.each(['alt text', 'link'])(
+    'rejects queued %s Apply before React renders a same-source reorder',
+    async (field) => {
+      const position = await addPeerSibling()
+      act(() =>
+        host.querySelector<HTMLButtonElement>(`[aria-label="Edit image ${field}"]`)!.click()
+      )
+      const input = changeDraft('https://sim.ai/stale-draft')
+      movePeerImage(position + 1, position)
+      await act(async () => {
+        Y.applyUpdate(localDoc, Y.encodeStateAsUpdate(peerDoc))
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      })
+      expect(local.getJSON()).toEqual(peer.getJSON())
+      expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+    }
+  )
+
+  it('does not revive a draft after images are reordered back', async () => {
+    const position = await addPeerSibling()
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit image alt text"]')!.click())
+    changeDraft('Stale draft')
+    movePeerImage(position + 1, position)
+    await receivePeerUpdate()
+    expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+    movePeerImage(position + 1, position)
+    await receivePeerUpdate()
+    expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+    expect(local.getJSON()).toEqual(peer.getJSON())
+  })
+
+  it('preserves target metadata edits and text edits around an unchanged same-source sibling', async () => {
+    const position = await addPeerSibling()
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit image link"]')!.click())
+    const input = changeDraft('https://sim.ai/local-link')
+    peer.commands.setNodeSelection(position)
+    peer.commands.updateAttributes('image', { alt: 'Peer corrected alt' })
+    peer.commands.insertContentAt('Earlier heading'.length + 1, ' PEER')
+    await receivePeerUpdate()
+    expect(host.querySelector('[aria-label="Image editing"] input')).toBe(input)
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    const currentPosition = local.state.doc.firstChild!.nodeSize
+    expect(local.state.doc.nodeAt(currentPosition)?.attrs).toMatchObject({
+      alt: 'Peer corrected alt',
+      href: 'https://sim.ai/local-link',
+    })
+    expect(local.state.doc.nodeAt(currentPosition + 1)?.attrs.alt).toBe('Peer image')
+    await act(async () => {
+      Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
+    })
+    expect(local.getJSON()).toEqual(peer.getJSON())
+  })
+
+  it.each(['alt', 'width', 'src'])(
+    'cancels conservatively when a sibling image changes its %s',
+    async (field) => {
+      const position = await addPeerSibling()
+      act(() =>
+        host.querySelector<HTMLButtonElement>('[aria-label="Edit image alt text"]')!.click()
+      )
+      const input = changeDraft('Stale draft')
+      peer.commands.setNodeSelection(position + 1)
+      peer.commands.updateAttributes('image', {
+        [field]: field === 'width' ? '500' : 'https://sim.ai/peer-change',
+      })
+      await receivePeerUpdate()
+      expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      })
+      expect(local.getJSON()).toEqual(peer.getJSON())
+    }
+  )
+
+  it.each(
+    (['alt', 'href', 'resize'] as const).flatMap((interaction) =>
+      [false, true].flatMap((identical) =>
+        ['before', 'after'].map((side) => ({ interaction, identical, side }))
+      )
+    )
+  )(
+    'cancels $interaction after a peer inserts $side the image (identical: $identical)',
+    async ({ interaction, identical, side }) => {
+      let input: HTMLInputElement | undefined
+      if (interaction === 'resize') beginResize()
+      else {
+        const label = interaction === 'alt' ? 'alt text' : 'link'
+        act(() =>
+          host.querySelector<HTMLButtonElement>(`[aria-label="Edit image ${label}"]`)!.click()
+        )
+        input = changeDraft(interaction === 'alt' ? 'Local draft' : 'https://sim.ai/local-draft')
+      }
+      const originalTarget = localDoc.getXmlFragment('default').get(1)
+      peer.commands.insertContentAt(imagePosition(peer) + (side === 'after' ? 1 : 0), {
+        type: 'image',
+        attrs: identical
+          ? imageAttributes(peer)
+          : { src: 'https://sim.ai/inserted.png', alt: 'Inserted', width: '400' },
+      })
+      await receivePeerUpdate()
+      expect(localDoc.getXmlFragment('default').get(1)).toBe(originalTarget)
+      if (input) {
+        expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+        act(() =>
+          input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        )
+      } else pointer(window, 'pointerup', 160)
+      expect(local.getJSON()).toEqual(peer.getJSON())
+    }
+  )
+
+  it('rejects a queued Apply before React renders the peer insertion', async () => {
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit image alt text"]')!.click())
+    const input = changeDraft('Stale draft')
+    peer.commands.insertContentAt(imagePosition(peer), {
+      type: 'image',
+      attrs: imageAttributes(peer),
+    })
+    await act(async () => {
+      Y.applyUpdate(localDoc, Y.encodeStateAsUpdate(peerDoc))
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(local.getJSON()).toEqual(peer.getJSON())
+    expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+  })
+
+  it('does not revive a canceled draft when the peer removes their inserted image', async () => {
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit image alt text"]')!.click())
+    changeDraft('Stale draft')
+    const position = imagePosition(peer)
+    peer.commands.insertContentAt(position, { type: 'image', attrs: imageAttributes(peer) })
+    await receivePeerUpdate()
+    expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+    peer.commands.deleteRange({ from: position, to: position + 1 })
+    await receivePeerUpdate()
+    expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+    expect(local.getJSON()).toEqual(peer.getJSON())
+  })
+
+  it.each(['cancel', 'apply', 'unmount'] as const)(
+    'removes the draft guard listener on %s',
+    (finish) => {
+      const subscribe = vi.spyOn(local, 'on')
+      const unsubscribe = vi.spyOn(local, 'off')
+      act(() =>
+        host.querySelector<HTMLButtonElement>('[aria-label="Edit image alt text"]')!.click()
+      )
+      const listener = subscribe.mock.calls.find(([event]) => event === 'transaction')?.[1]
+      expect(listener).toBeTypeOf('function')
+      if (finish === 'unmount') act(() => root.unmount())
+      else {
+        const key = finish === 'cancel' ? 'Escape' : 'Enter'
+        act(() =>
+          host
+            .querySelector('input')!
+            .dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+        )
+      }
+      expect(unsubscribe).toHaveBeenCalledWith('transaction', listener)
+    }
+  )
+
   it.each(['pointerup', 'pointercancel', 'blur', 'unmount'])(
     'removes the resize transaction listener after %s',
     (finish) => {
@@ -119,7 +363,7 @@ describe('image interactions during real peer Yjs updates', () => {
 
   it('preserves peer alt text when only the local link draft changes', async () => {
     act(() =>
-      host.querySelector<HTMLButtonElement>('button[aria-label="Edit image details"]')!.click()
+      host.querySelector<HTMLButtonElement>('button[aria-label="Edit image link"]')!.click()
     )
     const input = host.querySelector<HTMLInputElement>('input[aria-label="Image link URL"]')!
     act(() => {
@@ -161,6 +405,64 @@ describe('image interactions during real peer Yjs updates', () => {
     })
     expect(local.state.doc.firstChild?.textContent).toBe('Earlier heading PEER')
   })
+
+  it.each(['alt', 'href', 'unchanged', 'reverted'] as const)(
+    'preserves peer fields and follows the image through preceding edits: %s',
+    async (change) => {
+      const field = change === 'href' ? 'link' : 'alt text'
+      act(() =>
+        host.querySelector<HTMLButtonElement>(`button[aria-label="Edit image ${field}"]`)!.click()
+      )
+      const input = changeDraft(
+        change === 'href'
+          ? 'https://sim.ai/local'
+          : change === 'unchanged'
+            ? 'Original'
+            : 'Local alt'
+      )
+      if (change === 'reverted') changeDraft('Original')
+      peer.commands.insertContentAt('Earlier heading'.length + 1, ' PEER')
+      peer.commands.setNodeSelection(imagePosition(peer))
+      peer.commands.updateAttributes('image', { alt: 'Peer alt', href: 'https://sim.ai/peer' })
+      await receivePeerUpdate()
+      expect(host.querySelector('[aria-label="Image editing"] input')).toBe(input)
+      await act(async () =>
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      )
+      expect(imageAttributes(local)).toMatchObject({
+        alt: change === 'alt' ? 'Local alt' : 'Peer alt',
+        href: change === 'href' ? 'https://sim.ai/local' : 'https://sim.ai/peer',
+      })
+      expect(local.state.doc.firstChild?.textContent).toBe('Earlier heading PEER')
+    }
+  )
+
+  it.each(['delete', 'replace', 'identical replacement'] as const)(
+    'never applies an open draft to a peer replacement: %s',
+    async (action) => {
+      act(() =>
+        host.querySelector<HTMLButtonElement>('[aria-label="Edit image alt text"]')!.click()
+      )
+      const input = changeDraft('Uncommitted draft')
+      const position = imagePosition(peer)
+      const originalAttributes = imageAttributes(peer)
+      peer.commands.deleteRange({ from: position, to: position + 1 })
+      if (action !== 'delete')
+        peer.commands.insertContentAt(position, {
+          type: 'image',
+          attrs:
+            action === 'replace'
+              ? { ...originalAttributes, alt: 'Replacement' }
+              : originalAttributes,
+        })
+      await receivePeerUpdate()
+      act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+      expect(host.querySelector('[aria-label="Image editing"] input')).toBeNull()
+      expect(imageAttributes(local)?.alt ?? null).toBe(
+        action === 'delete' ? null : action === 'replace' ? 'Replacement' : 'Original'
+      )
+    }
+  )
 
   it.each([false, true])(
     'cancels a resize when the peer replaces the actual image node (identical attributes: %s)',

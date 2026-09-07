@@ -80,6 +80,10 @@ vi.mock(
   () => ({ TableBubbleMenu: () => null })
 )
 vi.mock(
+  '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu',
+  () => ({ ImageBubbleMenu: () => null })
+)
+vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card',
   () => ({ LinkHoverCard: () => null })
 )

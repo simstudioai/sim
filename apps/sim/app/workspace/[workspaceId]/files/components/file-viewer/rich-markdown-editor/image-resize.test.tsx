@@ -25,13 +25,7 @@ vi.mock(
   () => ({ useEditorEditable: () => true })
 )
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector',
-  () => ({ ImageInspector: vi.fn(() => null) })
-)
-
 import { ResizableImageView } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
-import { ImageInspector } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector'
 
 let host: HTMLDivElement
 let root: Root
@@ -100,48 +94,6 @@ function renderImage(
 }
 
 describe('ResizableImageView', () => {
-  it.each(['read-only', 'destroyed'] as const)(
-    'rejects queued image detail and size changes after the editor becomes %s',
-    (state) => {
-      const updateAttributes = vi.fn()
-      renderImage(updateAttributes)
-      const inspector = vi.mocked(ImageInspector).mock.calls.at(-1)![0]
-      if (state === 'read-only') editor.isEditable = false
-      else editor.isDestroyed = true
-
-      act(() => {
-        inspector.onApply({ alt: 'changed', href: 'https://example.com' })
-        inspector.onResetSize()
-      })
-      expect(updateAttributes).not.toHaveBeenCalled()
-    }
-  )
-
-  it('applies image details and resets dimensions while the editor remains editable', () => {
-    const updateAttributes = vi.fn()
-    renderImage(updateAttributes)
-    const inspector = vi.mocked(ImageInspector).mock.calls.at(-1)![0]
-    act(() => {
-      inspector.onApply({ alt: 'changed', href: 'https://example.com' })
-      inspector.onResetSize()
-    })
-    expect(updateAttributes.mock.calls).toEqual([
-      [{ alt: 'changed', href: 'https://example.com' }],
-      [{ width: null, height: null }],
-    ])
-  })
-
-  it('preserves omitted image details and explicitly clears an empty link', () => {
-    const updateAttributes = vi.fn()
-    renderImage(updateAttributes)
-    const inspector = vi.mocked(ImageInspector).mock.calls.at(-1)![0]
-    act(() => {
-      inspector.onApply({ alt: 'changed' })
-      inspector.onApply({ href: '' })
-    })
-    expect(updateAttributes.mock.calls).toEqual([[{ alt: 'changed' }], [{ href: null }]])
-  })
-
   it('renders a height-only image proportionally without fixing its responsive height', () => {
     renderImage(vi.fn())
     const image = host.querySelector<HTMLImageElement>('img')

@@ -1,11 +1,59 @@
 /**
  * @vitest-environment jsdom
  */
+import { Editor } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 
 describe('isRoundTripSafe', () => {
+  it.each([
+    { field: 'alt', linked: false },
+    { field: 'title', linked: false },
+    { field: 'alt', linked: true },
+    { field: 'title', linked: true },
+  ])('keeps a resized image editable with quoted $field (linked: $linked)', ({ field, linked }) => {
+    const attributes = {
+      src: '/image.png',
+      alt: 'Diagram',
+      [field]: 'A "quoted" diagram',
+      href: linked ? '/destination' : null,
+    }
+    const editor = new Editor({
+      extensions: createMarkdownContentExtensions(),
+      content: { type: 'doc', content: [{ type: 'image', attrs: attributes }] },
+    })
+    try {
+      expect(isRoundTripSafe(editor.getMarkdown())).toBe(true)
+      editor.commands.setNodeSelection(0)
+      editor.commands.updateAttributes('image', { width: '320', height: null })
+      const markdown = editor.getMarkdown()
+      expect(markdown).toContain('&quot;')
+      expect(isRoundTripSafe(markdown)).toBe(true)
+      expect(parseMarkdownToDoc(markdown).content?.[0].attrs).toMatchObject({
+        ...attributes,
+        width: '320',
+        height: null,
+      })
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it.each([
+    '![literal <img src="/inner" alt="&quot;">](/outer)',
+    "![outer](/outer \"literal <img src='/inner' alt='&quot;'>\")",
+    "[text](/link \"literal <img src='/inner' alt='&quot;'>\")",
+    '<img src="/inner" alt="`&quot;`" width="30">\n\n![x][id]\n\n[id]: /outer "&quot;"',
+    '&quot;outside&quot;\n\n[<img src="/image" alt="&quot;inside&quot;" width="30">](/link)',
+    '[<img src="/image" alt="&quot;&copy;&quot;" width="30">](/link)',
+    '[<img src="/image" alt="&quot;inside&quot;" class="hero" width="30">](/link)',
+  ])('does not exempt unsafe text or dropped attributes near image quotes: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+  })
+
   it.each([
     '<div align="center">\n<img src="/logo.svg" class="logo" width="200">\n</div>',
     '<!-- example: <img src="/x" class="hero"> -->',

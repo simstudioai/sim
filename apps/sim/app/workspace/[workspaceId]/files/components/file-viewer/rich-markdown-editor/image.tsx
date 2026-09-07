@@ -4,9 +4,8 @@ import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ProsemirrorBinding, ySyncPluginKey } from '@tiptap/y-tiptap'
-import { XmlElement } from 'yjs'
-import { ImageInspector } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector'
 import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
+import { createImageTargetGuard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-target'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { useEditorEditable } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable'
 import { type ImageDimensions, useFileContentSource } from '@/hooks/use-file-content-source'
@@ -69,23 +68,18 @@ export function ResizableImageView({
     const image = imageRef.current
     if (!image) return
     const binding: ProsemirrorBinding | undefined = ySyncPluginKey.getState(editor.state)?.binding
-    let yTarget: XmlElement | undefined
-    if (binding) {
-      for (const [type, mappedNode] of binding.mapping) {
-        if (mappedNode === node && type instanceof XmlElement) {
-          yTarget = type
-          break
-        }
-      }
-    }
+    const position = binding ? getPos() : undefined
+    const currentNode = typeof position === 'number' ? editor.state.doc.nodeAt(position) : null
+    const matchesTarget =
+      binding && currentNode ? createImageTargetGuard(binding, currentNode) : undefined
     /** A node view can be reused for a replacement image, even when every attribute is identical. */
     const isCurrentTarget = () => {
       if (!binding) return true
       const position = getPos()
       return (
-        yTarget !== undefined &&
+        matchesTarget !== undefined &&
         typeof position === 'number' &&
-        binding.mapping.get(yTarget) === editor.state.doc.nodeAt(position)
+        matchesTarget(editor.state.doc.nodeAt(position))
       )
     }
     if (!isCurrentTarget()) return
@@ -288,22 +282,6 @@ export function ResizableImageView({
         >
           <span className='size-3 rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]' />
         </Button>
-      )}
-      {editable && selected && !dragging && (
-        <ImageInspector
-          alt={attrs.alt ?? ''}
-          href={typeof attrs.href === 'string' ? attrs.href : ''}
-          hasCustomSize={Boolean(attrs.width || attrs.height)}
-          onApply={(details) => {
-            if (!editor.isEditable || editor.isDestroyed) return
-            updateAttributes({ ...details, ...(details.href === '' ? { href: null } : {}) })
-          }}
-          onResetSize={() => {
-            if (!editor.isEditable || editor.isDestroyed) return
-            updateAttributes({ width: null, height: null })
-          }}
-          onReturnFocus={() => editor.commands.focus()}
-        />
       )}
     </NodeViewWrapper>
   )
