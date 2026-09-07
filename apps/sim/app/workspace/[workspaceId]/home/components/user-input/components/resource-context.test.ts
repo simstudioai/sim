@@ -10,6 +10,18 @@ function resource(partial: Partial<MothershipResource> & Pick<MothershipResource
 }
 
 describe('mapResourceToContext', () => {
+  it('keeps the saved view when a table is attached explicitly', () => {
+    expect(
+      mapResourceToContext(
+        resource({
+          type: 'table',
+          id: 'table-1',
+          title: 'Leads',
+          viewId: 'qualified-view',
+        })
+      )
+    ).toEqual({ kind: 'table', tableId: 'table-1', label: 'Leads', viewId: 'qualified-view' })
+  })
   it('turns the singleton panels into whole-resource pointers', () => {
     expect(
       mapResourceToContext(resource({ type: 'browser', id: 'browser-session', title: 'Browser' }))

@@ -163,6 +163,7 @@ export interface ChatMessageContext {
   workflowId?: string
   knowledgeId?: string
   tableId?: string
+  viewId?: string
   fileId?: string
   folderId?: string
   chatId?: string

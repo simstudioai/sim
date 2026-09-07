@@ -14,6 +14,7 @@ import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
+import { createCopilotChatTablePrincipal } from '@/lib/mothership/application/execute-table-use-case'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
 import {
@@ -55,6 +56,8 @@ import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/integration-allowlist'
+import { readTableDefinitionUseCase } from '@/lib/table/application/tables'
+import { readTableViewUseCase } from '@/lib/table/application/views'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -264,7 +267,13 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
-        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId)
+        const result = await resolveTableResource(
+          ctx.tableId,
+          currentWorkspaceId,
+          userId,
+          chatId,
+          ctx.viewId
+        )
         if (!result) return null
         return {
           type: 'table',
@@ -841,7 +850,8 @@ export async function resolveActiveResourceContext(
   resourceId: string,
   workspaceId: string,
   userId: string,
-  chatId?: string
+  chatId?: string,
+  viewId?: string
 ): Promise<AgentContext | null> {
   try {
     switch (resourceType) {
@@ -879,7 +889,7 @@ export async function resolveActiveResourceContext(
         }
       }
       case 'table': {
-        return await resolveTableResource(resourceId, workspaceId)
+        return await resolveTableResource(resourceId, workspaceId, userId, chatId, viewId)
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
@@ -900,15 +910,35 @@ export async function resolveActiveResourceContext(
 }
 async function resolveTableResource(
   tableId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId: string,
+  chatId?: string,
+  viewId?: string
 ): Promise<AgentContext | null> {
-  const table = await getTableById(tableId)
-  if (!table) return null
-  if (table.workspaceId !== workspaceId) return null
+  const principal = createCopilotChatTablePrincipal({ userId, workspaceId, tableId, chatId })
+  const viewResult = viewId
+    ? await readTableViewUseCase.execute({ principal, input: { tableId, workspaceId, viewId } })
+    : undefined
+  const { table } =
+    viewResult ??
+    (await readTableDefinitionUseCase.execute({ principal, input: { tableId, workspaceId } }))
+  const view = viewResult?.view
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: '',
+    content: JSON.stringify({
+      tableId: table.id,
+      ...(view
+        ? {
+            savedView: {
+              id: view.id,
+              name: view.name,
+              filter: view.config.filter ?? null,
+              sort: view.config.sort ?? null,
+            },
+          }
+        : {}),
+    }),
     path: canonicalTableVfsPath(table.name),
   }
 }

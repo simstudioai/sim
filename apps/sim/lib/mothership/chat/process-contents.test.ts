@@ -22,6 +22,8 @@ const {
   getWorkspaceFile,
   readWorkspaceFileMetadata,
   getTableById,
+  readTableDefinition,
+  readTableView,
   getRowsByIds,
   readKnowledgeBase,
   getBlockVisibilityForCopilot,
@@ -36,6 +38,8 @@ const {
   getWorkspaceFile: vi.fn(),
   readWorkspaceFileMetadata: vi.fn(),
   getTableById: vi.fn(),
+  readTableDefinition: vi.fn(),
+  readTableView: vi.fn(),
   getRowsByIds: vi.fn(),
   readKnowledgeBase: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
@@ -55,6 +59,12 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getW
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
+vi.mock('@/lib/table/application/tables', () => ({
+  readTableDefinitionUseCase: { execute: readTableDefinition },
+}))
+vi.mock('@/lib/table/application/views', () => ({
+  readTableViewUseCase: { execute: readTableView },
+}))
 vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
@@ -69,7 +79,10 @@ vi.mock('@/lib/mothership/tools/server/docs/search-docs', () => ({
  * controllable row data, which the stable `dbChainMockFns.limit` provides.
  */
 
-import { processContextsServer } from './process-contents'
+import {
+  processContextsServer,
+  resolveActiveResourceContext,
+} from '@/lib/mothership/chat/process-contents'
 
 describe('processContextsServer - knowledge contexts', () => {
   beforeEach(() => {
@@ -1057,5 +1070,92 @@ describe('processContextsServer - table_selection contexts', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].content).toContain(huge)
+  })
+})
+
+describe('table view context', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readTableView.mockResolvedValue({
+      table: { id: 'table-1', name: 'Leads' },
+      view: {
+        id: 'view-1',
+        name: 'Qualified',
+        config: {
+          filter: { all: [{ field: 'col_status', op: 'eq', value: 'qualified' }] },
+          sort: [{ field: 'col_score', direction: 'desc' }],
+          hiddenColumns: ['internal'],
+        },
+      },
+    })
+  })
+
+  it('resolves saved filter and sort under the actor and exact table scope', async () => {
+    const contexts = await processContextsServer(
+      [{ kind: 'table', tableId: 'table-1', viewId: 'view-1', label: 'Leads' }],
+      'reader',
+      'Summarize this view',
+      'workspace-1',
+      'chat-1'
+    )
+    expect(readTableView).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'reader',
+        workspaceId: 'workspace-1',
+        audience: 'sim:tables',
+        resourceScope: { tableId: 'table-1', chatId: 'chat-1' },
+      }),
+      input: { tableId: 'table-1', workspaceId: 'workspace-1', viewId: 'view-1' },
+    })
+    expect(contexts).toHaveLength(1)
+    expect(JSON.parse(contexts[0]!.content)).toEqual({
+      tableId: 'table-1',
+      savedView: {
+        id: 'view-1',
+        name: 'Qualified',
+        filter: { all: [{ field: 'col_status', op: 'eq', value: 'qualified' }] },
+        sort: [{ field: 'col_score', direction: 'desc' }],
+      },
+    })
+    const active = await resolveActiveResourceContext(
+      'table',
+      'table-1',
+      'workspace-1',
+      'reader',
+      'chat-1',
+      'view-1'
+    )
+    expect(active?.content).toEqual(contexts[0]!.content)
+    expect(getTableById).not.toHaveBeenCalled()
+  })
+
+  it('reads an unpinned table through current application authorization', async () => {
+    readTableDefinition.mockResolvedValueOnce({ table: { id: 'table-1', name: 'Leads' } })
+    expect(await resolveActiveResourceContext('table', 'table-1', 'workspace-1', 'reader')).toEqual(
+      {
+        type: 'active_resource',
+        tag: '@active_resource',
+        path: 'tables/Leads/meta.json',
+        content: '{"tableId":"table-1"}',
+      }
+    )
+    expect(readTableView).not.toHaveBeenCalled()
+  })
+
+  it('does not replace a denied or missing saved view with the whole table', async () => {
+    readTableView.mockRejectedValueOnce(new DelegatedWorkspaceAuthorizationError())
+    expect(
+      await resolveActiveResourceContext(
+        'table',
+        'table-1',
+        'workspace-1',
+        'reader',
+        'chat-1',
+        'view-1'
+      )
+    ).toBeNull()
+    expect(readTableDefinition).not.toHaveBeenCalled()
   })
 })

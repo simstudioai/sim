@@ -8,25 +8,18 @@
  * `@active_tab`/`@open_tab` context. A browser panel with no page loaded has
  * nothing to say and is dropped.
  */
+
+import type { MothershipResourceAttachment } from '@/lib/api/contracts/mothership-resources'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { getBrowserSession } from '@/stores/browser-session/store'
-
-export interface ResourceAttachment {
-  type: MothershipResource['type']
-  id: string
-  title: string
-  active: boolean
-  /** Live page URL, only on `browser` attachments. */
-  url?: string
-}
 
 export function buildResourceAttachments(
   resources: readonly MothershipResource[],
   activeResourceId: string | null,
   scopeId: string
-): ResourceAttachment[] | undefined {
+): MothershipResourceAttachment[] | undefined {
   const { tabs } = getBrowserSession(scopeId)
-  const attachments = resources.flatMap<ResourceAttachment>((resource) => {
+  const attachments = resources.flatMap<MothershipResourceAttachment>((resource) => {
     // The terminal panel is not addressable context: unlike a browser tab it
     // carries no URL to reference, and the shell's state reaches the model
     // through the terminal tools instead.
@@ -35,9 +28,7 @@ export function buildResourceAttachments(
     if (resource.type !== 'browser') {
       return [
         {
-          type: resource.type,
-          id: resource.id,
-          title: resource.title,
+          ...resource,
           active: resource.id === activeResourceId,
         },
       ]

@@ -475,6 +475,51 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('preserves saved view references in explicit context, open tabs and a new chat', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Summarize this view',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [
+            { kind: 'table', tableId: 'table-1', label: 'Leads', viewId: 'qualified-view' },
+          ],
+          resourceAttachments: [
+            {
+              type: 'table',
+              id: 'table-1',
+              title: 'Leads',
+              viewId: 'qualified-view',
+              active: true,
+            },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(processContextsServer).toHaveBeenCalledWith(
+      [expect.objectContaining({ tableId: 'table-1', viewId: 'qualified-view' })],
+      'user-1',
+      'Summarize this view',
+      'ws-1',
+      'chat-1',
+      expect.any(ResolvedSecretTraceRegistry)
+    )
+    expect(resolveActiveResourceContext).toHaveBeenCalledWith(
+      'table',
+      'table-1',
+      'ws-1',
+      'user-1',
+      'chat-1',
+      'qualified-view'
+    )
+    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
+      { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' },
+    ])
+  })
+
   it('validates selection snapshots and omits unsafe browser source URLs', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

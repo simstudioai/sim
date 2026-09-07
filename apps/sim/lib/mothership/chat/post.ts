@@ -5,6 +5,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import {
+  mothershipResourceSchema,
+  mothershipResourceAttachmentSchema as ResourceAttachmentSchema,
+} from '@/lib/api/contracts/mothership-resources'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
@@ -83,43 +87,10 @@ const FileAttachmentSchema = z.object({
   path: z.string().optional(),
 })
 
-const ResourceAttachmentSchema = z.object({
-  type: z.enum([
-    'workflow',
-    'table',
-    'file',
-    'knowledgebase',
-    'folder',
-    'filefolder',
-    'task',
-    'log',
-    'generic',
-    'browser',
-    // Filtered out client-side rather than sent, but accepted here so a stray
-    // terminal attachment degrades to a no-op instead of rejecting the whole
-    // chat request.
-    'terminal',
-  ]),
-  id: z.string().min(1),
-  title: z.string().optional(),
-  active: z.boolean().optional(),
-  /**
-   * Live page URL for `browser` attachments. The agent browser lives in the
-   * desktop app, so the client supplies its state — the server has nothing
-   * to resolve it from. Web-only: this string is interpolated into LLM
-   * context, and rejecting other schemes (file://, chrome://…) keeps local
-   * host paths from ever entering the copilot payload.
-   */
-  url: z
-    .string()
-    .max(2048)
-    .regex(/^https?:\/\//, 'Must be an http(s) URL')
-    .optional(),
-})
-
 const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
   workflow: 'Workflow',
   table: 'Table',
+  integration: 'Integration',
   file: 'File',
   knowledgebase: 'Knowledge Base',
   folder: 'Folder',
@@ -222,6 +193,7 @@ const ChatContextSchema = z
     blockIds: z.array(z.string()).optional(),
     executionId: z.string().optional(),
     tableId: z.string().optional(),
+    viewId: mothershipResourceSchema.shape.viewId,
     fileId: z.string().optional(),
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
@@ -517,7 +489,8 @@ async function resolveAgentContexts(params: {
           resource.id,
           workspaceId,
           userId,
-          chatId
+          chatId,
+          resource.viewId
         )
         if (!ctx) return null
         return { ...ctx, tag: resource.active ? '@active_tab' : '@open_tab' }
@@ -957,11 +930,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         // browser tabs collapse onto the one Browser panel before they are
         // stored, so the chat reopens with a single tab rather than one per page.
         const persistable = sanitizeChatResources(
-          body.resourceAttachments.filter(isPersistableAttachment).map((resource) => ({
-            type: resource.type,
-            id: resource.id,
-            title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
-          }))
+          body.resourceAttachments.filter(isPersistableAttachment).map((resource) =>
+            mothershipResourceSchema.parse({
+              ...resource,
+              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
+            })
+          )
         )
         if (persistable.length > 0) {
           await persistChatResources(actualChatId, persistable)

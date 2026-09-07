@@ -10,6 +10,17 @@ const BROWSER_RESOURCE: MothershipResource = {
 }
 
 describe('buildResourceAttachments', () => {
+  it('keeps the selected saved table view in the chat request', () => {
+    expect(
+      buildResourceAttachments(
+        [{ type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' }],
+        'table-1',
+        'chat-test'
+      )
+    ).toEqual([
+      { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view', active: true },
+    ])
+  })
   beforeEach(() => {
     const session = {
       pageState: null,
