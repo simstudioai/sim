@@ -409,4 +409,7 @@ export async function register() {
   // but boot never waits on Redis to serve requests that do not touch it.
   const { warmRedisConnection } = await import('@/lib/core/config/redis')
   void warmRedisConnection()
+
+  const { startSimReceivers } = await import('./lib/mothership/transport/receiver')
+  await startSimReceivers()
 }

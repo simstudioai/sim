@@ -11,6 +11,7 @@ import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+import { getSimConnection } from '@/lib/mothership/transport/connection'
 
 const logger = createLogger('MothershipSandboxSession')
 
@@ -72,6 +73,8 @@ export async function buildMothershipSandboxSession(args: {
   userId: string
   signal?: AbortSignal
 }): Promise<SandboxSessionRequest> {
+  args.signal?.throwIfAborted()
+  if (getSimConnection().mode === 'checkpoint') return { key: args.sessionKey }
   const cli = await workbenchCli(args.userId, args.signal)
   let cliEnvs: Record<string, string> | undefined
   try {
