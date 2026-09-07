@@ -41,6 +41,7 @@ const {
   mockUpdateRunStatus: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockEnv: {
+    INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
     COPILOT_API_KEY: undefined as string | undefined,
     MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
   },
@@ -554,7 +555,33 @@ describe('runCopilotLifecycle', () => {
     const sent = JSON.parse(capturedRequestBody)
     /** Receipt metadata leaves ordinary caller content unchanged. */
     expect(sent).not.toHaveProperty('byokApiKey')
-    expect(sent).toEqual({ ...payload, receivedTextChars: 0 })
+    expect(sent).toEqual({
+      ...payload,
+      receivedTextChars: 0,
+      simConnection: {
+        mode: 'checkpoint',
+        channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    })
+  })
+
+  it('stamps server-owned transport over caller claims without exposing the instance secret', async () => {
+    let captured = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      captured = String(request.body)
+    })
+    await runCopilotLifecycle(
+      { message: 'hello', simConnection: { mode: 'direct' } },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+    expect(JSON.parse(captured).simConnection).toEqual({
+      mode: 'checkpoint',
+      channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })
+    expect(captured).not.toContain(mockEnv.INTERNAL_API_SECRET)
   })
 
   it('attaches the resolved enterprise BYOK key to the outbound payload', async () => {
@@ -956,7 +983,14 @@ describe('runCopilotLifecycle', () => {
 
       const sent = JSON.parse(capturedRequestBody)
       expect(sent).not.toHaveProperty('byokApiKey')
-      expect(sent).toEqual({ ...payload, receivedTextChars: 0 })
+      expect(sent).toEqual({
+        ...payload,
+        receivedTextChars: 0,
+        simConnection: {
+          mode: 'checkpoint',
+          channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+        },
+      })
     }
   )
 

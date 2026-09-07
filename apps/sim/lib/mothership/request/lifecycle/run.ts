@@ -71,6 +71,7 @@ import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { getSimConnection } from '@/lib/mothership/transport/connection'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -931,6 +932,10 @@ async function runCheckpointLoop(
   let retry: StreamRetryWindow | undefined
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  if (initialRoute === '/api/mothership' || initialRoute === '/api/copilot') {
+    const simConnection = getSimConnection()
+    payload = { ...payload, simConnection }
+  }
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
   const mothershipRequestId = nonBlankString(options.simRequestId) ?? generateId()
   if (!options.simRequestId) {

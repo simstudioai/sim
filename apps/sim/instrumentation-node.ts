@@ -403,4 +403,7 @@ export async function register() {
 
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
+
+  const { startSimReceivers } = await import('./lib/mothership/transport/receiver')
+  await startSimReceivers()
 }

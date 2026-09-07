@@ -1,12 +1,14 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { read, mint, fetchBootstrap, baseURL } = vi.hoisted(() => ({
+const { read, mint, fetchBootstrap, baseURL, connection } = vi.hoisted(() => ({
+  connection: vi.fn(),
   read: vi.fn(),
   mint: vi.fn(),
   fetchBootstrap: vi.fn(),
   baseURL: vi.fn(),
 }))
+vi.mock('@/lib/mothership/transport/connection', () => ({ getSimConnection: connection }))
 vi.mock('node:fs/promises', () => ({ readFile: read }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
 vi.mock('@/lib/core/config/env', () => ({
@@ -26,11 +28,20 @@ const request = { sessionKey: 'chat', workspaceId: 'workspace', userId: 'user' }
 describe('deployment-owned workbench tooling', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    connection.mockReturnValue({ mode: 'direct' })
     mint.mockResolvedValue('test-delegation')
     baseURL.mockResolvedValue('https://worker.test')
     fetchBootstrap.mockImplementation(async () =>
       Response.json({ version: 1, entrypoint: 'private-entry' })
     )
+  })
+
+  it('keeps private Sim credentials, endpoint and CLI bootstrap out of the sandbox', async () => {
+    connection.mockReturnValue({ mode: 'checkpoint', channelId: 'a'.repeat(64) })
+    expect(await buildMothershipSandboxSession(request)).toEqual({ key: 'chat' })
+    expect(read).not.toHaveBeenCalled()
+    expect(fetchBootstrap).not.toHaveBeenCalled()
+    expect(mint).not.toHaveBeenCalled()
   })
 
   it('stages the current deployment bundle and keeps credentials out of installed files', async () => {
@@ -85,14 +96,18 @@ describe('deployment-owned workbench tooling', () => {
     }
   })
 
-  it('cancels private bootstrap loading before provider or credential work', async () => {
-    const controller = new AbortController()
-    controller.abort(new Error('Stopped'))
-    await expect(
-      buildMothershipSandboxSession({ ...request, signal: controller.signal })
-    ).rejects.toThrow('Stopped')
-    expect(read).not.toHaveBeenCalled()
-    expect(fetchBootstrap).not.toHaveBeenCalled()
-    expect(mint).not.toHaveBeenCalled()
-  })
+  it.each(['direct', 'checkpoint'])(
+    'cancels %s setup before provider or credential work',
+    async (mode) => {
+      connection.mockReturnValue({ mode, channelId: 'a'.repeat(64) })
+      const controller = new AbortController()
+      controller.abort(new Error('Stopped'))
+      await expect(
+        buildMothershipSandboxSession({ ...request, signal: controller.signal })
+      ).rejects.toThrow('Stopped')
+      expect(read).not.toHaveBeenCalled()
+      expect(fetchBootstrap).not.toHaveBeenCalled()
+      expect(mint).not.toHaveBeenCalled()
+    }
+  )
 })
