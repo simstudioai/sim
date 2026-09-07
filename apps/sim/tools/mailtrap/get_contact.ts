@@ -4,7 +4,7 @@ import {
   type MailtrapGetContactParams,
   type MailtrapGetContactResult,
 } from '@/tools/mailtrap/types'
-import { mapContact, readJsonBody } from '@/tools/mailtrap/utils'
+import { expectRecord, mapContact, readJsonBody } from '@/tools/mailtrap/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailtrapGetContactTool: ToolConfig<
@@ -46,7 +46,7 @@ export const mailtrapGetContactTool: ToolConfig<
     return {
       success: true,
       output: {
-        contact: mapContact(data.data),
+        contact: mapContact(expectRecord(data.data, 'the contact payload')),
       },
     }
   },

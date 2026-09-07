@@ -4,7 +4,13 @@ import {
   type MailtrapCreateContactParams,
   type MailtrapCreateContactResult,
 } from '@/tools/mailtrap/types'
-import { mapContact, parseIdList, parseJsonRecord, readJsonBody } from '@/tools/mailtrap/utils'
+import {
+  expectRecord,
+  mapContact,
+  parseIdList,
+  parseJsonRecord,
+  readJsonBody,
+} from '@/tools/mailtrap/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailtrapCreateContactTool: ToolConfig<
@@ -70,7 +76,7 @@ export const mailtrapCreateContactTool: ToolConfig<
     return {
       success: true,
       output: {
-        contact: mapContact(data.data),
+        contact: mapContact(expectRecord(data.data, 'the contact payload')),
       },
     }
   },

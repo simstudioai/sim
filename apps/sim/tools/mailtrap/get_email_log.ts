@@ -4,7 +4,7 @@ import {
   type MailtrapGetEmailLogParams,
   type MailtrapGetEmailLogResult,
 } from '@/tools/mailtrap/types'
-import { mapSendingMessage, readJsonBody } from '@/tools/mailtrap/utils'
+import { expectSendingMessage, readJsonBody } from '@/tools/mailtrap/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailtrapGetEmailLogTool: ToolConfig<
@@ -48,7 +48,7 @@ export const mailtrapGetEmailLogTool: ToolConfig<
       success: true,
       output: {
         message: {
-          ...mapSendingMessage(data),
+          ...expectSendingMessage(data),
           rawMessageUrl: typeof data.raw_message_url === 'string' ? data.raw_message_url : null,
           events: Array.isArray(data.events) ? (data.events as Array<Record<string, unknown>>) : [],
         },

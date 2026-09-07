@@ -4,7 +4,7 @@ import {
   type MailtrapListEmailLogsParams,
   type MailtrapListEmailLogsResult,
 } from '@/tools/mailtrap/types'
-import { mapSendingMessage, readJsonBody } from '@/tools/mailtrap/utils'
+import { expectArray, mapSendingMessage, readJsonBody } from '@/tools/mailtrap/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Splits a comma-separated filter value into trimmed, non-empty entries. */
@@ -171,7 +171,7 @@ export const mailtrapListEmailLogsTool: ToolConfig<
 
   transformResponse: async (response): Promise<MailtrapListEmailLogsResult> => {
     const data = await readJsonBody(response)
-    const messages = Array.isArray(data.messages) ? data.messages.map(mapSendingMessage) : []
+    const messages = expectArray(data.messages, 'a messages array').map(mapSendingMessage)
 
     return {
       success: true,

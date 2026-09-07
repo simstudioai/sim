@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { mailtrapCreateContactTool } from '@/tools/mailtrap/create_contact'
 import { mailtrapDeleteContactTool } from '@/tools/mailtrap/delete_contact'
+import { mailtrapGetContactTool } from '@/tools/mailtrap/get_contact'
+import { mailtrapGetContactListTool } from '@/tools/mailtrap/get_contact_list'
 import { mailtrapGetEmailLogTool } from '@/tools/mailtrap/get_email_log'
 import { mailtrapListContactListsTool } from '@/tools/mailtrap/list_contact_lists'
 import { mailtrapListEmailLogsTool } from '@/tools/mailtrap/list_email_logs'
@@ -55,6 +57,15 @@ describe('mailtrap utils', () => {
     expect(() => parseAddressList('johndoe')).toThrow(/"johndoe" is not a valid email address/)
     expect(() => parseAddressList('a@example.com, Bob <bob>')).toThrow(
       /"Bob <bob>" is not a valid email address/
+    )
+  })
+
+  it('rejects an unbalanced quote or angle bracket instead of absorbing recipients', () => {
+    expect(() => parseAddressList('Bad <bad@example.com, good@example.com')).toThrow(
+      /unbalanced quote or angle bracket/
+    )
+    expect(() => parseAddressList('"still open, a@example.com')).toThrow(
+      /unbalanced quote or angle bracket/
     )
   })
 
@@ -272,6 +283,27 @@ describe('mailtrap contact tools', () => {
       createdAt: 111,
       updatedAt: 222,
     })
+  })
+
+  it('fails a well-formed body that is missing the contact payload', async () => {
+    await expect(
+      mailtrapGetContactTool.transformResponse?.(new Response('{}'), {
+        apiToken: 't',
+        contactIdentifier: 'c@example.com',
+      })
+    ).rejects.toThrow(/did not include the contact payload/)
+  })
+
+  it('fails a contact list response with no numeric id', async () => {
+    await expect(
+      mailtrapGetContactListTool.transformResponse?.(
+        new Response(JSON.stringify({ name: 'News' })),
+        {
+          apiToken: 't',
+          listId: '1',
+        }
+      )
+    ).rejects.toThrow(/did not include a contact list id/)
   })
 
   it('sends include/exclude list ids and the unsubscribe flag on update', () => {
@@ -528,6 +560,24 @@ describe('mailtrap email logs tools', () => {
     expect(buildUrl(mailtrapGetEmailLogTool, { apiToken: 't', messageId: 'a b/c' })).toBe(
       'https://mailtrap.io/api/email_logs/a%20b%2Fc'
     )
+  })
+
+  it('fails when the list response has no messages array', async () => {
+    await expect(
+      mailtrapListEmailLogsTool.transformResponse?.(
+        new Response(JSON.stringify({ messages: 'bad', total_count: 0 })),
+        { apiToken: 't' }
+      )
+    ).rejects.toThrow(/did not include a messages array/)
+  })
+
+  it('fails a single message response with no message id', async () => {
+    await expect(
+      mailtrapGetEmailLogTool.transformResponse?.(
+        new Response(JSON.stringify({ status: 'delivered' })),
+        { apiToken: 't', messageId: 'm-9' }
+      )
+    ).rejects.toThrow(/did not include a message id/)
   })
 })
 

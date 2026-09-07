@@ -19,8 +19,12 @@ export function parseAddress(value: string | undefined): MailtrapAddress | undef
   return parseAddressList(value)[0]
 }
 
+/** A bare address: one `@`, no whitespace or list/quote/bracket delimiters on either side. */
+const BARE_EMAIL = /^[^\s"<>,@]+@[^\s"<>,@]+$/
+
 /**
- * Splits a recipient string on top-level commas only.
+ * Splits a recipient string on top-level commas only. Throws when a quote or angle
+ * bracket is left open.
  */
 function splitAddressEntries(value: string): string[] {
   const entries: string[] = []
@@ -54,6 +58,10 @@ function splitAddressEntries(value: string): string[] {
   }
   entries.push(current)
 
+  if (inQuotes || inAngle) {
+    throw new Error('Recipient list has an unbalanced quote or angle bracket')
+  }
+
   return entries
 }
 
@@ -72,7 +80,7 @@ export function parseAddressList(value: string | undefined): MailtrapAddress[] {
 
     const named = entry.match(/^\s*(.*?)\s*<\s*([^<>]+?)\s*>\s*$/)
     const email = (named ? named[2] : entry).trim()
-    if (!email.includes('@')) {
+    if (!BARE_EMAIL.test(email)) {
       throw new Error(`"${entry}" is not a valid email address`)
     }
 
@@ -210,8 +218,9 @@ function parseJsonResponse(text: string): unknown {
 /**
  * Reads a Mailtrap 2xx JSON object body. Every endpoint that calls this returns
  * a JSON object on success, so an empty, unparseable, or wrongly-shaped body
- * means the payload did not come from Mailtrap and is surfaced as a failure instead of being mapped to an empty
- * record. Delete endpoints return `204` and never call this.
+ * means the payload did not come from Mailtrap and is surfaced as a failure
+ * rather than mapped into a fabricated empty record. Delete endpoints return
+ * `204` and never call this.
  */
 export async function readJsonBody(response: Response): Promise<Record<string, unknown>> {
   const parsed = parseJsonResponse(await response.text())
@@ -232,4 +241,47 @@ export async function readJsonArray(response: Response): Promise<unknown[]> {
     throw new Error('Mailtrap returned an unexpected response shape (expected a JSON array)')
   }
   return parsed
+}
+
+/**
+ * Asserts that a nested payload the caller depends on is present and is a plain
+ * object. A well-formed JSON body that is missing its defining slice fails here instead of
+ * being mapped into a fabricated empty record.
+ */
+export function expectRecord(value: unknown, description: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Mailtrap response did not include ${description}`)
+  }
+  return value as Record<string, unknown>
+}
+
+/** Asserts that a nested payload the caller iterates over is present and is an array. */
+export function expectArray(value: unknown, description: string): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Mailtrap response did not include ${description}`)
+  }
+  return value
+}
+
+/**
+ * Validates a Contacts Lists API payload (`{ id, name }`) and normalizes it.
+ * The single-list endpoints require a numeric `id`; the list endpoint keeps the
+ * lenient {@link mapContactList} for individual rows.
+ */
+export function expectContactList(data: Record<string, unknown>): MailtrapContactList {
+  if (typeof data.id !== 'number') {
+    throw new Error('Mailtrap response did not include a contact list id')
+  }
+  return mapContactList(data)
+}
+
+/**
+ * Validates an Email Logs message payload and normalizes it. Requires a
+ * `message_id` so an empty object is not mapped into a blank message.
+ */
+export function expectSendingMessage(data: Record<string, unknown>): MailtrapSendingMessage {
+  if (typeof data.message_id !== 'string' || data.message_id.length === 0) {
+    throw new Error('Mailtrap response did not include a message id')
+  }
+  return mapSendingMessage(data)
 }

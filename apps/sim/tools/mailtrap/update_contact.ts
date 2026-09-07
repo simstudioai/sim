@@ -5,6 +5,7 @@ import {
   type MailtrapUpdateContactResult,
 } from '@/tools/mailtrap/types'
 import {
+  expectRecord,
   mapContact,
   parseIdList,
   parseJsonRecord,
@@ -102,7 +103,7 @@ export const mailtrapUpdateContactTool: ToolConfig<
       success: true,
       output: {
         action: typeof data.action === 'string' ? data.action : '',
-        contact: mapContact(data.data),
+        contact: mapContact(expectRecord(data.data, 'the contact payload')),
       },
     }
   },

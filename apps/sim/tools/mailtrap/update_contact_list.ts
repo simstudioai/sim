@@ -4,7 +4,7 @@ import {
   type MailtrapContactListResult,
   type MailtrapUpdateContactListParams,
 } from '@/tools/mailtrap/types'
-import { mapContactList, readJsonBody } from '@/tools/mailtrap/utils'
+import { expectContactList, readJsonBody } from '@/tools/mailtrap/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailtrapUpdateContactListTool: ToolConfig<
@@ -53,7 +53,7 @@ export const mailtrapUpdateContactListTool: ToolConfig<
     const data = await readJsonBody(response)
     return {
       success: true,
-      output: { list: mapContactList(data) },
+      output: { list: expectContactList(data) },
     }
   },
 
