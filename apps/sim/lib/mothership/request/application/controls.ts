@@ -33,8 +33,17 @@ const policy = {
   principalKinds: ['session'],
 } as const
 export const runControlOperations = {
-  abort: defineWorkspaceOperation({ id: 'mothership.runs.abort', ...policy }),
-  steer: defineWorkspaceOperation({ id: 'mothership.runs.steer', ...policy }),
+  // permission-group-exempt: an owner must be able to stop existing work after Copilot access is withheld
+  abort: defineWorkspaceOperation({
+    id: 'mothership.runs.abort',
+    capability: 'none',
+    ...policy,
+  }),
+  steer: defineWorkspaceOperation({
+    id: 'mothership.runs.steer',
+    capability: 'copilot.use',
+    ...policy,
+  }),
 } as const
 
 interface RunControlInput {

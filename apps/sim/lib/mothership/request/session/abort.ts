@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { acquireLock, extendLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { AbortBackend } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -226,7 +227,7 @@ export async function acquirePendingChatStream(
     },
     async (span) => {
       const redis = getRedisClient()
-      const lease = { key: chatStreamLockKey(chatId), value: `${streamId}\n${crypto.randomUUID()}` }
+      const lease = { key: chatStreamLockKey(chatId), value: `${streamId}\n${generateId()}` }
       span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
       if (redis) {
         const deadline = Date.now() + timeoutMs

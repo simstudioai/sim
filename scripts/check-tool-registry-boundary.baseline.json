@@ -706,6 +706,10 @@
       "modules": 1,
       "gateways": {}
     },
+    "lib/catalog/projection/container-blocks.ts": {
+      "modules": 2,
+      "gateways": {}
+    },
     "lib/catalog/projection/subblock.ts": {
       "modules": 6,
       "gateways": {}

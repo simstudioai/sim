@@ -2,11 +2,10 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { getLiveAssistantMessageId } from '@/lib/mothership/chat/effective-transcript'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
-import { getLiveAssistantMessageId } from '@/lib/mothership/chat/effective-transcript'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')

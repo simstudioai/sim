@@ -164,6 +164,16 @@ export interface SearchResult {
   knowledgeBaseId: string
   /** When the source last changed the document; NULL for uploads and sources that do not say. */
   sourceModifiedAt: Date | null
+  /**
+   * The retrieval score before optional recency boosting: the
+   * reciprocal-rank-fusion score in hybrid mode, the cosine similarity
+   * (`1 - distance`) in vector mode, and 1 for a tag-only search. Stamped by
+   * `executeKnowledgeSearch` on every row it returns; absent on rows straight
+   * from a single retrieval leg.
+   */
+  rankScore?: number
+  /** 1-based position in the returned order, stamped alongside `rankScore`. */
+  rank?: number
 }
 
 /**
@@ -176,16 +186,6 @@ export interface KnowledgeQueryVector {
   /** JSON array literal of the embedding, in pgvector's text input format. */
   vector: string
   dimensions: KbEmbeddingDimensions
-  /**
-   * The score this row's position in the returned list comes from: the
-   * reciprocal-rank-fusion score in hybrid mode, the cosine similarity
-   * (`1 - distance`) in vector mode, and 1 for a tag-only search. Stamped by
-   * `executeKnowledgeSearch` on every row it returns; absent on rows straight
-   * from a single retrieval leg.
-   */
-  rankScore?: number
-  /** 1-based position in the returned order, stamped alongside `rankScore`. */
-  rank?: number
 }
 
 export interface SearchParams {
@@ -901,7 +901,9 @@ export async function executeKnowledgeSearch(
 
   if (searchMode === 'vector') {
     const results = rankResults(await vectorSearch, (row) => 1 - row.distance)
-    return boostRecency ? rankResults(applyRecencyBoost(results), (row) => row.rankScore ?? 0) : results
+    return boostRecency
+      ? rankResults(applyRecencyBoost(results), (row) => row.rankScore ?? 0)
+      : results
   }
 
   /**

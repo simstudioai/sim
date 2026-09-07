@@ -23,6 +23,8 @@ export const readWatchedWorkflowStatus = defineAuthorizedWorkspaceUseCase({
     })
     const result = await getWorkflowExecutionStatus({
       workflowId: run.workflowId,
+      workspaceId: context.workspaceId,
+      viewerUserId: context.userId,
       executionId: run.runId,
       includeOutput: false,
       selectedOutputs: [],

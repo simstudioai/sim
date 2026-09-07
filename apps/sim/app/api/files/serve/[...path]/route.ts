@@ -9,8 +9,6 @@ import {
   InternalUnauthenticatedError,
 } from '@/lib/api/server/routes'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc-compile'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

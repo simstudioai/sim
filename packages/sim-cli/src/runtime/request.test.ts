@@ -404,30 +404,30 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
    * manifest list reads a file this way; an id list keeps refusing a blank
    * line, because there it is a typo.
    */
-  it('skips blank lines and # comments in a manifest list file', () => {
+  it('skips blank lines and # comments in a manifest list file', async () => {
     const path = join(tmpdir(), 'sim-cli-requirements.txt')
     writeFileSync(
       path,
       '# pinned for the ETL job\npandas==2.2.2\n\n  # transitive, kept explicit\nrequests\n'
     )
     expect(
-      coerce(`@${path}`, { kind: 'array' }, { list: true, manifest: true }, 'dependencies')
+      await coerce(`@${path}`, { kind: 'array' }, { list: true, manifest: true }, 'dependencies')
     ).toEqual(['pandas==2.2.2', 'requests'])
     rmSync(path)
   })
 
-  it('refuses a manifest file that carries only comments', () => {
+  it('refuses a manifest file that carries only comments', async () => {
     const path = join(tmpdir(), 'sim-cli-requirements-empty.txt')
     writeFileSync(path, '# nothing yet\n\n')
-    expect(() =>
+    await expect(
       coerce(`@${path}`, { kind: 'array' }, { list: true, manifest: true }, 'dependencies')
-    ).toThrow(/contains no values/)
+    ).rejects.toThrow(/contains no values/)
     rmSync(path)
   })
 
-  it('keeps an inline # value on a manifest list', () => {
+  it('keeps an inline # value on a manifest list', async () => {
     expect(
-      coerce(
+      await coerce(
         ['# not a comment here'],
         { kind: 'array' },
         { list: true, manifest: true },

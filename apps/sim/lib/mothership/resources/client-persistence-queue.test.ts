@@ -28,6 +28,20 @@ describe('ResourcePersistenceQueue', () => {
     vi.clearAllMocks()
   })
 
+  it('retains an optimistic resource through an in-flight write, scoped to its chat', async () => {
+    const write = deferred<unknown>()
+    const queue = new ResourcePersistenceQueue({ persist: vi.fn(() => write.promise), onError })
+    queue.enqueue(TABLE_RESOURCE, 'chat-1', 'chat-1')
+    await Promise.resolve()
+    expect(queue.getPendingResourceKeys('chat-1').size).toBe(0)
+    expect(queue.hasPendingUpsert('chat-1', 'table', 'table-1')).toBe(true)
+    expect(queue.hasPendingUpsert('chat-2', 'table', 'table-1')).toBe(false)
+    const settled = queue.flush('chat-1')
+    write.resolve({ success: true })
+    await settled
+    expect(queue.hasPendingUpsert('chat-1', 'table', 'table-1')).toBe(false)
+  })
+
   it('drains a newer update after the write for the same resource settles', async () => {
     const first = deferred<unknown>()
     const persist = vi

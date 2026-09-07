@@ -55,7 +55,9 @@ const {
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
 vi.mock('@/lib/permission-groups/resolve.server', () => ({ getUserPermissionConfig }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({ validateMcpToolsAllowed: vi.fn() }))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
 }))

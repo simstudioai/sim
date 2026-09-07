@@ -13,6 +13,12 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  forbiddenErrorDetails,
+  PersonalApiKeysDisabledError,
+  requirePersonalApiKeysAllowed,
+  type WorkspaceAuthorizationContext,
+} from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { chatOperations } from '@/lib/mothership/application/operations'
@@ -32,25 +38,16 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { OrchestratorResult, StreamEvent } from '@/lib/mothership/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import {
-  forbiddenErrorDetails,
-  PersonalApiKeysDisabledError,
-  requirePersonalApiKeysAllowed,
-  type WorkspaceAuthorizationContext,
-} from '@/lib/core/application'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
-import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,

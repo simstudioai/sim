@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
@@ -132,6 +133,14 @@ export const copilotChatAbortBodySchema = z.object({
   workspaceId: z.string().min(1).optional(),
 })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
+
+export const copilotChatSteerBodySchema = z.object({
+  streamId: z.string().min(1, 'streamId is required'),
+  chatId: z.string().min(1, 'chatId is required'),
+  steeringId: z.string().min(1, 'steeringId is required'),
+  content: z.string().min(1, 'content is required').max(32_768, 'content is too long'),
+})
+export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
 
 export const copilotToolExecuteInternalBodySchema = z.object({
   toolCallId: z.string().min(1, 'toolCallId is required'),

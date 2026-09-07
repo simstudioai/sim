@@ -5658,16 +5658,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "string",
-                    "number",
-                    "currency",
-                    "boolean",
-                    "date",
-                    "ttl",
-                    "json",
-                    "select"
-                  ],
+                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
                   "description": "Data type of values stored in the column."
                 },
                 "required": {

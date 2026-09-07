@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { CLI_VERSION } from '../version'
+import { cliVersion } from '../version'
 import { announceUpdateIfAvailable, type UpdateCheckOptions, upgradeCommand } from './check'
 
 /** A global install, which is the only shape that gets advised at all. */
@@ -139,7 +139,7 @@ describe('announcing a newer release', () => {
   it('sends only its own version and gives the request a one-second deadline', async () => {
     await run()
     const headers = inits[0]?.headers
-    expect(headers['user-agent']).toBe(`sim-cli/${CLI_VERSION}`)
+    expect(headers['user-agent']).toBe(`sim-cli/${cliVersion()}`)
     expect(headers.accept).toBe('application/json')
     expect(headers.authorization).toBeUndefined()
     expect(inits[0]?.maxResponseBytes).toBe(64 * 1024)

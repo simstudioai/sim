@@ -31,6 +31,7 @@ describe('private workspace-upload classification', () => {
     ).toBeUndefined()
   })
   it('retains encrypted classification after JSON persistence and a fresh read', () => {
+    // utils-lint-allow: this regression exercises the JSON persistence boundary, including serialization loss
     expect(read(JSON.parse(JSON.stringify(bound)))).toEqual({ status: 'exact', entries: [entry] })
   })
   it.each(['unknown', 'unrecorded'] as const)('does not relax an explicit %s status', (status) => {

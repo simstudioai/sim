@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { createMockRequest } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -198,7 +199,7 @@ describe('POST /api/copilot/chat/abort', () => {
       const controller = new AbortController()
       const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
       mockWaitForPendingChatStream.mockImplementationOnce(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 8000))
+        await sleep(8000)
         return false
       })
       const response = POST(abortRequest())

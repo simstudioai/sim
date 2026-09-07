@@ -1,13 +1,13 @@
+import {
+  getLiveAssistantMessageId,
+  isLiveAssistantMessageId,
+} from '@/lib/mothership/chat/live-message-id'
 /**
  * @vitest-environment node
  */
 
 import { describe, expect, it } from 'vitest'
-import {
-  buildEffectiveChatTranscript,
-  getLiveAssistantMessageId,
-  isLiveAssistantMessageId,
-} from '@/lib/mothership/chat/effective-transcript'
+import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,

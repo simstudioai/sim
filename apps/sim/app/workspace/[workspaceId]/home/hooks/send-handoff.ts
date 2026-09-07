@@ -7,6 +7,7 @@
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { STREAM_STORAGE_KEY } from '@/lib/mothership/constants'
+import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { QueuedSendHandoffSeed } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
 import type { FileAttachmentForApi } from '../types'
@@ -24,6 +25,7 @@ export interface QueuedSendHandoffState extends QueuedSendHandoffSeed {
   message: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
+  requestMode?: ChatRequestMode
   requestedAt: number
   resolveAttempts?: number
 }
@@ -167,6 +169,7 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.contexts)
         ? { contexts: parsed.contexts.filter(isChatContext) }
         : {}),
+      ...(parsed.requestMode === 'ask' ? { requestMode: parsed.requestMode } : {}),
       requestedAt: parsed.requestedAt,
       ...(typeof parsed.resolveAttempts === 'number' &&
       Number.isFinite(parsed.resolveAttempts) &&

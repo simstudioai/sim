@@ -190,8 +190,8 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     }
     return 1
   }
-  // utils-lint-allow: this published standalone CLI cannot import the private @sim/utils package.
   ctx.stderr.diagnostic(
+    // utils-lint-allow: this published standalone CLI cannot import the private @sim/utils package.
     `Error: ${sanitize(error instanceof Error ? error.message : String(error))}`
   )
   return 1

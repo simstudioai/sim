@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
-import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
-import { type PersistedMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type PersistedMessage,

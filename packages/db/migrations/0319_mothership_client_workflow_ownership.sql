@@ -1,1 +1,0 @@
-ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "client_workflow_execution_id" text;

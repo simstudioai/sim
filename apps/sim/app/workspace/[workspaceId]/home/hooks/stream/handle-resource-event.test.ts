@@ -189,11 +189,7 @@ describe('handleResourceEvent removal', () => {
   })
 })
 
-function tableUpsertEvent(
-  id: string,
-  viewId?: string,
-  clearViewId?: true
-): PersistedStreamEventEnvelope {
+function tableUpsertEvent(id: string, viewId?: string): PersistedStreamEventEnvelope {
   return {
     type: 'resource',
     v: 1,
@@ -207,7 +203,6 @@ function tableUpsertEvent(
         id,
         title: 'Invoices',
         ...(viewId ? { viewId } : {}),
-        ...(clearViewId ? { clearViewId } : {}),
       },
     },
   } as PersistedStreamEventEnvelope
@@ -245,7 +240,7 @@ describe('handleResourceEvent saved-view pins', () => {
       'table',
       'tbl-1'
     )
-    expect(onResourceEvent).toHaveBeenCalledWith('tbl-1')
+    expect(onResourceEvent).toHaveBeenCalledWith('tbl-1', { tableViewId: 'view-1' })
   })
 
   it('moves the pin on an already-open table so a remount and the live grid both follow', () => {
@@ -280,6 +275,30 @@ describe('handleResourceEvent saved-view pins', () => {
     expect(useTableViewPinStore.getState().pins['tbl-1']).toBeUndefined()
   })
 
+  it('keeps a newer pending view when an older view is deleted', () => {
+    const open: MothershipResource = {
+      type: 'table',
+      id: 'tbl-1',
+      title: 'Invoices',
+      viewId: 'view-2',
+    }
+    useTableViewPinStore.getState().pin('tbl-1', 'view-2')
+    const deps = makeStreamLoopDeps({ resourcesRef: { current: [open] } })
+    handleResourceEvent(
+      { deps } as StreamLoopContext,
+      {
+        ...tableUpsertEvent('tbl-1'),
+        payload: { op: 'clear_view', resource: { type: 'table', id: 'tbl-1', viewId: 'view-1' } },
+      } as ResourceEvent
+    )
+    const updater = (deps.setResources as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      current: MothershipResource[]
+    ) => MothershipResource[]
+    expect(updater([open])).toEqual([open])
+    expect(useTableViewPinStore.getState().pins['tbl-1']?.viewId).toBe('view-2')
+    expect(deps.addResource).not.toHaveBeenCalled()
+  })
+
   it('clears the stored and pending pin when the agent deletes a saved view', () => {
     const open: MothershipResource = {
       type: 'table',
@@ -294,14 +313,12 @@ describe('handleResourceEvent saved-view pins', () => {
     })
     const ctx = { deps } as StreamLoopContext
 
-    handleResourceEvent(ctx, tableUpsertEvent('tbl-1', undefined, true))
+    handleResourceEvent(ctx, {
+      ...tableUpsertEvent('tbl-1'),
+      payload: { op: 'clear_view', resource: { type: 'table', id: 'tbl-1', viewId: 'view-1' } },
+    } as ResourceEvent)
 
-    expect(deps.addResource).toHaveBeenCalledWith({
-      type: 'table',
-      id: 'tbl-1',
-      title: 'Invoices',
-      clearViewId: true,
-    })
+    expect(deps.addResource).not.toHaveBeenCalled()
     const updater = (deps.setResources as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
       current: MothershipResource[]
     ) => MothershipResource[]

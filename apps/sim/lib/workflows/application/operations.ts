@@ -51,6 +51,7 @@ export const workflowOperations = {
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /** Full diagnostics include caller-owned secrets, whose read policy requires a human API identity. */
+  // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
   readLint: defineWorkspaceOperation({
     id: 'workflows.lint.read',
     minimumRole: 'read',

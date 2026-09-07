@@ -57,6 +57,9 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     if (payload.replay || ctx.deps.options.deferFlushes) return
   }
   if (payload.op === 'clear_view') {
+    const pins = useTableViewPinStore.getState()
+    if (pins.pins[payload.resource.id]?.viewId === payload.resource.viewId)
+      pins.clear(payload.resource.id)
     setResources((current) =>
       current.map((resource) => {
         if (
@@ -71,24 +74,13 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     )
     return
   }
-  const shouldClearViewId =
-    payload.resource.type === 'table' && payload.resource.clearViewId === true
-  // A saved view the agent just created or edited: the table opens on it, and
-  // an already-open table switches to it.
-  const pinnedViewId =
-    !shouldClearViewId &&
-    payload.resource.type === 'table' &&
-    typeof payload.resource.viewId === 'string' &&
-    payload.resource.viewId.trim()
-      ? payload.resource.viewId
-      : undefined
+  const pinnedViewId = payload.resource.type === 'table' ? payload.resource.viewId : undefined
   const resource = canonicalizeDesktopSessionResource({
     ...payload.resource,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
     ...(pinnedViewId ? { viewId: pinnedViewId } : {}),
   })
-  const resourceUpdate = shouldClearViewId ? { ...resource, clearViewId: true as const } : resource
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
     const resourceType = resource.type
@@ -143,7 +135,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   const wasAdded =
     shouldSuppressFileResourceActivation || payload.effectId
       ? !resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)
-      : addResource(resourceUpdate)
+      : addResource(resource)
   if (payload.effectId) {
     setResources((current) => {
       const previous = current.find(
@@ -184,17 +176,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     // Consumed by the embedded table once its views list carries the view —
     // which may be after the refetch below lands, or after the tab first opens.
     useTableViewPinStore.getState().pin(resource.id, pinnedViewId)
-  } else if (shouldClearViewId) {
-    setResources((current) =>
-      current.some((r) => r.type === 'table' && r.id === resource.id && r.viewId !== undefined)
-        ? current.map((r) => {
-            if (r.type !== 'table' || r.id !== resource.id) return r
-            const { viewId: _viewId, ...unpinned } = r
-            return unpinned
-          })
-        : current
-    )
-    useTableViewPinStore.getState().clear(resource.id)
   }
 
   if (!shouldSuppressFileResourceActivation) {

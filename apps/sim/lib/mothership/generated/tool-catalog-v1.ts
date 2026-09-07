@@ -4257,16 +4257,22 @@ export const PrepareFileEdit: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description: 'The file operation to perform.',
-        enum: ['append', 'update', 'patch'],
+        enum: ['create', 'append', 'update', 'patch'],
       },
       target: {
         type: 'object',
-        description: 'Explicit file target. Use kind=path + path for existing files.',
+        description:
+          'Explicit file target: kind=new_file + fileName creates a file; kind=path + path names an existing one.',
         properties: {
+          fileName: {
+            type: 'string',
+            description:
+              'Name of the file to create, e.g. "q3-summary.md". Required when target.kind=new_file.',
+          },
           kind: {
             type: 'string',
             description: 'How the file target is identified.',
-            enum: ['path'],
+            enum: ['path', 'new_file'],
           },
           path: {
             type: 'string',
@@ -7226,6 +7232,7 @@ export const ManageSkillOperationValues = [
 ] as const
 
 export const PrepareFileEditOperation = {
+  create: 'create',
   append: 'append',
   update: 'update',
   patch: 'patch',
@@ -7235,6 +7242,7 @@ export type PrepareFileEditOperation =
   (typeof PrepareFileEditOperation)[keyof typeof PrepareFileEditOperation]
 
 export const PrepareFileEditOperationValues = [
+  PrepareFileEditOperation.create,
   PrepareFileEditOperation.append,
   PrepareFileEditOperation.update,
   PrepareFileEditOperation.patch,

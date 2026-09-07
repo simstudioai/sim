@@ -132,6 +132,11 @@ export class ResourcePersistenceQueue {
     )
   }
 
+  /** Keeps an optimistic add visible while its write is pending or in flight. */
+  hasPendingUpsert(scopeId: string, type: string, id: string): boolean {
+    return this.desiredUpdates.has(this.getKey(scopeId, type, id))
+  }
+
   getPendingResourceKeys(scopeId: string): Set<string> {
     const prefix = this.getScopePrefix(scopeId)
     return new Set(

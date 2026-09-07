@@ -48,11 +48,11 @@ vi.mock('@/blocks/integration-matcher', () => ({
 vi.mock('@/stores/browser-session/store', () => ({ useBrowserSessionStore: () => fixtures.tabs }))
 vi.mock('@/stores/copilot-terminal/store', () => ({ useCopilotTerminalStore: () => fixtures.tabs }))
 
+import { setDesktopPreferencesSnapshot } from '@/lib/desktop'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
-import { setDesktopPreferencesSnapshot } from '@/lib/desktop'
+} from '@/lib/mothership/resources/types'
 import {
   mapResourceToContext,
   type PlusMenuHandle,

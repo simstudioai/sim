@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -28,6 +29,7 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
     id: 'mothership.runs.reconnect',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'copilot.use',
     principalKinds: ['session'],
   }),
   async resolveContext({
@@ -81,7 +83,7 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
         getUserEntityPermissions(userId, 'workspace', workspaceId),
       ])
       if (!userPermission) throw new OrchestrationError('forbidden', 'Workspace access revoked')
-      const requestId = typeof saved?.requestId === 'string' ? saved.requestId : crypto.randomUUID()
+      const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
       const completion = {
         chatId,
         userMessageId: run.streamId,

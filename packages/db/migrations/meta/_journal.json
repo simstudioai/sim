@@ -2257,45 +2257,10 @@
       "breakpoints": true
     },
     {
-      "idx": 316,
+      "idx": 323,
       "version": "7",
-      "when": 1788630754489,
-      "tag": "0316_mothership_tool_execution_lifetimes",
-      "breakpoints": true
-    },
-    {
-      "idx": 317,
-      "version": "7",
-      "when": 1788633511565,
-      "tag": "0317_mothership_sandbox_process_ownership",
-      "breakpoints": true
-    },
-    {
-      "idx": 318,
-      "version": "7",
-      "when": 1788635921548,
-      "tag": "0318_mothership_request_stop_admission",
-      "breakpoints": true
-    },
-    {
-      "idx": 319,
-      "version": "7",
-      "when": 1788725017174,
-      "tag": "0319_mothership_client_workflow_ownership",
-      "breakpoints": true
-    },
-    {
-      "idx": 320,
-      "version": "7",
-      "when": 1788738943278,
-      "tag": "0320_copilot_tool_execution_leases",
-      "breakpoints": true
-    },
-    {
-      "idx": 321,
-      "version": "7",
-      "when": 1788743284521,
-      "tag": "0321_mothership_resource_effects",
+      "when": 1788812787573,
+      "tag": "0323_mothership_revamp",
       "breakpoints": true
     }
   ]

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
-import type { CopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
+import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,

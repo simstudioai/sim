@@ -29,8 +29,6 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
-import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('CopilotToolPermissionAPI')

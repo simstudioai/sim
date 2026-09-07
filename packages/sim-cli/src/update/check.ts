@@ -26,7 +26,7 @@ import {
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { updateCachePath } from '../config/paths'
-import { CLI_VERSION } from '../version'
+import { cliVersion } from '../version'
 
 /** How long a cached check suppresses another request. */
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -287,7 +287,7 @@ async function fetchDistTags(
     const url = registryUrl(env)
     if (!url) return null
     const text = await request(url, {
-      headers: { accept: 'application/json', 'user-agent': `${PACKAGE_NAME}-cli/${CLI_VERSION}` },
+      headers: { accept: 'application/json', 'user-agent': `${PACKAGE_NAME}-cli/${cliVersion()}` },
       maxResponseBytes: MAX_RESPONSE_BYTES,
       timeoutMs: REGISTRY_TIMEOUT_MS,
     })
@@ -448,7 +448,7 @@ export async function announceUpdateIfAvailable(options: UpdateCheckOptions = {}
     if (CI_VARIABLES.some((variable) => isEnabled(env[variable]))) return
     if (isUnadvisableInstall(modulePath, env, cwd)) return
 
-    const currentVersion = options.currentVersion ?? CLI_VERSION
+    const currentVersion = options.currentVersion ?? cliVersion()
     const current = parseStableVersion(currentVersion)
     if (!current) return
 

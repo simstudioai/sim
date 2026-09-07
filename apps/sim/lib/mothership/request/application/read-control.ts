@@ -6,10 +6,12 @@ import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/conte
 import type { RunControlRequest } from '@/lib/mothership/generated/run-control'
 
 export const RUN_CONTROL_AUDIENCE = 'sim:copilot-run-control'
+// permission-group-exempt: observing stop state must remain possible after Copilot access is withheld
 export const readRunControlOperation = defineWorkspaceOperation({
   id: 'mothership.runs.read_control',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
+  capability: 'none',
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
 })
