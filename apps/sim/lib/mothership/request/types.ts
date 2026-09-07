@@ -70,7 +70,6 @@ export const ContentBlockType = {
   subagent_text: 'subagent_text',
   subagent_thinking: 'subagent_thinking',
   subagent: 'subagent',
-  plan: 'plan',
   task: 'task',
 } as const
 
@@ -88,11 +87,6 @@ export interface TaskBlockInfo {
   summary?: string
 }
 
-/** One step of the agent's visible plan (the worker's `plan` frame payload). */
-export interface AgentPlanItem {
-  step: string
-  status: 'pending' | 'active' | 'done'
-}
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
@@ -121,8 +115,6 @@ export interface ContentBlock {
    */
   spanId?: string
   parentSpanId?: string
-  /** The agent's current plan (plan blocks only); whole-list, latest wins. */
-  planItems?: AgentPlanItem[]
   /** The background task this block announces (task blocks only). */
   task?: TaskBlockInfo
 }

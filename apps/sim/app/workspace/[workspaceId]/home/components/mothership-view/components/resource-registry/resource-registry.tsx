@@ -14,7 +14,6 @@ import {
   TerminalWindow,
   Workflow,
 } from '@sim/emcn/icons'
-import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type {
   MothershipResource,
@@ -22,14 +21,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { getDisplayStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
-import { logKeys } from '@/hooks/queries/logs'
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
-import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
-import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
   item: { id: string; name: string; [key: string]: unknown }
@@ -289,79 +280,4 @@ export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
 
 export function getResourceConfig(type: MothershipResourceType): ResourceTypeConfig {
   return RESOURCE_REGISTRY[type]
-}
-
-type CacheableResourceType = Exclude<MothershipResourceType, 'generic'>
-
-const RESOURCE_INVALIDATORS: Record<
-  CacheableResourceType,
-  (qc: QueryClient, workspaceId: string, resourceId: string) => void
-> = {
-  table: (qc, _wId, id) => {
-    qc.invalidateQueries({ queryKey: tableKeys.lists() })
-    qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
-    // A view the agent just created must be in the list before the embedded
-    // table can switch to it; see the view-pin store.
-    qc.invalidateQueries({ queryKey: tableKeys.views(id) })
-  },
-  file: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
-  },
-  workflow: (qc, wId) => {
-    void invalidateWorkflowLists(qc, wId)
-  },
-  knowledgebase: (qc, _wId, id) => {
-    qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
-    qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
-    qc.invalidateQueries({ queryKey: knowledgeKeys.tagDefinitions(id) })
-  },
-  folder: (qc) => {
-    qc.invalidateQueries({ queryKey: folderKeys.lists() })
-  },
-  filefolder: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(wId) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
-  },
-  task: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })
-  },
-  log: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: logKeys.details() })
-    qc.invalidateQueries({ queryKey: logKeys.detail(wId, id) })
-  },
-  /**
-   * Integrations are sourced from the static integration catalog
-   * (`listIntegrationsByPopularity()`), not a server-backed query, so there is nothing to
-   * invalidate when one is added.
-   */
-  integration: () => {},
-  /**
-   * The browser panel hosts the desktop app's natively embedded browser view
-   * (in-memory page state, no server-backed query), so there is nothing to
-   * invalidate.
-   */
-  browser: () => {},
-  /**
-   * The terminal panel is backed by a live PTY in the desktop app, not a
-   * server-backed query, so there is nothing to invalidate.
-   */
-  terminal: () => {},
-}
-
-/**
- * Invalidate list and detail queries for a specific resource.
- * Called when a `resource_added` event arrives so the embedded view refreshes
- * and the add-resource dropdown stays up to date.
- */
-export function invalidateResourceQueries(
-  queryClient: QueryClient,
-  workspaceId: string,
-  resourceType: MothershipResourceType,
-  resourceId: string
-): void {
-  if (resourceType === 'generic') return
-  RESOURCE_INVALIDATORS[resourceType](queryClient, workspaceId, resourceId)
 }

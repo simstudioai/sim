@@ -21,6 +21,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { WORKFLOW_EXTERNAL_UPDATE_EVENT } from '@/lib/workflows/external-update'
 import {
   type WorkflowSearchSubflowFieldId,
   workflowSearchSubflowFieldMatchesExpected,
@@ -837,7 +838,7 @@ export function useCollaborativeWorkflow() {
       }
     }
 
-    const handleWorkflowUpdated = async (data: any) => {
+    const handleWorkflowUpdated = async (data: { workflowId: string }) => {
       const { workflowId } = data
       logger.info(`Workflow ${workflowId} has been updated externally`)
 
@@ -946,6 +947,12 @@ export function useCollaborativeWorkflow() {
     onWorkflowDeployed(handleWorkflowDeployed)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
+    const handleToolUpdate = (event: Event) => {
+      if (event instanceof CustomEvent && typeof event.detail?.workflowId === 'string') {
+        void handleWorkflowUpdated({ workflowId: event.detail.workflowId })
+      }
+    }
+    window.addEventListener(WORKFLOW_EXTERNAL_UPDATE_EVENT, handleToolUpdate)
     window.addEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
 
     if (activeWorkflowId) {
@@ -956,6 +963,7 @@ export function useCollaborativeWorkflow() {
     }
 
     return () => {
+      window.removeEventListener(WORKFLOW_EXTERNAL_UPDATE_EVENT, handleToolUpdate)
       window.removeEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
     }
   }, [

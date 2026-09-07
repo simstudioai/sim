@@ -58,6 +58,7 @@ describe('resolveTableViewSelection', () => {
       selectedView: null,
       defaultView: DEFAULT_VIEW,
       activeView: DEFAULT_VIEW,
+      pending: false,
     })
   })
 
@@ -79,6 +80,7 @@ describe('resolveTableViewSelection', () => {
       selectedView: null,
       defaultView: DEFAULT_VIEW,
       activeView: null,
+      pending: false,
     })
   })
 
@@ -97,6 +99,28 @@ describe('resolveTableViewSelection', () => {
 
   it('upgrades the legacy All sentinel when a persisted default exists', () => {
     expect(resolveTableViewSelection([DEFAULT_VIEW], ALL_VIEW_PARAM).activeView).toBe(DEFAULT_VIEW)
+  })
+
+  it('waits for the refreshed list before resolving an externally created view', () => {
+    const created = { ...DEFAULT_VIEW, id: 'created-by-tool', isDefault: false }
+    const stale = resolveTableViewSelection([DEFAULT_VIEW], created.id, undefined, true)
+    expect(stale.pending).toBe(true)
+    expect(stale.activeView).toBeNull()
+
+    const refreshed = resolveTableViewSelection([DEFAULT_VIEW, created], created.id, undefined, false)
+    expect(refreshed.pending).toBe(false)
+    expect(refreshed.activeView).toBe(created)
+
+    const deleted = resolveTableViewSelection([DEFAULT_VIEW], created.id, undefined, false)
+    expect(deleted.pending).toBe(false)
+    expect(deleted.selectedView).toBeNull()
+    expect(deleted.defaultView).toBe(DEFAULT_VIEW)
+  })
+
+  it('keeps a resolved view usable during a background refresh', () => {
+    const selection = resolveTableViewSelection([DEFAULT_VIEW], DEFAULT_VIEW.id, undefined, true)
+    expect(selection.pending).toBe(false)
+    expect(selection.activeView).toBe(DEFAULT_VIEW)
   })
 })
 

@@ -30,6 +30,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
 
 describe('handleResourceSideEffects', () => {
@@ -79,4 +80,28 @@ describe('handleResourceSideEffects', () => {
       },
     })
   })
+  it.each([
+    { type: 'table', id: 'table', title: 'Contacts', viewId: 'active-view' },
+    { type: 'file', id: 'file', title: 'Report', path: 'files/Reports/report.md' },
+    { type: 'log', id: 'log-row', title: 'Run', executionId: 'workflow-run' },
+  ] satisfies MothershipResource[])(
+    'retains $type metadata while keeping the canonical resource identity',
+    async (resource) => {
+      const onEvent = vi.fn()
+      await handleResourceSideEffects(
+        'open_resource',
+        undefined,
+        { success: true, output: {}, resources: [resource] },
+        { success: true, output: {}, resources: [{ ...resource, id: 'projected-id' }] },
+        'chat',
+        onEvent,
+        () => false
+      )
+      expect(mocks.persistChatResources).toHaveBeenCalledWith('chat', [resource])
+      expect(onEvent).toHaveBeenCalledWith({
+        type: 'resource',
+        payload: { op: 'upsert', resource },
+      })
+    }
+  )
 })

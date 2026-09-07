@@ -44,7 +44,7 @@ function agentIdForSpan(ctx: StreamLoopContext, spanId: string): string | undefi
  * tool's lifecycle/status is owned by the model; this reads the settled node and
  * only performs side effects, so the model stays the single source of state.
  */
-function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void {
+function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay: boolean): void {
   const { deps } = ctx
   const name = node.name
   const output = node.result?.output
@@ -79,7 +79,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
     invalidateResourceQueries(deps.queryClient, deps.workspaceId, resource.type, resource.id)
   }
 
-  if ((name === ApplyFileEdit.id || name === PrepareFileEdit.id) && isSuccess) {
+  if (!replay && (name === ApplyFileEdit.id || name === PrepareFileEdit.id) && isSuccess) {
     const out = output as Record<string, unknown> | undefined
     const editData =
       out && typeof out.data === 'object' && out.data !== null
@@ -112,6 +112,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
       workspaceFileOperation === 'patch')
 
   if (
+    !replay &&
     (name === PrepareFileEdit.id || name === ApplyFileEdit.id) &&
     !shouldKeepWorkspacePreviewOpen
   ) {
@@ -138,6 +139,8 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
 export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void {
   const { state, ops, deps } = ctx
   const payload = parsed.payload
+  const replay =
+    ('replay' in payload && payload.replay === true) || deps.options.deferFlushes === true
   const rawId = payload.toolCallId
 
   if ('previewPhase' in payload) {
@@ -155,14 +158,14 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   const node = state.model.nodes.get(resolveToolId(state.model, rawId))
 
   if (payload.phase === MothershipStreamV1ToolPhase.result) {
-    if (node?.kind === 'tool' && node.result) runToolResultSideEffects(ctx, node)
+    if (node?.kind === 'tool' && node.result) runToolResultSideEffects(ctx, node, replay)
     ops.flush()
     return
   }
 
   // Call phase. If a buffered result-before-call was applied to this node by the
   // reducer, run its side effects now (the result event had no node to act on).
-  if (node?.kind === 'tool' && node.result) runToolResultSideEffects(ctx, node)
+  if (node?.kind === 'tool' && node.result) runToolResultSideEffects(ctx, node, replay)
 
   const name = payload.toolName
   const isPartial =

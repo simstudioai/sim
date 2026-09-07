@@ -20,12 +20,6 @@ import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 1;
 
-/** A tool's resource effect keeps its identity across live delivery and transcript replay. */
-export interface StreamResourceEffect {
-  effectId?: string | undefined;
-  replay?: true | undefined;
-}
-
 /** Activity acknowledged through a completed leg, scoped to one emitter's lifetime. */
 export interface StreamActivityReceipt {
   emitterId: string;
@@ -329,7 +323,7 @@ export interface ExecuteMessage {
  */
 export interface StreamEnvelope {
   v: 1;
-  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "plan" | "error" | "complete";
+  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "error" | "complete";
   seq: number;
   /** ISO timestamp. */
   ts: string;
@@ -339,12 +333,6 @@ export interface StreamEnvelope {
    * inside the named root-level lane instead of the main transcript. */
   scope?: StreamScope | undefined;
   payload: Record<string, unknown>;
-}
-
-/** One step of the agent's visible plan (the update_plan tool's whole-list payload). */
-export interface PlanItem {
-  step: string;
-  status: "pending" | "active" | "done";
 }
 
 /** One subagent lane: keyed by the delegating tool call; agentId/spanId identify the lane. */

@@ -230,21 +230,9 @@ export const GET = withRouteHandler(
 
           const closeAfterTerminalEvent = (events: ExecutionEventEntry[]) => {
             if (!enqueueEvents(events)) {
-              logger.warn('Execution reached terminal metadata without a terminal event', {
-                executionId,
-              })
-              enqueue(
-                formatSSEEvent({
-                  type: 'execution:error',
-                  timestamp: new Date().toISOString(),
-                  executionId,
-                  workflowId,
-                  data: {
-                    error:
-                      'Execution reached a terminal state, but its final event could not be recovered',
-                    duration: 0,
-                  },
-                })
+              /** The reconnect client resolves missing delivery from the durable status resource. */
+              throw new Error(
+                'Execution terminal event is no longer available in the replay buffer'
               )
             }
             closeWithDone()

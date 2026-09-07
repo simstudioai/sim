@@ -12,6 +12,7 @@
 
 import { z } from "zod";
 import { ArtifactObservations } from "./observations";
+import { ResourceChanges } from "./resources";
 
 /** Relative sink paths resolve under the chat workbench home. */
 export const AgentCliSandboxFileSink = z.object({
@@ -62,5 +63,6 @@ export const AgentCliRawResult = z.object({
   stdout: z.string(),
   stderr: z.string().default(""),
   observations: ArtifactObservations.optional(),
+  resources: ResourceChanges.optional(),
 });
 export type AgentCliRawResult = z.infer<typeof AgentCliRawResult>;

@@ -67,9 +67,6 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined 
 
 function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefined {
   switch (block.type) {
-    case 'plan':
-      if (!block.planItems?.length) return undefined
-      return { type: ContentBlockType.plan, planItems: block.planItems }
     case 'task':
       return block.task ? { type: ContentBlockType.task, task: block.task } : undefined
     case MothershipStreamV1EventType.text:

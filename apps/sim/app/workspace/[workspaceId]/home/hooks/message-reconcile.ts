@@ -41,8 +41,6 @@ export function toRawPersistedContentBlock(block: ContentBlock): PersistedConten
 
 function toRawPersistedContentBlockBody(block: ContentBlock): PersistedContentBlock | null {
   switch (block.type) {
-    case 'plan':
-      return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
     case 'text':
       return {
         type: MothershipStreamV1EventType.text,

@@ -15,6 +15,7 @@ import {
   modelMainText,
   modelToContentBlocks,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
+import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
   ChatMessage,
   ContentBlock,
@@ -166,7 +167,7 @@ export interface StreamLoopDeps {
   onToolResultRef: MutableRefObject<
     ((toolName: string, success: boolean, result: unknown) => void) | undefined
   >
-  onResourceEventRef: MutableRefObject<((resourceId: string) => void) | undefined>
+  onResourceEventRef: MutableRefObject<ResourceEventHandler | undefined>
   previewSessionRef: MutableRefObject<FilePreviewSession | null>
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
   latestPreviewTargetToolCallIdRef: MutableRefObject<string | null>

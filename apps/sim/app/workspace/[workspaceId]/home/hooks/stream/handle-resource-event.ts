@@ -5,17 +5,16 @@ import {
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { canonicalizeDesktopSessionResource } from '@/lib/mothership/resources/types'
+import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   hasRenderableFilePreviewContent,
   shouldReplaceSession,
 } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 type ResourceEvent = Extract<
   PersistedStreamEventEnvelope,
@@ -36,7 +35,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     removeResource,
     setResources,
     resourcesRef,
-    activeResourceIdRef,
     previewSessionsRef,
     completedPreviewResourceHandoffRef,
     previewActivationOwnerRef,
@@ -46,6 +44,33 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  const resourceType = payload.resource.type
+  invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
+  if (resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
+    notifyWorkflowExternalUpdate(payload.resource.id)
+  }
+  if (payload.op === 'refresh') return
+  if (payload.effectId || payload.replay || ctx.deps.options.deferFlushes) {
+    /** Recovery refetches current panel state instead of repeating historical focus commands. */
+    const chatId = ctx.deps.chatIdRef.current
+    if (chatId) void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+    if (payload.replay || ctx.deps.options.deferFlushes) return
+  }
+  if (payload.op === 'clear_view') {
+    setResources((current) =>
+      current.map((resource) => {
+        if (
+          resource.type !== 'table' ||
+          resource.id !== payload.resource.id ||
+          resource.viewId !== payload.resource.viewId
+        )
+          return resource
+        const { viewId: _view, ...unpinned } = resource
+        return unpinned
+      })
+    )
+    return
+  }
   const shouldClearViewId =
     payload.resource.type === 'table' && payload.resource.clearViewId === true
   // A saved view the agent just created or edited: the table opens on it, and
@@ -58,35 +83,24 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       ? payload.resource.viewId
       : undefined
   const resource = canonicalizeDesktopSessionResource({
-    type: payload.resource.type as MothershipResourceType,
-    id: payload.resource.id,
+    ...payload.resource,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
     ...(pinnedViewId ? { viewId: pinnedViewId } : {}),
   })
   const resourceUpdate = shouldClearViewId ? { ...resource, clearViewId: true as const } : resource
 
-  if (payload.effectId) {
-    // Worker effects are already committed. Replayed transcript commands must
-    // never write panel state or reopen a resource the user has since closed.
-    const chatId = ctx.deps.chatIdRef.current
-    if (chatId) {
-      void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-    }
-    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
-    if (!payload.replay && payload.op !== MothershipStreamV1ResourceOp.remove) {
-      onResourceEvent?.(resource.id)
-    }
-    return
-  }
-
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
     const resourceType = resource.type
-    removeResource(resourceType, resource.id)
+    if (payload.effectId) {
+      setResources((current) =>
+        current.filter((item) => item.type !== resourceType || item.id !== resource.id)
+      )
+      ctx.deps.setActiveResourceId((current) => (current === resource.id ? null : current))
+    } else removeResource(resourceType, resource.id)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
-    invalidateResourceQueries(queryClient, workspaceId, resourceType, resource.id)
     return
   }
 
@@ -126,10 +140,25 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       previewForResource.status !== 'complete' &&
       (!hasRenderableFilePreviewContent(previewForResource) ||
         !shouldAutoActivatePreviewSession(previewForResource)))
-  const wasAdded = shouldSuppressFileResourceActivation
-    ? !resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)
-    : addResource(resourceUpdate)
-  if (shouldSuppressFileResourceActivation && wasAdded) {
+  const wasAdded =
+    shouldSuppressFileResourceActivation || payload.effectId
+      ? !resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)
+      : addResource(resourceUpdate)
+  if (payload.effectId) {
+    setResources((current) => {
+      const previous = current.find(
+        (item) => item.type === resource.type && item.id === resource.id
+      )
+      const next = {
+        ...previous,
+        ...resource,
+        title: payload.resource.title || previous?.title || resource.title,
+      }
+      return previous
+        ? current.map((item) => (item === previous ? next : item))
+        : [...current, next]
+    })
+  } else if (shouldSuppressFileResourceActivation && wasAdded) {
     setResources((current) =>
       current.some((r) => r.type === resource.type && r.id === resource.id)
         ? current
@@ -167,16 +196,14 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     )
     useTableViewPinStore.getState().clear(resource.id)
   }
-  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 
-  if (!shouldSuppressFileResourceActivation) onResourceEvent?.(resource.id)
+  if (!shouldSuppressFileResourceActivation) {
+    if (resource.type === 'table' && resource.viewId) {
+      onResourceEvent?.(resource.id, { tableViewId: resource.viewId })
+    } else onResourceEvent?.(resource.id)
+  }
 
   if (resource.type === 'workflow') {
-    const wasRegistered = ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
-    if (wasAdded && wasRegistered) {
-      useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
-    } else {
-      useWorkflowRegistry.getState().loadWorkflowState(resource.id)
-    }
+    ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
   }
 }

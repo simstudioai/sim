@@ -17,6 +17,7 @@ vi.mock(
 
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
+import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
@@ -83,6 +84,28 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
+  it('replays a completed file write without reopening its tab or preview', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({ onResourceEventRef: ref(onResourceEvent) })
+    const ctx = createStreamLoopContext(deps)
+    dispatchStreamEvent(ctx, toolCall('file-replay', 'apply_file_edit'))
+    const result = toolEnv({
+      phase: 'result',
+      executor: 'sim',
+      mode: 'async',
+      toolCallId: 'file-replay',
+      toolName: 'apply_file_edit',
+      success: true,
+      status: 'success',
+      output: { success: true, data: { id: 'file', name: 'Report.md' } },
+    })
+    dispatchStreamEvent(ctx, toStreamBatchEvent(result).event)
+    expect(toolNode(ctx, 'file-replay').status).toBe('success')
+    expect(deps.promoteFileResource).not.toHaveBeenCalled()
+    expect(onResourceEvent).not.toHaveBeenCalled()
+    expect(deps.setResources).not.toHaveBeenCalled()
+  })
+
   it('runs a tool then settles success, firing the onToolResult side effect', () => {
     const onToolResult = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ onToolResultRef: ref(onToolResult) }))

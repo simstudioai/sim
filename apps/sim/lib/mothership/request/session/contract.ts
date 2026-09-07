@@ -9,7 +9,6 @@ import type {
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-  MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
   MothershipStreamV1SessionKind,
   MothershipStreamV1SpanPayloadKind,
@@ -18,12 +17,11 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type {
   StreamActivityCheckpoint,
-  StreamResourceEffect,
   StreamTextCompletion,
   StreamTextPosition,
   StreamToolReplay,
 } from '@/lib/mothership/generated/protocol'
-import { hasAddressableId } from '@/lib/mothership/resources/types'
+import { ResourcePayload } from '@/lib/mothership/generated/resources'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
 type JsonRecord = Record<string, unknown>
@@ -50,7 +48,7 @@ type EnvelopeToStreamEvent<T> = T extends {
           : TType extends 'tool'
             ? TPayload & StreamToolReplay
             : TType extends 'resource'
-              ? TPayload & StreamResourceEffect
+              ? ResourcePayload
               : TType extends 'run'
                 ? TPayload & StreamActivityCheckpoint
                 : TPayload
@@ -132,15 +130,21 @@ export interface SyntheticFilePreviewEventEnvelope {
 }
 
 type ResourceEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'resource' }>
+type ToolEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'tool' }>
+type ToolReplayEnvelope<T extends ToolEnvelope = ToolEnvelope> = T extends ToolEnvelope
+  ? Omit<T, 'payload'> & { payload: T['payload'] & StreamToolReplay }
+  : never
 
-export type PersistedStreamEventEnvelope =
-  | Exclude<MothershipStreamV1EventEnvelope, { type: 'resource' }>
+type ContractEventEnvelope =
+  | Exclude<MothershipStreamV1EventEnvelope, { type: 'resource' | 'tool' }>
+  | ToolReplayEnvelope
   | (Omit<ResourceEnvelope, 'payload'> & {
-      payload: ResourceEnvelope['payload'] & StreamResourceEffect
+      payload: ResourcePayload
     })
-  | SyntheticFilePreviewEventEnvelope
 
-export type ContractStreamEvent = EnvelopeToStreamEvent<MothershipStreamV1EventEnvelope>
+export type PersistedStreamEventEnvelope = ContractEventEnvelope | SyntheticFilePreviewEventEnvelope
+
+export type ContractStreamEvent = EnvelopeToStreamEvent<ContractEventEnvelope>
 export type SyntheticStreamEvent = EnvelopeToStreamEvent<SyntheticFilePreviewEventEnvelope>
 export type SessionStreamEvent = ContractStreamEvent | SyntheticStreamEvent
 export type StreamEvent = SessionStreamEvent
@@ -223,13 +227,7 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
 // already performs strict schema validation; the client only needs enough
 // structural checking to safely dispatch inside the switch statement.
 
-// `plan` is a worker-native extension (the update_plan checklist) not present in
-// the generated Go-era enum; accepted here so the shared-path validator treats it
-// as a first-class event rather than a broken stream.
-const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
-  ...Object.values(MothershipStreamV1EventType),
-  'plan',
-])
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
 
 function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
   v: 1
@@ -302,31 +300,7 @@ function isValidSpanPayload(payload: JsonRecord): boolean {
 }
 
 function isValidResourcePayload(payload: JsonRecord): boolean {
-  if (
-    payload.effectId !== undefined &&
-    (typeof payload.effectId !== 'string' ||
-      payload.effectId.trim().length === 0 ||
-      payload.effectId.length > 512)
-  )
-    return false
-  if (payload.replay !== undefined && payload.replay !== true) return false
-  if (
-    payload.op !== MothershipStreamV1ResourceOp.upsert &&
-    payload.op !== MothershipStreamV1ResourceOp.remove
-  ) {
-    return false
-  }
-  if (!isRecordLike(payload.resource)) return false
-  const resource = payload.resource as JsonRecord
-  // Dropping a blank id here is the only guard covering both branches
-  // downstream: the handler adds a suppressed file resource to the tab strip
-  // directly, bypassing the checks in `addResource`.
-  return (
-    hasAddressableId(resource.id) &&
-    typeof resource.type === 'string' &&
-    (resource.viewId === undefined || typeof resource.viewId === 'string') &&
-    (resource.clearViewId === undefined || typeof resource.clearViewId === 'boolean')
-  )
+  return ResourcePayload.safeParse(payload).success
 }
 
 /** Every run kind the generated contract names is valid here — a hand-kept list rejected
@@ -365,7 +339,7 @@ function isValidCompletePayload(payload: JsonRecord): boolean {
   return typeof payload.status === 'string' && isValidActivityCheckpoint(payload)
 }
 
-function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnvelope {
+function isContractEnvelope(value: unknown): value is ContractEventEnvelope {
   if (!isValidEnvelopeShell(value)) return false
   const payload = value.payload as JsonRecord
   switch (value.type) {
@@ -385,23 +359,9 @@ function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnv
       return isValidErrorPayload(payload)
     case MothershipStreamV1EventType.complete:
       return isValidCompletePayload(payload)
-    case 'plan':
-      return isValidPlanPayload(payload)
     default:
       return false
   }
-}
-
-/** The update_plan checklist: a whole-list payload of {step, status} items. */
-function isValidPlanPayload(payload: JsonRecord): boolean {
-  const items = payload.items
-  if (!Array.isArray(items) || items.length === 0) return false
-  return items.every(
-    (item) =>
-      isRecordLike(item) &&
-      typeof item.step === 'string' &&
-      (item.status === 'pending' || item.status === 'active' || item.status === 'done')
-  )
 }
 
 // Synthetic file-preview envelope validators
@@ -516,9 +476,7 @@ export function isSubagentSpanStreamEvent(
 
 // Public contract validators & parsers
 
-export function isContractStreamEventEnvelope(
-  value: unknown
-): value is MothershipStreamV1EventEnvelope {
+export function isContractStreamEventEnvelope(value: unknown): value is ContractEventEnvelope {
   return isContractEnvelope(value)
 }
 

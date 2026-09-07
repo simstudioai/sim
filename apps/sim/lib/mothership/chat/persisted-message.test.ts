@@ -50,7 +50,7 @@ describe('persisted-message', () => {
     }
   )
 
-  it('keeps task and plan blocks through normalizeMessage instead of flattening them to text', () => {
+  it('keeps task blocks through normalizeMessage instead of flattening them to text', () => {
     const normalized = normalizeMessage({
       id: 'm-1',
       role: 'assistant',
@@ -60,13 +60,11 @@ describe('persisted-message', () => {
           type: 'task',
           task: { taskId: 't-1', kind: 'timer', target: {}, note: 'nudge', status: 'pending' },
         },
-        { type: 'plan', planItems: [{ step: 'do it', status: 'active' }] },
         { type: 'text', channel: 'assistant', content: 'armed' },
       ],
     })
-    expect(normalized.contentBlocks?.map((b) => b.type)).toEqual(['task', 'plan', 'text'])
+    expect(normalized.contentBlocks?.map((b) => b.type)).toEqual(['task', 'text'])
     expect(normalized.contentBlocks?.[0]?.task?.taskId).toBe('t-1')
-    expect(normalized.contentBlocks?.[1]?.planItems?.[0]?.step).toBe('do it')
   })
 
   it('round-trips canonical tool blocks through normalizeMessage', () => {

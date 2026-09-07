@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { cn } from '@sim/emcn'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { AgentPlanItem, TaskBlockInfo } from '@/lib/mothership/request/types'
+import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
@@ -22,7 +22,6 @@ import {
   humanizeToolName,
 } from '@/lib/mothership/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import { PlanChecklist } from '@/app/workspace/[workspaceId]/home/components/message-content/components/plan-checklist'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { TaskPill } from '@/app/workspace/[workspaceId]/home/components/message-content/components/task-pill'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
@@ -78,11 +77,6 @@ interface StoppedSegment {
   type: 'stopped'
 }
 
-interface PlanSegment {
-  type: 'plan'
-  items: AgentPlanItem[]
-}
-
 interface TaskSegment {
   type: 'task'
   task: TaskBlockInfo
@@ -93,7 +87,6 @@ type MessageSegment =
   | AgentGroupSegment
   | OptionsSegment
   | StoppedSegment
-  | PlanSegment
   | TaskSegment
 
 function getAgentGroupActivityKey(items: AgentGroupItem[]): string {
@@ -135,9 +128,6 @@ function getVisibleStreamActivityKey(segments: MessageSegment[]): string {
         return `options:${segment.items.map((item) => `${item.id}:${item.label.length}`).join(',')}`
       }
       if (segment.type === 'stopped') return 'stopped'
-      if (segment.type === 'plan') {
-        return `plan:${segment.items.map((item) => `${item.status}:${item.step.length}`).join(',')}`
-      }
       if (segment.type === 'task') {
         return `task:${segment.task.taskId}:${segment.task.status ?? 'pending'}`
       }
@@ -489,12 +479,6 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
-    if (block.type === 'plan') {
-      if (!block.planItems?.length) continue
-      segments.push({ type: 'plan', items: block.planItems })
-      continue
-    }
-
     if (block.type === 'task') {
       if (!block.task) continue
       segments.push({ type: 'task', task: block.task })
@@ -756,13 +740,6 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.options?.length) continue
       flushLanes()
       segments.push({ type: 'options', items: block.options })
-      continue
-    }
-
-    if (block.type === 'plan') {
-      if (!block.planItems?.length) continue
-      flushLanes()
-      segments.push({ type: 'plan', items: block.planItems })
       continue
     }
 
@@ -1107,8 +1084,6 @@ function MessageContentInner({
                   <Options items={segment.items} onSelect={onOptionSelect} />
                 </div>
               )
-            case 'plan':
-              return <PlanChecklist key={`plan-${i}`} items={segment.items} />
             case 'task':
               return <TaskPill key={`task-${segment.task.taskId}`} task={segment.task} />
             // The stopped row renders in the tail region below, in the

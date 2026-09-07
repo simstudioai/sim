@@ -958,6 +958,56 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       }
     )
 
+    it('updates titles and view metadata without replay undoing a later view selection', async () => {
+      const chatId = generateId()
+      const table = {
+        type: 'table' as const,
+        id: generateId(),
+        title: 'Old name',
+        viewId: 'old-view',
+      }
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: 'run-reader',
+        workspaceId,
+        type: 'mothership',
+        resources: [table],
+      })
+      const rename = `${generateId()}:rename`
+      expect(
+        await changeStoredChatResources(
+          chatId,
+          { kind: 'upsert', resources: [{ ...table, title: 'New name', viewId: 'new-view' }] },
+          rename
+        )
+      ).toEqual([{ ...table, title: 'New name', viewId: 'new-view' }])
+      expect(
+        await changeStoredChatResources(
+          chatId,
+          { kind: 'clear-view', tableId: table.id, viewId: 'old-view' },
+          `${rename}:old-delete`
+        )
+      ).toEqual([{ ...table, title: 'New name', viewId: 'new-view' }])
+      const cleared = await changeStoredChatResources(
+        chatId,
+        { kind: 'clear-view', tableId: table.id, viewId: 'new-view' },
+        `${rename}:new-delete`
+      )
+      expect(cleared).toEqual([{ type: 'table', id: table.id, title: 'New name' }])
+      await changeStoredChatResources(
+        chatId,
+        { kind: 'upsert', resources: [{ ...table, viewId: 'user-view' }] },
+        `${rename}:user-choice`
+      )
+      expect(
+        await changeStoredChatResources(
+          chatId,
+          { kind: 'clear-view', tableId: table.id, viewId: 'new-view' },
+          `${rename}:new-delete`
+        )
+      ).toEqual([{ ...table, viewId: 'user-view' }])
+    })
+
     it.each(['add', 'remove'] as const)(
       'retains panels when concurrent resource additions overlap %s on the same chat',
       async (operation) => {
@@ -2158,7 +2208,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       }
       const blocks: DisplayContentBlock[] = [
         { type: 'task', task },
-        { type: 'plan', planItems: [{ step: 'Verify the invoice result', status: 'active' }] },
         {
           type: 'subagent_end',
           subagentName: 'Inspect invoices',
@@ -2196,7 +2245,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       expect(saved[1].contentBlocks).toEqual(
         expect.arrayContaining([
           { type: 'task', task },
-          { type: 'plan', planItems: [{ step: 'Verify the invoice result', status: 'active' }] },
           {
             type: 'span',
             kind: 'subagent',

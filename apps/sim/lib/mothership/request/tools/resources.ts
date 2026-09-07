@@ -112,15 +112,9 @@ export async function handleResourceSideEffects(
         const resources =
           projectedResources.length === rawResources.length
             ? rawResources.map((resource, index) => ({
+                ...projectedResources[index],
                 type: resource.type,
                 id: resource.id,
-                title: projectedResources[index].title,
-                ...(projectedResources[index].path !== undefined
-                  ? { path: projectedResources[index].path }
-                  : {}),
-                // An id, never secret material — read from the raw result.
-                ...(resource.viewId !== undefined ? { viewId: resource.viewId } : {}),
-                ...(resource.clearViewId === true ? { clearViewId: true as const } : {}),
               }))
             : []
 
@@ -144,13 +138,7 @@ export async function handleResourceSideEffects(
               type: MothershipStreamV1EventType.resource,
               payload: {
                 op: MothershipStreamV1ResourceOp.upsert,
-                resource: {
-                  type: resource.type,
-                  id: resource.id,
-                  title: resource.title,
-                  ...(resource.viewId !== undefined ? { viewId: resource.viewId } : {}),
-                  ...(resource.clearViewId === true ? { clearViewId: true } : {}),
-                },
+                resource,
               },
             })
           }

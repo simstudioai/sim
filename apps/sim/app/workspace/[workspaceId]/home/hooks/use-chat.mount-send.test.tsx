@@ -18,7 +18,7 @@
  * and billing a second turn, so the client never has to guess whether the
  * request it aborted was accepted.
  */
-import { act, type ReactNode, StrictMode, useEffect } from 'react'
+import { act, type ReactNode, StrictMode, useEffect, useState } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
@@ -269,7 +269,8 @@ function renderUseChatInChat(
   history?: MothershipChatHistory,
   sharedQueryClient: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  })
+  }),
+  selectedResourceId?: string
 ): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
@@ -284,7 +285,8 @@ function renderUseChatInChat(
   let result: ReturnType<typeof useChat> | undefined
 
   function Probe() {
-    result = useChat('ws-1', chatId)
+    const activeResourceState = useState<string | null>(selectedResourceId ?? null)
+    result = useChat('ws-1', chatId, selectedResourceId ? { activeResourceState } : undefined)
     return null
   }
 
@@ -468,6 +470,32 @@ describe('useChat remount send recovery', () => {
       getResult().messages.find((message) => message.role === 'user')?.contexts?.[0]
     ).toMatchObject({ viewId: 'all-view' })
   })
+
+  it.each(['cached', 'delayed'] as const)(
+    'preserves the URL-selected resource while %s panels hydrate',
+    async (loading) => {
+      const history: MothershipChatHistory = {
+        id: 'chat-selection',
+        title: 'Resources',
+        messages: [],
+        activeStreamId: null,
+        resources: [
+          { type: 'table', id: 'selected-table', title: 'Contacts' },
+          { type: 'knowledgebase', id: 'last-resource', title: 'Knowledge' },
+        ],
+      }
+      const pending = Promise.withResolvers<{ chat: MothershipChatHistory }>()
+      if (loading === 'delayed') mockRequestJson.mockReturnValue(pending.promise)
+      const { getResult } = renderUseChatInChat(
+        history.id,
+        loading === 'cached' ? history : undefined,
+        'selected-table'
+      )
+      if (loading === 'delayed') await act(async () => pending.resolve({ chat: history }))
+      await waitFor(() => getResult().resources.length === 2)
+      expect(getResult().activeResourceId).toBe('selected-table')
+    }
+  )
 
   it('hydrates changed resource addresses and an empty saved panel list', async () => {
     const history: MothershipChatHistory = {

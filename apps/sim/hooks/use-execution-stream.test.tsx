@@ -4,8 +4,13 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
-import { processSSEStream, useExecutionStream } from '@/hooks/use-execution-stream'
+import {
+  processSSEStream,
+  SSEStreamInterruptedError,
+  useExecutionStream,
+} from '@/hooks/use-execution-stream'
 
 interface HookHarness {
   result: () => ReturnType<typeof useExecutionStream>
@@ -43,6 +48,157 @@ function streamEvents(events: ExecutionEvent[]): ReadableStream<Uint8Array> {
     },
   })
 }
+
+function recordedExecution(
+  status: WorkflowExecutionStatusResponse['status']
+): WorkflowExecutionStatusResponse {
+  return {
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+    status,
+    trigger: 'manual',
+    level: status === 'failed' ? 'error' : 'info',
+    startedAt: '2026-09-08T00:00:00Z',
+    endedAt: '2026-09-08T00:00:01Z',
+    totalDurationMs: 1000,
+    paused: null,
+    cost: null,
+    error: status === 'failed' ? 'The integration returned an error' : null,
+    finalOutput: { answer: 42 },
+    blockOutputs: null,
+  }
+}
+
+describe('reconnect execution outcome recovery', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each(['completed', 'failed', 'cancelled', 'paused'] as const)(
+    'recovers the recorded %s outcome when the replay buffer expired',
+    async (status) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(Response.json(recordedExecution(status)))
+      vi.stubGlobal('fetch', fetchMock)
+      const callbacks = {
+        onExecutionCompleted: vi.fn(),
+        onExecutionError: vi.fn(),
+        onExecutionCancelled: vi.fn(),
+        onExecutionPaused: vi.fn(),
+      }
+      const { result, unmount } = renderExecutionStreamHook()
+      await result().reconnect({ workflowId: 'workflow-1', executionId: 'execution-1', callbacks })
+      const expected = {
+        completed: callbacks.onExecutionCompleted,
+        failed: callbacks.onExecutionError,
+        cancelled: callbacks.onExecutionCancelled,
+        paused: callbacks.onExecutionPaused,
+      }[status]
+      expect(expected).toHaveBeenCalledOnce()
+      for (const callback of Object.values(callbacks)) {
+        if (callback !== expected) expect(callback).not.toHaveBeenCalled()
+      }
+      expect(fetchMock.mock.calls[1]?.[0]).toBe(
+        '/api/workflows/workflow-1/executions/execution-1?includeOutput=true'
+      )
+      if (status === 'completed')
+        expect(expected).toHaveBeenCalledWith(
+          expect.objectContaining({ output: { answer: 42 }, duration: 1000 })
+        )
+      if (status === 'failed')
+        expect(expected).toHaveBeenCalledWith({
+          error: 'The integration returned an error',
+          duration: 1000,
+        })
+      unmount()
+    }
+  )
+
+  it.each(['clean-close', 'interrupted'])(
+    'checks durable status after a %s without a terminal receipt',
+    async (failure) => {
+      const stream =
+        failure === 'clean-close'
+          ? streamEvents([])
+          : new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.error(new Error('Network connection lost'))
+              },
+            })
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response(stream))
+        .mockResolvedValueOnce(Response.json(recordedExecution('completed')))
+      vi.stubGlobal('fetch', fetchMock)
+      const onExecutionCompleted = vi.fn()
+      const { result, unmount } = renderExecutionStreamHook()
+      await result().reconnect({
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        callbacks: { onExecutionCompleted },
+      })
+      expect(onExecutionCompleted).toHaveBeenCalledOnce()
+      unmount()
+    }
+  )
+
+  it('keeps a recorded running execution retryable without manufacturing a failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(Response.json(recordedExecution('running')))
+    )
+    const onExecutionError = vi.fn()
+    const { result, unmount } = renderExecutionStreamHook()
+    await expect(
+      result().reconnect({
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        callbacks: { onExecutionError },
+      })
+    ).rejects.toBeInstanceOf(SSEStreamInterruptedError)
+    expect(onExecutionError).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it.each([401, 403])('does not attempt recovery after access was denied (%s)', async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { result, unmount } = renderExecutionStreamHook()
+    await expect(
+      result().reconnect({ workflowId: 'workflow-1', executionId: 'execution-1' })
+    ).rejects.toMatchObject({ httpStatus: status })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    unmount()
+  })
+
+  it('ignores a delayed status result after reconnect is cancelled', async () => {
+    let resolveLookup: ((response: Response) => void) | undefined
+    const lookup = new Promise<Response>((resolve) => {
+      resolveLookup = resolve
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockReturnValueOnce(lookup)
+    vi.stubGlobal('fetch', fetchMock)
+    const onExecutionCompleted = vi.fn()
+    const { result, unmount } = renderExecutionStreamHook()
+    const reconnect = result().reconnect({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      callbacks: { onExecutionCompleted },
+    })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    result().cancelReconnect('workflow-1', 'execution-1')
+    resolveLookup?.(Response.json(recordedExecution('completed')))
+    await reconnect
+    expect(onExecutionCompleted).not.toHaveBeenCalled()
+    unmount()
+  })
+})
 
 describe('processSSEStream', () => {
   it('acknowledges event ids only after the matching handler completes', async () => {

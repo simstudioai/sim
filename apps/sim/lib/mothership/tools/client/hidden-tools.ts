@@ -8,8 +8,7 @@
 // doing the work is a step toward the action, not the action. load_slide_layout
 // is that shape again: the file agent reading a layout from the slide library
 // ahead of writing the deck.
-// update_plan renders as the plan checklist card, never as a tool row — the
-// card IS the user-meaningful surface; the row would duplicate it as noise.
+/** update_plan is internal working state and has no transcript UI. */
 const HIDDEN_TOOL_NAMES = new Set([
   'update_plan',
   'load_agent_skill',

@@ -55,6 +55,7 @@ export type ChatResourceChange =
   | { kind: 'upsert'; resources: MothershipResourceUpdate[] }
   | { kind: 'remove'; resources: Pick<MothershipResource, 'type' | 'id'>[] }
   | { kind: 'reorder'; resources: MothershipResource[] }
+  | { kind: 'clear-view'; tableId: string; viewId: string }
 
 /** The caller resolves and authorizes this canonical chat before entering its atomic resource update. */
 export async function changeStoredChatResources(
@@ -80,7 +81,18 @@ export async function changeStoredChatResources(
       if (!applied) return existing
     }
     let resources: MothershipResource[]
-    if (change.kind === 'remove') {
+    if (change.kind === 'clear-view') {
+      resources = existing.map((resource) => {
+        if (
+          resource.type !== 'table' ||
+          resource.id !== change.tableId ||
+          resource.viewId !== change.viewId
+        )
+          return resource
+        const { viewId: _view, ...unPinned } = resource
+        return unPinned
+      })
+    } else if (change.kind === 'remove') {
       resources = existing.filter(
         (resource) =>
           !change.resources.some(
@@ -119,7 +131,8 @@ export async function changeStoredChatResources(
         for (const resource of incoming) {
           const key = `${resource.type}:${resource.id}`
           const previous = byKey.get(key)
-          byKey.set(key, mergeChatResource(previous, resource))
+          const merged = mergeChatResource(previous, resource)
+          byKey.set(key, effectId ? { ...merged, title: resource.title || merged.title } : merged)
         }
         resources = [...byKey.values()]
       }
