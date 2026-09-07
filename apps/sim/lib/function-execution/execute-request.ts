@@ -2371,6 +2371,7 @@ export async function executeFunctionRequest(
             sessionKey: sandboxSessionKey,
             workspaceId,
             userId: auth.attributedUserId,
+            signal: executionSignal,
           })
         : undefined
     sourceCodeForErrors = sourceCode ?? code
