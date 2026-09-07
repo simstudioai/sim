@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { isBillingEnabled, isScimEnabled } from '@/lib/core/config/env-flags'
+import { isScimEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runScimReconcileSweep } from '@/lib/scim/reconcile/job'
 
@@ -16,7 +16,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const authError = verifyCronAuth(request, 'SCIM reconciliation')
   if (authError) return authError
 
-  if (!isBillingEnabled && !isScimEnabled) {
+  if (!isScimEnabled) {
     return NextResponse.json({ success: true, connections: 0, skipped: 'disabled' })
   }
 

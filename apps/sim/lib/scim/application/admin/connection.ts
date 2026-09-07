@@ -10,7 +10,6 @@ import {
   assertWorkspaceInOrganization,
   loadConnectionView,
   requireConnection,
-  scimBaseUrl,
 } from '@/lib/scim/application/admin/connection-view'
 import {
   defineAuthorizedScimAdminUseCase,
@@ -24,10 +23,7 @@ import { reconcileConnection } from '@/lib/scim/reconcile/job'
 export const getScimConnection = defineAuthorizedScimAdminUseCase({
   operation: scimAdminOperations.read,
   async execute({ input }: ScimAdminUseCaseArgs<{ organizationId: string }>) {
-    return {
-      connection: await loadConnectionView(input.organizationId),
-      baseUrl: scimBaseUrl(),
-    }
+    return { connection: await loadConnectionView(input.organizationId) }
   },
 })
 

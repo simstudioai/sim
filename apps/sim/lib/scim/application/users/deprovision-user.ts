@@ -3,25 +3,16 @@ import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import {
-  acquireOrganizationUserMutationLocks,
-  removeUserFromOrganization,
-} from '@/lib/billing/organizations/membership'
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import {
-  invalidateAfterSessionRevocation,
-  revokePersonalApiKeysTx,
-  revokeUserSessionsTx,
-  unsuspendMemberTx,
-} from '@/lib/organizations/members/lifecycle'
 import {
   defineAuthorizedScimUseCase,
   type ScimUseCaseArgs,
 } from '@/lib/scim/application/authorized-scim-use-case'
 import { scimOperations } from '@/lib/scim/application/operations'
-import { upsertTombstone } from '@/lib/scim/identity/resolve-user'
+import { endDirectoryMembershipTx } from '@/lib/scim/identity/end-directory-membership'
 import { notFound, ScimError } from '@/lib/scim/protocol/errors'
-import { deleteScimUser, findScimUserById } from '@/lib/scim/repository/users'
+import { findScimUserById } from '@/lib/scim/repository/users'
 
 const logger = createLogger('ScimDeprovisionUser')
 
@@ -43,6 +34,10 @@ export interface DeprovisionScimUserResult {
  * days after a hard delete, and OneLogin and JumpCloud can be configured to. The
  * Sim account itself survives: the person may hold access in another
  * organization later, and their audit history must remain attributable.
+ *
+ * Removal is the same primitive the settings UI uses. It ends the membership,
+ * revokes sessions and personal keys, reassigns what the member owned, and
+ * retires this directory row into its tombstone, all in one commit.
  */
 export const deprovisionScimUser = defineAuthorizedScimUseCase({
   operation: scimOperations.deprovisionUser,
@@ -75,13 +70,6 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
     }
 
     if (membership) {
-      /**
-       * Owns its own invitation-safe lock scope, clears every workspace
-       * permission and permission-group membership in the organization, and
-       * reassigns everything the member owned — so directory-granted access is
-       * withdrawn here as a consequence, and the projection rows cascade away
-       * with the SCIM user below.
-       */
       const removal = await removeUserFromOrganization({
         userId: current.userId,
         organizationId: context.organizationId,
@@ -90,50 +78,19 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
       if (!removal.success) {
         throw new ScimError(409, undefined, removal.error ?? 'The member could not be removed')
       }
-    }
-
-    await db.transaction(async (tx) => {
-      /** Serializes with a concurrent PATCH, which re-reads the row under the same locks. */
-      await acquireOrganizationUserMutationLocks(tx, {
-        userId: current.userId,
-        organizationIds: [context.organizationId],
-      })
+    } else {
       /**
-       * Account-wide effects belong only to the removal this request performed.
-       * A stale row for someone who already left — and may since have joined
-       * another organization — must not sign them out or revoke their keys there.
+       * The account left through a path that predates this connection's row, or
+       * was hard-deleted and recreated. Only the directory's own record remains
+       * to retire; there is no live access left to revoke.
        */
-      const [rejoined] = membership
-        ? await tx
-            .select({ id: member.id })
-            .from(member)
-            .where(
-              and(
-                eq(member.organizationId, context.organizationId),
-                eq(member.userId, current.userId)
-              )
-            )
-            .limit(1)
-        : []
-      if (membership && !rejoined) {
-        await revokeUserSessionsTx(tx, {
+      await db.transaction((tx) =>
+        endDirectoryMembershipTx(tx, {
           userId: current.userId,
           organizationId: context.organizationId,
         })
-        await revokePersonalApiKeysTx(tx, { userId: current.userId })
-        /** A suspension the directory applied has no meaning once membership ends. */
-        await unsuspendMemberTx(tx, { userId: current.userId, source: 'scim' })
-      }
-
-      if (current.externalId) {
-        await upsertTombstone(tx, {
-          connectionId: context.connection.id,
-          externalId: current.externalId,
-          userId: current.userId,
-        })
-      }
-      await deleteScimUser(tx, current.id)
-    })
+      )
+    }
 
     return {
       scimUserId: current.id,
@@ -163,12 +120,7 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
   ],
 
   afterSuccess: async ({ result, context }) => {
-    if (result.removedFromOrganization) {
-      invalidateAfterSessionRevocation({
-        userId: result.userId,
-        organizationId: context.organizationId,
-      })
-    }
+    if (!result.removedFromOrganization) return
     try {
       await reconcileOrganizationSeats({
         organizationId: context.organizationId,

@@ -1244,6 +1244,7 @@ export const schemaMock = {
     targetKind: 'scimProjectionGrant.targetKind',
     targetId: 'scimProjectionGrant.targetId',
     permissionType: 'scimProjectionGrant.permissionType',
+    origin: 'scimProjectionGrant.origin',
     createdAt: 'scimProjectionGrant.createdAt',
     updatedAt: 'scimProjectionGrant.updatedAt',
   },

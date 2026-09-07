@@ -176,12 +176,13 @@ export function primaryEmail(attributes: ScimUserAttributes): string {
  * error at the first write rather than a support case later.
  */
 export function assertUserSchemas(schemas: readonly string[]): void {
-  for (const schema of schemas) {
+  const declared = stripProviderSchemaMarkers(schemas)
+  for (const schema of declared) {
     if (schema !== SCIM_USER_SCHEMA && schema !== SCIM_ENTERPRISE_USER_SCHEMA) {
       throw invalidValue(`Unsupported User schema ${schema}`)
     }
   }
-  if (!schemas.includes(SCIM_USER_SCHEMA)) {
+  if (!declared.includes(SCIM_USER_SCHEMA)) {
     throw invalidValue(`schemas must include ${SCIM_USER_SCHEMA}`)
   }
 }

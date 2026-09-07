@@ -30,6 +30,7 @@ import {
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendWorkspaceAddedEmail } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { assertMembershipNotScimManaged } from '@/lib/scim/managed-membership'
 import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
@@ -136,6 +137,12 @@ export async function grantWorkspaceAccessDirectly(
         await acquireOrganizationUserMutationLocks(tx, {
           userId: input.userId,
           organizationIds: [input.organizationId],
+        })
+        /** A member the directory manages gets workspace access from the directory, not by hand. */
+        await assertMembershipNotScimManaged({
+          organizationId: input.organizationId,
+          userId: input.userId,
+          executor: tx,
         })
 
         const currentInvitationIds = await getPendingWorkspaceInvitationIds(

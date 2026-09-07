@@ -71,9 +71,9 @@ export const user = pgTable('user', {
    */
   suspendedAt: timestamp('suspended_at'),
   /**
-   * Who suspended the account: `scim` for an identity-provider deactivation,
-   * `admin` for a manual one. SCIM only ever lifts a suspension it applied, so
-   * an administrator's suspension survives the next directory sync.
+   * Who suspended the account. Only `scim` exists today; a source only ever
+   * lifts its own suspension, so a later source cannot have its suspensions
+   * undone by a directory sync.
    */
   suspensionSource: text('suspension_source'),
 })
@@ -5854,9 +5854,10 @@ export interface ScimDefaultWorkspaceGrant {
 /** Administrator-controlled behavior of one organization's SCIM connection. */
 export interface ScimConnectionSettings {
   /**
-   * Refuse manual invitations, removals, and role edits for users the identity
-   * provider manages. Out-of-band edits desync the directory, so this defaults
-   * to on for a new connection and an owner may turn it off.
+   * Refuse manual invitations, workspace grants, and role edits for users the
+   * identity provider manages; removals stay possible so an administrator can
+   * always act in an emergency. Out-of-band edits desync the directory, so this
+   * defaults to on for a new connection and an owner may turn it off.
    */
   lockManualMembership?: boolean
   /**
@@ -5919,7 +5920,6 @@ export const scimConnection = pgTable(
     organizationId: text('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    /** The SSO provider this directory pairs with, shown in settings. */
     /** `active` or `disabled`. Disabling refuses every credential immediately. */
     status: text('status').notNull().default('active'),
     settings: jsonb('settings').$type<ScimConnectionSettings>().notNull().default({}),
@@ -6045,6 +6045,7 @@ export const scimUserTombstone = pgTable(
       table.connectionId,
       table.externalId
     ),
+    userIdx: index('scim_user_tombstone_user_idx').on(table.userId),
   })
 )
 
@@ -6140,6 +6141,10 @@ export const scimGroupMapping = pgTable(
   },
   (table) => ({
     groupIdx: index('scim_group_mapping_group_idx').on(table.groupId),
+    permissionGroupIdx: index('scim_group_mapping_permission_group_idx').on(
+      table.permissionGroupId
+    ),
+    workspaceIdx: index('scim_group_mapping_workspace_idx').on(table.workspaceId),
     /**
      * One mapping per group and target. `coalesce` collapses the three mutually
      * exclusive target columns into the single value that identifies the target,
@@ -6184,6 +6189,13 @@ export const scimProjectionGrant = pgTable(
     targetId: text('target_id').notNull(),
     /** The permission SCIM set, so a later manual upgrade stays detectable. */
     permissionType: permissionTypeEnum('permission_type'),
+    /**
+     * `directory` when the directory created the access; `adopted` when the
+     * person already held it by hand and a mapping merely covers it. Adopted
+     * access is left in place when the mapping goes away, unless the directory
+     * is the organization's source of truth.
+     */
+    origin: text('origin').notNull().default('directory'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

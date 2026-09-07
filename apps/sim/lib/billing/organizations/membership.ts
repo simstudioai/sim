@@ -24,7 +24,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
-import { invalidateMembershipCache } from '@/lib/auth/security-policy'
+import {
+  invalidateMembershipCache,
+  invalidateSecurityPolicyVersionCache,
+} from '@/lib/auth/security-policy'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
@@ -47,6 +50,11 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import {
+  revokePersonalApiKeysTx,
+  revokeUserSessionsTx,
+} from '@/lib/organizations/members/revocation'
+import { endDirectoryMembershipTx } from '@/lib/scim/identity/end-directory-membership'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -1330,6 +1338,17 @@ export async function removeUserFromOrganization(
             )
           )
 
+        /**
+         * Leaving ends live access at once: sessions and personal API keys go
+         * with the membership rather than lingering until a cookie cache lapses,
+         * and any directory row that described this membership is replaced by
+         * its tombstone in the same commit, so the directory and the
+         * organization can never disagree about who is a member.
+         */
+        await revokeUserSessionsTx(tx, { userId, organizationId })
+        await revokePersonalApiKeysTx(tx, { userId })
+        await endDirectoryMembershipTx(tx, { userId, organizationId })
+
         if (workspaceIds.length === 0) {
           return {
             skipped: false as const,
@@ -1403,6 +1422,7 @@ export async function removeUserFromOrganization(
     // The departed member's cookie-version/hook-clamp fallbacks must stop
     // resolving to this org immediately, not after the membership-cache TTL.
     invalidateMembershipCache(userId)
+    invalidateSecurityPolicyVersionCache(organizationId)
 
     logger.info('Removed member from organization', {
       organizationId,

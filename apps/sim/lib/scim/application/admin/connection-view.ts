@@ -11,15 +11,10 @@ import {
 import { and, count, desc, eq } from 'drizzle-orm'
 import type { ScimConnectionView, ScimCredentialView } from '@/lib/api/contracts/organization-scim'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { activeCredentialCondition } from '@/lib/scim/authenticate'
-import { SCIM_BASE_PATH } from '@/lib/scim/protocol/constants'
+import { scimBaseUrl } from '@/lib/scim/base-url'
+import { activeCredentialCondition } from '@/lib/scim/repository/credentials'
 
 /** Reads shared by the admin use cases: the connection row and its settings view. */
-
-export function scimBaseUrl(): string {
-  return `${getBaseUrl()}${SCIM_BASE_PATH}`
-}
 
 export interface ConnectionRow {
   id: string

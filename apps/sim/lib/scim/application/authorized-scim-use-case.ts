@@ -1,4 +1,3 @@
-import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -6,9 +5,9 @@ import { type ScimConnectionSettings, scimConnection } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { OperationUseCase } from '@/lib/core/application'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { recordScimAuditEntries, type ScimAuditEntry } from '@/lib/scim/application/audit'
 import type { ScimOperation, ScimPrincipal } from '@/lib/scim/application/operations'
-import { SCIM_BASE_PATH } from '@/lib/scim/protocol/constants'
+import { scimBaseUrl } from '@/lib/scim/base-url'
 import { ScimError } from '@/lib/scim/protocol/errors'
 
 /**
@@ -29,15 +28,6 @@ export interface ScimUseCaseContext {
   organizationId: string
   /** Absolute base for `meta.location` and `$ref`, e.g. `https://sim.ai/api/scim/v2`. */
   baseUrl: string
-}
-
-export interface ScimAuditEntry {
-  action: AuditActionType
-  resourceType: AuditResourceTypeValue
-  resourceId?: string
-  resourceName?: string
-  description?: string
-  metadata?: Record<string, unknown>
 }
 
 export interface ScimUseCaseArgs<I> {
@@ -66,45 +56,6 @@ function requireScimPrincipal(
     throw new Error(
       `Operation ${operation.id} reached by principal kind ${principal.kind}, which its policy does not name`
     )
-  }
-}
-
-/**
- * Records semantic audit for a directory change.
- *
- * The actor is the connection, never a person: nobody was at a keyboard when the
- * directory synchronized, and naming the administrator who configured it would
- * attribute months of automated changes to one login.
- */
-function recordScimAudit(
-  operation: ScimOperation,
-  principal: ScimPrincipal,
-  context: ScimUseCaseContext,
-  request: OrchestrationRequestContext | undefined,
-  entries: readonly ScimAuditEntry[]
-): void {
-  const attribution = resolvePrincipalAuditAttribution(principal)
-  for (const entry of entries) {
-    recordAudit({
-      workspaceId: null,
-      actorId: attribution.actorId,
-      actorName: attribution.actorName,
-      action: entry.action,
-      resourceType: entry.resourceType,
-      resourceId: entry.resourceId,
-      resourceName: entry.resourceName,
-      description: entry.description,
-      metadata: {
-        ...entry.metadata,
-        organizationId: context.organizationId,
-        connectionId: context.connection.id,
-        credentialId: principal.credentialId,
-        operation: operation.id,
-        source: 'scim',
-        actor: attribution.actor,
-      },
-      request,
-    })
   }
 }
 
@@ -167,7 +118,7 @@ export function defineAuthorizedScimUseCase<const O extends ScimOperation, I, R>
       const context: ScimUseCaseContext = {
         connection,
         organizationId: connection.organizationId,
-        baseUrl: `${getBaseUrl()}${SCIM_BASE_PATH}`,
+        baseUrl: scimBaseUrl(),
       }
 
       const result = await definition.execute({ principal, input, context, request })
@@ -177,7 +128,26 @@ export function defineAuthorizedScimUseCase<const O extends ScimOperation, I, R>
       const entries =
         projected === undefined ? [] : Array.isArray(projected) ? projected : [projected]
       if (entries.length > 0) {
-        recordScimAudit(definition.operation, principal, context, request, entries)
+        /**
+         * The actor is the connection, never a person: nobody was at a keyboard
+         * when the directory synchronized, and naming the administrator who
+         * configured it would attribute months of automated changes to one login.
+         */
+        const attribution = resolvePrincipalAuditAttribution(principal)
+        recordScimAuditEntries({
+          actorId: attribution.actorId,
+          actorName: attribution.actorName ?? undefined,
+          entries,
+          metadata: {
+            organizationId: context.organizationId,
+            connectionId: context.connection.id,
+            credentialId: principal.credentialId,
+            operation: definition.operation.id,
+            source: 'scim',
+            actor: attribution.actor,
+          },
+          request,
+        })
       }
 
       await definition.afterSuccess?.(resultArgs)

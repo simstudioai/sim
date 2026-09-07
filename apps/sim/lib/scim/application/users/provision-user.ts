@@ -1,29 +1,20 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { type ScimUserAttributes, subscription } from '@sim/db/schema'
+import type { ScimUserAttributes } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
-import { and, desc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import {
-  ensureUserInOrganizationTx,
-  getUserOrganization,
-} from '@/lib/billing/organizations/membership'
+import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
+import { resolveOrganizationSeatPolicyTx } from '@/lib/billing/organizations/seat-policy'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { isTeam } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import type { DbOrTx } from '@/lib/db/types'
 import {
   getInstanceOrganizationId,
   isInstanceOrganizationMode,
 } from '@/lib/organizations/instance-org'
-import {
-  invalidateAfterSessionRevocation,
-  suspendMemberTx,
-  unsuspendMemberTx,
-} from '@/lib/organizations/members/lifecycle'
+import { suspendMemberTx, unsuspendMemberTx } from '@/lib/organizations/members/lifecycle'
+import { invalidateAfterSessionRevocation } from '@/lib/organizations/members/revocation'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   defineAuthorizedScimUseCase,
@@ -42,7 +33,6 @@ import { ScimError, uniqueness } from '@/lib/scim/protocol/errors'
 import { toUserResource } from '@/lib/scim/protocol/resources'
 import {
   assertUserNameAvailable,
-  deleteScimUser,
   findScimUserById,
   findScimUserByUserId,
   insertScimUser,
@@ -66,35 +56,6 @@ export interface ProvisionScimUserResult {
   subscriptionId: string | undefined
   organizationId: string
   resource: ReturnType<typeof toUserResource>
-}
-
-/**
- * Whether this organization's plan lets membership grow on demand.
- *
- * Team plans add a seat when someone joins; Enterprise buys a fixed number in
- * advance and must refuse beyond it. The same rule governs SSO just-in-time
- * provisioning, so a directory and a first sign-in agree on who fits.
- */
-async function resolveSeatPolicy(
-  tx: DbOrTx,
-  organizationId: string
-): Promise<{ skipSeatValidation?: true; organizationSubscriptionId?: string }> {
-  const [entitled] = await tx
-    .select({ id: subscription.id, plan: subscription.plan })
-    .from(subscription)
-    .where(
-      and(
-        eq(subscription.referenceId, organizationId),
-        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-      )
-    )
-    .orderBy(desc(subscription.periodStart), desc(subscription.id))
-    .limit(1)
-
-  return {
-    ...(isTeam(entitled?.plan) ? { skipSeatValidation: true as const } : {}),
-    ...(entitled?.id ? { organizationSubscriptionId: entitled.id } : {}),
-  }
 }
 
 /** Turns a membership refusal into the SCIM error a directory administrator can act on. */
@@ -191,29 +152,19 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       userId = resolution.userId
     }
 
-    const existing = await findScimUserByUserId(db, context.connection.id, userId)
-    if (existing) {
-      /**
-       * A SCIM row whose account has already left the organization is the
-       * residue of a deprovisioning interrupted between its two commits. The
-       * directory is telling us the person is back; clearing the stale row lets
-       * it proceed rather than reporting a conflict nobody can act on.
-       */
-      const stillMember = await getUserOrganization(userId)
-      if (stillMember?.organizationId === context.organizationId) {
-        throw uniqueness('This directory already provisions the user')
-      }
-      await deleteScimUser(db, existing.id)
+    if (await findScimUserByUserId(db, context.connection.id, userId)) {
+      throw uniqueness('This directory already provisions the user')
     }
 
     let provisioned: {
       scimUserId: string
       joinedOrganization: boolean
       subscriptionId: string | undefined
+      resource: ReturnType<typeof toUserResource>
     }
     try {
       provisioned = await db.transaction(async (tx) => {
-        const seatPolicy = await resolveSeatPolicy(tx, context.organizationId)
+        const seatPolicy = await resolveOrganizationSeatPolicyTx(tx, context.organizationId)
         const membership = await ensureUserInOrganizationTx(tx, {
           userId,
           organizationId: context.organizationId,
@@ -264,10 +215,15 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           scimUserId: inserted.id,
           settings: context.connection.settings,
         })
+        const record = await findScimUserById(tx, context.connection.id, inserted.id)
+        if (!record) {
+          throw new ScimError(500, undefined, 'The provisioned user could not be read back')
+        }
         return {
           scimUserId: inserted.id,
           joinedOrganization: !membership.alreadyMember,
           subscriptionId: seatPolicy.organizationSubscriptionId,
+          resource: toUserResource(toUserResourceRow(record, []), context.baseUrl),
         }
       })
     } catch (error) {
@@ -287,19 +243,11 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       }
       throw error
     }
-    const { scimUserId, joinedOrganization, subscriptionId } = provisioned
-
-    const record = await findScimUserById(db, context.connection.id, scimUserId)
-    if (!record) throw new ScimError(500, undefined, 'The provisioned user could not be read back')
-
     return {
-      scimUserId,
+      ...provisioned,
       userId,
       createdAccount,
-      joinedOrganization,
-      subscriptionId,
       organizationId: context.organizationId,
-      resource: toUserResource(toUserResourceRow(record, []), context.baseUrl),
     }
   },
 

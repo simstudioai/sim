@@ -5,7 +5,6 @@ import type { ScimUserAttributes } from '@sim/db/schema'
 import { describe, expect, it } from 'vitest'
 import { scimPatchBodySchema } from '@/lib/api/contracts/scim'
 import { SCIM_PATCH_OP_SCHEMA } from '@/lib/scim/protocol/constants'
-import { ScimError } from '@/lib/scim/protocol/errors'
 import { applyUserPatch } from '@/lib/scim/protocol/user-patch'
 
 /**
@@ -198,18 +197,34 @@ describe('applyUserPatch', () => {
     ).toThrowError(expect.objectContaining({ scimType: 'mutability' }))
   })
 
-  it('refuses an attribute this server does not store', () => {
-    let raised: unknown
-    try {
-      applyUserPatch(
-        baseUser(),
-        parseOperations([{ op: 'replace', path: 'nickName', value: 'Ada' }])
-      )
-    } catch (error) {
-      raised = error
-    }
-    expect(raised).toBeInstanceOf(ScimError)
-    expect((raised as ScimError).scimType).toBe('invalidPath')
+  it('keeps attributes this server does not model, as a create would', () => {
+    const { next, changed } = applyUserPatch(
+      baseUser(),
+      parseOperations([
+        { op: 'replace', path: 'nickName', value: 'Ada' },
+        { op: 'Add', path: 'phoneNumbers[type eq "work"].value', value: '+1 555 0100' },
+        { op: 'replace', path: 'addresses[type eq "work"]', value: { locality: 'London' } },
+        { op: 'replace', value: { title: 'Analyst', preferredLanguage: 'en-GB' } },
+      ])
+    )
+    expect(changed).toBe(true)
+    expect(next.extra).toEqual({
+      nickName: 'Ada',
+      title: 'Analyst',
+      preferredLanguage: 'en-GB',
+      phoneNumbers: [{ type: 'work', value: '+1 555 0100' }],
+      addresses: [{ type: 'work', locality: 'London' }],
+    })
+
+    const removed = applyUserPatch(
+      next,
+      parseOperations([
+        { op: 'remove', path: 'phoneNumbers[type eq "work"]' },
+        { op: 'remove', path: 'nickName' },
+      ])
+    ).next
+    expect(removed.extra?.phoneNumbers).toEqual([])
+    expect(removed.extra?.nickName).toBeUndefined()
   })
 
   it('refuses a non-boolean active value', () => {

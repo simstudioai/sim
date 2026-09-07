@@ -1,10 +1,12 @@
 import { scimGroup, scimGroupMember, scimUser } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { invalidValue } from '@/lib/scim/protocol/errors'
 import type { ScimFilterTerm, ScimGroupFilterField } from '@/lib/scim/protocol/filter'
 import { buildOrderKey } from '@/lib/scim/repository/users'
+
+const logger = createLogger('ScimGroupRepository')
 
 /** Reads and writes of the provisioned Group table, always anchored to a connection. */
 
@@ -136,24 +138,32 @@ export async function loadGroupMemberIds(tx: DbOrTx, groupId: string): Promise<s
 }
 
 /**
- * Refuses member ids that belong to another connection or do not exist.
+ * Keeps only the member ids this connection provisioned.
  *
- * Without it a directory could name any resource id and pull an unrelated
- * organization's user into a group it controls.
+ * An id from another connection can never be pulled into a group this
+ * directory controls. An id this directory itself no longer has — a member it
+ * deprovisioned but still lists in the group — is dropped with a warning rather
+ * than failing the whole group on every cycle; there is nothing to add.
  */
-export async function assertConnectionOwnsUsers(
+export async function filterOwnedUsers(
   tx: DbOrTx,
   connectionId: string,
   scimUserIds: string[]
-): Promise<void> {
-  if (scimUserIds.length === 0) return
+): Promise<string[]> {
+  if (scimUserIds.length === 0) return []
   const rows = await tx
     .select({ id: scimUser.id })
     .from(scimUser)
     .where(and(eq(scimUser.connectionId, connectionId), inArray(scimUser.id, scimUserIds)))
-  if (rows.length !== scimUserIds.length) {
-    throw invalidValue('One or more Group members are not users of this directory')
+  const owned = new Set(rows.map((row) => row.id))
+  const unknown = scimUserIds.filter((id) => !owned.has(id))
+  if (unknown.length > 0) {
+    logger.warn('Ignored Group members that are not users of this directory', {
+      connectionId,
+      unknown: unknown.length,
+    })
   }
+  return scimUserIds.filter((id) => owned.has(id))
 }
 
 export async function insertScimGroup(

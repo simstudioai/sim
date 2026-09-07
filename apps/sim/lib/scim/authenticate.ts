@@ -4,7 +4,7 @@ import { db } from '@sim/db'
 import { scimConnection, scimCredential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNull, or, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isScimEntitledForOrganization } from '@/lib/scim/entitlement'
 import { ScimError } from '@/lib/scim/protocol/errors'
@@ -141,13 +141,4 @@ export async function authenticateScimRequest(
     credentialId: row.credentialId,
     scopes: row.scopes as ScimCredentialScope[],
   }
-}
-
-/** Active credentials for a connection, used to bound how many may exist at once. */
-export function activeCredentialCondition(connectionId: string) {
-  return and(
-    eq(scimCredential.connectionId, connectionId),
-    isNull(scimCredential.revokedAt),
-    or(isNull(scimCredential.expiresAt), sql`${scimCredential.expiresAt} > now()`)
-  )
 }

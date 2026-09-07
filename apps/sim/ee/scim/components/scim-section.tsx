@@ -435,7 +435,8 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
         <p className='text-[var(--text-muted)] text-small'>
           {connection.userCount} provisioned member{connection.userCount === 1 ? '' : 's'},{' '}
           {connection.groupCount} group{connection.groupCount === 1 ? '' : 's'}. Last request{' '}
-          {formatRelative(connection.lastRequestAt)}.
+          {formatRelative(connection.lastRequestAt)}; last reconciled{' '}
+          {formatRelative(connection.reconciledAt)}.
         </p>
       </SettingRow>
 
@@ -448,7 +449,7 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
         >
           <Switch
             id={`scim-${toggle.key}`}
-            checked={connection.settings[toggle.key] ?? toggle.key === 'lockManualMembership'}
+            checked={connection.settings[toggle.key] ?? false}
             onCheckedChange={(checked) => void handleToggleSetting(toggle.key, checked)}
             disabled={configure.isPending}
           />

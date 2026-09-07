@@ -7,14 +7,13 @@ import {
   permissions,
   scimConnection,
   ssoProvider,
-  subscription,
   user,
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, gt, isNull, sql } from 'drizzle-orm'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { ssoJitAdmissionOperation } from '@/lib/auth/sso/application/operations'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -22,9 +21,8 @@ import {
   acquireOrganizationUserMutationLocks,
   ensureUserInOrganizationTx,
 } from '@/lib/billing/organizations/membership'
+import { resolveOrganizationSeatPolicyTx } from '@/lib/billing/organizations/seat-policy'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { isTeam } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -248,27 +246,12 @@ async function runAdmissionTransaction(
       }
     }
 
-    const [organizationSubscription] = await tx
-      .select({ id: subscription.id, plan: subscription.plan })
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, provider.organizationId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .orderBy(desc(subscription.periodStart), desc(subscription.id))
-      .limit(1)
-
+    const seatPolicy = await resolveOrganizationSeatPolicyTx(tx, provider.organizationId)
     const membershipResult = await ensureUserInOrganizationTx(tx, {
       userId,
       organizationId: provider.organizationId,
       role: 'member',
-      /** Team seats grow to the committed member count; Enterprise remains fixed-capacity. */
-      ...(isTeam(organizationSubscription?.plan) ? { skipSeatValidation: true } : {}),
-      ...(organizationSubscription?.id
-        ? { organizationSubscriptionId: organizationSubscription.id }
-        : {}),
+      ...seatPolicy,
     })
 
     if (!membershipResult.success || !membershipResult.memberId) {
@@ -285,8 +268,8 @@ async function runAdmissionTransaction(
 
     return {
       ...attribution,
-      ...(organizationSubscription?.id
-        ? { organizationSubscriptionId: organizationSubscription.id }
+      ...(seatPolicy.organizationSubscriptionId
+        ? { organizationSubscriptionId: seatPolicy.organizationSubscriptionId }
         : {}),
       result: {
         kind: membershipResult.alreadyMember ? 'already-member' : 'provisioned',

@@ -53,7 +53,7 @@ export const getScimConnectionContract = defineRouteContract({
   params: organizationParamsSchema,
   response: {
     mode: 'json',
-    schema: z.object({ connection: scimConnectionSchema.nullable(), baseUrl: z.string() }),
+    schema: z.object({ connection: scimConnectionSchema.nullable() }),
   },
 })
 
@@ -73,7 +73,6 @@ export const issueScimCredentialContract = defineRouteContract({
   path: '/api/organizations/[id]/scim/credentials',
   params: organizationParamsSchema,
   body: z.object({
-    scopes: z.array(scimScopeSchema).min(1).optional(),
     /** Days until the credential stops working. Omitted means it does not expire. */
     expiresInDays: z.number().int().min(1).max(3650).optional(),
   }),

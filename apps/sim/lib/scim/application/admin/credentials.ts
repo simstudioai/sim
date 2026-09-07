@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { SCIM_SCOPES, type ScimScope, scimConnection, scimCredential } from '@sim/db/schema'
+import { SCIM_SCOPES, scimConnection, scimCredential } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireConnection, toCredentialView } from '@/lib/scim/application/admin/connection-view'
 import {
@@ -10,7 +11,8 @@ import {
   type ScimAdminUseCaseArgs,
 } from '@/lib/scim/application/authorized-scim-admin-use-case'
 import { scimAdminOperations } from '@/lib/scim/application/operations'
-import { activeCredentialCondition, generateScimToken } from '@/lib/scim/authenticate'
+import { generateScimToken } from '@/lib/scim/authenticate'
+import { activeCredentialCondition } from '@/lib/scim/repository/credentials'
 
 /**
  * Issuing and revoking the bearer credentials a directory authenticates with.
@@ -26,7 +28,6 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 export interface IssueScimCredentialInput {
   organizationId: string
-  scopes?: ScimScope[]
   expiresInDays?: number
 }
 
@@ -35,18 +36,15 @@ export const issueScimCredential = defineAuthorizedScimAdminUseCase({
   async execute({ input, context }: ScimAdminUseCaseArgs<IssueScimCredentialInput>) {
     const connection = await requireConnection(context.organizationId)
     const { secret, hash, prefix } = generateScimToken()
-    const scopes = input.scopes ?? [...SCIM_SCOPES]
+    /** Every credential carries every scope today; the scope check stays as the enforcement layer. */
+    const scopes = [...SCIM_SCOPES]
     const expiresAt = input.expiresInDays
       ? new Date(Date.now() + input.expiresInDays * DAY_MS)
       : null
 
     const created = await db.transaction(async (tx) => {
-      /** The connection row is the lock, so two issue requests cannot both see one free slot. */
-      await tx
-        .select({ id: scimConnection.id })
-        .from(scimConnection)
-        .where(eq(scimConnection.id, connection.id))
-        .for('update')
+      /** Two issue requests serialize on the organization lock, so both cannot see one free slot. */
+      await acquireOrganizationMutationLock(tx, context.organizationId)
 
       const [active] = await tx
         .select({ value: count() })

@@ -1,10 +1,10 @@
-import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import { recordScimAuditEntries, type ScimAuditEntry } from '@/lib/scim/application/audit'
 import type { ScimAdminOperation, ScimAdminPrincipal } from '@/lib/scim/application/operations'
 import { isScimEntitledForOrganization } from '@/lib/scim/entitlement'
 
@@ -35,14 +35,6 @@ export interface ScimAdminUseCaseResultArgs<I, R> extends ScimAdminUseCaseArgs<I
   result: R
 }
 
-export interface ScimAdminAuditEntry {
-  action: AuditActionType
-  resourceType: AuditResourceTypeValue
-  resourceId?: string
-  resourceName?: string
-  metadata?: Record<string, unknown>
-}
-
 interface AuthorizedScimAdminDefinition<
   O extends ScimAdminOperation,
   I extends { organizationId: string },
@@ -51,7 +43,7 @@ interface AuthorizedScimAdminDefinition<
   operation: O
   execute(args: ScimAdminUseCaseArgs<I>): Promise<R>
   /** Audit attributed to the administrator; the organization id is added for every entry. */
-  projectAudit?(args: ScimAdminUseCaseResultArgs<I, R>): ScimAdminAuditEntry | undefined
+  projectAudit?(args: ScimAdminUseCaseResultArgs<I, R>): ScimAuditEntry | undefined
 }
 
 function requireScimAdminPrincipal(
@@ -111,14 +103,10 @@ export function defineAuthorizedScimAdminUseCase<
 
       const entry = definition.projectAudit?.({ principal, input, context, request, result })
       if (entry) {
-        recordAudit({
-          workspaceId: null,
+        recordScimAuditEntries({
           actorId: context.actorUserId,
-          action: entry.action,
-          resourceType: entry.resourceType,
-          resourceId: entry.resourceId,
-          resourceName: entry.resourceName,
-          metadata: { ...entry.metadata, organizationId: context.organizationId },
+          entries: [entry],
+          metadata: { organizationId: context.organizationId },
           request,
         })
       }

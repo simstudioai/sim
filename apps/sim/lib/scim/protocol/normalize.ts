@@ -70,12 +70,13 @@ export function normalizeAttributePath(path: string): string {
 }
 
 /**
- * Microsoft's classic Group schema marker, sent on `POST /Groups` by older
- * provisioning jobs alongside the core Group URN. It carries no attributes and
- * is never stored or returned.
+ * Microsoft's classic schema markers, sent by older provisioning jobs alongside
+ * the core URNs. They carry no attributes and are never stored or returned.
  */
 export const ENTRA_LEGACY_GROUP_SCHEMA =
   'http://schemas.microsoft.com/2006/11/ResourceManagement/ADSCIM/2.0/Group'
+const ENTRA_LEGACY_USER_SCHEMA =
+  'http://schemas.microsoft.com/2006/11/ResourceManagement/ADSCIM/2.0/User'
 
 /**
  * Restores canonical casing on top-level attribute names.
@@ -101,5 +102,7 @@ export function canonicalizeAttributeNames(
 
 /** Drops schema URNs that are provider markers rather than real extensions. */
 export function stripProviderSchemaMarkers(schemas: readonly string[]): string[] {
-  return schemas.filter((schema) => schema !== ENTRA_LEGACY_GROUP_SCHEMA)
+  return schemas.filter(
+    (schema) => schema !== ENTRA_LEGACY_GROUP_SCHEMA && schema !== ENTRA_LEGACY_USER_SCHEMA
+  )
 }

@@ -1,20 +1,18 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, type ScimUserAttributes } from '@sim/db/schema'
+import type { ScimUserAttributes } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx } from '@/lib/db/types'
+import { suspendMemberTx, unsuspendMemberTx } from '@/lib/organizations/members/lifecycle'
 import {
   invalidateAfterSessionRevocation,
   revokeUserSessionsTx,
-  suspendMemberTx,
-  unsuspendMemberTx,
-} from '@/lib/organizations/members/lifecycle'
+} from '@/lib/organizations/members/revocation'
+import type { ScimAuditEntry } from '@/lib/scim/application/audit'
 import {
   defineAuthorizedScimUseCase,
-  type ScimAuditEntry,
   type ScimUseCaseArgs,
   type ScimUseCaseContext,
 } from '@/lib/scim/application/authorized-scim-use-case'
@@ -148,20 +146,19 @@ async function loadUserForUpdate(
   })
   const current = await findScimUserById(tx, context.connection.id, scimUserId)
   if (!current) throw notFound('SCIM User not found')
-  /**
-   * A row can outlive the membership it describes when someone is removed by
-   * hand. Writing to that account would reach into whichever organization the
-   * person joined next, so the resource is reported gone instead.
-   */
-  const [membership] = await tx
-    .select({ id: member.id })
-    .from(member)
-    .where(
-      and(eq(member.organizationId, context.organizationId), eq(member.userId, current.userId))
-    )
-    .limit(1)
-  if (!membership) throw notFound('SCIM User not found')
   return current
+}
+
+/**
+ * Whether the account's address no longer matches what the directory asserts.
+ *
+ * The directory is the authority on a provisioned member's address. If the
+ * person changed it in Sim, the next directory write — even one that repeats
+ * the stored attributes — restores it, so what the directory sees and what the
+ * account uses cannot stay apart.
+ */
+function accountEmailDiverged(current: ScimUserRecord, next: ScimUserAttributes): boolean {
+  return normalizeEmail(primaryEmail(next)) !== normalizeEmail(current.email)
 }
 
 /** Rendered inside the write transaction, so a concurrent delete cannot make a committed update unreadable. */
@@ -247,9 +244,10 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
        * changes nothing must not write, audit, or re-project, or a 2,000-user
        * organization produces 2,000 spurious audit rows per sync.
        */
-      const outcome = userAttributesEqual(current.attributes, next)
-        ? null
-        : await applyUserUpdate(tx, context, current, next)
+      const outcome =
+        userAttributesEqual(current.attributes, next) && !accountEmailDiverged(current, next)
+          ? null
+          : await applyUserUpdate(tx, context, current, next)
       return {
         scimUserId: current.id,
         userId: current.userId,
@@ -286,7 +284,10 @@ export const patchScimUser = defineAuthorizedScimUseCase({
        * projection pass, and a `lastModified` bump for a request that meant
        * nothing.
        */
-      const outcome = changed ? await applyUserUpdate(tx, context, current, next) : null
+      const outcome =
+        changed || accountEmailDiverged(current, next)
+          ? await applyUserUpdate(tx, context, current, next)
+          : null
       return {
         scimUserId: current.id,
         userId: current.userId,

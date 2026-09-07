@@ -23,11 +23,13 @@ import { db } from '@sim/db'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   changeMemberRoleTx,
-  invalidateAfterSessionRevocation,
-  revokeUserSessionsTx,
   suspendMemberTx,
   unsuspendMemberTx,
 } from '@/lib/organizations/members/lifecycle'
+import {
+  invalidateAfterSessionRevocation,
+  revokeUserSessionsTx,
+} from '@/lib/organizations/members/revocation'
 
 afterAll(resetDbChainMock)
 

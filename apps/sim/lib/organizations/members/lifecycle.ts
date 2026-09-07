@@ -1,24 +1,17 @@
-import { apiKey, member, organization, session as sessionTable, user } from '@sim/db/schema'
+import { member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, ne, sql } from 'drizzle-orm'
-import {
-  invalidateMembershipCache,
-  invalidateSecurityPolicyVersionCache,
-} from '@/lib/auth/security-policy'
+import { and, eq, isNull } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
 
 const logger = createLogger('OrganizationMemberLifecycle')
 
 /**
  * Member lifecycle primitives shared by the settings UI and directory
- * provisioning.
- *
- * Before this module each of these lived inline in the route that needed it, and
- * two of them did not exist at all: removing a member left their sessions and
- * API keys working until the cookie cache lapsed. Directory deprovisioning made
- * that gap load-bearing, so the behavior is defined once here.
+ * provisioning: suspension, and role changes. Removal lives with the billing
+ * membership primitives; live-access revocation lives in `revocation.ts`.
  */
 
 /**
@@ -26,76 +19,6 @@ const logger = createLogger('OrganizationMemberLifecycle')
  * added later cannot have its suspensions undone by a directory sync.
  */
 export type SuspensionSource = 'scim'
-
-export interface RevokeSessionsResult {
-  revoked: number
-}
-
-/**
- * Deletes a user's sessions and forces cached session cookies in the
- * organization to re-read the database.
- *
- * Both halves commit together. Deleting sessions without bumping the version
- * would leave the signed cookie cache authenticating a deleted session for up
- * to five minutes, which is precisely the window a deprovisioning exists to
- * close.
- *
- * Impersonation sessions are spared: they are platform support tooling, not the
- * member's own access.
- */
-export async function revokeUserSessionsTx(
-  tx: DbOrTx,
-  params: { userId: string; organizationId: string; spareSessionToken?: string }
-): Promise<RevokeSessionsResult> {
-  const deleted = await tx
-    .delete(sessionTable)
-    .where(
-      and(
-        eq(sessionTable.userId, params.userId),
-        isNull(sessionTable.impersonatedBy),
-        ...(params.spareSessionToken ? [ne(sessionTable.token, params.spareSessionToken)] : [])
-      )
-    )
-    .returning({ id: sessionTable.id })
-
-  await tx
-    .update(organization)
-    .set({ securityPolicyVersion: sql`${organization.securityPolicyVersion} + 1` })
-    .where(eq(organization.id, params.organizationId))
-
-  return { revoked: deleted.length }
-}
-
-/**
- * Drops the caches that make a revocation visible to the next request.
- *
- * Separate from the transaction on purpose: an in-process cache cleared before
- * the commit lands would be repopulated with the pre-commit answer.
- */
-export function invalidateAfterSessionRevocation(params: {
-  userId: string
-  organizationId: string
-}): void {
-  invalidateSecurityPolicyVersionCache(params.organizationId)
-  invalidateMembershipCache(params.userId)
-}
-
-/**
- * Deletes a user's personal API keys.
- *
- * Workspace keys are left alone: they belong to the workspace and are shared, so
- * one person's departure must not break every automation using them.
- */
-export async function revokePersonalApiKeysTx(
-  tx: DbOrTx,
-  params: { userId: string }
-): Promise<{ revoked: number }> {
-  const deleted = await tx
-    .delete(apiKey)
-    .where(and(eq(apiKey.userId, params.userId), eq(apiKey.type, 'personal')))
-    .returning({ id: apiKey.id })
-  return { revoked: deleted.length }
-}
 
 export interface SuspendMemberResult {
   suspended: boolean

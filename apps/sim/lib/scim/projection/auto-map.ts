@@ -2,6 +2,7 @@ import { permissionGroup, scimGroupMapping } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 
 /**
  * Links a pushed directory group to a permission group of the same name.
@@ -64,6 +65,10 @@ export async function autoMapPermissionGroupByName(
   if (existing) return 'already-mapped'
 
   if (target.membershipMode !== 'explicit') {
+    /** The permission-group leaf lock precedes the row write, as every other writer of this row does. */
+    await acquirePermissionGroupOrgLock(tx, params.organizationId, {
+      lockTimeoutAlreadyBounded: true,
+    })
     await tx
       .update(permissionGroup)
       .set({ membershipMode: 'explicit', updatedAt: new Date() })

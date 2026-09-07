@@ -6,17 +6,17 @@ import { type ParsedRequest, parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import { isScimEnabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ScimConnectionAuthenticator } from '@/lib/scim/authenticate'
+import { scimBaseUrl } from '@/lib/scim/base-url'
 import {
   SCIM_ACCEPTED_MEDIA_TYPES,
-  SCIM_BASE_PATH,
   SCIM_MAX_BODY_BYTES,
   SCIM_MEDIA_TYPE,
   SCIM_RATE_LIMIT,
 } from '@/lib/scim/protocol/constants'
 import { ScimError, type ScimType, scimErrorBody, toScimError } from '@/lib/scim/protocol/errors'
+import type { ScimRequestLogEntry } from '@/lib/scim/request-log'
 
 const logger = createLogger('ScimRoute')
 const rateLimiter = new RateLimiter()
@@ -66,17 +66,6 @@ export interface ScimRouteDependencies {
   authenticate: ScimConnectionAuthenticator
   baseUrl(): string
   recordRequest(entry: ScimRequestLogEntry): void
-}
-
-export interface ScimRequestLogEntry {
-  principal: ScimConnectionPrincipal
-  method: string
-  path: string
-  status: number
-  scimType?: ScimType
-  detail?: string
-  userAgent: string | null
-  durationMs: number
 }
 
 function scimResponse(body: unknown, status: number, headers?: Record<string, string>): Response {
@@ -164,11 +153,11 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
         let detail: string | undefined
 
         try {
+          /** A deployment without the feature exposes no provisioning surface at all. */
+          if (!isScimEnabled) throw new ScimError(404, undefined, 'Not found')
           if (request.method !== options.contract.method) {
             throw new ScimError(405, undefined, `${request.method} is not supported here`)
           }
-          /** A deployment without the feature exposes no provisioning surface at all. */
-          if (!isScimEnabled) throw new ScimError(404, undefined, 'Not found')
           assertAcceptableMediaType(request)
 
           /**
@@ -310,7 +299,7 @@ export function defineScimDiscoveryRoute(
           })
         }
         const params = context?.params ? await context.params : {}
-        return scimResponse(build(`${getBaseUrl()}${SCIM_BASE_PATH}`, params), 200)
+        return scimResponse(build(scimBaseUrl(), params), 200)
       } catch (error) {
         return scimErrorResponse(toScimError(error))
       }

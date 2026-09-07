@@ -24,7 +24,7 @@ It pairs with [SSO](/platform/enterprise/sso). SSO proves who someone is when th
 | Updates their name or email | Updates the Sim account, and ends their sessions if the address changed |
 | Deactivates them | Blocks sign-in and stops their personal API keys. Everything they own, and every grant they hold, is left untouched; shared workspace keys keep working |
 | Reactivates them | Restores access exactly as it was |
-| Removes them from the app | Removes their organization membership and reassigns what they owned |
+| Removes them from the app | Removes their organization membership, ends their sessions, deletes their personal API keys, and reassigns what they owned |
 | Adds them to a group | Grants whatever that group maps to |
 
 Deactivation is reversible and never destructive. Someone on leave keeps their workflows, their credentials, and their workspace history; they simply cannot sign in.
@@ -131,7 +131,7 @@ A group can carry several mappings. When two groups grant the same workspace at 
 
 Sim records every grant it makes on your behalf. When someone leaves a group, only what the directory granted is taken back — access a workspace administrator granted by hand stays.
 
-The one exception is **managed membership locking**, which is on by default. With it on, the directory is the source of truth: Sim refuses invitations, role changes, and manual grants for provisioned members, because the next sync would revert them anyway. Turn it off if you want to layer manual access on top of directory access.
+The one exception is **managed membership locking**, which is on by default. With it on, the directory is the source of truth: Sim refuses invitations, workspace grants, and role changes for provisioned members, because the next sync would revert them anyway. Removals stay possible so an administrator can always act in an emergency. Turn it off if you want to layer manual access on top of directory access.
 
 ## Provisioning and SSO together
 
@@ -143,7 +143,7 @@ If you want the directory to be the only way in, enable **Disable just-in-time p
 
 **Settings → SSO → Directory provisioning → Activity** lists recent requests with their status and, for a failure, what was wrong. Providers report a failed cycle without saying what they sent, so this is usually the fastest way to see the cause.
 
-Sim also re-applies every group mapping on a schedule, so drift cannot persist. You can run it on demand with **Reconcile now**.
+Sim also re-applies every group mapping once an hour, so drift cannot persist. You can run it on demand with **Reconcile now**, which is also how a change to the connection settings reaches members before the next sync.
 
 ## Reference
 

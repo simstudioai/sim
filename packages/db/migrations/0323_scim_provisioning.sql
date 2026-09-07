@@ -69,6 +69,7 @@ CREATE TABLE "scim_projection_grant" (
 	"target_kind" text NOT NULL,
 	"target_id" text NOT NULL,
 	"permission_type" "permission_type",
+	"origin" text DEFAULT 'directory' NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -138,6 +139,8 @@ CREATE UNIQUE INDEX "scim_group_connection_display_name_unique" ON "scim_group" 
 CREATE UNIQUE INDEX "scim_group_connection_external_id_unique" ON "scim_group" USING btree ("connection_id","external_id") WHERE external_id is not null;--> statement-breakpoint
 CREATE INDEX "scim_group_connection_order_idx" ON "scim_group" USING btree ("connection_id","order_key");--> statement-breakpoint
 CREATE INDEX "scim_group_mapping_group_idx" ON "scim_group_mapping" USING btree ("group_id");--> statement-breakpoint
+CREATE INDEX "scim_group_mapping_permission_group_idx" ON "scim_group_mapping" USING btree ("permission_group_id");--> statement-breakpoint
+CREATE INDEX "scim_group_mapping_workspace_idx" ON "scim_group_mapping" USING btree ("workspace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "scim_group_mapping_group_target_unique" ON "scim_group_mapping" USING btree ("group_id","target_kind",coalesce("permission_group_id", "workspace_id", "role"));--> statement-breakpoint
 CREATE UNIQUE INDEX "scim_group_member_group_user_unique" ON "scim_group_member" USING btree ("group_id","scim_user_id");--> statement-breakpoint
 CREATE INDEX "scim_group_member_scim_user_idx" ON "scim_group_member" USING btree ("scim_user_id");--> statement-breakpoint
@@ -149,4 +152,5 @@ CREATE UNIQUE INDEX "scim_user_connection_user_name_unique" ON "scim_user" USING
 CREATE UNIQUE INDEX "scim_user_connection_external_id_unique" ON "scim_user" USING btree ("connection_id","external_id") WHERE external_id is not null;--> statement-breakpoint
 CREATE INDEX "scim_user_connection_order_idx" ON "scim_user" USING btree ("connection_id","order_key");--> statement-breakpoint
 CREATE INDEX "scim_user_user_idx" ON "scim_user" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "scim_user_tombstone_connection_external_id_unique" ON "scim_user_tombstone" USING btree ("connection_id","external_id");
+CREATE UNIQUE INDEX "scim_user_tombstone_connection_external_id_unique" ON "scim_user_tombstone" USING btree ("connection_id","external_id");--> statement-breakpoint
+CREATE INDEX "scim_user_tombstone_user_idx" ON "scim_user_tombstone" USING btree ("user_id");

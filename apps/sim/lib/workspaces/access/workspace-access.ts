@@ -115,7 +115,8 @@ export async function lowerWorkspaceAccessTx(
 }
 
 export type RevokeWorkspaceAccessResult =
-  | { revoked: true }
+  /** `ownershipTransferred` is true when the departing user owned the workspace and it moved to the billed account. */
+  | { revoked: true; ownershipTransferred: boolean }
   /** Workflows whose owner could not be reassigned; the access row is left in place. */
   | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkflows: string[] }
   /** The user owns the workspace and it has no billed account to hand it to. */
@@ -134,8 +135,9 @@ export async function revokeWorkspaceAccessTx(
   tx: DbOrTx,
   params: { workspaceId: string; userId: string }
 ): Promise<RevokeWorkspaceAccessResult> {
+  let ownershipTransferred: boolean
   try {
-    await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
+    ownershipTransferred = await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
       tx,
       workspaceId: params.workspaceId,
       departingUserId: params.userId,
@@ -174,7 +176,7 @@ export async function revokeWorkspaceAccessTx(
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)
 
-  return { revoked: true }
+  return { revoked: true, ownershipTransferred }
 }
 
 /** The permission a user currently holds on a workspace, if any. */

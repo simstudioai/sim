@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
 import {
-  member,
   type ScimConnectionSettings,
   scimGroupMapping,
   scimGroupMember,
@@ -25,6 +24,7 @@ import {
 import {
   type MappingRow,
   type ProjectionGrant,
+  type ProjectionGrantOrigin,
   type ProjectionTargetKind,
   planGrantChanges,
   resolveDesiredGrants,
@@ -91,12 +91,14 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
       targetKind: scimProjectionGrant.targetKind,
       targetId: scimProjectionGrant.targetId,
       permissionType: scimProjectionGrant.permissionType,
+      origin: scimProjectionGrant.origin,
     })
     .from(scimProjectionGrant)
     .where(eq(scimProjectionGrant.scimUserId, scimUserId))
   return rows.map((row) => ({
     targetKind: row.targetKind as ProjectionTargetKind,
     targetId: row.targetId,
+    origin: row.origin as ProjectionGrantOrigin,
     ...(row.permissionType ? { permissionType: row.permissionType } : {}),
   }))
 }
@@ -216,6 +218,10 @@ async function setOrganizationRole(
  * Withdraws one grant. Returns false when the grant must stay in place — the
  * access could not be handed on — so the provenance row survives and the next
  * pass retries instead of forgetting.
+ *
+ * Adopted access — held by hand before any mapping covered it — is the person's
+ * own, so the directory only forgets its record of it, unless the organization
+ * has made the directory the source of truth.
  */
 async function withdrawGrant(
   tx: DbOrTx,
@@ -228,6 +234,7 @@ async function withdrawGrant(
   }
 ): Promise<boolean> {
   const { grant } = params
+  if (grant.origin === 'adopted' && !params.lockManualMembership) return true
   switch (grant.targetKind) {
     case 'workspace': {
       /** The workspace belongs to another tenant now; its access is theirs to manage. Forget the grant. */
@@ -324,18 +331,6 @@ export async function reconcileUserProjection(
     organizationIds: [params.organizationId],
   })
 
-  /**
-   * Checked under the lock. A deprovisioning removes the membership and deletes
-   * the SCIM row in separate commits; a pass that lands between them must not
-   * grant workspace access to someone who has already left.
-   */
-  const [membership] = await tx
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.organizationId, params.organizationId), eq(member.userId, record.userId)))
-    .limit(1)
-  if (!membership) return EMPTY_DELTA
-
   const current = await currentGrants(tx, params.scimUserId)
   const mapped = resolveDesiredGrants(
     await loadMappingRows(tx, params.scimUserId),
@@ -421,13 +416,11 @@ export async function reconcileUserProjection(
     }
     if (applied === 'skipped') continue
     /**
-     * Access the person already held by hand is theirs, not the directory's.
-     * Recording it as a directory grant would let a later group change revoke a
-     * deliberate manual decision. Only when the organization has made the
-     * directory the source of truth does the directory take ownership of it.
+     * Every satisfied mapping is recorded, so the next pass plans nothing for
+     * it. Access the person already held by hand is recorded as adopted: the
+     * directory knows the mapping is met but does not own the access, and a
+     * later withdrawal leaves it alone.
      */
-    if (applied === 'unchanged' && !lockManualMembership && !previousPermission) continue
-
     await tx
       .insert(scimProjectionGrant)
       .values({
@@ -437,6 +430,7 @@ export async function reconcileUserProjection(
         targetKind: grant.targetKind,
         targetId: grant.targetId,
         permissionType: grant.permissionType ?? null,
+        origin: applied === 'applied' ? 'directory' : 'adopted',
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -446,9 +440,14 @@ export async function reconcileUserProjection(
           scimProjectionGrant.targetKind,
           scimProjectionGrant.targetId,
         ],
-        set: { permissionType: grant.permissionType ?? null, updatedAt: new Date() },
+        set: {
+          permissionType: grant.permissionType ?? null,
+          ...(applied === 'applied' ? { origin: 'directory' } : {}),
+          updatedAt: new Date(),
+        },
       })
 
+    if (applied !== 'applied') continue
     if (previousPermission) delta.raised.push(grant)
     else delta.added.push(grant)
   }

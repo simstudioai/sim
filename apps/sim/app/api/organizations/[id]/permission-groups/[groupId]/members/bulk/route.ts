@@ -10,15 +10,17 @@ import { bulkAddPermissionGroupMembersContract } from '@/lib/api/contracts/permi
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  findScopeConflicts,
+  type ScopeConflict,
+} from '@/lib/permission-groups/application/group-membership'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/constraints'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import {
   authorizeOrgAccessControl,
-  findScopeConflicts,
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
-  type ScopeConflict,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
 const logger = createLogger('OrganizationPermissionGroupBulkMembers')

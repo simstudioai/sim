@@ -19,7 +19,6 @@ export const POST = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
-    ...(body.scopes ? { scopes: body.scopes } : {}),
     ...(body.expiresInDays !== undefined ? { expiresInDays: body.expiresInDays } : {}),
   }),
   useCase: issueScimCredential,

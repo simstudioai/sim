@@ -110,8 +110,12 @@ function pgErrorCode(error: unknown): string | undefined {
   return typeof cause?.code === 'string' ? cause.code : undefined
 }
 
-function isLockTimeout(error: unknown): boolean {
-  return pgErrorCode(error) === PG_LOCK_NOT_AVAILABLE
+/** PostgreSQL's deadlock code: the loser was rolled back and should simply retry. */
+const PG_DEADLOCK_DETECTED = '40P01'
+
+function isLockContention(error: unknown): boolean {
+  const code = pgErrorCode(error)
+  return code === PG_LOCK_NOT_AVAILABLE || code === PG_DEADLOCK_DETECTED
 }
 
 /**
@@ -135,7 +139,7 @@ function isUniqueViolation(error: unknown): boolean {
 export function toScimError(error: unknown): ScimError {
   if (error instanceof ScimError) return error
 
-  if (isLockTimeout(error)) {
+  if (isLockContention(error)) {
     return new ScimError(503, undefined, 'The organization is busy; retry shortly', {
       'Retry-After': '5',
     })

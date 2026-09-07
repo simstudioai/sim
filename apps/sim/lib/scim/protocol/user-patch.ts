@@ -19,9 +19,10 @@ import {
  * worse than one that refuses, because the directory records a success and stops
  * retrying.
  *
- * The attribute table is closed. An unrecognized path is an error, never a
- * silent drop, so a provider mapping an attribute Sim does not store learns it
- * on the first sync.
+ * Attributes Sim models are applied to the fields it reads; every other
+ * attribute is kept under `extra`, exactly as a create or replace keeps it, so
+ * a directory's own attribute mappings round-trip through PATCH as well. Only
+ * server-owned attributes (`id`, `schemas`, `meta`) are refused.
  */
 
 export interface UserPatchOutcome {
@@ -250,8 +251,66 @@ function applyOperation(
 
     default:
       if (key.startsWith('meta')) throw mutability(`${rawPath} is read-only`)
-      throw invalidPath(`User PATCH path ${rawPath} is not supported`)
+      applyExtraOperation(user, op, path, value)
   }
+}
+
+/** `attr`, `attr.sub`, or `attr[type eq "x"].sub` on an attribute Sim does not model. */
+const EXTRA_PATH_PATTERN =
+  /^(?<attribute>[A-Za-z][\w-]*)(?:\[\s*type\s+eq\s+(?<quote>"|')?(?<type>[^"'\]]+)\k<quote>?\s*\])?(?:\.(?<sub>[A-Za-z][\w-]*))?$/
+
+/**
+ * Applies an operation to an attribute Sim does not model.
+ *
+ * A create or replace keeps every attribute the directory sends under `extra`
+ * so responses round-trip them; a patch must do the same, or Entra's default
+ * mappings — `title`, `preferredLanguage`, work phone and address — would fail
+ * every update as a whole, since a PATCH is atomic. The stored shape is the
+ * wire shape: a plain value, a nested object, or a typed multi-valued list.
+ */
+function applyExtraOperation(
+  user: ScimUserAttributes,
+  op: 'add' | 'replace' | 'remove',
+  path: string,
+  value: unknown
+): void {
+  const match = path.match(EXTRA_PATH_PATTERN)
+  if (!match?.groups) throw invalidPath(`User PATCH path ${path} is not supported`)
+  const { attribute, type, sub } = match.groups
+  user.extra ??= {}
+
+  if (!type && !sub) {
+    if (op === 'remove') user.extra[attribute] = undefined
+    else user.extra[attribute] = value
+    return
+  }
+
+  if (type) {
+    const list = Array.isArray(user.extra[attribute]) ? [...user.extra[attribute]] : []
+    const index = list.findIndex(
+      (entry) => isRecord(entry) && String(entry.type).toLowerCase() === type.toLowerCase()
+    )
+    if (op === 'remove') {
+      if (index !== -1) list.splice(index, 1)
+    } else if (sub) {
+      const current = index !== -1 && isRecord(list[index]) ? list[index] : { type }
+      const next = { ...current, [sub]: value }
+      if (index === -1) list.push(next)
+      else list[index] = next
+    } else if (isRecord(value)) {
+      if (index === -1) list.push({ type, ...value })
+      else list[index] = { ...(list[index] as Record<string, unknown>), ...value }
+    } else {
+      throw invalidValue(`${path} requires an object value`)
+    }
+    user.extra[attribute] = list
+    return
+  }
+
+  const current = isRecord(user.extra[attribute]) ? { ...user.extra[attribute] } : {}
+  if (op === 'remove') current[sub as string] = undefined
+  else current[sub as string] = value
+  user.extra[attribute] = current
 }
 
 /**

@@ -1,7 +1,6 @@
 import { createScimRouteBuilder } from '@/lib/api/server/routes/scim-route'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { authenticateScimRequest } from '@/lib/scim/authenticate'
-import { SCIM_BASE_PATH } from '@/lib/scim/protocol/constants'
+import { scimBaseUrl } from '@/lib/scim/base-url'
 import { recordScimRequest } from '@/lib/scim/request-log'
 
 /**
@@ -13,6 +12,6 @@ import { recordScimRequest } from '@/lib/scim/request-log'
  */
 export const defineScimRoute = createScimRouteBuilder({
   authenticate: authenticateScimRequest,
-  baseUrl: () => `${getBaseUrl()}${SCIM_BASE_PATH}`,
+  baseUrl: scimBaseUrl,
   recordRequest: recordScimRequest,
 })

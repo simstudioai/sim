@@ -8,6 +8,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   defineAuthorizedScimUseCase,
   type ScimUseCaseArgs,
+  type ScimUseCaseContext,
 } from '@/lib/scim/application/authorized-scim-use-case'
 import { scimOperations } from '@/lib/scim/application/operations'
 import { autoMapPermissionGroupByName } from '@/lib/scim/projection/auto-map'
@@ -27,9 +28,9 @@ import {
 } from '@/lib/scim/protocol/resources'
 import {
   addGroupMember,
-  assertConnectionOwnsUsers,
   countGroupMembers,
   deleteScimGroupRow,
+  filterOwnedUsers,
   findScimGroupById,
   insertScimGroup,
   loadGroupMemberIds,
@@ -42,6 +43,21 @@ import {
 } from '@/lib/scim/repository/groups'
 
 /** Reads and writes of the Group resource, and the projection each change triggers. */
+
+/**
+ * Every group write runs in one transaction under the organization lock, which
+ * heads the documented lock order, so two full-membership PATCHes cannot both
+ * compute from the same stale membership and keep members from both.
+ */
+function withGroupWrite<T>(
+  context: ScimUseCaseContext,
+  work: (tx: DbOrTx) => Promise<T>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, context.organizationId)
+    return work(tx)
+  })
+}
 
 async function assertDisplayNameAvailable(
   tx: DbOrTx,
@@ -164,25 +180,19 @@ export const createScimGroup = defineAuthorizedScimUseCase({
     context,
   }: ScimUseCaseArgs<CreateScimGroupInput>): Promise<ScimGroupWriteResult> {
     const { group } = input
-    return db.transaction(async (tx) => {
-      /**
-       * Group writes serialize on the organization lock, which also heads the
-       * documented lock order, so two full-membership PATCHes cannot both compute
-       * from the same stale membership and keep members from both.
-       */
-      await acquireOrganizationMutationLock(tx, context.organizationId)
+    return withGroupWrite(context, async (tx) => {
       await assertDisplayNameAvailable(tx, {
         connectionId: context.connection.id,
         displayName: group.displayName,
       })
-      await assertConnectionOwnsUsers(tx, context.connection.id, group.memberIds)
+      const memberIds = await filterOwnedUsers(tx, context.connection.id, group.memberIds)
 
       const created = await insertScimGroup(tx, {
         connectionId: context.connection.id,
         displayName: group.displayName,
         externalId: group.externalId,
       })
-      for (const scimUserId of group.memberIds) {
+      for (const scimUserId of memberIds) {
         await addGroupMember(tx, { groupId: created.id, scimUserId })
       }
       await assertMemberCount(tx, created.id)
@@ -198,7 +208,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
       await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,
-        scimUserIds: group.memberIds,
+        scimUserIds: memberIds,
         settings: context.connection.settings,
       })
 
@@ -207,7 +217,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
         groupId: created.id,
         displayName: created.displayName,
         resource: toGroupResource({ ...created, members }, context.baseUrl),
-        touchedUserIds: group.memberIds,
+        touchedUserIds: memberIds,
         renamed: true,
       }
     })
@@ -232,13 +242,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<ReplaceScimGroupInput>): Promise<ScimGroupWriteResult> {
-    return db.transaction(async (tx) => {
-      /**
-       * Group writes serialize on the organization lock, which also heads the
-       * documented lock order, so two full-membership PATCHes cannot both compute
-       * from the same stale membership and keep members from both.
-       */
-      await acquireOrganizationMutationLock(tx, context.organizationId)
+    return withGroupWrite(context, async (tx) => {
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
@@ -247,10 +251,10 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         displayName: input.group.displayName,
         exceptGroupId: current.id,
       })
-      await assertConnectionOwnsUsers(tx, context.connection.id, input.group.memberIds)
+      const memberIds = await filterOwnedUsers(tx, context.connection.id, input.group.memberIds)
 
       const before = await loadGroupMemberIds(tx, current.id)
-      const desired = new Set(input.group.memberIds)
+      const desired = new Set(memberIds)
       const touched = new Set<string>()
 
       const renamed = input.group.displayName !== current.displayName
@@ -334,13 +338,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
   }: ScimUseCaseArgs<PatchScimGroupInput>): Promise<PatchScimGroupResult> {
     const patch = parseGroupPatch(input.operations)
 
-    return db.transaction(async (tx) => {
-      /**
-       * Group writes serialize on the organization lock, which also heads the
-       * documented lock order, so two full-membership PATCHes cannot both compute
-       * from the same stale membership and keep members from both.
-       */
-      await acquireOrganizationMutationLock(tx, context.organizationId)
+    return withGroupWrite(context, async (tx) => {
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
@@ -348,8 +346,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
       let renamed = false
 
       const applyAdds = async (ids: string[]) => {
-        await assertConnectionOwnsUsers(tx, context.connection.id, ids)
-        for (const scimUserId of ids) {
+        for (const scimUserId of await filterOwnedUsers(tx, context.connection.id, ids)) {
           if (await addGroupMember(tx, { groupId: current.id, scimUserId })) touched.add(scimUserId)
         }
       }
@@ -450,13 +447,7 @@ export interface DeleteScimGroupInput {
 export const deleteScimGroup = defineAuthorizedScimUseCase({
   operation: scimOperations.deleteGroup,
   async execute({ input, context }: ScimUseCaseArgs<DeleteScimGroupInput>) {
-    return db.transaction(async (tx) => {
-      /**
-       * Group writes serialize on the organization lock, which also heads the
-       * documented lock order, so two full-membership PATCHes cannot both compute
-       * from the same stale membership and keep members from both.
-       */
-      await acquireOrganizationMutationLock(tx, context.organizationId)
+    return withGroupWrite(context, async (tx) => {
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 

@@ -9,10 +9,19 @@ import { permissionRank } from '@/lib/workspaces/access/workspace-access'
 
 export type ProjectionTargetKind = 'permission_group' | 'workspace' | 'org_role'
 
+/**
+ * How the directory came to hold a grant: it created the access, or it found the
+ * person already holding it by hand and adopted the record so the mapping is
+ * satisfied without re-applying it every pass.
+ */
+export type ProjectionGrantOrigin = 'directory' | 'adopted'
+
 export interface ProjectionGrant {
   targetKind: ProjectionTargetKind
   targetId: string
   permissionType?: PermissionType
+  /** Present on grants read back from provenance; a desired grant has no origin yet. */
+  origin?: ProjectionGrantOrigin
 }
 
 /** One `scim_group_mapping` row the user reaches through a group they belong to. */

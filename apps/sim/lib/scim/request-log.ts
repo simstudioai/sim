@@ -1,11 +1,12 @@
+import type { ScimConnectionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { scimRequestLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { sql } from 'drizzle-orm'
-import type { ScimRequestLogEntry } from '@/lib/api/server/routes/scim-route'
 import { SCIM_REQUEST_LOG_RETENTION } from '@/lib/scim/protocol/constants'
+import type { ScimType } from '@/lib/scim/protocol/errors'
 
 const logger = createLogger('ScimRequestLog')
 
@@ -17,6 +18,18 @@ const logger = createLogger('ScimRequestLog')
  * surfaces only the status. Fire-and-forget, because a logging failure must not
  * turn a successful provisioning call into an error the directory will retry.
  */
+/** One protocol request as the activity log records it. */
+export interface ScimRequestLogEntry {
+  principal: ScimConnectionPrincipal
+  method: string
+  path: string
+  status: number
+  scimType?: ScimType
+  detail?: string
+  userAgent: string | null
+  durationMs: number
+}
+
 export function recordScimRequest(entry: ScimRequestLogEntry): void {
   void db
     .insert(scimRequestLog)

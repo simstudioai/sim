@@ -33,8 +33,11 @@ const LEASE_TTL_MS = 15 * 60 * 1000
  */
 const RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 
-/** Users reconciled per transaction, so no single one holds locks for long. */
-const BATCH_SIZE = 200
+/**
+ * Users reconciled per transaction. The organization lock is held for the whole
+ * batch, so it is kept small enough that a tenant's own writes never wait long.
+ */
+const BATCH_SIZE = 25
 
 export interface ScimReconcileReport {
   connectionId: string

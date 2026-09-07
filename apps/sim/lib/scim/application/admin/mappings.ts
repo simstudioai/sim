@@ -11,8 +11,10 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, sql } from 'drizzle-orm'
 import type { ScimGroupMappingView } from '@/lib/api/contracts/organization-scim'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import {
   assertWorkspaceInOrganization,
   requireConnection,
@@ -182,6 +184,7 @@ async function assertPermissionGroupTarget(
    * from "these people" to "everyone in these workspaces".
    */
   if (target.membershipMode !== 'explicit') {
+    await acquirePermissionGroupOrgLock(tx, organizationId, { lockTimeoutAlreadyBounded: true })
     await tx
       .update(permissionGroup)
       .set({ membershipMode: 'explicit', updatedAt: new Date() })
@@ -231,6 +234,7 @@ export const upsertScimGroupMapping = defineAuthorizedScimAdminUseCase({
      */
     const targetId = values.permissionGroupId ?? values.workspaceId ?? values.role
     const mapping = await db.transaction(async (tx) => {
+      await acquireOrganizationMutationLock(tx, context.organizationId)
       if (input.targetKind === 'permission_group') {
         await assertPermissionGroupTarget(tx, context.organizationId, input.permissionGroupId)
       }
@@ -241,9 +245,14 @@ export const upsertScimGroupMapping = defineAuthorizedScimAdminUseCase({
         .returning(MAPPING_COLUMNS)
       if (inserted) return inserted
 
+      /** An administrator re-mapping a pair the directory matched by name takes ownership of it. */
       const [updated] = await tx
         .update(scimGroupMapping)
-        .set({ permissionType: values.permissionType })
+        .set({
+          permissionType: values.permissionType,
+          source: 'manual',
+          createdBy: context.actorUserId,
+        })
         .where(
           and(
             eq(scimGroupMapping.groupId, group.id),
