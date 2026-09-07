@@ -51,6 +51,63 @@ const execute = (operation: OciLoggingOperation, input: unknown, signal?: AbortS
 describe('OCI Logging provider operations', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('accepts absent custom-log configuration and system tags in lists and details', async () => {
+    const wireLog = { ...log, configuration: null, systemTags: null }
+    respond([wireLog])
+    expect(await execute('list_logs', { logGroupId: 'group' })).toMatchObject({
+      logs: [{ ...log, configuration: undefined, systemTags: undefined }],
+    })
+    respond(wireLog)
+    expect(await execute('get_log', { logGroupId: 'group', logId: 'log' })).toMatchObject({
+      log: { ...log, configuration: undefined, systemTags: undefined },
+    })
+    respond({ ...wireLog, systemTags: [] })
+    await expect(execute('get_log', { logGroupId: 'group', logId: 'log' })).rejects.toBeInstanceOf(
+      OciLoggingResponseError
+    )
+  })
+
+  it.each([false, true])(
+    'projects nullable search metadata for field-info mode %s',
+    async (isReturnFieldInfo) => {
+      const results = [{ data: { message: 'synthetic', absentValue: null } }]
+      const fields = [{ fieldName: 'message', fieldType: 'STRING' }]
+      respond(
+        {
+          results: isReturnFieldInfo ? null : results,
+          fields: isReturnFieldInfo ? fields : null,
+          summary: {
+            resultCount: isReturnFieldInfo ? null : 1,
+            fieldCount: isReturnFieldInfo ? 1 : null,
+          },
+        },
+        200,
+        { 'opc-next-page': 'opaque-cursor' }
+      )
+      const output = await execute('search_logs', { ...search, isReturnFieldInfo })
+      expect(output).toEqual({
+        results: isReturnFieldInfo ? [] : results,
+        fields: isReturnFieldInfo ? fields : [],
+        summary: {
+          resultCount: isReturnFieldInfo ? undefined : 1,
+          fieldCount: isReturnFieldInfo ? 1 : undefined,
+        },
+        nextPage: 'opaque-cursor',
+        opcRequestId: 'oracle-request',
+      })
+      expect(request).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each([
+    { fields: 'bad', summary: {} },
+    { results: {}, summary: {} },
+    { results: [], summary: { resultCount: '1' } },
+  ])('keeps rejecting malformed non-null search responses: %j', async (wire) => {
+    respond(wire)
+    await expect(execute('search_logs', search)).rejects.toBeInstanceOf(OciLoggingResponseError)
+  })
+
   it.each([
     [
       'list_log_groups',

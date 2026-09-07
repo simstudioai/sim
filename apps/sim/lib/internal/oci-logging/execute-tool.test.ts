@@ -17,6 +17,7 @@ import {
   OCI_LOGGING_MANAGEMENT_POLICY,
 } from '@/lib/internal/oci-logging/operations'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciLoggingBlock } from '@/blocks/blocks/oci_logging'
 
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -46,6 +47,26 @@ describe('OCI Logging tool authorization and execution', () => {
       body: new TextEncoder().encode('[]'),
     })
   })
+
+  it.each([null, ''])(
+    'omits blank workflow filters after merging the block patch: %s',
+    async (blank) => {
+      const inputs = {
+        operation: 'oci_logging_list_log_groups',
+        ociCredential: 'supplied',
+        compartmentId: 'compartment',
+        displayName: blank,
+        page: blank,
+        sortBy: blank,
+        sortOrder: blank,
+      }
+      const transformed = OciLoggingBlock.tools.config!.params!(inputs)
+      const response = await executeOciLoggingTool(call({ input: { ...inputs, ...transformed } }))
+      expect(response.status).toBe(200)
+      expect(mocks.request).toHaveBeenCalledTimes(1)
+      expect(mocks.request.mock.calls[0][0].queryPairs).toEqual([['compartmentId', 'compartment']])
+    }
+  )
 
   it('binds the authorized resolved ID and trusted scope before provider work', async () => {
     const response = await executeOciLoggingTool(

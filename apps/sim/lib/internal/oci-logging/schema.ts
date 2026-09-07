@@ -171,7 +171,8 @@ const resourceFields = {
   ...tags,
   systemTags: z
     .record(z.string(), z.record(z.string(), z.union([z.string(), z.number().int(), z.boolean()])))
-    .optional(),
+    .nullish()
+    .transform((value) => value ?? undefined),
   timeCreated: timestamp.optional(),
   timeLastModified: timestamp.optional(),
 }
@@ -191,7 +192,7 @@ export const logSchema = z.object({
   lifecycleState: lifecycle,
   compartmentId: id.optional(),
   tenancyId: id.optional(),
-  configuration: configuration.optional(),
+  configuration: configuration.nullish().transform((value) => value ?? undefined),
   isEnabled: z.boolean().optional(),
   retentionDuration: z.number().int().optional(),
   ...resourceFields,
@@ -243,8 +244,8 @@ export const workRequestErrorSchema = z.object({ code: z.string(), message: z.st
 export const searchResponseSchema = z.object({
   results: z
     .array(z.object({ data: z.record(z.string(), z.unknown()) }))
-    .optional()
-    .default([]),
+    .nullish()
+    .transform((value) => value ?? []),
   fields: z
     .array(
       z.object({
@@ -252,10 +253,18 @@ export const searchResponseSchema = z.object({
         fieldType: z.enum(['STRING', 'NUMBER', 'BOOLEAN', 'ARRAY']),
       })
     )
-    .optional()
-    .default([]),
+    .nullish()
+    .transform((value) => value ?? []),
   summary: z.object({
-    resultCount: z.number().int().optional(),
-    fieldCount: z.number().int().optional(),
+    resultCount: z
+      .number()
+      .int()
+      .nullish()
+      .transform((value) => value ?? undefined),
+    fieldCount: z
+      .number()
+      .int()
+      .nullish()
+      .transform((value) => value ?? undefined),
   }),
 })

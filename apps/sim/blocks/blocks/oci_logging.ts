@@ -977,7 +977,7 @@ export const OciLoggingBlock: BlockConfig = {
           'name',
           'logSavedSearchId',
         ]) {
-          if (params[key] === '') result[key] = undefined
+          if (params[key] === '' || params[key] == null) result[key] = undefined
         }
         return result
       },
