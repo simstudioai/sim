@@ -929,6 +929,71 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       expect(fixture.requests).toEqual([])
     })
 
+    it.each(['success', 'error', 'cancelled'] as const)(
+      'persists one %s answer after steering and deduplicates a later finalization',
+      async (status) => {
+        const chatId = generateId()
+        const streamId = generateId()
+        await db
+          .insert(copilotChats)
+          .values({ id: chatId, userId: 'run-reader', workspaceId, conversationId: streamId })
+        const message = (id: string, content: string) => ({
+          id,
+          role: 'user' as const,
+          content,
+          timestamp: new Date().toISOString(),
+        })
+        await appendCopilotChatMessages(
+          chatId,
+          [
+            message(streamId, 'Initial instruction'),
+            message(generateId(), 'Apply this correction'),
+          ],
+          { streamId }
+        )
+        const assistantMessage = buildPersistedAssistantMessage({
+          success: status === 'success',
+          content: 'Answer with the correction',
+          contentBlocks: [],
+          toolCalls: [],
+          ...(status === 'error' ? { error: 'Interrupted' } : {}),
+          ...(status === 'cancelled' ? { cancelled: true } : {}),
+        })
+        const finishes = await Promise.all(
+          Array.from({ length: 3 }, () =>
+            finalizeAssistantTurn({
+              chatId,
+              userMessageId: streamId,
+              assistantMessage,
+              streamMarkerPolicy: 'active-or-cleared',
+            })
+          )
+        )
+        expect(finishes.filter((result) => result.appendedAssistant)).toHaveLength(1)
+        const saved = await loadCopilotChatMessages(chatId)
+        expect(saved.map((item) => item.role)).toEqual(['user', 'user', 'assistant'])
+        expect(saved[2].content).toBe('Answer with the correction')
+        await appendCopilotChatMessages(
+          chatId,
+          [message(generateId(), 'Delayed accepted steering')],
+          { streamId }
+        )
+        expect(
+          (
+            await finalizeAssistantTurn({
+              chatId,
+              userMessageId: streamId,
+              assistantMessage: { ...assistantMessage, id: generateId() },
+              streamMarkerPolicy: 'active-or-cleared',
+            })
+          ).appendedAssistant
+        ).toBe(false)
+        expect(
+          (await loadCopilotChatMessages(chatId)).filter((item) => item.role === 'assistant')
+        ).toHaveLength(1)
+      }
+    )
+
     it('fences an old controller out of physical assistant persistence and run completion after takeover', async () => {
       const chatId = generateId()
       const streamId = generateId()
