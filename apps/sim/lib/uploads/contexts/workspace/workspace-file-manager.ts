@@ -44,6 +44,11 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import {
+  CollabDocStateConflictError,
+  type PreparedCollabDocState,
+  saveCollabDocStateInTx,
+} from '@/lib/collab-doc/collab-state'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
@@ -1770,12 +1775,14 @@ export async function updateWorkspaceFileContent(
     syncLiveDoc?: boolean
     /**
      * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
-     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * if the file's `contentUpdatedAt` still equals this value — no content write intervened; otherwise it
      * throws {@link ContentVersionConflictError} without clobbering. Checked against the
      * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
      * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
      */
     expectedUpdatedAt?: Date
+    /** Commit with the markdown projection; requires the expected content version. */
+    collabDocState?: PreparedCollabDocState
     /**
      * Derived edits must explicitly preserve; trusted whole replacements must explicitly replace.
      * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
@@ -1783,6 +1790,9 @@ export async function updateWorkspaceFileContent(
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
 ): Promise<WorkspaceFileRecord> {
+  if (options?.collabDocState && !options.expectedUpdatedAt) {
+    throw new Error('Collaborative state updates require an expected content version')
+  }
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
@@ -1853,6 +1863,10 @@ export async function updateWorkspaceFileContent(
           currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
         ) {
           throw new ContentVersionConflictError(fileId)
+        }
+
+        if (options?.collabDocState) {
+          await saveCollabDocStateInTx(tx, fileId, options.collabDocState)
         }
 
         const sizeDiff = content.length - getWorkspaceFileSize(currentFile)
@@ -2013,7 +2027,12 @@ export async function updateWorkspaceFileContent(
     // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
     // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
     // by the inner finalization catch before it propagated here.
-    if (error instanceof ContentVersionConflictError) throw error
+    if (
+      error instanceof ContentVersionConflictError ||
+      error instanceof CollabDocStateConflictError
+    ) {
+      throw error
+    }
     // Same reasoning for an already-classified failure: a missing file and a blown storage quota are
     // caller-fixable outcomes that every surface maps to 404/413 by class. Re-wrapping them in a bare
     // Error stripped that classification and turned both into a 500.
