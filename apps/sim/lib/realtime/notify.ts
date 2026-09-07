@@ -200,6 +200,7 @@ export async function applyEditToLiveFileDoc(
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   if (!response.ok) {
+    await response.body?.cancel().catch(() => {})
     throw new Error(`Live document reconciliation failed with status ${response.status}`)
   }
 
@@ -235,6 +236,7 @@ export async function invalidateLiveFileDoc(
     body: JSON.stringify({ fileId, version }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
+  await response.body?.cancel().catch(() => {})
   if (!response.ok) {
     throw new Error(`Live document invalidation failed with status ${response.status}`)
   }

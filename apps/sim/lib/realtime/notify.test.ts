@@ -41,11 +41,16 @@ describe('applyEditToLiveFileDoc', () => {
   })
 
   it('surfaces retryable delivery failures to durable outbox callers', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
+    const cancel = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status: 503 }))
+    )
 
     await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).rejects.toThrow(
       'status 503'
     )
+    expect(cancel).toHaveBeenCalledOnce()
   })
 
   it('returns the relay reconciliation status to durable outbox callers', async () => {
@@ -67,6 +72,33 @@ describe('applyEditToLiveFileDoc', () => {
 describe('invalidateLiveFileDoc', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it.each([200, 503])('cancels unread response bodies for status %i', async (status) => {
+    const cancel = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status }))
+    )
+
+    const result = invalidateLiveFileDoc('file-1', 42)
+    if (status === 200) {
+      await expect(result).resolves.toBeUndefined()
+    } else {
+      await expect(result).rejects.toThrow('status 503')
+    }
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the HTTP failure when response-body cancellation fails', async () => {
+    const cancel = vi.fn().mockRejectedValue(new Error('body already errored'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status: 503 }))
+    )
+
+    await expect(invalidateLiveFileDoc('file-1', 42)).rejects.toThrow('status 503')
+    expect(cancel).toHaveBeenCalledOnce()
   })
 
   it('POSTs a durability-sensitive invalidation and surfaces delivery failures', async () => {

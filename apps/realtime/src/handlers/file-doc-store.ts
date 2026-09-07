@@ -245,9 +245,10 @@ function generationOfSeed(update: Uint8Array): string {
   try {
     Y.applyUpdate(doc, update)
     const docId = doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
-    return typeof docId === 'string'
-      ? docId
-      : `seed:${createHash('sha256').update(update).digest('hex')}`
+    if (typeof docId !== 'string' || docId.length === 0) {
+      throw new Error('File document seed is missing its accepted document identity')
+    }
+    return docId
   } finally {
     doc.destroy()
   }
@@ -623,6 +624,8 @@ export class FileDocStore {
    * true (single-replica: seed locally, no stream).
    */
   async seedIfEmpty(name: string, update: Uint8Array, version = 0): Promise<boolean> {
+    assertUpdateWithinLimit(update)
+    const generation = generationOfSeed(update)
     if (!this.enabled) {
       const invalidation = this.localInvalidations.get(name)
       if (invalidation && invalidation.expiresAt > Date.now() && invalidation.version > version)
@@ -632,9 +635,7 @@ export class FileDocStore {
       return true
     }
     if (!this.write) throw new Error('FileDocStore is not initialized')
-    assertUpdateWithinLimit(update)
     const encoded = Buffer.from(update).toString('base64')
-    const generation = generationOfSeed(update)
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         const wrote = await this.write.eval(SEED_IF_EMPTY_SCRIPT, {

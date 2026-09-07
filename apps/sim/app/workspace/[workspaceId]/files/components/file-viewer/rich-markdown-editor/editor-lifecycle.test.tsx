@@ -8,6 +8,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
+import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
@@ -38,10 +39,6 @@ vi.mock('@/app/workspace/[workspaceId]/components', () => ({ FindBar: () => null
 vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content',
   () => ({ useEditableFileContent: vi.fn() })
-)
-vi.mock(
-  '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge',
-  () => ({ useSelectionCopyBridge: vi.fn() })
 )
 vi.mock('@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor', () => ({
   TextEditor: () => null,
@@ -230,6 +227,88 @@ afterEach(async () => {
 })
 
 describe('loaded rich editor lifecycle', () => {
+  it.each(['connecting', 'timeout', 'fatal'] as const)(
+    'copies selection context from the visible %s preview and switches to the live editor on sync',
+    async (status) => {
+      const provider = new FakeFileDocProvider()
+      const doc = new Y.Doc()
+      collaborationRef.current = {
+        doc,
+        awareness: new Awareness(doc),
+        provider,
+        user: { name: 'User', color: '#000000', clientId: doc.clientID },
+      }
+      await render('stored preview body', 'stored preview body', true, { collaborative: true })
+      if (status !== 'connecting') {
+        await act(async () =>
+          provider.fail({
+            fileId: FILE.id,
+            error: status,
+            code: status === 'timeout' ? 'READINESS_TIMEOUT' : 'ACCESS_DENIED',
+            retryable: status === 'timeout',
+          })
+        )
+      }
+
+      const preview = getEditor()
+      expect(preview.view.dom.getAttribute('aria-label')).toBe('Document preview')
+      expect(preview.isEditable).toBe(false)
+      const hiddenEditor = container.querySelector<HTMLElement & { editor: Editor }>(
+        '.hidden .tiptap'
+      )!.editor
+      await act(async () => {
+        hiddenEditor.commands.setContent('<p>stale hidden selection</p>')
+        hiddenEditor.commands.setTextSelection({ from: 1, to: 6 })
+        preview.commands.setTextSelection({ from: 1, to: 7 })
+      })
+
+      const copy = (editor: Editor) => {
+        const written: Record<string, string> = {}
+        const event = new Event('copy', { bubbles: true, cancelable: true })
+        Object.defineProperty(event, 'clipboardData', {
+          value: {
+            clearData: () => {
+              for (const key of Object.keys(written)) delete written[key]
+            },
+            setData: (type: string, value: string) => {
+              written[type] = value
+            },
+          },
+        })
+        editor.view.dom.dispatchEvent(event)
+        return written
+      }
+      const previewCopy = copy(preview)
+      expect(previewCopy['text/plain']).toBe('stored')
+      expect(previewCopy[SIM_SELECTION_MIME]).toBeDefined()
+      expect(JSON.parse(previewCopy[SIM_SELECTION_MIME])).toMatchObject({
+        sourceWorkspaceId: FILE.workspaceId,
+        context: { kind: 'file_selection', fileId: FILE.id, fileName: FILE.name, text: 'stored' },
+      })
+      expect(doc.getXmlFragment('default').length).toBe(0)
+      await act(async () => preview.commands.setTextSelection(1))
+      expect(copy(preview)[SIM_SELECTION_MIME]).toBeUndefined()
+
+      await act(async () => {
+        provider.joinError = null
+        doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+        provider.setSynced(true)
+      })
+      const editor = getEditor()
+      expect(editor).not.toBe(preview)
+      expect(container.querySelector('[aria-label="Document preview"]')).toBeNull()
+      await act(async () => {
+        editor.commands.setContent('<p>live content</p>')
+        editor.commands.setTextSelection({ from: 1, to: 5 })
+      })
+      const liveCopy = copy(editor)
+      expect(liveCopy['text/plain']).toBe('live')
+      expect(JSON.parse(liveCopy[SIM_SELECTION_MIME])).toMatchObject({
+        context: { fileId: FILE.id, text: 'live' },
+      })
+    }
+  )
+
   it('pauses editing while reconnecting and resumes after the document resyncs', async () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()

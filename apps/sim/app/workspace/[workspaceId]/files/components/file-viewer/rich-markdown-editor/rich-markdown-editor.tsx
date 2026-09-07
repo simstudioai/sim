@@ -111,6 +111,25 @@ function warnRichMarkdownPasteLimit(reason?: 'paste' | 'formatting') {
 const EDITOR_SURFACE_CLASS =
   'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
 
+/** ProseMirror block positions do not correspond to markdown source line numbers. */
+function buildEditorSelectionContext(
+  editor: Editor | null,
+  file: Pick<WorkspaceFileRecord, 'id' | 'name'>
+): ChatContext | null {
+  if (!editor) return null
+  const { from, to } = editor.state.selection
+  if (from === to) return null
+  const text = editor.state.doc.textBetween(from, to, '\n')
+  if (!text.trim()) return null
+  return {
+    kind: 'file_selection',
+    fileId: file.id,
+    fileName: file.name,
+    label: buildFileSelectionLabel(file.name),
+    text: truncateSelectionText(text),
+  }
+}
+
 /**
  * Read-only editor that renders the already-fetched markdown while a collaborative doc waits for its
  * server seed, so the pane shows content instantly instead of blocking blank on the socket round-trip
@@ -124,9 +143,12 @@ const EDITOR_SURFACE_CLASS =
  */
 interface ReadOnlyPlaceholderProps {
   content: JSONContent
+  file: WorkspaceFileRecord
+  workspaceId: string
 }
 
-function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
+function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholderProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: false,
@@ -146,7 +168,12 @@ function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
       },
     },
   })
-  return <EditorContent editor={editor} className={EDITOR_SURFACE_CLASS} />
+  const buildSelectionContext = useCallback(
+    () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }),
+    [editor, file.id, file.name]
+  )
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
+  return <EditorContent ref={containerRef} editor={editor} className={EDITOR_SURFACE_CLASS} />
 }
 
 interface RichMarkdownEditorProps {
@@ -1256,34 +1283,15 @@ export function LoadedRichMarkdownEditor({
   )
 
   const addToChat = useAddToChat()
-  /**
-   * No line range: this editor renders a ProseMirror document, whose block
-   * boundaries do not correspond to markdown source lines (blank lines between
-   * paragraphs, list markers, heading prefixes and fenced blocks all shift the
-   * real line). Reporting a derived count would label the chip — and prompt the
-   * agent — with line numbers that don't exist in the file.
-   */
-  const buildSelectionContext = useCallback((): ChatContext | null => {
-    if (!editor) return null
-    const { from, to } = editor.state.selection
-    if (from === to) return null
-    const text = editor.state.doc.textBetween(from, to, '\n')
-    if (!text.trim()) return null
-    return {
-      kind: 'file_selection',
-      fileId: file.id,
-      fileName: file.name,
-      label: buildFileSelectionLabel(file.name),
-      text: truncateSelectionText(text),
-    }
-  }, [editor, file.id, file.name])
+  const buildSelectionContext = useCallback(
+    () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }),
+    [editor, file.id, file.name]
+  )
 
   const handleAddSelectionToChat = () => {
     const context = buildSelectionContext()
     if (context) addToChat(context)
   }
-
-  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
 
   /** Stored content belongs to a separate preview, never to an unseeded collaborative document. */
   const showPlaceholder =
@@ -1294,6 +1302,8 @@ export function LoadedRichMarkdownEditor({
   const showReconnecting = collaborationEnabled && collabStatus === 'reconnecting'
   const collabFailure = collaboration?.provider?.joinError ?? null
   const showCollabFailure = collaborationEnabled && collabStatus === 'fatal' ? collabFailure : null
+
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId, !showPlaceholder)
 
   /**
    * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
@@ -1416,7 +1426,7 @@ export function LoadedRichMarkdownEditor({
           }}
         />
         {showPlaceholder && placeholderContent && (
-          <ReadOnlyPlaceholder content={placeholderContent} />
+          <ReadOnlyPlaceholder content={placeholderContent} file={file} workspaceId={workspaceId} />
         )}
         <EditorContent
           editor={editor}

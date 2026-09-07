@@ -4,7 +4,10 @@
 import { Editor } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import {
+  parseMarkdownToDoc,
+  serializeMarkdownDocument,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 
@@ -255,12 +258,29 @@ describe('isRoundTripSafe', () => {
     '| header |\n| --- |\n| <img src="/image.png"> |',
     '| header |\n| --- |\n| <IMG src="/image.png"> |',
     '| header |\n| --- |\n| [<img src="/image.png">](/dest) |',
+    '| header |\n| --- |\n| <img title="a>b" src="/image.png"> |',
+    "| header |\n| --- |\n| <img title='a>b' src=/image.png> |",
+    '| header |\n| --- |\n| <img alt="example `code`" src=/image.png /> |',
+    '| header |\n| --- |\n| <!-- <img src="/example.png"> --><img src="/image.png"> |',
   ])('refuses unsupported HTML images inside GFM tables: %s', (source) => {
     expect(isRoundTripSafe(source)).toBe(false)
   })
 
   it('allows literal HTML image examples in table code spans', () => {
     expect(isRoundTripSafe('| header |\n| --- |\n| `<img src="/image.png">` |')).toBe(true)
+  })
+
+  it.each([
+    '<!-- example: <img src="/image.png"> -->',
+    '<!-- example: <IMG title="a>b" src=/image.png class="hero"> -->',
+    '<span title="example <img>">text</span>',
+  ])('preserves literal image markup in table comments and attributes: %s', (cell) => {
+    for (const source of [`| ${cell} |\n| --- |\n| body |`, `| header |\n| --- |\n| ${cell} |`]) {
+      const serialized = serializeMarkdownDocument(source)
+      expect(serialized).toContain(cell)
+      expect(serializeMarkdownDocument(serialized)).toBe(serialized)
+      expect(isRoundTripSafe(source)).toBe(true)
+    }
   })
 
   it('does not flag a fenced block that merely contains html or backticks', () => {

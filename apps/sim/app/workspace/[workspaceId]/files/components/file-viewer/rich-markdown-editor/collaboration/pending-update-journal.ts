@@ -82,6 +82,19 @@ function sameUpdate(left: Uint8Array | null, right: Uint8Array | null): boolean 
   return left.every((byte, index) => byte === right[index])
 }
 
+function validateRecovery({
+  pendingUpdate,
+  recoverySnapshot,
+}: Pick<PendingDocumentRecovery, 'pendingUpdate' | 'recoverySnapshot'>): void {
+  const validationDoc = new Y.Doc()
+  try {
+    if (recoverySnapshot) Y.applyUpdate(validationDoc, recoverySnapshot)
+    Y.applyUpdate(validationDoc, pendingUpdate)
+  } finally {
+    validationDoc.destroy()
+  }
+}
+
 /**
  * A bounded crash-recovery journal for user edits the relay has not acknowledged. One atomic
  * file-scoped envelope retains up to three recent Yjs document identities, so rebuilding a live
@@ -115,17 +128,13 @@ export class PendingFileDocUpdateJournal {
         ? (documents.find((document) => document.docId === preferredDocId) ?? null)
         : (documents[0] ?? null)
       if (!recovered) return null
-      const validationDoc = new Y.Doc()
       try {
-        if (recovered.recoverySnapshot) Y.applyUpdate(validationDoc, recovered.recoverySnapshot)
-        Y.applyUpdate(validationDoc, recovered.pendingUpdate)
+        validateRecovery(recovered)
         return recovered
       } catch (error) {
         logger.warn('Isolating malformed pending file edits', { error })
         await this.quarantine(recovered)
         return null
-      } finally {
-        validationDoc.destroy()
       }
     } catch (error) {
       logger.warn('Failed to load pending file edits', { error })
@@ -154,14 +163,31 @@ export class PendingFileDocUpdateJournal {
           const existing = documents.find(
             (document) => document.docId === docId && !document.quarantined
           )
-          const merged = existing
-            ? Y.mergeUpdates([existing.pendingUpdate, pendingUpdate])
-            : pendingUpdate
-          if (merged.byteLength > FILE_DOC_LIMITS.updateBytes) return record(documents)
-
-          const mergedSnapshot = existing?.recoverySnapshot
-            ? Y.mergeUpdates([existing.recoverySnapshot, recoverySnapshot])
-            : recoverySnapshot
+          let merged = pendingUpdate
+          let mergedSnapshot = recoverySnapshot
+          if (existing) {
+            try {
+              merged = Y.mergeUpdates([existing.pendingUpdate, pendingUpdate])
+              if (merged.byteLength > FILE_DOC_LIMITS.updateBytes) return record(documents)
+              if (existing.recoverySnapshot) {
+                mergedSnapshot = Y.mergeUpdates([existing.recoverySnapshot, recoverySnapshot])
+              }
+            } catch (error) {
+              let existingIsValid = true
+              try {
+                validateRecovery(existing)
+              } catch {
+                existingIsValid = false
+              }
+              if (existingIsValid) throw error
+              validateRecovery({ pendingUpdate, recoverySnapshot })
+              logger.warn('Isolating malformed pending file edits during save', { error })
+              documents.splice(documents.indexOf(existing), 1)
+              documents.push({ ...existing, quarantined: true })
+              merged = pendingUpdate
+              mergedSnapshot = recoverySnapshot
+            }
+          }
           if (mergedSnapshot.byteLength > RECOVERY_SNAPSHOT_MAX_BYTES) return record(documents)
 
           const next: PendingDocumentRecovery = {

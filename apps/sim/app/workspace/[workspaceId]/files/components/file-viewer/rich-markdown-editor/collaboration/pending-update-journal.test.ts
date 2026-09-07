@@ -15,7 +15,10 @@ vi.mock('idb-keyval', () => ({
   }),
 }))
 
-import { PendingFileDocUpdateJournal } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/pending-update-journal'
+import {
+  type PendingDocumentRecovery,
+  PendingFileDocUpdateJournal,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/pending-update-journal'
 
 function journal(): PendingFileDocUpdateJournal {
   return new PendingFileDocUpdateJournal({
@@ -127,6 +130,113 @@ describe('PendingFileDocUpdateJournal', () => {
 
     await expect(subject.load()).resolves.toBeNull()
     expect([...storage.values()]).toEqual(before)
+  })
+
+  it.each(['pendingUpdate', 'recoverySnapshot'] as const)(
+    'saves new edits before loading a malformed existing %s without deleting the original',
+    async (field) => {
+      vi.useFakeTimers()
+      const restored = new Y.Doc()
+      try {
+        const subject = journal()
+        const valid = updateWith('recoverable original half')
+        const invalid = new Uint8Array([255])
+        await subject.save(
+          'doc-1',
+          field === 'pendingUpdate' ? invalid : valid,
+          field === 'recoverySnapshot' ? invalid : valid
+        )
+        const original = (
+          structuredClone([...storage.values()][0]) as { documents: PendingDocumentRecovery[] }
+        ).documents[0]
+        await vi.advanceTimersByTimeAsync(1_000)
+        const current = updateWith('current edits')
+
+        await expect(subject.save('doc-1', current, current)).resolves.toEqual({
+          status: 'saved',
+          pendingUpdate: current,
+        })
+        await expect(journal().load('doc-1')).resolves.toMatchObject({ pendingUpdate: current })
+        expect([...storage.values()]).toEqual([
+          expect.objectContaining({
+            documents: [
+              expect.objectContaining({ pendingUpdate: current }),
+              { ...original, quarantined: true },
+            ],
+          }),
+        ])
+
+        const peer = journal()
+        const later = updateWith('later peer edits')
+        const combined = await peer.save('doc-1', later, later)
+        expect(combined.status).toBe('saved')
+        const recovery = await subject.load('doc-1')
+        Y.applyUpdate(restored, recovery!.recoverySnapshot!)
+        Y.applyUpdate(restored, recovery!.pendingUpdate)
+        expect(restored.getText('body').toString()).toContain('current edits')
+        expect(restored.getText('body').toString()).toContain('later peer edits')
+
+        await peer.clear('doc-1', combined.pendingUpdate)
+        await expect(subject.load('doc-1')).resolves.toBeNull()
+        expect([...storage.values()]).toEqual([
+          expect.objectContaining({ documents: [{ ...original, quarantined: true }] }),
+        ])
+      } finally {
+        restored.destroy()
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['pendingUpdate', 'recoverySnapshot'] as const)(
+    'preserves valid existing recovery when the incoming %s is malformed',
+    async (field) => {
+      const subject = journal()
+      const existing = updateWith('existing valid history')
+      await subject.save('doc-1', existing, existing)
+      const before = structuredClone([...storage.values()])
+      const current = updateWith('current edits')
+      const invalid = new Uint8Array([255])
+
+      await expect(
+        subject.save(
+          'doc-1',
+          field === 'pendingUpdate' ? invalid : current,
+          field === 'recoverySnapshot' ? invalid : current
+        )
+      ).resolves.toMatchObject({ status: 'unavailable' })
+
+      expect([...storage.values()]).toEqual(before)
+      await expect(subject.load('doc-1')).resolves.toMatchObject({ pendingUpdate: existing })
+    }
+  )
+
+  it('does not replace malformed existing recovery with malformed incoming recovery', async () => {
+    const subject = journal()
+    const invalid = new Uint8Array([255])
+    await subject.save('doc-1', invalid, invalid)
+    const before = structuredClone([...storage.values()])
+
+    await expect(subject.save('doc-1', invalid, invalid)).resolves.toMatchObject({
+      status: 'unavailable',
+    })
+
+    expect([...storage.values()]).toEqual(before)
+  })
+
+  it('prioritizes valid records when isolating malformed recovery during a save', async () => {
+    const subject = journal()
+    const valid = updateWith('valid recovery')
+    await subject.save('first', valid, valid)
+    await subject.save('second', valid, valid)
+    await subject.save('current', new Uint8Array([255]), valid)
+
+    await expect(subject.save('current', valid, valid)).resolves.toMatchObject({ status: 'saved' })
+
+    for (const docId of ['first', 'second', 'current']) {
+      await expect(subject.load(docId)).resolves.toMatchObject({ docId })
+    }
+    expect((storage.values().next().value as { documents: unknown[] }).documents).toHaveLength(3)
   })
 
   it('does not quarantine a record that another tab replaced after the read', async () => {

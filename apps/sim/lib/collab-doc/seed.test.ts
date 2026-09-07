@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getSchema } from '@tiptap/core'
 import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -487,6 +487,87 @@ describe('buildFileDocSeed — accepted revisions', () => {
     expect(mockFetchBuffer).toHaveBeenCalledTimes(3)
     expect(mockLoadState).toHaveBeenCalledTimes(3)
     expect(mockCommitState).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not start a seed for an already cancelled request', async () => {
+    const reason = new Error('request cancelled')
+
+    await expect(buildFileDocSeed('ws-1', 'file-1', AbortSignal.abort(reason))).rejects.toBe(reason)
+    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockFetchBuffer).not.toHaveBeenCalled()
+    expect(mockCommitState).not.toHaveBeenCalled()
+  })
+
+  it.each(['file lookup', 'download', 'cache lookup'] as const)(
+    'stops after cancellation during %s without preparing or committing a seed',
+    async (stage) => {
+      const controller = new AbortController()
+      const reason = new Error('request cancelled')
+      const stop = () => controller.abort(reason)
+      if (stage === 'file lookup') {
+        mockGetWorkspaceFile.mockImplementationOnce(async () => {
+          stop()
+          return null
+        })
+      } else if (stage === 'download') {
+        mockFetchBuffer.mockImplementationOnce(async (_record, options) => {
+          stop()
+          expect(options.signal.aborted).toBe(true)
+          expect(options.signal.reason).toBe(reason)
+          return Buffer.from('base')
+        })
+      } else {
+        mockLoadState.mockImplementationOnce(async () => {
+          stop()
+          return null
+        })
+      }
+
+      await expect(buildFileDocSeed('ws-1', 'file-1', controller.signal)).rejects.toBe(reason)
+      expect(mockCommitState).not.toHaveBeenCalled()
+      if (stage === 'file lookup') expect(mockFetchBuffer).not.toHaveBeenCalled()
+      if (stage !== 'cache lookup') expect(mockLoadState).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['committed', 'conflict'] as const)(
+    'does not publish or retry a %s result after cancellation during commit',
+    async (status) => {
+      const controller = new AbortController()
+      const reason = new Error('request cancelled')
+      mockCommitState.mockImplementationOnce(async () => {
+        controller.abort(reason)
+        return { status, version: VERSION }
+      })
+
+      await expect(buildFileDocSeed('ws-1', 'file-1', controller.signal)).rejects.toBe(reason)
+      expect(mockGetWorkspaceFile).toHaveBeenCalledOnce()
+      expect(mockCommitState).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('shares one deadline across retries and stops when it expires without caller cancellation', async () => {
+    const deadline = new AbortController()
+    const reason = new DOMException('Seed deadline expired', 'TimeoutError')
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal)
+    mockCommitState.mockResolvedValueOnce({ status: 'conflict' })
+    mockFetchBuffer.mockResolvedValueOnce(Buffer.from('base')).mockImplementationOnce(async () => {
+      deadline.abort(reason)
+      return Buffer.from('base')
+    })
+
+    try {
+      await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toBe(reason)
+      expect(timeout).toHaveBeenCalledExactlyOnceWith(FILE_DOC_TIMEOUTS.seedRequestMs)
+      expect(mockFetchBuffer).toHaveBeenCalledTimes(2)
+      for (const [, options] of mockFetchBuffer.mock.calls) {
+        expect(options.signal).toBe(deadline.signal)
+      }
+      expect(mockLoadState).toHaveBeenCalledOnce()
+      expect(mockCommitState).toHaveBeenCalledOnce()
+    } finally {
+      timeout.mockRestore()
+    }
   })
 
   it('returns missing if the file is deleted during the commit', async () => {

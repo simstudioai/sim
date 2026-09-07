@@ -108,7 +108,11 @@ function inspectMarkdownFidelity(content: string) {
     if (token.type === 'html') preservedQuotes += inspectHtmlImages(token.raw).quotedEntities
     if (token.type === 'code' || token.type === 'codespan')
       preservedQuotes += token.raw.match(/&quot;/g)?.length ?? 0
-    if (token.type === 'table' && /<img\b/i.test(stripCode(token.raw))) hasTableHtmlImage = true
+    if (token.type === 'table') {
+      fidelityLexer.walkTokens([token], (child) => {
+        if (child.type === 'html' && /^<img(?=[\s/>])/i.test(child.raw)) hasTableHtmlImage = true
+      })
+    }
     for (const src of imageSources(token)) add('image', src)
     if (token.type === 'link') {
       fidelityLexer.walkTokens(token.tokens ?? [], (child) => {

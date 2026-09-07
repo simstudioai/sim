@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
@@ -311,6 +312,18 @@ function updateFor(text: string): Uint8Array {
   return update
 }
 
+function seedFor(text: string): Uint8Array {
+  const doc = docWithText(text)
+  const config = doc.getMap(FILE_DOC_SEED.configMap)
+  config.set(FILE_DOC_SEED.flag, true)
+  config.set(FILE_DOC_SEED.docIdKey, `doc-${text}`)
+  try {
+    return Y.encodeStateAsUpdate(doc)
+  } finally {
+    doc.destroy()
+  }
+}
+
 let stores: FileDocStore[] = []
 
 /** An existing stream from a relay predating generation markers; modern seeds use seedIfEmpty. */
@@ -445,7 +458,7 @@ describe('FileDocStore', () => {
     const token = await a.shouldSeed(NAME)
     expect(token).toBeTruthy()
     // A seeds and releases its lock.
-    await a.seedIfEmpty(NAME, updateFor('hello'))
+    await a.seedIfEmpty(NAME, seedFor('hello'))
     await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
     await a.releaseSeedLock(NAME, token as string)
     // A different task must NOT seed again — the lock is free but the stream is non-empty.
@@ -455,7 +468,7 @@ describe('FileDocStore', () => {
 
   it('fences stale publishers after invalidation and lets the next authoritative seed start fresh', async () => {
     const store = await newStore()
-    const original = updateFor('old generation')
+    const original = seedFor('old generation')
     await store.seedIfEmpty(NAME, original)
     await store.invalidateDocument(NAME, 10)
 
@@ -467,7 +480,7 @@ describe('FileDocStore', () => {
       store.publishClientUpdateAndWait(NAME, 'stale-update', updateFor('stale acknowledged write'))
     ).rejects.toThrow('replaced by a newer durable version')
 
-    const fresh = updateFor('fresh generation')
+    const fresh = seedFor('fresh generation')
     await expect(store.seedIfEmpty(NAME, fresh, 11)).resolves.toBe(true)
     const recovered = new Y.Doc()
     Y.applyUpdate(recovered, (await store.getStreamState(NAME))!)
@@ -477,7 +490,7 @@ describe('FileDocStore', () => {
 
   it('getStreamState reconstructs the shared document from the stream', async () => {
     const a = await newStore()
-    await a.seedIfEmpty(NAME, updateFor('shared content'))
+    await a.seedIfEmpty(NAME, seedFor('shared content'))
     let state: Uint8Array | null = null
     await vi.waitFor(async () => {
       state = await a.getStreamState(NAME)
@@ -491,7 +504,7 @@ describe('FileDocStore', () => {
 
   it('lets a headless replica append against the generation of its shared base', async () => {
     const seeded = await newStore()
-    await seeded.seedIfEmpty(NAME, updateFor('shared'), 20)
+    await seeded.seedIfEmpty(NAME, seedFor('shared'), 20)
     const headless = await newStore()
     const generation = await headless.getDocumentGeneration(NAME)
     const doc = new Y.Doc()
@@ -508,7 +521,7 @@ describe('FileDocStore', () => {
 
   it('keeps a newer seeded generation when an older invalidation arrives', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('newest'), 20)
+    await store.seedIfEmpty(NAME, seedFor('newest'), 20)
     const generation = await store.getDocumentGeneration(NAME)
     await expect(store.invalidateDocument(NAME, 10)).resolves.toEqual({ status: 'stale' })
     expect(await store.getDocumentGeneration(NAME)).toBe(generation)
@@ -518,10 +531,10 @@ describe('FileDocStore', () => {
 
   it('rejects old seeds and version callbacks after an invalidation', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('old'), 10)
+    await store.seedIfEmpty(NAME, seedFor('old'), 10)
     const generation = await store.getDocumentGeneration(NAME)
     await store.invalidateDocument(NAME, 20)
-    await expect(store.seedIfEmpty(NAME, updateFor('late stale seed'), 10)).resolves.toBe(false)
+    await expect(store.seedIfEmpty(NAME, seedFor('late stale seed'), 10)).resolves.toBe(false)
     await store.setSyncedVersion(NAME, 30, generation)
     expect(await store.getSyncedVersion(NAME)).toBe(20)
     await expect(store.getStreamState(NAME)).resolves.toBeNull()
@@ -529,9 +542,9 @@ describe('FileDocStore', () => {
 
   it('does not repeat an invalidation after the same durable version is reseeded', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('old'), 10)
+    await store.seedIfEmpty(NAME, seedFor('old'), 10)
     await expect(store.invalidateDocument(NAME, 20)).resolves.toMatchObject({ status: 'applied' })
-    await expect(store.seedIfEmpty(NAME, updateFor('replacement'), 20)).resolves.toBe(true)
+    await expect(store.seedIfEmpty(NAME, seedFor('replacement'), 20)).resolves.toBe(true)
     const generation = await store.getDocumentGeneration(NAME)
     const doc = new Y.Doc()
     Y.applyUpdate(doc, (await store.getStreamState(NAME))!)
@@ -556,7 +569,7 @@ describe('FileDocStore', () => {
 
   it('applies the first invalidation even when its durable version was already seeded', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('same content, changed eligibility'), 20)
+    await store.seedIfEmpty(NAME, seedFor('same content, changed eligibility'), 20)
     const docId = await store.getDocumentGeneration(NAME)
     await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'applied', docId })
     await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
@@ -565,14 +578,14 @@ describe('FileDocStore', () => {
 
   it('returns the removed generation and qualifies consecutive unsupported replacements', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('old'), 10)
+    await store.seedIfEmpty(NAME, seedFor('old'), 10)
     const oldId = await store.getDocumentGeneration(NAME)
     await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({
       status: 'applied',
       docId: oldId,
     })
     await expect(store.invalidateDocument(NAME, 30)).resolves.toEqual({ status: 'applied' })
-    await store.seedIfEmpty(NAME, updateFor('replacement'), 30)
+    await store.seedIfEmpty(NAME, seedFor('replacement'), 30)
     const replacementId = await store.getDocumentGeneration(NAME)
     expect(replacementId).not.toBe(oldId)
     await expect(store.invalidateDocument(NAME, 30)).resolves.toEqual({ status: 'stale' })
@@ -584,7 +597,7 @@ describe('FileDocStore', () => {
 
   it('does not resurrect a tracked stream with a dependency-only update after Redis loses it', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('base'), 10)
+    await store.seedIfEmpty(NAME, seedFor('base'), 10)
     const generation = await store.getDocumentGeneration(NAME)
     state.backing!.streams.delete(`filedoc:stream:${NAME}`)
     state.backing!.kv.delete(`filedoc:generation:${NAME}`)
@@ -599,7 +612,7 @@ describe('FileDocStore', () => {
 
   it('rejects appends and duplicate acknowledgements when only the stream is lost', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('base'), 10)
+    await store.seedIfEmpty(NAME, seedFor('base'), 10)
     const generation = await store.getDocumentGeneration(NAME)
     const delta = updateFor('edit')
     await store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation)
@@ -642,7 +655,7 @@ describe('FileDocStore', () => {
 
   it('rejects a shared replay if the document generation changes between pages', async () => {
     const store = await newStore()
-    await store.seedIfEmpty(NAME, updateFor('old generation'), 10)
+    await store.seedIfEmpty(NAME, seedFor('old generation'), 10)
     state.backing!.onRange = () => {
       state.backing!.kv.set(`filedoc:generation:${NAME}`, 'new generation')
     }
@@ -885,7 +898,7 @@ describe('FileDocStore', () => {
 
   it('attachRoom catches a fresh task up to the current shared state', async () => {
     const a = await newStore()
-    await a.seedIfEmpty(NAME, updateFor('already here'))
+    await a.seedIfEmpty(NAME, seedFor('already here'))
     await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
 
     // A second task opens the same file: its doc must load the existing content, not start empty.
@@ -1271,10 +1284,10 @@ describe('FileDocStore', () => {
     const staleDoc = new Y.Doc()
     await store.attachRoom(NAME, staleDoc)
     await store.invalidateDocument(NAME, 20)
-    await expect(store.seedIfEmpty(NAME, updateFor('stale fetched seed'), 10)).resolves.toBe(false)
+    await expect(store.seedIfEmpty(NAME, seedFor('stale fetched seed'), 10)).resolves.toBe(false)
     await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(false)
     expect(storeInternals(store).localInvalidations.size).toBe(1)
-    await expect(store.seedIfEmpty(NAME, updateFor('same-version seed'), 20)).resolves.toBe(true)
+    await expect(store.seedIfEmpty(NAME, seedFor('same-version seed'), 20)).resolves.toBe(true)
     await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
     await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(true)
 
@@ -1282,7 +1295,7 @@ describe('FileDocStore', () => {
     expect(storeInternals(store).localInvalidations.size).toBe(1)
     const freshDoc = new Y.Doc()
     await store.attachRoom(NAME, freshDoc)
-    await expect(store.seedIfEmpty(NAME, updateFor('fresh authoritative seed'), 20)).resolves.toBe(
+    await expect(store.seedIfEmpty(NAME, seedFor('fresh authoritative seed'), 20)).resolves.toBe(
       true
     )
     await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
@@ -1302,7 +1315,7 @@ describe('FileDocStore', () => {
     await expect(
       store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('x'))
     ).rejects.toThrow('not initialized')
-    await expect(store.seedIfEmpty(NAME, updateFor('seed'))).rejects.toThrow('not initialized')
+    await expect(store.seedIfEmpty(NAME, seedFor('seed'))).rejects.toThrow('not initialized')
     await expect(store.getStreamState(NAME)).rejects.toThrow('not initialized')
     expect(await store.acquireMergeSlot(NAME, 1_000)).toBeNull()
     doc.destroy()
@@ -1311,7 +1324,7 @@ describe('FileDocStore', () => {
   it('streamHasContent fences a seed apply against an already-seeded stream', async () => {
     const a = await newStore()
     expect(await a.streamHasContent(NAME)).toBe(false)
-    await a.seedIfEmpty(NAME, updateFor('seeded'))
+    await a.seedIfEmpty(NAME, seedFor('seeded'))
     await vi.waitFor(async () => expect(await a.streamHasContent(NAME)).toBe(true))
   })
 
@@ -1344,12 +1357,60 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it.each([
+    { redis: true, docId: undefined },
+    { redis: true, docId: '' },
+    { redis: false, docId: undefined },
+    { redis: false, docId: '' },
+  ])('rejects an unnamed seed before publication (%j)', async ({ redis, docId }) => {
+    const store = redis ? await newStore() : new FileDocStore(undefined)
+    const doc = new Y.Doc()
+    const config = doc.getMap(FILE_DOC_SEED.configMap)
+    config.set(FILE_DOC_SEED.flag, true)
+    if (docId !== undefined) config.set(FILE_DOC_SEED.docIdKey, docId)
+    try {
+      await expect(store.seedIfEmpty(NAME, Y.encodeStateAsUpdate(doc), 1)).rejects.toThrow(
+        'missing its accepted document identity'
+      )
+      await expect(store.getStreamState(NAME)).resolves.toBeNull()
+    } finally {
+      doc.destroy()
+      if (!redis) await store.shutdown()
+    }
+  })
+
+  it('uses the same accepted identity for the seed owner and a replaying peer', async () => {
+    const owner = await newStore()
+    const peer = await newStore()
+    const ownerDoc = new Y.Doc()
+    const peerDoc = new Y.Doc()
+    try {
+      await owner.attachRoom(NAME, ownerDoc)
+      const seed = seedFor('shared identity')
+      expect(await owner.seedIfEmpty(NAME, seed, 1)).toBe(true)
+      Y.applyUpdate(ownerDoc, seed)
+      await peer.attachRoom(NAME, peerDoc)
+      for (const [store, doc] of [
+        [owner, ownerDoc],
+        [peer, peerDoc],
+      ] as const) {
+        const docId = doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+        expect(docId).toBe('doc-shared identity')
+        expect(await store.getDocumentGeneration(NAME)).toBe(docId)
+        expect(await store.isDocumentGenerationCurrent(NAME, 'doc-shared identity')).toBe(true)
+      }
+    } finally {
+      ownerDoc.destroy()
+      peerDoc.destroy()
+    }
+  })
+
   it('seedIfEmpty writes the seed once and reports it, then refuses a non-empty stream', async () => {
     const a = await newStore()
-    expect(await a.seedIfEmpty(NAME, updateFor('first'))).toBe(true)
+    expect(await a.seedIfEmpty(NAME, seedFor('first'))).toBe(true)
     // A second seed attempt (any task) must be refused — the stream already holds content.
     const b = await newStore()
-    expect(await b.seedIfEmpty(NAME, updateFor('second'))).toBe(false)
+    expect(await b.seedIfEmpty(NAME, seedFor('second'))).toBe(false)
     const doc = new Y.Doc()
     Y.applyUpdate(doc, (await a.getStreamState(NAME))!)
     expect(doc.getText('body').toString()).toBe('first')
@@ -1371,8 +1432,8 @@ describe('FileDocStore', () => {
     expect(tokenB).toBeTruthy()
     // Both tasks now race to seed with distinct client ids.
     const [seededA, seededB] = await Promise.all([
-      a.seedIfEmpty(NAME, updateFor('SEED-A')),
-      b.seedIfEmpty(NAME, updateFor('SEED-B')),
+      a.seedIfEmpty(NAME, seedFor('SEED-A')),
+      b.seedIfEmpty(NAME, seedFor('SEED-B')),
     ])
     expect([seededA, seededB].filter(Boolean)).toHaveLength(1)
     // Exactly one seed is in the stream — the reconstructed text is a single seed, never a duplicated

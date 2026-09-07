@@ -612,17 +612,9 @@ async function ensureRoomReady(
 }
 
 /**
- * Seed a room's document server-side, once: ask the app to build the seed (the file's current markdown
- * → Yjs, through the exact editor engine) and apply it. No client is elected to import content.
- *
- * MEMOIZED on the room, so concurrent joins await the same seed instead of the second one being served
- * an empty document while the first one's fetch is still in flight. Cleared when it settles: a failed
- * seed is re-attempted by the next join (a genuinely empty file stays empty and needs no retry).
- *
- * `isDocSeeded` is the sufficient guard: content only ever reaches the doc alongside the seed flag
- * (this seed, or a client's offline fallback), so an unseeded doc is genuinely empty and safe to seed.
- * A genuinely empty/missing file returns `null` (a read error throws instead), so still set the flag —
- * an empty doc must reach readiness, not wait forever.
+ * Share one authoritative seed attempt across concurrent joins so none observes an unseeded doc.
+ * Clear settled attempts to allow retry after transient failures. Existing empty files have a named
+ * seed; a missing file must fail admission rather than create an editable blank room.
  */
 function ensureServerSeed(name: string, room: FileDocRoom, workspaceId: string): Promise<void> {
   if (isDocSeeded(room.doc)) return Promise.resolve()
@@ -641,6 +633,8 @@ function ensureServerSeed(name: string, room: FileDocRoom, workspaceId: string):
  * which stays inside the client's readiness deadline — see {@link FILE_DOC_TIMEOUTS}.
  */
 const SEED_WAIT_RETRY_MS = 150
+
+class FileDocNotFoundError extends Error {}
 
 async function runServerSeed(name: string, room: FileDocRoom, workspaceId: string): Promise<void> {
   const store = getFileDocStore()
@@ -674,31 +668,23 @@ async function seedUnderLock(
   try {
     const seed = await fetchFileDocSeed(workspaceId, room.fileId)
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    // Build the seed (file content + seed flag, or just the flag for an empty/missing file) and write it
-    // to the shared stream ATOMICALLY, iff the stream is still empty. This — NOT the seed lock — is the
-    // split-brain guard: two tasks racing (even both past an expired lock) can never both seed, because
-    // the emptiness check and the append are one Redis-side step. Publish-before-apply: the doc is marked
-    // seeded (via the local apply) only once the seed is durably in the stream, so a failed write leaves
-    // the doc unseeded and the stream empty for a clean retry. SEED_ORIGIN keeps `doc.on('update')` from
-    // re-publishing it.
-    const seedUpdate = seed?.update ?? emptySeedUpdate()
-    const didSeed = await store.seedIfEmpty(name, seedUpdate, seed?.version)
-    // Record the durable version the moment THIS task's seed is in the stream — BEFORE the liveness/
-    // seeded guard below. Recording it only now that our seed WON (not from the fetch, before knowing who
-    // won) keeps it in step with the stream's actual content: a newer own-fetch version could otherwise
-    // shadow a peer's winning seed and let a later persist clobber an out-of-band edit. But it must not
-    // sit AFTER the guard: the tailer can integrate our just-appended seed during the await above, so
-    // `isDocSeeded` may already be true here — an early return would then leave the stream holding seed
-    // content with NO cluster If-Match token, and later persists would defer and strand session edits.
-    // Cluster-wide (Redis) so any task's persist reads it; the live room is the single-pod fallback / the
-    // read-through-cache seed. (No version for an empty/missing file — nothing durable to guard.)
-    if (didSeed && seed) {
+    if (!seed) throw new FileDocNotFoundError('File not found')
+    /**
+     * Publish before local apply: the atomic empty-stream append, not the expiring lock, prevents
+     * independent Yjs histories from entering the same room.
+     */
+    const didSeed = await store.seedIfEmpty(name, seed.update, seed.version)
+    /**
+     * Record only our winning seed's version before the readiness guard: the tailer may already have
+     * applied it during the append, but persistence still needs the matching local version.
+     */
+    if (didSeed) {
       const live = fileDocRooms.get(name)
       if (live) live.syncedVersion = Math.max(live.syncedVersion ?? 0, seed.version)
     }
     if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
     if (didSeed) {
-      Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
+      Y.applyUpdate(room.doc, seed.update, SEED_ORIGIN)
     } else {
       // A peer won the atomic append: we must NOT apply our own — a second, different-client-id seed IS
       // the split-brain. Read THEIRS out of the stream instead of waiting for the tailer to deliver it,
@@ -706,21 +692,10 @@ async function seedUnderLock(
       await store.catchUp(name)
     }
   } catch (error) {
+    if (error instanceof FileDocNotFoundError) throw error
     logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
   } finally {
     await store.releaseSeedLock(name, token)
-  }
-}
-
-/** The seed update for an empty/missing file: just the `initialContentLoaded` flag, so an empty doc
- * still reaches readiness (and its emptiness is durably shared like any seed). */
-function emptySeedUpdate(): Uint8Array {
-  const doc = new Y.Doc()
-  doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
-  try {
-    return Y.encodeStateAsUpdate(doc)
-  } finally {
-    doc.destroy()
   }
 }
 
@@ -1260,12 +1235,14 @@ async function handleClientUpdate(
   if (editor) room.lastEditorUserId = editor
   room.pendingUpdates += 1
   try {
-    await getFileDocStore().publishClientUpdateAndWait(
-      name,
-      candidate.updateId,
-      update,
-      candidate.docId
-    )
+    const store = getFileDocStore()
+    await store.publishClientUpdateAndWait(name, candidate.updateId, update, candidate.docId)
+    if (
+      !(await store.isDocumentGenerationCurrent(name, candidate.docId)) ||
+      fileDocRooms.get(name) !== room
+    ) {
+      throw new FileDocInvalidatedError()
+    }
     Y.applyUpdate(room.doc, update, clientUpdateOrigin(socket.id))
     room.edited = true
     schedulePersist(name, room)
@@ -1663,7 +1640,11 @@ export function setupWorkspaceFileDocHandlers(
         (generation !== undefined && joinGeneration.get(socket.id) !== generation)
       )
         return
-      emitJoinError(socket, fileId, clientId, 'Failed to join file document', 'JOIN_FAILED', true)
+      if (error instanceof FileDocNotFoundError) {
+        emitJoinError(socket, fileId, clientId, 'File not found', 'NOT_FOUND', false)
+      } else {
+        emitJoinError(socket, fileId, clientId, 'Failed to join file document', 'JOIN_FAILED', true)
+      }
     }
   })
 

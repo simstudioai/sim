@@ -838,6 +838,60 @@ describe('FileDocProvider', () => {
     doc.destroy()
   })
 
+  it.each(['pagehide', 'destroy'] as const)(
+    'preserves new edits over malformed recovery on %s before joining',
+    async (lifecycle) => {
+      vi.useFakeTimers()
+      journalStorage.clear()
+      const browserWindow = new EventTarget()
+      vi.stubGlobal('window', browserWindow)
+      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+      const { socket, emit } = createSocket(false)
+      const doc = new Y.Doc()
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+      const snapshot = Y.encodeStateAsUpdate(doc)
+      const invalid = new Uint8Array([255])
+      await journal.save('doc-1', invalid, snapshot)
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+      const restored = new Y.Doc()
+      try {
+        doc.getText('default').insert(0, 'edits before reconnecting')
+
+        if (lifecycle === 'pagehide') browserWindow.dispatchEvent(new Event('pagehide'))
+        else provider.destroy()
+        await vi.advanceTimersByTimeAsync(0)
+
+        const recovered = await journal.load('doc-1')
+        expect(recovered).not.toBeNull()
+        Y.applyUpdate(restored, recovered!.recoverySnapshot!)
+        Y.applyUpdate(restored, recovered!.pendingUpdate)
+        expect(restored.getText('default').toString()).toBe('edits before reconnecting')
+        expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+        expect([...journalStorage.values()]).toEqual([
+          expect.objectContaining({
+            documents: expect.arrayContaining([
+              expect.objectContaining({
+                pendingUpdate: invalid,
+                recoverySnapshot: snapshot,
+                quarantined: true,
+              }),
+            ]),
+          }),
+        ])
+      } finally {
+        provider.destroy()
+        await vi.advanceTimersByTimeAsync(0)
+        awareness.destroy()
+        doc.destroy()
+        restored.destroy()
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
+    }
+  )
+
   it('reopens the current generation without installing an incompatible recovery draft', async () => {
     journalStorage.clear()
     const scope = { workspaceId: 'workspace-1', userId: 'user-1' }

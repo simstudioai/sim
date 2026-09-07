@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import * as Y from 'yjs'
@@ -65,17 +65,27 @@ function ensureDocumentIdentity(ydoc: Y.Doc): boolean {
  */
 export async function buildFileDocSeed(
   workspaceId: string,
-  fileId: string
+  fileId: string,
+  signal?: AbortSignal
 ): Promise<FileDocSeed | null> {
+  const timeoutSignal = AbortSignal.timeout(FILE_DOC_TIMEOUTS.seedRequestMs)
+  const seedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt++) {
+    seedSignal.throwIfAborted()
     const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+    seedSignal.throwIfAborted()
     if (!record) return null
     const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
-    const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
+    const buffer = await fetchWorkspaceFileBuffer(record, {
+      maxBytes: MAX_SEED_BYTES,
+      signal: seedSignal,
+    })
+    seedSignal.throwIfAborted()
     const sourceHash = hashMarkdown(buffer)
 
     /** An unavailable cache is not an absent document: retry without minting a new history. */
     const stored = await loadCollabDocState(fileId)
+    seedSignal.throwIfAborted()
     let update: Uint8Array
     if (stored?.sourceHash === sourceHash) {
       update = prepareCachedSeed(stored.docState)
@@ -93,12 +103,14 @@ export async function buildFileDocSeed(
       }
     }
     assertCollabDocStateSize(update)
+    seedSignal.throwIfAborted()
 
     const result = await commitCollabDocState(workspaceId, fileId, version, {
       docState: update,
       sourceHash,
       expectedState: stored ? { stateHash: stored.stateHash, sourceHash: stored.sourceHash } : null,
     })
+    seedSignal.throwIfAborted()
     if (result.status === 'committed') return { update, version: result.version }
     if (result.status === 'missing') return null
   }

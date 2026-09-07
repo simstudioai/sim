@@ -141,7 +141,10 @@ async function flushMicrotasks(): Promise<void> {
  * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
  * `default` type plus the {@link FILE_DOC_SEED} flag, so applying it marks the doc seeded.
  */
-function seedResult(content: string, docId?: string): { update: Uint8Array; version: number } {
+function seedResult(
+  content: string,
+  docId = 'doc-default'
+): { update: Uint8Array; version: number } {
   const doc = new Y.Doc()
   doc.getText(FILE_DOC_FIELD).insert(0, content)
   doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
@@ -195,9 +198,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
       workspaceId: 'ws-1',
       workspacePermission: 'write',
     })
-    // Default: the server seed builder returns no content (empty file). Tests that
-    // exercise seeding override this per-case with an encoded Yjs update.
-    mockFetchFileDocSeed.mockResolvedValue(null)
+    mockFetchFileDocSeed.mockResolvedValue(seedResult(''))
     // Default: the merge builder returns a valid no-op (empty-doc) update. Tests exercising copilot
     // merges override it.
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
@@ -314,7 +315,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
       acknowledge
     )
 
-    expect(acknowledge).toHaveBeenCalledWith({ status: 'accepted', updateId: 'update-1' })
+    await vi.waitFor(() =>
+      expect(acknowledge).toHaveBeenCalledWith({ status: 'accepted', updateId: 'update-1' })
+    )
     expect(sent).toContainEqual(
       expect.objectContaining({
         target: ROOM_NAME,
@@ -465,6 +468,72 @@ describe('setupWorkspaceFileDocHandlers', () => {
     publish.mockRestore()
     source.destroy()
   })
+
+  it.each(['before append', 'during append', 'during append and reseed'] as const)(
+    'rejects a document invalidated %s without applying or relaying its stale update',
+    async (timing) => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('Original', 'doc-race'))
+      const { io, sent } = createIo()
+      const { handlers } = setup('socket-generation-race', io)
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      const store = getFileDocStore()
+      let finishAppend!: () => void
+      const pendingAppend = new Promise<void>((resolve) => {
+        finishAppend = resolve
+      })
+      const publish =
+        timing !== 'before append'
+          ? vi.spyOn(store, 'publishClientUpdateAndWait').mockReturnValueOnce(pendingAppend)
+          : undefined
+      const source = new Y.Doc()
+      source.getText(FILE_DOC_FIELD).insert(0, 'Stale text')
+      const acknowledge = vi.fn()
+      try {
+        if (timing === 'before append') await invalidateLiveFileDocument('file-1', 2)
+        sent.length = 0
+        handlers[FILE_DOC_EVENTS.UPDATE](
+          {
+            fileId: 'file-1',
+            docId: 'doc-race',
+            updateId: 'update-race',
+            update: Y.encodeStateAsUpdate(source),
+          },
+          acknowledge
+        )
+        if (timing !== 'before append') {
+          expect(publish).toHaveBeenCalledTimes(1)
+          await invalidateLiveFileDocument('file-1', 2)
+          if (timing === 'during append and reseed') {
+            mockFetchFileDocSeed.mockResolvedValue({
+              ...seedResult('Replacement', 'doc-new'),
+              version: 2,
+            })
+            const fresh = setup('socket-generation-fresh', io)
+            await fresh.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+            expect(fresh.socket.emit).toHaveBeenCalledWith(
+              FILE_DOC_EVENTS.JOIN_SUCCESS,
+              expect.objectContaining({ docId: 'doc-new' })
+            )
+            sent.length = 0
+          }
+          finishAppend()
+        }
+        await vi.waitFor(() =>
+          expect(acknowledge).toHaveBeenCalledWith({
+            status: 'rejected',
+            code: 'DOCUMENT_REPLACED',
+            retryable: false,
+            updateId: 'update-race',
+          })
+        )
+        expect(sent).toHaveLength(0)
+      } finally {
+        finishAppend()
+        publish?.mockRestore()
+        source.destroy()
+      }
+    }
+  )
 
   it('does not re-enter the room when access was revoked while the join was in flight', async () => {
     // The sweep records a revocation before it evicts, so a join whose authorize
@@ -1281,16 +1350,18 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# From server')
   })
 
-  it('marks an empty/absent-file doc seeded so clients still reach readiness', async () => {
-    // A genuinely absent file yields a null seed (a read error would throw, not return null). The
-    // relay must still flip `initialContentLoaded` so the client's `synced && seeded` gate opens.
-    mockFetchFileDocSeed.mockResolvedValue(null)
+  it('seeds an existing empty file with its accepted document identity', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('', 'empty-doc'))
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
 
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     await flushMicrotasks()
 
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_SUCCESS,
+      expect.objectContaining({ docId: 'empty-doc', version: 1 })
+    )
     socket.emit.mockClear()
     handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
@@ -1301,7 +1372,39 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const clientDoc = new Y.Doc()
     applySyncReply(reply?.[1] as Uint8Array, clientDoc)
     expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
+    expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)).toBe('empty-doc')
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('')
+    clientDoc.destroy()
+  })
+
+  it('rejects a missing seed without publishing an editable blank room and releases its lock', async () => {
+    mockFetchFileDocSeed.mockResolvedValueOnce(null)
+    const { io, sent } = createIo()
+    const { socket, handlers } = setup('socket-missing-seed', io)
+    const release = vi.spyOn(getFileDocStore(), 'releaseSeedLock')
+    const seed = vi.spyOn(getFileDocStore(), 'seedIfEmpty')
+    try {
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_ERROR,
+        expect.objectContaining({ code: 'NOT_FOUND', retryable: false })
+      )
+      expect(socket.emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN_SUCCESS, expect.anything())
+      expect(socket.emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.MESSAGE, expect.anything())
+      expect(socket.join).not.toHaveBeenCalled()
+      expect(sent.some(({ event }) => event === FILE_DOC_EVENTS.PRESENCE)).toBe(false)
+      expect(seed).not.toHaveBeenCalled()
+      expect(release).toHaveBeenCalledOnce()
+
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_SUCCESS,
+        expect.objectContaining({ docId: 'doc-default' })
+      )
+    } finally {
+      release.mockRestore()
+      seed.mockRestore()
+    }
   })
 
   it('makes one seed attempt and releases the guard on failure so a later join retries', async () => {
