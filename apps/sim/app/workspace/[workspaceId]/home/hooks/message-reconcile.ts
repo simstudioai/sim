@@ -190,19 +190,8 @@ export function markMessageStopped(message: PersistedMessage): PersistedMessage 
   })
 }
 
-function buildChatResourceHydrationKey(resource: MothershipResource): string {
-  return JSON.stringify([
-    resource.type,
-    resource.id,
-    resource.title,
-    resource.path ?? null,
-    resource.viewId ?? null,
-    resource.executionId ?? null,
-  ])
-}
-
 export function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
-  const resourceKey = chatHistory.resources.map(buildChatResourceHydrationKey).join('|')
+  const resourceKey = JSON.stringify(chatHistory.resources)
   const messageKey = chatHistory.messages.map((message) => message.id).join('|')
   const streamSnapshot = chatHistory.streamSnapshot
   const snapshotKey = streamSnapshot

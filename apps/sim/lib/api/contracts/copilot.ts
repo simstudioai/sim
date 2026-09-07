@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
@@ -18,7 +19,6 @@ import {
   COPILOT_VALIDATION_PURPOSE,
   COPILOT_VALIDATION_PURPOSE_VALUES,
 } from '@/lib/mothership/generated/billing-protocol-v1'
-import { PERSISTED_RESOURCE_TYPES } from '@/lib/mothership/resources/types'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),
@@ -94,28 +94,10 @@ export const createWorkflowCopilotChatBodySchema = z.object({
 })
 export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
 
-const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
-
-const copilotChatResourceItemSchema = z
-  .object({
-    type: copilotResourceTypeSchema,
-    id: requiredFieldSchema('resource.id cannot be empty'),
-    title: z.string(),
-    viewId: z.string().min(1).optional(),
-  })
-  .superRefine((resource, ctx) => {
-    if (resource.viewId === undefined || resource.type === 'table') return
-    ctx.addIssue({
-      code: 'custom',
-      path: ['viewId'],
-      message: 'viewId is only valid for table resources',
-    })
-  })
-
 export const addCopilotChatResourceBodySchema = z
   .object({
     chatId: requiredFieldSchema('chatId cannot be empty'),
-    resource: copilotChatResourceItemSchema,
+    resource: mothershipResourceSchema,
     clearViewId: z.literal(true).optional(),
   })
   .superRefine((body, ctx) => {
@@ -139,14 +121,14 @@ export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBo
 
 export const removeCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
-  resourceType: copilotResourceTypeSchema,
+  resourceType: mothershipResourceSchema.shape.type,
   resourceId: z.string(),
 })
 export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatResourceBodySchema>
 
 export const reorderCopilotChatResourcesBodySchema = z.object({
   chatId: z.string(),
-  resources: z.array(copilotChatResourceItemSchema),
+  resources: z.array(mothershipResourceSchema),
 })
 export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
 
@@ -357,13 +339,6 @@ export type SubmitCopilotFeedbackResult = ContractJsonResponse<typeof submitCopi
 
 const successFlagSchema = z.object({ success: z.literal(true) })
 
-const copilotChatResourceSchema = z.object({
-  type: copilotResourceTypeSchema,
-  id: z.string(),
-  title: z.string(),
-  viewId: z.string().optional(),
-})
-
 const copilotChatGetChatSchema = z
   .object({
     id: z.string(),
@@ -535,7 +510,7 @@ export const addCopilotChatResourceContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      resources: z.array(copilotChatResourceSchema).optional(),
+      resources: z.array(mothershipResourceSchema).optional(),
     }),
   },
 })
@@ -548,7 +523,7 @@ export const reorderCopilotChatResourcesContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      resources: z.array(copilotChatResourceSchema),
+      resources: z.array(mothershipResourceSchema),
     }),
   },
 })
@@ -561,7 +536,7 @@ export const removeCopilotChatResourceContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      resources: z.array(copilotChatResourceSchema),
+      resources: z.array(mothershipResourceSchema),
     }),
   },
 })
