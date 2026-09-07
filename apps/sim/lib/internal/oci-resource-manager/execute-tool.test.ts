@@ -28,6 +28,10 @@ vi.mock('@/lib/internal/oci-resource-manager/operations', () => ({
 
 import { executeOciResourceManagerTool } from '@/lib/internal/oci-resource-manager/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciResourceManagerBlock } from '@/blocks/blocks/oci_resource_manager'
+import { ociResourceManagerListConfigurationSourceProvidersTool } from '@/tools/oci_resource_manager/list_configuration_source_providers'
+import { ociResourceManagerListStacksTool } from '@/tools/oci_resource_manager/list_stacks'
+import { ociResourceManagerListTemplatesTool } from '@/tools/oci_resource_manager/list_templates'
 
 function request(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -59,6 +63,46 @@ beforeEach(() => {
   })
 })
 describe('Resource Manager execution authorization', () => {
+  it.each([
+    ['list_stacks', ociResourceManagerListStacksTool, {}],
+    [
+      'list_templates',
+      ociResourceManagerListTemplatesTool,
+      { templateId: null, templateCategoryId: '0' },
+    ],
+    [
+      'list_configuration_source_providers',
+      ociResourceManagerListConfigurationSourceProvidersTool,
+      { configurationSourceProviderId: null },
+    ],
+  ] as const)(
+    'omits blank optional filters through the native %s block merge',
+    async (operation, tool, extra) => {
+      const raw = {
+        operation,
+        oauthCredential: 'supplied',
+        compartmentId: 'compartment',
+        displayName: null,
+        page: '',
+        selectorCompartmentId: null,
+        ...extra,
+      }
+      const params = { ...raw, ...OciResourceManagerBlock.tools.config?.params?.(raw) }
+      const response = await executeOciResourceManagerTool(
+        request({ toolId: tool.id, input: tool.operation.input(params) })
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.execute).toHaveBeenCalledWith(
+        operation,
+        expect.objectContaining({
+          compartmentId: 'compartment',
+          displayName: undefined,
+          page: undefined,
+        }),
+        expect.anything()
+      )
+    }
+  )
   it('uses only the authorized credential ID and trusted workspace/actor', async () => {
     expect((await executeOciResourceManagerTool(request())).status).toBe(200)
     expect(mocks.authorize).toHaveBeenCalledWith(expect.objectContaining({ userId: 'actor' }), {
