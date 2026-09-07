@@ -4,6 +4,7 @@
     "index",
     "self-hosted",
     "sso",
+    "scim",
     "verified-domains",
     "session-policies",
     "access-control",

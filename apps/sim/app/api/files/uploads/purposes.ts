@@ -258,6 +258,11 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
         'forbidden',
         'Credential Group enrollment principals cannot create uploads'
       )
+    case 'scim_connection':
+      throw new UploadSessionError(
+        'forbidden',
+        'Directory provisioning credentials cannot create uploads'
+      )
   }
 }
 

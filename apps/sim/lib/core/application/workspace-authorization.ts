@@ -45,6 +45,7 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'workspace_api_key':
     case 'system':
     case 'credential_group_enrollment':
+    case 'scim_connection':
       return null
     case 'delegated': {
       if (principal.serviceId === 'executor') return null

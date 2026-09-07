@@ -1008,14 +1008,19 @@ export const simProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain and automatically provisioned into the organization on first sign-in',
-        shortValue: 'SAML 2.0 and OIDC SSO with auto-provisioning',
+          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain, plus SCIM 2.0 directory provisioning for Okta, Microsoft Entra ID, OneLogin, and JumpCloud that creates, updates, deactivates, and removes members and maps pushed groups to permission groups, workspace access, and the organization admin role',
+        shortValue: 'SAML 2.0 and OIDC SSO with SCIM 2.0 provisioning',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/sso',
             label: 'Sim Docs: Single Sign-On (SSO)',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/scim',
+            label: 'Sim Docs: Directory provisioning (SCIM)',
+            asOf: '2026-09-07',
           },
         ],
       },

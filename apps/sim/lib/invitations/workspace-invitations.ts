@@ -31,6 +31,10 @@ import {
 } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
+  assertInviteeNotScimManaged,
+  scimManagedUserPredicate,
+} from '@/lib/scim/managed-membership'
+import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
@@ -477,10 +481,18 @@ export async function createWorkspaceInvitation({
   const allWorkspaceIds = context.targets.map((target) => target.workspaceId)
 
   const existingUser = await db
-    .select({ id: user.id })
+    .select({ id: user.id, scimManaged: scimManagedUserPredicate(user.id) })
     .from(user)
     .where(sql`lower(${user.email}) = ${normalizedEmail}`)
     .then((rows) => rows[0])
+
+  /**
+   * When the organization has made its identity provider the source of truth for
+   * membership, a Sim invitation to someone the directory already provisions is
+   * redundant at best and reverted at worst. Read as part of the lookup above so
+   * the common case costs no extra query.
+   */
+  assertInviteeNotScimManaged(existingUser?.scimManaged)
 
   const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
   let existingOrganizationRole = existingMembership?.role

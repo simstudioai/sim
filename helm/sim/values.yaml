@@ -1492,6 +1492,18 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Re-applies directory group mappings so drift between what a mapping says a
+    # member should have and what SCIM granted them cannot persist. Idempotent,
+    # and a no-op for organizations with no connection.
+    scimReconcile:
+      enabled: true
+      name: scim-reconcile
+      schedule: "17 * * * *"
+      path: "/api/cron/scim-reconcile"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Deletes table rows whose TTL column contains an expired Unix timestamp.
     cleanupTableRowTtl:
       enabled: true

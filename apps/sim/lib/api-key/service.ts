@@ -48,6 +48,7 @@ interface HashCandidate {
   type: string
   expiresAt: Date | null
   userBanned: boolean | null
+  userSuspendedAt: Date | null
 }
 
 /**
@@ -84,6 +85,7 @@ export async function authenticateApiKeyFromHeader(
         type: apiKeyTable.type,
         expiresAt: apiKeyTable.expiresAt,
         userBanned: userTable.banned,
+        userSuspendedAt: userTable.suspendedAt,
       })
       .from(apiKeyTable)
       .leftJoin(userTable, eq(apiKeyTable.userId, userTable.id))
@@ -96,6 +98,13 @@ export async function authenticateApiKeyFromHeader(
 
     // Defense in depth: banning deletes a user's keys, but reject any survivor too.
     if (record.userBanned) return INVALID
+
+    /**
+     * A suspension deliberately leaves the account's resources intact, so unlike
+     * a ban it does not delete the keys. Refusing them here is what actually
+     * ends machine access for a deactivated member.
+     */
+    if (record.userSuspendedAt) return INVALID
 
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID

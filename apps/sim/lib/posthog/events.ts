@@ -726,6 +726,12 @@ export interface PostHogEventMap {
     is_self_removal: boolean
   }
 
+  /** A member the organization's identity provider created rather than a person. */
+  scim_user_provisioned: {
+    organization_id: string
+    created_account: boolean
+  }
+
   org_member_role_changed: {
     organization_id: string
     new_role: string

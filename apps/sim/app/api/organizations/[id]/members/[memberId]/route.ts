@@ -16,8 +16,11 @@ import {
   WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { assertMembershipNotScimManaged } from '@/lib/scim/managed-membership'
 
 const logger = createLogger('OrganizationMemberAPI')
 
@@ -208,14 +211,37 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const updatedMember = await db
-        .update(member)
-        .set({ role })
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
-        .returning()
+      /**
+       * When the organization has made its identity provider the source of
+       * truth for membership, a role set here is reverted by the next sync.
+       * Refusing says so instead of letting the change quietly disappear.
+       */
+      await assertMembershipNotScimManaged({
+        organizationId,
+        userId: memberId,
+        action: 'change-role',
+      })
 
-      if (updatedMember.length === 0) {
-        return NextResponse.json({ error: 'Failed to update member role' }, { status: 500 })
+      /**
+       * The shared primitive re-reads the member under the organization's
+       * mutation lock, so a concurrent promotion to owner cannot slip between
+       * the check above and the write.
+       */
+      const roleChange = await db.transaction((tx) =>
+        changeMemberRoleTx(tx, { organizationId, userId: memberId, role })
+      )
+
+      if (!roleChange.changed) {
+        return NextResponse.json({
+          success: true,
+          message: 'Member role updated successfully',
+          data: {
+            id: targetMember[0].id,
+            userId: targetMember[0].userId,
+            role: roleChange.role,
+            updatedBy: session.user.id,
+          },
+        })
       }
 
       logger.info('Organization member role updated', {
@@ -254,13 +280,20 @@ export const PUT = withRouteHandler(
         success: true,
         message: 'Member role updated successfully',
         data: {
-          id: updatedMember[0].id,
-          userId: updatedMember[0].userId,
-          role: updatedMember[0].role,
+          id: targetMember[0].id,
+          userId: targetMember[0].userId,
+          role: roleChange.to,
           updatedBy: session.user.id,
         },
       })
     } catch (error) {
+      if (error instanceof ForbiddenOperationError) {
+        return NextResponse.json(
+          { error: error.message, details: { code: error.detailCode } },
+          { status: 403 }
+        )
+      }
+
       logger.error('Failed to update organization member role', {
         organizationId: (await context.params).id,
         memberId: (await context.params).memberId,

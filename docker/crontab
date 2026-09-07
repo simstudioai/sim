@@ -43,6 +43,9 @@ SHELL=/bin/sh
 # Enterprise data drains
 0 * * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/run-data-drains"
 
+# Directory provisioning drift sweep (re-applies SCIM group mappings)
+17 * * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/scim-reconcile"
+
 # Deletes table rows whose TTL column has expired
 */15 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-table-row-ttl"
 

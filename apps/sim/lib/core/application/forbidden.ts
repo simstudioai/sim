@@ -64,6 +64,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'PERMISSION_GROUP_CAPABILITY_BLOCKED',
   /** The workspace does not permit the integration the request names. */
   'INTEGRATION_NOT_ALLOWED',
+  /** The organization's identity provider owns this membership, so Sim will not change it. */
+  'SCIM_MANAGED_MEMBERSHIP',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
@@ -113,6 +115,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     "The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.",
   INTEGRATION_NOT_ALLOWED:
     "The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS.",
+  SCIM_MANAGED_MEMBERSHIP:
+    "This member is provisioned by the organization's identity provider, which the organization has made the source of truth for membership. Make the change in the identity provider, or turn off managed-membership locking in the organization's SCIM settings.",
 }
 
 /**

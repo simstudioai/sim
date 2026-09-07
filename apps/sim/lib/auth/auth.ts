@@ -643,19 +643,36 @@ export const auth = betterAuth({
     session: {
       create: {
         before: async (session) => {
-          // Blocked emails/domains must not establish sessions, regardless of
-          // provider (email/password, OAuth, SSO). Deliberately outside the
-          // try below — a thrown APIError must propagate, not be swallowed.
+          // Blocked emails/domains and suspended accounts must not establish
+          // sessions, regardless of provider (email/password, OAuth, SSO).
+          // Deliberately outside the try below — a thrown APIError must
+          // propagate, not be swallowed.
           const accessControl = await getAccessControlConfig()
+          const [sessionUser] = await db
+            .select({ email: schema.user.email, suspendedAt: schema.user.suspendedAt })
+            .from(schema.user)
+            .where(eq(schema.user.id, session.userId))
+            .limit(1)
+
+          /**
+           * A suspension leaves the account's resources intact, so nothing else
+           * in the sign-in path refuses it. This is the gate that makes a
+           * directory deactivation take effect on the next sign-in attempt;
+           * existing sessions are deleted when the suspension is applied.
+           */
+          if (sessionUser?.suspendedAt) {
+            logger.warn('Blocking session creation for suspended account', {
+              userId: session.userId,
+            })
+            throw new APIError('FORBIDDEN', {
+              message: 'This account is suspended. Please contact your administrator.',
+            })
+          }
+
           if (
             accessControl.blockedSignupDomains.length > 0 ||
             accessControl.blockedEmails.length > 0
           ) {
-            const [sessionUser] = await db
-              .select({ email: schema.user.email })
-              .from(schema.user)
-              .where(eq(schema.user.id, session.userId))
-              .limit(1)
             if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
               logger.warn('Blocking session creation for blocked account', {
                 userId: session.userId,
