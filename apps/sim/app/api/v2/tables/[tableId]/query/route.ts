@@ -28,7 +28,6 @@ export const POST = defineV2JsonRoute({
   contract: v2QueryRowsContract,
   operation: tableOperations.queryRows,
   /** POST carries structured filters but performs a read-only query. */
-  readOnly: true,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableRowsErrorPolicy,

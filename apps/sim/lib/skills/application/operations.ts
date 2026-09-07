@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -52,6 +52,7 @@ const HUMAN_HTTP_SKILL_EDITOR_POLICY = {
 export const skillOperations = {
   list: defineWorkspaceOperation({
     id: 'skills.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'skills.use',
@@ -59,6 +60,7 @@ export const skillOperations = {
   }),
   listAvailable: defineWorkspaceOperation({
     id: 'skills.list_available',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
@@ -66,6 +68,7 @@ export const skillOperations = {
   }),
   read: defineWorkspaceOperation({
     id: 'skills.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'skills.use',
@@ -73,6 +76,7 @@ export const skillOperations = {
   }),
   create: defineWorkspaceOperation({
     id: 'skills.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
@@ -80,6 +84,7 @@ export const skillOperations = {
   }),
   update: defineWorkspaceOperation({
     id: 'skills.update',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
@@ -97,6 +102,7 @@ export const skillOperations = {
    */
   upsert: defineWorkspaceOperation({
     id: 'skills.upsert',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
@@ -104,6 +110,7 @@ export const skillOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'skills.delete',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
@@ -111,6 +118,7 @@ export const skillOperations = {
   }),
   listEditors: defineWorkspaceOperation({
     id: 'skills.editors.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'skills.use',
@@ -118,6 +126,7 @@ export const skillOperations = {
   }),
   grantEditor: defineWorkspaceOperation({
     id: 'skills.editors.grant',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
@@ -125,6 +134,7 @@ export const skillOperations = {
   }),
   revokeEditor: defineWorkspaceOperation({
     id: 'skills.editors.revoke',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',

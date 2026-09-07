@@ -8,6 +8,80 @@ permissions:
   contents: read
 
 jobs:
+  oauth-postgres:
+    name: OAuth PostgreSQL (${{ matrix.provision }})
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        provision: [push, migrate]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_oauth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_oauth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_oauth
+      OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_oauth
+      BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
+      OAUTH_PROVIDER_ENABLED: 'true'
+      NEXT_PUBLIC_APP_URL: https://test.sim.ai
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ~/.bun/install/cache
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Provision a fresh database through the supported command
+        working-directory: packages/db
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const extension of ["vector", "btree_gin", "pg_trgm"]) await sql`CREATE EXTENSION IF NOT EXISTS ${sql(extension)}`; await sql.end()'
+          bun run db:${{ matrix.provision }}
+
+      - name: Verify migration replay is a no-op
+        if: matrix.provision == 'migrate'
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      - name: Verify provider issuance and token lifecycle in PostgreSQL
+        working-directory: apps/sim
+        run: >-
+          bunx vitest run
+          lib/auth/oauth-token-family.postgres.test.ts
+          lib/auth/oauth-provider-lifecycle.postgres.test.ts
+          app/api/auth/oauth2/token/route.postgres.test.ts
+          lib/auth/sim-auth-adapter.test.ts
+
   test-build:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}

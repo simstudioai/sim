@@ -1,4 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
+import type { OAuthApiScope } from '@/lib/auth/oauth-provider'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import {
   CAPABILITY_RULES,
@@ -37,6 +39,8 @@ const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = ['person
 
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id
+  /** Required by definitions that admit OAuth; independent of the user's membership role. */
+  readonly oauthScope?: OAuthApiScope
   /**
    * The capability a permission group must not have withheld, or `'none'` when
    * no group governs this operation.
@@ -59,6 +63,25 @@ export interface ApplicationOperation<Id extends string = string> {
    * and `check:permission-group-enforcement` keeps reading the source.
    */
   readonly capability: OperationDeclarableCapability | 'none'
+}
+
+export type OAuthOperationPolicy<Kinds extends readonly string[]> =
+  'oauth_access_token' extends Kinds[number]
+    ? { readonly oauthScope: OAuthApiScope }
+    : { readonly oauthScope?: never }
+
+/** Rejects missing scope policy at definition time, including dynamically composed policies. */
+export function assertOperationOAuthPolicy(
+  operation: ApplicationOperation & { readonly principalKinds: readonly string[] }
+): void {
+  const acceptsOAuth = operation.principalKinds.includes('oauth_access_token')
+  if (acceptsOAuth) {
+    if (operation.oauthScope === 'api:read' || operation.oauthScope === 'api:write') return
+    throw new Error(`Operation ${operation.id} must declare its OAuth scope`)
+  }
+  if (operation.oauthScope !== undefined) {
+    throw new Error(`Operation ${operation.id} declares OAuth scope without admitting OAuth`)
+  }
 }
 
 /**
@@ -127,8 +150,8 @@ export function defineOperation<
   const Id extends string,
   const PrincipalKinds extends readonly UndelegatedPrincipalKind[],
 >(
-  operation: PrincipalScopedOperation<Id, PrincipalKinds>
-): PrincipalScopedOperation<Id, PrincipalKinds> {
+  operation: PrincipalScopedOperation<Id, PrincipalKinds> & OAuthOperationPolicy<PrincipalKinds>
+): PrincipalScopedOperation<Id, PrincipalKinds> & OAuthOperationPolicy<PrincipalKinds> {
   if (operation.principalKinds.length === 0) {
     throw new Error(`Operation ${operation.id} must allow at least one principal kind`)
   }
@@ -136,6 +159,7 @@ export function defineOperation<
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)
   }
   assertOperationCapability(operation)
+  assertOperationOAuthPolicy(operation)
   Object.freeze(operation.principalKinds)
   Object.freeze(operation)
   return operation
@@ -161,6 +185,7 @@ export function assertOperationPrincipal<O extends PrincipalScopedOperation>(
       `Operation ${operation.id} reached by principal kind ${principal.kind}, which its policy does not name`
     )
   }
+  requireOAuthOperationScope(principal, operation)
 }
 
 export interface OperationUseCase<O extends ApplicationOperation, I, R> {

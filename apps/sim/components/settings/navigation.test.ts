@@ -110,6 +110,7 @@ describe('settings navigation boundaries', () => {
       'custom-tools',
       'mcp',
       'apikeys',
+      'authorized-apps',
       'workflow-mcp-servers',
       'byok',
       'sandboxes',

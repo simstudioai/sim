@@ -14,6 +14,24 @@ const workspaceKey: Principal = {
 }
 
 describe('readV2ApiCapabilities', () => {
+  it('requires API read scope even when called without an HTTP adapter', async () => {
+    const principal = {
+      kind: 'oauth_access_token',
+      userId: 'user-1',
+      clientId: 'client-1',
+      tokenId: 'token-1',
+      scopes: ['offline_access'],
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    } as const
+
+    await expect(
+      readV2ApiCapabilities.execute({
+        principal,
+        input: { keyType: 'oauth_access_token', expiresAt: principal.expiresAt },
+      })
+    ).rejects.toMatchObject({ requiredScope: 'api:read' })
+  })
+
   it('reports that v2 is available with the credential lifecycle facts', async () => {
     const result = await readV2ApiCapabilities.execute({
       principal: personalKey,

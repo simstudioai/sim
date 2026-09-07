@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const PUBLIC_API_PRINCIPAL_KINDS = [
   'personal_api_key',
@@ -20,6 +20,7 @@ export const logOperations = {
   // permission-group-exempt: reading the log list is governed by workspace role; the group withholds fields inside a run — trace spans and cost — not the fact that it ran
   list: defineWorkspaceOperation({
     id: 'logs.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -28,6 +29,7 @@ export const logOperations = {
   // permission-group-exempt: aggregate run counts carry no execution payload, so there is nothing here for a group to withhold
   readStats: defineWorkspaceOperation({
     id: 'logs.read_stats',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -36,6 +38,7 @@ export const logOperations = {
   // permission-group-exempt: as with the list, the group projects trace spans and cost out of the response rather than refusing the read
   readDetail: defineWorkspaceOperation({
     id: 'logs.read_detail',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',

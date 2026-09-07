@@ -15,10 +15,17 @@ export {
   forbiddenErrorDetails,
 } from '@/lib/core/application/forbidden'
 export {
+  InsufficientScopeError,
+  OAuthAccessTokenExpiredError,
+  requireOAuthOperationScope,
+} from '@/lib/core/application/oauth-authorization'
+export {
   type ApplicationOperation,
   assertOperationCapability,
+  assertOperationOAuthPolicy,
   assertOperationPrincipal,
   defineOperation,
+  type OAuthOperationPolicy,
   type OperationDeclarableCapability,
   type OperationUseCase,
   type PrincipalKind,
@@ -36,10 +43,8 @@ export {
   capabilityGovernedPrincipalUserId,
   DelegatedServiceAuthorizationError,
   DelegatedWorkspaceAuthorizationError,
-  InsufficientScopeError,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
-  OAuthAccessTokenExpiredError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,

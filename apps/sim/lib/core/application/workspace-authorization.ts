@@ -11,13 +11,9 @@ import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
-import {
-  OAUTH_API_READ_SCOPE,
-  type OAuthApiScope,
-  oauthScopeSatisfies,
-  SIM_CLI_CLIENT_ID,
-} from '@/lib/auth/oauth-provider'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
@@ -133,25 +129,6 @@ export class DelegatedWorkspaceAuthorizationError extends OrchestrationError {
   }
 }
 
-export class InsufficientScopeError extends ForbiddenOperationError {
-  constructor(readonly requiredScope: OAuthApiScope) {
-    super('INSUFFICIENT_SCOPE', `This operation requires the ${requiredScope} scope`)
-    this.name = 'InsufficientScopeError'
-  }
-}
-
-/**
- * Concealed as a `401` by the surface: an expired token is no credential at
- * all, and the verifier already refuses it, so reaching this means the token
- * lapsed between authentication and authorization.
- */
-export class OAuthAccessTokenExpiredError extends OrchestrationError {
-  constructor() {
-    super('unauthorized', 'OAuth access token has expired')
-    this.name = 'OAuthAccessTokenExpiredError'
-  }
-}
-
 export class PrincipalKindAuthorizationError extends ForbiddenOperationError {
   constructor(principalKind: Principal['kind'], operationId: string) {
     super(
@@ -195,6 +172,7 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
     }
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
+  requireOAuthOperationScope(principal, operation)
   if (principal.kind !== 'delegated') return
 
   const delegatedServices = operation.delegatedServices
@@ -405,40 +383,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       await requirePersonalApiKeysAllowed(principal.userId, context)
       await requireCapability(principal.userId, context, operation)
       return
-    /**
-     * An OAuth access token is a personal API key narrowed by scope and bounded
-     * by expiry, so it walks the personal-key sequence above with two checks in
-     * front.
-     *
-     * Expiry first, because a lapsed token is not a credential and the answer
-     * does not depend on anything else. The verifier already refuses one at
-     * authentication, so this catches only a principal that outlived its
-     * token — a persisted workflow-execution principal re-authorized later.
-     *
-     * Then `api:read`, the floor every operation shares: a token granted only
-     * the identity scopes may sign a person in but may not read their
-     * workspaces. Whether an operation additionally needs `api:write` is a
-     * question about the REQUEST, not about the operation — `minimumRole` is a
-     * workspace-role floor, and several operations that change state declare
-     * `read` because their real gate is a resource ACL (setting a secret,
-     * granting a skill editor, running a workflow). Deriving the write
-     * requirement from it would hand a read-only token those writes, so the
-     * v2 surface derives it from the HTTP method instead, where a
-     * state-changing request is state-changing by construction.
-     *
-     * Scope precedes the role check deliberately: it names what the *client*
-     * was granted, not what the workspace or the organization decided, so it
-     * leaks nothing about either — and a client that never asked for API
-     * access should learn that before a role refusal sends its user to an
-     * admin for a permission they may already hold.
-     */
+    /** OAuth scopes and expiry were checked before loading protected context. */
     case 'oauth_access_token': {
-      if (principal.expiresAt.getTime() <= Date.now()) {
-        throw new OAuthAccessTokenExpiredError()
-      }
-      if (!oauthScopeSatisfies(principal.scopes, OAUTH_API_READ_SCOPE)) {
-        throw new InsufficientScopeError(OAUTH_API_READ_SCOPE)
-      }
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }

@@ -74,6 +74,17 @@ export function resolveAuthRedirect({ redirect, callbackUrl, inviteFlow }: AuthR
   }
 }
 
+/** OAuth reauthentication must reach the form even when an older session cookie exists. */
+export function isOAuthAuthorizationCallback(callbackUrl: string, origin: string): boolean {
+  if (!callbackUrl) return false
+  try {
+    const callback = new URL(callbackUrl, origin)
+    return callback.origin === origin && callback.pathname === '/api/auth/oauth2/authorize'
+  } catch {
+    return false
+  }
+}
+
 interface AuthCrossLinkParams {
   /** Validated post-auth destination to carry over, or null to drop it. */
   callbackUrl: string | null

@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlerMocks = vi.hoisted(() => ({
@@ -337,6 +336,8 @@ describe('OAuth provider client endpoints', () => {
     'oauth2/client/rotate-secret',
     'oauth2/register',
     'oauth2/introspect',
+    'oauth2/token',
+    'oauth2/revoke',
     'oauth2/anything-a-future-version-adds',
   ])('refuses POST /%s without reaching Better Auth', async (path) => {
     const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
@@ -348,10 +349,8 @@ describe('OAuth provider client endpoints', () => {
   })
 
   it.each([
-    'oauth2/token',
     'oauth2/consent',
     'oauth2/continue',
-    'oauth2/revoke',
     'oauth2/public-client-prelogin',
     'oauth2/callback/jira',
   ])('lets the protocol endpoint %s through', async (path) => {
@@ -362,50 +361,21 @@ describe('OAuth provider client endpoints', () => {
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['oauth2/token', 'oauth2/revoke'])(
-    'rejects repeated form parameters on %s',
-    async (path) => {
-      const req = new NextRequest(`http://localhost:3000/api/auth/${path}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-        body: 'client_id=client-1&client_id=client-2',
-      })
+  it.each([true, false])(
+    'preserves authenticated connector linking when the OAuth provider is enabled=%s',
+    async (enabled) => {
+      setEnvFlags({ isOAuthProviderEnabled: enabled })
+      const request = createMockRequest(
+        'POST',
+        { providerId: 'google-email', callbackURL: 'http://localhost:3000/workspace' },
+        { cookie: 'better-auth.session_token=existing-session' },
+        'http://localhost:3000/api/auth/oauth2/link'
+      )
 
-      const res = await POST(req)
+      const response = await POST(request)
 
-      expect(res.status).toBe(400)
-      expect(res.headers.get('cache-control')).toBe('no-store')
-      await expect(res.json()).resolves.toMatchObject({ error: 'invalid_request' })
-      expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(handlerMocks.betterAuthPOST).toHaveBeenCalledExactlyOnceWith(request)
     }
   )
-
-  it('rejects Basic authentication combined with a body secret', async () => {
-    const req = new NextRequest('http://localhost:3000/api/auth/oauth2/token', {
-      method: 'POST',
-      headers: {
-        authorization: 'Basic Y2xpZW50OnNlY3JldA==',
-        'content-type': 'application/x-www-form-urlencoded',
-      },
-      body: 'grant_type=authorization_code&client_secret=secret',
-    })
-
-    const res = await POST(req)
-
-    expect(res.status).toBe(400)
-    expect(res.headers.get('cache-control')).toBe('no-store')
-    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
-  })
-
-  it('passes an ordinary form request through unchanged', async () => {
-    const req = new NextRequest('http://localhost:3000/api/auth/oauth2/token', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-      body: 'grant_type=authorization_code&client_id=client-1',
-    })
-
-    await POST(req)
-
-    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledWith(req)
-  })
 })

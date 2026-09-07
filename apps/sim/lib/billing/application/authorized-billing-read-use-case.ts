@@ -9,6 +9,7 @@ import type {
   BillingReadPrincipal,
 } from '@/lib/billing/application/operations'
 import { type OperationUseCase, requireUserCredentialCapabilities } from '@/lib/core/application'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import {
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
@@ -149,6 +150,7 @@ export function defineAuthorizedBillingReadUseCase<const O extends BillingReadOp
     operation: definition.operation,
     async execute({ principal, input }) {
       requireBillingReadPrincipal(principal, definition.operation)
+      requireOAuthOperationScope(principal, definition.operation)
       const scope = await resolveBillingReadScope(
         principal,
         definition.operation,

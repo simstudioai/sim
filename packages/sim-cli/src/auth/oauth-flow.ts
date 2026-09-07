@@ -52,6 +52,37 @@ const LOGIN_TIMEOUT_MS = 5 * 60 * 1000
 
 /** How long a discovery, revocation, or code exchange may take. */
 const REQUEST_TIMEOUT_MS = 10 * 1000
+const MAX_OAUTH_RESPONSE_BYTES = 64 * 1024
+
+/** Bounds responses from configurable authorization servers before decoding JSON. */
+async function readOAuthResponse(response: Response): Promise<string> {
+  const tooLarge = () =>
+    new SimApiError('The authorization server response exceeds 64 KiB.', response.status)
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_OAUTH_RESPONSE_BYTES) {
+    await response.body?.cancel().catch(() => undefined)
+    throw tooLarge()
+  }
+  if (!response.body) return ''
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) return Buffer.concat(chunks, size).toString('utf8')
+      size += value.byteLength
+      if (size > MAX_OAUTH_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined)
+        throw tooLarge()
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 /**
  * Refuses to run the OAuth flow over cleartext.
@@ -168,7 +199,10 @@ export async function discoverOAuthProvider(endpoint: string): Promise<OAuthProv
   if (response.status === 404) return 'unavailable'
   if (!response.ok || REDIRECT_STATUSES.has(response.status)) return 'unreachable'
   try {
-    const metadata = (await response.json()) as { issuer?: unknown; token_endpoint?: unknown }
+    const metadata = JSON.parse(await readOAuthResponse(response)) as {
+      issuer?: unknown
+      token_endpoint?: unknown
+    }
     const expectedIssuer = oauthIssuerForEndpoint(endpoint)
     const expectedTokenEndpoint = buildUrl(endpoint, TOKEN_PATH)
     return metadata.issuer === expectedIssuer && metadata.token_endpoint === expectedTokenEndpoint
@@ -225,7 +259,7 @@ async function readTokens(
   issuedAt: number,
   expectedScopes?: readonly string[]
 ): Promise<OAuthTokens> {
-  const raw = await response.text()
+  const raw = await readOAuthResponse(response)
   let body: TokenResponse
   try {
     body = JSON.parse(raw) as TokenResponse
@@ -382,6 +416,7 @@ interface LoopbackResult {
 function listenForCallback(
   server: Server,
   expectedState: string,
+  completionUrl: string,
   signal: AbortSignal | undefined,
   timeoutMs: number
 ): Promise<LoopbackResult> {
@@ -413,6 +448,8 @@ function listenForCallback(
     signal?.addEventListener('abort', onAbort, { once: true })
 
     server.on('request', (request, response) => {
+      response.setHeader('cache-control', 'no-store')
+      response.setHeader('referrer-policy', 'no-referrer')
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
       if (url.pathname !== CALLBACK_PATH) {
         response.writeHead(404, { 'content-type': 'text/plain' }).end('Not found')
@@ -461,14 +498,7 @@ function listenForCallback(
         })
         return
       }
-      response
-        .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-        .end(
-          callbackPage(
-            'Authorization received',
-            'Return to your terminal while Sim finishes signing you in.'
-          )
-        )
+      response.writeHead(302, { location: completionUrl }).end()
       finish({ ok: true, value: { code } })
     })
   })
@@ -523,6 +553,7 @@ export async function loginWithBrowser(
   const pending = listenForCallback(
     server,
     pkce.state,
+    buildUrl(endpoint, '/cli/auth/done'),
     callbackSignal,
     options.timeoutMs ?? LOGIN_TIMEOUT_MS
   )

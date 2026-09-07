@@ -3,7 +3,6 @@
 import { Chip } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { signOut } from '@/lib/auth/auth-client'
 import {
   OAUTH_SCOPE_DESCRIPTIONS,
   SIM_CLI_CLIENT_ID,
@@ -17,7 +16,11 @@ import {
 } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { OAuthConsentLoading } from '@/app/(auth)/oauth/consent/loading'
-import { useOAuthConsent, useOAuthPublicClient } from '@/hooks/queries/oauth-provider'
+import {
+  useOAuthConsent,
+  useOAuthPublicClient,
+  useOAuthSwitchAccount,
+} from '@/hooks/queries/oauth-provider'
 
 export type OAuthConsentRefusal = 'expired' | 'missing' | 'tampered' | 'unsigned'
 
@@ -79,22 +82,23 @@ export function OAuthConsentView({
 }: OAuthConsentViewProps) {
   const client = useOAuthPublicClient(clientId ?? undefined, authorizationRequestKey ?? undefined)
   const consent = useOAuthConsent()
+  const switchAccount = useOAuthSwitchAccount()
 
   /** Refuses clients Sim cannot name because URL metadata alone is untrusted. */
   const reason: OAuthConsentRefusal | null = refusal ?? (clientId ? null : 'missing')
   if (reason || client.isError) {
     return (
-      <div className='space-y-6'>
-        <AuthHeader
-          title='Invalid request'
-          description='This page can only be opened by an app signing in with Sim.'
-        />
-        <AuthFormMessage type='error' align='center'>
-          {reason
+      <AuthHeader
+        title='Unable to connect'
+        description={
+          reason
             ? REFUSAL_MESSAGES[reason]
-            : getErrorMessage(client.error, 'Sim could not identify the app asking for access.')}
-        </AuthFormMessage>
-      </div>
+            : getErrorMessage(
+                client.error,
+                'Sim could not identify the app. Start again from the app.'
+              )
+        }
+      />
     )
   }
 
@@ -105,21 +109,19 @@ export function OAuthConsentView({
   const appName = client.data?.name?.trim()
   if (!appName) {
     return (
-      <div className='space-y-6'>
-        <AuthHeader
-          title='Invalid request'
-          description='This page can only be opened by an app registered with a display name.'
-        />
-        <AuthFormMessage type='error' align='center'>
-          Sim could not identify the app asking for access.
-        </AuthFormMessage>
-      </div>
+      <AuthHeader
+        title='Unable to connect'
+        description='Sim could not identify the app. Start again from the app asking for access.'
+      />
     )
   }
   const scopes = visibleOAuthScopes((scope ?? '').split(' ').filter(Boolean))
   const destination = describeDestination(redirectUri)
+  const isPending =
+    consent.isPending || consent.isSuccess || switchAccount.isPending || switchAccount.isSuccess
 
   const decide = (accept: boolean) => {
+    switchAccount.reset()
     consent.mutate(accept, {
       onSuccess: (url) => {
         window.location.assign(url)
@@ -127,9 +129,15 @@ export function OAuthConsentView({
     })
   }
 
-  const switchAccount = async () => {
-    await signOut()
-    window.location.assign(`/oauth/sign-in${window.location.search}`)
+  const changeAccount = () => {
+    consent.reset()
+    switchAccount.mutate(undefined, {
+      onSuccess: () => {
+        const params = new URLSearchParams(window.location.search)
+        params.set('prompt', 'login consent')
+        window.location.assign(`/oauth/sign-in?${params.toString()}`)
+      },
+    })
   }
 
   return (
@@ -144,25 +152,28 @@ export function OAuthConsentView({
       />
       <div className='space-y-4'>
         {scopes.length > 0 && (
-          <ul className='space-y-2 rounded-[10px] border border-[var(--border)] px-4 py-3'>
+          <ul className='space-y-2 px-2'>
             {scopes.map((item) => (
               <li key={item} className='flex items-start gap-2 text-[var(--text-body)] text-sm'>
-                <Check className='mt-[3px] size-[14px] shrink-0 text-[var(--text-icon)]' />
+                <Check
+                  aria-hidden='true'
+                  className='mt-[3px] size-[14px] shrink-0 text-[var(--text-icon)]'
+                />
                 <span>{OAUTH_SCOPE_DESCRIPTIONS[item]}</span>
               </li>
             ))}
           </ul>
         )}
-        <p className='text-center text-[var(--text-muted)] text-caption'>
-          {destination ? `Sends you back to ${destination}. ` : ''}Continuing as {email}.{' '}
-          <AuthTextLink onClick={switchAccount} disabled={consent.isPending}>
-            Not you?
+        <p className='break-words text-center text-[var(--text-muted)] text-caption'>
+          Continuing as {email}.{' '}
+          <AuthTextLink onClick={changeAccount} disabled={isPending}>
+            {switchAccount.isPending ? 'Signing out…' : 'Use another account'}
           </AuthTextLink>
         </p>
         <AuthSubmitButton
           type='button'
           loading={consent.isPending && consent.variables === true}
-          disabled={consent.isPending}
+          disabled={isPending}
           loadingLabel='Authorizing'
           onClick={() => decide(true)}
         >
@@ -172,16 +183,26 @@ export function OAuthConsentView({
           type='button'
           variant='border'
           fullWidth
-          disabled={consent.isPending}
+          disabled={isPending}
           className={AUTH_BUTTON_CLASS}
           onClick={() => decide(false)}
         >
-          Deny
+          {consent.isPending && consent.variables === false ? 'Declining…' : 'Deny'}
         </Chip>
-        {consent.isError && (
-          <AuthFormMessage type='error' align='center'>
-            {getErrorMessage(consent.error, 'Something went wrong. Please try again.')}
-          </AuthFormMessage>
+        {destination && (
+          <p className='break-words text-center text-[var(--text-muted)] text-caption'>
+            Returns to {destination}.
+          </p>
+        )}
+        {(consent.isError || switchAccount.isError) && (
+          <div role='alert'>
+            <AuthFormMessage type='error' align='center'>
+              {getErrorMessage(
+                consent.error ?? switchAccount.error,
+                'Something went wrong. Please try again.'
+              )}
+            </AuthFormMessage>
+          </div>
         )}
       </div>
     </div>

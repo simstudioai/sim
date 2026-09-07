@@ -448,6 +448,7 @@ describe('script migration registry', () => {
       '0009_backfill_wel_residual_cost_total',
       '0010_backfill_credential_group_resource_policies',
       '0011_remap_legacy_knowledge_connector_credentials',
+      '0012_reconcile_oauth_provider_lifecycle',
     ])
   })
 })

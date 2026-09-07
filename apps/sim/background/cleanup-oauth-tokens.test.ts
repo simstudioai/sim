@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   txSelect: vi.fn(),
   txDelete: vi.fn(),
+  limits: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -33,7 +34,10 @@ function selectChain(rows: unknown[], captured: unknown[]) {
     return chain
   }
   chain.orderBy = () => chain
-  chain.limit = () => chain
+  chain.limit = (limit: number) => {
+    mocks.limits(limit)
+    return chain
+  }
   chain.for = () => chain
   chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve)
   return chain
@@ -110,5 +114,32 @@ describe('runCleanupOAuthTokens', () => {
 
   it('keeps a tail rather than deleting the moment a token lapses', () => {
     expect(OAUTH_TOKEN_RETENTION_DAYS).toBeGreaterThan(0)
+  })
+
+  it('bounds family cascades independently of direct token pages and stops a full backlog', async () => {
+    const families = Array.from({ length: 10 }, (_, index) => ({
+      id: `family-${index}`,
+      clientId: 'client-1',
+      sessionId: null,
+      userId: 'user-1',
+      consentId: null,
+    }))
+    for (let page = 0; page < 10; page += 1) {
+      mocks.select.mockReturnValueOnce(selectChain(families, []))
+    }
+    mocks.select.mockReturnValueOnce(selectChain([], []))
+    mocks.txDelete.mockReturnValue({
+      where: () => ({ returning: async () => families.map(({ id }) => ({ id })) }),
+    })
+
+    await expect(runCleanupOAuthTokens()).resolves.toEqual({
+      tokenFamilies: 100,
+      accessTokens: 0,
+    })
+    expect(mocks.transaction).toHaveBeenCalledTimes(10)
+    expect(mocks.limits.mock.calls.map(([limit]) => limit)).toEqual([
+      ...Array.from({ length: 10 }, () => 10),
+      5_000,
+    ])
   })
 })

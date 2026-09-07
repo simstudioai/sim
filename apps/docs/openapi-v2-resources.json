@@ -71,7 +71,9 @@
       "get": {
         "operationId": "listWorkspaces",
         "summary": "List Workspaces",
-        "description": "List active workspaces available to the calling credential with opaque cursor pagination. A personal API key or OAuth token sees accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace.",
+        "description": "List active workspaces available to the calling credential with opaque cursor pagination. A personal API key or OAuth token sees accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workspaces.list_public",
+        "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
         "parameters": [
           {
@@ -173,7 +175,9 @@
       "get": {
         "operationId": "getWorkspace",
         "summary": "Get Workspace",
-        "description": "Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.",
+        "description": "Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workspaces.read_public_detail",
+        "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
         "parameters": [
           {
@@ -239,7 +243,9 @@
       "get": {
         "operationId": "listWorkspaceMembers",
         "summary": "List Workspace Members",
-        "description": "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-administrator grants are merged; internal membership and billing identities are omitted.",
+        "description": "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-administrator grants are merged; internal membership and billing identities are omitted.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workspaces.members.list_public",
+        "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
         "parameters": [
           {
@@ -329,7 +335,9 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{mcpServerId}/tools` runs a discovery.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{mcpServerId}/tools` runs a discovery.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "mcp_servers.list",
+        "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -453,7 +461,9 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{mcpServerId}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{mcpServerId}/tools` succeeds.",
+        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{mcpServerId}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{mcpServerId}/tools` succeeds.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.create",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -525,7 +535,9 @@
       "get": {
         "operationId": "getMcpServer",
         "summary": "Get MCP Server",
-        "description": "Fetch one MCP server by identifier. Request-header values and OAuth client secrets are never returned.",
+        "description": "Fetch one MCP server by identifier. Request-header values and OAuth client secrets are never returned.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "mcp_servers.read",
+        "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -600,7 +612,9 @@
       "patch": {
         "operationId": "updateMcpServer",
         "summary": "Update MCP Server",
-        "description": "Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.",
+        "description": "Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.update",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -680,7 +694,9 @@
       "delete": {
         "operationId": "deleteMcpServer",
         "summary": "Delete MCP Server",
-        "description": "Remove an MCP server and revoke its OAuth tokens. Workflows retain blocks that referenced the server's tools, but those tools can no longer be called.",
+        "description": "Remove an MCP server and revoke its OAuth tokens. Workflows retain blocks that referenced the server's tools, but those tools can no longer be called.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -757,7 +773,9 @@
       "get": {
         "operationId": "listMcpServerTools",
         "summary": "List MCP Server Tools",
-        "description": "Return up to 1,000 tools and 5 MB with `nextCursor: null`, opening a connection and updating connection metadata. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. Unavailable servers return `503`; invalid OAuth returns `409` with `error.details.code: MCP_SERVER_REAUTHORIZATION_REQUIRED` and requires human reauthorization. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Return up to 1,000 tools and 5 MB with `nextCursor: null`, opening a connection and updating connection metadata. `HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only. Unavailable servers return `503`; invalid OAuth returns `409` with `error.details.code: MCP_SERVER_REAUTHORIZATION_REQUIRED` and requires human reauthorization. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.tools.discover",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -847,7 +865,9 @@
       "get": {
         "operationId": "listSkills",
         "summary": "List Skills",
-        "description": "List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.",
+        "description": "List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "skills.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -971,7 +991,9 @@
       "post": {
         "operationId": "createSkill",
         "summary": "Create Skill",
-        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "skills.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Skills"],
         "requestBody": {
           "required": true,
@@ -1043,7 +1065,9 @@
       "get": {
         "operationId": "getSkill",
         "summary": "Get Skill",
-        "description": "Fetch one workspace or built-in skill, including its full content. Built-in skills are marked read-only.",
+        "description": "Fetch one workspace or built-in skill, including its full content. Built-in skills are marked read-only.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "skills.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -1118,7 +1142,9 @@
       "patch": {
         "operationId": "updateSkill",
         "summary": "Update Skill",
-        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "skills.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -1201,7 +1227,9 @@
       "delete": {
         "operationId": "deleteSkill",
         "summary": "Delete Skill",
-        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "skills.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -1278,7 +1306,9 @@
       "get": {
         "operationId": "listSkillEditors",
         "summary": "List Skill Editors",
-        "description": "List explicit skill editors and workspace administrators with opaque cursor pagination. Internal user and membership identifiers are never returned.",
+        "description": "List explicit skill editors and workspace administrators with opaque cursor pagination. Internal user and membership identifiers are never returned.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "skills.editors.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -1401,7 +1431,9 @@
       "post": {
         "operationId": "grantSkillEditor",
         "summary": "Grant Skill Editor",
-        "description": "Grant editor access to a current workspace member by email. The caller must already be a skill editor or workspace administrator. Workspace administrators already have derived editor access and cannot receive an explicit grant. A retried existing grant returns 200; a newly created grant returns 201. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Grant editor access to a current workspace member by email. The caller must already be a skill editor or workspace administrator. Workspace administrators already have derived editor access and cannot receive an explicit grant. A retried existing grant returns 200; a newly created grant returns 201. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "skills.editors.grant",
+        "x-oauth-scope": "api:write",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -1502,7 +1534,9 @@
       "delete": {
         "operationId": "revokeSkillEditor",
         "summary": "Revoke Skill Editor",
-        "description": "Revoke an explicit editor grant by email. The caller must already be a skill editor or workspace administrator. Workspace administrators have derived access that cannot be revoked. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Revoke an explicit editor grant by email. The caller must already be a skill editor or workspace administrator. Workspace administrators have derived access that cannot be revoked. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "skills.editors.revoke",
+        "x-oauth-scope": "api:write",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -1591,7 +1625,9 @@
       "get": {
         "operationId": "listCustomTools",
         "summary": "List Custom Tools",
-        "description": "List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.",
+        "description": "List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "custom_tools.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1715,7 +1751,9 @@
       "post": {
         "operationId": "createCustomTool",
         "summary": "Create Custom Tool",
-        "description": "Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.",
+        "description": "Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "custom_tools.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],
         "requestBody": {
           "required": true,
@@ -1787,7 +1825,9 @@
       "get": {
         "operationId": "getCustomTool",
         "summary": "Get Custom Tool",
-        "description": "Fetch one custom tool by identifier, scoped to its workspace.",
+        "description": "Fetch one custom tool by identifier, scoped to its workspace.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "custom_tools.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1862,7 +1902,9 @@
       "patch": {
         "operationId": "updateCustomTool",
         "summary": "Update Custom Tool",
-        "description": "Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.",
+        "description": "Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "custom_tools.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1945,7 +1987,9 @@
       "delete": {
         "operationId": "deleteCustomTool",
         "summary": "Delete Custom Tool",
-        "description": "Delete a custom tool. Agent blocks retain their configuration but can no longer call the deleted tool.",
+        "description": "Delete a custom tool. Agent blocks retain their configuration but can no longer call the deleted tool.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "custom_tools.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -2022,7 +2066,9 @@
       "get": {
         "operationId": "listSandboxes",
         "summary": "List Sandboxes",
-        "description": "List the sandboxes defined in a workspace, with opaque cursor pagination. A sandbox is a reusable dependency set — npm or PyPI packages, pinned managed CLIs, and Debian packages — that Function blocks execute against. Listing is not plan-gated, so a workspace that dropped below the Max tier still sees what it built.",
+        "description": "List the sandboxes defined in a workspace, with opaque cursor pagination. A sandbox is a reusable dependency set — npm or PyPI packages, pinned managed CLIs, and Debian packages — that Function blocks execute against. Listing is not plan-gated, so a workspace that dropped below the Max tier still sees what it built.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "sandboxes.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -2146,7 +2192,9 @@
       "post": {
         "operationId": "createSandbox",
         "summary": "Create Sandbox",
-        "description": "Create a uniquely named sandbox. Prebuild deployments schedule an image build reported by `buildStatus`; runtime-install deployments or empty specs report `buildStatus: null`. Invalid dependency or system-package entries return `400` with field details. Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Creates and updates share a write budget; bursts return `429` with `Retry-After`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Create a uniquely named sandbox. Prebuild deployments schedule an image build reported by `buildStatus`; runtime-install deployments or empty specs report `buildStatus: null`. Invalid dependency or system-package entries return `400` with field details. Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Creates and updates share a write budget; bursts return `429` with `Retry-After`. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "sandboxes.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Sandboxes"],
         "requestBody": {
           "required": true,
@@ -2218,7 +2266,9 @@
       "get": {
         "operationId": "getSandbox",
         "summary": "Get Sandbox",
-        "description": "Fetch one sandbox by identifier, scoped to its workspace, including its current build state and any build failure.",
+        "description": "Fetch one sandbox by identifier, scoped to its workspace, including its current build state and any build failure.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "sandboxes.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -2293,7 +2343,9 @@
       "patch": {
         "operationId": "updateSandbox",
         "summary": "Update Sandbox",
-        "description": "Update supplied fields; omissions preserve values, lists replace whole lists, and names remain unique. Prebuild deployments rebuild changed specs, while resending an unchanged failed spec retries it; runtime-install or empty specs report `buildStatus: null`. Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Creates and updates share a write budget; bursts return `429` with `Retry-After`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Update supplied fields; omissions preserve values, lists replace whole lists, and names remain unique. Prebuild deployments rebuild changed specs, while resending an unchanged failed spec retries it; runtime-install or empty specs report `buildStatus: null`. Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Creates and updates share a write budget; bursts return `429` with `Retry-After`. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "sandboxes.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -2376,7 +2428,9 @@
       "delete": {
         "operationId": "deleteSandbox",
         "summary": "Delete Sandbox",
-        "description": "Delete a sandbox. Function blocks still selecting it fail closed until reconfigured. A prebuilt image is released when no sandbox shares it; runtime-install and empty specs have no image to release. Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Delete a sandbox. Function blocks still selecting it fail closed until reconfigured. A prebuilt image is released when no sandbox shares it; runtime-install and empty specs have no image to release. Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "sandboxes.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -2453,7 +2507,9 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned.",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "credentials.connections.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -2599,7 +2655,9 @@
       "post": {
         "operationId": "createServiceAccountCredential",
         "summary": "Create Service-Account Credential",
-        "description": "Verify and store one service-account credential. Use provider discovery to select a service-account provider, then encode its required fields as the JSON object string in credentials. The credentials string is write-only and is never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Verify and store one service-account credential. Use provider discovery to select a service-account provider, then encode its required fields as the JSON object string in credentials. The credentials string is write-only and is never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.service_accounts.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
         "requestBody": {
           "required": true,
@@ -2692,7 +2750,9 @@
       "get": {
         "operationId": "listCredentialProviders",
         "summary": "List Credential Providers",
-        "description": "List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. The bounded set is returned in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "credentials.providers.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -2770,7 +2830,9 @@
       "post": {
         "operationId": "createCredentialConnection",
         "summary": "Create Credential Connection",
-        "description": "Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL, sign in as the authenticated user, complete provider authorization, then refresh the credentials list. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL, sign in as the authenticated user, complete provider authorization, then refresh the credentials list. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.connections.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
         "requestBody": {
           "required": true,
@@ -2842,7 +2904,9 @@
       "delete": {
         "operationId": "deleteCredential",
         "summary": "Disconnect Credential",
-        "description": "Disconnect an OAuth or service-account credential and clear its stored workflow, deployment, paused-run, knowledge-connector, and webhook references. Credential admin access is required. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Disconnect an OAuth or service-account credential and clear its stored workflow, deployment, paused-run, knowledge-connector, and webhook references. Credential admin access is required. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -2918,7 +2982,9 @@
       "patch": {
         "operationId": "updateCredential",
         "summary": "Update Credential",
-        "description": "Rename a service-account credential or rotate its write-only secret fields. Omissions preserve values; `description: null` clears the description. Secret fields sent for another credential type return `400`. The provider verifies replacements before storage: rejection leaves the old secret intact and returns `400` with `providerErrorCode`; provider outages return `503`. The preserved credential ID keeps all references working. Credential admin access is required. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Rename a service-account credential or rotate its write-only secret fields. Omissions preserve values; `description: null` clears the description. Secret fields sent for another credential type return `400`. The provider verifies replacements before storage: rejection leaves the old secret intact and returns `400` with `providerErrorCode`; provider outages return `503`. The preserved credential ID keeps all references working. Credential admin access is required. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -3016,7 +3082,9 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Rows for workspace secrets marked visible (unredacted) include the stored value; every other row is metadata-only and no other response ever carries a value. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Rows for workspace secrets marked visible (unredacted) include the stored value; every other row is metadata-only and no other response ever carries a value. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "secrets.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -3153,7 +3221,9 @@
       "put": {
         "operationId": "setSecret",
         "summary": "Set Secret",
-        "description": "Create or replace a workspace or personal secret. Values are encrypted at rest, write-only, and never returned. For an existing workspace secret, omit `value` to update only `description` or `unredacted`; the value remains untouched. This metadata-only form cannot create a secret and returns `404` when absent. Personal secrets always require `value`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Create or replace a workspace or personal secret. Values are encrypted at rest, write-only, and never returned. For an existing workspace secret, omit `value` to update only `description` or `unredacted`; the value remains untouched. This metadata-only form cannot create a secret and returns `404` when absent. Personal secrets always require `value`. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "secrets.set",
+        "x-oauth-scope": "api:write",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -3256,7 +3326,9 @@
       "delete": {
         "operationId": "deleteSecret",
         "summary": "Delete Secret",
-        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "secrets.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -3346,7 +3418,9 @@
       "get": {
         "operationId": "getApiMeta",
         "summary": "Get API Capabilities",
-        "description": "Report whether v2 is available, what kind of API credential is calling, and when it expires. Requires a valid API key or OAuth access token.",
+        "description": "Report whether v2 is available, what kind of API credential is calling, and when it expires. Requires a valid API key or OAuth access token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "meta.capabilities.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Meta"],
         "responses": {
           "200": {
@@ -3392,7 +3466,9 @@
       "get": {
         "operationId": "listWorkflowMcpServers",
         "summary": "List Workflow MCP Servers",
-        "description": "List servers that publish deployed workflows to outside MCP clients; `GET /api/v2/mcp-servers` instead lists external servers Sim calls. Entries include client endpoints and tool names. A page shares a 2,000-name budget, so trailing servers may show partial inventories; read a server's tools endpoint for its full set. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "List servers that publish deployed workflows to outside MCP clients; `GET /api/v2/mcp-servers` instead lists external servers Sim calls. Entries include client endpoints and tool names. A page shares a 2,000-name budget, so trailing servers may show partial inventories; read a server's tools endpoint for its full set. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.list",
+        "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3504,7 +3580,9 @@
       "post": {
         "operationId": "createWorkflowMcpServer",
         "summary": "Create Workflow MCP Server",
-        "description": "Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in `workflowIds` must already be deployed. Setting `isPublic` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in `workflowIds` must already be deployed. Setting `isPublic` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.create_server",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -3576,7 +3654,9 @@
       "get": {
         "operationId": "getWorkflowMcpServer",
         "summary": "Get Workflow MCP Server",
-        "description": "Read one published MCP server. The list is the only other place this state is published, so a caller holding a server id would otherwise have to page the collection and filter client-side. The tools it publishes are on its `tools` sub-resource. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Read one published MCP server. The list is the only other place this state is published, so a caller holding a server id would otherwise have to page the collection and filter client-side. The tools it publishes are on its `tools` sub-resource. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.read_server",
+        "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3639,7 +3719,9 @@
       "patch": {
         "operationId": "updateWorkflowMcpServer",
         "summary": "Update Workflow MCP Server",
-        "description": "Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its `tools` sub-resource. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its `tools` sub-resource. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.update_server",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3722,7 +3804,9 @@
       "delete": {
         "operationId": "deleteWorkflowMcpServer",
         "summary": "Delete Workflow MCP Server",
-        "description": "Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.delete_server",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3790,7 +3874,9 @@
       "get": {
         "operationId": "listWorkflowMcpTools",
         "summary": "List Workflow MCP Tools",
-        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Returned in one page rather than paged — so `nextCursor` is always null — and capped at 2,000 tools, which is far above any real server's inventory. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Returned in one page rather than paged — so `nextCursor` is always null — and capped at 2,000 tools, which is far above any real server's inventory. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.list_tools",
+        "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3853,7 +3939,9 @@
       "post": {
         "operationId": "deployWorkflowMcpTool",
         "summary": "Publish Workflow As MCP Tool",
-        "description": "Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers `200` with `updated: true` rather than conflicting. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers `200` with `updated: true` rather than conflicting. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.deploy_tool",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3938,7 +4026,9 @@
       "delete": {
         "operationId": "undeployWorkflowMcpTool",
         "summary": "Unpublish Workflow MCP Tool",
-        "description": "Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "mcp_servers.workflow_deployments.undeploy_tool",
+        "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -4017,7 +4107,9 @@
       "get": {
         "operationId": "listBlocks",
         "summary": "List Blocks",
-        "description": "List the blocks available in a workspace, built-in and workspace-deployed alike, discriminated by `source`. Availability is caller-specific: the workspace’s integration allowlist, the organization’s revealed preview blocks, and the deployment’s allowlist all narrow the result. Use `capability=trigger` for the blocks that can start a workflow. Summaries name their tools and operations by id — resolve one with Get Block or Get Tool.",
+        "description": "List the blocks available in a workspace, built-in and workspace-deployed alike, discriminated by `source`. Availability is caller-specific: the workspace’s integration allowlist, the organization’s revealed preview blocks, and the deployment’s allowlist all narrow the result. Use `capability=trigger` for the blocks that can start a workflow. Summaries name their tools and operations by id — resolve one with Get Block or Get Tool.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "catalog.blocks.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4176,7 +4268,9 @@
       "get": {
         "operationId": "getBlock",
         "summary": "Get Block",
-        "description": "Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. An unversioned base type resolves to the newest version this caller can see — `confluence` answers with `confluence_v2` — and the returned `id` is always the resolved one, matching Get Tool. A block this caller cannot see answers 404, identically to one that does not exist.",
+        "description": "Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. An unversioned base type resolves to the newest version this caller can see — `confluence` answers with `confluence_v2` — and the returned `id` is always the resolved one, matching Get Tool. A block this caller cannot see answers 404, identically to one that does not exist.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "catalog.blocks.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4254,7 +4348,9 @@
       "get": {
         "operationId": "listTools",
         "summary": "List Tools",
-        "description": "List the built-in tools available in a workspace. Built-in tools only: a workspace’s MCP tools are discovered per server on List MCP Server Tools, and its code-backed custom tools are on List Custom Tools. A tool is available when a block the caller can see exposes it, so the same allowlist and visibility rules as List Blocks apply.",
+        "description": "List the built-in tools available in a workspace. Built-in tools only: a workspace’s MCP tools are discovered per server on List MCP Server Tools, and its code-backed custom tools are on List Custom Tools. A tool is available when a block the caller can see exposes it, so the same allowlist and visibility rules as List Blocks apply.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "catalog.tools.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4403,7 +4499,9 @@
       "get": {
         "operationId": "getTool",
         "summary": "Get Tool",
-        "description": "Read one built-in tool’s declared parameters and outputs. A name that is itself a registered id answers as that exact tool; a name that is not resolves to the newest version of its family. The returned `id` is always the one that answered, so a caller can see which version it got. A tool the workspace’s visible blocks do not expose answers `404`, identically to one that does not exist.",
+        "description": "Read one built-in tool’s declared parameters and outputs. A name that is itself a registered id answers as that exact tool; a name that is not resolves to the newest version of its family. The returned `id` is always the one that answered, so a caller can see which version it got. A tool the workspace’s visible blocks do not expose answers `404`, identically to one that does not exist.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "catalog.tools.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4481,7 +4579,9 @@
       "post": {
         "operationId": "executeTool",
         "summary": "Run Tool",
-        "description": "Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: \"failed\"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: \"failed\"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tools.execute",
+        "x-oauth-scope": "api:write",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4564,7 +4664,9 @@
       "get": {
         "operationId": "listConnectorTypes",
         "summary": "List Connector Types",
-        "description": "List connector types and accepted source configuration. A field with `multi: true` stores `string[]`. `canonicalParamId` links picker and manual fields that write the same key; send exactly one, keyed by `canonicalParamId` rather than its own `id`. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List connector types and accepted source configuration. A field with `multi: true` stores `string[]`. `canonicalParamId` links picker and manual fields that write the same key; send exactly one, keyed by `canonicalParamId` rather than its own `id`. The bounded set is returned in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "catalog.connector_types.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4651,7 +4753,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. The token must carry the scope required by the operation."
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
       }
     },
     "headers": {

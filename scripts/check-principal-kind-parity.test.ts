@@ -3,63 +3,76 @@ import { auditSource, parsePrincipalKindLiterals } from './check-principal-kind-
 
 const FILE = 'apps/sim/lib/things/application/operations.ts'
 
-describe('principalKinds literal parsing', () => {
-  it('reads single-line and multi-line literals, including type-level ones', () => {
-    const literals = parsePrincipalKindLiterals(`
-      readonly principalKinds: readonly ['session', 'personal_api_key', 'oauth_access_token']
-      const A = defineWorkspaceOperation({
-        principalKinds: [
-          'session',
-          'delegated',
-        ],
-      })
-      principalKinds?: readonly ['session']
+describe('principal policy parsing', () => {
+  it('reads value arrays and literal tuples without reading comments', () => {
+    const declarations = parsePrincipalKindLiterals(`
+      interface Operation {
+        readonly principalKinds: readonly ['session', 'personal_api_key', 'oauth_access_token']
+      }
+      const A = defineWorkspaceOperation({ principalKinds: ['session', 'delegated'] })
+      // principalKinds: ['personal_api_key']
+      const description = "principalKinds: ['personal_api_key']"
     `)
-
-    expect(literals.map((literal) => literal.kinds)).toEqual([
+    expect(declarations.map((declaration) => declaration.kinds)).toEqual([
       ['session', 'personal_api_key', 'oauth_access_token'],
       ['session', 'delegated'],
-      ['session'],
     ])
   })
-})
 
-describe('assertion A — the two user-credential kinds travel together', () => {
-  it('accepts a policy that names both, and one that names neither', () => {
-    const { findings, pairs } = auditSource(
+  it('resolves named arrays and nested spreads', () => {
+    const result = auditSource(
       FILE,
       `
-        principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
-        principalKinds: ['session', 'delegated'],
-      `
+      const PERSONAL = ['personal_api_key'] as const
+      const HUMAN = [...PERSONAL, 'oauth_access_token'] as const
+      const ALL = ['session', ...HUMAN] as const
+      const operation = { principalKinds: ALL }
+    `
     )
-
-    expect(findings).toEqual([])
-    expect(pairs).toBe(1)
+    expect(result).toEqual({ findings: [], pairs: 1 })
   })
 
-  it('reports a policy that admits the key but not the token', () => {
-    const { findings } = auditSource(FILE, "principalKinds: ['session', 'personal_api_key'],")
+  it('resolves frozen policies while refusing arbitrary factory calls', () => {
+    expect(
+      auditSource(
+        FILE,
+        `
+      const USER_KINDS = Object.freeze(['personal_api_key', 'oauth_access_token'] as const)
+      const operation = { principalKinds: Object.freeze([...USER_KINDS]) }
+    `
+      )
+    ).toEqual({ findings: [], pairs: 1 })
+    expect(
+      auditSource(FILE, 'const operation = { principalKinds: getKinds() }').findings
+    ).toHaveLength(1)
+  })
 
+  it.each([
+    ["['session', 'personal_api_key']", 'oauth_access_token'],
+    ["['oauth_access_token']", 'personal_api_key'],
+  ])('reports a missing paired kind in %s', (kinds, missing) => {
+    const { findings } = auditSource(
+      FILE,
+      `const KINDS = ${kinds}; const op = { principalKinds: KINDS }`
+    )
     expect(findings).toHaveLength(1)
     expect(findings[0]).toMatchObject({ file: FILE, line: 1 })
-    expect(findings[0].message).toContain("without 'oauth_access_token'")
+    expect(findings[0].message).toContain(`without '${missing}'`)
   })
 
-  it('reports a policy that admits the token but not the key', () => {
-    const { findings } = auditSource(FILE, "principalKinds: ['oauth_access_token'],")
-
-    expect(findings).toHaveLength(1)
-    expect(findings[0].message).toContain("without 'personal_api_key'")
+  it('accepts an operation that names neither credential kind', () => {
+    expect(auditSource(FILE, "const op = { principalKinds: ['session', 'delegated'] }")).toEqual({
+      findings: [],
+      pairs: 0,
+    })
   })
 
-  it('does not count a spread constant as naming a bare kind', () => {
-    const { findings, pairs } = auditSource(
-      FILE,
-      "principalKinds: ['session', ...USER_CREDENTIAL_PRINCIPAL_KINDS],"
-    )
-
-    expect(findings).toEqual([])
-    expect(pairs).toBe(0)
-  })
+  it.each(['EXTERNAL_KINDS', "['session', ...EXTERNAL_KINDS]"])(
+    'fails closed for an unresolved policy %s',
+    (kinds) => {
+      const { findings } = auditSource(FILE, `const op = { principalKinds: ${kinds} }`)
+      expect(findings).toHaveLength(1)
+      expect(findings[0].message).toContain('Cannot resolve principalKinds')
+    }
+  )
 })

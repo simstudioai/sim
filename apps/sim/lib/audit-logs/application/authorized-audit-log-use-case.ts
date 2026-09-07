@@ -10,6 +10,7 @@ import {
   type OperationUseCase,
   PersonalApiKeysDisabledError,
 } from '@/lib/core/application'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
@@ -78,6 +79,7 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
     operation: definition.operation,
     async execute({ principal, input }) {
       requireAuditLogPrincipal(principal, definition.operation)
+      requireOAuthOperationScope(principal, definition.operation)
       const actorUserId = auditActorUserId(principal)
       if (
         isUserCredentialPrincipal(principal) &&

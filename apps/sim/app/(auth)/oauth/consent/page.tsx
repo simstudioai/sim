@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import type { SearchParams } from 'nuqs/server'
 import { getSession } from '@/lib/auth'
 import { isOAuthProviderEnabled } from '@/lib/core/config/env-flags'
-import { AuthShell } from '@/app/(auth)/components'
 import { OAuthConsentView } from '@/app/(auth)/oauth/consent/consent-view'
 import { oauthConsentSearchParamsCache } from '@/app/(auth)/oauth/consent/search-params'
 
@@ -56,15 +55,13 @@ export default async function OAuthConsentPage({
   const authorizationRequestKey = refusal ? null : JSON.stringify(raw)
 
   return (
-    <AuthShell>
-      <OAuthConsentView
-        refusal={refusal}
-        clientId={params?.client_id ?? null}
-        authorizationRequestKey={authorizationRequestKey}
-        scope={params?.scope ?? null}
-        redirectUri={params?.redirect_uri ?? null}
-        email={session.user.email}
-      />
-    </AuthShell>
+    <OAuthConsentView
+      refusal={refusal}
+      clientId={params?.client_id ?? null}
+      authorizationRequestKey={authorizationRequestKey}
+      scope={params?.scope ?? null}
+      redirectUri={params?.redirect_uri ?? null}
+      email={session.user.email}
+    />
   )
 }

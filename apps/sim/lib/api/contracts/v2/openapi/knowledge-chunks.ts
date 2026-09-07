@@ -17,6 +17,7 @@ import {
   WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 /**
  * Chunk operations of the knowledge OpenAPI document.
@@ -36,6 +37,7 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeChunksContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listChunks,
       operationId: 'listKnowledgeChunks',
       summary: 'List Chunks',
       description: `List the passages a document was split into, with content search, enabled filtering, sorting, and opaque cursor pagination. Tag values are projected by slot; resolve slots to display names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
@@ -66,6 +68,7 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.createChunk,
       operationId: 'createKnowledgeChunk',
       summary: 'Create Chunk',
       description: `Append a chunk, embedding it before the response so it is immediately searchable. It inherits the document's tags and next \`chunkIndex\`. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
@@ -103,6 +106,7 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2BulkUpdateKnowledgeChunksContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.bulkChunks,
       operationId: 'bulkUpdateKnowledgeChunks',
       summary: 'Bulk Update Chunks',
       description: `Enable, disable, or delete multiple chunks in one best-effort request. Unknown chunk IDs appear in \`errors\` without failing the request; \`processed\` counts matched chunks, not changes. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
@@ -141,6 +145,7 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2GetKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.readChunk,
       operationId: 'getKnowledgeChunk',
       summary: 'Get Chunk',
       description: `Retrieve one chunk of a document, including the exact text that was embedded. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
@@ -171,6 +176,7 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.updateChunk,
       operationId: 'updateKnowledgeChunk',
       summary: 'Update Chunk',
       description: `Correct chunk text or disable it from search. Changing \`content\` re-embeds immediately and recalculates document token and character counts; disabling retains the index. ${CONNECTOR_MANAGED} ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
@@ -203,6 +209,7 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteChunk,
       operationId: 'deleteKnowledgeChunk',
       summary: 'Delete Chunk',
       description: `Permanently remove one chunk and subtract it from document counts. Remaining \`chunkIndex\` values stay stable and may become non-contiguous. ${CONNECTOR_MANAGED} ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,

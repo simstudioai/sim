@@ -323,6 +323,32 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
           .from(schema.oauthTokenFamily)
           .where(eq(schema.oauthTokenFamily.id, secondRefresh?.familyId ?? 'missing'))
       ).toHaveLength(0)
+
+      const racingVerifier = `${testId}-racing-verifier-with-more-than-forty-three-characters`
+      const racingCode = await issueAuthorizationCode(racingVerifier)
+      const exchangeSameCode = () =>
+        exchangeToken(
+          createFormRequest(
+            '/api/auth/oauth2/token',
+            new URLSearchParams({
+              grant_type: 'authorization_code',
+              client_id: provider.SIM_CLI_CLIENT_ID,
+              code: racingCode,
+              code_verifier: racingVerifier,
+              redirect_uri: redirectUri,
+            })
+          )
+        )
+      const racingResponses = await Promise.all([exchangeSameCode(), exchangeSameCode()])
+      expect(racingResponses.map((response) => response.status).sort()).toEqual([200, 400])
+      const rejectedExchange = racingResponses.find((response) => response.status === 400)
+      await expect(rejectedExchange?.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+      expect(
+        await db
+          .select({ id: schema.oauthTokenFamily.id })
+          .from(schema.oauthTokenFamily)
+          .where(eq(schema.oauthTokenFamily.userId, userId))
+      ).toHaveLength(1)
     } finally {
       if (issuedCodeHashes.length) {
         await db

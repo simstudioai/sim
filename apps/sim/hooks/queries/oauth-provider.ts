@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  type AuthorizedApp,
+  type AuthorizedAppsPage,
   listAuthorizedAppsContract,
   revokeAuthorizedAppContract,
 } from '@/lib/api/contracts/user'
@@ -13,19 +13,21 @@ export const oauthProviderKeys = {
   client: (clientId?: string, authorizationRequestKey?: string) =>
     [...oauthProviderKeys.clients(), clientId ?? '', authorizationRequestKey ?? ''] as const,
   authorizedApps: () => [...oauthProviderKeys.all, 'authorized-apps'] as const,
+  authorizedAppsList: (search: string) => [...oauthProviderKeys.authorizedApps(), search] as const,
 }
 
 export const AUTHORIZED_APPS_STALE_TIME = 30 * 1000
 
-async function fetchAuthorizedApps(signal?: AbortSignal): Promise<AuthorizedApp[]> {
-  const data = await requestJson(listAuthorizedAppsContract, { signal })
-  return data.apps
-}
-
-export function useAuthorizedApps() {
-  return useQuery({
-    queryKey: oauthProviderKeys.authorizedApps(),
-    queryFn: ({ signal }) => fetchAuthorizedApps(signal),
+export function useAuthorizedApps(search = '') {
+  return useInfiniteQuery({
+    queryKey: oauthProviderKeys.authorizedAppsList(search),
+    queryFn: ({ signal, pageParam }) =>
+      requestJson(listAuthorizedAppsContract, {
+        query: { search, ...(pageParam ? { cursor: pageParam } : {}) },
+        signal,
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page: AuthorizedAppsPage) => page.nextCursor ?? undefined,
     staleTime: AUTHORIZED_APPS_STALE_TIME,
   })
 }
@@ -91,6 +93,16 @@ export function useOAuthConsent() {
         throw new Error(error?.message ?? 'The authorization could not be completed.')
       }
       return data.url
+    },
+  })
+}
+
+/** Leaves the current account before restarting the authorization request at the login form. */
+export function useOAuthSwitchAccount() {
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      const { error } = await client.signOut()
+      if (error) throw new Error(error.message ?? 'Could not sign out. Please try again.')
     },
   })
 }

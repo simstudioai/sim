@@ -39,7 +39,9 @@
       "get": {
         "operationId": "getBillingStatus",
         "summary": "Get Billing Status",
-        "description": "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`.",
+        "description": "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "billing.status.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -105,7 +107,9 @@
       "get": {
         "operationId": "listBillingLogs",
         "summary": "List Billing Logs",
-        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. An inverted custom window is a 400 rather than an empty page.",
+        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. An inverted custom window is a 400 rather than an empty page.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "billing.logs.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -262,7 +266,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. The token must carry the scope required by the operation."
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
       }
     },
     "headers": {

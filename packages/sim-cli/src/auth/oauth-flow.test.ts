@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { get, type IncomingMessage } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../http/client'
 import {
@@ -67,6 +68,20 @@ describe('buildAuthorizeUrl', () => {
 })
 
 describe('discoverOAuthProvider', () => {
+  it('does not downgrade to API keys when discovery exceeds the response limit', async () => {
+    const cancel = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(new ReadableStream({ cancel }), {
+          headers: { 'content-length': String(64 * 1024 + 1) },
+        })
+    )
+
+    await expect(discoverOAuthProvider(ENDPOINT)).resolves.toBe('unreachable')
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
   it('reports a server that publishes a token endpoint as available', async () => {
     vi.stubGlobal('fetch', async () =>
       reply(200, {
@@ -91,6 +106,29 @@ describe('discoverOAuthProvider', () => {
 })
 
 describe('token endpoint', () => {
+  it.each([undefined, '1'])(
+    'cancels an oversized chunked token response with content-length=%s',
+    async (contentLength) => {
+      const cancel = vi.fn()
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(32 * 1024))
+        },
+        cancel,
+      })
+      vi.stubGlobal(
+        'fetch',
+        async () =>
+          new Response(body, {
+            headers: contentLength ? { 'content-length': contentLength } : {},
+          })
+      )
+
+      await expect(refreshTokens(ENDPOINT, 'r')).rejects.toThrow('exceeds 64 KiB')
+      expect(cancel).toHaveBeenCalledOnce()
+    }
+  )
+
   it('posts the code with its verifier as a form and reads the pair back', async () => {
     const fetchMock = vi.fn(async () => reply(200, TOKENS))
     vi.stubGlobal('fetch', fetchMock)
@@ -150,6 +188,10 @@ describe('loginWithBrowser', () => {
     const fetchMock = vi.fn(async () => reply(200, TOKENS))
     vi.stubGlobal('fetch', fetchMock)
 
+    let receiveCallback!: (response: IncomingMessage) => void
+    const callback = new Promise<IncomingMessage>((resolve) => {
+      receiveCallback = resolve
+    })
     const login = loginWithBrowser(ENDPOINT, {
       scopes: ['offline_access', 'api:read'],
       onAuthorizeUrl: (url) => {
@@ -160,23 +202,29 @@ describe('loginWithBrowser', () => {
           redirectUri.searchParams.set(key, value)
         }
         /** Node's real HTTP client, not the stubbed fetch, exercises the listener. */
-        void import('node:http').then(({ get }) => {
-          get(redirectUri, (response) => response.resume())
+        get(redirectUri, (response) => {
+          receiveCallback(response)
+          response.resume()
         })
       },
       timeoutMs: 5000,
     })
-    return { login, fetchMock }
+    return { login, fetchMock, callback }
   }
 
   it('listens on 127.0.0.1, verifies state, and redeems the code with the verifier', async () => {
-    const { login, fetchMock } = await completeInBrowser((_params, state) => ({
+    const { login, fetchMock, callback } = await completeInBrowser((_params, state) => ({
       code: 'the-code',
       state,
     }))
 
     const tokens = await login
     expect(tokens.accessToken).toBe('sim_oat_access')
+    const response = await callback
+    expect(response.statusCode).toBe(302)
+    expect(response.headers.location).toBe(`${ENDPOINT}/cli/auth/done`)
+    expect(response.headers['referrer-policy']).toBe('no-referrer')
+    expect(response.headers['cache-control']).toBe('no-store')
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     const form = Object.fromEntries(new URLSearchParams(String(init.body)))

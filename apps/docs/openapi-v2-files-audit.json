@@ -43,7 +43,9 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted ones. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted ones. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -214,7 +216,9 @@
       "post": {
         "operationId": "createFile",
         "summary": "Create File",
-        "description": "Create a workspace file from inline UTF-8 or base64 content. Use an upload session for streamed or larger files.",
+        "description": "Create a workspace file from inline UTF-8 or base64 content. Use an upload session for streamed or larger files.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -286,7 +290,9 @@
       "post": {
         "operationId": "createFileUpload",
         "summary": "Create File Upload",
-        "description": "Create a resumable upload session and receive either a signed PUT URL or multipart instructions.",
+        "description": "Create a resumable upload session and receive either a signed PUT URL or multipart instructions.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.upload.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -355,7 +361,9 @@
       "get": {
         "operationId": "getFileUpload",
         "summary": "Get File Upload",
-        "description": "Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.",
+        "description": "Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.upload.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -441,7 +449,9 @@
       "delete": {
         "operationId": "abortFileUpload",
         "summary": "Abort File Upload",
-        "description": "Abort an active upload session and release provider-side multipart state.",
+        "description": "Abort an active upload session and release provider-side multipart state.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.upload.cancel",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -532,7 +542,9 @@
       "post": {
         "operationId": "createFileUploadPartUrls",
         "summary": "Create File Upload Part URLs",
-        "description": "Create signed URLs for a bounded set of multipart upload part numbers.",
+        "description": "Create signed URLs for a bounded set of multipart upload part numbers.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.upload.parts",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -640,7 +652,9 @@
       "post": {
         "operationId": "completeFileUpload",
         "summary": "Complete File Upload",
-        "description": "Finalize uploaded bytes, verify provider state, and begin atomic workspace-file registration.",
+        "description": "Finalize uploaded bytes, verify provider state, and begin atomic workspace-file registration.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.upload.complete",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -731,7 +745,9 @@
       "get": {
         "operationId": "readFileText",
         "summary": "Read File Text",
-        "description": "Extract text from stored file bytes without modifying the file; use `POST /api/v2/files/{fileId}/unzip` to unpack archives. Unsupported types return `400` and point to raw-byte download; generated documents still compiling return `409`, and files above the extraction ceiling return `413`. `degraded: true` means extraction was incomplete or synthesized from raw bytes and is not authoritative; legacy `.doc` and `.ppt` extraction may return this best-effort result. `truncated` means a parser limit stopped extraction.",
+        "description": "Extract text from stored file bytes without modifying the file; use `POST /api/v2/files/{fileId}/unzip` to unpack archives. Unsupported types return `400` and point to raw-byte download; generated documents still compiling return `409`, and files above the extraction ceiling return `413`. `degraded: true` means extraction was incomplete or synthesized from raw bytes and is not authoritative; legacy `.doc` and `.ppt` extraction may return this best-effort result. `truncated` means a parser limit stopped extraction.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.read_content",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -852,7 +868,9 @@
       "get": {
         "operationId": "bulkDownloadFiles",
         "summary": "Bulk Download Files",
-        "description": "Stream files as a zip. Provide comma-separated file IDs and folder paths; folders expand recursively, and unmatched paths are rejected. Each parameter and the resolved selection allow at most 100 entries, with bytes bounded. Oversized selections return `400`; downloads record an audit event. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.",
+        "description": "Stream files as a zip. Provide comma-separated file IDs and folder paths; folders expand recursively, and unmatched paths are rejected. Each parameter and the resolved selection allow at most 100 entries, with bytes bounded. Oversized selections return `400`; downloads record an audit event. `HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.download",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -948,7 +966,9 @@
       "post": {
         "operationId": "unzipFile",
         "summary": "Unzip File",
-        "description": "Unzip a `.zip` archive into a new sibling folder, creating workspace files and returning only counts and the destination path. Use `GET /api/v2/files/{fileId}/text` to read text; page `GET /api/v2/files?folderPath=...` to inspect unpacked files. Large archives can take minutes. Only one unzip per archive may run; concurrent attempts return `409`. Archives above the size ceiling or operations exceeding their time budget return `413`.",
+        "description": "Unzip a `.zip` archive into a new sibling folder, creating workspace files and returning only counts and the destination path. Use `GET /api/v2/files/{fileId}/text` to read text; page `GET /api/v2/files?folderPath=...` to inspect unpacked files. Large archives can take minutes. Only one unzip per archive may run; concurrent attempts return `409`. Archives above the size ceiling or operations exceeding their time budget return `413`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.extract_archive",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1035,7 +1055,9 @@
       "get": {
         "operationId": "downloadFile",
         "summary": "Download File",
-        "description": "Download current file bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.",
+        "description": "Download current file bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.download",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1128,7 +1150,9 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Archive a workspace file. This is a soft delete: the file stops appearing in the default listing and is no longer readable through the API, but its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived`, and reverse the delete with `POST /files/{fileId}/restore`.",
+        "description": "Archive a workspace file. This is a soft delete: the file stops appearing in the default listing and is no longer readable through the API, but its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived`, and reverse the delete with `POST /files/{fileId}/restore`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1205,7 +1229,9 @@
       "patch": {
         "operationId": "renameFile",
         "summary": "Rename File",
-        "description": "Rename a workspace file without changing its containing folder.",
+        "description": "Rename a workspace file without changing its containing folder.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.rename",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1292,7 +1318,9 @@
       "post": {
         "operationId": "restoreFile",
         "summary": "Restore File",
-        "description": "Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.",
+        "description": "Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.restore",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1379,7 +1407,9 @@
       "get": {
         "operationId": "getFile",
         "summary": "Get File Metadata",
-        "description": "Return file metadata together with the nullable current public-share state.",
+        "description": "Return file metadata together with the nullable current public-share state.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.read_metadata",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1470,7 +1500,9 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "audit_logs.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1644,7 +1676,9 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "audit_logs.read_detail",
+        "x-oauth-scope": "api:read",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1720,7 +1754,9 @@
       "post": {
         "operationId": "moveFileItems",
         "summary": "Move Files",
-        "description": "Move up to 1,000 files to a canonical folder path or the workspace root.",
+        "description": "Move up to 1,000 files to a canonical folder path or the workspace root.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.move",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -1792,7 +1828,9 @@
       "get": {
         "operationId": "getFileShare",
         "summary": "Get File Share",
-        "description": "Return the nullable current public-share configuration for a file. A file that has never been shared returns `data: null` rather than a 404; a share that was created and later disabled is still returned, with `isActive: false`.",
+        "description": "Return the nullable current public-share configuration for a file. A file that has never been shared returns `data: null` rather than a 404; a share that was created and later disabled is still returned, with `isActive: false`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.share.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1869,7 +1907,9 @@
       "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. Enabling any mode other than `public` on a file that has never been shared must carry its credential in the same request. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. Enabling any mode other than `public` on a file that has never been shared must carry its credential in the same request. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.share.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1953,7 +1993,9 @@
       "patch": {
         "operationId": "editFileContent",
         "summary": "Edit File Content",
-        "description": "Modify part of a text file; `PUT` on this path replaces the whole file. `search_replace` requires one exact match unless `replaceAll` is true. The anchored modes match trimmed complete lines: replacement preserves both boundaries, insertion preserves its anchor, and deletion removes the start but preserves the end. Use `occurrence` for repeated anchors. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.",
+        "description": "Modify part of a text file; `PUT` on this path replaces the whole file. `search_replace` requires one exact match unless `replaceAll` is true. The anchored modes match trimmed complete lines: replacement preserves both boundaries, insertion preserves its anchor, and deletion removes the start but preserves the end. Use `occurrence` for repeated anchors. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.update_content",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2041,7 +2083,9 @@
       "put": {
         "operationId": "updateFileContent",
         "summary": "Replace File Content",
-        "description": "Replace the complete contents of an existing file from UTF-8 or base64 input.",
+        "description": "Replace the complete contents of an existing file from UTF-8 or base64 input.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.update_content",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2125,7 +2169,9 @@
       "get": {
         "operationId": "searchFileContent",
         "summary": "Search File Content",
-        "description": "Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and the coverage reported by `complete` and `indexStatus`. Because indexing is asynchronous, a missing term is unknown rather than absent when `complete` is false. `truncated` means additional matches exist beyond `maxResults`.",
+        "description": "Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and the coverage reported by `complete` and `indexStatus`. Because indexing is asynchronous, a missing term is unknown rather than absent when `complete` is false. `truncated` means additional matches exist beyond `maxResults`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.search_content",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2265,7 +2311,9 @@
       "post": {
         "operationId": "bulkDeleteFiles",
         "summary": "Delete Files",
-        "description": "Delete up to 1,000 workspace files in one operation. This is the same soft delete as `DELETE /api/v2/files/{fileId}`: files are archived, not erased, and `POST /api/v2/files/{fileId}/restore` reverses each one.",
+        "description": "Delete up to 1,000 workspace files in one operation. This is the same soft delete as `DELETE /api/v2/files/{fileId}`: files are archived, not erased, and `POST /api/v2/files/{fileId}/restore` reverses each one.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -2334,7 +2382,9 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting. Pass `scope=archived` to list folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. Pass `scope=archived` to list folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. The bounded set is returned in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.folders.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2492,7 +2542,9 @@
       "post": {
         "operationId": "createFilesFolder",
         "summary": "Create Folder",
-        "description": "Create a canonical folder path in a workspace.",
+        "description": "Create a canonical folder path in a workspace.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.folders.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -2562,7 +2614,9 @@
       "patch": {
         "operationId": "relocateFilesFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a folder and atomically rewrite descendant canonical paths.",
+        "description": "Rename or move a folder and atomically rewrite descendant canonical paths.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.folders.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -2632,7 +2686,9 @@
       "delete": {
         "operationId": "deleteFilesFolder",
         "summary": "Delete Folder",
-        "description": "Delete a folder, optionally including every nested file and folder.",
+        "description": "Delete a folder, optionally including every nested file and folder.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.folders.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2736,7 +2792,9 @@
       "post": {
         "operationId": "restoreFilesFolder",
         "summary": "Restore Folder",
-        "description": "Restore a soft-deleted folder and everything archived with it. `DELETE /api/v2/files/folders` archives recursively, so this is what makes a recursive delete recoverable: without it the archived files stay visible through `GET /api/v2/files?scope=archived` but the folder structure cannot be rebuilt. Address the folder by the path reported by `GET /api/v2/files/folders?scope=archived`; a path that is not archived answers `404`.",
+        "description": "Restore a soft-deleted folder and everything archived with it. `DELETE /api/v2/files/folders` archives recursively, so this is what makes a recursive delete recoverable: without it the archived files stay visible through `GET /api/v2/files?scope=archived` but the folder structure cannot be rebuilt. Address the folder by the path reported by `GET /api/v2/files/folders?scope=archived`; a path that is not archived answers `404`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.folders.restore",
+        "x-oauth-scope": "api:write",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -2817,7 +2875,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. The token must carry the scope required by the operation."
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
       }
     },
     "headers": {

@@ -1,46 +1,15 @@
 #!/usr/bin/env bun
 /**
- * Keeps `personal_api_key` and `oauth_access_token` admitted together in every
- * operation policy.
- *
- * The two kinds are one authorization class: a person reaching the API through
- * a bearer credential of their own. An OAuth access token is the personal key
- * narrowed by scope and bounded by expiry, and `authorizeWorkspaceOperation`
- * walks the same sequence for both. A policy that names one without the other
- * is therefore never a decision — it is an operation written before the second
- * kind existed, or a copy of one, and the token is refused (or admitted) by
- * accident for a reason no reviewer chose.
- *
- * It asserts, over every `application/operations.ts` under `apps/sim/lib`:
- *
- *   A  every `principalKinds` array literal that names one of the pair names
- *      both.
- *   B  at least one policy naming the pair was found. The assertions are
- *      source-text matches, so a refactor into a form this cannot read would
- *      otherwise be indistinguishable from a clean tree.
- *
- * ## What this audit does not cover
- *
- * Read this before trusting the gate: it covers less than it looks like it does.
- *
- * - Only array literals written directly after `principalKinds:` are read. A
- *   policy assembled from a named constant (`principalKinds: HUMAN_KINDS`) is
- *   invisible to assertion A.
- * - Only `operations.ts` files under `apps/sim/lib` are scanned. Anything
- *   declared elsewhere is out of reach.
- * - Nothing here sees a `switch (principal.kind)` or a
- *   `principal.kind === '...'` comparison, which is the class of site that
- *   actually mis-admits a principal silently, and the class this pair had to
- *   be threaded through by hand.
- * - Assertion B proves only that *some* policy names both kinds, not that any
- *   particular domain does. One paired policy anywhere keeps it green.
- *
- * Type-level `readonly principalKinds: readonly [...]` declarations do match
- * the same pattern, so a domain's operation interface is held to the rule.
+ * Keeps personal API keys and OAuth access tokens admitted together in semantic
+ * operation policies. Resolves local named arrays and spreads; an unreadable
+ * value policy fails the audit instead of disappearing from its coverage.
+ * Principal branching and declarations outside application/operations.ts still
+ * require application authorization tests.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from '@typescript/typescript6'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SCAN_ROOT = 'apps/sim/lib'
@@ -65,41 +34,85 @@ function walk(directory: string, into: string[]): string[] {
   return into
 }
 
-function lineOf(source: string, index: number): number {
-  return source.slice(0, index).split('\n').length
+interface PrincipalKindDeclaration {
+  line: number
+  kinds: string[]
+  unresolved?: boolean
 }
 
-/**
- * Every `principalKinds` array literal in one file, with the kinds it names.
- * Multi-line literals are read to their closing bracket; a literal spread from
- * a constant contributes the spread's text, which never names a bare kind and
- * so never trips assertion A on its own.
- */
-export function parsePrincipalKindLiterals(
-  source: string
-): Array<{ line: number; kinds: string[] }> {
-  const literals: Array<{ line: number; kinds: string[] }> = []
-  for (const match of source.matchAll(/principalKinds\??:\s*(?:readonly\s+)?\[/g)) {
-    const open = match.index + match[0].length - 1
-    let depth = 0
-    let close = -1
-    for (let index = open; index < source.length; index++) {
-      const char = source[index]
-      if (char === '[') depth++
-      else if (char === ']') {
-        depth--
-        if (depth === 0) {
-          close = index
-          break
-        }
+/** Reads value policies and literal tuple declarations, without matching comments or strings. */
+export function parsePrincipalKindLiterals(source: string): PrincipalKindDeclaration[] {
+  const file = ts.createSourceFile(OPERATIONS_FILE, source, ts.ScriptTarget.Latest, true)
+  const constants = new Map<string, ts.Expression>()
+  const declarations: PrincipalKindDeclaration[] = []
+
+  function collect(node: ts.Node): void {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      constants.set(node.name.text, node.initializer)
+    }
+    ts.forEachChild(node, collect)
+  }
+  collect(file)
+
+  function readKinds(node: ts.Node, seen = new Set<string>()): string[] | undefined {
+    if (ts.isStringLiteral(node)) return [node.text]
+    if (ts.isLiteralTypeNode(node)) return readKinds(node.literal, seen)
+    if (ts.isTypeOperatorNode(node)) return readKinds(node.type, seen)
+    if (
+      ts.isAsExpression(node) ||
+      ts.isSatisfiesExpression(node) ||
+      ts.isParenthesizedExpression(node)
+    ) {
+      return readKinds(node.expression, seen)
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === 'Object' &&
+      node.expression.name.text === 'freeze' &&
+      node.arguments.length === 1
+    ) {
+      return readKinds(node.arguments[0], seen)
+    }
+    if (ts.isIdentifier(node)) {
+      const initializer = constants.get(node.text)
+      if (!initializer || seen.has(node.text)) return undefined
+      return readKinds(initializer, new Set([...seen, node.text]))
+    }
+    if (ts.isSpreadElement(node)) return readKinds(node.expression, seen)
+    if (ts.isArrayLiteralExpression(node) || ts.isTupleTypeNode(node)) {
+      const kinds: string[] = []
+      for (const element of node.elements) {
+        const resolved = readKinds(element, seen)
+        if (!resolved) return undefined
+        kinds.push(...resolved)
+      }
+      return kinds
+    }
+    return undefined
+  }
+
+  function visit(node: ts.Node): void {
+    if (
+      (ts.isPropertyAssignment(node) || ts.isPropertySignature(node)) &&
+      node.name.getText(file).replace(/['"]/g, '') === 'principalKinds'
+    ) {
+      const value = ts.isPropertyAssignment(node) ? node.initializer : node.type
+      const kinds = value && readKinds(value)
+      /** Generic interfaces are checked at their concrete value definitions. */
+      if (kinds || ts.isPropertyAssignment(node)) {
+        declarations.push({
+          line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1,
+          kinds: kinds ?? [],
+          ...(kinds ? {} : { unresolved: true }),
+        })
       }
     }
-    if (close === -1) continue
-    const body = source.slice(open + 1, close)
-    const kinds = [...body.matchAll(/'([a-z_]+)'/g)].map((kind) => kind[1])
-    literals.push({ line: lineOf(source, match.index), kinds })
+    ts.forEachChild(node, visit)
   }
-  return literals
+  visit(file)
+  return declarations
 }
 
 /** One operations file's findings, so the assertion is testable without a tree on disk. */
@@ -109,6 +122,15 @@ export function auditSource(file: string, source: string): { findings: Finding[]
   const [personal, oauth] = USER_CREDENTIAL_PRINCIPAL_KINDS
 
   for (const literal of parsePrincipalKindLiterals(source)) {
+    if (literal.unresolved) {
+      findings.push({
+        file,
+        line: literal.line,
+        message:
+          'Cannot resolve principalKinds; use a literal or a local constant so credential parity is audited.',
+      })
+      continue
+    }
     const hasPersonal = literal.kinds.includes(personal)
     const hasOauth = literal.kinds.includes(oauth)
     if (hasPersonal && hasOauth) {

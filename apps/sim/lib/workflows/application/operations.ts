@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -41,6 +41,7 @@ export const workflowOperations = {
   // permission-group-exempt: listing the workflows in a workspace is governed by workspace role; no group hides the workflow module
   list: defineWorkspaceOperation({
     id: 'workflows.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -49,6 +50,7 @@ export const workflowOperations = {
   // permission-group-exempt: reading a workflow is governed by workspace role, not by a group capability
   read: defineWorkspaceOperation({
     id: 'workflows.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -89,6 +91,7 @@ export const workflowOperations = {
   // permission-group-exempt: the workflow module has no hide key, so creating a workflow is governed by workspace role alone
   create: defineWorkspaceOperation({
     id: 'workflows.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -97,6 +100,7 @@ export const workflowOperations = {
   // permission-group-exempt: renaming or re-describing a workflow is governed by workspace role
   update: defineWorkspaceOperation({
     id: 'workflows.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -120,6 +124,7 @@ export const workflowOperations = {
    */
   replaceState: defineWorkspaceOperation({
     id: 'workflows.state.replace',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -146,6 +151,7 @@ export const workflowOperations = {
    */
   applyOperations: defineWorkspaceOperation({
     id: 'workflows.operations.apply',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -154,6 +160,7 @@ export const workflowOperations = {
   // permission-group-exempt: restoring a soft-deleted workflow is governed by workspace role
   restore: defineWorkspaceOperation({
     id: 'workflows.restore',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -170,6 +177,7 @@ export const workflowOperations = {
   // permission-group-exempt: workflow variables are workflow content, governed by workspace role
   applyVariableOperations: defineWorkspaceOperation({
     id: 'workflows.variables.apply_operations',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -186,6 +194,7 @@ export const workflowOperations = {
   // permission-group-exempt: moving workflows between folders is placement, governed by workspace role
   moveBulk: defineWorkspaceOperation({
     id: 'workflows.bulk.move',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -226,6 +235,7 @@ export const workflowOperations = {
   // permission-group-exempt: duplicating copies a graph the caller may already read into the same workspace, so it crosses no capability boundary
   duplicate: defineWorkspaceOperation({
     id: 'workflows.duplicate',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -267,6 +277,7 @@ export const workflowOperations = {
   // permission-group-exempt: deleting a workflow is governed by workspace role
   delete: defineWorkspaceOperation({
     id: 'workflows.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -275,6 +286,7 @@ export const workflowOperations = {
   // permission-group-exempt: the workflow folder tree has no hide key; reading it is governed by workspace role
   listFolders: defineWorkspaceOperation({
     id: 'workflows.folders.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -283,6 +295,7 @@ export const workflowOperations = {
   // permission-group-exempt: the workflow folder tree has no hide key; arranging it is governed by workspace role
   createFolder: defineWorkspaceOperation({
     id: 'workflows.folders.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -291,6 +304,7 @@ export const workflowOperations = {
   // permission-group-exempt: the workflow folder tree has no hide key; arranging it is governed by workspace role
   relocateFolder: defineWorkspaceOperation({
     id: 'workflows.folders.relocate',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -299,6 +313,7 @@ export const workflowOperations = {
   // permission-group-exempt: the workflow folder tree has no hide key; arranging it is governed by workspace role
   deleteFolder: defineWorkspaceOperation({
     id: 'workflows.folders.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -306,6 +321,7 @@ export const workflowOperations = {
   }),
   deploy: defineWorkspaceOperation({
     id: 'workflows.deploy',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.api',
@@ -313,6 +329,7 @@ export const workflowOperations = {
   }),
   undeploy: defineWorkspaceOperation({
     id: 'workflows.undeploy',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.api',
@@ -320,6 +337,7 @@ export const workflowOperations = {
   }),
   deployChat: defineWorkspaceOperation({
     id: 'workflows.chat.deploy',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
@@ -327,6 +345,7 @@ export const workflowOperations = {
   }),
   undeployChat: defineWorkspaceOperation({
     id: 'workflows.chat.undeploy',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
@@ -344,6 +363,7 @@ export const workflowOperations = {
    */
   updatePublicApi: defineWorkspaceOperation({
     id: 'workflows.public_api.update',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -351,6 +371,7 @@ export const workflowOperations = {
   }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.api',
@@ -359,6 +380,7 @@ export const workflowOperations = {
   // permission-group-exempt: reverting the draft to an earlier version edits workflow content; deployment capabilities govern what is served, not what is edited
   revertVersion: defineWorkspaceOperation({
     id: 'workflows.versions.revert',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -367,6 +389,7 @@ export const workflowOperations = {
   // permission-group-exempt: a version's name and description are metadata on workflow content, governed by workspace role
   updateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -375,6 +398,7 @@ export const workflowOperations = {
   // permission-group-exempt: version history is workflow content, governed by workspace role
   listVersions: defineWorkspaceOperation({
     id: 'workflows.versions.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -383,6 +407,7 @@ export const workflowOperations = {
   // permission-group-exempt: version history is workflow content, governed by workspace role
   readVersion: defineWorkspaceOperation({
     id: 'workflows.versions.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -399,6 +424,7 @@ export const workflowOperations = {
   // permission-group-exempt: an export returns the graph its reader can already open; logs.export withholds execution logs, not definitions
   export: defineWorkspaceOperation({
     id: 'workflows.export',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -407,6 +433,7 @@ export const workflowOperations = {
   // permission-group-exempt: importing is workflow authoring governed by workspace role; the blocks the payload carries are judged against allowedIntegrations before they are persisted
   import: defineWorkspaceOperation({
     id: 'workflows.import',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -415,6 +442,7 @@ export const workflowOperations = {
   // permission-group-exempt: running a workflow from an authenticated surface is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   execute: defineWorkspaceOperation({
     id: 'workflows.execute',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -423,6 +451,7 @@ export const workflowOperations = {
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManual: defineWorkspaceOperation({
     id: 'workflows.manual.execute',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -431,6 +460,7 @@ export const workflowOperations = {
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManualFromBlock: defineWorkspaceOperation({
     id: 'workflows.manual.execute_from_block',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -439,6 +469,7 @@ export const workflowOperations = {
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   listRuns: defineWorkspaceOperation({
     id: 'workflows.runs.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -447,6 +478,7 @@ export const workflowOperations = {
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   readRun: defineWorkspaceOperation({
     id: 'workflows.runs.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -455,6 +487,7 @@ export const workflowOperations = {
   // permission-group-exempt: a paused execution's detail is pause points and resume state, not the run's execution data — the fields logs.cost and logs.trace_spans withhold never appear here
   readPausedExecution: defineWorkspaceOperation({
     id: 'workflows.paused_executions.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -484,6 +517,7 @@ export const workflowOperations = {
   // permission-group-exempt: a run's own output bytes belong to the run its reader may already open; files.bulk_download withholds the workspace file store, and logs.trace_spans withholds the run's listed fields — including readRun's file list — not the right to fetch one named file
   downloadRunFile: defineWorkspaceOperation({
     id: 'workflows.download_run_file',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -492,6 +526,7 @@ export const workflowOperations = {
   // permission-group-exempt: stopping a run already in flight is governed by workspace role
   cancelRun: defineWorkspaceOperation({
     id: 'workflows.runs.cancel',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -500,6 +535,7 @@ export const workflowOperations = {
   // permission-group-exempt: answering a paused run is governed by workspace role
   resumeRun: defineWorkspaceOperation({
     id: 'workflows.runs.resume',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',

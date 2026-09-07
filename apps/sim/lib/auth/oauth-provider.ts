@@ -4,7 +4,7 @@
  * "Authorized apps" settings surface.
  */
 
-/** The first-party Sim CLI, seeded by migration `0323_oauth_provider` as a public client. */
+/** The first-party Sim CLI, registered by the shared OAuth database lifecycle as a public client. */
 export const SIM_CLI_CLIENT_ID = 'sim-cli'
 
 /**

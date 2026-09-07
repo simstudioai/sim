@@ -54,6 +54,8 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { auditLogOperations } from '@/lib/audit-logs/application/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
 const FILE_EXAMPLE = {
@@ -133,6 +135,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListFilesContract,
     filesOperation({
+      applicationOperation: fileOperations.list,
       operationId: 'listFiles',
       summary: 'List Files',
       description: `List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass \`scope=archived\` to page over soft-deleted ones. ${FOLDER_TREE_TOO_LARGE}`,
@@ -158,6 +161,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateFileContract,
     filesOperation({
+      applicationOperation: fileOperations.create,
       operationId: 'createFile',
       summary: 'Create File',
       description:
@@ -192,6 +196,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateFileUploadContract,
     filesOperation({
+      applicationOperation: fileOperations.uploadCreate,
       operationId: 'createFileUpload',
       summary: 'Create File Upload',
       description:
@@ -226,6 +231,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetFileUploadContract,
     filesOperation({
+      applicationOperation: fileOperations.uploadRead,
       operationId: 'getFileUpload',
       summary: 'Get File Upload',
       description: `Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.`,
@@ -262,6 +268,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2AbortFileUploadContract,
     filesOperation({
+      applicationOperation: fileOperations.uploadCancel,
       operationId: 'abortFileUpload',
       summary: 'Abort File Upload',
       description: 'Abort an active upload session and release provider-side multipart state.',
@@ -298,6 +305,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateFileUploadPartUrlsContract,
     filesOperation({
+      applicationOperation: fileOperations.uploadParts,
       operationId: 'createFileUploadPartUrls',
       summary: 'Create File Upload Part URLs',
       description: 'Create signed URLs for a bounded set of multipart upload part numbers.',
@@ -341,6 +349,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CompleteFileUploadContract,
     filesOperation({
+      applicationOperation: fileOperations.uploadComplete,
       operationId: 'completeFileUpload',
       summary: 'Complete File Upload',
       description:
@@ -378,6 +387,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ReadFileTextContract,
     filesOperation({
+      applicationOperation: fileOperations.readContent,
       operationId: 'readFileText',
       summary: 'Read File Text',
       description: `Extract text from stored file bytes without modifying the file; use \`POST /api/v2/files/{fileId}/unzip\` to unpack archives. Unsupported types return \`400\` and point to raw-byte download; generated documents still compiling return \`409\`, and files above the extraction ceiling return \`413\`. \`degraded: true\` means extraction was incomplete or synthesized from raw bytes and is not authoritative; legacy \`.doc\` and \`.ppt\` extraction may return this best-effort result. \`truncated\` means a parser limit stopped extraction.`,
@@ -408,6 +418,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2BulkDownloadFilesContract,
     filesOperation({
+      applicationOperation: fileOperations.download,
       operationId: 'bulkDownloadFiles',
       summary: 'Bulk Download Files',
       description: `Stream files as a zip. Provide comma-separated file IDs and folder paths; folders expand recursively, and unmatched paths are rejected. Each parameter and the resolved selection allow at most ${MAX_ZIP_DOWNLOAD_FILES} entries, with bytes bounded. Oversized selections return \`400\`; downloads record an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
@@ -430,6 +441,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UnzipFileContract,
     filesOperation({
+      applicationOperation: fileOperations.extractArchive,
       operationId: 'unzipFile',
       summary: 'Unzip File',
       description:
@@ -462,6 +474,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DownloadFileContract,
     filesOperation({
+      applicationOperation: fileOperations.download,
       operationId: 'downloadFile',
       summary: 'Download File',
       description: `Download current file bytes. Generated documents use compiled artifacts, returning \`409\` while compiling and \`413\` above the rendered-size ceiling. Downloading records an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
@@ -490,6 +503,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteFileContract,
     filesOperation({
+      applicationOperation: fileOperations.delete,
       operationId: 'deleteFile',
       summary: 'Delete File',
       description:
@@ -521,6 +535,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RenameFileContract,
     filesOperation({
+      applicationOperation: fileOperations.rename,
       operationId: 'renameFile',
       summary: 'Rename File',
       description: 'Rename a workspace file without changing its containing folder.',
@@ -559,6 +574,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RestoreFileContract,
     filesOperation({
+      applicationOperation: fileOperations.restore,
       operationId: 'restoreFile',
       summary: 'Restore File',
       description:
@@ -593,6 +609,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetFileContract,
     filesOperation({
+      applicationOperation: fileOperations.readMetadata,
       operationId: 'getFile',
       summary: 'Get File Metadata',
       description: 'Return file metadata together with the nullable current public-share state.',
@@ -627,6 +644,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListAuditLogsContract,
     auditOperation({
+      applicationOperation: auditLogOperations.list,
       operationId: 'listAuditLogs',
       summary: 'List Audit Logs',
       description: `List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
@@ -652,6 +670,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetAuditLogContract,
     auditOperation({
+      applicationOperation: auditLogOperations.readDetail,
       operationId: 'getAuditLog',
       summary: 'Get Audit Log',
       description: `Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
@@ -683,6 +702,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2MoveFileItemsContract,
     filesOperation({
+      applicationOperation: fileOperations.move,
       operationId: 'moveFileItems',
       summary: 'Move Files',
       description: 'Move up to 1,000 files to a canonical folder path or the workspace root.',
@@ -716,6 +736,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetFileShareContract,
     filesOperation({
+      applicationOperation: fileOperations.readShare,
       operationId: 'getFileShare',
       summary: 'Get File Share',
       description:
@@ -748,6 +769,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpsertFileShareContract,
     filesOperation({
+      applicationOperation: fileOperations.updateShare,
       operationId: 'upsertFileShare',
       summary: 'Enable or Disable File Share',
       description: `Create or partially update a server-tokenized public share. Only \`isActive\` is required; each other field states what enabling a mode does to it. Enabling any mode other than \`public\` on a file that has never been shared must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED}`,
@@ -791,6 +813,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2EditFileContentContract,
     filesOperation({
+      applicationOperation: fileOperations.updateContent,
       operationId: 'editFileContent',
       summary: 'Edit File Content',
       description: `Modify part of a text file; \`PUT\` on this path replaces the whole file. \`search_replace\` requires one exact match unless \`replaceAll\` is true. The anchored modes match trimmed complete lines: replacement preserves both boundaries, insertion preserves its anchor, and deletion removes the start but preserves the end. Use \`occurrence\` for repeated anchors. Non-UTF-8 files return \`400\`. Concurrent writes return \`409\`; re-read before retrying.`,
@@ -841,6 +864,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2SearchFileContentContract,
     filesOperation({
+      applicationOperation: fileOperations.searchContent,
       operationId: 'searchFileContent',
       summary: 'Search File Content',
       description: `Search indexed text in active workspace files and return matching lines with file IDs and line numbers. \`folderPaths\` limits both results and the coverage reported by \`complete\` and \`indexStatus\`. Because indexing is asynchronous, a missing term is unknown rather than absent when \`complete\` is false. \`truncated\` means additional matches exist beyond \`maxResults\`.`,
@@ -888,6 +912,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateFileContentContract,
     filesOperation({
+      applicationOperation: fileOperations.updateContent,
       operationId: 'updateFileContent',
       summary: 'Replace File Content',
       description: 'Replace the complete contents of an existing file from UTF-8 or base64 input.',
@@ -926,6 +951,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2BulkDeleteFilesContract,
     filesOperation({
+      applicationOperation: fileOperations.delete,
       operationId: 'bulkDeleteFiles',
       summary: 'Delete Files',
       description:
@@ -959,6 +985,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListFileFoldersContract,
     filesOperation({
+      applicationOperation: fileOperations.listFolders,
       operationId: 'listFilesFolders',
       summary: 'List Folders',
       description: `List workspace file folders with optional parent-path filtering and sorting. Pass \`scope=archived\` to list folders a recursive \`DELETE\` soft-deleted, which is how a caller finds a path to hand to \`POST /api/v2/files/folders/restore\`. ${FULL_SET_LIST}`,
@@ -983,6 +1010,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RestoreFileFolderContract,
     filesOperation({
+      applicationOperation: fileOperations.restoreFolder,
       operationId: 'restoreFilesFolder',
       summary: 'Restore Folder',
       description:
@@ -1009,6 +1037,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateFileFolderContract,
     filesOperation({
+      applicationOperation: fileOperations.createFolder,
       operationId: 'createFilesFolder',
       summary: 'Create Folder',
       description: 'Create a canonical folder path in a workspace.',
@@ -1040,6 +1069,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RelocateFileFolderContract,
     filesOperation({
+      applicationOperation: fileOperations.updateFolder,
       operationId: 'relocateFilesFolder',
       summary: 'Rename or Move Folder',
       description: 'Rename or move a folder and atomically rewrite descendant canonical paths.',
@@ -1072,6 +1102,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteFileFolderContract,
     filesOperation({
+      applicationOperation: fileOperations.deleteFolder,
       operationId: 'deleteFilesFolder',
       summary: 'Delete Folder',
       description: 'Delete a folder, optionally including every nested file and folder.',

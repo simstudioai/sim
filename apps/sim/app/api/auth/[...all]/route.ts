@@ -31,67 +31,14 @@ const UNSUPPORTED_OIDC_PATHS = new Set([
 const SAML_PROTOCOL_POST_PREFIX = 'sso/saml2/'
 
 /**
- * The OAuth provider POST endpoints a client legitimately calls: the protocol
- * itself, plus the consent decision the consent page submits.
+ * Provider endpoints served by the plugin. Token and revocation requests have
+ * dedicated routes that own their validation and token-family lifecycle.
  */
 const OAUTH_PROVIDER_PROTOCOL_POST_PATHS = new Set([
-  'oauth2/token',
   'oauth2/consent',
   'oauth2/continue',
-  'oauth2/revoke',
   'oauth2/public-client-prelogin',
 ])
-
-const OAUTH_FORM_POST_PATHS = new Set(['oauth2/token', 'oauth2/revoke'])
-
-/**
- * Rejects ambiguous OAuth form requests before Better Auth parses them.
- * Better Auth 1.6.27 keeps the last occurrence of a repeated form field, while
- * OAuth requires each parameter to appear at most once. Refusing the request
- * here also prevents HTTP Basic credentials from being combined with a body
- * secret and interpreted differently by an intermediary.
- */
-async function rejectAmbiguousOAuthForm(
-  request: NextRequest,
-  path: string
-): Promise<NextResponse | null> {
-  if (!OAUTH_FORM_POST_PATHS.has(path)) return null
-  if (
-    !request.headers
-      .get('content-type')
-      ?.toLowerCase()
-      .startsWith('application/x-www-form-urlencoded')
-  ) {
-    return null
-  }
-
-  const form = new URLSearchParams(await request.clone().text())
-  const seen = new Set<string>()
-  for (const [name] of form) {
-    if (seen.has(name)) {
-      return NextResponse.json(
-        {
-          error: 'invalid_request',
-          error_description: `OAuth parameter ${name} appears more than once.`,
-        },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      )
-    }
-    seen.add(name)
-  }
-
-  const usesBasicAuth = request.headers.get('authorization')?.startsWith('Basic ') === true
-  if (usesBasicAuth && form.has('client_secret')) {
-    return NextResponse.json(
-      {
-        error: 'invalid_request',
-        error_description: 'Use exactly one client authentication method.',
-      },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
-    )
-  }
-  return null
-}
 
 function getAuthPath(request: NextRequest): string {
   const pathname = request.nextUrl?.pathname ?? new URL(request.url).pathname
@@ -153,11 +100,17 @@ function isBlockedSsoMutationPath(path: string): boolean {
  * granting or revoking it, never by editing the row.
  *
  * Deny-by-default, like the SSO block above, so a future plugin version cannot
- * introduce another unshadowed mutation endpoint. `oauth2/callback/` is the
- * generic-OAuth *client* callback and belongs to connector linking, not here.
+ * introduce another unshadowed mutation endpoint. `oauth2/link` and
+ * `oauth2/callback/` belong to the existing generic OAuth connector client.
  */
 function isBlockedOAuthProviderMutationPath(path: string): boolean {
-  if (!path.startsWith('oauth2/') || path.startsWith('oauth2/callback/')) return false
+  if (
+    !path.startsWith('oauth2/') ||
+    path === 'oauth2/link' ||
+    path.startsWith('oauth2/callback/')
+  ) {
+    return false
+  }
   return !OAUTH_PROVIDER_PROTOCOL_POST_PATHS.has(path)
 }
 
@@ -211,9 +164,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const path = getAuthPath(request)
   if (UNSUPPORTED_OIDC_PATHS.has(path)) return unsupportedOidcResponse()
-
-  const ambiguousOAuthForm = await rejectAmbiguousOAuthForm(request, path)
-  if (ambiguousOAuthForm) return ambiguousOAuthForm
 
   if (isBlockedOrganizationMutationPath(path)) {
     return NextResponse.json(

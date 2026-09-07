@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type { AnyApiRouteContract, ApiSchema, JsonResponseMode } from '@/lib/api/contracts/types'
+import type { ApplicationOperation } from '@/lib/core/application/operation'
 
 export type OpenApiSecurityRequirement = Readonly<Record<string, readonly string[]>>
 
@@ -84,6 +85,8 @@ export type OpenApiOperationSuccess =
     }
 
 export interface OpenApiOperationMetadata {
+  /** Canonical policy shared with every adapter for this application operation. */
+  applicationOperation: Pick<ApplicationOperation, 'id' | 'oauthScope'>
   operationId: string
   summary: string
   description: string

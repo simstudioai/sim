@@ -1,5 +1,6 @@
-import type { ApplicationOperation } from '@/lib/core/application'
-import { assertOperationCapability, defineWorkspaceOperation } from '@/lib/core/application'
+import type { ApplicationOperation } from '@/lib/core/application/operation'
+import { assertOperationCapability } from '@/lib/core/application/operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -63,6 +64,7 @@ export const knowledgeOperations = {
    */
   list: defineWorkspaceOperation({
     id: 'knowledge.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -70,6 +72,7 @@ export const knowledgeOperations = {
   }),
   read: defineWorkspaceOperation({
     id: 'knowledge.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -82,6 +85,7 @@ export const knowledgeOperations = {
    */
   create: defineWorkspaceOperation({
     id: 'knowledge.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.create',
@@ -89,6 +93,7 @@ export const knowledgeOperations = {
   }),
   update: defineWorkspaceOperation({
     id: 'knowledge.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -96,6 +101,7 @@ export const knowledgeOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'knowledge.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -110,6 +116,7 @@ export const knowledgeOperations = {
    */
   restore: defineWorkspaceOperation({
     id: 'knowledge.restore',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -117,6 +124,7 @@ export const knowledgeOperations = {
   }),
   bulkMoveItems: defineWorkspaceOperation({
     id: 'knowledge.bulk_move_items',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -124,6 +132,7 @@ export const knowledgeOperations = {
   }),
   bulkDeleteItems: defineWorkspaceOperation({
     id: 'knowledge.bulk_delete_items',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -131,6 +140,7 @@ export const knowledgeOperations = {
   }),
   bulkDelete: defineWorkspaceOperation({
     id: 'knowledge.bulk_delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -166,6 +176,7 @@ export const knowledgeOperations = {
   }),
   search: defineWorkspaceOperation({
     id: 'knowledge.search',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -173,6 +184,7 @@ export const knowledgeOperations = {
   }),
   listFolders: defineWorkspaceOperation({
     id: 'knowledge.folders.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -180,6 +192,7 @@ export const knowledgeOperations = {
   }),
   createFolder: defineWorkspaceOperation({
     id: 'knowledge.folders.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -187,6 +200,7 @@ export const knowledgeOperations = {
   }),
   relocateFolder: defineWorkspaceOperation({
     id: 'knowledge.folders.relocate',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -194,6 +208,7 @@ export const knowledgeOperations = {
   }),
   deleteFolder: defineWorkspaceOperation({
     id: 'knowledge.folders.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -201,6 +216,7 @@ export const knowledgeOperations = {
   }),
   listDocuments: defineWorkspaceOperation({
     id: 'knowledge.documents.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -208,6 +224,7 @@ export const knowledgeOperations = {
   }),
   readDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -221,6 +238,7 @@ export const knowledgeOperations = {
    */
   uploadDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.upload',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.upload',
@@ -228,6 +246,7 @@ export const knowledgeOperations = {
   }),
   addWorkspaceFiles: defineWorkspaceOperation({
     id: 'knowledge.documents.add_workspace_files',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -235,6 +254,7 @@ export const knowledgeOperations = {
   }),
   deleteDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -242,6 +262,7 @@ export const knowledgeOperations = {
   }),
   bulkDeleteDocuments: defineWorkspaceOperation({
     id: 'knowledge.documents.bulk_delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -249,6 +270,7 @@ export const knowledgeOperations = {
   }),
   updateDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -256,6 +278,7 @@ export const knowledgeOperations = {
   }),
   bulkDocuments: defineWorkspaceOperation({
     id: 'knowledge.documents.bulk',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -263,6 +286,7 @@ export const knowledgeOperations = {
   }),
   listChunks: defineWorkspaceOperation({
     id: 'knowledge.chunks.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -270,6 +294,7 @@ export const knowledgeOperations = {
   }),
   readChunk: defineWorkspaceOperation({
     id: 'knowledge.chunks.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -277,6 +302,7 @@ export const knowledgeOperations = {
   }),
   createChunk: defineWorkspaceOperation({
     id: 'knowledge.chunks.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -284,6 +310,7 @@ export const knowledgeOperations = {
   }),
   updateChunk: defineWorkspaceOperation({
     id: 'knowledge.chunks.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -291,6 +318,7 @@ export const knowledgeOperations = {
   }),
   deleteChunk: defineWorkspaceOperation({
     id: 'knowledge.chunks.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -298,6 +326,7 @@ export const knowledgeOperations = {
   }),
   bulkChunks: defineWorkspaceOperation({
     id: 'knowledge.chunks.bulk',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -311,6 +340,7 @@ export const knowledgeOperations = {
    */
   listTags: defineWorkspaceOperation({
     id: 'knowledge.tags.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
@@ -318,6 +348,7 @@ export const knowledgeOperations = {
   }),
   createTag: defineWorkspaceOperation({
     id: 'knowledge.tags.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -325,6 +356,7 @@ export const knowledgeOperations = {
   }),
   updateTag: defineWorkspaceOperation({
     id: 'knowledge.tags.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -332,6 +364,7 @@ export const knowledgeOperations = {
   }),
   deleteTag: defineWorkspaceOperation({
     id: 'knowledge.tags.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -339,6 +372,7 @@ export const knowledgeOperations = {
   }),
   readTagUsage: defineWorkspaceOperation({
     id: 'knowledge.tags.read_usage',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -346,6 +380,7 @@ export const knowledgeOperations = {
   }),
   readDetailedTagUsage: defineWorkspaceOperation({
     id: 'knowledge.tags.read_detailed_usage',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -353,6 +388,7 @@ export const knowledgeOperations = {
   }),
   readNextTagSlot: defineWorkspaceOperation({
     id: 'knowledge.tags.read_next_slot',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -367,6 +403,7 @@ export const knowledgeOperations = {
    */
   saveDocumentTagDefinitions: defineWorkspaceOperation({
     id: 'knowledge.tags.bulk_save',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -375,6 +412,7 @@ export const knowledgeOperations = {
   /** Removal over that same vocabulary — unused definitions, or all of them. */
   deleteDocumentTagDefinitions: defineWorkspaceOperation({
     id: 'knowledge.tags.cleanup',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -382,6 +420,7 @@ export const knowledgeOperations = {
   }),
   listConnectors: defineWorkspaceOperation({
     id: 'knowledge.connectors.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -389,6 +428,7 @@ export const knowledgeOperations = {
   }),
   readConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -396,6 +436,7 @@ export const knowledgeOperations = {
   }),
   createConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -403,6 +444,7 @@ export const knowledgeOperations = {
   }),
   updateConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -454,6 +496,7 @@ export const knowledgeOperations = {
   }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -461,6 +504,7 @@ export const knowledgeOperations = {
   }),
   syncConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.sync',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -468,6 +512,7 @@ export const knowledgeOperations = {
   }),
   listConnectorDocuments: defineWorkspaceOperation({
     id: 'knowledge.connectors.documents.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -475,6 +520,7 @@ export const knowledgeOperations = {
   }),
   updateConnectorDocuments: defineWorkspaceOperation({
     id: 'knowledge.connectors.documents.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
@@ -488,6 +534,7 @@ export const knowledgeOperations = {
    */
   uploadCreate: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.upload',
@@ -495,6 +542,7 @@ export const knowledgeOperations = {
   }),
   uploadParts: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.parts',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.upload',
@@ -502,6 +550,7 @@ export const knowledgeOperations = {
   }),
   uploadComplete: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.complete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.upload',
@@ -509,6 +558,7 @@ export const knowledgeOperations = {
   }),
   uploadCancel: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.cancel',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.upload',

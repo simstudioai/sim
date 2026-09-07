@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
  * Semantic operations for reading Sim's code-defined catalogs.
@@ -25,6 +25,7 @@ export const catalogOperations = {
   // permission-group-exempt: the block catalog is what the editor renders; emptying it hides the product rather than restricting it
   listBlocks: defineWorkspaceOperation({
     id: 'catalog.blocks.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -33,6 +34,7 @@ export const catalogOperations = {
   // permission-group-exempt: one entry of the same catalog listBlocks returns, so it cannot be governed differently
   readBlock: defineWorkspaceOperation({
     id: 'catalog.blocks.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -41,6 +43,7 @@ export const catalogOperations = {
   // permission-group-exempt: describes which tools exist; whether a member may call one is decided on that tool's own operation
   listTools: defineWorkspaceOperation({
     id: 'catalog.tools.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -49,6 +52,7 @@ export const catalogOperations = {
   // permission-group-exempt: one entry of the same catalog listTools returns, so it cannot be governed differently
   readTool: defineWorkspaceOperation({
     id: 'catalog.tools.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
@@ -61,6 +65,7 @@ export const catalogOperations = {
    */
   listConnectorTypes: defineWorkspaceOperation({
     id: 'catalog.connector_types.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',

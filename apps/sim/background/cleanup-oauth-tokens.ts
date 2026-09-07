@@ -22,11 +22,11 @@ const logger = createLogger('CleanupOAuthTokens')
 export const OAUTH_TOKEN_RETENTION_DAYS = 7
 
 /**
- * Rows removed per statement. A run drains several bounded pages so routine
- * rotation volume cannot create a permanent backlog, while every delete keeps
- * a predictable lock footprint.
+ * Each family can cascade into 1,001 retained refresh generations. Keep its
+ * batch small independently of direct access-token deletion.
  */
-const OAUTH_TOKEN_SWEEP_LIMIT = 5_000
+const OAUTH_FAMILY_SWEEP_LIMIT = 10
+const OAUTH_ACCESS_TOKEN_SWEEP_LIMIT = 5_000
 const OAUTH_TOKEN_SWEEP_MAX_PAGES = 10
 
 export interface CleanupOAuthTokensResult {
@@ -138,11 +138,11 @@ export async function runCleanupOAuthTokens(): Promise<CleanupOAuthTokensResult>
       .from(oauthTokenFamily)
       .where(lt(oauthTokenFamily.expiresAt, cutoff))
       .orderBy(asc(oauthTokenFamily.expiresAt), asc(oauthTokenFamily.id))
-      .limit(OAUTH_TOKEN_SWEEP_LIMIT)
+      .limit(OAUTH_FAMILY_SWEEP_LIMIT)
     if (staleFamilies.length === 0) break
 
     tokenFamilies += await deleteExpiredFamilyBatch(staleFamilies, cutoff)
-    if (staleFamilies.length < OAUTH_TOKEN_SWEEP_LIMIT) break
+    if (staleFamilies.length < OAUTH_FAMILY_SWEEP_LIMIT) break
   }
 
   for (let page = 0; page < OAUTH_TOKEN_SWEEP_MAX_PAGES; page += 1) {
@@ -151,7 +151,7 @@ export async function runCleanupOAuthTokens(): Promise<CleanupOAuthTokensResult>
       .from(oauthAccessToken)
       .where(lt(oauthAccessToken.expiresAt, cutoff))
       .orderBy(asc(oauthAccessToken.expiresAt), asc(oauthAccessToken.id))
-      .limit(OAUTH_TOKEN_SWEEP_LIMIT)
+      .limit(OAUTH_ACCESS_TOKEN_SWEEP_LIMIT)
     if (staleAccess.length === 0) break
 
     const deleted = await db
@@ -164,7 +164,7 @@ export async function runCleanupOAuthTokens(): Promise<CleanupOAuthTokensResult>
       )
       .returning({ id: oauthAccessToken.id })
     accessTokens += deleted.length
-    if (staleAccess.length < OAUTH_TOKEN_SWEEP_LIMIT) break
+    if (staleAccess.length < OAUTH_ACCESS_TOKEN_SWEEP_LIMIT) break
   }
 
   const result = { tokenFamilies, accessTokens }

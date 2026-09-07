@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
+    "@sim/utils": "workspace:*",
     "@types/js-yaml": "4.0.9",
     "@types/node": "24.2.1",
     "@types/proper-lockfile": "4.1.4",

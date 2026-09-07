@@ -2,7 +2,9 @@
  * @vitest-environment node
  */
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
-import { schemaMock } from '@sim/testing'
+import { oauthAccessToken, oauthConsent } from '@sim/db/schema'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +19,8 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { OAUTH_CLIENT: 'oauth_client' },
 }))
 
-vi.mock('@sim/db/schema', () => schemaMock)
+vi.unmock('@sim/db/schema')
+vi.unmock('drizzle-orm')
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -42,11 +45,17 @@ const personalKey: PersonalApiKeyPrincipal = {
 
 /** A drizzle select chain that answers `rows` whenever it is finally awaited. */
 function selectChain(rows: unknown[]) {
-  const chain: Record<string, unknown> = {}
-  for (const method of ['from', 'innerJoin', 'where', 'orderBy', 'limit']) {
-    chain[method] = vi.fn(() => chain)
+  const chain = {
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    where: vi.fn<(predicate: SQL | undefined) => unknown>(),
+    orderBy: vi.fn(),
+    limit: vi.fn(),
+    then: (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve),
   }
-  chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve)
+  for (const method of [chain.from, chain.innerJoin, chain.where, chain.orderBy, chain.limit]) {
+    method.mockReturnValue(chain)
+  }
   return chain
 }
 
@@ -66,9 +75,10 @@ describe('authorized apps', () => {
       })
     ).rejects.toBeInstanceOf(ForbiddenOperationError)
     expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.select).not.toHaveBeenCalled()
   })
 
-  it('presents each grant by the client name, falling back to its id', async () => {
+  it('returns one page of domain records without applying HTTP presentation', async () => {
     mocks.select.mockReturnValue(
       selectChain([
         {
@@ -88,21 +98,80 @@ describe('authorized apps', () => {
 
     await expect(
       listAuthorizedAppsUseCase.execute({ principal: session, input: {} })
-    ).resolves.toEqual([
-      {
-        clientId: 'sim-cli',
-        name: 'Sim CLI',
-        scopes: ['openid', 'api:write'],
-        authorizedAt: '2026-09-01T00:00:00.000Z',
-      },
-      {
-        clientId: 'partner-app',
-        name: 'partner-app',
-        scopes: ['openid'],
-        authorizedAt: '2026-08-01T00:00:00.000Z',
-      },
-    ])
+    ).resolves.toEqual({
+      apps: [
+        {
+          clientId: 'sim-cli',
+          name: 'Sim CLI',
+          scopes: ['openid', 'api:write'],
+          authorizedAt: new Date('2026-09-01T00:00:00.000Z'),
+        },
+        {
+          clientId: 'partner-app',
+          name: null,
+          scopes: ['openid'],
+          authorizedAt: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      ],
+      nextCursor: null,
+    })
   })
+
+  it('limits the read and resumes after the last visible row with a stable timestamp tie-breaker', async () => {
+    const rows = Array.from({ length: 26 }, (_, index) => ({
+      clientId: `app-${String(26 - index).padStart(2, '0')}`,
+      name: `App ${index}`,
+      scopes: ['api:read'],
+      authorizedAt: new Date('2026-09-01T00:00:00.000Z'),
+    }))
+    const first = selectChain(rows)
+    const second = selectChain([rows[25]])
+    mocks.select.mockReturnValueOnce(first).mockReturnValueOnce(second)
+
+    const page = await listAuthorizedAppsUseCase.execute({ principal: session, input: {} })
+    expect(first.limit).toHaveBeenCalledWith(26)
+    expect(page.apps).toEqual(rows.slice(0, 25))
+    expect(JSON.parse(Buffer.from(page.nextCursor!, 'base64url').toString('utf8'))).toEqual([
+      rows[24].authorizedAt.toISOString(),
+      rows[24].clientId,
+    ])
+
+    const final = await listAuthorizedAppsUseCase.execute({
+      principal: session,
+      input: { cursor: page.nextCursor! },
+    })
+    expect(final).toEqual({ apps: [rows[25]], nextCursor: null })
+    const condition = second.where.mock.calls[0][0]
+    expect(condition).toBeDefined()
+    const query = new PgDialect().sqlToQuery(condition!)
+    expect(query.sql).toContain("date_trunc('milliseconds'")
+    expect(query.sql).toContain('"oauth_consent"."client_id" <')
+    expect(query.params).toContain(session.userId)
+    expect(query.params).toContain(rows[24].clientId)
+  })
+
+  it('searches all grants for this user and treats SQL wildcards literally', async () => {
+    const queryChain = selectChain([])
+    mocks.select.mockReturnValue(queryChain)
+    await listAuthorizedAppsUseCase.execute({
+      principal: session,
+      input: { search: '  100%_App  ' },
+    })
+    const query = new PgDialect().sqlToQuery(queryChain.where.mock.calls[0][0]!)
+    expect(query.params).toEqual([session.userId, '%100\\%\\_App%', '%100\\%\\_App%'])
+    expect(query.sql).toContain('"oauth_client"."name" ilike')
+    expect(query.sql).toContain('"oauth_client"."client_id" ilike')
+  })
+
+  it.each(['not-json', Buffer.from('["not-a-date","client"]', 'utf8').toString('base64url')])(
+    'rejects malformed cursors before reading protected data',
+    async (cursor) => {
+      await expect(
+        listAuthorizedAppsUseCase.execute({ principal: session, input: { cursor } })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(mocks.select).not.toHaveBeenCalled()
+    }
+  )
 
   it('removes the consent and both token kinds in one transaction, and records the audit', async () => {
     const deleted: unknown[] = []
@@ -121,10 +190,7 @@ describe('authorized apps', () => {
      * and refresh token tables leaves the counts identical while deleting the
      * rows whose revocation is what makes a replayed token detectable.
      */
-    expect(deleted.map(([table]) => table)).toEqual([
-      schemaMock.oauthConsent,
-      schemaMock.oauthAccessToken,
-    ])
+    expect(deleted.map(([table]) => table)).toEqual([oauthConsent, oauthAccessToken])
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'user-1',

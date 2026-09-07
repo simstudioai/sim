@@ -332,7 +332,7 @@ export const V2_AUTH_SECURITY_SCHEMES = {
     scheme: 'bearer',
     bearerFormat: 'OAuth 2.0 access token',
     description:
-      'A Sim OAuth access token obtained by a registered client through the authorization-code flow. The token must carry the scope required by the operation.',
+      'A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.',
   },
 } as const satisfies Readonly<Record<string, OpenApiSecurityScheme>>
 
@@ -366,7 +366,7 @@ export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCurs
  * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
  */
 export const HEAD_MIRRORS_GET =
-  '`HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only.'
+  '`HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only.'
 
 /**
  * Appended where the skipped payload headers are the ones a caller is most
@@ -386,7 +386,7 @@ export const HEAD_OMITS_PAYLOAD_HEADERS =
  * so it is not something a workspace owner can grant around.
  */
 export const WORKSPACE_API_KEY_DENIED =
-  'A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.'
+  'Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.'
 
 /**
  * {@link WORKSPACE_API_KEY_DENIED} for an operation behind the resource-concealment
@@ -424,7 +424,7 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  'Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.'
+  'Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

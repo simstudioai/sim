@@ -632,6 +632,7 @@ describe('capabilityGovernedPrincipalUserId', () => {
 describe('authorizeWorkspaceOperation OAuth access token policy', () => {
   const readOperation = defineWorkspaceOperation({
     id: 'test.oauth-read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
@@ -639,6 +640,7 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
   })
   const oauthWriteOperation = defineWorkspaceOperation({
     id: 'test.oauth-write',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
@@ -690,20 +692,15 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
   })
 
-  /**
-   * The funnel enforces only the read floor. Which requests count as writes is
-   * decided from the HTTP method at v2 admission, because `minimumRole` does
-   * not answer it: several POST routes only read (search, query, count), so
-   * deriving the scope from the role let a read-only token perform them.
-   */
-  it('leaves the write decision to the surface, admitting a read-only token on a write operation', async () => {
+  it('rejects a read-only token on a semantic write before reading membership', async () => {
     await expect(
       authorizeWorkspaceOperation(
         token({ scopes: ['offline_access', 'api:read'] }),
         oauthWriteOperation,
         context
       )
-    ).resolves.toBeUndefined()
+    ).rejects.toMatchObject({ requiredScope: 'api:write' })
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
   })
 
   it('lets api:write satisfy a read operation', async () => {

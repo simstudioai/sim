@@ -3,6 +3,7 @@ import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { BILLING_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { AUTHORIZED_APPS_PAGE_SIZE } from '@/lib/users/constants'
 
 export const userProfileSchema = z.object({
   id: z.string(),
@@ -29,12 +30,27 @@ export const authorizedAppSchema = z.object({
 
 export type AuthorizedApp = z.output<typeof authorizedAppSchema>
 
+export const listAuthorizedAppsQuerySchema = z.object({
+  cursor: z.string().min(1, 'Cursor cannot be empty').max(512).optional(),
+  search: z.string().trim().max(200, 'Search cannot exceed 200 characters').optional(),
+})
+
+export type ListAuthorizedAppsQuery = z.input<typeof listAuthorizedAppsQuerySchema>
+
+export const authorizedAppsPageSchema = z.object({
+  apps: z.array(authorizedAppSchema).max(AUTHORIZED_APPS_PAGE_SIZE),
+  nextCursor: z.string().min(1).max(512).nullable(),
+})
+
+export type AuthorizedAppsPage = z.output<typeof authorizedAppsPageSchema>
+
 export const listAuthorizedAppsContract = defineRouteContract({
   method: 'GET',
   path: '/api/users/me/authorized-apps',
+  query: listAuthorizedAppsQuerySchema,
   response: {
     mode: 'json',
-    schema: z.object({ apps: z.array(authorizedAppSchema) }),
+    schema: authorizedAppsPageSchema,
   },
 })
 

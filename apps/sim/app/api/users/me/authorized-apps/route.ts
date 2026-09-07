@@ -18,7 +18,14 @@ export const GET = defineInternalJsonRoute({
     reason: 'Authenticated current-user settings read',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: () => ({}),
+  mapInput: ({ query }) => query,
   useCase: listAuthorizedAppsUseCase,
-  present: (apps) => ({ apps }),
+  present: ({ apps, nextCursor }) => ({
+    apps: apps.map((app) => ({
+      ...app,
+      name: app.name?.trim() || app.clientId,
+      authorizedAt: app.authorizedAt.toISOString(),
+    })),
+    nextCursor,
+  }),
 })

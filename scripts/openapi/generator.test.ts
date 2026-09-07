@@ -61,6 +61,7 @@ function operation(
 ): OpenApiOperationMetadata {
   return {
     operationId,
+    applicationOperation: { id: operationId },
     summary: `Summary for ${operationId}`,
     description: `Description for ${operationId}.`,
     tags: ['Tests'],
@@ -473,6 +474,16 @@ describe('OpenAPI generator', () => {
     expect(() => generateOpenApiDocument(document([route]))).toThrow(
       'apiKey security requirement must use an empty scope array'
     )
+  })
+
+  it('rejects OAuth documentation without canonical scope policy', () => {
+    expect(() =>
+      generateOpenApiDocument({
+        ...document([simpleRoute()]),
+        security: [{ oauthBearer: [] }],
+        securitySchemes: { oauthBearer: { type: 'http', scheme: 'bearer' } },
+      })
+    ).toThrow("must declare its canonical application's OAuth scope")
   })
 
   it('fails fast for missing Zod documentation metadata', () => {

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { isOAuthProviderEnabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 
@@ -39,7 +40,7 @@ function consumeInteractivePrompt(params: URLSearchParams): boolean {
 export const GET = withRouteHandler(async (request: NextRequest) => {
   /** Avoid sending a newly signed-in user to a disabled provider's JSON 404. */
   if (!isOAuthProviderEnabled) {
-    return NextResponse.redirect(new URL('/', request.nextUrl.origin), 302)
+    return NextResponse.redirect(new URL('/', getBaseUrl()), 302)
   }
 
   const params = new URLSearchParams(request.nextUrl.search)
@@ -55,5 +56,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
   )
 
-  return NextResponse.redirect(new URL(destination, request.nextUrl.origin), 302)
+  /** Use the auth server's origin: Next normalizes loopback hosts and proxy ingress may differ. */
+  return NextResponse.redirect(new URL(destination, getBaseUrl()), 302)
 })

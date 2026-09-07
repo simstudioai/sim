@@ -40,7 +40,7 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes/v2-json-route'
 
-const operation = { id: 'widgets.update' } as const
+const operation = { id: 'widgets.update', capability: 'none', oauthScope: 'api:write' } as const
 const principal: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',
   userId: 'user-1',
@@ -893,12 +893,7 @@ describe('defineV2JsonRoute OAuth scope admission', () => {
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
 
-  /**
-   * The whole point of a read-only grant. The scope is derived from the HTTP
-   * method rather than the operation's `minimumRole`, because several POST
-   * routes only read; a role-derived rule let a read-only token write.
-   */
-  it('refuses a read-only token on an unsafe method before the use case runs', async () => {
+  it('refuses a read-only token on a semantic write before the use case runs', async () => {
     v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
     const execute = vi.fn()
 
@@ -922,22 +917,34 @@ describe('defineV2JsonRoute OAuth scope admission', () => {
     expect(response.status).toBe(201)
   })
 
-  /**
-   * `readOnly` is how a POST that only reads — a search or a query whose filter
-   * is too large for a query string — declares itself, so a read-only token can
-   * still use it.
-   */
-  it('admits a read-only token on a POST the route declares read-only', async () => {
+  it('returns a bearer challenge when the token expires after authentication', async () => {
+    const expiredAuth = oauthAuth(['api:write'])
+    expiredAuth.principal = {
+      ...expiredAuth.principal,
+      expiresAt: new Date(0),
+    } as V2ApiKeyAuthContext['principal']
+    v2RouteMocks.authenticate.mockResolvedValue(expiredAuth)
+    const execute = vi.fn()
+
+    const response = await createHandler({ execute })(bearerRequest(), { params: undefined })
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toContain('Bearer')
+    expect(execute).not.toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
+  })
+
+  it('admits a read-only token on a semantic read using POST', async () => {
     v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+    const readOperation = { ...operation, oauthScope: 'api:read' } as const
     const handler = defineV2JsonRoute({
       contract,
       auth: v2ApiKeyAuth,
-      operation,
-      readOnly: true,
+      operation: readOperation,
       rateLimit: v2RateLimits.publicApi,
       errorPolicy: v2OrchestrationErrorPolicy,
       mapInput: ({ body }) => body,
-      useCase: { operation, execute: async ({ input }) => input },
+      useCase: { operation: readOperation, execute: async ({ input }) => input },
       present: (result) => ({ data: result }),
     })
 
@@ -986,15 +993,14 @@ describe('defineV2JsonRoute OAuth scope admission', () => {
     expect(admission.response.headers.get('www-authenticate')).toContain('api:write')
   })
 
-  it('allows an explicitly read-only raw POST with api:read', async () => {
+  it('allows a semantic read through raw POST admission', async () => {
     v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
 
     const admission = await admitV2Request(
       bearerRequest(),
-      operation,
+      { ...operation, oauthScope: 'api:read' },
       v2ApiKeyAuth,
-      v2RateLimits.publicApi,
-      { readOnly: true }
+      v2RateLimits.publicApi
     )
 
     expect(admission.success).toBe(true)
@@ -1006,13 +1012,7 @@ describe('defineV2JsonRoute OAuth scope admission', () => {
       headers: { authorization: 'Bearer sim_oat_x' },
     })
 
-    const admission = await admitV2Request(
-      request,
-      operation,
-      v2ApiKeyAuth,
-      v2RateLimits.publicApi,
-      { write: true }
-    )
+    const admission = await admitV2Request(request, operation, v2ApiKeyAuth, v2RateLimits.publicApi)
 
     expect(admission.success).toBe(false)
     if (admission.success) throw new Error('Expected admission to fail')

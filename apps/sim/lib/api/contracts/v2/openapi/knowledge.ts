@@ -57,6 +57,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const KNOWLEDGE_BASE_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
@@ -111,6 +112,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeBasesContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.list,
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
       description: `List knowledge bases in a workspace with lifecycle scope, folder filtering, search, sorting, and opaque cursor pagination. \`scope\` defaults to \`active\`; pass \`archived\` to list knowledge bases a \`DELETE\` archived, each carrying the \`deletedAt\` instant it was archived, and recover one with \`POST /api/v2/knowledge/{knowledgeBaseId}/restore\`. ${FOLDER_TREE_TOO_LARGE}`,
@@ -135,6 +137,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeBaseContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.create,
       operationId: 'createKnowledgeBase',
       summary: 'Create Knowledge Base',
       description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a \`404\`. ${FOLDER_TREE_TOO_LARGE}`,
@@ -167,6 +170,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetKnowledgeBaseContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.read,
       operationId: 'getKnowledgeBase',
       summary: 'Get Knowledge Base',
       description: `Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. ${FOLDER_TREE_TOO_LARGE}`,
@@ -197,6 +201,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeBaseContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.update,
       operationId: 'updateKnowledgeBase',
       summary: 'Update Knowledge Base',
       description: `Update a knowledge base name, description, chunking configuration, or folder placement. ${FOLDER_TREE_TOO_LARGE}`,
@@ -229,6 +234,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeBaseContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.delete,
       operationId: 'deleteKnowledgeBase',
       summary: 'Delete Knowledge Base',
       description: 'Delete a knowledge base and its documents.',
@@ -259,6 +265,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeConnectorsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listConnectors,
       operationId: 'listKnowledgeConnectors',
       summary: 'List Knowledge Connectors',
       description: `List external sources connected to a knowledge base with opaque cursor pagination. Stored API keys and encrypted secret material are never returned. ${WORKSPACE_API_KEY_DENIED}`,
@@ -290,6 +297,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeConnectorContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.createConnector,
       operationId: 'createKnowledgeConnector',
       summary: 'Create Knowledge Connector',
       description: `Validate and connect an external source, then queue its initial synchronization. The apiKey field is write-only and is never returned. ${WORKSPACE_API_KEY_DENIED}`,
@@ -333,6 +341,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetKnowledgeConnectorContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.readConnector,
       operationId: 'getKnowledgeConnector',
       summary: 'Get Knowledge Connector',
       description: `Retrieve one connector and its ten most recent synchronization attempts. Stored API keys and encrypted secret material are never returned. ${WORKSPACE_API_KEY_DENIED}`,
@@ -366,6 +375,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeConnectorContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.updateConnector,
       operationId: 'updateKnowledgeConnector',
       summary: 'Update Knowledge Connector',
       description: `Update connector source configuration, schedule, or active state. Replacing source configuration on a runnable connector queues an immediate synchronization; paused connectors retain the change without synchronizing until resumed. Source configuration cannot be replaced while synchronization is already in progress. Authentication material cannot be changed through this operation. ${WORKSPACE_API_KEY_DENIED}`,
@@ -399,6 +409,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeConnectorContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteConnector,
       operationId: 'deleteKnowledgeConnector',
       summary: 'Delete Knowledge Connector',
       description: `Delete a connector and optionally its synchronized documents. Documents are retained by default. ${WORKSPACE_API_KEY_DENIED}`,
@@ -441,6 +452,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2SyncKnowledgeConnectorContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.syncConnector,
       operationId: 'syncKnowledgeConnector',
       summary: 'Sync Knowledge Connector',
       description: `Queue a connector synchronization. Rehydration forces existing documents to be fetched and indexed again. ${WORKSPACE_API_KEY_DENIED}`,
@@ -474,6 +486,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeConnectorDocumentsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listConnectorDocuments,
       operationId: 'listKnowledgeConnectorDocuments',
       summary: 'List Knowledge Connector Documents',
       description: `List documents produced by one connector with opaque cursor pagination. Excluded documents are omitted unless explicitly requested. ${WORKSPACE_API_KEY_DENIED}`,
@@ -505,6 +518,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeConnectorDocumentsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.updateConnectorDocuments,
       operationId: 'updateKnowledgeConnectorDocuments',
       summary: 'Update Knowledge Connector Documents',
       description: `Exclude connector documents from knowledge search or restore previously excluded documents. Only documents produced by the selected connector can change. ${WORKSPACE_API_KEY_DENIED}`,
@@ -554,6 +568,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2SearchKnowledgeContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.search,
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
@@ -590,6 +605,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeTagsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listTags,
       operationId: 'listKnowledgeTags',
       summary: 'List Tags',
       description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. ${FULL_SET_LIST}`,
@@ -620,6 +636,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeDocumentsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listDocuments,
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
@@ -651,6 +668,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2BulkUpdateKnowledgeDocumentsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.bulkDocuments,
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
       description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
@@ -691,6 +709,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UploadKnowledgeDocumentContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.uploadDocument,
       operationId: 'uploadKnowledgeDocument',
       summary: 'Upload Document',
       description:
@@ -737,6 +756,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeDocumentUploadContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.uploadCreate,
       operationId: 'createKnowledgeDocumentUpload',
       summary: 'Create Document Upload',
       description:
@@ -785,6 +805,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2AbortKnowledgeDocumentUploadContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.uploadCancel,
       operationId: 'abortKnowledgeDocumentUpload',
       summary: 'Abort Document Upload',
       description: 'Abort an incomplete upload and discard provider-side multipart state.',
@@ -821,6 +842,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeDocumentUploadPartUrlsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.uploadParts,
       operationId: 'createKnowledgeDocumentUploadPartUrls',
       summary: 'Create Document Upload Part URLs',
       description: 'Issue short-lived signed PUT URLs for up to 100 multipart part numbers.',
@@ -864,6 +886,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CompleteKnowledgeDocumentUploadContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.uploadComplete,
       operationId: 'completeKnowledgeDocumentUpload',
       summary: 'Complete Document Upload',
       description:
@@ -901,6 +924,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetKnowledgeDocumentContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.readDocument,
       operationId: 'getKnowledgeDocument',
       summary: 'Get Document',
       description: 'Retrieve document detail, processing state, and connector provenance.',
@@ -931,6 +955,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeDocumentContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.updateDocument,
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
       description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
@@ -965,6 +990,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeDocumentContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteDocument,
       operationId: 'deleteKnowledgeDocument',
       summary: 'Delete Document',
       description:
@@ -996,6 +1022,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeFoldersContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listFolders,
       operationId: 'listKnowledgeFolders',
       summary: 'List Folders',
       description: `List folders in the knowledge-base folder tree with filtering and sorting. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
@@ -1020,6 +1047,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeFolderContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.createFolder,
       operationId: 'createKnowledgeFolder',
       summary: 'Create Folder',
       description: `Create a folder in the knowledge-base folder tree. ${FOLDER_TREE_TOO_LARGE}`,
@@ -1046,6 +1074,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RelocateKnowledgeFolderContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.relocateFolder,
       operationId: 'relocateKnowledgeFolder',
       summary: 'Rename or Move Folder',
       description: `Rename or move a folder and atomically rewrite descendant paths. ${FOLDER_TREE_TOO_LARGE}`,
@@ -1078,6 +1107,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeFolderContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteFolder,
       operationId: 'deleteKnowledgeFolder',
       summary: 'Delete Folder',
       description: 'Delete a folder, optionally including nested folders and knowledge bases.',
@@ -1104,6 +1134,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RestoreKnowledgeBaseContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.restore,
       operationId: 'restoreKnowledgeBase',
       summary: 'Restore Knowledge Base',
       description: `Un-archive a soft-deleted knowledge base along with its documents and connectors. Idempotent: a knowledge base that is already active is returned unchanged with no audit entry recorded. Restoring into an archived workspace is a \`409\`, and a knowledge base whose folder is still archived is returned to the workspace root. ${FOLDER_TREE_TOO_LARGE}`,
@@ -1136,6 +1167,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2AddWorkspaceFilesToKnowledgeBaseContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.addWorkspaceFiles,
       operationId: 'addWorkspaceFilesToKnowledgeBase',
       summary: 'Index Workspace Files',
       description:

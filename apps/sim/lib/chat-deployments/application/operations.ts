@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
  * Semantic operations on a chat deployment as a resource in its own right.
@@ -50,6 +50,7 @@ const CHAT_DEPLOYMENT_ADMIN_POLICY = {
 export const chatDeploymentOperations = {
   list: defineWorkspaceOperation({
     id: 'chat_deployments.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'deploy.chat',
@@ -57,6 +58,7 @@ export const chatDeploymentOperations = {
   }),
   replace: defineWorkspaceOperation({
     id: 'chat_deployments.replace',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
@@ -64,6 +66,7 @@ export const chatDeploymentOperations = {
   }),
   read: defineWorkspaceOperation({
     id: 'chat_deployments.read',
+    oauthScope: 'api:read',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
@@ -71,6 +74,7 @@ export const chatDeploymentOperations = {
   }),
   update: defineWorkspaceOperation({
     id: 'chat_deployments.update',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
@@ -78,6 +82,7 @@ export const chatDeploymentOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'chat_deployments.delete',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',

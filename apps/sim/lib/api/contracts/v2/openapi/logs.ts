@@ -19,6 +19,7 @@ import {
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
+import { logOperations } from '@/lib/logs/application/operations'
 
 const RUN_ID = 'e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13'
 const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
@@ -161,6 +162,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListLogsContract,
     logsOperation({
+      applicationOperation: logOperations.list,
       operationId: 'listLogs',
       summary: 'List Logs',
       description: `List logs with filters, selectable detail, sorting, and cursor pagination. \`includeJobRuns=true\` includes chat and Sim-agent jobs only with \`sortBy=startedAt\`, because other orderings are unsupported. \`files\` contains only run-produced files; use the files API for input attachments. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
@@ -186,6 +188,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetLogContract,
     logsOperation({
+      applicationOperation: logOperations.readDetail,
       operationId: 'getLog',
       summary: 'Get Log',
       description: `Retrieve a run's workflow snapshot, trace spans, final output, and cost. Trace spans have separate retention, so an empty \`traceSpans\` array does not prove none were recorded. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
@@ -212,6 +215,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetLogStatsContract,
     logsOperation({
+      applicationOperation: logOperations.readStats,
       operationId: 'getLogStats',
       summary: 'Get Log Statistics',
       description: `Return workspace/workflow counts, success, errors, and latency. Defaults span runs, or 24 hours if empty; supplied bounds stay exact. Buckets are one-minute minimum and may pass the end. Folders include descendants; \`workflowsTruncated\` marks capped series, totals include all. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,

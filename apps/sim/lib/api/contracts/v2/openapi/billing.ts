@@ -19,6 +19,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { billingOperations } from '@/lib/billing/application/operations'
 
 const BILLING_STATUS_EXAMPLE = {
   data: {
@@ -78,6 +79,7 @@ const routes = [
   defineOpenApiRoute(
     v2GetBillingStatusContract,
     billingOperation({
+      applicationOperation: billingOperations.readStatus,
       operationId: 'getBillingStatus',
       summary: 'Get Billing Status',
       description:
@@ -104,6 +106,7 @@ const routes = [
   defineOpenApiRoute(
     v2ListBillingLogsContract,
     billingOperation({
+      applicationOperation: billingOperations.listLogs,
       operationId: 'listBillingLogs',
       summary: 'List Billing Logs',
       description:

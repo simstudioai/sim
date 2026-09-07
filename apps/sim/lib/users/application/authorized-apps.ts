@@ -1,12 +1,60 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { oauthAccessToken, oauthClient, oauthConsent } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
-import type { AuthorizedApp } from '@/lib/api/contracts/user'
+import { and, eq, or } from 'drizzle-orm'
+import {
+  keysetColumns,
+  keysetPage,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireUserAccountPrincipal } from '@/lib/users/application/authorization'
 import { userAccountOperations } from '@/lib/users/application/operations'
+import { AUTHORIZED_APPS_PAGE_SIZE } from '@/lib/users/constants'
+
+export interface ListAuthorizedAppsInput {
+  cursor?: string
+  search?: string
+}
+
+interface AuthorizedAppRecord {
+  clientId: string
+  name: string | null
+  scopes: string[]
+  authorizedAt: Date
+}
+
+export interface ListAuthorizedAppsResult {
+  apps: AuthorizedAppRecord[]
+  nextCursor: string | null
+}
+
+const AUTHORIZED_APP_KEYS = [
+  timestampKey<AuthorizedAppRecord>(oauthConsent.createdAt, (app) => app.authorizedAt),
+  textKey<AuthorizedAppRecord>(oauthConsent.clientId, (app) => app.clientId),
+]
+
+function readAuthorizedAppsCursor(cursor: string | undefined): string[] | undefined {
+  if (!cursor) return undefined
+  try {
+    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
+    if (
+      !Array.isArray(decoded) ||
+      decoded.length !== 2 ||
+      !decoded.every((key): key is string => typeof key === 'string' && key.length > 0)
+    ) {
+      throw new Error('Malformed cursor')
+    }
+    return decoded
+  } catch {
+    throw new OrchestrationError('validation', 'Invalid authorized apps cursor')
+  }
+}
 
 /**
  * The OAuth clients this account has consented to, newest grant first.
@@ -17,12 +65,14 @@ import { userAccountOperations } from '@/lib/users/application/operations'
  */
 export const listAuthorizedAppsUseCase: OperationUseCase<
   typeof userAccountOperations.readAuthorizedApps,
-  Record<string, never>,
-  AuthorizedApp[]
+  ListAuthorizedAppsInput,
+  ListAuthorizedAppsResult
 > = {
   operation: userAccountOperations.readAuthorizedApps,
-  async execute({ principal }) {
+  async execute({ principal, input }) {
     requireUserAccountPrincipal(principal, userAccountOperations.readAuthorizedApps)
+    const search = input.search?.trim() || undefined
+    const after = resumeKeyset(AUTHORIZED_APP_KEYS, readAuthorizedAppsCursor(input.cursor), 'desc')
 
     const rows = await db
       .select({
@@ -33,15 +83,25 @@ export const listAuthorizedAppsUseCase: OperationUseCase<
       })
       .from(oauthConsent)
       .innerJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
-      .where(eq(oauthConsent.userId, principal.userId))
-      .orderBy(desc(oauthConsent.createdAt))
+      .where(
+        and(
+          eq(oauthConsent.userId, principal.userId),
+          search
+            ? or(searchFilter(oauthClient.name, search), searchFilter(oauthClient.clientId, search))
+            : undefined,
+          after
+        )
+      )
+      .orderBy(...listOrderBy(keysetColumns(AUTHORIZED_APP_KEYS), 'desc'))
+      .limit(AUTHORIZED_APPS_PAGE_SIZE + 1)
 
-    return rows.map((row) => ({
-      clientId: row.clientId,
-      name: row.name ?? row.clientId,
-      scopes: row.scopes,
-      authorizedAt: row.authorizedAt.toISOString(),
-    }))
+    const page = keysetPage(AUTHORIZED_APP_KEYS, rows, AUTHORIZED_APPS_PAGE_SIZE)
+    return {
+      apps: page.data,
+      nextCursor: page.nextCursorKeys
+        ? Buffer.from(JSON.stringify(page.nextCursorKeys)).toString('base64url')
+        : null,
+    }
   },
 }
 

@@ -1,5 +1,11 @@
-import type { ApplicationOperation, OperationDeclarableCapability } from '@/lib/core/application'
-import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
+import type {
+  ApplicationOperation,
+  OperationDeclarableCapability,
+} from '@/lib/core/application/operation'
+import {
+  defineWorkspaceOperation,
+  type WorkspaceOperation,
+} from '@/lib/core/application/workspace-operation'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
@@ -40,6 +46,7 @@ export const credentialOperations = {
   }),
   listProviders: defineWorkspaceOperation({
     id: 'credentials.providers.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'integrations.manage',
@@ -47,6 +54,7 @@ export const credentialOperations = {
   }),
   listConnections: defineWorkspaceOperation({
     id: 'credentials.connections.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'integrations.manage',
@@ -65,6 +73,7 @@ export const credentialOperations = {
    */
   createConnection: defineWorkspaceOperation({
     id: 'credentials.connections.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
@@ -80,6 +89,7 @@ export const credentialOperations = {
   }),
   createServiceAccount: defineWorkspaceOperation({
     id: 'credentials.service_accounts.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
@@ -105,6 +115,7 @@ export const credentialOperations = {
   update: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.update',
+      oauthScope: 'api:write',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
@@ -115,6 +126,7 @@ export const credentialOperations = {
   delete: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.delete',
+      oauthScope: 'api:write',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',

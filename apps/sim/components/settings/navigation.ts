@@ -102,6 +102,7 @@ export type UnifiedSettingsSection =
   | 'custom-blocks'
   | 'audit-logs'
   | 'apikeys'
+  | 'authorized-apps'
   | 'byok'
   | 'billing'
   | 'teammates'
@@ -593,6 +594,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Authorized apps',
     icon: Connections,
+    unified: {
+      id: 'authorized-apps',
+      description: 'Review and revoke apps that can act on your account.',
+      group: 'account',
+      order: 4,
+    },
     planes: {
       account: {
         id: 'authorized-apps',
