@@ -104,15 +104,15 @@ describe.each([
   afterEach(clearHandlers)
 
   it.each([
-    { timeout: undefined, expected: 10_000 },
+    { timeout: undefined, expected: 60_000 },
     { timeout: 0.5, expected: 500 },
     { timeout: 7, expected: 7_000 },
     { timeout: '90', expected: 90_000 },
     { timeout: 300, expected: 300_000 },
     { timeout: 601, expected: 300_000 },
     { timeout: 45_000, expected: 300_000 },
-    { timeout: 0, expected: 10_000 },
-    { timeout: 'invalid', expected: 10_000 },
+    { timeout: 0, expected: 60_000 },
+    { timeout: 'invalid', expected: 60_000 },
   ])('maps $timeout seconds to $expected milliseconds once', async ({ timeout, expected }) => {
     const params = { code: 'return 1', language: 'javascript', timeout }
     const result = await executeTool(toolId, params, {

@@ -3,7 +3,6 @@
  */
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import {
   createMockRequest,
   envFlagsMock,
@@ -2085,6 +2084,81 @@ describe('Function execution request', () => {
       expect(runtimePayload).not.toContain('__simSandboxFileMount')
     })
 
+    it.each(['python', 'javascript', 'shell'])(
+      'exports a chat %s harvest through workspace policy without workflow context',
+      async (language) => {
+        envFlagsMock.isMothershipSandboxEnabled = true
+        hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+          success: true,
+          userId: 'user-123',
+          authType: 'internal_jwt',
+          sandboxProfile: 'mothership',
+        })
+        const bytes = Buffer.from([0, 255, 13, 10, 42])
+        const runtimeResult = {
+          result: 'kept-result',
+          stdout: 'kept-stdout',
+          sandboxId: 'sbx',
+          collectedFiles: [
+            {
+              path: '/tmp/sim/outputs/call-test/report.txt',
+              relativePath: 'report.txt',
+              contentBase64: bytes.toString('base64'),
+              byteLength: bytes.length,
+            },
+          ],
+        }
+        const sandbox = language === 'shell' ? mockExecuteShellInSandbox : mockExecuteInSandbox
+        sandbox.mockResolvedValueOnce(runtimeResult)
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'x',
+            language,
+            workspaceId: 'workspace-1',
+            sandboxSessionKey: 'same-chat',
+          })
+        )
+        const data = await response.json()
+        expect(response.status).toBe(200)
+        expect(data.output.result).toBe('kept-result')
+        expect(data.output.stdout).toBe('kept-stdout')
+        expect(data.resources).toEqual([
+          expect.objectContaining({ type: 'file', path: 'files/report.txt' }),
+        ])
+        expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspaceId: 'workspace-1',
+            target: expect.objectContaining({ path: 'files/report.txt', mode: 'create' }),
+            buffer: bytes,
+          })
+        )
+        expect(mockUploadFile).not.toHaveBeenCalled()
+      }
+    )
+
+    it('still requires workflow context for ordinary Function file harvests', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        sandboxId: 'sbx',
+        collectedFiles: [
+          {
+            path: '/tmp/sim/outputs/a.txt',
+            relativePath: 'a.txt',
+            contentBase64: 'YQ==',
+            byteLength: 1,
+          },
+        ],
+      })
+      const response = await POST(
+        createMockRequest('POST', { code: 'x', language: 'python', workspaceId: 'workspace-1' })
+      )
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toContain('workflow, and execution context')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
     it('gives overlapping calls in one persistent workbench distinct automatic export directories', async () => {
       envFlagsMock.isMothershipSandboxEnabled = true
       hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
@@ -2352,7 +2426,7 @@ describe('Function execution request', () => {
       const archiveBase64 =
         'UEsDBBQAAAAIAAAAIQAcWyFBIAAAAB8AAAAMAAAAcHJldmlldy5odG1ss8kwtHNLzcnJLy9WcM4vzUvOzFEIT03Nzqm00QdKAQBQSwECFAMUAAAACAAAACEAHFshQSAAAAAfAAAADAAAAAAAAAAAAAAAgAEAAAAAcHJldmlldy5odG1sUEsFBgAAAAABAAEAOgAAAEoAAAAAAA=='
       const source = readFileSync(
-        resolve(process.cwd(), 'lib/execution/remote-sandbox/fixtures/fellows-council-weekly.py'),
+        new URL('../execution/remote-sandbox/fixtures/fellows-council-weekly.py', import.meta.url),
         'utf8'
       )
       mockExecuteInSandbox.mockResolvedValueOnce({

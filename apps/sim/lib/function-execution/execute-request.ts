@@ -1518,7 +1518,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   outputSandboxPath?: string
   overwriteFileId?: string
   outputMode?: 'create' | 'overwrite'
-  exportedFileContent?: string
+  exportedFileContent?: string | Buffer
   result: unknown
   stdout: string
   executionTime: number
@@ -1599,9 +1599,9 @@ async function maybeExportSandboxFileToWorkspace(args: {
       cost
     )
   }
-  const fileBuffer = isBinary
-    ? Buffer.from(exportedFileContent, 'base64')
-    : Buffer.from(exportedFileContent, 'utf-8')
+  const fileBuffer = Buffer.isBuffer(exportedFileContent)
+    ? exportedFileContent
+    : Buffer.from(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   const secretProvenance = await getOutputFileSecretProvenance(fileBuffer, isBinary, routeContext, {
     userId: authUserId,
     workspaceId: resolvedWorkspaceId,
@@ -1691,8 +1691,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   workflowId?: string
   workspaceId?: string
   outputFiles: OutputFileDeclaration[]
-  exportedFiles?: Record<string, string>
-  exportedFileContent?: string
+  exportedFiles?: Record<string, string | Buffer>
+  exportedFileContent?: string | Buffer
   result: unknown
   stdout: string
   executionTime: number
@@ -1780,7 +1780,9 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         args.cost
       )
     }
-    const scanBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
+    const scanBuffer = Buffer.isBuffer(content)
+      ? content
+      : Buffer.from(content, isBinary ? 'base64' : 'utf-8')
     const secretProvenance = await getOutputFileSecretProvenance(
       scanBuffer,
       isBinary,
@@ -1846,9 +1848,9 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   const writtenFiles = []
   try {
     for (const prepared of preparedFiles) {
-      const buffer = prepared.isBinary
-        ? Buffer.from(prepared.content, 'base64')
-        : Buffer.from(prepared.content, 'utf-8')
+      const buffer = Buffer.isBuffer(prepared.content)
+        ? prepared.content
+        : Buffer.from(prepared.content, prepared.isBinary ? 'base64' : 'utf-8')
       let previousSize: number | undefined
       let unchanged = false
       if (prepared.target.mode === 'overwrite') {
@@ -2007,19 +2009,39 @@ async function discardUploadedExecutionFiles(files: readonly UserFile[]): Promis
   }
 }
 
-async function collectExecutionOutputFiles(args: {
+async function collectSandboxOutputFiles(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
   workflowId?: string
   workspaceId?: string
   executionId?: string
   collectedFiles: SandboxCollectedFile[]
+  sandboxProfile?: 'mothership'
+  result: unknown
   stdout: string
   executionTime: number
   cost?: FunctionExecutionCost
 }): Promise<{ files: UserFile[] } | { response: NextResponse }> {
   const { routeContext, collectedFiles } = args
   if (collectedFiles.length === 0) return { files: [] }
+
+  /** Chat exports use workspace ownership; only workflow exports need an execution scope. */
+  if (args.sandboxProfile === 'mothership') {
+    const response = await maybeExportSandboxFilesToWorkspace({
+      ...args,
+      outputFiles: collectedFiles.map((file) => ({
+        path: `files/${collectedFileName(file.relativePath)}`,
+        sandboxPath: file.path,
+        mode: 'create',
+        mimeType: getMimeTypeFromExtension(getFileExtension(file.relativePath)),
+      })),
+      exportedFiles: Object.fromEntries(
+        collectedFiles.map((file) => [file.path, Buffer.from(file.contentBase64, 'base64')])
+      ),
+    })
+    if (!response) throw new Error('Collected sandbox files require an export response')
+    return { response }
+  }
 
   const resolvedWorkspaceId =
     args.workspaceId ||
@@ -2679,13 +2701,15 @@ export async function executeFunctionRequest(
         }
       }
 
-      const shellOutputFiles = await collectExecutionOutputFiles({
+      const shellOutputFiles = await collectSandboxOutputFiles({
         routeContext,
         authUserId: auth.attributedUserId,
         workflowId,
         workspaceId,
         executionId,
         collectedFiles: shellCollectedFiles ?? [],
+        sandboxProfile: auth.sandboxProfile,
+        result: shellResult,
         stdout: shellStdout,
         executionTime,
         cost: shellCost,
@@ -2843,13 +2867,15 @@ export async function executeFunctionRequest(
           }
         }
 
-        const jsOutputFiles = await collectExecutionOutputFiles({
+        const jsOutputFiles = await collectSandboxOutputFiles({
           routeContext,
           authUserId: auth.attributedUserId,
           workflowId,
           workspaceId,
           executionId,
           collectedFiles: jsCollectedFiles ?? [],
+          sandboxProfile: auth.sandboxProfile,
+          result: e2bResult,
           stdout,
           executionTime,
           cost: sandboxCost,
@@ -2969,13 +2995,15 @@ export async function executeFunctionRequest(
         }
       }
 
-      const pythonOutputFiles = await collectExecutionOutputFiles({
+      const pythonOutputFiles = await collectSandboxOutputFiles({
         routeContext,
         authUserId: auth.attributedUserId,
         workflowId,
         workspaceId,
         executionId,
         collectedFiles: pythonCollectedFiles ?? [],
+        sandboxProfile: auth.sandboxProfile,
+        result: e2bResult,
         stdout,
         executionTime,
         cost: sandboxCost,

@@ -54,7 +54,8 @@ import { executeTool as executeAppTool } from '@/tools'
 const logger = createLogger('CopilotFunctionExecute')
 
 const MAX_MOUNTED_FILES = 500
-const DEFAULT_TIMEOUT_SECONDS = 10
+/** The call budget includes cold allocation and mounting, before the user's code starts. */
+const DEFAULT_TIMEOUT_SECONDS = 60
 const MAX_TIMEOUT_SECONDS = 300
 
 /** Keeps mount bytes, canonical classification and budget together until they enter the runtime. */
