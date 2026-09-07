@@ -62,6 +62,7 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
       {section === 'members' && (
         <TeamManagement
           organizationId={organizationId}
+          canInviteMembers={viewer.canInviteMembers}
           billingHref={getOrganizationSettingsHref(organizationId, 'billing')}
         />
       )}

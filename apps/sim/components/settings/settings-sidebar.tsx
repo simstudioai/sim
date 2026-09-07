@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import {
   Chip,
   ChipConfirmModal,
+  ChipTag,
   chipVariants,
   cn,
   OverflowText,
@@ -187,9 +188,12 @@ export function SettingsSidebar<Section extends SettingsSection>({
                             className='sidebar-collapse-hide text-[var(--text-body)]'
                           />
                           {item.locked && (
-                            <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[var(--text-icon)] text-micro uppercase tracking-wide'>
+                            <ChipTag
+                              variant='mono'
+                              className='sidebar-collapse-hide ml-auto shrink-0'
+                            >
                               Plan
-                            </span>
+                            </ChipTag>
                           )}
                         </SettingsIntentLink>
                       </SidebarTooltip>

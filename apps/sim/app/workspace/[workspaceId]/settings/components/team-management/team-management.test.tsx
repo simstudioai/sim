@@ -61,7 +61,27 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
-  SettingsPanel: ({ children }: { children?: ReactNode }) => <section>{children}</section>,
+  SettingsPanel: ({
+    children,
+    actions = [],
+  }: {
+    children?: ReactNode
+    actions?: { text: string; disabled?: boolean; onSelect: () => void }[]
+  }) => (
+    <section>
+      {actions.map((action) => (
+        <button
+          type='button'
+          key={action.text}
+          disabled={action.disabled}
+          onClick={action.onSelect}
+        >
+          {action.text}
+        </button>
+      ))}
+      {children}
+    </section>
+  ),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/team-management/components', () => ({
@@ -125,6 +145,31 @@ afterEach(() => {
 })
 
 describe('TeamManagement organization errors', () => {
+  it.each([
+    { admin: true, canInvite: false, shown: true, disabled: true },
+    { admin: true, canInvite: true, shown: true, disabled: false },
+    { admin: false, canInvite: false, shown: false, disabled: false },
+  ])(
+    'respects the org invitation capability for admin=$admin, allowed=$canInvite',
+    ({ admin, canInvite, shown, disabled }) => {
+      mockIsAdminOrOwner.mockReturnValue(admin)
+      mockUseOrganization.mockReturnValue({ data: { id: 'org-1' }, error: null, isLoading: false })
+      act(() =>
+        root.render(
+          <TeamManagement
+            organizationId='org-1'
+            billingHref='/o/org-1/settings/billing'
+            canInviteMembers={canInvite}
+          />
+        )
+      )
+      const invite = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Invite'
+      )
+      expect(Boolean(invite)).toBe(shown)
+      if (invite) expect(invite.disabled).toBe(disabled)
+    }
+  )
   it('shows the organization error instead of the missing-organization recovery view', () => {
     mockUseOrganization.mockReturnValue({
       data: undefined,

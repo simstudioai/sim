@@ -164,6 +164,7 @@ export function TransferOwnershipDialog({
                       <li key={m.userId}>
                         <button
                           type='button'
+                          aria-pressed={isSelected}
                           onClick={() => setSelectedUserId(m.userId)}
                           className={cn(
                             'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',

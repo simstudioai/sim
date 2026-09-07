@@ -11,14 +11,13 @@ interface OrganizationNavEntry {
   route: OrganizationNavRoute
 }
 
+/** The nav item whose collapsed rail chip also opens a flyout of the organization's workspaces. */
+export const WORKSPACES_NAV_ID = 'workspaces'
+
 /**
  * The pinned block at the top of the organization sidebar, in display order.
  * Hrefs are resolved per organization by {@link buildOrganizationNavItems}.
  */
-
-/** The nav item whose collapsed rail chip also opens a flyout of the organization's workspaces. */
-export const WORKSPACES_NAV_ID = 'workspaces'
-
 const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
   { id: 'home', label: 'Home', icon: Home, route: 'home' },
   { id: 'integrations', label: 'Integrations', icon: Integration, route: 'integrations' },

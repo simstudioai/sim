@@ -119,7 +119,7 @@ function OrganizationPageView({
 
       <div className={cn(COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'flex shrink-0 flex-col')}>
         <div className='flex flex-col gap-1 pt-8'>
-          <h1 className='text-[18px] text-[var(--text-primary)]'>{title}</h1>
+          <h1 className='text-[var(--text-primary)] text-lg'>{title}</h1>
           {description && <p className='text-[var(--text-muted)] text-small'>{description}</p>}
         </div>
         <div className='mt-4 flex items-center justify-between gap-2'>
@@ -159,7 +159,6 @@ function OrganizationPageView({
                 aria-label='Search'
                 spellCheck={false}
                 autoComplete='off'
-                /* Grows leftward from the chip's spot, to this and no further. */
                 className='w-[240px]'
                 onChange={(event) => setSearch(event.target.value)}
                 onKeyDown={(event) => {
@@ -174,7 +173,7 @@ function OrganizationPageView({
                     aria-label='Close search'
                     onClick={closeSearch}
                   >
-                    <X className='size-[13px]' />
+                    <X className='size-[14px]' />
                   </Button>
                 }
               />

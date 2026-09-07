@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Chip,
   ChipConfirmModal,
+  ChipTag,
   chipContentIconClass,
-  chipIconSlotClass,
   chipVariants,
   cn,
   OverflowText,
@@ -137,11 +138,10 @@ export function SettingsSidebar({
 
   const isSuperUser = session?.user?.role === 'admin'
 
-  const isSSOProviderOwner = useMemo(() => {
-    if (hosted) return null
-    if (!userId || isLoadingSSO) return null
-    return ssoProvidersData?.providers?.some((p) => p.userId === userId) || false
-  }, [hosted, userId, ssoProvidersData?.providers, isLoadingSSO])
+  const isSSOProviderOwner =
+    hosted || !userId || isLoadingSSO
+      ? null
+      : (ssoProvidersData?.providers?.some((provider) => provider.userId === userId) ?? false)
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
@@ -271,14 +271,12 @@ export function SettingsSidebar({
     desktopSurfaces,
   ])
 
-  const activeSection = useMemo(() => {
-    const segments = pathname?.split('/') ?? []
-    const settingsIdx = segments.indexOf('settings')
-    if (settingsIdx !== -1 && segments[settingsIdx + 1]) {
-      return segments[settingsIdx + 1] as SettingsSection
-    }
-    return 'general'
-  }, [pathname])
+  const segments = pathname?.split('/') ?? []
+  const settingsIndex = segments.indexOf('settings')
+  const activeSection: SettingsSection =
+    settingsIndex !== -1 && segments[settingsIndex + 1]
+      ? (segments[settingsIndex + 1] as SettingsSection)
+      : 'general'
 
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
@@ -315,7 +313,6 @@ export function SettingsSidebar({
 
   return (
     <>
-      {/* Back button */}
       {/* The divider is the pinned block's bottom rule, not the scroll region's top one:
           the region's edge fade masks its own first pixels, which would erase a rule
           drawn there exactly when it should show. Same construction as the footer. */}
@@ -329,21 +326,17 @@ export function SettingsSidebar({
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button
-            type='button'
+          <Chip
+            fullWidth
+            leftIcon={ChevronLeft}
             onClick={handleBack}
-            className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+            className={SIDEBAR_RAIL_CHIP_CLASS}
           >
-            {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
-            <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
-              <ChevronLeft className='size-[14px]' />
-            </span>
-            <span className='sidebar-collapse-hide text-[var(--text-body)]'>Back</span>
-          </button>
+            <span className='sidebar-collapse-hide'>Back</span>
+          </Chip>
         </SidebarTooltip>
       </div>
 
-      {/* Settings sections */}
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
@@ -435,9 +428,12 @@ export function SettingsSidebar({
                           tooltipEnabled={!showCollapsedTooltips}
                         />
                         {isLocked && (
-                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          <ChipTag
+                            variant='mono'
+                            className='sidebar-collapse-hide ml-auto shrink-0'
+                          >
                             Max
-                          </span>
+                          </ChipTag>
                         )}
                       </>
                     )

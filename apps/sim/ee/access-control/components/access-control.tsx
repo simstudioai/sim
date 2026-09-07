@@ -29,7 +29,10 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
@@ -79,10 +82,13 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
   })
   const currentUserIsOrgAdmin = isOrganizationAdmin
 
-  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
-    organizationId,
-    !!organizationId && currentUserIsOrgAdmin
-  )
+  const {
+    data: permissionGroups = [],
+    isPending: groupsLoading,
+    error: groupsError,
+    isFetching: groupsFetching,
+    refetch: refetchGroups,
+  } = usePermissionGroups(organizationId, !!organizationId && currentUserIsOrgAdmin)
   const { data: organizationWorkspaces = [], isPending: workspacesLoading } =
     useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
@@ -135,15 +141,12 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
    * leaves them in the URL and the next group opens on the previous group's tab
    * and filters. nuqs batches these same-tick writes into one URL update.
    */
-  const openGroupDetail = useCallback(
-    (groupId: string) => {
-      void setSelectedGroupId(groupId)
-      void setGroupTab(null)
-      void setGroupSearch(null)
-      void setGroupStatus(null)
-    },
-    [setSelectedGroupId, setGroupTab, setGroupSearch, setGroupStatus]
-  )
+  const openGroupDetail = (groupId: string) => {
+    void setSelectedGroupId(groupId)
+    void setGroupTab(null)
+    void setGroupSearch(null)
+    void setGroupStatus(null)
+  }
 
   const closeGroupDetail = useCallback(() => {
     void setSelectedGroupId(null, { history: 'replace' })
@@ -174,7 +177,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     [permissionGroups, selectedGroupId]
   )
 
-  const handleCreatePermissionGroup = useCallback(async () => {
+  const handleCreatePermissionGroup = async () => {
     if (!newGroupName.trim() || !organizationId) return
     setCreateError(null)
     try {
@@ -194,23 +197,16 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
       logger.error('Failed to create permission group', error)
       setCreateError(getErrorMessage(error, 'Failed to create permission group'))
     }
-  }, [
-    newGroupName,
-    newGroupDescription,
-    newGroupIsDefault,
-    newGroupWorkspaceIds,
-    organizationId,
-    createPermissionGroup,
-  ])
+  }
 
-  const handleCloseCreateModal = useCallback(() => {
+  const handleCloseCreateModal = () => {
     setShowCreateModal(false)
     setNewGroupName('')
     setNewGroupDescription('')
     setNewGroupIsDefault(false)
     setNewGroupWorkspaceIds([])
     setCreateError(null)
-  }, [])
+  }
 
   const listSearch = {
     value: searchTerm,
@@ -255,9 +251,23 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     )
   }
 
+  if (groupsError) {
+    return (
+      <SettingsPanel>
+        <SettingsQueryErrorState
+          error={groupsError}
+          fallback='Failed to load permission groups'
+          isRetrying={groupsFetching}
+          onRetry={() => void refetchGroups()}
+        />
+      </SettingsPanel>
+    )
+  }
+
   if (selectedGroup && organizationId) {
     return (
       <GroupDetail
+        key={selectedGroup.id}
         group={selectedGroup}
         organizationId={organizationId}
         workspaceId={workspaceId}

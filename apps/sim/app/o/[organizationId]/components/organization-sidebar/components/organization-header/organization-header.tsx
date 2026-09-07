@@ -8,10 +8,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { PanelLeft, Settings } from '@sim/emcn/icons'
-import Link from 'next/link'
+import { Building, PanelLeft, Settings } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { OrganizationMenuItems } from '@/components/organization-menu-items/organization-menu-items'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
+import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
+import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import type { OrganizationSurfaceOrganization } from '@/lib/organizations/surface'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 
@@ -87,11 +89,18 @@ export function OrganizationHeader({
           sideOffset={8}
           className='w-64 max-w-[calc(100vw-24px)]'
         >
+          <OrganizationMenuItems currentOrganizationId={organization.id} />
           <DropdownMenuItem asChild>
-            <Link href={getOrganizationSettingsHref(organization.id, 'members')}>
+            <SettingsGuardedLink href={getOrganizationSettingsHref(organization.id, 'members')}>
               <Settings className='size-[14px]' />
               Organization settings
-            </Link>
+            </SettingsGuardedLink>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <SettingsGuardedLink href={WORKSPACES_PATH}>
+              <Building className='size-[14px]' />
+              Switch workspace
+            </SettingsGuardedLink>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

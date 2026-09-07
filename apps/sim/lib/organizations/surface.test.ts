@@ -5,7 +5,19 @@ import { member, organization } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSearchAccess } = vi.hoisted(() => ({ mockSearchAccess: vi.fn() }))
+const { mockSearchAccess, mockPermissionConfig, featureFlags } = vi.hoisted(() => ({
+  mockSearchAccess: vi.fn(),
+  mockPermissionConfig: vi.fn(),
+  featureFlags: { invitationsDisabled: false },
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: mockPermissionConfig,
+}))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isInvitationsDisabled() {
+    return featureFlags.invitationsDisabled
+  },
+}))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   resolveKnowledgeAccessAvailability: mockSearchAccess,
 }))
@@ -14,6 +26,7 @@ import {
   getOrganizationSurfaceContext,
   resolveOrganizationLanding,
 } from '@/lib/organizations/surface'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 afterAll(resetDbChainMock)
 
@@ -22,6 +35,8 @@ describe('getOrganizationSurfaceContext', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockSearchAccess.mockResolvedValue({ memberScoped: true, sourceMirrored: false })
+    mockPermissionConfig.mockResolvedValue(null)
+    featureFlags.invitationsDisabled = false
   })
 
   it('returns the organization and the viewer standing for a member', async () => {
@@ -32,7 +47,7 @@ describe('getOrganizationSurfaceContext', () => {
 
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toEqual({
       organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: 'https://cdn/logo.png' },
-      viewer: { role: 'admin', isAdmin: true, canUsePersonalApiKeys: true },
+      viewer: { role: 'admin', isAdmin: true, canInviteMembers: true, canUsePersonalApiKeys: true },
       searchAccess: { memberScoped: true, sourceMirrored: false },
     })
     expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })
@@ -47,6 +62,29 @@ describe('getOrganizationSurfaceContext', () => {
       viewer: { role: 'member', isAdmin: false },
     })
   })
+
+  it.each([
+    { role: 'owner', policyDisabled: false, deploymentDisabled: false, allowed: true },
+    { role: 'admin', policyDisabled: true, deploymentDisabled: false, allowed: false },
+    { role: 'admin', policyDisabled: false, deploymentDisabled: true, allowed: false },
+    { role: 'member', policyDisabled: false, deploymentDisabled: false, allowed: false },
+  ])(
+    'projects invitation policy for $role: $allowed',
+    async ({ role, policyDisabled, deploymentDisabled, allowed }) => {
+      queueTableRows(member, [{ role }])
+      queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+      featureFlags.invitationsDisabled = deploymentDisabled
+      mockPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableInvitations: policyDisabled,
+      })
+
+      await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+        viewer: { canInviteMembers: allowed },
+      })
+      expect(mockPermissionConfig).toHaveBeenCalledWith('org-1')
+    }
+  )
 
   it('denies a viewer who is not a member without reading the organization', async () => {
     queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])

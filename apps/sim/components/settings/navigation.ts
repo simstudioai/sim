@@ -467,7 +467,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     icon: Users,
     unified: {
       id: 'organization',
-      description: "Manage your organization's members and seats.",
+      description: 'Members and workspace access in your organization.',
       group: 'organization',
       order: 0,
       hideWhenBillingDisabled: true,

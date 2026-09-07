@@ -29,6 +29,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { OrganizationMenuItems } from '@/components/organization-menu-items/organization-menu-items'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
@@ -553,6 +554,7 @@ function WorkspaceHeaderImpl({
             }}
             onCloseAutoFocus={(e) => e.preventDefault()}
           >
+            <OrganizationMenuItems onNavigate={() => setIsWorkspaceMenuOpen(false)} />
             {isWorkspacesLoading ? (
               <div className='px-2 py-[5px] text-[var(--text-secondary)] text-caption'>
                 Loading workspaces...
@@ -802,23 +804,25 @@ function WorkspaceHeaderImpl({
                       New workspace
                     </Chip>
                   </DisabledReasonTooltip>
-                  <DisabledReasonTooltip reason={inviteDisabledReason}>
-                    <Chip
-                      leftIcon={Send}
-                      onClick={() => {
-                        setIsWorkspaceMenuOpen(false)
-                        if (isInvitationsDisabled) {
-                          if (billingEnabled) navigateToSettings({ section: 'billing' })
-                          return
-                        }
-                        setIsInviteModalOpen(true)
-                      }}
-                      fullWidth
-                      className='select-none'
-                    >
-                      Invite teammates
-                    </Chip>
-                  </DisabledReasonTooltip>
+                  {userPermissions.canAdmin && (
+                    <DisabledReasonTooltip reason={inviteDisabledReason}>
+                      <Chip
+                        leftIcon={Send}
+                        onClick={() => {
+                          setIsWorkspaceMenuOpen(false)
+                          if (isInvitationsDisabled) {
+                            if (billingEnabled) navigateToSettings({ section: 'billing' })
+                            return
+                          }
+                          setIsInviteModalOpen(true)
+                        }}
+                        fullWidth
+                        className='select-none'
+                      >
+                        Invite teammates
+                      </Chip>
+                    </DisabledReasonTooltip>
+                  )}
                   <ViewInvitationsMenuItem
                     onOpen={() => {
                       setIsWorkspaceMenuOpen(false)

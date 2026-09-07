@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -131,27 +131,23 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     [isHrefMenuOpen, closeHrefMenu, openHrefMenu]
   )
 
-  const handleHrefMenuClose = useCallback(() => {
+  const handleHrefMenuClose = () => {
     closeHrefMenu()
     setMenuHref(null)
-  }, [closeHrefMenu])
+  }
 
-  const handleOpenInNewTab = useCallback(() => {
+  const handleOpenInNewTab = () => {
     if (menuHref) window.open(menuHref, '_blank', 'noopener,noreferrer')
-  }, [menuHref])
+  }
 
-  const handleCopyLink = useCallback(async () => {
+  const handleCopyLink = async () => {
     if (!menuHref) return
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${menuHref}`)
     } catch (error) {
       logger.error('Failed to copy link to clipboard', { error })
     }
-  }, [menuHref])
-
-  useEffect(() => {
-    if (!isHrefMenuOpen) setMenuHref(null)
-  }, [isHrefMenuOpen])
+  }
 
   const handleOpenDocs = () => {
     window.open(DOCS_URL, '_blank', 'noopener,noreferrer')
@@ -163,15 +159,12 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
   }
 
-  const handleEdgeKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault()
-        toggleCollapsed()
-      }
-    },
-    [isCollapsed, toggleCollapsed]
-  )
+  const handleEdgeKeyDown = (e: React.KeyboardEvent) => {
+    if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault()
+      toggleCollapsed()
+    }
+  }
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -305,7 +298,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                     isLoading={chatsLoading}
                     isCollapsed={isCollapsed}
                     pathname={pathname}
-                    menuOpenHref={menuHref}
+                    menuOpenHref={isHrefMenuOpen ? menuHref : null}
                     onContextMenu={handleHrefContextMenu}
                     onMoreClick={handleChatMoreClick}
                   />

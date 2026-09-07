@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { asc, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
+import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import {
   type KnowledgeAccessAvailability,
   resolveKnowledgeAccessAvailability,
@@ -21,6 +22,7 @@ export interface OrganizationSurfaceOrganization {
 interface OrganizationSurfaceViewer {
   role: OrganizationRole
   isAdmin: boolean
+  canInviteMembers: boolean
   canUsePersonalApiKeys: boolean
 }
 
@@ -66,6 +68,8 @@ async function resolveOrganizationSurfaceContext(
     viewer: {
       role: access.role,
       isAdmin: access.isAdmin,
+      canInviteMembers:
+        access.isAdmin && !isInvitationsDisabled && !capabilityDeniedBy('invitations.send', config),
       canUsePersonalApiKeys:
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),

@@ -5,10 +5,12 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUseOrganizationBilling, mockUseUserPermissionConfig } = vi.hoisted(() => ({
-  mockUseOrganizationBilling: vi.fn(),
-  mockUseUserPermissionConfig: vi.fn(),
-}))
+const { mockUseOrganizationBilling, mockUseUserPermissionConfig, mockUsePermissionGroups } =
+  vi.hoisted(() => ({
+    mockUseOrganizationBilling: vi.fn(),
+    mockUseUserPermissionConfig: vi.fn(),
+    mockUsePermissionGroups: vi.fn(),
+  }))
 
 vi.mock('@sim/emcn', () => ({
   Checkbox: () => null,
@@ -28,6 +30,14 @@ vi.mock('next/navigation', () => ({
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }))
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SettingsQueryErrorState: ({ error, onRetry }: { error: Error; onRetry: () => void }) => (
+    <div>
+      {error.message}
+      <button type='button' onClick={onRetry}>
+        Try again
+      </button>
+    </div>
+  ),
 }))
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
   SettingsPanel: ({ children }: { children?: ReactNode }) => <section>{children}</section>,
@@ -50,7 +60,7 @@ vi.mock('@/ee/access-control/components/workspace-select', () => ({ WorkspaceSel
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
   useCreatePermissionGroup: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useOrganizationWorkspaces: () => ({ data: [], isPending: false }),
-  usePermissionGroups: () => ({ data: [], isPending: false }),
+  usePermissionGroups: mockUsePermissionGroups,
   useUserPermissionConfig: mockUseUserPermissionConfig,
 }))
 vi.mock('@/hooks/queries/organization', () => ({
@@ -67,6 +77,7 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  mockUsePermissionGroups.mockReturnValue({ data: [], isPending: false, error: null })
 })
 
 afterEach(() => {
@@ -76,6 +87,27 @@ afterEach(() => {
 })
 
 describe('AccessControl entitlement states', () => {
+  it('shows a retryable list failure instead of claiming there are no permission groups', async () => {
+    const refetch = vi.fn()
+    mockUseUserPermissionConfig.mockReturnValue({ data: { entitled: true }, isPending: false })
+    mockUseOrganizationBilling.mockReturnValue({ data: undefined, isPending: false })
+    mockUsePermissionGroups.mockReturnValue({
+      error: new Error('Groups unavailable'),
+      isPending: false,
+      isFetching: false,
+      refetch,
+    })
+    act(() => root.render(<AccessControl isOrganizationAdmin organizationId='org-1' />))
+    expect(container.textContent).toContain('Groups unavailable')
+    expect(container.textContent).not.toContain('No permission groups yet')
+    await act(async () => container.querySelector('button')?.click())
+    expect(refetch).toHaveBeenCalledOnce()
+
+    mockUsePermissionGroups.mockReturnValue({ data: [], isPending: false, error: null })
+    act(() => root.render(<AccessControl isOrganizationAdmin organizationId='org-1' />))
+    expect(container.textContent).toContain('No permission groups yet')
+    expect(container.textContent).not.toContain('Groups unavailable')
+  })
   it('shows a billing failure instead of a plan notice when access is unknown', () => {
     mockUseUserPermissionConfig.mockReturnValue({
       data: { entitled: false },

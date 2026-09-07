@@ -1,6 +1,5 @@
 'use client'
 
-import { memo } from 'react'
 import { chipVariants, cn, DropdownMenuItem, Loader, OverflowText, Skeleton } from '@sim/emcn'
 import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
 import Link from 'next/link'
@@ -30,13 +29,7 @@ interface ChatRowProps {
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, href: string) => void
 }
 
-const ChatRow = memo(function ChatRow({
-  chat,
-  isCurrentRoute,
-  isMenuOpen,
-  onContextMenu,
-  onMoreClick,
-}: ChatRowProps) {
+function ChatRow({ chat, isCurrentRoute, isMenuOpen, onContextMenu, onMoreClick }: ChatRowProps) {
   /**
    * The trailing slot fits one glyph, and the dot wins over the pin: it reports
    * transient state (a run in progress, or an unread reply elsewhere), while pinning
@@ -89,7 +82,7 @@ const ChatRow = memo(function ChatRow({
       </div>
     </Link>
   )
-})
+}
 
 interface ChatsSectionProps {
   chats: OrganizationChat[]

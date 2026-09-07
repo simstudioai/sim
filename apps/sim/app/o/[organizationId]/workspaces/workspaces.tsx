@@ -1,7 +1,6 @@
 'use client'
 
 import { Building } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -25,7 +24,6 @@ const TABS = [
 export function OrganizationWorkspaces() {
   const { organization } = useOrganizationContext()
   const { tab, search } = useOrganizationPageFilters()
-  const router = useRouter()
   const workspaces = useWorkspacesQuery()
   const query = search.trim().toLowerCase()
   const visible =
@@ -58,7 +56,7 @@ export function OrganizationWorkspaces() {
               key={workspace.id}
               icon={<Building className='size-[14px]' />}
               title={workspace.name}
-              onClick={() => router.push(`/workspace/${workspace.id}/home`)}
+              href={`/workspace/${workspace.id}/home`}
               clickLabel={`Open ${workspace.name}`}
               navigable
             />

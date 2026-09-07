@@ -19,5 +19,5 @@ export function useCollapsedTooltips(isCollapsed: boolean): boolean {
     setShowCollapsedTooltips(false)
   }, [isCollapsed])
 
-  return showCollapsedTooltips
+  return isCollapsed && showCollapsedTooltips
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
 import { CollapsedResourceFlyout } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/collapsed-sidebar-menu'
@@ -18,17 +17,13 @@ interface WorkspacesRailFlyoutProps {
 export function WorkspacesRailFlyout({ organizationId }: WorkspacesRailFlyoutProps) {
   const { workspaces, isLoading } = useOrganizationWorkspaces(organizationId)
 
-  const entries = useMemo(
-    (): FlyoutEntry[] =>
-      workspaces.map((workspace) => ({
-        kind: 'item',
-        id: workspace.id,
-        name: workspace.name,
-        pinned: false,
-        href: `/workspace/${workspace.id}`,
-      })),
-    [workspaces]
-  )
+  const entries: FlyoutEntry[] = workspaces.map((workspace) => ({
+    kind: 'item',
+    id: workspace.id,
+    name: workspace.name,
+    pinned: false,
+    href: `/workspace/${workspace.id}`,
+  }))
 
   return (
     <CollapsedResourceFlyout
