@@ -21,12 +21,12 @@ import {
   workflowLogContract,
   workflowStateSchema,
 } from '@/lib/api/contracts/workflows'
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   isRunToolActiveForWorkflow,
   subscribeToRunToolRelease,
-} from '@/lib/copilot/tools/client/run-tool-execution'
-import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+} from '@/lib/mothership/tools/client/run-tool-execution'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type {
   ExecutionPausedData,

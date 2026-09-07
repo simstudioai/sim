@@ -43,7 +43,6 @@ import { useWorkspaceAccessRequestFeatures } from '@/components/access-requests/
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
-import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'

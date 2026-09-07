@@ -133,7 +133,7 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
 }))
 
-vi.mock('@/lib/copilot/tools/client/run-tool-execution', () => ({
+vi.mock('@/lib/mothership/tools/client/run-tool-execution', () => ({
   isRunToolActiveForWorkflow: mockIsRunToolActiveForWorkflow,
   subscribeToRunToolRelease: (listener: (workflowId: string) => void) => {
     runToolReleaseListeners.add(listener)
@@ -673,7 +673,7 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     unmount()
   })
 
-  it('logs a Run Error when a reconnect for an unowned pointer finds no run buffer', async () => {
+  it('releases a missing run buffer without inventing a failed execution', async () => {
     primeRunToolOwnedExecution()
     rejectReconnectWithMissingRunBuffer()
 
@@ -684,14 +684,7 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     })
 
     expect(mockReconnect).toHaveBeenCalledTimes(1)
-    expect(mockHandleExecutionErrorConsole.mock.calls[0]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          executionId: 'execution-1',
-          error: 'Execution state is no longer available after reconnect',
-        }),
-      ])
-    )
+    expect(mockHandleExecutionErrorConsole).not.toHaveBeenCalled()
     expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
     expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
     expect(mockClearExecutionPointer).toHaveBeenCalledWith('workflow-1')

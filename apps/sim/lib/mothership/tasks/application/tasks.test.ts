@@ -107,6 +107,8 @@ describe('durable workflow watches', () => {
     })
     expect(status).toMatchObject({ workflowId: 'wf', status: 'completed' })
     expect(mocks.status).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: 'w',
+      viewerUserId: 'u',
       workflowId: 'wf',
       executionId: 'exec',
       includeOutput: false,

@@ -18,7 +18,7 @@ const {
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
 }))
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
 vi.mock('@/lib/file-parsers', () => ({

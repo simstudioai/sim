@@ -1,4 +1,4 @@
-import { getLiveAssistantMessageId } from '@/lib/mothership/chat/effective-transcript'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { MothershipStreamV1SessionKind } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
