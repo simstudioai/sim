@@ -3,12 +3,15 @@
  */
 import { act, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const motionPreference = vi.hoisted(() => ({ reduced: false }))
 
 vi.mock('@sim/emcn', () => ({
   Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
+  usePrefersReducedMotion: () => motionPreference.reduced,
   Tooltip: {
     Root: ({ children }: { children: ReactNode }) => children,
     Trigger: ({ children }: { children: ReactNode }) => children,
@@ -31,8 +34,15 @@ vi.mock('@sim/emcn/icons', () => ({
 
 import { FeaturedCustomer } from '@/app/(landing)/components/featured-customer/featured-customer'
 
+beforeEach(() => {
+  motionPreference.reduced = false
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+})
+
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   document.body.replaceChildren()
 })
 
@@ -56,6 +66,10 @@ describe('FeaturedCustomer', () => {
       '[data-customer-story-content="true"]'
     ) as HTMLElement
     const carouselRail = host.querySelector('[data-customer-carousel-rail="true"]') as HTMLElement
+    const video = rivian.querySelector('video') as HTMLVideoElement
+    video.currentTime = 12
+
+    expect(video.play).toHaveBeenCalledOnce()
 
     expect(rivian.querySelector('img[alt="Rivian | Volkswagen Group Technologies"]')).not.toBeNull()
     expect(host.querySelector('blockquote')).toBeNull()
@@ -113,9 +127,8 @@ describe('FeaturedCustomer', () => {
     expect(expRealty.className).toContain('opacity-100')
     expect(expRealtyContent.className).toContain('translate-y-0')
     expect(expRealtyContent.className).toContain('opacity-100')
-    expect(expRealtyContent.className).toContain('delay-150')
-    expect(carouselRail.className).toContain('xl:pl-24')
-    expect(carouselRail.className).not.toContain('xl:pr-24')
+    expect(carouselRail.className).toContain('xl:translate-x-24')
+    expect(carouselRail.className).toContain('xl:pr-24')
     const previousButton = host.querySelector(
       '[aria-label="View Rivian customer story"]'
     ) as HTMLButtonElement
@@ -125,7 +138,9 @@ describe('FeaturedCustomer', () => {
     ) as HTMLButtonElement
     expect(disabledNext.disabled).toBe(true)
     expect(expRealty.querySelector('img[alt="eXp Realty"]')).not.toBeNull()
-    expect(host.querySelector('video')).toBeNull()
+    expect(host.querySelector('video')).toBe(video)
+    expect(video.currentTime).toBe(12)
+    expect(video.pause).toHaveBeenCalledOnce()
     expect(
       [...expRealty.querySelectorAll('img')].map((image) => image.getAttribute('src'))
     ).toEqual(['/landing/logos/exp-realty.svg'])
@@ -139,10 +154,36 @@ describe('FeaturedCustomer', () => {
 
     expect(rivian.getAttribute('aria-current')).toBe('true')
     expect(expRealty.getAttribute('aria-current')).toBeNull()
+    expect(rivian.querySelector('video')).toBe(video)
+    expect(video.currentTime).toBe(12)
+    expect(video.play).toHaveBeenCalledTimes(2)
 
     act(() => {
       root.unmount()
     })
+  })
+
+  it('keeps video paused with reduced motion and responds to preference changes', () => {
+    motionPreference.reduced = true
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    act(() => root.render(<FeaturedCustomer />))
+    const video = host.querySelector('video') as HTMLVideoElement
+    expect(video.play).not.toHaveBeenCalled()
+    expect(video.pause).toHaveBeenCalledOnce()
+
+    motionPreference.reduced = false
+    act(() => root.render(<FeaturedCustomer />))
+    expect(video.play).toHaveBeenCalledOnce()
+
+    motionPreference.reduced = true
+    act(() => root.render(<FeaturedCustomer />))
+    expect(video.pause).toHaveBeenCalledTimes(2)
+
+    act(() => root.unmount())
   })
 
   it('emphasizes and selects the neighboring customer story', () => {

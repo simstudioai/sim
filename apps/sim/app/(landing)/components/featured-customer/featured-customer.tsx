@@ -43,7 +43,7 @@ const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
 /**
  * Customer-story carousel with one full-emphasis card and a reduced-scale
  * adjacent preview. Only the active film card plays video; an inactive film
- * keeps its poster visible, and a brand card uses its own wordmark. A previous/next pair on the page
+ * holds its current frame, and a brand card uses its own wordmark. A previous/next pair on the page
  * ground above the film, fixed flush with the first card's right edge, moves
  * between stories, with the arrow that has nowhere to go disabled.
  */
@@ -63,11 +63,6 @@ export function FeaturedCustomer() {
       className='w-full overflow-hidden'
     >
       <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
-        {/* The control pair lives on the page ground above the film, outside
-          the rail whose padding flips to shift the frame, so it keeps one
-          place: flush with the first card's right edge, whichever story is
-          active. Both arrows are always present; the direction with no story
-          is disabled. */}
         <div className='mb-4 flex items-center justify-end gap-2 xl:pr-24'>
           <FeaturedCustomerNavigationButton
             direction='previous'
@@ -90,8 +85,8 @@ export function FeaturedCustomer() {
         <div
           data-customer-carousel-rail='true'
           className={cn(
-            'transition-[padding] duration-700 ease-out motion-reduce:duration-0',
-            activeIndex === 0 ? 'xl:pr-24' : 'xl:pl-24'
+            'transition-[translate] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none xl:pr-24',
+            activeIndex > 0 && 'xl:translate-x-24'
           )}
         >
           <div className='relative isolate aspect-[2/1] w-full max-sm:aspect-[4/5]'>
@@ -112,14 +107,15 @@ export function FeaturedCustomer() {
                   onFocus={() => !isActive && setPreviewedIndex(index)}
                   onBlur={() => setPreviewedIndex(null)}
                   className={cn(
-                    'absolute inset-0 transition-[transform,opacity] duration-700 ease-out motion-reduce:duration-0',
+                    'absolute inset-0 transition-[translate,scale,opacity] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+                    index === 0 ? 'origin-right' : 'origin-left',
                     isActive && 'z-10 translate-x-0 scale-100 opacity-100',
                     !isActive &&
                       isNext &&
-                      'z-20 origin-left translate-x-[calc(100%_+_1.5rem)] scale-[0.92] max-sm:translate-x-[calc(100%_+_0.75rem)] max-sm:scale-[0.96]',
+                      'z-20 translate-x-[calc(100%_+_1.5rem)] scale-[0.92] max-sm:translate-x-[calc(100%_+_0.75rem)] max-sm:scale-[0.96]',
                     !isActive &&
                       !isNext &&
-                      '-translate-x-[calc(100%_+_1.5rem)] max-sm:-translate-x-[calc(100%_+_0.75rem)] z-20 origin-right scale-[0.92] max-sm:scale-[0.96]',
+                      '-translate-x-[calc(100%_+_1.5rem)] max-sm:-translate-x-[calc(100%_+_0.75rem)] z-20 scale-[0.92] max-sm:scale-[0.96]',
                     !isActive && (isPreviewed ? 'opacity-100' : 'opacity-75')
                   )}
                 >

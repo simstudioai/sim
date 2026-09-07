@@ -1,4 +1,7 @@
-import { ChipTag, cn } from '@sim/emcn'
+'use client'
+
+import { useEffect, useRef } from 'react'
+import { ChipTag, cn, usePrefersReducedMotion } from '@sim/emcn'
 import Image from 'next/image'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 
@@ -35,7 +38,21 @@ interface FeaturedCustomerCardProps {
 
 /** Shared media and editorial caption treatment for each featured-customer slide. */
 export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCustomerCardProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const reducedMotion = usePrefersReducedMotion()
   const isFilm = story.media.kind === 'video'
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    if (active && !reducedMotion) {
+      /** Autoplay may be blocked; the poster remains the fallback. */
+      void video.play().catch(() => {})
+    } else {
+      video.pause()
+    }
+  }, [active, reducedMotion])
 
   return (
     <article
@@ -56,20 +73,18 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
             quality={90}
             className='object-cover'
           />
-          {active && (
-            <video
-              aria-hidden='true'
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload='metadata'
-              poster={story.media.poster}
-              src={story.media.src}
-              tabIndex={-1}
-              className='pointer-events-none absolute inset-0 size-full object-cover motion-reduce:hidden'
-            />
-          )}
+          <video
+            ref={videoRef}
+            aria-hidden='true'
+            loop
+            muted
+            playsInline
+            preload='metadata'
+            poster={story.media.poster}
+            src={story.media.src}
+            tabIndex={-1}
+            className='pointer-events-none absolute inset-0 size-full object-cover motion-reduce:hidden'
+          />
           <div className='absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.3)_36%,rgba(0,0,0,0.08)_70%)]' />
         </>
       )}
@@ -77,10 +92,8 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
       <div
         data-customer-story-content='true'
         className={cn(
-          'relative z-10 flex h-full items-start p-12 transition-[opacity,transform] duration-500 ease-out motion-reduce:transform-none motion-reduce:transition-none max-sm:p-6 max-lg:p-8',
-          emphasized
-            ? cn('translate-y-0 opacity-100', active ? 'delay-150' : 'delay-0')
-            : 'translate-y-2 opacity-40 delay-0'
+          'relative z-10 flex h-full items-start p-12 transition-[opacity,translate] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:translate-y-0 motion-reduce:transition-none max-sm:p-6 max-lg:p-8',
+          emphasized ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-40'
         )}
       >
         <div className='max-w-[42rem]'>
