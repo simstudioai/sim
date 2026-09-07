@@ -81,6 +81,7 @@ import {
 } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import type { SandboxExportedFile } from '@/lib/function-execution/output'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
 import {
   FORMAT_TO_CONTENT_TYPE,
@@ -1462,18 +1463,6 @@ function exportFailure(
 
 function workspaceFileExportErrorStatus(error: unknown): number {
   return asOrchestrationError(error)?.code === 'forbidden' ? 403 : 400
-}
-
-interface SandboxExportedFile {
-  fileId: string
-  fileName: string
-  vfsPath: string
-  downloadUrl?: string
-  sandboxPath?: string
-  size: number
-  previousSize?: number
-  sha256: string
-  unchanged: boolean
 }
 
 /**

@@ -9,6 +9,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
+import { getOutputFileReceipts } from '@/lib/mothership/request/tools/files'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/mothership/request/tools/permissions'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/mothership/request/types'
@@ -21,17 +22,6 @@ const MAX_OUTPUT_TABLE_ROWS = 10_000
 /** Python has no top-level `return`; the sandbox reads the `__sim_result__` global instead. */
 const RETURN_ROWS_HINT = 'JavaScript: `return [...]`; Python: assign `__sim_result__ = [...]`'
 const ARRAY_OF_OBJECTS_ERROR = `outputTable requires the code to return an array of objects (${RETURN_ROWS_HINT})`
-
-/**
- * The sandbox export receipt `execute-request` places beside the returned value
- * (`output.exported.files`), or the bare `files` an older receipt carried at the
- * top level. Empty when the run exported nothing.
- */
-function exportedFiles(rawOutput: unknown): Record<string, unknown>[] {
-  if (!isRecordLike(rawOutput)) return []
-  const files = isRecordLike(rawOutput.exported) ? rawOutput.exported.files : rawOutput.files
-  return Array.isArray(files) ? files.filter(isRecordLike) : []
-}
 
 /** What the code printed, when it printed anything. */
 function printedStdout(rawOutput: unknown): string | undefined {
@@ -47,7 +37,7 @@ function printedStdout(rawOutput: unknown): string | undefined {
  * files so the caller sees what landed instead of re-running the code for it.
  */
 function outputTableFailure(error: string, rawOutput: unknown): ToolCallResult {
-  const files = exportedFiles(rawOutput)
+  const files = getOutputFileReceipts(rawOutput)
   if (files.length === 0) return { success: false, error }
   return {
     success: false,
@@ -179,7 +169,7 @@ export async function maybeWriteOutputToTable(
          * The table result replaces the run's output, so the export receipt rides along
          * or the agent has to `files list` to confirm a write it already made.
          */
-        const exported = exportedFiles(rawOutput)
+        const exported = getOutputFileReceipts(rawOutput)
         const stdout = printedStdout(rawOutput)
         const exportNote =
           exported.length > 0
@@ -217,10 +207,7 @@ export async function maybeWriteOutputToTable(
         span.addEvent(TraceEvent.CopilotTableError, {
           [TraceAttr.ErrorMessage]: projectedMessage.slice(0, 500),
         })
-        return {
-          success: false,
-          error: `Failed to write to table: ${projectedMessage}`,
-        }
+        return outputTableFailure(`Failed to write to table: ${projectedMessage}`, result.output)
       }
     }
   )

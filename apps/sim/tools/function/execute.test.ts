@@ -137,6 +137,31 @@ describe('Function Execute Tool', () => {
     })
   })
 
+  it('preserves explicit workspace export receipts alongside the computed value', async () => {
+    const exported = {
+      message: 'Exported report.csv',
+      files: [
+        {
+          fileId: 'file-1',
+          fileName: 'report.csv',
+          vfsPath: 'files/report.csv',
+          size: 12,
+          sha256: 'digest',
+          unchanged: false,
+        },
+      ],
+    }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json({
+        success: true,
+        output: { result: [{ count: 2 }], stdout: 'done', exported },
+      }),
+      { code: 'return [{ count: 2 }]' }
+    )
+    expect(result?.output).toMatchObject({ result: [{ count: 2 }], stdout: 'done', exported })
+    expect(result?.output.files).toEqual([])
+  })
+
   it('preserves sandbox cost in a failed Function result', async () => {
     const cost = { input: 0, output: 0, total: 0.00012345 }
     const result = await functionExecuteTool.transformResponse?.(

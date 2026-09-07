@@ -28,6 +28,13 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 const logger = createLogger('CopilotToolResultFiles')
 const MAX_OUTPUT_FILE_PROVENANCE_REPRESENTATIONS = 10_000
 
+/** Reads durable file receipts from code exports or returned-value file writes. */
+export function getOutputFileReceipts(output: unknown): Record<string, unknown>[] {
+  if (!isRecordLike(output)) return []
+  const files = isRecordLike(output.exported) ? output.exported.files : output.files
+  return Array.isArray(files) ? files.filter(isRecordLike) : []
+}
+
 export const OUTPUT_PATH_TOOLS: Set<string> = new Set([RunFunction.id, UserTable.id])
 
 export type OutputFormat = 'json' | 'csv' | 'txt' | 'md' | 'html'
@@ -355,13 +362,7 @@ export async function maybeWriteOutputToFile(
   const outputObject = isRecordLike(result.output)
     ? (result.output as Record<string, unknown>)
     : undefined
-  if (isRecordLike(outputObject?.exported)) {
-    logger.warn('Skipping returned-value output write because sandbox export response is active', {
-      toolName,
-      outputCount: outputFiles.length,
-    })
-    return result
-  }
+  const previousFiles = getOutputFileReceipts(result.output)
 
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied
@@ -467,35 +468,43 @@ export async function maybeWriteOutputToFile(
           })),
         })
 
+        const files = [
+          ...previousFiles,
+          ...writtenFiles.map((file) => ({
+            fileId: file.id,
+            fileName: file.name,
+            vfsPath: file.vfsPath,
+            size: file.bytes,
+            downloadUrl: file.downloadUrl,
+          })),
+        ]
         return {
           success: true,
           output: {
             // The computed value stays on the result so a table write declared on the
             // same call (`outputTable`) still has rows to read after the file write.
             result: outputObject?.result,
+            ...(typeof outputObject?.stdout === 'string' ? { stdout: outputObject.stdout } : {}),
             message:
               writtenFiles.length === 1
                 ? `Output ${firstWritten.mode === 'overwrite' ? 'updated' : 'written'} at ${firstWritten.vfsPath} (${firstWritten.bytes} bytes)`
                 : `Output written to ${writtenFiles.length} files`,
-            files: writtenFiles.map((file) => ({
-              fileId: file.id,
-              fileName: file.name,
-              vfsPath: file.vfsPath,
-              size: file.bytes,
-              downloadUrl: file.downloadUrl,
-            })),
+            files,
             fileId: firstWritten.id,
             fileName: firstWritten.name,
             vfsPath: firstWritten.vfsPath,
             size: firstWritten.bytes,
             downloadUrl: firstWritten.downloadUrl,
           },
-          resources: writtenFiles.map((file) => ({
-            type: 'file',
-            id: file.id,
-            title: file.name,
-            path: file.vfsPath,
-          })),
+          resources: [
+            ...(result.resources ?? []),
+            ...writtenFiles.map((file) => ({
+              type: 'file' as const,
+              id: file.id,
+              title: file.name,
+              path: file.vfsPath,
+            })),
+          ],
         }
       } catch (err) {
         const message = toError(err).message
