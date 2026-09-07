@@ -1,3 +1,4 @@
+import { serializeChatResourceWrite } from '@/lib/mothership/resources/store'
 /**
  * @vitest-environment node
  */
@@ -5,7 +6,6 @@ import { databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   persistChatResources,
-  serializeChatResourceWrite,
 } from '@/lib/mothership/resources/persistence'
 
 function deferred() {
