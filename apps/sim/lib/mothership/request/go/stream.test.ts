@@ -30,6 +30,11 @@ vi.mock('@/lib/mothership/request/session', async () => {
 
 const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
 const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
+const changeStoredChatResourcesMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/mothership/resources/store', () => ({
+  changeStoredChatResources: changeStoredChatResourcesMock,
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
@@ -183,6 +188,8 @@ describe('copilot go stream helpers', () => {
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
     listAllWorkspaceFilesMock.mockReset()
     listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
+    changeStoredChatResourcesMock.mockReset()
+    changeStoredChatResourcesMock.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -294,6 +301,58 @@ describe('copilot go stream helpers', () => {
       expect(context.awaitingAsyncContinuation?.pendingToolCallIds).toEqual([canonicalId])
     }
   })
+  it.each([false, true])(
+    'commits worker resource effects before forwarding (persistence failure: %s)',
+    async (fail) => {
+      const resource = { type: 'workflow', id: 'wf', title: 'A workflow' }
+      const order: string[] = []
+      changeStoredChatResourcesMock.mockImplementation(async () => {
+        order.push('persist')
+        if (fail) throw new Error('Resource storage unavailable')
+        return [resource]
+      })
+      vi.mocked(fetch).mockResolvedValue(
+        createSseResponse([
+          {
+            v: 1,
+            type: 'resource',
+            seq: 1,
+            ts: '',
+            stream: { streamId: 's' },
+            payload: { op: 'upsert', effectId: 's:tool:0', resource },
+          },
+          {
+            v: 1,
+            type: 'complete',
+            seq: 2,
+            ts: '',
+            stream: { streamId: 's' },
+            payload: { status: 'complete' },
+          },
+        ])
+      )
+      const promise = runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        { ...turnScopedExecContext(), chatId: 'chat' },
+        {
+          flushAfterEvent: false,
+          onEvent: (event) => {
+            if (event.type === 'resource') order.push('publish')
+          },
+        }
+      )
+      if (fail) await expect(promise).rejects.toThrow('Resource storage unavailable')
+      else await promise
+      expect(order).toEqual(fail ? ['persist'] : ['persist', 'publish'])
+      expect(changeStoredChatResourcesMock).toHaveBeenCalledWith(
+        'chat',
+        { kind: 'upsert', resources: [resource] },
+        's:tool:0'
+      )
+    }
+  )
 
   it('bounds response-header waits without classifying the deadline as user Stop', async () => {
     vi.mocked(fetch).mockImplementationOnce(

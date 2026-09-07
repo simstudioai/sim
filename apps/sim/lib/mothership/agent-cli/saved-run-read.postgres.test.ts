@@ -31,6 +31,7 @@ import {
   copilotRuns,
   folder,
   idempotencyKey,
+  mothershipResourceEffects,
   organization,
   pausedExecutions,
   publicShare,
@@ -110,6 +111,7 @@ import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
+import { changeStoredChatResources } from '@/lib/mothership/resources/store'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
@@ -585,6 +587,7 @@ const tables = [
   auditLog,
   copilotChats,
   copilotMessages,
+  mothershipResourceEffects,
   copilotRuns,
   copilotRequestStops,
   copilotAsyncToolCalls,
@@ -616,6 +619,43 @@ const tables = [
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
   'saved-run evidence through the real CLI',
   () => {
+    it.each(['upsert', 'remove'] as const)(
+      'replayed resource %s effects preserve the later user choice across independent transactions',
+      async (kind) => {
+        const chatId = generateId()
+        const resource = { type: 'workflow' as const, id: generateId(), title: 'A workflow' }
+        await db.insert(copilotChats).values({
+          id: chatId,
+          userId: 'run-reader',
+          workspaceId,
+          type: 'mothership',
+          resources: kind === 'remove' ? [resource] : [],
+        })
+        const effectId = `${generateId()}:tool:0`
+        await Promise.all([
+          changeStoredChatResources(chatId, { kind, resources: [resource] }, effectId),
+          changeStoredChatResources(chatId, { kind, resources: [resource] }, effectId),
+        ])
+        const opposite = kind === 'upsert' ? 'remove' : 'upsert'
+        await changeStoredChatResources(chatId, { kind: opposite, resources: [resource] })
+        expect(
+          await changeStoredChatResources(chatId, { kind, resources: [resource] }, effectId)
+        ).toEqual(kind === 'upsert' ? [] : [resource])
+        const receipts = await db
+          .select()
+          .from(mothershipResourceEffects)
+          .where(eq(mothershipResourceEffects.chatId, chatId))
+        expect(receipts).toHaveLength(1)
+        expect(
+          await changeStoredChatResources(
+            chatId,
+            { kind, resources: [resource] },
+            `${effectId}:new`
+          )
+        ).toEqual(kind === 'upsert' ? [resource] : [])
+      }
+    )
+
     it.each(['add', 'remove'] as const)(
       'retains panels when concurrent resource additions overlap %s on the same chat',
       async (operation) => {
@@ -801,6 +841,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       await db.execute(sql`CREATE UNIQUE INDEX ON idempotency_key (key)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_chats (id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON mothership_resource_effects (chat_id, effect_id)`)
+      await db.execute(
+        sql`ALTER TABLE mothership_resource_effects ALTER COLUMN created_at SET DEFAULT now()`
+      )
       await db.execute(
         sql`CREATE UNIQUE INDEX ON copilot_request_stops (user_id, workspace_id, stream_id)`
       )
