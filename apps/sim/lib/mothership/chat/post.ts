@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
   mothershipResourceSchema,
+  mothershipTableViewContextSchema,
   mothershipResourceAttachmentSchema as ResourceAttachmentSchema,
 } from '@/lib/api/contracts/mothership-resources'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
@@ -194,6 +195,7 @@ const ChatContextSchema = z
     executionId: z.string().optional(),
     tableId: z.string().optional(),
     viewId: mothershipResourceSchema.shape.viewId,
+    currentView: mothershipTableViewContextSchema.optional(),
     fileId: z.string().optional(),
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
@@ -382,6 +384,8 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
   }
 
   return contexts.map((ctx) => {
+    if (ctx.kind === 'table' && ctx.currentView)
+      return { ...ctx, viewId: ctx.currentView.viewId ?? undefined }
     if (ctx.kind !== 'blocks') return ctx
     if (Array.isArray(ctx.blockIds) && ctx.blockIds.length > 0) return ctx
     if (ctx.blockId) return { ...ctx, blockIds: [ctx.blockId] }
@@ -490,7 +494,8 @@ async function resolveAgentContexts(params: {
           workspaceId,
           userId,
           chatId,
-          resource.viewId
+          resource.viewId,
+          resource.currentView
         )
         if (!ctx) return null
         return { ...ctx, tag: resource.active ? '@active_tab' : '@open_tab' }

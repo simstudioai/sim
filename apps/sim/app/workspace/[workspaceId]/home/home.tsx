@@ -315,6 +315,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     activeResourceId,
     setActiveResourceId,
     addResource,
+    setTableViewContext,
     removeResource,
     reorderResources,
     messageQueue,
@@ -896,6 +897,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             chatId={resolvedChatId}
             desktopScopeId={desktopScopeId}
             resources={resources}
+            onTableViewContextChange={setTableViewContext}
             activeResourceId={activeResourceId}
             activityResourceIds={resourceActivityIds}
             isCollapsed={isResourceCollapsed}

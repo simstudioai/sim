@@ -513,8 +513,43 @@ describe('handleUnifiedChatPost', () => {
       'ws-1',
       'user-1',
       'chat-1',
-      'qualified-view'
+      'qualified-view',
+      undefined
     )
+    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
+      { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' },
+    ])
+  })
+
+  it('validates and forwards the live panel query without persisting it as a resource address', async () => {
+    const currentView = { viewId: 'all-view', filter: null, sort: null }
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'This view',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [{ kind: 'table', tableId: 'table-1', label: 'Leads', currentView }],
+          resourceAttachments: [
+            { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view', currentView },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(resolveActiveResourceContext).toHaveBeenCalledWith(
+      'table',
+      'table-1',
+      'ws-1',
+      'user-1',
+      'chat-1',
+      'qualified-view',
+      currentView
+    )
+    expect(processContextsServer.mock.calls[0]?.[0]).toMatchObject([
+      { kind: 'table', tableId: 'table-1', label: 'Leads', viewId: 'all-view', currentView },
+    ])
     expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
       { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' },
     ])

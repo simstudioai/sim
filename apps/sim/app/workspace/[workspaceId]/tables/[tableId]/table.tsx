@@ -9,6 +9,7 @@ import { isEqual } from 'es-toolkit'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -123,6 +124,8 @@ interface TableProps {
    * fights a later user switch.
    */
   initialViewId?: string
+  /** Reports the embedded panel query to its chat owner. */
+  onViewContextChange?: (context: MothershipTableViewContext) => void
 }
 
 /**
@@ -190,6 +193,7 @@ interface ViewConfigKeep {
 export function Table({
   embedded,
   initialViewId,
+  onViewContextChange,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
 }: TableProps = {}) {
@@ -1511,6 +1515,24 @@ export function Table({
   /** Right-aligned slot. Left `undefined` when absent so the options bar
    *  doesn't render an empty flex row. */
   const optionsTrailing = runStatus || undefined
+
+  useEffect(() => {
+    if (!embedded || !onViewContextChange || !tableAvailable || !viewsAvailable) return
+    if (appliedViewRevisionRef.current?.id !== (activeView?.id ?? null)) return
+    onViewContextChange({
+      viewId: activeView?.id ?? null,
+      filter: effectiveFilter ?? null,
+      sort: queryOptions.sort ?? null,
+    })
+  }, [
+    embedded,
+    onViewContextChange,
+    tableAvailable,
+    viewsAvailable,
+    activeView?.id,
+    effectiveFilter,
+    queryOptions.sort,
+  ])
 
   return (
     <Resource>

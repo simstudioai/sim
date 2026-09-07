@@ -15,6 +15,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import { prefersInPlaceNavigation } from '@/lib/desktop'
@@ -93,6 +94,7 @@ function useOpenInternalLink() {
 interface ResourceContentProps {
   workspaceId: string
   desktopScopeId: string
+  onTableViewContextChange?: (tableId: string, context: MothershipTableViewContext) => void
   resource: MothershipResource
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
@@ -166,6 +168,7 @@ export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   desktopScopeId,
   resource,
+  onTableViewContextChange,
   previewMode,
   previewSession,
   isAgentResponding,
@@ -197,6 +200,12 @@ export const ResourceContent = memo(function ResourceContent({
     useTableViewPinStore.getState().pin(next.tableId, next.viewId)
   }, [resource.id, resource.type, resource.viewId])
 
+  const reportTableView = useCallback(
+    (context: MothershipTableViewContext) => {
+      onTableViewContextChange?.(resource.id, context)
+    },
+    [onTableViewContextChange, resource.id]
+  )
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
@@ -271,6 +280,7 @@ export const ResourceContent = memo(function ResourceContent({
           tableId={resource.id}
           embedded
           initialViewId={resource.viewId}
+          onViewContextChange={reportTableView}
         />
       )
 

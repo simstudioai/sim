@@ -138,6 +138,7 @@ function toDisplayContexts(
     ...(c.workflowId ? { workflowId: c.workflowId } : {}),
     ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
     ...(c.tableId ? { tableId: c.tableId } : {}),
+    ...(c.viewId ? { viewId: c.viewId } : {}),
     ...(c.fileId ? { fileId: c.fileId } : {}),
     ...(c.folderId ? { folderId: c.folderId } : {}),
     ...(c.chatId ? { chatId: c.chatId } : {}),

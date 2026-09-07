@@ -442,6 +442,33 @@ describe('useChat remount send recovery', () => {
     vi.clearAllMocks()
   })
 
+  it('sends the observed table view for both an open panel and an explicit table mention', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-table-view',
+      title: 'Leads',
+      messages: [],
+      activeStreamId: null,
+      resources: [{ type: 'table', id: 'table-1', title: 'Leads', viewId: 'original-view' }],
+    }
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await waitFor(() => getResult().resources.length === 1)
+    const currentView = { viewId: 'all-view', filter: null, sort: null }
+    await act(async () => {
+      getResult().setTableViewContext('table-1', currentView)
+      void getResult().sendMessage('Summarize this view', undefined, [
+        { kind: 'table', tableId: 'table-1', label: 'Leads' },
+      ])
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toMatchObject({
+      resourceAttachments: [{ id: 'table-1', viewId: 'original-view', currentView }],
+      contexts: [{ kind: 'table', tableId: 'table-1', currentView }],
+    })
+    expect(
+      getResult().messages.find((message) => message.role === 'user')?.contexts?.[0]
+    ).toMatchObject({ viewId: 'all-view' })
+  })
+
   it('hydrates changed resource addresses and an empty saved panel list', async () => {
     const history: MothershipChatHistory = {
       id: 'chat-resource-address',

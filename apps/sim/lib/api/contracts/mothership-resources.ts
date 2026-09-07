@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { predicateInputSchema, sortSpecSchema } from '@/lib/api/contracts/tables'
 import {
   type MothershipResource,
   MothershipResourceType,
@@ -19,11 +20,23 @@ export const mothershipResourceSchema = z.object({
   ctx.addIssue({ code: 'custom', path: ['viewId'], message: 'viewId is only valid for table resources' })
 }) satisfies z.ZodType<MothershipResource>
 
-/** Open panels carry the same address as saved panels, plus current browser state. */
+/** The query visible in an embedded table, including changes not saved yet. */
+export const mothershipTableViewContextSchema = z
+  .object({
+    viewId: z.string().min(1).nullable(),
+    filter: predicateInputSchema.nullable(),
+    sort: sortSpecSchema.nullable(),
+  })
+  .strict()
+
+export type MothershipTableViewContext = z.infer<typeof mothershipTableViewContextSchema>
+
+/** Open panels carry their saved address plus current client-held view state. */
 export const mothershipResourceAttachmentSchema = mothershipResourceSchema.extend({
   type: z.enum(Object.values(MothershipResourceType)),
   title: z.string().optional(),
   active: z.boolean().optional(),
+  currentView: mothershipTableViewContextSchema.optional(),
   url: z
     .string()
     .max(2048)

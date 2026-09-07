@@ -5,8 +5,10 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { buildFolderPathIndex } from '@/lib/folders/paths'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { toOverview } from '@/lib/logs/log-views'
@@ -28,14 +30,8 @@ import {
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/mothership/resources/types'
 import {
-  buildVfsFolderPathMap,
-  canonicalBlockVfsPath,
-  canonicalKnowledgeBaseVfsDir,
-  canonicalTableVfsPath,
-  canonicalWorkflowVfsDir,
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
-  encodeVfsSegment,
 } from '@/lib/mothership/vfs/path-utils'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
@@ -272,7 +268,8 @@ export async function processContextsServer(
           currentWorkspaceId,
           userId,
           chatId,
-          ctx.viewId
+          ctx.viewId,
+          ctx.currentView
         )
         if (!result) return null
         return {
@@ -449,11 +446,8 @@ async function processSkillFromDb(
   try {
     const s = await getSkillById({ skillId, workspaceId })
     if (!s) return null
-    // Skills are autoloaded: carry the full SKILL.md body so the Go side can
-    // inject it into the dynamic system message for the turn. The path lets the
-    // model re-read the canonical VFS file if it needs to.
-    const path = `agent/skills/${encodeVfsSegment(s.name)}.json`
-    return { type: 'skill', tag, content: s.content, path }
+    /** Tagged workspace skills carry their body directly into this turn. */
+    return { type: 'skill', tag, content: s.content }
   } catch {
     logger.error('Error processing skill context (db)', {
       workspaceId,
@@ -516,26 +510,6 @@ async function processPastChatFromDb(
   }
 }
 
-/**
- * Resolve a workflow folder id to its canonical, per-segment-encoded VFS folder
- * path. Returns null for root-level workflows or when the folder can't be
- * resolved. Uses the shared {@link buildVfsFolderPathMap} so the pointer path
- * matches what the workspace VFS serves.
- */
-async function resolveWorkflowFolderPath(
-  workspaceId: string | null | undefined,
-  folderId: string | null | undefined
-): Promise<string | null> {
-  if (!folderId || !workspaceId) return null
-  try {
-    const folders = await listFolders(workspaceId)
-    return buildVfsFolderPathMap(folders).get(folderId) ?? null
-  } catch (error) {
-    logger.warn('Failed to resolve workflow folder path', { workspaceId, folderId, error })
-    return null
-  }
-}
-
 async function processWorkflowFromDb(
   workflowId: string,
   userId: string | undefined,
@@ -567,16 +541,11 @@ async function processWorkflowFromDb(
     }
     if (!workflowRecord) return null
 
-    // Emit a VFS-path pointer instead of the full (potentially huge) workflow
-    // state/meta. `current_workflow` points at the live state; a plain
-    // `workflow` mention points at the lighter metadata file.
-    const folderPath = await resolveWorkflowFolderPath(
-      workflowRecord.workspaceId ?? currentWorkspaceId,
-      workflowRecord.folderId
-    )
-    const dir = canonicalWorkflowVfsDir({ name: workflowRecord.name, folderPath })
-    const path = kind === 'current_workflow' ? `${dir}/state.json` : `${dir}/meta.json`
-    return { type: kind, tag, content: '', path }
+    return {
+      type: kind,
+      tag,
+      content: JSON.stringify({ workflowId: workflowRecord.id, name: workflowRecord.name }),
+    }
   } catch (error) {
     logger.error('Error processing workflow context', { workflowId, error })
     return null
@@ -608,8 +577,7 @@ async function processKnowledgeFromDb(
     return {
       type: 'knowledge',
       tag,
-      content: '',
-      path: `${canonicalKnowledgeBaseVfsDir(kb.name)}/meta.json`,
+      content: JSON.stringify({ knowledgeBaseId: kb.id, name: kb.name }),
     }
   } catch (error) {
     logger.error('Error processing knowledge context (db)', { knowledgeBaseId, error })
@@ -647,11 +615,11 @@ async function processBlockMetadata(
 
     const { getBlockRegistry } = await import('@/blocks/registry')
     const blockRegistry = getBlockRegistry()
-    if (!(blockRegistry as any)[blockId]) {
+    if (!blockRegistry[blockId]) {
       return null
     }
 
-    return { type: 'blocks', tag, content: '', path: canonicalBlockVfsPath(blockId) }
+    return { type: 'blocks', tag, content: JSON.stringify({ blockType: blockId }) }
   } catch (error) {
     if (error instanceof EnvCapabilityConfigurationError) throw error
     logger.error('Error processing block metadata', { blockId, error })
@@ -688,19 +656,15 @@ async function processWorkflowBlockFromDb(
     }
     if (!workflowRecord) return null
 
-    const folderPath = await resolveWorkflowFolderPath(
-      workflowRecord.workspaceId ?? currentWorkspaceId,
-      workflowRecord.folderId
-    )
-    const dir = canonicalWorkflowVfsDir({ name: workflowRecord.name, folderPath })
     const tag = label ? `@${label} in Workflow` : `@${blockId} in Workflow`
-    // Point at the workflow state; the block id tells the model which node to
-    // look up inside state.json without inlining the full block definition.
     return {
       type: 'workflow_block',
       tag,
-      content: `Block id: ${blockId}`,
-      path: `${dir}/state.json`,
+      content: JSON.stringify({
+        workflowId: workflowRecord.id,
+        name: workflowRecord.name,
+        blockId,
+      }),
     }
   } catch (error) {
     logger.error('Error processing workflow_block context', { workflowId, blockId, error })
@@ -851,7 +815,8 @@ export async function resolveActiveResourceContext(
   workspaceId: string,
   userId: string,
   chatId?: string,
-  viewId?: string
+  viewId?: string,
+  currentView?: MothershipTableViewContext
 ): Promise<AgentContext | null> {
   try {
     switch (resourceType) {
@@ -889,7 +854,14 @@ export async function resolveActiveResourceContext(
         }
       }
       case 'table': {
-        return await resolveTableResource(resourceId, workspaceId, userId, chatId, viewId)
+        return await resolveTableResource(
+          resourceId,
+          workspaceId,
+          userId,
+          chatId,
+          viewId,
+          currentView
+        )
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
@@ -913,11 +885,16 @@ async function resolveTableResource(
   workspaceId: string,
   userId: string,
   chatId?: string,
-  viewId?: string
+  viewId?: string,
+  currentView?: MothershipTableViewContext
 ): Promise<AgentContext | null> {
   const principal = createCopilotChatTablePrincipal({ userId, workspaceId, tableId, chatId })
-  const viewResult = viewId
-    ? await readTableViewUseCase.execute({ principal, input: { tableId, workspaceId, viewId } })
+  const selectedViewId = currentView ? currentView.viewId : viewId
+  const viewResult = selectedViewId
+    ? await readTableViewUseCase.execute({
+        principal,
+        input: { tableId, workspaceId, viewId: selectedViewId },
+      })
     : undefined
   const { table } =
     viewResult ??
@@ -928,18 +905,24 @@ async function resolveTableResource(
     tag: '@active_resource',
     content: JSON.stringify({
       tableId: table.id,
-      ...(view
+      ...(currentView
         ? {
-            savedView: {
-              id: view.id,
-              name: view.name,
-              filter: view.config.filter ?? null,
-              sort: view.config.sort ?? null,
+            currentView: {
+              ...currentView,
+              ...(view ? { name: view.name } : {}),
             },
           }
-        : {}),
+        : view
+          ? {
+              savedView: {
+                id: view.id,
+                name: view.name,
+                filter: view.config.filter ?? null,
+                sort: view.config.sort ?? null,
+              },
+            }
+          : {}),
     }),
-    path: canonicalTableVfsPath(table.name),
   }
 }
 
@@ -1070,7 +1053,7 @@ async function resolveTableSelectionResource(
   const divider = `| ${columns.map(() => '---').join(' | ')} |`
   const scope = hasColumnScope ? 'cell range' : 'rows'
   const describe = (size: string) =>
-    `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n`
+    `Selected ${scope} from table "${table.name}" (tableId: ${table.id}; ${size}):\n\n${header}\n${divider}\n`
 
   /**
    * The size clause, e.g. `5 rows` or `189 rows of 500, 311 omitted for length`.
@@ -1107,7 +1090,6 @@ async function resolveTableSelectionResource(
     type: 'table_selection',
     tag: label ? `@${label}` : '@',
     content,
-    path: canonicalTableVfsPath(table.name),
   }
 }
 
@@ -1135,12 +1117,19 @@ async function resolveFolderResource(
   folderId: string,
   workspaceId: string
 ): Promise<AgentContext | null> {
-  const folderPath = await resolveWorkflowFolderPath(workspaceId, folderId)
-  if (!folderPath) return null
+  const folders = await listFolders(workspaceId)
+  const folder = folders.find((candidate) => candidate.folderId === folderId)
+  if (!folder) return null
+  const index = buildFolderPathIndex(
+    folders.map((candidate) => ({
+      id: candidate.folderId,
+      name: candidate.folderName,
+      parentId: candidate.parentId,
+    }))
+  )
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: '',
-    path: `workflows/${folderPath}`,
+    content: JSON.stringify({ folderPath: index.pathById.get(folderId), name: folder.folderName }),
   }
 }
