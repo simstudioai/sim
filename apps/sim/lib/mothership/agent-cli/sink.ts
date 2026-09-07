@@ -22,10 +22,18 @@ export async function applySink(
   signal?: AbortSignal,
   observeOutput?: (value: string) => Promise<SessionFileObserver>
 ): Promise<AgentCliRawResult> {
-  if (result.exitCode !== 0 || signal?.aborted) return result
+  if (result.exitCode !== 0) return result
+  if (signal?.aborted)
+    return {
+      ...result,
+      sinkError:
+        'Command completed; output publication was cancelled. Inspect the file before using it. Do not repeat a mutation.',
+    }
   if (!sessionKey) {
     return {
       ...result,
+      sinkError:
+        'Command succeeded; outputFile was not written because no chat workbench exists. Do not repeat a mutation.',
       stdout: `${result.stdout}\n[outputFile not written: no chat-scoped machine — output returned inline instead]`,
     }
   }
@@ -49,6 +57,8 @@ export async function applySink(
   }
   return {
     ...result,
+    sinkError:
+      'Command succeeded; output publication could not be confirmed. Inspect the destination before using it. Do not repeat a mutation.',
     stdout: `[Command succeeded; writing its output to ${sink.path} could not be confirmed. The output follows inline. Do not repeat a mutation to recover its output.]\n${result.stdout}`,
   }
 }

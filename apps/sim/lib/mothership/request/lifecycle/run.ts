@@ -74,6 +74,7 @@ import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { getSimConnection } from '@/lib/mothership/transport/connection'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -992,6 +993,10 @@ async function runCheckpointLoop(
   let retry: StreamRetryWindow | undefined
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  if (initialRoute === '/api/mothership' || initialRoute === '/api/copilot') {
+    const simConnection = getSimConnection()
+    payload = { ...payload, simConnection }
+  }
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
   const lifecycleOrganizationId = nonBlankString(execContext.organizationId)
   const mothershipRequestId = nonBlankString(options.simRequestId) ?? generateId()

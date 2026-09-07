@@ -57,6 +57,7 @@ export const AgentCliRequest = z.object({
 export type AgentCliRequest = z.infer<typeof AgentCliRequest>;
 
 export const AgentCliRawResult = z.object({
+  sinkError: z.string().optional(),
   exitCode: z.number().int(),
   stdout: z.string(),
   stderr: z.string().default(""),

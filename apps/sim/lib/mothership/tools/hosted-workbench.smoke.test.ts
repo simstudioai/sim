@@ -102,6 +102,11 @@ describe.skipIf(!enabled)('configured hosted Mship workbench', () => {
     expect(written).toEqual({ outcome: 'written', path: '/home/user/input.bin' })
     expect(await listed(key)).toEqual([machine.sandboxId])
     expect(independent.sandboxId).not.toBe(machine.sandboxId)
+    const privateBoundary = await machine.runCode(
+      "import os\nassert not any(os.environ.get(k) for k in ['SIM_API_KEY', 'SIM_ENDPOINT', 'SIM_WORKSPACE'])\nprint('compute without Sim credentials')",
+      { timeoutMs: 20_000 }
+    )
+    expect(privateBoundary.stdout.trim()).toBe('compute without Sim credentials')
     const results = await Promise.all([
       machine.runCode(
         "from pathlib import Path\nb = Path('input.bin').read_bytes()\nPath('answer.bin').write_bytes(b[::-1])\nprint(sum(b))",
