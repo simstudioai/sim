@@ -21,10 +21,15 @@ import { FAQ } from '@/components/ui/faq'
 
 ## Installation
 
-```bash
-# Clone repo
-git clone https://github.com/simstudioai/sim.git && cd sim
+The chart is published to GitHub Container Registry as an OCI artifact at
+`oci://ghcr.io/simstudioai/charts/sim`. Install it directly — no clone required.
 
+It is also available from a classic Helm repository at `https://charts.sim.ai`
+for tooling that expects one; see [Helm repository](#helm-repository) below.
+Prefer OCI where you can, since the signature and provenance are attached to the
+OCI artifact.
+
+```bash
 # Generate secrets
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
@@ -34,7 +39,8 @@ CRON_SECRET=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 
 # Install
-helm install sim ./helm/sim \
+helm install sim oci://ghcr.io/simstudioai/charts/sim \
+  --version 1.9.5 \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -56,13 +62,58 @@ helm install sim ./helm/sim \
   This installs the chart's default image tag. For production, **pin `app`, `realtime`, and `migrations` to the same explicit release tag** — see [Upgrades](/platform/self-hosting/upgrades).
 </Callout>
 
+## Helm repository
+
+For clusters or GitOps configs that consume `helm repo add` rather than OCI:
+
+```bash
+helm repo add sim https://charts.sim.ai
+helm repo update
+
+helm install sim sim/sim --version 1.9.5 --namespace simstudio --create-namespace \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.API_ENCRYPTION_KEY="$API_ENCRYPTION_KEY" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
+  --set postgresql.auth.password="$POSTGRES_PASSWORD"
+```
+
+It serves the same chart as the OCI registry. The signature and provenance below
+apply to the OCI artifact only.
+
+## Verifying the chart
+
+Every published version is signed with Sigstore keyless signing and carries a SLSA build-provenance attestation. Both live in the registry alongside the chart, so they survive a mirror into an internal registry.
+
+```bash
+cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.5 \
+  --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.5 --repo simstudioai/sim
+```
+
+Signing is Sigstore-only — there is no GPG `.prov` file, so `helm install --verify` does not apply.
+
+<Callout type="warn">
+  Verification requires **cosign v3.0 or newer**. Signatures use the Sigstore protobuf bundle format, which cosign v3 writes by default and cosign v2 cannot read. cosign v3.1+ auto-detects both formats.
+</Callout>
+
 ## Cloud-Specific Values
 
 These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$API_ENCRYPTION_KEY`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. Two caveats when converting an existing generic install rather than starting fresh: (1) **reuse the original secret values** — recover them with `helm get values sim -n simstudio` if your shell no longer has them; supplying a newly generated `ENCRYPTION_KEY` makes every previously encrypted value (workspace environment variables, stored provider keys, MCP OAuth credentials) undecryptable. (2) The cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — add `--set postgresql.auth.database=sim` to keep your existing database. If you'd rather start clean, `helm uninstall sim -n simstudio`, delete its PVCs, and run the cloud command fresh.
 
 ```bash
-helm upgrade --install sim ./helm/sim \
-  --values ./helm/sim/examples/values-aws.yaml \
+# The example values files are not part of the packaged chart, so fetch the one
+# you want at a release tag — pinning the chart but reading values off a moving
+# branch would still make this command produce different deployments over time.
+SIM_RELEASE=v0.8.24
+curl -fsSLO "https://raw.githubusercontent.com/simstudioai/sim/$SIM_RELEASE/helm/sim/examples/values-aws.yaml"
+
+helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
+  --version 1.9.5 \
+  --values values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -80,7 +131,7 @@ helm upgrade --install sim ./helm/sim \
 
 Every one of those overrides is required. The cloud values files hardcode a placeholder domain in all six places, and overriding only `NEXT_PUBLIC_APP_URL` leaves sign-in pointed at the placeholder, realtime rejecting every socket upgrade, and the Ingress serving the wrong host.
 
-Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical.
+Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical. Keep the downloaded file in your own config repo — the `--set` overrides above cover the six placeholder domains, but anything else you tune belongs in the file.
 
 ## Key Configuration
 
@@ -181,8 +232,8 @@ kubectl port-forward deployment/sim-app 3000:3000 -n simstudio
 # View logs
 kubectl logs -l app.kubernetes.io/component=app -n simstudio --tail=100
 
-# Upgrade
-helm upgrade sim ./helm/sim --namespace simstudio
+# Upgrade (always pin the target chart version)
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 --namespace simstudio
 
 # Uninstall
 helm uninstall sim --namespace simstudio

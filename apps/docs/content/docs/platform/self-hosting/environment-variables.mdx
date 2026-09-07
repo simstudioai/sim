@@ -311,7 +311,7 @@ Setting the variable to an empty string does **not** remove it: the chart reads 
 Null the variable in every layer that sets it. If it appears in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry lets the `envDefaults` value apply again and the limit stays in force. With External Secrets, also drop the key from `externalSecrets.remoteRefs.app`, which keeps syncing it independently. Confirm what the pod will actually receive before rolling out:
 
 ```bash
-helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+helm template sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 -f values.yaml | grep -A1 FREE_TABLE   # expect no output
 ```
 
 `null` deletion has no effect under `helm upgrade --reuse-values` — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm 3.14+). If you deploy with Argo CD, put the `null` in `valueFiles` or the `values` string rather than `valuesObject`, which strips nulls. On Docker Compose, delete the line from your `.env` file.
