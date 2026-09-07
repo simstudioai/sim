@@ -15,6 +15,9 @@ vi.mock('@/lib/internal/oci/client.server', () => ({ createOciClient: mocks.crea
 import { AuthType } from '@/lib/auth/hybrid'
 import { executeOciStreamingTool } from '@/lib/internal/oci-streaming/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciStreamingBlock } from '@/blocks/blocks/oci_streaming'
+import { ociStreamingListStreamPoolsTool } from '@/tools/oci_streaming/list_stream_pools'
+import type { OciStreamingListStreamPoolsParams } from '@/tools/oci_streaming/types'
 
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -51,6 +54,38 @@ describe('OCI Streaming trusted credential boundary', () => {
       headers: {},
     })
   })
+
+  it.each([null, ''])(
+    'omits blank workflow filters after merging the block patch: %s',
+    async (blank) => {
+      const inputs = {
+        operation: 'oci_streaming_list_stream_pools',
+        ociCredential: 'supplied-reference',
+        compartmentId: 'compartment-1',
+        name: blank,
+        page: blank,
+        lifecycleState: blank,
+        sortBy: blank,
+        sortOrder: blank,
+      }
+      const transformed = OciStreamingBlock.tools.config!.params!(inputs)
+      const operationInput = ociStreamingListStreamPoolsTool.operation.input({
+        ...inputs,
+        ...transformed,
+      } as OciStreamingListStreamPoolsParams)
+      const response = await executeOciStreamingTool(
+        call({ toolId: 'oci_streaming_list_stream_pools', input: operationInput })
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.request).toHaveBeenCalledTimes(1)
+      expect(mocks.request.mock.calls[0][0].queryPairs).not.toEqual(
+        expect.arrayContaining([['name', 'null']])
+      )
+      expect(mocks.request.mock.calls[0][0].queryPairs).not.toEqual(
+        expect.arrayContaining([['page', '']])
+      )
+    }
+  )
 
   it('passes only the resolved credential ID and trusted workspace to the foundation', async () => {
     const response = await executeOciStreamingTool(call())

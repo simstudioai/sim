@@ -392,16 +392,33 @@ export const streamPoolSummarySchema = z.object({ ...resource, isPrivate: z.bool
 export const streamPoolSchema = streamPoolSummarySchema.extend({
   endpointFqdn: z.string().nullish(),
   lifecycleStateDetails: z.string().nullish(),
-  kafkaSettings: kafkaSettings.strip().extend({ bootstrapServers: z.string().optional() }),
+  kafkaSettings: kafkaSettings.strip().extend({
+    bootstrapServers: z
+      .string()
+      .nullish()
+      .transform((value) => value ?? undefined),
+  }),
   customEncryptionKey: z.object({
-    kmsKeyId: z.string().optional(),
+    kmsKeyId: z
+      .string()
+      .nullish()
+      .transform((value) => value ?? undefined),
     keyState: z.string().optional(),
   }),
   privateEndpointSettings: z
     .object({
-      nsgIds: z.array(z.string()).optional(),
-      privateEndpointIp: z.string().optional(),
-      subnetId: z.string().optional(),
+      nsgIds: z
+        .array(z.string())
+        .nullish()
+        .transform((value) => value ?? undefined),
+      privateEndpointIp: z
+        .string()
+        .nullish()
+        .transform((value) => value ?? undefined),
+      subnetId: z
+        .string()
+        .nullish()
+        .transform((value) => value ?? undefined),
     })
     .nullish(),
 })

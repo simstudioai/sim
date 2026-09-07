@@ -64,6 +64,81 @@ function harness() {
 afterEach(() => vi.useRealTimers())
 
 describe('OCI Streaming request and response semantics', () => {
+  it.each(['create_stream_pool', 'get_stream_pool', 'update_stream_pool'])(
+    'projects inactive pool settings for %s without replaying the request',
+    async (operation) => {
+      const h = harness()
+      const pool = {
+        id: 'pool',
+        name: 'events',
+        compartmentId: 'compartment',
+        lifecycleState: 'ACTIVE',
+        timeCreated: '2026-01-01T00:00:00Z',
+        kafkaSettings: { bootstrapServers: null },
+        customEncryptionKey: { kmsKeyId: null, keyState: 'NONE' },
+        privateEndpointSettings: { nsgIds: null, privateEndpointIp: null, subnetId: null },
+      }
+      h.request.mockResolvedValue(response(JSON.stringify(pool), { etag: 'v1' }))
+      const params =
+        operation === 'create_stream_pool'
+          ? { name: 'events', compartmentId: 'compartment' }
+          : operation === 'update_stream_pool'
+            ? { streamPoolId: 'pool', name: 'events' }
+            : { streamPoolId: 'pool' }
+      const result = await h.execute({ operation, ...params })
+      expect(result.output).toMatchObject({
+        streamPool: {
+          ...pool,
+          kafkaSettings: { bootstrapServers: undefined },
+          customEncryptionKey: { kmsKeyId: undefined, keyState: 'NONE' },
+          privateEndpointSettings: {
+            nsgIds: undefined,
+            privateEndpointIp: undefined,
+            subnetId: undefined,
+          },
+        },
+        etag: 'v1',
+      })
+      expect(h.request).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('preserves populated pool settings and rejects malformed settings', async () => {
+    const h = harness()
+    const pool = {
+      id: 'pool',
+      name: 'events',
+      compartmentId: 'compartment',
+      lifecycleState: 'ACTIVE',
+      timeCreated: '2026-01-01T00:00:00Z',
+      kafkaSettings: { bootstrapServers: 'server:9092' },
+      customEncryptionKey: { kmsKeyId: 'key' },
+      privateEndpointSettings: {
+        nsgIds: ['nsg'],
+        privateEndpointIp: '10.0.0.1',
+        subnetId: 'subnet',
+      },
+    }
+    h.request.mockResolvedValue(response(JSON.stringify(pool)))
+    expect(
+      (await h.execute({ operation: 'get_stream_pool', streamPoolId: 'pool' })).output.streamPool
+    ).toEqual(pool)
+    h.request.mockResolvedValue(
+      response(JSON.stringify({ ...pool, privateEndpointSettings: { nsgIds: 'nsg' } }))
+    )
+    await expect(
+      h.execute({ operation: 'get_stream_pool', streamPoolId: 'pool' })
+    ).rejects.toThrow()
+    expect(
+      ociStreamingInputSchema.safeParse({
+        operation: 'create_stream_pool',
+        ociCredential: 'credential',
+        name: 'events',
+        compartmentId: 'compartment',
+        customEncryptionKeyDetails: { kmsKeyId: null },
+      }).success
+    ).toBe(false)
+  })
   it('accepts full resource names, bounds group paths, and preserves empty tag updates', () => {
     const create = {
       operation: 'create_stream',

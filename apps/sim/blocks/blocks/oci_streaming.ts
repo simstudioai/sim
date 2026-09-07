@@ -882,7 +882,7 @@ export const OciStreamingBlock: BlockConfig<OciStreamingResponse> = {
           'ociRegion',
           'requestId',
         ]) {
-          result[key] = params[key] === '' ? undefined : params[key]
+          result[key] = params[key] === '' || params[key] == null ? undefined : params[key]
         }
         result.partitions = parseOptionalNumberInput(params.partitions, 'partitions')
         result.retentionInHours = parseOptionalNumberInput(
