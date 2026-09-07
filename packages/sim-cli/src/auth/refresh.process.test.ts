@@ -68,6 +68,8 @@ afterAll(() => rmSync(buildDir, { recursive: true, force: true }))
 beforeEach(() => {
   configDir = mkdtempSync(join(tmpdir(), 'sim-oauth-process-config-'))
   vi.stubEnv('SIM_CONFIG_DIR', configDir)
+  vi.stubEnv('SIM_CONFIG_FILE', undefined)
+  vi.stubEnv('SIM_CREDENTIALS_FILE', undefined)
 })
 afterEach(() => {
   for (const child of children) child.kill('SIGKILL')
