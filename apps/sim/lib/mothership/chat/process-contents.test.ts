@@ -7,7 +7,7 @@ import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import {
-  MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/mothership/chat/selection-context'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -950,6 +950,42 @@ describe('processContextsServer - table_selection contexts', () => {
     vi.clearAllMocks()
   })
 
+  it('distinguishes which row was selected when visible cell values are identical', async () => {
+    readTableUseCase.mockResolvedValue({
+      table: {
+        id: 'tbl-1', name: 'Leads', workspaceId: 'ws-1',
+        schema: { columns: [{ id: 'c_status', name: 'Status' }] },
+      },
+      folderPath: '/',
+    })
+    queryTableRows.mockResolvedValueOnce({
+      rows: [{ id: 'row-one', data: { c_status: 'new' } }], totalCount: 1,
+    }).mockResolvedValueOnce({
+      rows: [{ id: 'row-two', data: { c_status: 'new' } }], totalCount: 1,
+    })
+    const select = (rowId: string) =>
+      processContextsServer(
+        [
+          {
+            kind: 'table_selection',
+            tableId: 'tbl-1',
+            label: 'Leads (1 row)',
+            tableName: 'Leads',
+            rowIds: [rowId],
+            columnIds: ['c_status'],
+          },
+        ],
+        'reader',
+        'Update this selected row',
+        'ws-1'
+      )
+    const first = await select('row-one')
+    const second = await select('row-two')
+    expect(first[0]!.content).not.toEqual(second[0]!.content)
+    expect(first[0]!.content).toContain('row-one')
+    expect(first[0]!.content).not.toContain('row-two')
+  })
+
   it('re-fetches rows by id and renders a markdown table for the selected columns', async () => {
     readTableUseCase.mockResolvedValue({
       table: {
@@ -1006,11 +1042,18 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(result).toHaveLength(1)
     const [ctx] = result
     expect(ctx.type).toBe('table_selection')
-    expect(ctx.content).toContain('tableId: tbl-1')
     expect(ctx.path).toBeUndefined()
-    expect(ctx.content).toContain('| Name | Amount |')
-    expect(ctx.content).toContain('| Acme | 100 |')
-    expect(ctx.content).toContain('| Globex | 250 |')
+    expect(JSON.parse(ctx.content.split('\n\n')[0]!)).toEqual({
+      tableId: 'tbl-1',
+      rowIds: ['r1', 'r2'],
+      columns: [
+        { id: 'c_name', name: 'Name' },
+        { id: 'c_amount', name: 'Amount' },
+      ],
+    })
+    expect(ctx.content).toContain('| Row ID | Name | Amount |')
+    expect(ctx.content).toContain('| r1 | Acme | 100 |')
+    expect(ctx.content).toContain('| r2 | Globex | 250 |')
     // Unselected column is excluded from the cell range.
     expect(ctx.content).not.toContain('Notes')
     expect(ctx.content).not.toContain('ignored')
@@ -1067,7 +1110,7 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(result).toEqual([])
   })
 
-  it('keeps the whole rendered content within budget when rows pack tightly', async () => {
+  it('bounds the preview while preserving every selected row ID when rows pack tightly', async () => {
     // Rows small enough to fill the budget almost exactly: the last accepted row
     // leaves only a few characters of slack, so a budget that forgot to reserve
     // the prose prefix and newlines overruns the cap here while passing on
@@ -1103,10 +1146,12 @@ describe('processContextsServer - table_selection contexts', () => {
     )
 
     const [ctx] = result
-    expect(ctx.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    const [descriptor, ...preview] = ctx.content.split('\n\n')
+    expect(JSON.parse(descriptor!).rowIds).toEqual(rows.map((row) => row.id))
+    expect(preview.join('\n\n').length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_PREVIEW_LENGTH)
     // Guard against passing by emitting almost nothing — it must still be a
     // real table that genuinely approaches the cap.
-    expect(ctx.content.length).toBeGreaterThan(MAX_TABLE_SELECTION_CONTENT_LENGTH * 0.9)
+    expect(preview.join('\n\n').length).toBeGreaterThan(MAX_TABLE_SELECTION_PREVIEW_LENGTH * 0.9)
     expect(ctx.content).toContain('omitted for length')
   })
 
@@ -1146,8 +1191,8 @@ describe('processContextsServer - table_selection contexts', () => {
         'ws-1'
       )
 
-      const { length } = result[0].content
-      if (length > MAX_TABLE_SELECTION_CONTENT_LENGTH) overflows.push({ width, length })
+      const { length } = result[0].content.split('\n\n').slice(1).join('\n\n')
+      if (length > MAX_TABLE_SELECTION_PREVIEW_LENGTH) overflows.push({ width, length })
     }
 
     // Collected rather than asserted per-iteration so a failure names the widths.
@@ -1188,12 +1233,15 @@ describe('processContextsServer - table_selection contexts', () => {
     )
 
     const [ctx] = result
-    expect(ctx.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    expect(ctx.content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(
+      MAX_TABLE_SELECTION_PREVIEW_LENGTH
+    )
+    expect(JSON.parse(ctx.content.split('\n\n')[0]!).rowIds).toEqual(rows.map((row) => row.id))
     expect(ctx.content).toContain('omitted for length')
   })
 
   it('reports an oversized row without exceeding the shared selection budget', async () => {
-    const huge = 'x'.repeat(MAX_TABLE_SELECTION_CONTENT_LENGTH * 2)
+    const huge = 'x'.repeat(MAX_TABLE_SELECTION_PREVIEW_LENGTH * 2)
     readTableUseCase.mockResolvedValue({
       table: {
         name: 'Sales',
@@ -1220,7 +1268,8 @@ describe('processContextsServer - table_selection contexts', () => {
     )
 
     expect(result).toHaveLength(1)
-    expect(result[0].content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    expect(result[0].content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_PREVIEW_LENGTH)
+    expect(JSON.parse(result[0].content.split('\n\n')[0]!).rowIds).toEqual(['r1'])
     expect(result[0].content).not.toContain(huge)
     expect(result[0].content).toContain('0 rows of 1, 1 omitted for length')
   })
@@ -1242,7 +1291,7 @@ describe('processContextsServer - table_selection contexts', () => {
       'ws-1'
     )
     expect(context.content).toContain('1 row of 2, 1 omitted for length')
-    expect(context.content).toContain('| Ada |')
+    expect(context.content).toContain('| r1 | Ada |')
   })
 
   it('deduplicates row IDs and preserves selection order independently of query order', async () => {
@@ -1307,7 +1356,7 @@ describe('processContextsServer - table_selection contexts', () => {
       '',
       'ws-1'
     )
-    expect(context.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    expect(context.content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_PREVIEW_LENGTH)
     expect(context.content).toContain('no cell values were inlined')
   })
 })
