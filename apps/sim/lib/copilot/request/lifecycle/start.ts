@@ -206,10 +206,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               }
             | undefined
 
-          await Promise.all([
-            resetBuffer(streamId, { streamId, ...(userId ? { userId } : {}) }),
-            clearFilePreviewSessions(streamId),
-          ])
+          await Promise.all([resetBuffer(streamId), clearFilePreviewSessions(streamId)])
 
           if (chatId) {
             createRunSegment({

@@ -202,30 +202,27 @@ end
 }
 
 /**
- * Lua that releases an owner's whole reservation, for data that is deleted rather than
- * left to expire.
+ * Lua that drops an owner's counter, for data that is deleted rather than left to expire.
  *
  * Rendered into the caller's own script, the same way {@link renderRedisBudgetLua} is, so
  * the release commits together with the delete it accounts for. Releasing in a second
  * round trip would let a concurrent write land in between and keep its bytes stored with
  * its reservation already erased.
  *
- * Contract: budget keys are the **last** one or two entries of `KEYS`, in the order
- * {@link getRedisBudgetKeys} returns them, and `baseKeyCount` is how many precede them.
+ * The shared user counter is deliberately NOT credited here. An owner id is not proof of
+ * who wrote the bytes — anyone who can name an owner could otherwise decrement a counter
+ * they never charged, which is the one direction that must never be possible, since a
+ * counter driven down grants writes rather than denying them. The user counter's fixed
+ * window is what settles it instead: it already tolerates accruing bytes Redis has dropped
+ * (see {@link REDIS_BUDGET_TTL_SECONDS}), and this is the same over-count, bounded by the
+ * same window.
+ *
+ * Contract: the owner key is the **last** entry of `KEYS`, and `baseKeyCount` is how many
+ * precede it.
  */
 export function renderRedisBudgetReleaseLua(baseKeyCount: number): string {
-  const ownerKey = `KEYS[${baseKeyCount + 1}]`
-  const userKey = `KEYS[${baseKeyCount + 2}]`
-
   return `
-local owner_bytes = tonumber(redis.call('GET', ${ownerKey}) or '0')
-redis.call('DEL', ${ownerKey})
-if #KEYS >= ${baseKeyCount + 2} and owner_bytes > 0 then
-  local user_next = redis.call('DECRBY', ${userKey}, owner_bytes)
-  if user_next <= 0 then
-    redis.call('DEL', ${userKey})
-  end
-end
+redis.call('DEL', KEYS[${baseKeyCount + 1}])
 `
 }
 

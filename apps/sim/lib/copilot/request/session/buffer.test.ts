@@ -412,24 +412,24 @@ describe('mothership-stream-outbox', () => {
     expect(mockRedis.eval).not.toHaveBeenCalled()
   })
 
-  it('releases the owner counter and credits the user when the buffer is cleared', async () => {
+  it('drops the owner counter together with the buffer it accounts for', async () => {
     // The buffer keys are deleted rather than expired, so a counter left behind would refuse a
-    // retry that reuses the same streamId against bytes that no longer exist anywhere.
-    await clearBuffer('stream-1', 'clear_outbox', { streamId: 'stream-1', userId: 'user-1' })
-
-    // One script, so a concurrent append cannot land between the delete and the release and
-    // keep its events stored with its reservation already erased.
-    const evalCall = mockRedis.eval.mock.calls.at(-1)
-    expect(evalCall?.[1]).toBe(5)
-    expect(evalCall?.[5]).toBe('execution:redis-budget:copilot_stream:stream-1')
-    expect(evalCall?.[6]).toBe('execution:redis-budget:user:user-1')
-  })
-
-  it('releases only the owner counter when no user is in scope', async () => {
+    // retry that reuses the same streamId against bytes that no longer exist anywhere. One
+    // script, so a concurrent append cannot land between the delete and the release and keep
+    // its events stored with its reservation already erased.
     await clearBuffer('stream-1')
 
     const evalCall = mockRedis.eval.mock.calls.at(-1)
     expect(evalCall?.[1]).toBe(4)
     expect(evalCall?.[5]).toBe('execution:redis-budget:copilot_stream:stream-1')
+  })
+
+  it('never touches the shared user counter when clearing a buffer', async () => {
+    // An owner id is not proof of who wrote the bytes, so crediting the user counter here would
+    // let anyone who can name a stream decrement a ceiling they never charged.
+    await clearBuffer('stream-1')
+
+    const keys = mockRedis.eval.mock.calls.at(-1)?.slice(2, 6) as string[]
+    expect(keys.some((key) => key.includes('redis-budget:user:'))).toBe(false)
   })
 })

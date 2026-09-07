@@ -110,35 +110,29 @@ ${renderRedisBudgetReleaseLua(3)}
 return 1
 `
 
-export async function resetBuffer(streamId: string, scope?: StreamBudgetScope): Promise<void> {
-  await clearBuffer(streamId, 'reset_outbox', scope)
+export async function resetBuffer(streamId: string): Promise<void> {
+  await clearBuffer(streamId, 'reset_outbox')
 }
 
-export async function clearBuffer(
-  streamId: string,
-  operation = 'clear_outbox',
-  scope?: StreamBudgetScope
-): Promise<void> {
+export async function clearBuffer(streamId: string, operation = 'clear_outbox'): Promise<void> {
   /*
-    Delete and release in ONE script. The counter outlives the data it accounts for
-    unless it is released here — these keys are deleted rather than expired, so a retry
-    reusing the same streamId would be refused against bytes that no longer exist. Doing
-    it in a second round trip would be its own hole: a concurrent append landing between
-    the two would keep its events stored with its reservation already erased.
+    Delete and release in ONE script. The counter outlives the data it accounts for unless
+    it is dropped here — these keys are deleted rather than expired, so a retry reusing the
+    same streamId would be refused against bytes that no longer exist. Doing it in a second
+    round trip would be its own hole: a concurrent append landing between the two would keep
+    its events stored with its reservation already erased.
+
+    Only the owner counter, never the shared user counter — see the release fragment.
   */
-  const budgetKeys = getRedisBudgetKeys({
-    kind: 'copilot_stream',
-    id: streamId,
-    ...(scope?.userId ? { userId: scope.userId } : {}),
-  })
+  const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
   await withRedisRetry({ operation, streamId }, async (redis) => {
     await redis.eval(
       CLEAR_BUFFER_SCRIPT,
-      3 + budgetKeys.length,
+      4,
       getEventsKey(streamId),
       getSeqKey(streamId),
       getAbortKey(streamId),
-      ...budgetKeys
+      ownerBudgetKey
     )
   })
 }
