@@ -99,6 +99,16 @@ describe('Slack app webhook route', () => {
     expect(mockHandleSlackChallenge).not.toHaveBeenCalled()
   })
 
+  it('treats a whitespace-only native signing secret as unconfigured', async () => {
+    setEnv({ SLACK_SIGNING_SECRET: '   ' })
+
+    const response = await run(messageBody)
+
+    expect(response.status).toBe(500)
+    expect(mockVerifySlackRequestSignature).not.toHaveBeenCalled()
+    expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
+  })
+
   it('verifies a signed request before answering the verification challenge', async () => {
     const body = { type: 'url_verification', challenge: 'challenge' }
     mockHandleSlackChallenge.mockReturnValue(new Response('challenge', { status: 200 }))

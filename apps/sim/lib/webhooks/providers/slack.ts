@@ -840,7 +840,8 @@ export const slackHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret) {
-      return null
+      logger.warn(`[${requestId}] Slack webhook signing secret not configured`)
+      return new NextResponse('Unauthorized - Missing Slack signing secret', { status: 401 })
     }
     return verifySlackRequestSignature(signingSecret, request, rawBody, requestId)
   },
