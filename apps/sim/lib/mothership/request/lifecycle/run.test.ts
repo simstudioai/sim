@@ -2044,12 +2044,12 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  it('keeps the same request and partial response across a longer worker outage', async () => {
+  it('keeps the same request and partial response through the allowed reconnects', async () => {
     vi.useFakeTimers()
     try {
       const bodies: Record<string, unknown>[] = []
       const headers: Headers[] = []
-      for (let attempt = 0; attempt < 4; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         mockRunStreamLoop.mockImplementationOnce(
           async (_url, request, context: StreamingContext) => {
             bodies.push(JSON.parse(String(request.body)))
@@ -2093,14 +2093,53 @@ describe('runCopilotLifecycle', () => {
         content: 'Saved partial answer recovered',
       })
       expect(result.errors).toBeUndefined()
-      expect(bodies).toHaveLength(5)
-      expect(bodies.map((body) => body.messageId)).toEqual(Array(5).fill('outage-stream'))
+      expect(bodies).toHaveLength(4)
+      expect(bodies.map((body) => body.messageId)).toEqual(Array(4).fill('outage-stream'))
       expect(headers.map((header) => header.get('X-Sim-Request-ID'))).toEqual(
-        Array(5).fill('outage-request')
+        Array(4).fill('outage-request')
       )
       expect(bodies.slice(1).map((body) => body.receivedTextChars)).toEqual(
-        Array(4).fill('Saved partial answer'.length)
+        Array(3).fill('Saved partial answer'.length)
       )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ends an empty-stream outage after the initial attempt and three reconnects', async () => {
+    vi.useFakeTimers()
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        mockRunStreamLoop.mockImplementationOnce(
+          async (_url, _request, context: StreamingContext) => {
+            context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+            throw new StreamEndedWithoutTerminalError('/api/mothership')
+          }
+        )
+      }
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'bounded-outage' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(await pending).toMatchObject({
+        success: false,
+        cancelled: false,
+        errors: [STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE],
+      })
+      expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
     } finally {
       vi.useRealTimers()
     }

@@ -6,9 +6,13 @@ import {
   StreamEndedWithoutTerminalError,
 } from '@/lib/mothership/request/go/stream'
 
-/** A connection failure leaves the durable run unresolved; its leg keeps the existing time budget. */
+const MAX_STREAM_RETRIES = 3
+const STREAM_RECOVERY_WINDOW_MS = 30_000
+
+/** Recovery is bounded independently of the healthy run's execution budget. */
 export class StreamRetryWindow {
   private readonly deadline: number
+  private recoveryDeadline?: number
   attempt = 0
 
   constructor(timeoutMs = ORCHESTRATION_TIMEOUT_MS) {
@@ -24,8 +28,10 @@ export class StreamRetryWindow {
 
   nextDelay(error: unknown, signal?: AbortSignal): number | null {
     if (signal?.aborted || !isRetryableStreamError(error)) return null
+    this.recoveryDeadline ??= Date.now() + STREAM_RECOVERY_WINDOW_MS
+    if (this.attempt >= MAX_STREAM_RETRIES) return null
     const delay = backoffWithJitter(this.attempt + 1, null, { baseMs: 250, maxMs: 5_000 })
-    if (Date.now() + delay >= this.deadline) return null
+    if (Date.now() + delay >= Math.min(this.deadline, this.recoveryDeadline)) return null
     this.attempt++
     return delay
   }
