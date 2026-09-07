@@ -42,7 +42,7 @@ describe('setup coherence checks', () => {
       status: 'fail',
       message:
         'SLACK_EXTENDED_SCOPES is on but SLACK_SIGNING_SECRET is not set — native Slack triggers will fail at runtime',
-      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES',
+      fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
     })
   })
 
