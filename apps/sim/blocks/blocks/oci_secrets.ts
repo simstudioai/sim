@@ -896,7 +896,10 @@ export const OciSecretsBlock: BlockConfig = {
         compartmentId: params.compartmentId,
         secretId: params.secretId,
         secretName: params.secretName,
-        vaultId: params.vaultId,
+        vaultId:
+          params.operation === 'list_secrets' && (params.vaultId === null || params.vaultId === '')
+            ? undefined
+            : params.vaultId,
         keyId: params.keyId,
         name: params.name || undefined,
         lifecycleState: params.lifecycleState || undefined,

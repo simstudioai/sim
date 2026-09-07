@@ -21,6 +21,8 @@ vi.mock('@/lib/internal/oci-secrets/operations', () => ({
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciSecretsTool } from '@/lib/internal/oci-secrets/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciSecretsBlock } from '@/blocks/blocks/oci_secrets'
+import { ociSecretsListSecretsTool } from '@/tools/oci_secrets/list_secrets'
 
 const client = { request: vi.fn() }
 const access = {
@@ -90,6 +92,35 @@ describe('executeOciSecretsTool', () => {
       output: { status: 200, opcRequestId: 'oci-1' },
     })
   })
+
+  it.each([null, '', undefined, 'vault-1'])(
+    'normalizes the optional native vault filter (%s)',
+    async (vaultId) => {
+      const raw = {
+        operation: 'list_secrets',
+        oauthCredential: 'selected-credential',
+        compartmentId: 'compartment-1',
+        vaultId,
+      }
+      const params = { ...raw, ...OciSecretsBlock.tools.config?.params?.(raw) }
+      const response = await executeOciSecretsTool(
+        request({
+          toolId: ociSecretsListSecretsTool.id,
+          input: ociSecretsListSecretsTool.operation.input(params),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          operation: 'list_secrets',
+          vaultId: vaultId || undefined,
+          compartmentId: 'compartment-1',
+        }),
+        undefined
+      )
+    }
+  )
 
   it.each(operations)(
     'dispatches %s using the registered ID and trusted authority',
