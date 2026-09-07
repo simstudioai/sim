@@ -30,7 +30,7 @@ const assistantMessage = {
  */
 function mockReads(opts: {
   chat: Record<string, unknown> | null
-  last?: { messageId: string; role: string }
+  last?: { messageId: string; role: string; streamId?: string; hasResponse?: boolean }
 }) {
   dbChainMockFns.limit.mockResolvedValueOnce(opts.chat ? [opts.chat] : [])
   dbChainMockFns.limit.mockResolvedValueOnce(opts.last ? [opts.last] : [])
@@ -141,5 +141,48 @@ describe('finalizeAssistantTurn', () => {
     expect(result.outcome).toBe('assistant_already_persisted')
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+  })
+
+  it('appends the answer after a steering message belonging to the same turn', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'steer-1', role: 'user', streamId: 'user-1', hasResponse: false },
+    })
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+    })
+    expect(result.appendedAssistant).toBe(true)
+  })
+
+  it('does not append another answer when a delayed steering write follows the existing reply', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'steer-1', role: 'user', streamId: 'user-1', hasResponse: true },
+    })
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+      streamMarkerPolicy: 'active-or-cleared',
+    })
+    expect(result.appendedAssistant).toBe(false)
+    expect(result.outcome).toBe('assistant_already_persisted')
+  })
+
+  it('does not attach an old answer after a user message from a different turn', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'steer-new', role: 'user', streamId: 'new-turn', hasResponse: false },
+    })
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+      streamMarkerPolicy: 'active-or-cleared',
+    })
+    expect(result.appendedAssistant).toBe(false)
+    expect(result.outcome).toBe('stale_user_message')
   })
 })
