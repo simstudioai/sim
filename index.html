@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sim Helm charts</title>
+<meta name="description" content="Helm chart repository for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #18181b;
+    --muted: #52525b;
+    --line: #e4e4e7;
+    --code-bg: #f4f4f5;
+    --link: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0a0b;
+      --fg: #fafafa;
+      --muted: #a1a1aa;
+      --line: #27272a;
+      --code-bg: #18181b;
+      --link: #60a5fa;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 3rem 1.25rem 5rem;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.65 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 42rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; letter-spacing: -0.02em; margin: 0 0 .4rem; }
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2.5rem 0 .75rem; font-weight: 600; }
+  p { margin: 0 0 1rem; color: var(--muted); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .85rem 1rem;
+    overflow-x: auto;
+    margin: 0 0 1rem;
+  }
+  code { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  p code { background: var(--code-bg); border-radius: 4px; padding: .1rem .35rem; }
+  ul { padding-left: 1.1rem; margin: 0; color: var(--muted); }
+  li { margin-bottom: .35rem; }
+  footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sim Helm charts</h1>
+  <p>
+    Chart repository for <a href="https://sim.ai">Sim</a> — the open-source AI
+    workspace where teams build, deploy, and manage AI agents.
+  </p>
+
+  <h2>OCI registry (recommended)</h2>
+  <p>Signed and carries build provenance. Requires Helm 3.8 or newer.</p>
+<pre><code>helm install sim oci://ghcr.io/simstudioai/charts/sim \
+  --version &lt;version&gt; --namespace sim --create-namespace</code></pre>
+
+  <h2>Helm repository</h2>
+  <p>For clusters and tooling that expect <code>helm repo add</code>.</p>
+<pre><code>helm repo add sim https://charts.sim.ai
+helm repo update
+helm install sim sim/sim --version &lt;version&gt; --namespace sim --create-namespace</code></pre>
+
+  <p>
+    Always pass <code>--version</code>. Without it Helm resolves the newest
+    published chart at install time, so the same command produces different
+    deployments on different days. List what is available with
+    <code>helm search repo sim/sim --versions</code>.
+  </p>
+
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="https://docs.sim.ai/platform/self-hosting/kubernetes">Deploying on Kubernetes</a> — install path, cloud-specific values, verification</li>
+    <li><a href="https://github.com/simstudioai/sim/tree/main/helm/sim">Chart reference</a> — every value, secret strategies, production checklist</li>
+    <li><a href="https://github.com/simstudioai/sim/blob/main/helm/sim/images.yaml">Image inventory</a> — mirror these into a disconnected registry</li>
+  </ul>
+
+  <footer>
+    <a href="https://github.com/simstudioai/sim">github.com/simstudioai/sim</a>
+    &nbsp;·&nbsp; Apache-2.0
+    &nbsp;·&nbsp; <a href="index.yaml">index.yaml</a>
+  </footer>
+</main>
+</body>
+</html>
