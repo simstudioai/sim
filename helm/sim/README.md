@@ -3,6 +3,7 @@
 Deploy [Sim](https://sim.ai) — the open-source AI workspace where teams build, deploy, and manage AI agents — on Kubernetes.
 
 * **Registry:** `oci://ghcr.io/simstudioai/charts/sim`
+* **Helm repository:** `https://charts.sim.ai`
 * **Chart version:** see `Chart.yaml`
 * **App version:** tracks the upstream Sim release
 * **Kubernetes:** 1.25+
@@ -22,7 +23,7 @@ export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 
 # Install from the registry
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.2 \
+  --version 1.9.3 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -106,10 +107,10 @@ immutable once published.
 
 ```bash
 # List the published versions
-helm show chart oci://ghcr.io/simstudioai/charts/sim --version 1.9.2
+helm show chart oci://ghcr.io/simstudioai/charts/sim --version 1.9.3
 
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.2 \
+  --version 1.9.3 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -126,12 +127,35 @@ To mirror the chart into an internal registry — the usual requirement for an
 air-gapped or internal-only cluster:
 
 ```bash
-helm pull oci://ghcr.io/simstudioai/charts/sim --version 1.9.2
-helm push sim-1.9.2.tgz oci://registry.internal.example.com/charts
+helm pull oci://ghcr.io/simstudioai/charts/sim --version 1.9.3
+helm push sim-1.9.3.tgz oci://registry.internal.example.com/charts
 ```
 
 The container images the chart references are listed in
 [`images.yaml`](./images.yaml); mirror those alongside it.
+
+### From the Helm repository
+
+The chart is also published to a classic Helm repository, for clusters and
+tooling that consume `helm repo add` rather than OCI.
+
+```bash
+helm repo add sim https://charts.sim.ai
+helm repo update
+
+helm install sim sim/sim \
+  --version 1.9.3 \
+  --namespace sim --create-namespace \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
+  --set postgresql.auth.password="$POSTGRES_PASSWORD"
+```
+
+Both paths serve the same chart. Prefer OCI where you can: the signature and
+provenance described in [Verifying the chart](#verifying-the-chart) are attached
+to the OCI artifact, and `helm repo add` has no equivalent.
 
 ### From a checkout
 
@@ -177,12 +201,12 @@ the registry next to the chart so they survive a mirror.
 
 ```bash
 # The signature: proves this chart was signed by a GitHub Actions run in this repo
-cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 \
+cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.3 \
   --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # The provenance: proves which workflow, commit, and runner produced it
-gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 --repo simstudioai/sim
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.3 --repo simstudioai/sim
 ```
 
 There is no GPG `.prov` file — signing is Sigstore-only, so there is no

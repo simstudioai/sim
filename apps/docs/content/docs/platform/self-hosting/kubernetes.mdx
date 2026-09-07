@@ -22,8 +22,12 @@ import { FAQ } from '@/components/ui/faq'
 ## Installation
 
 The chart is published to GitHub Container Registry as an OCI artifact at
-`oci://ghcr.io/simstudioai/charts/sim`. Install it directly — no clone, and no
-`helm repo add`.
+`oci://ghcr.io/simstudioai/charts/sim`. Install it directly — no clone required.
+
+It is also available from a classic Helm repository at `https://charts.sim.ai`
+for tooling that expects one; see [Helm repository](#helm-repository) below.
+Prefer OCI where you can, since the signature and provenance are attached to the
+OCI artifact.
 
 ```bash
 # Generate secrets
@@ -36,7 +40,7 @@ POSTGRES_PASSWORD=$(openssl rand -hex 24)
 
 # Install
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.2 \
+  --version 1.9.3 \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -58,16 +62,36 @@ helm install sim oci://ghcr.io/simstudioai/charts/sim \
   This installs the chart's default image tag. For production, **pin `app`, `realtime`, and `migrations` to the same explicit release tag** — see [Upgrades](/platform/self-hosting/upgrades).
 </Callout>
 
+## Helm repository
+
+For clusters or GitOps configs that consume `helm repo add` rather than OCI:
+
+```bash
+helm repo add sim https://charts.sim.ai
+helm repo update
+
+helm install sim sim/sim --version 1.9.3 --namespace simstudio --create-namespace \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.API_ENCRYPTION_KEY="$API_ENCRYPTION_KEY" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
+  --set postgresql.auth.password="$POSTGRES_PASSWORD"
+```
+
+It serves the same chart as the OCI registry. The signature and provenance below
+apply to the OCI artifact only.
+
 ## Verifying the chart
 
 Every published version is signed with Sigstore keyless signing and carries a SLSA build-provenance attestation. Both live in the registry alongside the chart, so they survive a mirror into an internal registry.
 
 ```bash
-cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 \
+cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.3 \
   --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.2 --repo simstudioai/sim
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.3 --repo simstudioai/sim
 ```
 
 Signing is Sigstore-only — there is no GPG `.prov` file, so `helm install --verify` does not apply.
@@ -88,7 +112,7 @@ SIM_RELEASE=v0.8.24
 curl -fsSLO "https://raw.githubusercontent.com/simstudioai/sim/$SIM_RELEASE/helm/sim/examples/values-aws.yaml"
 
 helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.2 \
+  --version 1.9.3 \
   --values values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -209,7 +233,7 @@ kubectl port-forward deployment/sim-app 3000:3000 -n simstudio
 kubectl logs -l app.kubernetes.io/component=app -n simstudio --tail=100
 
 # Upgrade (always pin the target chart version)
-helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.2 --namespace simstudio
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.3 --namespace simstudio
 
 # Uninstall
 helm uninstall sim --namespace simstudio
