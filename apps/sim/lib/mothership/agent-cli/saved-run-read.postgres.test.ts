@@ -38,6 +38,7 @@ import {
   resumeQueue,
   tableJobs,
   tableRowExecutions,
+  tableViews,
   usageLog,
   user,
   userTableDefinitions,
@@ -106,6 +107,10 @@ import {
   buildPersistedAssistantMessage,
   normalizeMessage,
 } from '@/lib/mothership/chat/persisted-message'
+import {
+  processContextsServer,
+  resolveActiveResourceContext,
+} from '@/lib/mothership/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
@@ -608,6 +613,7 @@ const tables = [
   resumeQueue,
   tableJobs,
   tableRowExecutions,
+  tableViews,
   userTableDefinitions,
   userTableRowSecretProvenance,
   userTableRows,
@@ -619,6 +625,101 @@ const tables = [
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
   'saved-run evidence through the real CLI',
   () => {
+    it('resolves saved table view context from physical storage with current access', async () => {
+      const tableId = generateId()
+      const otherTableId = generateId()
+      const viewId = generateId()
+      const config = {
+        filter: { all: [{ field: 'col_status', op: 'eq', value: 'qualified' }] },
+        sort: [{ field: 'col_score', direction: 'desc' }],
+      }
+      for (const id of [tableId, otherTableId]) {
+        await db.insert(userTableDefinitions).values({
+          id,
+          workspaceId,
+          name: `leads_${id}`,
+          createdBy: 'run-reader',
+          schema: {
+            columns: [
+              { id: 'col_status', name: 'status', type: 'string' },
+              { id: 'col_score', name: 'score', type: 'number' },
+            ],
+          },
+        })
+      }
+      await db.insert(tableViews).values({
+        id: viewId,
+        tableId,
+        workspaceId,
+        name: 'Qualified leads',
+        config,
+        createdBy: 'run-reader',
+      })
+      const tagged = await processContextsServer(
+        [{ kind: 'table', tableId, viewId, label: 'Leads' }],
+        'run-reader',
+        'Summarize this view',
+        workspaceId
+      )
+      expect(tagged).toHaveLength(1)
+      expect(JSON.parse(tagged[0]!.content)).toEqual({
+        tableId,
+        savedView: { id: viewId, name: 'Qualified leads', ...config },
+      })
+      const active = await resolveActiveResourceContext(
+        'table',
+        tableId,
+        workspaceId,
+        'run-reader',
+        undefined,
+        viewId
+      )
+      expect(active?.content).toEqual(tagged[0]!.content)
+      expect(
+        await resolveActiveResourceContext(
+          'table',
+          otherTableId,
+          workspaceId,
+          'run-reader',
+          undefined,
+          viewId
+        )
+      ).toBeNull()
+      expect(
+        await resolveActiveResourceContext(
+          'table',
+          tableId,
+          'other-workspace',
+          'run-reader',
+          undefined,
+          viewId
+        )
+      ).toBeNull()
+      fixture.permission = null
+      expect(
+        await resolveActiveResourceContext(
+          'table',
+          tableId,
+          workspaceId,
+          'run-reader',
+          undefined,
+          viewId
+        )
+      ).toBeNull()
+      fixture.permission = 'read'
+      await db.delete(tableViews).where(eq(tableViews.id, viewId))
+      expect(
+        await resolveActiveResourceContext(
+          'table',
+          tableId,
+          workspaceId,
+          'run-reader',
+          undefined,
+          viewId
+        )
+      ).toBeNull()
+    })
+
     it('saves complete panel addresses through the real chat resource route', async () => {
       const chatId = generateId()
       const resources = [

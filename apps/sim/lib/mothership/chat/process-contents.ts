@@ -55,6 +55,7 @@ import { skillDelegationPolicy } from '@/lib/skills/application/authorization'
 import { getSkillUseCase } from '@/lib/skills/application/use-cases'
 import { queryTableRows } from '@/lib/table/application/rows'
 import { readTableUseCase } from '@/lib/table/application/tables'
+import { readTableViewUseCase } from '@/lib/table/application/views'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
@@ -254,7 +255,13 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
-        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId, userId, chatId)
+        const result = await resolveTableResource(
+          ctx.tableId,
+          currentWorkspaceId,
+          userId,
+          chatId,
+          ctx.viewId
+        )
         if (!result) return null
         return {
           type: 'table',
@@ -756,7 +763,8 @@ export async function resolveActiveResourceContext(
   resourceId: string,
   workspaceId: string,
   userId: string,
-  chatId?: string
+  chatId?: string,
+  viewId?: string
 ): Promise<AgentContext | null> {
   try {
     switch (resourceType) {
@@ -803,7 +811,7 @@ export async function resolveActiveResourceContext(
         return context ? { ...context, type: 'active_resource' } : null
       }
       case 'table': {
-        return await resolveTableResource(resourceId, workspaceId, userId, chatId)
+        return await resolveTableResource(resourceId, workspaceId, userId, chatId, viewId)
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
@@ -828,16 +836,34 @@ async function resolveTableResource(
   tableId: string,
   workspaceId: string,
   userId: string,
-  chatId?: string
+  chatId?: string,
+  viewId?: string
 ): Promise<AgentContext | null> {
+  const principal = createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId)
+  const viewResult = viewId
+    ? await readTableViewUseCase.execute({ principal, input: { tableId, workspaceId, viewId } })
+    : undefined
   const { table, folderPath } = await readTableUseCase.execute({
-    principal: createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId),
+    principal,
     input: { tableId, workspaceId },
   })
+  const view = viewResult?.view
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: '',
+    content: JSON.stringify({
+      tableId,
+      ...(view
+        ? {
+            savedView: {
+              id: view.id,
+              name: view.name,
+              filter: view.config.filter ?? null,
+              sort: view.config.sort ?? null,
+            },
+          }
+        : {}),
+    }),
     path: canonicalTableVfsPath(table.name, encodeVfsPathSegments(parseFolderPath(folderPath))),
   }
 }
