@@ -31,7 +31,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
-import { EmbeddedFileFolder } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/embedded-file-folder'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import {
@@ -203,7 +202,6 @@ export const ResourceContent = memo(function ResourceContent({
     useTableViewPinStore.getState().pin(next.tableId, next.viewId)
   }, [resource.id, resource.type, resource.viewId])
 
-  const openInternalLink = useOpenInternalLink()
   const reportTableView = useCallback(
     (context: MothershipTableViewContext) => {
       onTableViewContextChange?.(resource.id, context)
@@ -325,16 +323,6 @@ export const ResourceContent = memo(function ResourceContent({
 
     case 'folder':
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
-
-    case 'filefolder':
-      return (
-        <EmbeddedFileFolder
-          key={resource.id}
-          workspaceId={workspaceId}
-          folderId={resource.id}
-          onOpen={openInternalLink}
-        />
-      )
 
     case 'log':
       return (
