@@ -38,6 +38,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
@@ -129,11 +131,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          # The version gate only reads history and fetches a public branch, so
+          # it never needs the token left behind in .git/config.
+          persist-credentials: false
       - name: Require a Chart.yaml version bump when chart content changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          base="origin/${{ github.base_ref }}"
-          git fetch origin "${{ github.base_ref }}"
+          base="origin/${BASE_REF}"
+          git fetch origin "${BASE_REF}"
           merge_base=$(git merge-base "$base" HEAD)
           changed=$(git diff --name-only "$merge_base" HEAD)
           if echo "$changed" | grep -q '^helm/sim/'; then
@@ -155,6 +162,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
@@ -202,11 +211,10 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
-      contents: read
-      packages: write
-      # Sigstore signs against the runner's OIDC identity; no key material is stored.
-      id-token: write
-      attestations: write
+      contents: read # Read the chart source.
+      packages: write # Push the chart, its signature, and its attestations to GHCR.
+      id-token: write # Sigstore signs against the runner's OIDC identity; no key material is stored.
+      attestations: write # Let actions/attest-build-provenance record the SLSA provenance.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -230,13 +238,16 @@ jobs:
         id: package
         run: |
           set -euo pipefail
-          name=$(helm show chart helm/sim | awk '/^name:/ {print $2}')
-          version=$(helm show chart helm/sim | awk '/^version:/ {print $2}')
+          chart=$(helm show chart helm/sim)
+          name=$(printf '%s\n' "$chart" | awk '/^name:/ {print $2}')
+          version=$(printf '%s\n' "$chart" | awk '/^version:/ {print $2}')
           helm package helm/sim --destination dist
-          echo "name=${name}" >> "$GITHUB_OUTPUT"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "path=dist/${name}-${version}.tgz" >> "$GITHUB_OUTPUT"
-          echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}" >> "$GITHUB_OUTPUT"
+          {
+            echo "name=${name}"
+            echo "version=${version}"
+            echo "path=dist/${name}-${version}.tgz"
+            echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}"
+          } >> "$GITHUB_OUTPUT"
 
       # Chart versions are immutable once published: whoever pinned a version
       # must keep resolving the same bytes forever. The PR gate above already
@@ -256,17 +267,20 @@ jobs:
       # do not match and stop the job instead.
       - name: Skip if this version is already published
         id: exists
+        env:
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+          NAME: ${{ steps.package.outputs.name }}
+          VERSION: ${{ steps.package.outputs.version }}
         run: |
           set -euo pipefail
-          if err=$(helm show chart "oci://${{ steps.package.outputs.repository }}" \
-                     --version "${{ steps.package.outputs.version }}" 2>&1 >/dev/null); then
+          if err=$(helm show chart "oci://${REPOSITORY}" --version "${VERSION}" 2>&1 >/dev/null); then
             echo "already=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ steps.package.outputs.name }} ${{ steps.package.outputs.version }} is already published; skipping."
+            echo "::notice::${NAME} ${VERSION} is already published; skipping."
           elif printf '%s\n' "$err" | grep -q ': not found'; then
             echo "already=false" >> "$GITHUB_OUTPUT"
           else
             printf '%s\n' "$err"
-            echo "::error::Could not determine whether ${{ steps.package.outputs.name }} ${{ steps.package.outputs.version }} is already published. Refusing to push, because an unchecked push can overwrite a published version."
+            echo "::error::Could not determine whether ${NAME} ${VERSION} is already published. Refusing to push, because an unchecked push can overwrite a published version."
             exit 1
           fi
 
@@ -276,12 +290,13 @@ jobs:
       - name: Push chart
         id: push
         if: steps.exists.outputs.already == 'false'
+        env:
+          CHART_PATH: ${{ steps.package.outputs.path }}
         run: |
           set -euo pipefail
-          output=$(helm push "${{ steps.package.outputs.path }}" \
-            "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts" 2>&1)
-          echo "$output"
-          digest=$(echo "$output" | grep -oE 'sha256:[a-f0-9]{64}' | head -1 || true)
+          output=$(helm push "${CHART_PATH}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts" 2>&1)
+          printf '%s\n' "$output"
+          digest=$(printf '%s\n' "$output" | grep -oE 'sha256:[a-f0-9]{64}' | head -1 || true)
           if [ -z "$digest" ]; then
             echo "::error::helm push did not report a digest; refusing to sign an unidentified artifact"
             exit 1
@@ -299,9 +314,12 @@ jobs:
       # publishing a signature at all.
       - name: Sign and verify chart
         if: steps.exists.outputs.already == 'false'
+        env:
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
-          ref="${{ steps.package.outputs.repository }}@${{ steps.push.outputs.digest }}"
+          ref="${REPOSITORY}@${DIGEST}"
           cosign sign --yes "$ref"
           cosign verify "$ref" \
             --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
@@ -324,24 +342,31 @@ jobs:
       # tag on the chart's own OCI repository. Pushed on every run, including
       # version-skip runs, so an edit to the metadata file alone still lands.
       - name: Publish Artifact Hub metadata
+        env:
+          REPOSITORY: ${{ steps.package.outputs.repository }}
         run: |
           set -euo pipefail
-          oras push "${{ steps.package.outputs.repository }}:artifacthub.io" \
+          oras push "${REPOSITORY}:artifacthub.io" \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
             helm/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 
       - name: Summary
+        env:
+          ALREADY: ${{ steps.exists.outputs.already }}
+          REPOSITORY: ${{ steps.package.outputs.repository }}
+          VERSION: ${{ steps.package.outputs.version }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           {
-            if [ "${{ steps.exists.outputs.already }}" = "true" ]; then
-              echo "### Chart ${{ steps.package.outputs.version }} was already published — nothing to do"
+            if [ "${ALREADY}" = "true" ]; then
+              echo "### Chart ${VERSION} was already published — nothing to do"
             else
-              echo "### Published chart ${{ steps.package.outputs.version }}"
+              echo "### Published chart ${VERSION}"
               echo
-              echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+              echo "Digest: \`${DIGEST}\`"
             fi
             echo
             echo '```bash'
-            echo "helm install sim oci://${{ steps.package.outputs.repository }} --version ${{ steps.package.outputs.version }}"
+            echo "helm install sim oci://${REPOSITORY} --version ${VERSION}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

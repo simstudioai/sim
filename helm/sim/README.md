@@ -189,6 +189,8 @@ There is no GPG `.prov` file — signing is Sigstore-only, so there is no
 long-lived private key to hold or rotate. `helm install --verify` expects the
 GPG provenance format and will not work; use `cosign verify` above.
 
+> **Requires cosign v3.0 or newer.** Signatures use the Sigstore protobuf bundle format, which cosign v3 writes by default and cosign v2 cannot read. cosign v3.1+ auto-detects both formats.
+
 ## Upgrading
 
 ```bash

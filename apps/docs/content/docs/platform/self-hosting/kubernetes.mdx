@@ -72,6 +72,10 @@ gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.1 --repo simstudi
 
 Signing is Sigstore-only — there is no GPG `.prov` file, so `helm install --verify` does not apply.
 
+<Callout type="warn">
+  Verification requires **cosign v3.0 or newer**. Signatures use the Sigstore protobuf bundle format, which cosign v3 writes by default and cosign v2 cannot read. cosign v3.1+ auto-detects both formats.
+</Callout>
+
 ## Cloud-Specific Values
 
 These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$API_ENCRYPTION_KEY`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. Two caveats when converting an existing generic install rather than starting fresh: (1) **reuse the original secret values** — recover them with `helm get values sim -n simstudio` if your shell no longer has them; supplying a newly generated `ENCRYPTION_KEY` makes every previously encrypted value (workspace environment variables, stored provider keys, MCP OAuth credentials) undecryptable. (2) The cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — add `--set postgresql.auth.database=sim` to keep your existing database. If you'd rather start clean, `helm uninstall sim -n simstudio`, delete its PVCs, and run the cloud command fresh.
