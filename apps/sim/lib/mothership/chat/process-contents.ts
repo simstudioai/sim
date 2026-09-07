@@ -81,13 +81,7 @@ interface AgentContext {
   type: AgentContextType
   tag: string
   content: string
-  /**
-   * Canonical, URL-encoded VFS path for the tagged resource (e.g.
-   * `agent/skills/My%20Skill.json`). Tagged resources are sent as path
-   * pointers so the model reads them on demand via VFS tools instead of the
-   * full body bloating the request. Selections retain their bounded excerpt;
-   * skills retain their instructions for autoloading.
-   */
+  /** A CLI-readable file address; other resources carry canonical references in content. */
   path?: string
 }
 
@@ -149,21 +143,11 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
-        const tools = await mcpService.discoverServerTools(userId, ctx.serverId, currentWorkspaceId)
-        if (tools.length === 0) return null
-        const toolLines = tools.map((tool) => {
-          const name = createMcpToolId(tool.serverId, tool.name)
-          return `- ${name}: ${tool.description || tool.name}`
-        })
+        /** The authorized request catalog owns discovery; context identifies the selected service. */
         return {
           type: 'mcp',
           tag: ctx.label ? `/${ctx.label}` : '/',
-          content: [
-            `The user explicitly enabled the MCP server "${ctx.label || ctx.serverId}". It stays enabled for the rest of this chat, and its tools remain callable on every later turn.`,
-            'Its tools are listed below and are callable directly by the exact name shown — there is no loading step.',
-            'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
-            ...toolLines,
-          ].join('\n'),
+          content: JSON.stringify({ serverId: ctx.serverId, service: `mcp:${ctx.serverId}` }),
         }
       }
       if (ctx.kind === 'past_chat' && ctx.chatId) {
@@ -212,11 +196,9 @@ export async function processContextsServer(
           currentWorkspaceId
         )
       }
-      // Every tab context retains its live pointer. An explicit user selection
-      // additionally carries the quoted snapshot they chose, while the pointer
-      // lets the agent inspect or act on the current page/shell when needed.
+      /** Desktop context carries a reference and optional selection; v1 has no desktop control tools. */
       if (ctx.kind === 'browser_tab' && ctx.tabId) {
-        const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`
+        const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). You cannot read or drive browser tabs here: work from the tab's title and any URL or content the user shares rather than assuming what it shows.`
         return {
           type: 'browser_tab',
           tag: ctx.label ? `@${ctx.label}` : '@',
@@ -226,7 +208,7 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
-        const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`
+        const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). You cannot read or drive terminals here: ask the user to paste the relevant output rather than assuming what is in it.`
         return {
           type: 'terminal_tab',
           tag: ctx.label ? `@${ctx.label}` : '@',
