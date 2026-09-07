@@ -655,6 +655,15 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         config,
         createdBy: 'run-reader',
       })
+      const rowId = generateId()
+      await db.insert(userTableRows).values({
+        id: rowId,
+        tableId,
+        workspaceId,
+        data: { col_status: 'qualified', col_score: 90 },
+        position: 0,
+        createdBy: 'run-reader',
+      })
       const tagged = await processContextsServer(
         [{ kind: 'table', tableId, viewId, label: 'Leads' }],
         'run-reader',
@@ -662,6 +671,15 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         workspaceId
       )
       expect(tagged).toHaveLength(1)
+      const suppliedReference = tagged[0]!.path ?? JSON.parse(tagged[0]!.content).tableId
+      const readableReference = await runCli(
+        ['tables', 'rows', 'list', suppliedReference],
+        identity,
+        null
+      )
+      expect(readableReference.exitCode, readableReference.stderr).toBe(0)
+      expect(readableReference.stdout).toContain(rowId)
+
       expect(JSON.parse(tagged[0]!.content)).toEqual({
         tableId,
         savedView: { id: viewId, name: 'Qualified leads', ...config },
@@ -675,6 +693,32 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         viewId
       )
       expect(active?.content).toEqual(tagged[0]!.content)
+      const currentView = { viewId, filter: null, sort: null }
+      const live = await resolveActiveResourceContext(
+        'table',
+        tableId,
+        workspaceId,
+        'run-reader',
+        undefined,
+        'stale-initial-view',
+        currentView
+      )
+      expect(JSON.parse(live!.content)).toEqual({
+        tableId,
+        currentView: { ...currentView, name: 'Qualified leads' },
+      })
+      expect(
+        await resolveActiveResourceContext(
+          'table',
+          otherTableId,
+          workspaceId,
+          'run-reader',
+          undefined,
+          undefined,
+          currentView
+        )
+      ).toBeNull()
+
       expect(
         await resolveActiveResourceContext(
           'table',

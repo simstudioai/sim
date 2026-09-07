@@ -6,7 +6,7 @@ import {
 } from '@sim/platform-authz/workflow'
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
-import type { TraceSpan } from '@/lib/logs/types'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
@@ -21,19 +21,10 @@ import {
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
 import { QueryLogs } from '@/lib/mothership/generated/tool-catalog-v1'
-import {
-  canonicalBlockVfsPath,
-  canonicalKnowledgeBaseVfsDir,
-  canonicalTableVfsPath,
-  canonicalWorkflowVfsDir,
-  canonicalWorkspaceFilePath,
-  encodeVfsPathSegments,
-  encodeVfsSegment,
-} from '@/lib/mothership/vfs/path-utils'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { parseFolderPath } from '@/lib/folders/paths'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -260,7 +251,8 @@ export async function processContextsServer(
           currentWorkspaceId,
           userId,
           chatId,
-          ctx.viewId
+          ctx.viewId,
+          ctx.currentView
         )
         if (!result) return null
         return {
@@ -438,11 +430,8 @@ async function processSkillFromDb(
       ),
       input: { skillId, workspaceId },
     })
-    // Skills are autoloaded: carry the full SKILL.md body so the Go side can
-    // inject it into the dynamic system message for the turn. The path lets the
-    // model re-read the canonical VFS file if it needs to.
-    const path = `agent/skills/${encodeVfsSegment(s.name)}.json`
-    return { type: 'skill', tag, content: s.content, path }
+    /** Tagged workspace skills carry their body directly into this turn. */
+    return { type: 'skill', tag, content: s.content }
   } catch {
     logger.error('Error processing skill context (db)', {
       workspaceId,
@@ -514,19 +503,14 @@ async function processWorkflowFromDb(
   chatId?: string
 ): Promise<AgentContext | null> {
   if (!userId || !currentWorkspaceId) return null
-  const { workflow, folderPath } = await readWorkflowMetadata.execute({
+  const { workflow } = await readWorkflowMetadata.execute({
     principal: createCopilotChatPrincipal(
       { userId, workspaceId: currentWorkspaceId, chatId },
       workflowDelegationPolicy.audience
     ),
     input: { workflowId, assertedWorkspaceId: currentWorkspaceId },
   })
-  const dir = canonicalWorkflowVfsDir({
-    name: workflow.name,
-    folderPath: encodeVfsPathSegments(parseFolderPath(folderPath)),
-  })
-  const path = kind === 'current_workflow' ? `${dir}/state.json` : `${dir}/meta.json`
-  return { type: kind, tag, content: '', path }
+  return { type: kind, tag, content: JSON.stringify({ workflowId, name: workflow.name }) }
 }
 
 async function processKnowledgeFromDb(
@@ -543,7 +527,7 @@ async function processKnowledgeFromDb(
       workspaceId: currentWorkspaceId,
       chatId,
     })
-    const { knowledgeBase: kb, folderPath } = await readKnowledgeBase.execute({
+    const { knowledgeBase: kb } = await readKnowledgeBase.execute({
       principal,
       input: {
         knowledgeBaseId,
@@ -554,8 +538,7 @@ async function processKnowledgeFromDb(
     return {
       type: 'knowledge',
       tag,
-      content: '',
-      path: `${canonicalKnowledgeBaseVfsDir(kb.name, encodeVfsPathSegments(parseFolderPath(folderPath)))}/meta.json`,
+      content: JSON.stringify({ knowledgeBaseId: kb.id, name: kb.name }),
     }
   } catch (error) {
     logger.error('Error processing knowledge context (db)', { knowledgeBaseId, error })
@@ -596,7 +579,7 @@ async function processBlockMetadata(
       return null
     }
 
-    return { type: 'blocks', tag, content: '', path: canonicalBlockVfsPath(blockId) }
+    return { type: 'blocks', tag, content: JSON.stringify({ blockType: blockId }) }
   } catch (error) {
     if (error instanceof EnvCapabilityConfigurationError) throw error
     logger.error('Error processing block metadata', { blockId, error })
@@ -621,7 +604,7 @@ async function processWorkflowBlockFromDb(
     currentWorkspaceId,
     chatId
   )
-  return context ? { ...context, type: 'workflow_block', content: `Block id: ${blockId}` } : null
+  return context ? { ...context, type: 'workflow_block', content: JSON.stringify({ ...JSON.parse(context.content), blockId }) } : null
 }
 
 /**
@@ -764,7 +747,8 @@ export async function resolveActiveResourceContext(
   workspaceId: string,
   userId: string,
   chatId?: string,
-  viewId?: string
+  viewId?: string,
+  currentView?: MothershipTableViewContext
 ): Promise<AgentContext | null> {
   try {
     switch (resourceType) {
@@ -811,7 +795,14 @@ export async function resolveActiveResourceContext(
         return context ? { ...context, type: 'active_resource' } : null
       }
       case 'table': {
-        return await resolveTableResource(resourceId, workspaceId, userId, chatId, viewId)
+        return await resolveTableResource(
+          resourceId,
+          workspaceId,
+          userId,
+          chatId,
+          viewId,
+          currentView
+        )
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
@@ -837,13 +828,18 @@ async function resolveTableResource(
   workspaceId: string,
   userId: string,
   chatId?: string,
-  viewId?: string
+  viewId?: string,
+  currentView?: MothershipTableViewContext
 ): Promise<AgentContext | null> {
   const principal = createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId)
-  const viewResult = viewId
-    ? await readTableViewUseCase.execute({ principal, input: { tableId, workspaceId, viewId } })
+  const selectedViewId = currentView ? currentView.viewId : viewId
+  const viewResult = selectedViewId
+    ? await readTableViewUseCase.execute({
+        principal,
+        input: { tableId, workspaceId, viewId: selectedViewId },
+      })
     : undefined
-  const { table, folderPath } = await readTableUseCase.execute({
+  const { table } = await readTableUseCase.execute({
     principal,
     input: { tableId, workspaceId },
   })
@@ -853,18 +849,24 @@ async function resolveTableResource(
     tag: '@active_resource',
     content: JSON.stringify({
       tableId,
-      ...(view
+      ...(currentView
         ? {
-            savedView: {
-              id: view.id,
-              name: view.name,
-              filter: view.config.filter ?? null,
-              sort: view.config.sort ?? null,
+            currentView: {
+              ...currentView,
+              ...(view ? { name: view.name } : {}),
             },
           }
-        : {}),
+        : view
+          ? {
+              savedView: {
+                id: view.id,
+                name: view.name,
+                filter: view.config.filter ?? null,
+                sort: view.config.sort ?? null,
+              },
+            }
+          : {}),
     }),
-    path: canonicalTableVfsPath(table.name, encodeVfsPathSegments(parseFolderPath(folderPath))),
   }
 }
 
@@ -982,7 +984,7 @@ async function resolveTableSelectionResource(
     throw new Error('Table selection exceeds the row or column limit')
   }
   const principal = createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId)
-  const { table, folderPath } = await readTableUseCase.execute({
+  const { table } = await readTableUseCase.execute({
     principal,
     input: { tableId, workspaceId },
   })
@@ -1024,7 +1026,7 @@ async function resolveTableSelectionResource(
   const divider = `| ${columns.map(() => '---').join(' | ')} |`
   const scope = hasColumnScope ? 'cell range' : 'rows'
   const describe = (size: string) =>
-    `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n`
+    `Selected ${scope} from table "${table.name}" (tableId: ${table.id}; ${size}):\n\n${header}\n${divider}\n`
 
   /**
    * The size clause, e.g. `5 rows` or `189 rows of 500, 311 omitted for length`.
@@ -1064,6 +1066,5 @@ async function resolveTableSelectionResource(
     type: 'table_selection',
     tag: label ? `@${label}` : '@',
     content,
-    path: canonicalTableVfsPath(table.name, encodeVfsPathSegments(parseFolderPath(folderPath))),
   }
 }
