@@ -11,6 +11,8 @@ vi.mock('@/lib/internal/oci-vision/operations', () => ({
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciVisionTool } from '@/lib/internal/oci-vision/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OciVisionBlock } from '@/blocks/blocks/oci_vision'
+import { ociVisionAnalyzeImageTool } from '@/tools/oci_vision/analyze_image'
 
 function request(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -27,6 +29,93 @@ describe('OCI Vision internal dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     executeOperation.mockResolvedValue({ success: true, output: { job: { id: 'job-1' } } })
+  })
+
+  it.each([null, '', undefined])(
+    'omits blank and inactive feature controls after the native parameter merge (%s)',
+    async (blank) => {
+      const raw = {
+        operation: 'analyze_image',
+        oauthCredential: 'selected',
+        source: 'object_storage',
+        namespaceName: 'namespace',
+        bucketName: 'images',
+        imageObjectName: 'image.png',
+        features: ['TEXT_DETECTION'],
+        language: 'ENG',
+        compartmentId: blank,
+        faceMaxResults: blank,
+        shouldReturnLandmarks: false,
+        classificationMaxResults: blank,
+        objectDetectionMaxResults: 5,
+      }
+      const params = {
+        ...raw,
+        ...OciVisionBlock.tools.config?.params?.(raw),
+        accessToken: 'resolved',
+      }
+      const response = await executeOciVisionTool(
+        request({
+          toolId: ociVisionAnalyzeImageTool.id,
+          input: ociVisionAnalyzeImageTool.operation.input(params),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(executeOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentialId: 'resolved',
+          features: ['TEXT_DETECTION'],
+          language: 'ENG',
+        }),
+        expect.anything()
+      )
+      for (const field of [
+        'compartmentId',
+        'faceMaxResults',
+        'shouldReturnLandmarks',
+        'classificationMaxResults',
+        'objectDetectionMaxResults',
+      ])
+        expect(executeOperation.mock.lastCall?.[0][field]).toBeUndefined()
+    }
+  )
+
+  it('preserves active false controls and rejects invalid nonempty feature limits', async () => {
+    const raw = {
+      operation: 'analyze_image',
+      source: 'object_storage',
+      namespaceName: 'namespace',
+      bucketName: 'images',
+      imageObjectName: 'image.png',
+      features: ['FACE_DETECTION'],
+      shouldReturnLandmarks: false,
+      faceMaxResults: '2',
+    }
+    const params = {
+      ...raw,
+      ...OciVisionBlock.tools.config?.params?.(raw),
+      accessToken: 'resolved',
+    }
+    expect(
+      (
+        await executeOciVisionTool(
+          request({
+            toolId: ociVisionAnalyzeImageTool.id,
+            input: ociVisionAnalyzeImageTool.operation.input(params),
+          })
+        )
+      ).status
+    ).toBe(200)
+    expect(executeOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shouldReturnLandmarks: false,
+        faceMaxResults: 2,
+      }),
+      expect.anything()
+    )
+    expect(() =>
+      OciVisionBlock.tools.config?.params?.({ ...raw, faceMaxResults: 'invalid' })
+    ).toThrow()
   })
 
   it('uses trusted context and ignores workspace or credential aliases in input', async () => {

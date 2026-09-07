@@ -504,8 +504,14 @@ export const OciVisionBlock: BlockConfig<OciVisionResponse> = {
       params: (params) => {
         const operation = (params.operation || 'analyze_image') as OciVisionOperation
         if (!operationFields[operation]) throw new Error('Unsupported OCI Vision operation')
-        const result: Record<string, unknown> = { oauthCredential: params.oauthCredential }
-        if (params.region) result.region = params.region
+        /** Parameter transforms are patches: explicitly clear absent or inactive semantic fields. */
+        const result: Record<string, unknown> = Object.fromEntries(
+          Object.values(operationFields)
+            .flat()
+            .map((field) => [field, undefined])
+        )
+        result.oauthCredential = params.oauthCredential
+        result.region = params.region || undefined
         for (const field of operationFields[operation]) {
           const value = params[field]
           if (value !== undefined && value !== null && value !== '') result[field] = value
@@ -530,7 +536,7 @@ export const OciVisionBlock: BlockConfig<OciVisionResponse> = {
             ['FACE_DETECTION', ['faceMaxResults', 'shouldReturnLandmarks']],
           ] as const) {
             if (!features.includes(feature)) {
-              for (const field of fields) delete result[field]
+              for (const field of fields) result[field] = undefined
             }
           }
         }
