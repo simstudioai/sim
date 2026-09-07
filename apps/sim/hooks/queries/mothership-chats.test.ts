@@ -154,6 +154,47 @@ describe('tasks query boundary parsing', () => {
     })
   })
 
+  it('retains saved table views, file paths and execution identities when reading chat resources', async () => {
+    const resources: MothershipResource[] = [
+      { type: 'table', id: 'table-1', title: 'Invoices', viewId: 'overdue' },
+      { type: 'file', id: 'file-1', title: 'Report.csv', path: 'reports/Report.csv' },
+      { type: 'log', id: 'log-1', title: 'Invoice run', executionId: 'run-1' },
+    ]
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        chat: { id: 'chat-1', title: null, messages: [], activeStreamId: null, resources },
+      })
+    )
+    expect((await fetchMothershipChatHistory('chat-1')).resources).toEqual(resources)
+  })
+
+  it('sends and reads the complete resource address through the client mutation contract', async () => {
+    const resource: MothershipResource = {
+      type: 'table',
+      id: 'table-1',
+      title: 'Invoices',
+      viewId: 'overdue',
+    }
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ success: true, resources: [resource] }))
+    const mutation = useAddChatResource('chat-1') as unknown as {
+      mutationFn: (input: {
+        chatId: string
+        resource: MothershipResource
+      }) => Promise<{ resources: MothershipResource[] }>
+    }
+    expect(await mutation.mutationFn({ chatId: 'chat-1', resource })).toEqual({
+      resources: [resource],
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/mothership/chat/resources',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ chatId: 'chat-1', resource }),
+      })
+    )
+  })
+
   it('rejects invalid fallback chat history responses', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
@@ -171,7 +212,7 @@ describe('tasks query boundary parsing', () => {
       )
 
     await expect(fetchMothershipChatHistory('chat-1')).rejects.toThrow(
-      'Invalid chat response: chat.resources[0].type is invalid'
+      'Invalid chat response: chat.resources[0] is invalid'
     )
   })
 

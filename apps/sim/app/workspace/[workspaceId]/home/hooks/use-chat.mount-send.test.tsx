@@ -442,6 +442,29 @@ describe('useChat remount send recovery', () => {
     vi.clearAllMocks()
   })
 
+  it('hydrates changed resource addresses and an empty saved panel list', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-resource-address',
+      title: 'Invoices',
+      messages: [],
+      activeStreamId: null,
+      resources: [{ type: 'table', id: 'table-1', title: 'Invoices', viewId: 'all-invoices' }],
+    }
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await waitFor(() => getResult().resources[0]?.viewId === 'all-invoices')
+    await act(async () => {
+      queryClient.setQueryData(mothershipChatKeys.detail(history.id), {
+        ...history,
+        resources: [{ ...history.resources[0], viewId: 'overdue-invoices' }],
+      })
+    })
+    await waitFor(() => getResult().resources[0]?.viewId === 'overdue-invoices')
+    await act(async () => {
+      queryClient.setQueryData(mothershipChatKeys.detail(history.id), { ...history, resources: [] })
+    })
+    await waitFor(() => getResult().resources.length === 0)
+  })
+
   it('preserves a visible workflow watch when Stop persists the partial response', async () => {
     state.postBehavior = 'task'
     const { getResult } = renderUseChatInChat('chat-a')

@@ -23,6 +23,7 @@ import {
   restoreMothershipChatContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
+import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
@@ -31,7 +32,7 @@ import {
   isFilePreviewSession,
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
-import { type MothershipResource, MothershipResourceType } from '@/lib/mothership/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -83,13 +84,6 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string'
 }
 
-function isResourceType(value: unknown): value is MothershipResource['type'] {
-  return (
-    typeof value === 'string' &&
-    Object.values(MothershipResourceType).some((type) => type === value)
-  )
-}
-
 function parseStreamSnapshot(value: unknown): MothershipChatHistory['streamSnapshot'] {
   if (!isRecordLike(value)) {
     return null
@@ -129,17 +123,9 @@ function normalizeMessages(value: unknown): PersistedMessage[] {
 }
 
 function parseResource(value: unknown, context: string): MothershipResource {
-  assertValid(isRecordLike(value), `${context} must be an object`)
-  assertValid(isResourceType(value.type), `${context}.type is invalid`)
-  assertValid(typeof value.id === 'string', `${context}.id must be a string`)
-  assertValid(typeof value.title === 'string', `${context}.title must be a string`)
-
-  return {
-    type: value.type,
-    id: value.id,
-    title: value.title,
-    ...(typeof value.viewId === 'string' && value.viewId ? { viewId: value.viewId } : {}),
-  }
+  const parsed = mothershipResourceSchema.safeParse(value)
+  assertValid(parsed.success, `${context} is invalid`)
+  return parsed.data
 }
 
 function parseResources(value: unknown, context: string): MothershipResource[] {
@@ -492,7 +478,7 @@ export function useReorderChatResources(chatId?: string) {
 
 async function removeChatResource(params: {
   chatId: string
-  resourceType: string
+  resourceType: MothershipResource['type']
   resourceId: string
 }): Promise<{ resources: MothershipResource[] }> {
   const data = await requestJson(removeMothershipChatResourceContract, {

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
+import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -199,17 +200,9 @@ export const adminMothershipQuerySchema = z
   .passthrough()
 export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
-const mothershipChatResourceItemSchema = z.object({
-  type: z.string(),
-  id: z.string(),
-  title: z.string(),
-  /** Saved view a table tab is pinned to (type "table" only); dropped here, it would be lost on reorder. */
-  viewId: z.string().min(1).optional(),
-})
-
 const mothershipChatResourcesResponseSchema = z.object({
   success: z.literal(true),
-  resources: z.array(mothershipChatResourceItemSchema),
+  resources: z.array(mothershipResourceSchema),
 })
 
 export const addMothershipChatResourceBodySchema = addCopilotChatResourceBodySchema
@@ -217,12 +210,12 @@ export type AddMothershipChatResourceBody = z.input<typeof addMothershipChatReso
 
 const reorderMothershipChatResourcesBodySchema = z.object({
   chatId: z.string().min(1),
-  resources: z.array(mothershipChatResourceItemSchema),
+  resources: z.array(mothershipResourceSchema),
 })
 
 const removeMothershipChatResourceBodySchema = z.object({
   chatId: z.string().min(1),
-  resourceType: z.string().min(1),
+  resourceType: mothershipResourceSchema.shape.type,
   resourceId: z.string().min(1),
 })
 
