@@ -8,7 +8,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { configureScimConnection, getScimConnection } from '@/lib/scim/application/admin/connection'
+import { configureScimConnection, getScimConnection } from '@/ee/scim/application/admin/connection'
 
 /**
  * The organization's directory-provisioning connection.

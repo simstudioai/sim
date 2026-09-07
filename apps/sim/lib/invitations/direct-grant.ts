@@ -30,12 +30,12 @@ import {
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendWorkspaceAddedEmail } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertMembershipNotScimManaged } from '@/lib/scim/managed-membership'
 import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
+import { assertMembershipNotScimManaged } from '@/ee/scim/managed-membership'
 
 const logger = createLogger('InvitationDirectGrant')
 

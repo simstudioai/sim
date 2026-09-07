@@ -8,10 +8,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import {
-  listScimGroupMappings,
-  upsertScimGroupMapping,
-} from '@/lib/scim/application/admin/mappings'
+import { listScimGroupMappings, upsertScimGroupMapping } from '@/ee/scim/application/admin/mappings'
 
 /** What each directory group means inside Sim. */
 

@@ -1,5 +1,5 @@
 import { defineScimDiscoveryRoute } from '@/lib/api/server/routes/scim-route'
-import { serviceProviderConfig } from '@/lib/scim/protocol/discovery'
+import { serviceProviderConfig } from '@/ee/scim/protocol/discovery'
 
 /** Unauthenticated by design: a provider negotiates before it holds a credential. */
 export const GET = defineScimDiscoveryRoute((baseUrl) => serviceProviderConfig(baseUrl))

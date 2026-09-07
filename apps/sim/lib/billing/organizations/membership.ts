@@ -54,12 +54,12 @@ import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
-import { endDirectoryMembershipTx } from '@/lib/scim/identity/end-directory-membership'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
 } from '@/lib/workspaces/utils'
+import { endDirectoryMembershipTx } from '@/ee/scim/identity/end-directory-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'

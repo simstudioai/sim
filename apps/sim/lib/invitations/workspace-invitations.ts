@@ -31,10 +31,6 @@ import {
 } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  assertInviteeNotScimManaged,
-  scimManagedUserPredicate,
-} from '@/lib/scim/managed-membership'
-import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
@@ -47,6 +43,7 @@ import {
   type WorkspaceInvitePolicy,
 } from '@/lib/workspaces/policy'
 import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
+import { assertInviteeNotScimManaged, scimManagedUserPredicate } from '@/ee/scim/managed-membership'
 
 /**
  * What the invitee becomes in the organization. `member` and `admin` are

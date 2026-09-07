@@ -180,7 +180,7 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
 const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
-  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]|\bimport\s*\{[^}]*\bdefineScimRoute\b[^}]*\}\s*from\s*['"]@\/lib\/scim\/route['"]/
+  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]|\bimport\s*\{[^}]*\bdefineScimRoute\b[^}]*\}\s*from\s*['"]@\/ee\/scim\/route['"]/
 const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
   /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute|defineScimRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
