@@ -30,8 +30,7 @@ export interface FinalizeAssistantTurnResult {
 
 /**
  * Clear the active stream marker for a chat and optionally append the assistant
- * message if a response has not already been persisted immediately after the
- * triggering user message.
+ * message once for its turn, including user steering accepted within that turn.
  */
 export async function finalizeAssistantTurn({
   chatId,
@@ -107,10 +106,17 @@ export async function finalizeAssistantTurn({
           }
         }
 
-        // Append only when the user message is still the last row: anything
-        // after it means the turn already has a response (dedup under the lock).
+        /** Steering is another user message in the same turn. The turn's response identity,
+         * rather than adjacency to its first message, determines whether it was answered. */
         const [lastMessage] = await tx
-          .select({ messageId: copilotMessages.messageId, role: copilotMessages.role })
+          .select({
+            messageId: copilotMessages.messageId,
+            role: copilotMessages.role,
+            streamId: copilotMessages.streamId,
+            hasResponse: sql<boolean>`EXISTS (SELECT 1 FROM ${copilotMessages} response
+              WHERE response.chat_id = ${chatId} AND response.stream_id = ${userMessageId}
+                AND response.role = 'assistant' AND response.deleted_at IS NULL)`,
+          })
           .from(copilotMessages)
           .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
           .orderBy(
@@ -119,8 +125,11 @@ export async function finalizeAssistantTurn({
             desc(copilotMessages.id)
           )
           .limit(1)
-        const canAppendAssistant = lastMessage?.messageId === userMessageId
-        const alreadyHasResponse = lastMessage?.role === 'assistant'
+        const alreadyHasResponse = lastMessage?.hasResponse || lastMessage?.role === 'assistant'
+        const canAppendAssistant =
+          !alreadyHasResponse &&
+          lastMessage?.role === 'user' &&
+          (lastMessage.messageId === userMessageId || lastMessage.streamId === userMessageId)
 
         const updateWhere = userId
           ? and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId))
