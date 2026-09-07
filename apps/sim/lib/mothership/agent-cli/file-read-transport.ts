@@ -27,6 +27,7 @@ const logger = createLogger('MothershipFileReads')
 /** Private file-read metadata stays in the authenticated host; the CLI consumes its usual wire shape. */
 export function createFileReadTransport(context: {
   endpoint: string
+  transport?: typeof fetch
   userId: string
   chatId?: string
   registry?: ResolvedSecretTraceRegistry
@@ -63,10 +64,10 @@ export function createFileReadTransport(context: {
       !url.pathname.startsWith(prefix) ||
       collectionPaths.has(url.pathname)
     ) {
-      return fetch(input, init)
+      return (context.transport ?? fetch)(input, init)
     }
     const match = /^([^/]+)(\/text)?$/.exec(url.pathname.slice(prefix.length))
-    if (!match) return fetch(input, init)
+    if (!match) return (context.transport ?? fetch)(input, init)
     const request = new NextRequest(new Request(input, init))
     let stream: ReadableStream<Uint8Array> | undefined
     try {
