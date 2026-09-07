@@ -37,7 +37,7 @@ export type ChatContext =
   | { kind: 'logs'; executionId?: string; label: string }
   | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
-  | { kind: 'table'; tableId: string; label: string }
+  | { kind: 'table'; tableId: string; viewId?: string; label: string }
   | {
       kind: 'table_selection'
       tableId: string
