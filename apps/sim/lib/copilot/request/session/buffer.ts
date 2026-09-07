@@ -260,6 +260,13 @@ export async function appendEvents(
     ...(scope?.userId ? { userId: scope.userId } : {}),
   }
   const budgetKeys = getRedisBudgetKeys(budgetScope)
+  /*
+    A counter must never expire before the data it accounts for: the next write would then
+    see zero reserved and let the stream grow by another full ceiling. `COPILOT_STREAM_TTL_SECONDS`
+    is configurable and defaults to exactly the budget window, so raising it would otherwise
+    break that invariant silently.
+  */
+  const budgetTtlSeconds = Math.max(limits.ttlSeconds, config.ttlSeconds)
 
   /*
     Redis measures a member in UTF-8 bytes, so the ceiling has to be measured the same
@@ -321,7 +328,7 @@ export async function appendEvents(
         config.eventLimit,
         limits.maxOwnerBytes,
         limits.maxUserBytes,
-        limits.ttlSeconds,
+        budgetTtlSeconds,
         String(chunk.members[chunk.members.length - 1].seq),
         ...zaddArgs
       )

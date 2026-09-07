@@ -162,6 +162,15 @@ const COMPACT_CHECK_EVERY = 64
 /** Compaction critical section (snapshot + xAdd + xTrim) is fast; a generous TTL covers a slow Redis
  * round-trip without risking expiry mid-compact. Released via compare-and-delete regardless. */
 const COMPACT_LOCK_TTL_MS = 10_000
+/**
+ * Quiet period after a failed fold before another may be forced.
+ *
+ * A failed fold deliberately leaves the trigger armed so the bytes are not forgotten, but the
+ * snapshot `XADD` lands before the `XTRIM` — so if the trim is what failed, retrying immediately
+ * appends another full-document snapshot each time, turning a Redis blip into exactly the write
+ * amplification the threshold exists to prevent. The entry-count path is unaffected.
+ */
+const COMPACT_RETRY_COOLDOWN_MS = 30_000
 /** Retry a failed stream append this many times before giving up, so a transient Redis blip doesn't
  * silently drop an edit from the shared log (which no peer would then ever see). */
 const PUBLISH_MAX_RETRIES = 3
@@ -253,6 +262,8 @@ interface StoreRoom {
   lastId: string
   /** Local publish count, to pace compaction checks. */
   publishes: number
+  /** Epoch ms before which no forced fold is attempted, after one failed. */
+  compactRetryAfter: number
   /**
    * Deltas this task has appended and not yet folded, as `{id, bytes}` pairs in append order.
    *
@@ -349,6 +360,7 @@ export class FileDocStore {
       doc,
       lastId: '0',
       publishes: 0,
+      compactRetryAfter: 0,
       pendingDeltas: [],
       seededObserved: false,
       realEdited: false,
@@ -804,6 +816,7 @@ export class FileDocStore {
     const room = this.rooms.get(name)
     if (!room) return
     try {
+      if (force && Date.now() < room.compactRetryAfter) return
       if (!force && (await this.write.xLen(streamKey(name))) < COMPACT_THRESHOLD) return
       const key = `${COMPACT_LOCK_PREFIX}${name}`
       const token = await this.acquireLock(key, COMPACT_LOCK_TTL_MS)
@@ -844,6 +857,7 @@ export class FileDocStore {
         await this.releaseLock(key, token)
       }
     } catch (error) {
+      room.compactRetryAfter = Date.now() + COMPACT_RETRY_COOLDOWN_MS
       logger.warn(`FileDocStore compaction failed for ${name}`, { error: getErrorMessage(error) })
     }
   }

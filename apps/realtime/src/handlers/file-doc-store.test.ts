@@ -134,6 +134,7 @@ interface StoreRoomInternals {
   pendingDeltas: Array<{ id: string; bytes: number }>
   realEdited: boolean
   publishes: number
+  compactRetryAfter: number
   doc: Y.Doc
   seededObserved: boolean
 }
@@ -365,6 +366,7 @@ describe('FileDocStore', () => {
       doc: new Y.Doc(),
       lastId: '400-0',
       publishes: 0,
+      compactRetryAfter: 0,
       pendingDeltas: [],
       seededObserved: true,
       realEdited: true,
@@ -507,11 +509,21 @@ describe('FileDocStore', () => {
       throw new Error('redis blip')
     }
     await internals(a).maybeCompact(NAME, true)
-    write.xTrim = original
 
     // A failed fold must not disarm the trigger — otherwise the stream stays oversized until
     // this task happens to append another full threshold's worth of deltas.
     expect(room.pendingDeltas).toEqual([{ id: '1-0', bytes: 9 * 1024 * 1024 }])
+
+    // But it must not retry immediately either: the snapshot XADD lands before the XTRIM, so a
+    // persistent trim failure would append a full-document snapshot on every attempt.
+    const snapshotsAfterFailure = state.backing!.streams.get(`filedoc:stream:${NAME}`)?.length ?? 0
+    await internals(a).maybeCompact(NAME, true)
+    await internals(a).maybeCompact(NAME, true)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)?.length ?? 0).toBe(
+      snapshotsAfterFailure
+    )
+
+    write.xTrim = original
     doc.destroy()
   })
 
@@ -557,6 +569,7 @@ describe('FileDocStore', () => {
       doc: agentDoc,
       lastId: '400-0',
       publishes: 0,
+      compactRetryAfter: 0,
       pendingDeltas: [],
       seededObserved: true,
       realEdited: false,
@@ -724,6 +737,7 @@ describe('FileDocStore', () => {
       doc: docA,
       lastId: '401-0',
       publishes: 0,
+      compactRetryAfter: 0,
       pendingDeltas: [],
       seededObserved: true,
       realEdited: true,
@@ -732,6 +746,7 @@ describe('FileDocStore', () => {
       doc: new Y.Doc(),
       lastId: '400-0',
       publishes: 0,
+      compactRetryAfter: 0,
       pendingDeltas: [],
       seededObserved: true,
       realEdited: true,
