@@ -74,6 +74,7 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
         userId: current.userId,
         organizationId: context.organizationId,
         memberId: membership.id,
+        revokePersonalApiKeys: true,
       })
       if (!removal.success) {
         throw new ScimError(409, undefined, removal.error ?? 'The member could not be removed')

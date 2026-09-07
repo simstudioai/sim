@@ -33,26 +33,17 @@ export interface MappingRow {
   role: string | null
 }
 
-export interface DefaultWorkspaceGrant {
-  workspaceId: string
-  permission: PermissionType
-}
-
 function grantKey(grant: ProjectionGrant): string {
   return `${grant.targetKind}:${grant.targetId}`
 }
 
 /**
- * Collapses mapping rows and connection defaults into one grant per target.
+ * Collapses mapping rows into one grant per target.
  *
- * Two groups granting the same workspace resolve to the stronger level, and a
- * connection default is treated like any other mapping so a group can raise it.
- * Rows whose target column is missing describe nothing and are dropped.
+ * Two groups granting the same workspace resolve to the stronger level. Rows
+ * whose target column is missing describe nothing and are dropped.
  */
-export function resolveDesiredGrants(
-  rows: readonly MappingRow[],
-  defaults: readonly DefaultWorkspaceGrant[] = []
-): ProjectionGrant[] {
+export function resolveDesiredGrants(rows: readonly MappingRow[]): ProjectionGrant[] {
   const byKey = new Map<string, ProjectionGrant>()
 
   const offer = (grant: ProjectionGrant) => {
@@ -66,14 +57,6 @@ export function resolveDesiredGrants(
     ) {
       byKey.set(key, grant)
     }
-  }
-
-  for (const grant of defaults) {
-    offer({
-      targetKind: 'workspace',
-      targetId: grant.workspaceId,
-      permissionType: grant.permission,
-    })
   }
 
   for (const row of rows) {

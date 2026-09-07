@@ -17,6 +17,10 @@ export {
   createInternalResourceConcealmentPolicy,
   createV2ResourceConcealmentPolicy,
 } from '@/lib/api/server/routes/resource-concealment'
+export {
+  createScimRouteBuilder,
+  defineScimDiscoveryRoute,
+} from '@/lib/api/server/routes/scim-route'
 export { defineV2BinaryRoute } from '@/lib/api/server/routes/v2-binary-route'
 export { defineV2BodyLifecycleRoute } from '@/lib/api/server/routes/v2-body-lifecycle-route'
 export {

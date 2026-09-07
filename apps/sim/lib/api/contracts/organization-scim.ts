@@ -12,16 +12,10 @@ const organizationParamsSchema = z.object({ id: organizationIdSchema })
 
 const scimScopeSchema = z.enum(['users:read', 'users:write', 'groups:read', 'groups:write'])
 
-const workspaceGrantSchema = z.object({
-  workspaceId: z.string().min(1).max(128),
-  permission: z.enum(['admin', 'write', 'read']),
-})
-
 export const scimConnectionSettingsSchema = z.object({
   lockManualMembership: z.boolean().optional(),
   disableJit: z.boolean().optional(),
   autoMapPermissionGroupsByName: z.boolean().optional(),
-  defaultWorkspaceGrants: z.array(workspaceGrantSchema).max(50).optional(),
 })
 export type ScimConnectionSettingsInput = z.input<typeof scimConnectionSettingsSchema>
 

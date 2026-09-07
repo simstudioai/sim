@@ -5845,12 +5845,6 @@ export const SCIM_SCOPES: readonly ScimScope[] = [
   'groups:write',
 ]
 
-/** A workspace every provisioned user receives, at the named permission. */
-export interface ScimDefaultWorkspaceGrant {
-  workspaceId: string
-  permission: 'admin' | 'write' | 'read'
-}
-
 /** Administrator-controlled behavior of one organization's SCIM connection. */
 export interface ScimConnectionSettings {
   /**
@@ -5868,7 +5862,6 @@ export interface ScimConnectionSettings {
   /** Map a pushed group to an existing permission group of the same name. Nothing is created. */
   autoMapPermissionGroupsByName?: boolean
   /** Workspaces every provisioned user receives regardless of group membership. */
-  defaultWorkspaceGrants?: ScimDefaultWorkspaceGrant[]
 }
 
 /** One email address as the identity provider supplied it. */

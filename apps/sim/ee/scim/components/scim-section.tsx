@@ -45,7 +45,7 @@ import {
   SETTING_TOGGLES,
   TARGET_KIND_OPTIONS,
   type WorkspacePermission,
-} from '@/ee/scim/constants'
+} from '@/ee/scim/components/options'
 import {
   useConfigureScimConnection,
   useDeleteScimGroupMapping,

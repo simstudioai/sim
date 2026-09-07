@@ -1,5 +1,4 @@
 import { member, type ScimUserAttributes, scimUserTombstone, ssoDomain, user } from '@sim/db/schema'
-import { generateId } from '@sim/utils/id'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
@@ -149,26 +148,6 @@ export async function resolveProvisionedIdentity(
   }
 
   return { action: 'link', userId: existing.id, via: 'verified-domain' }
-}
-
-/** Records that an external identity was deprovisioned, so a later recreate relinks. */
-export async function upsertTombstone(
-  tx: DbOrTx,
-  params: { connectionId: string; externalId: string; userId: string }
-): Promise<void> {
-  await tx
-    .insert(scimUserTombstone)
-    .values({
-      id: generateId(),
-      connectionId: params.connectionId,
-      externalId: params.externalId,
-      userId: params.userId,
-      deletedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [scimUserTombstone.connectionId, scimUserTombstone.externalId],
-      set: { userId: params.userId, deletedAt: new Date() },
-    })
 }
 
 /** Clears a tombstone once its identity has been provisioned again. */

@@ -1,4 +1,4 @@
-import { createScimRouteBuilder } from '@/lib/api/server/routes/scim-route'
+import { createScimRouteBuilder } from '@/lib/api/server/routes'
 import { authenticateScimRequest } from '@/ee/scim/authenticate'
 import { scimBaseUrl } from '@/ee/scim/base-url'
 import { recordScimRequest } from '@/ee/scim/request-log'

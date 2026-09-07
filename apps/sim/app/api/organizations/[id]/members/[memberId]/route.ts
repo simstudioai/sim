@@ -443,6 +443,7 @@ export const DELETE = withRouteHandler(
         userId: targetUserId,
         organizationId,
         memberId: targetMember[0].id,
+        spareSessionToken: session.session.token,
       })
 
       if (!result.success) {

@@ -27,11 +27,12 @@ const LEASE_TTL_MS = 15 * 60 * 1000
 /**
  * How often a connection is swept when nothing else triggers it.
  *
- * Matches the cron's cadence: every connection is re-walked once an hour, oldest
- * first. A pass over an in-sync tenant is reads only, so the hourly guarantee
- * the docs make costs little.
+ * The cron fires hourly and stamps `reconciledAt` at the end of a pass, so a
+ * connection is due on the next tick only if this interval is comfortably
+ * shorter than the cron period; an interval equal to it would skip every other
+ * tick. Fifty minutes keeps the once-an-hour guarantee the docs make.
  */
-const RECONCILE_INTERVAL_MS = 60 * 60 * 1000
+const RECONCILE_INTERVAL_MS = 50 * 60 * 1000
 
 /**
  * Users reconciled per transaction. The organization lock is held for the whole

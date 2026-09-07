@@ -1,4 +1,3 @@
-import { db } from '@sim/db'
 import { scimConnection, scimUser } from '@sim/db/schema'
 import { type AnyColumn, type SQL, sql } from 'drizzle-orm'
 import { ForbiddenOperationError } from '@/lib/core/application'
@@ -52,14 +51,14 @@ export function scimManagedUserPredicate(
 export async function assertMembershipNotScimManaged(params: {
   organizationId: string
   userId: string
-  executor?: DbOrTx
+  executor: DbOrTx
 }): Promise<void> {
   /**
    * A deployment or plan that no longer has directory provisioning must not keep
    * refusing manual changes on behalf of a directory that can no longer sync.
    */
   if (!isScimEnabled) return
-  const [row] = await (params.executor ?? db)
+  const [row] = await params.executor
     .select({ managed: scimManagedUserPredicate(params.organizationId, sql`${params.userId}`) })
     .from(sql`(select 1) as probe`)
   if (!row?.managed) return

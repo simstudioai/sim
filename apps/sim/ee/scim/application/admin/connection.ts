@@ -6,11 +6,7 @@ import { desc, eq } from 'drizzle-orm'
 import type { ScimConnectionSettingsInput } from '@/lib/api/contracts/organization-scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  assertWorkspaceInOrganization,
-  loadConnectionView,
-  requireConnection,
-} from '@/ee/scim/application/admin/connection-view'
+import { loadConnectionView, requireConnection } from '@/ee/scim/application/admin/connection-view'
 import {
   defineAuthorizedScimAdminUseCase,
   type ScimAdminUseCaseArgs,
@@ -36,21 +32,6 @@ export interface ConfigureScimConnectionInput {
 export const configureScimConnection = defineAuthorizedScimAdminUseCase({
   operation: scimAdminOperations.configure,
   async execute({ input, context }: ScimAdminUseCaseArgs<ConfigureScimConnectionInput>) {
-    /**
-     * A default grant hands every provisioned member a workspace, so the
-     * workspace must be this organization's — the same check a group mapping
-     * gets, or an administrator could name a workspace id from another tenant.
-     */
-    for (const grant of input.settings?.defaultWorkspaceGrants ?? []) {
-      await assertWorkspaceInOrganization(context.organizationId, grant.workspaceId)
-    }
-
-    /**
-     * Read, merge, and write under the organization lock, so two administrators
-     * changing different settings at once both land instead of the later write
-     * carrying a stale copy of the earlier one's field — and two first-time
-     * enables, where there is no row yet to lock, cannot both insert.
-     */
     const { created, previousStatus, status } = await db.transaction(async (tx) => {
       await acquireOrganizationMutationLock(tx, context.organizationId)
       const [existing] = await tx

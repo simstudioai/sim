@@ -28,7 +28,7 @@ export const SCIM_BASE_PATH = '/api/scim/v2'
 export const SCIM_MAX_PAGE_SIZE = 100
 
 /** Largest membership a single Group may carry. */
-export const SCIM_MAX_GROUP_MEMBERS = 1000
+export const SCIM_MAX_GROUP_MEMBERS = 5000
 
 /** Largest number of `and`-joined terms accepted in one filter. */
 export const SCIM_MAX_FILTER_TERMS = 10

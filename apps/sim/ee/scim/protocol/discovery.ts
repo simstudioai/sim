@@ -1,7 +1,6 @@
 import {
   SCIM_ENTERPRISE_USER_SCHEMA,
   SCIM_GROUP_SCHEMA,
-  SCIM_LIST_RESPONSE_SCHEMA,
   SCIM_MAX_PAGE_SIZE,
   SCIM_RESOURCE_TYPE_SCHEMA,
   SCIM_SCHEMA_SCHEMA,
@@ -161,15 +160,4 @@ export function schemaDefinitions(baseUrl: string) {
       meta: { resourceType: 'Schema', location: `${baseUrl}/Schemas/${SCIM_GROUP_SCHEMA}` },
     },
   ]
-}
-
-/** Wraps discovery documents in the list envelope RFC 7644 requires. */
-export function discoveryList(resources: unknown[]) {
-  return {
-    schemas: [SCIM_LIST_RESPONSE_SCHEMA],
-    totalResults: resources.length,
-    startIndex: 1,
-    itemsPerPage: resources.length,
-    Resources: resources,
-  }
 }

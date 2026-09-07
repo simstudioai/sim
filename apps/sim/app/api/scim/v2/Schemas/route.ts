@@ -1,4 +1,7 @@
-import { defineScimDiscoveryRoute } from '@/lib/api/server/routes/scim-route'
-import { discoveryList, schemaDefinitions } from '@/ee/scim/protocol/discovery'
+import { defineScimDiscoveryRoute } from '@/lib/api/server/routes'
+import { schemaDefinitions } from '@/ee/scim/protocol/discovery'
+import { toListResponse } from '@/ee/scim/protocol/resources'
 
-export const GET = defineScimDiscoveryRoute((baseUrl) => discoveryList(schemaDefinitions(baseUrl)))
+export const GET = defineScimDiscoveryRoute((baseUrl) =>
+  toListResponse(schemaDefinitions(baseUrl), schemaDefinitions(baseUrl).length, 1)
+)

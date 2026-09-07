@@ -13,7 +13,7 @@ Directory provisioning connects your identity provider to Sim over SCIM 2.0. You
 It pairs with [SSO](/platform/enterprise/sso). SSO proves who someone is when they sign in. Directory provisioning decides who exists and what they can reach, before and after that.
 
 <Callout type="info">
-  Enterprise plans. Requires at least one [verified domain](/platform/enterprise/verified-domains) for your organization. Self-hosted deployments turn it on with `SCIM_ENABLED=true` and `NEXT_PUBLIC_SCIM_ENABLED=true`, alongside the [SSO variables](/platform/enterprise/sso#self-hosted-setup).
+  Enterprise plans. Requires [SSO](/platform/enterprise/sso) to be enabled, because provisioning is configured from the SSO settings page, and at least one [verified domain](/platform/enterprise/verified-domains) for your organization. Self-hosted deployments turn it on with `SCIM_ENABLED=true` (the server) and `NEXT_PUBLIC_SCIM_ENABLED=true` (the settings page), alongside the [SSO variables](/platform/enterprise/sso#self-hosted-setup).
 </Callout>
 
 ## What it does
@@ -54,7 +54,7 @@ https://<your-sim-domain>/api/scim/v2
 <Step>
 ### Issue a credential
 
-Select **Issue credential**. The token appears once — copy it straight into your provider.
+Choose whether the credential expires (never, 90 days, or a year) and select **Issue credential**. The token appears once — copy it straight into your provider.
 
 Two credentials can be active at a time, so you can rotate without downtime: issue the new one, update your provider, confirm a sync succeeds, then revoke the old one.
 </Step>
@@ -121,7 +121,11 @@ Groups mean nothing to Sim until you say what they stand for. In **Settings → 
 - a **workspace**, at Read, Write, or Admin
 - the **organization admin role**
 
-A group can carry several mappings. When two groups grant the same workspace at different levels, the stronger one wins.
+A group can carry several mappings. When two groups grant the same workspace at different levels, the stronger one wins. The organization's default permission group cannot be a target: it governs by having no members.
+
+Turning on **Match permission groups by name** maps a pushed group to an existing permission group of the same name automatically, and remaps it when the group is renamed. Nothing is created.
+
+Mapping a permission group to a directory group switches that permission group to explicit membership permanently: it governs exactly the people in it, and an empty group governs nobody. A permission group that governed everyone in its workspaces stops doing so the moment it is mapped, so map groups you created for the directory rather than your organization-wide ones.
 
 </Step>
 
@@ -141,7 +145,7 @@ If you want the directory to be the only way in, enable **Disable just-in-time p
 
 ## Watching a sync
 
-**Settings → SSO → Directory provisioning → Activity** lists recent requests with their status and, for a failure, what was wrong. Providers report a failed cycle without saying what they sent, so this is usually the fastest way to see the cause.
+**Settings → SSO → Directory provisioning → Activity** lists recent authenticated requests with their status and, for a failure, what was wrong. Providers report a failed cycle without saying what they sent, so this is usually the fastest way to see the cause. A request that fails to authenticate has no connection to log against, so a wrong or revoked token shows up only as your provider's own authentication error.
 
 Sim also re-applies every group mapping once an hour, so drift cannot persist. You can run it on demand with **Reconcile now**, which is also how a change to the connection settings reaches members before the next sync.
 
@@ -150,7 +154,9 @@ Sim also re-applies every group mapping once an hour, so drift cannot persist. Y
 - Base URL: `https://<your-sim-domain>/api/scim/v2`
 - Authentication: `Authorization: Bearer <credential>`
 - Resources: `/Users`, `/Groups`, plus `/ServiceProviderConfig`, `/ResourceTypes`, and `/Schemas`
-- Filters: `eq`, joined with `and`, on `id`, `userName`, `externalId`, `emails.value`, `active`, and `displayName`
+- Filters: `eq` only, up to ten terms joined with `and`. Users: `id`, `userName`, `externalId`, `emails.value` (also `emails[type eq "work"].value`), `active`. Groups: `id`, `displayName`, `externalId`
+- Limits: 1,500 requests per minute per connection, 1 MB per request, 5,000 members per group
+- `userName` is stored and returned lower-cased; attributes Sim does not model are kept and returned as sent, and a PUT preserves ones it omits
 - Page size: up to 100 per request
 
 <FAQ items={[
@@ -177,6 +183,10 @@ Sim also re-applies every group mapping once an hour, so drift cannot persist. Y
   {
     question: "Does a deactivation sign someone out immediately?",
     answer: "Their sessions are deleted at once and their personal API keys stop authenticating immediately. The organization's security version changes at the same time, so a browser still holding a cached session cookie is re-checked on its next request and refused."
+  },
+  {
+    question: "What happens to deactivated members if we turn provisioning off?",
+    answer: "They stay deactivated. Disabling the connection stops the directory from making changes; it does not undo the ones it made. To restore someone without the directory, remove them from the organization and invite them again."
   },
   {
     question: "Can we still invite people manually?",

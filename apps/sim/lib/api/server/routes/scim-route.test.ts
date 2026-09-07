@@ -23,7 +23,7 @@ import {
   deleteScimUserContract,
   listScimUsersContract,
 } from '@/lib/api/contracts/scim'
-import { createScimRouteBuilder } from '@/lib/api/server/routes/scim-route'
+import { createScimRouteBuilder } from '@/lib/api/server/routes'
 import { scimOperations } from '@/ee/scim/application/operations'
 import { SCIM_MEDIA_TYPE } from '@/ee/scim/protocol/constants'
 import { ScimError } from '@/ee/scim/protocol/errors'

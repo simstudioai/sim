@@ -1,4 +1,4 @@
-import { defineScimDiscoveryRoute } from '@/lib/api/server/routes/scim-route'
+import { defineScimDiscoveryRoute } from '@/lib/api/server/routes'
 import { serviceProviderConfig } from '@/ee/scim/protocol/discovery'
 
 /** Unauthenticated by design: a provider negotiates before it holds a credential. */

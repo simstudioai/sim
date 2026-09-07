@@ -73,6 +73,7 @@ describe('deprovisionScimUser', () => {
       userId: 'u-1',
       organizationId: 'org-1',
       memberId: 'm-1',
+      revokePersonalApiKeys: true,
     })
     expect(mocks.endDirectoryMembership).not.toHaveBeenCalled()
     expect(result.removedFromOrganization).toBe(true)

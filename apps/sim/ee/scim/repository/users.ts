@@ -250,10 +250,6 @@ export async function updateScimUser(
     .where(eq(scimUser.id, params.scimUserId))
 }
 
-export async function deleteScimUser(tx: DbOrTx, scimUserId: string): Promise<void> {
-  await tx.delete(scimUser).where(eq(scimUser.id, scimUserId))
-}
-
 /** All provisioned users on a connection, in pages, for the reconcile job. */
 export async function listScimUserIds(
   tx: DbOrTx,

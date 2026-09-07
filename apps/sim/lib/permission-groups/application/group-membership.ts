@@ -199,23 +199,18 @@ async function loadLockedGroup(
 export type AddPermissionGroupMemberResult = 'added' | 'already-member'
 
 /**
- * Adds a user to a permission group.
+ * Adds a user to a permission group on the directory's behalf.
  *
- * Takes the organization's permission-group lock, which the lock ordering
- * documents as a leaf: acquire no further advisory lock after this one.
+ * The caller holds the organization lock, which has already bounded
+ * `lock_timeout`; the permission-group lock taken here is the leaf, so no
+ * further advisory lock may follow it. The membership has no human author.
  */
 export async function addPermissionGroupMemberTx(
   tx: DbOrTx,
-  params: {
-    organizationId: string
-    groupId: string
-    userId: string
-    assignedBy: string | null
-    lockTimeoutAlreadyBounded?: boolean
-  }
+  params: { organizationId: string; groupId: string; userId: string }
 ): Promise<AddPermissionGroupMemberResult> {
   await acquirePermissionGroupOrgLock(tx, params.organizationId, {
-    lockTimeoutAlreadyBounded: params.lockTimeoutAlreadyBounded ?? false,
+    lockTimeoutAlreadyBounded: true,
   })
   const group = await loadLockedGroup(tx, params.organizationId, params.groupId)
 
@@ -247,7 +242,7 @@ export async function addPermissionGroupMemberTx(
     permissionGroupId: params.groupId,
     organizationId: params.organizationId,
     userId: params.userId,
-    assignedBy: params.assignedBy,
+    assignedBy: null,
     assignedAt: new Date(),
   })
   return 'added'
@@ -255,18 +250,13 @@ export async function addPermissionGroupMemberTx(
 
 export type RemovePermissionGroupMemberResult = 'removed' | 'not-a-member'
 
-/** Removes a user from a permission group. */
+/** Removes a user from a permission group; the caller holds the organization lock. */
 export async function removePermissionGroupMemberTx(
   tx: DbOrTx,
-  params: {
-    organizationId: string
-    groupId: string
-    userId: string
-    lockTimeoutAlreadyBounded?: boolean
-  }
+  params: { organizationId: string; groupId: string; userId: string }
 ): Promise<RemovePermissionGroupMemberResult> {
   await acquirePermissionGroupOrgLock(tx, params.organizationId, {
-    lockTimeoutAlreadyBounded: params.lockTimeoutAlreadyBounded ?? false,
+    lockTimeoutAlreadyBounded: true,
   })
   const group = await loadLockedGroup(tx, params.organizationId, params.groupId)
 

@@ -471,6 +471,15 @@ export interface RemoveMemberParams {
   /** Skip departed usage capture and Pro restoration (default: false) */
   skipBillingLogic?: boolean
   /**
+   * Also delete the member's personal API keys. Off by default: personal keys
+   * are the person's own and outlive one organization. Directory
+   * deprovisioning turns it on, because there the person is leaving Sim as far
+   * as the organization is concerned.
+   */
+  revokePersonalApiKeys?: boolean
+  /** The caller's own session token, kept alive when a member removes themselves. */
+  spareSessionToken?: string
+  /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
    * the workspace-removal path so a concurrent invite acceptance can't be raced
@@ -1243,6 +1252,8 @@ export async function removeUserFromOrganization(
     memberId,
     skipBillingLogic = false,
     requireNoOrgWorkspaceAccess = false,
+    revokePersonalApiKeys = false,
+    spareSessionToken,
   } = params
 
   const billingActions = {
@@ -1339,14 +1350,18 @@ export async function removeUserFromOrganization(
           )
 
         /**
-         * Leaving ends live access at once: sessions and personal API keys go
-         * with the membership rather than lingering until a cookie cache lapses,
-         * and any directory row that described this membership is replaced by
-         * its tombstone in the same commit, so the directory and the
-         * organization can never disagree about who is a member.
+         * Leaving ends live access at once: sessions go with the membership
+         * rather than lingering until a cookie cache lapses, and any directory
+         * row that described this membership is replaced by its tombstone in the
+         * same commit, so the directory and the organization can never disagree
+         * about who is a member.
          */
-        await revokeUserSessionsTx(tx, { userId, organizationId })
-        await revokePersonalApiKeysTx(tx, { userId })
+        await revokeUserSessionsTx(tx, {
+          userId,
+          organizationId,
+          ...(spareSessionToken ? { spareSessionToken } : {}),
+        })
+        if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
         await endDirectoryMembershipTx(tx, { userId, organizationId })
 
         if (workspaceIds.length === 0) {

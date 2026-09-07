@@ -1,4 +1,4 @@
-import { defineScimDiscoveryRoute } from '@/lib/api/server/routes/scim-route'
+import { defineScimDiscoveryRoute } from '@/lib/api/server/routes'
 import { resourceTypes } from '@/ee/scim/protocol/discovery'
 import { notFound } from '@/ee/scim/protocol/errors'
 

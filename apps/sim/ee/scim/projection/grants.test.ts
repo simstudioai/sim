@@ -38,21 +38,6 @@ describe('resolveDesiredGrants', () => {
     expect(desired[0].permissionType).toBe('write')
   })
 
-  it('lets a group raise a connection default', () => {
-    const desired = resolveDesiredGrants(
-      [workspaceRow('ws-1', 'write')],
-      [{ workspaceId: 'ws-1', permission: 'read' }]
-    )
-    expect(desired).toEqual([
-      { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write' },
-    ])
-  })
-
-  it('keeps a connection default the groups do not mention', () => {
-    const desired = resolveDesiredGrants([], [{ workspaceId: 'ws-1', permission: 'read' }])
-    expect(desired).toEqual([{ targetKind: 'workspace', targetId: 'ws-1', permissionType: 'read' }])
-  })
-
   it('emits one grant per permission group and per role however many groups repeat them', () => {
     const rows: MappingRow[] = [
       {

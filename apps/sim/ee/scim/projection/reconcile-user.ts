@@ -62,6 +62,9 @@ export interface ProjectionDelta {
 
 const EMPTY_DELTA: ProjectionDelta = { added: [], removed: [], raised: [] }
 
+/** Users per transaction when projecting outside a request's own transaction; the organization lock is held for the batch. */
+const PROJECTION_BATCH_SIZE = 25
+
 /**
  * The mapping rows this user reaches through their groups.
  *
@@ -107,7 +110,7 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
  * What applying a grant did. `unchanged` means the person already held it by
  * some other route — a manual grant — and nothing was written.
  */
-type GrantApplication = 'applied' | 'unchanged' | 'skipped'
+type GrantOutcome = 'applied' | 'unchanged' | 'skipped'
 
 /**
  * Mapped workspaces that no longer belong to the organization the directory
@@ -139,7 +142,7 @@ async function applyGrant(
     /** The level a previous pass set on a workspace, when lowering it. */
     previousPermission?: PermissionType
   }
-): Promise<GrantApplication> {
+): Promise<GrantOutcome> {
   const { grant } = params
   switch (grant.targetKind) {
     case 'workspace': {
@@ -173,8 +176,6 @@ async function applyGrant(
         organizationId: params.organizationId,
         groupId: grant.targetId,
         userId: params.userId,
-        assignedBy: null,
-        lockTimeoutAlreadyBounded: true,
       })
       return outcome === 'already-member' ? 'unchanged' : 'applied'
     }
@@ -194,7 +195,7 @@ async function setOrganizationRole(
   organizationId: string,
   userId: string,
   role: 'admin' | 'member'
-): Promise<GrantApplication> {
+): Promise<GrantOutcome> {
   try {
     const change = await changeMemberRoleTx(tx, { organizationId, userId, role })
     return change.changed ? 'applied' : 'unchanged'
@@ -281,7 +282,6 @@ async function withdrawGrant(
           organizationId: params.organizationId,
           groupId: grant.targetId,
           userId: params.userId,
-          lockTimeoutAlreadyBounded: true,
         })
       } catch (error) {
         /**
@@ -321,10 +321,10 @@ export async function reconcileUserProjection(
   if (!record) return EMPTY_DELTA
 
   /**
-   * Taken before any target is touched so the documented order holds: the
-   * organization and membership locks first, the permission-group leaf lock
-   * last. A withdrawal that reached the leaf lock before a later grant took the
-   * organization lock would invert that order against a concurrent request.
+   * Taken before any target is touched. The organization lock is the root of
+   * every write path that reaches these tables, so holding it first is what
+   * rules out a deadlock with the settings routes and with concurrent syncs;
+   * the permission-group leaf lock is only ever taken underneath it.
    */
   await acquireOrganizationUserMutationLocks(tx, {
     userId: record.userId,
@@ -332,10 +332,7 @@ export async function reconcileUserProjection(
   })
 
   const current = await currentGrants(tx, params.scimUserId)
-  const mapped = resolveDesiredGrants(
-    await loadMappingRows(tx, params.scimUserId),
-    params.settings.defaultWorkspaceGrants ?? []
-  )
+  const mapped = resolveDesiredGrants(await loadMappingRows(tx, params.scimUserId))
   const foreignWorkspaceIds = await findForeignWorkspaces(
     tx,
     [...mapped, ...current]
@@ -380,7 +377,7 @@ export async function reconcileUserProjection(
   }
 
   for (const { grant, previousPermission } of plan.apply) {
-    let applied: GrantApplication
+    let applied: GrantOutcome
     try {
       applied = await applyGrant(tx, {
         organizationId: params.organizationId,
@@ -488,13 +485,11 @@ export async function reconcileUsersProjectionInBatches(params: {
   organizationId: string
   scimUserIds: string[]
   settings: ScimConnectionSettings
-  batchSize?: number
 }): Promise<ProjectionDelta> {
   const total: ProjectionDelta = { added: [], removed: [], raised: [] }
   const ids = [...new Set(params.scimUserIds)].sort()
-  const size = params.batchSize ?? 200
-  for (let start = 0; start < ids.length; start += size) {
-    const batch = ids.slice(start, start + size)
+  for (let start = 0; start < ids.length; start += PROJECTION_BATCH_SIZE) {
+    const batch = ids.slice(start, start + PROJECTION_BATCH_SIZE)
     await db.transaction(async (tx) => {
       for (const scimUserId of batch) {
         const delta = await reconcileUserProjection(tx, {
