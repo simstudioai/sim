@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   prepareSandboxSessionAccess,
   recordSandboxProcess,
@@ -7,16 +7,22 @@ import {
   settleSandboxProcess,
 } from '@/lib/execution/remote-sandbox/execution-observer'
 
-const { claim, settle, recordProcess, settleProcess, prepareAccess, recover } = vi.hoisted(() => ({
-  claim: vi.fn(),
-  settle: vi.fn(),
-  recordProcess: vi.fn(),
-  settleProcess: vi.fn(),
-  prepareAccess: vi.fn(),
-  recover: vi.fn(),
-}))
+const { claim, settle, recordProcess, settleProcess, prepareAccess, recover, renew, complete } =
+  vi.hoisted(() => ({
+    claim: vi.fn(),
+    renew: vi.fn(),
+    complete: vi.fn(),
+    settle: vi.fn(),
+    recordProcess: vi.fn(),
+    settleProcess: vi.fn(),
+    prepareAccess: vi.fn(),
+    recover: vi.fn(),
+  }))
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   claimSimToolExecution: claim,
+  renewSimToolExecutionLease: renew,
+  completeOwnedSimToolCall: complete,
+  completeAsyncToolCall: complete,
   settleSimToolExecution: settle,
   recordSimSandboxProcess: recordProcess,
   settleSimSandboxProcess: settleProcess,
@@ -40,11 +46,17 @@ describe('durable tool execution lifetime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     claim.mockResolvedValue({ outcome: 'claimed' })
+    renew.mockResolvedValue(true)
+    complete.mockResolvedValue(undefined)
     settle.mockResolvedValue(undefined)
     recordProcess.mockResolvedValue(undefined)
     settleProcess.mockResolvedValue(undefined)
     prepareAccess.mockResolvedValue({ handlersPending: false, processes: [] })
     recover.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('records command identity before execution and leaves tracked uncertainty in its durable entry', async () => {
@@ -58,10 +70,11 @@ describe('durable tool execution lifetime', () => {
       toolCallId: 'tool-1',
       runId: 'run-1',
       userId: 'user-1',
+      ownerToken: expect.any(String),
       process,
     })
     expect(settleProcess).not.toHaveBeenCalled()
-    expect(settle).toHaveBeenCalledExactlyOnceWith('tool-1')
+    expect(settle).toHaveBeenCalledExactlyOnceWith('tool-1', expect.any(String))
   })
 
   it('recovers prior commands and rechecks durable state before allowing session access', async () => {
@@ -78,6 +91,7 @@ describe('durable tool execution lifetime', () => {
     expect(prepareAccess).toHaveBeenCalledWith({
       runId: 'run-1',
       userId: 'user-1',
+      ownerToken: expect.any(String),
       toolCallId: 'tool-1',
       sessionKey: 'chat-1',
     })
@@ -147,7 +161,7 @@ describe('durable tool execution lifetime', () => {
       return 'performed'
     })
     expect(result).toBe('performed')
-    expect(settle).toHaveBeenCalledExactlyOnceWith('tool-1')
+    expect(settle).toHaveBeenCalledExactlyOnceWith('tool-1', expect.any(String))
   })
 
   it('keeps ownership after the displayed timeout while the handler still runs', async () => {
@@ -161,7 +175,7 @@ describe('durable tool execution lifetime', () => {
     expect(settle).not.toHaveBeenCalled()
     work.resolve()
     await work.promise
-    expect(settle).toHaveBeenCalledExactlyOnceWith('timed-out')
+    expect(settle).toHaveBeenCalledExactlyOnceWith('timed-out', expect.any(String))
   })
 
   it('also waits for result post-processing after the handler ends', async () => {
@@ -178,7 +192,7 @@ describe('durable tool execution lifetime', () => {
     expect(settle).not.toHaveBeenCalled()
     processing.resolve()
     expect(await result).toBe('success')
-    expect(settle).toHaveBeenCalledExactlyOnceWith('processing')
+    expect(settle).toHaveBeenCalledExactlyOnceWith('processing', expect.any(String))
   })
 
   it('retains remote uncertainty only for the affected concurrent invocation', async () => {
@@ -192,7 +206,7 @@ describe('durable tool execution lifetime', () => {
       await lifetime.hold(Promise.resolve())
     })
     await Promise.all([uncertain, sibling])
-    expect(settle).toHaveBeenCalledExactlyOnceWith('sibling')
+    expect(settle).toHaveBeenCalledExactlyOnceWith('sibling', expect.any(String))
   })
 
   it('does not release another owner on duplicate admission', async () => {
@@ -211,6 +225,58 @@ describe('durable tool execution lifetime', () => {
         return { created: true }
       })
     ).toEqual({ created: true })
-    expect(settle).toHaveBeenCalledExactlyOnceWith('performed')
+    expect(settle).toHaveBeenCalledExactlyOnceWith('performed', expect.any(String))
+  })
+
+  it('renews a retained handler after its visible timeout and stops renewing after settlement', async () => {
+    vi.useFakeTimers()
+    const work = pending()
+    await withToolExecutionLifetime('retained', async (lifetime) => {
+      await lifetime.claim('run-1', 'user-1')
+      lifetime.hold(work.promise)
+    })
+    await vi.advanceTimersByTimeAsync(80_000)
+    expect(renew).toHaveBeenCalledTimes(4)
+    expect(settle).not.toHaveBeenCalled()
+    work.resolve()
+    await work.promise
+    await vi.advanceTimersByTimeAsync(80_000)
+    expect(renew).toHaveBeenCalledTimes(4)
+    expect(settle).toHaveBeenCalledOnce()
+  })
+
+  it.each(['expired', 'database unavailable'])(
+    'aborts a handler and rejects new commands after %s',
+    async (reason) => {
+      vi.useFakeTimers()
+      if (reason === 'expired') renew.mockResolvedValueOnce(false)
+      else renew.mockRejectedValueOnce(new Error(reason))
+      await withToolExecutionLifetime('expired', async (lifetime) => {
+        await lifetime.claim('run-1', 'user-1')
+        await vi.advanceTimersByTimeAsync(20_000)
+        expect(lifetime.signal.aborted).toBe(true)
+        await expect(
+          recordSandboxProcess({ id: 'late', sandboxId: 'sandbox', sessionKey: 'chat' })
+        ).rejects.toThrow('lost its owner')
+        await expect(
+          prepareSandboxSessionAccess('chat', new AbortController().signal)
+        ).rejects.toThrow('lost its owner')
+        expect(recordProcess).not.toHaveBeenCalled()
+        expect(prepareAccess).not.toHaveBeenCalled()
+      })
+      expect(settle).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('uses the execution token for its terminal result and propagates a refused write', async () => {
+    complete.mockRejectedValueOnce(new Error('lease lost'))
+    const receipt = { toolCallId: 'owned', status: 'completed' as const, result: { created: true } }
+    await expect(
+      withToolExecutionLifetime('owned', async (lifetime) => {
+        await lifetime.claim('run-1', 'user-1')
+        await lifetime.complete(receipt)
+      })
+    ).rejects.toThrow('lease lost')
+    expect(complete).toHaveBeenCalledWith(receipt, claim.mock.calls[0][0].ownerToken)
   })
 })
