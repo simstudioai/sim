@@ -137,6 +137,41 @@ describe('executeMcpTool', () => {
     }
   )
 
+  it('binds a managed MCP connection to the authenticated chat subject', async () => {
+    const credentialId = 'mcp-cg-123456789012345678901'
+    mocks.executeManagedUseCase.mockResolvedValueOnce({ success: true, output: {} })
+    const response = await executeMcpTool({
+      toolId: `${credentialId}-lookup`,
+      input: { query: 'sim', _context: { userId: 'forged' } },
+      headers: new Headers(),
+      context: {
+        ...CONTEXT,
+        workflowId: '',
+        mcpBlockId: undefined,
+        copilotToolExecution: true,
+        chatId: 'chat-1',
+        toolCallId: 'call-1',
+      },
+      requestId: 'request-copilot-managed',
+    })
+    expect(response.status).toBe(200)
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mocks.executeUseCase).not.toHaveBeenCalled()
+    expect(mocks.executeManagedUseCase).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        serviceId: 'copilot',
+        subjectUserId: 'user-1',
+        audience: 'sim:managed-mcp-credentials',
+        resourceScope: { chatId: 'chat-1', credentialId },
+      }),
+      input: expect.objectContaining({
+        credentialId,
+        toolName: 'lookup',
+        arguments: { query: 'sim' },
+      }),
+    })
+  })
+
   it.each(['userId', 'toolCallId'] as const)(
     'rejects incomplete trusted Copilot context without %s',
     async (field) => {

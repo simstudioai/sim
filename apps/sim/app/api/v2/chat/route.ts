@@ -18,6 +18,13 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  ForbiddenOperationError,
+  forbiddenErrorDetails,
+  PersonalApiKeysDisabledError,
+  requireUserCredentialCapabilities,
+  type WorkspaceAuthorizationContext,
+} from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { chatOperations } from '@/lib/mothership/application/operations'
@@ -37,25 +44,17 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { OrchestratorResult, StreamEvent } from '@/lib/mothership/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import {
-  ForbiddenOperationError,
-  forbiddenErrorDetails,
-  PersonalApiKeysDisabledError,
-  requireUserCredentialCapabilities,
-  type WorkspaceAuthorizationContext,
-} from '@/lib/core/application'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
-import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -97,7 +96,7 @@ function deriveConversationTitle(message: string): string | undefined {
  * the one route that never reaches it, or `null` when the credential may
  * proceed.
  *
- * The group half runs through the same {@link requirePersonalApiKeysAllowed} the
+ * The group half runs through the same {@link requireUserCredentialCapabilities} the
  * funnel and the billing reads call, so a third wording of the same refusal
  * cannot drift in. Its error is projected rather than thrown because this route
  * renders its own v2 envelope, and the detail code is read off the error so the

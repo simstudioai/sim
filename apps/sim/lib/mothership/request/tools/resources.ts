@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -16,6 +17,7 @@ import {
   persistChatResources,
   removeChatResources,
 } from '@/lib/mothership/resources/persistence'
+import { changeStoredChatResources } from '@/lib/mothership/resources/store'
 
 const logger = createLogger('CopilotResourceEffects')
 
@@ -125,7 +127,10 @@ export async function handleResourceSideEffects(
             chatId,
             resources: resources.map((r) => ({ type: r.type, id: r.id, title: r.title })),
           })
-          persistChatResources(chatId, resources).catch((err) => {
+          const upserts = resources.filter(
+            (resource) => !('clearViewId' in resource && resource.clearViewId === true)
+          )
+          persistChatResources(chatId, upserts).catch((err) => {
             logger.warn('Failed to persist chat resources', {
               chatId,
               error: toError(err).message,
@@ -134,6 +139,22 @@ export async function handleResourceSideEffects(
 
           for (const resource of resources) {
             if (isAborted()) break
+            if ('clearViewId' in resource && resource.clearViewId === true) {
+              const viewId = toRecord(params?.args).viewId
+              if (resource.type !== 'table' || typeof viewId !== 'string' || !viewId.trim()) {
+                throw new Error('Clearing a saved table view requires its deleted view ID')
+              }
+              await changeStoredChatResources(chatId, {
+                kind: 'clear-view',
+                tableId: resource.id,
+                viewId,
+              })
+              await onEvent?.({
+                type: MothershipStreamV1EventType.resource,
+                payload: { op: 'clear_view', resource: { type: 'table', id: resource.id, viewId } },
+              })
+              continue
+            }
             await onEvent?.({
               type: MothershipStreamV1EventType.resource,
               payload: {

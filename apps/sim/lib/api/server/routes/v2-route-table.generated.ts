@@ -127,6 +127,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/files/move/route'),
   },
   {
+    pattern: '/api/v2/files/search',
+    load: () => import('@/app/api/v2/files/search/route'),
+  },
+  {
     pattern: '/api/v2/files/uploads',
     load: () => import('@/app/api/v2/files/uploads/route'),
   },
@@ -271,6 +275,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/meta/route'),
   },
   {
+    pattern: '/api/v2/sandboxes',
+    load: () => import('@/app/api/v2/sandboxes/route'),
+  },
+  {
+    pattern: '/api/v2/sandboxes/{sandboxId}',
+    load: () => import('@/app/api/v2/sandboxes/[sandboxId]/route'),
+  },
+  {
     pattern: '/api/v2/secrets',
     load: () => import('@/app/api/v2/secrets/route'),
   },
@@ -413,6 +425,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/tools/{toolId}',
     load: () => import('@/app/api/v2/tools/[toolId]/route'),
+  },
+  {
+    pattern: '/api/v2/tools/{toolId}/execute',
+    load: () => import('@/app/api/v2/tools/[toolId]/execute/route'),
   },
   {
     pattern: '/api/v2/uploads/{uploadId}',

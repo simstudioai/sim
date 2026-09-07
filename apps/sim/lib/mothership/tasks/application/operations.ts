@@ -12,11 +12,17 @@ export const taskOperations = {
     id: 'mothership.tasks.read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'copilot.use',
     principalKinds: ['session'],
   }),
   readWorkflowStatus: defineWorkspaceOperation({
     id: 'mothership.tasks.workflow_status',
     ...taskPrincipalPolicy,
+    capability: 'copilot.use',
   }),
-  wake: defineWorkspaceOperation({ id: 'mothership.tasks.wake', ...taskPrincipalPolicy }),
+  wake: defineWorkspaceOperation({
+    id: 'mothership.tasks.wake',
+    ...taskPrincipalPolicy,
+    capability: 'copilot.use',
+  }),
 } as const

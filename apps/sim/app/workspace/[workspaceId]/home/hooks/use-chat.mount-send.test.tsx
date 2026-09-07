@@ -572,6 +572,7 @@ describe('useChat remount send recovery', () => {
       const { getResult } = renderUseChatInChat(
         history.id,
         loading === 'cached' ? history : undefined,
+        undefined,
         'selected-table'
       )
       if (loading === 'delayed') await act(async () => pending.resolve({ chat: history }))
@@ -897,6 +898,7 @@ describe('useChat remount send recovery', () => {
         supersededStreamId: 'previous-response',
         userMessageId: 'prepared-correction-request',
         message: 'inspect the second invoice instead',
+        requestMode: 'ask',
         stopRequired: true,
         requestedAt: Date.now(),
       })
@@ -913,6 +915,7 @@ describe('useChat remount send recovery', () => {
         expect(state.postBodies[0]).toMatchObject({
           userMessageId: 'prepared-correction-request',
           message: 'inspect the second invoice instead',
+          mode: 'ask',
         })
       } else {
         await act(async () => {

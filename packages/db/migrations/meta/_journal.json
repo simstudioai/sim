@@ -2430,27 +2430,6 @@
       "when": 1789436120319,
       "tag": "0347_sso_domain_primary_provider",
       "breakpoints": true
-    },
-    {
-      "idx": 319,
-      "version": "7",
-      "when": 1788725017174,
-      "tag": "0319_mothership_client_workflow_ownership",
-      "breakpoints": true
-    },
-    {
-      "idx": 320,
-      "version": "7",
-      "when": 1788738943278,
-      "tag": "0320_copilot_tool_execution_leases",
-      "breakpoints": true
-    },
-    {
-      "idx": 321,
-      "version": "7",
-      "when": 1788743284521,
-      "tag": "0321_mothership_resource_effects",
-      "breakpoints": true
     }
   ]
 }

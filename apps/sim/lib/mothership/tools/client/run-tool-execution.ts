@@ -798,7 +798,7 @@ async function doExecuteRunTool(
       setIsExecuting(targetWorkflowId, false)
       setActiveBlocks(targetWorkflowId, new Set())
     }
-    if (streamInterrupted && activeToolCallId === toolCallId) {
+    if (streamInterrupted && ownsRegistration) {
       notifyRunToolReleased(targetWorkflowId)
     }
   }

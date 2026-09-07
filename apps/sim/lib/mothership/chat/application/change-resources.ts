@@ -13,10 +13,12 @@ interface ChangeChatResourcesInput {
 
 /** Resource tabs belong to the acting chat owner and require current workspace access. */
 export const changeChatResources = defineAuthorizedWorkspaceUseCase({
+  // permission-group-exempt: organizing saved panels changes only the owned chat metadata and grants no access to resource contents
   operation: defineWorkspaceOperation({
     id: 'mothership.chats.change_resources',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
   resolveContext({

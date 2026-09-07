@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   extractResourcesFromToolResult: vi.fn(),
   persistChatResources: vi.fn(() => Promise.resolve()),
   setAttributes: vi.fn(),
+  changeStoredChatResources: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock('@/lib/mothership/resources/store', () => ({
+  changeStoredChatResources: mocks.changeStoredChatResources,
 }))
 
 vi.mock('@/lib/mothership/request/otel', () => ({
@@ -26,12 +31,9 @@ vi.mock('@/lib/mothership/resources/persistence', () => ({
   removeChatResources: vi.fn(() => Promise.resolve()),
 }))
 
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1ResourceOp,
-} from '@/lib/mothership/generated/mothership-stream-v1'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 describe('handleResourceSideEffects', () => {
   beforeEach(() => {
@@ -59,23 +61,19 @@ describe('handleResourceSideEffects', () => {
       () => false
     )
 
-    expect(mocks.persistChatResources).toHaveBeenCalledWith('chat-1', [
-      {
-        type: 'table',
-        id: 'tbl-1',
-        title: 'Invoices',
-        clearViewId: true,
-      },
-    ])
+    expect(mocks.changeStoredChatResources).toHaveBeenCalledWith('chat-1', {
+      kind: 'clear-view',
+      tableId: 'tbl-1',
+      viewId: 'view-1',
+    })
     expect(onEvent).toHaveBeenCalledWith({
       type: MothershipStreamV1EventType.resource,
       payload: {
-        op: MothershipStreamV1ResourceOp.upsert,
+        op: 'clear_view',
         resource: {
           type: 'table',
           id: 'tbl-1',
-          title: 'Invoices',
-          clearViewId: true,
+          viewId: 'view-1',
         },
       },
     })
