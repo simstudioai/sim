@@ -552,6 +552,45 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it('adopts accounting for a stream it takes over, and folds it if already over the ceiling', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    // A stream left behind by a previous task: two entries, so far under the entry threshold, and
+    // far over the byte ceiling. A fresh room starting from an empty ledger would never fold it,
+    // while its own heartbeat kept refreshing the TTL.
+    const seedDoc = new Y.Doc()
+    const updates: Uint8Array[] = []
+    seedDoc.on('update', (u: Uint8Array) => updates.push(u))
+    seedDoc.getText('body').insert(0, 'x'.repeat(9 * 1024 * 1024))
+    seedDoc.getText('body').insert(0, 'tail')
+    state.backing!.streams.set(
+      streamKey,
+      updates.map((update, index) => ({
+        id: `${index + 1}-0`,
+        message: { u: Buffer.from(update).toString('base64') },
+      }))
+    )
+    state.backing!.seq = updates.length
+
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+
+    // Either marker counts as a fold: this room only ever replayed entries, so it never observed
+    // a real edit and its snapshot is stamped as an agent frame (the no-persist guarantee).
+    await vi.waitFor(() => {
+      const stream = state.backing!.streams.get(streamKey)!
+      expect(stream.some((entry) => entry.message.s === '1' || entry.message.a === '1')).toBe(true)
+    })
+
+    // Lossless: the adopted content survives the fold it triggered.
+    const rebuilt = new Y.Doc()
+    Y.applyUpdate(rebuilt, (await a.getStreamState(NAME))!)
+    expect(rebuilt.getText('body').length).toBe(9 * 1024 * 1024 + 4)
+    rebuilt.destroy()
+    doc.destroy()
+    seedDoc.destroy()
+  })
+
   it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')

@@ -391,9 +391,26 @@ export class FileDocStore {
         // the SEED after `seededObserved` latched would count it as a post-seed edit and let a
         // compaction snapshot claim content no user ever typed. Skip what this room already holds.
         if (!isAfterStreamId(entry.id, room.lastId)) continue
+        // Adopt the accounting for what is already in the stream. A task taking one over would
+        // otherwise start from an empty ledger, so a multi-megabyte stream under the entry
+        // threshold would stay unfolded while this room's heartbeat keeps refreshing its TTL.
+        // These entries are already being read to rebuild the doc, so this costs no extra work —
+        // unlike seeding from a scan we would not otherwise do.
+        //
+        // Plain deltas only: a compaction snapshot is the RESULT of a fold, not something a fold
+        // can reclaim, so counting one would arm the trigger against itself.
+        if (!entry.message[SNAPSHOT_FIELD] && !entry.message[AGENT_FIELD]) {
+          room.pendingDeltas.push({
+            id: entry.id,
+            bytes: entry.message[UPDATE_FIELD]?.length ?? 0,
+          })
+        }
         this.applyEntry(room, entry.id, entry.message)
       }
       await this.write.expire(streamKey(name), STREAM_TTL_SEC)
+      // The adopted entries may already be past the ceiling, and nothing else re-checks until the
+      // next local publish — which a read-only participant never makes.
+      if (foldableDeltaBytes(room) >= COMPACT_BYTES_THRESHOLD) void this.maybeCompact(name, true)
     } catch (error) {
       logger.warn(`FileDocStore catch-up failed for ${name}`, { error: getErrorMessage(error) })
     }
