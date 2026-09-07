@@ -39,6 +39,7 @@ interface Backing {
   maxReadStreams: number
   maxReadCount: number
   onSnapshot?: () => Promise<void>
+  onLength?: () => Promise<void>
 }
 
 const state = vi.hoisted(() => ({ backing: null as Backing | null }))
@@ -93,7 +94,10 @@ function makeClient(): any {
         .reverse()
         .slice(0, options?.COUNT)
         .map((entry) => ({ ...entry })),
-    xLen: async (key: string) => (b().streams.get(key) ?? []).length,
+    xLen: async (key: string) => {
+      await b().onLength?.()
+      return (b().streams.get(key) ?? []).length
+    },
     xTrim: async (key: string, _strategy: string, minid: string) => {
       const arr = b().streams.get(key) ?? []
       b().streams.set(
@@ -1130,6 +1134,46 @@ describe('FileDocStore', () => {
       doc.destroy()
     })
   })
+
+  it.each(['client', 'server'] as const)(
+    'does not delay a durable %s append for pending compaction',
+    async (publisher) => {
+      const store = await newStore()
+      await store.seedIfEmpty(NAME, seedFor('base'))
+      const doc = new Y.Doc()
+      await store.attachRoom(NAME, doc)
+      const room = storeInternals(store).rooms.get(NAME)!
+      room.publishes = 63
+      let finishCompaction!: () => void
+      const compaction = new Promise<void>((resolve) => {
+        finishCompaction = resolve
+      })
+      state.backing!.onLength = vi.fn(() => compaction)
+      const publish = (id: string) =>
+        publisher === 'client'
+          ? store.publishClientUpdateAndWait(NAME, id, updateFor(id), 'doc-base')
+          : store.publishAndWait(NAME, updateFor(id), 'doc-base')
+      let accepted = false
+      const pending = publish('first').then(() => {
+        accepted = true
+      })
+      try {
+        await vi.waitFor(() => expect(accepted).toBe(true))
+        expect(room.compacting).toBe(true)
+        expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
+        room.publishes = 127
+        await publish('second')
+        expect(state.backing!.onLength).toHaveBeenCalledOnce()
+        expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
+      } finally {
+        finishCompaction()
+        await pending
+        await vi.waitFor(() => expect(room.compacting).toBe(false))
+        store.detachRoom(NAME)
+        doc.destroy()
+      }
+    }
+  )
 
   it('compacts on retained bytes before the entry-count threshold can exhaust replay', async () => {
     const streamKey = `filedoc:stream:${NAME}`

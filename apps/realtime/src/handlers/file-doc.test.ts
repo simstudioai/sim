@@ -45,7 +45,11 @@ import {
 } from '@/handlers/file-doc'
 import { FileDocInvalidatedError, getFileDocStore } from '@/handlers/file-doc-store'
 import * as permissions from '@/middleware/permissions'
-import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
+import {
+  beginRoomPermissionRead,
+  commitRoomPermission,
+  ROLE_REVALIDATION_TTL_MS,
+} from '@/middleware/permissions'
 
 type Handler = (...payload: unknown[]) => Promise<void> | void
 
@@ -1140,6 +1144,85 @@ describe('setupWorkspaceFileDocHandlers', () => {
         }
       } finally {
         resolvePermission(permission)
+        await joining
+        guard.mockRestore()
+      }
+    }
+  )
+
+  it('rejects a generation invalidated while final authorization is pending', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Old', 'doc-old'))
+    const { io } = createIo()
+    const pending = setup('socket-final-authorization-invalidation', io)
+    let finishAuthorization!: (permission: 'write') => void
+    const authorization = new Promise<'write'>((resolve) => {
+      finishAuthorization = resolve
+    })
+    const guard = vi
+      .spyOn(permissions, 'resolveCurrentRoomPermission')
+      .mockResolvedValueOnce('write')
+      .mockImplementationOnce(() => authorization)
+    const joining = pending.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    try {
+      await vi.waitFor(() => expect(guard).toHaveBeenCalledTimes(2))
+      await getFileDocStore().invalidateDocument(ROOM_NAME, 2)
+      finishAuthorization('write')
+      await joining
+      expect(pending.socket.join).not.toHaveBeenCalledWith(ROOM_NAME)
+      expect(joinSuccessFileId(pending.socket)).toBeUndefined()
+      expect(pending.socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_ERROR,
+        expect.objectContaining({ code: 'JOIN_FAILED', retryable: true })
+      )
+      expect(pending.socket.leave).toHaveBeenCalledWith(fileDocAdmissionRoom('file-1'))
+    } finally {
+      finishAuthorization('write')
+      await joining
+      guard.mockRestore()
+    }
+  })
+
+  it.each(['revoked', 'expired'] as const)(
+    'rejects access %s while the final generation check is pending',
+    async (access) => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# Private', 'doc-private'))
+      const { io } = createIo()
+      const pending = setup('socket-generation-authorization-revocation', io)
+      let finishGeneration!: (current: boolean) => void
+      const generation = new Promise<boolean>((resolve) => {
+        finishGeneration = resolve
+      })
+      const guard = vi
+        .spyOn(getFileDocStore(), 'isDocumentGenerationCurrent')
+        .mockImplementationOnce(() => generation)
+      const joining = pending.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      const clock = vi.spyOn(Date, 'now')
+      try {
+        await vi.waitFor(() => expect(guard).toHaveBeenCalledOnce())
+        if (access === 'revoked') {
+          commitRoomPermission(
+            'user-1',
+            { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' },
+            'read',
+            beginRoomPermissionRead()
+          )
+        } else {
+          clock.mockReturnValue(Date.now() + ROLE_REVALIDATION_TTL_MS + 1)
+        }
+        finishGeneration(true)
+        await joining
+        expect(pending.socket.join).not.toHaveBeenCalledWith(ROOM_NAME)
+        expect(joinSuccessFileId(pending.socket)).toBeUndefined()
+        expect(pending.socket.emit).toHaveBeenCalledWith(
+          FILE_DOC_EVENTS.JOIN_ERROR,
+          expect.objectContaining({
+            code: access === 'revoked' ? 'ACCESS_DENIED' : 'JOIN_FAILED',
+            retryable: access === 'expired',
+          })
+        )
+      } finally {
+        clock.mockRestore()
+        finishGeneration(true)
         await joining
         guard.mockRestore()
       }

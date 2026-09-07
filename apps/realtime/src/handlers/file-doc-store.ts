@@ -513,7 +513,7 @@ export class FileDocStore {
         room.uncompactedDeltaBytes >= COMPACT_ENCODED_BYTES ||
         room.publishes % COMPACT_CHECK_EVERY === 0
       ) {
-        await this.maybeCompact(name)
+        void this.maybeCompact(name)
       }
     }
   }
@@ -595,7 +595,7 @@ export class FileDocStore {
             room.uncompactedDeltaBytes >= COMPACT_ENCODED_BYTES ||
             room.publishes % COMPACT_CHECK_EVERY === 0
           ) {
-            await this.maybeCompact(name)
+            void this.maybeCompact(name)
           }
         }
         return

@@ -1476,6 +1476,12 @@ export function setupWorkspaceFileDocHandlers(
         await socket.join(admissionName)
         const joinedVersion =
           Math.max(entry.syncedVersion ?? 0, (await store.getSyncedVersion(name)) ?? 0) || undefined
+        /** Adapter membership can wait; resolve access again before checking the final generation. */
+        const finalPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
+        if (!satisfiesRoomMembership(finalPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
+          emitJoinError(socket, fileId, clientId, 'Access denied to file', 'ACCESS_DENIED', false)
+          return
+        }
         const currentDocument = await store.isDocumentGenerationCurrent(name, docIdOf(entry.doc))
         if (!isCurrentJoin()) return
         if (!currentDocument) {
@@ -1489,15 +1495,19 @@ export function setupWorkspaceFileDocHandlers(
           )
           return
         }
-        /** Adapter membership and generation reads can wait; resolve access again before commit. */
-        const finalPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
-        if (!satisfiesRoomMembership(finalPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
-          emitJoinError(socket, fileId, clientId, 'Access denied to file', 'ACCESS_DENIED', false)
+        /** The generation read may wait; a revoked or expired access decision must not admit content. */
+        const membershipPermission = peekRoomPermission(userId, room)
+        if (!satisfiesRoomMembership(membershipPermission ?? null, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
+          emitJoinError(
+            socket,
+            fileId,
+            clientId,
+            'File access changed while joining',
+            membershipPermission === undefined ? 'JOIN_FAILED' : 'ACCESS_DENIED',
+            membershipPermission === undefined
+          )
           return
         }
-
-        /** Commit content membership only after the final authorization decision. */
-        if (!isCurrentJoin()) return
         await socket.join(name)
         /** An asynchronous adapter join can be superseded by a leave, switch, or disconnect. */
         if (!isCurrentJoin()) return

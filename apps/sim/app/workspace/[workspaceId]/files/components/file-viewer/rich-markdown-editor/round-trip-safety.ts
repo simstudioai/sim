@@ -61,10 +61,16 @@ function inspectHtmlImages(content: string) {
     quotedEntities += tag.raw.match(/&quot;/g)?.length ?? 0
     const attributes = tag.raw.slice(4, -1)
     const seen = new Set<string>()
-    const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
+    const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
     for (const attribute of attributes.matchAll(pattern)) {
       const name = attribute[1].toLowerCase()
-      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(name) || seen.has(name)) {
+      const value = attribute[2]
+      if (
+        !SUPPORTED_IMAGE_ATTRIBUTES.has(name) ||
+        seen.has(name) ||
+        value === undefined ||
+        ((name === 'width' || name === 'height') && (value === '""' || value === "''"))
+      ) {
         images.set(tag.raw, (images.get(tag.raw) ?? 0) + 1)
         break
       }

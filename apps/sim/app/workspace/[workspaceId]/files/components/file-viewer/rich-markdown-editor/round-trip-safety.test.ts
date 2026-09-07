@@ -245,6 +245,18 @@ describe('isRoundTripSafe', () => {
     expect(normalizeMarkdownContent(source)).toBe(source)
   })
 
+  it.each([
+    '<img src="/image" width>',
+    '<img src="/image" height>',
+    '<img src="/image" width="">',
+    "<img src='/image' height=''>",
+    '<img WIDTH src="/image" height="20">',
+    '[<img src="/image" width height>](/link)',
+  ])('keeps valueless image dimensions in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
   it('allows supported image attributes containing quoted angle brackets', () => {
     expect(isRoundTripSafe('<img src="/image" title="a>b" width="30">')).toBe(true)
     expect(isRoundTripSafe('[<img src="/image" alt="a>b" width="30">](/link)')).toBe(true)
