@@ -201,6 +201,27 @@ end
 `
 }
 
+/**
+ * Releases an owner's whole reservation when its data is deleted rather than expired.
+ *
+ * The owner counter is dropped and the user counter credited by exactly what the owner
+ * held, in one script — crediting the user from a separately read value would let a
+ * concurrent write land in between and be released twice.
+ *
+ * KEYS: [ownerKey] or [ownerKey, userKey], as {@link getRedisBudgetKeys} returns them.
+ */
+export const REDIS_BUDGET_RELEASE_SCRIPT = `
+local owner_bytes = tonumber(redis.call('GET', KEYS[1]) or '0')
+redis.call('DEL', KEYS[1])
+if #KEYS >= 2 and owner_bytes > 0 then
+  local user_next = redis.call('DECRBY', KEYS[2], owner_bytes)
+  if user_next <= 0 then
+    redis.call('DEL', KEYS[2])
+  end
+end
+return owner_bytes
+`
+
 /** Parses the `{0, resource, current}` refusal a guarded script returns. */
 export function parseRedisBudgetRefusal(
   result: unknown,

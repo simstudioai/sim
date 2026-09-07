@@ -475,7 +475,7 @@ describe('FileDocStore', () => {
     const doc = new Y.Doc()
     await a.attachRoom(NAME, doc)
     const room = (a as any).rooms.get(NAME)
-    room.appendedBytes = 9 * 1024 * 1024
+    room.pendingDeltas = [{ id: '1-0', bytes: 9 * 1024 * 1024 }]
     room.realEdited = true
 
     const write = (a as any).write
@@ -488,7 +488,27 @@ describe('FileDocStore', () => {
 
     // A failed fold must not disarm the trigger — otherwise the stream stays oversized until
     // this task happens to append another full threshold's worth of deltas.
-    expect(room.appendedBytes).toBe(9 * 1024 * 1024)
+    expect(room.pendingDeltas).toEqual([{ id: '1-0', bytes: 9 * 1024 * 1024 }])
+    doc.destroy()
+  })
+
+  it('keeps counting deltas the trim retained because they sit past the fold boundary', async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = (a as any).rooms.get(NAME)
+    room.realEdited = true
+    // The tailer has integrated up to 5-0, so MINID retains 9-0. Its bytes are still in Redis,
+    // and dropping them would disarm the byte trigger while the stream kept growing.
+    room.lastId = '5-0'
+    room.pendingDeltas = [
+      { id: '3-0', bytes: 4 * 1024 * 1024 },
+      { id: '9-0', bytes: 7 * 1024 * 1024 },
+    ]
+
+    await (a as any).maybeCompact(NAME, true)
+
+    expect(room.pendingDeltas).toEqual([{ id: '9-0', bytes: 7 * 1024 * 1024 }])
     doc.destroy()
   })
 

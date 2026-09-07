@@ -398,4 +398,24 @@ describe('mothership-stream-outbox', () => {
     expect(result.persisted).toBe(false)
     expect(mockRedis.eval).not.toHaveBeenCalled()
   })
+
+  it('releases the owner counter and credits the user when the buffer is cleared', async () => {
+    // The buffer keys are deleted rather than expired, so a counter left behind would refuse a
+    // retry that reuses the same streamId against bytes that no longer exist anywhere.
+    await clearBuffer('stream-1', 'clear_outbox', { streamId: 'stream-1', userId: 'user-1' })
+
+    expect(mockRedis.del).toHaveBeenCalled()
+    const evalCall = mockRedis.eval.mock.calls.at(-1)
+    expect(evalCall?.[1]).toBe(2)
+    expect(evalCall?.[2]).toBe('execution:redis-budget:copilot_stream:stream-1')
+    expect(evalCall?.[3]).toBe('execution:redis-budget:user:user-1')
+  })
+
+  it('releases only the owner counter when no user is in scope', async () => {
+    await clearBuffer('stream-1')
+
+    const evalCall = mockRedis.eval.mock.calls.at(-1)
+    expect(evalCall?.[1]).toBe(1)
+    expect(evalCall?.[2]).toBe('execution:redis-budget:copilot_stream:stream-1')
+  })
 })

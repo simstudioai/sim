@@ -8,6 +8,7 @@ import {
   getRedisBudgetLimits,
   logRedisBudgetRefusal,
   parseRedisBudgetRefusal,
+  REDIS_BUDGET_RELEASE_SCRIPT,
   type RedisBudgetRefusal,
   renderRedisBudgetLua,
 } from '@/lib/core/redis/byte-budget.server'
@@ -102,13 +103,28 @@ export async function allocateCursor(streamId: string): Promise<{
   return { seq, cursor: String(seq) }
 }
 
-export async function resetBuffer(streamId: string): Promise<void> {
-  await clearBuffer(streamId, 'reset_outbox')
+export async function resetBuffer(streamId: string, scope?: StreamBudgetScope): Promise<void> {
+  await clearBuffer(streamId, 'reset_outbox', scope)
 }
 
-export async function clearBuffer(streamId: string, operation = 'clear_outbox'): Promise<void> {
+export async function clearBuffer(
+  streamId: string,
+  operation = 'clear_outbox',
+  scope?: StreamBudgetScope
+): Promise<void> {
   await withRedisRetry({ operation, streamId }, async (redis) => {
     await redis.del(getEventsKey(streamId), getSeqKey(streamId), getAbortKey(streamId))
+    /*
+      The counter outlives the data it accounts for unless it is released here: the keys
+      above are deleted rather than expired, so without this a retry reusing the same
+      streamId would be refused against bytes that no longer exist anywhere.
+    */
+    const budgetKeys = getRedisBudgetKeys({
+      kind: 'copilot_stream',
+      id: streamId,
+      ...(scope?.userId ? { userId: scope.userId } : {}),
+    })
+    await redis.eval(REDIS_BUDGET_RELEASE_SCRIPT, budgetKeys.length, ...budgetKeys)
   })
 }
 
