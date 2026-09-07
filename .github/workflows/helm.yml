@@ -254,10 +254,18 @@ jobs:
       # versions are immutable, every stale value is frozen forever. It sat six
       # releases behind before this check existed, bumped only by hand.
       #
+      # BEHIND is the failure. AHEAD is normal and must not be blocked: a
+      # version tag is cut by the main-branch merge commit that releases it
+      # (detect-version in ci.yml), so appVersion legitimately names a release
+      # that does not exist yet while that release is still being built. Failing
+      # on any mismatch would race that workflow and block the very publish the
+      # bump was for. `helm/sim/ci/kind-values.yaml` documents the same
+      # circularity, and it is why appVersion went unbumped for so long.
+      #
       # Compares against the latest GitHub release rather than a hardcoded value
-      # so it cannot go stale itself. Prereleases and drafts are excluded: the
-      # `/releases/latest` endpoint already returns neither.
-      - name: appVersion tracks the latest app release
+      # so the check cannot go stale itself. Prereleases and drafts are excluded:
+      # the `/releases/latest` endpoint already returns neither.
+      - name: appVersion does not lag the app release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -268,11 +276,16 @@ jobs:
             echo "::error::Could not resolve the latest release; refusing to publish unverified."
             exit 1
           fi
-          if [ "$app_version" != "$latest" ]; then
+          if [ "$app_version" = "$latest" ]; then
+            echo "appVersion ${app_version} matches the latest release."
+            exit 0
+          fi
+          oldest=$(printf '%s\n%s\n' "$app_version" "$latest" | sort -V | head -1)
+          if [ "$oldest" = "$app_version" ]; then
             echo "::error::Chart.yaml appVersion is ${app_version} but the latest release is ${latest}. Bump appVersion (and the chart version) so the chart does not publish an install pinned to an older Sim."
             exit 1
           fi
-          echo "appVersion ${app_version} matches the latest release."
+          echo "::notice::appVersion ${app_version} is ahead of the latest release ${latest}, which is expected while that release is still being cut."
 
       # Chart versions are immutable once published: whoever pinned a version
       # must keep resolving the same bytes forever. The PR gate above already
