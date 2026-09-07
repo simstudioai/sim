@@ -23,7 +23,7 @@ export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 
 # Install from the registry
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.3 \
+  --version 1.9.4 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -107,10 +107,10 @@ immutable once published.
 
 ```bash
 # List the published versions
-helm show chart oci://ghcr.io/simstudioai/charts/sim --version 1.9.3
+helm show chart oci://ghcr.io/simstudioai/charts/sim --version 1.9.4
 
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.3 \
+  --version 1.9.4 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -127,8 +127,8 @@ To mirror the chart into an internal registry — the usual requirement for an
 air-gapped or internal-only cluster:
 
 ```bash
-helm pull oci://ghcr.io/simstudioai/charts/sim --version 1.9.3
-helm push sim-1.9.3.tgz oci://registry.internal.example.com/charts
+helm pull oci://ghcr.io/simstudioai/charts/sim --version 1.9.4
+helm push sim-1.9.4.tgz oci://registry.internal.example.com/charts
 ```
 
 The container images the chart references are listed in
@@ -144,7 +144,7 @@ helm repo add sim https://charts.sim.ai
 helm repo update
 
 helm install sim sim/sim \
-  --version 1.9.3 \
+  --version 1.9.4 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -169,20 +169,26 @@ helm install sim ./helm/sim \
   --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
 
+The remaining examples in this README use the OCI reference. If you are working
+from a checkout, substitute `./helm/sim` and drop `--version` — the commands are
+otherwise identical.
+
 ### With a values file
 
 ```bash
-helm install sim ./helm/sim \
+helm install sim oci://ghcr.io/simstudioai/charts/sim \
+  --version 1.9.4 \
   --namespace sim --create-namespace \
   --values my-values.yaml
 ```
 
-Run `helm template ./helm/sim --values my-values.yaml | less` first to see what will be applied.
+Run `helm template oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 --values my-values.yaml | less` first to
+see what will be applied.
 
 ### Validate the install
 
 ```bash
-helm install sim ./helm/sim --dry-run --debug \
+helm install sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 --dry-run --debug \
   --values my-values.yaml \
   --set app.env.BETTER_AUTH_SECRET=$(openssl rand -hex 16) \
   --set app.env.ENCRYPTION_KEY=$(openssl rand -hex 16) \
@@ -201,12 +207,12 @@ the registry next to the chart so they survive a mirror.
 
 ```bash
 # The signature: proves this chart was signed by a GitHub Actions run in this repo
-cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.3 \
+cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.4 \
   --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # The provenance: proves which workflow, commit, and runner produced it
-gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.3 --repo simstudioai/sim
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.4 --repo simstudioai/sim
 ```
 
 There is no GPG `.prov` file — signing is Sigstore-only, so there is no
@@ -218,7 +224,7 @@ GPG provenance format and will not work; use `cosign verify` above.
 ## Upgrading
 
 ```bash
-helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 --namespace sim --values my-values.yaml
 ```
 
 ---
@@ -248,7 +254,7 @@ kubectl delete namespace sim
 
 ## Examples
 
-Pre-built values files for common scenarios live in `helm/sim/examples/`. Each file has a header explaining when to use it and any prerequisites.
+Pre-built values files for common scenarios live in [`helm/sim/examples/`](https://github.com/simstudioai/sim/tree/main/helm/sim/examples). Each file has a header explaining when to use it and any prerequisites. They are **not** part of the packaged chart, so fetch the one you want at a release tag rather than expecting it locally.
 
 | File | When to use |
 |---|---|
@@ -266,9 +272,13 @@ Pre-built values files for common scenarios live in `helm/sim/examples/`. Each f
 Use one with:
 
 ```bash
-helm install sim ./helm/sim \
+SIM_RELEASE=v0.8.24
+curl -fsSLO "https://raw.githubusercontent.com/simstudioai/sim/$SIM_RELEASE/helm/sim/examples/values-production.yaml"
+
+helm install sim oci://ghcr.io/simstudioai/charts/sim \
+  --version 1.9.4 \
   --namespace sim --create-namespace \
-  --values ./helm/sim/examples/values-production.yaml \
+  --values values-production.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -283,11 +293,13 @@ This chart is intentionally configurable. Rather than maintain a hand-curated pa
 
 ```bash
 # Print all values with comments and defaults
-helm show values ./helm/sim
-
-# Print the JSON Schema (used by `helm install` to validate your values)
-cat ./helm/sim/values.schema.json
+helm show values oci://ghcr.io/simstudioai/charts/sim --version 1.9.4
 ```
+
+The JSON Schema that `helm install` validates your values against ships inside
+the chart as `values.schema.json`; read it in the
+[repository](https://github.com/simstudioai/sim/blob/main/helm/sim/values.schema.json)
+or extract it from a pulled chart with `helm pull --untar`.
 
 `values.yaml` is heavily commented; each top-level section explains what it controls and which sub-keys are required vs optional. For per-cloud examples and idiomatic overrides, see `examples/`.
 
@@ -329,7 +341,7 @@ Before installing in production, confirm each of the following:
             kubernetes.io/metadata.name: ingress-nginx
   ```
 * **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`). All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and set `seccompProfile: RuntimeDefault` — the four controls the Restricted profile requires. `readOnlyRootFilesystem` is intentionally **not** defaulted anywhere (Postgres/Ollama genuinely need a writable root; the stateless services — `realtime`, `pii`, `copilot` — could tolerate it but aren't pre-wired with a `/tmp` `emptyDir`). If your policy requires it, set `<component>.securityContext.readOnlyRootFilesystem: true` and mount an `emptyDir` at `/tmp` yourself via `extraVolumes`/`extraVolumeMounts`.
-* **Env validation** — keys under `app.env`, `realtime.env`, and `copilot.env` are passed through to the application and validated at startup. The JSON Schema intentionally does not enforce `additionalProperties: false` (would break custom user envs), so typos like `OPENA_API_KEY` (instead of `OPENAI_API_KEY`) surface as missing-key errors at runtime, not at `helm install` time. Review your env block carefully.
+* **Env validation** — keys under `app.env`, `realtime.env`, and `copilot.server.env` are passed through to the application and validated at startup. The JSON Schema intentionally does not enforce `additionalProperties: false` (would break custom user envs), so typos like `OPENA_API_KEY` (instead of `OPENAI_API_KEY`) surface as missing-key errors at runtime, not at `helm install` time. Review your env block carefully.
 * **Set public URLs** — `app.env.NEXT_PUBLIC_APP_URL` and `app.env.BETTER_AUTH_URL` must match your public origin (e.g. `https://sim.example.com`). Leaving them as `localhost` breaks sign-in.
 
 ---
@@ -341,7 +353,7 @@ The chart supports three ways to provide secrets, in increasing order of product
 ### 1. Inline `--set` (dev / dry-run only)
 
 ```bash
-helm install sim ./helm/sim --set app.env.BETTER_AUTH_SECRET=...
+helm install sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 --set app.env.BETTER_AUTH_SECRET=...
 ```
 
 Discouraged for production — values land in `helm get values` output.
@@ -472,7 +484,7 @@ With the chart-managed Secret (the default), nulling a key the application canno
 The common case is a free-tier cap inherited from a chart release older than the one that stopped presetting them, which shipped `FREE_TABLES_LIMIT: "3"` and `FREE_TABLE_ROWS_LIMIT: "1000"` under `app.envDefaults`. With billing disabled, Sim reads an unset limit as unlimited, so nulling these lifts the cap. Verify before rolling out:
 
 ```bash
-helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+helm template sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 -f values.yaml | grep -A1 FREE_TABLE   # expect no output
 ```
 
 ---
@@ -540,7 +552,7 @@ Without a cluster-reachable `INTERNAL_API_BASE_URL` (it falls back to `NEXT_PUBL
 You ran `helm install` without setting required secrets. Generate them and pass with `--set`:
 
 ```bash
-helm install sim ./helm/sim \
+helm install sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.4 \
   --set app.env.BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
   --set app.env.ENCRYPTION_KEY=$(openssl rand -hex 32) \
   --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 32) \
