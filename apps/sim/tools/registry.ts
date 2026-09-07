@@ -3358,6 +3358,14 @@ import {
   obsidianSearchTool,
 } from '@/tools/obsidian'
 import {
+  ociEventsChangeRuleCompartmentTool,
+  ociEventsCreateRuleTool,
+  ociEventsDeleteRuleTool,
+  ociEventsGetRuleTool,
+  ociEventsListRulesTool,
+  ociEventsUpdateRuleTool,
+} from '@/tools/oci_events'
+import {
   oktaActivateGroupRuleTool,
   oktaActivateUserTool,
   oktaAddUserToGroupTool,
@@ -7524,6 +7532,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
   obsidian_patch_active: obsidianPatchActiveTool,
   obsidian_patch_note: obsidianPatchNoteTool,
   obsidian_search: obsidianSearchTool,
+  oci_events_change_rule_compartment: ociEventsChangeRuleCompartmentTool,
+  oci_events_create_rule: ociEventsCreateRuleTool,
+  oci_events_delete_rule: ociEventsDeleteRuleTool,
+  oci_events_get_rule: ociEventsGetRuleTool,
+  oci_events_list_rules: ociEventsListRulesTool,
+  oci_events_update_rule: ociEventsUpdateRuleTool,
   okta_list_users: oktaListUsersTool,
   okta_get_user: oktaGetUserTool,
   okta_create_user: oktaCreateUserTool,

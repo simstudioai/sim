@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16178,6 +16178,49 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base"]
+    },
+    {
+      "type": "oci_events",
+      "slug": "oci-events",
+      "name": "OCI Events",
+      "description": "Discover and manage OCI event routing rules",
+      "longDescription": "Manage OCI Events rules using a reusable OCI API signing-key credential. List and inspect rules, create routing to existing Notifications topics, Streaming streams or Functions, update conditions and enabled states, move rules, and delete rules. Conditions match events in the rule compartment and child compartments. Updates replace supplied actions and tag maps; omit fields to retain them and use an ETag to protect concurrent changes. IAM must permit rule management and the selected action destinations. Sim limits requests to 1 MiB, responses to 8 MiB and each JSON input to 10000 values, 32 nesting levels and 1 MiB of text. This integration manages routing configuration; it does not receive events or start Sim workflows. Topic subscriptions, stream consumption and function management belong to their respective services.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_events",
+      "operations": [
+        {
+          "name": "List Rules",
+          "description": "List one page of OCI Events rules in a compartment"
+        },
+        {
+          "name": "Get Rule",
+          "description": "Get an OCI Events rule with its actions and ETag"
+        },
+        {
+          "name": "Create Rule",
+          "description": "Create an OCI Events rule routing matching events to existing action resources"
+        },
+        {
+          "name": "Update Rule",
+          "description": "Update rule settings and replace supplied conditions, actions or tags"
+        },
+        {
+          "name": "Delete Rule",
+          "description": "Delete an OCI Events rule, optionally matching an ETag"
+        },
+        {
+          "name": "Change Rule Compartment",
+          "description": "Move an OCI Events rule to another compartment in the same tenancy"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["automation", "cloud"]
     },
     {
       "type": "okta",

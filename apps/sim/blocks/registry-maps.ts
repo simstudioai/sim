@@ -249,6 +249,7 @@ import {
   NotionV2BlockMeta,
 } from '@/blocks/blocks/notion'
 import { ObsidianBlock, ObsidianBlockMeta } from '@/blocks/blocks/obsidian'
+import { OciEventsBlock, OciEventsBlockMeta } from '@/blocks/blocks/oci_events'
 import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
@@ -594,6 +595,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
+  oci_events: OciEventsBlock,
   obsidian: ObsidianBlock,
   okta: OktaBlock,
   onedrive: OneDriveBlock,
@@ -919,6 +921,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,
   notion_v2: NotionV2BlockMeta,
+  oci_events: OciEventsBlockMeta,
   obsidian: ObsidianBlockMeta,
   okta: OktaBlockMeta,
   onedrive: OneDriveBlockMeta,
