@@ -157,7 +157,7 @@ describe('durable Sim tool ownership', () => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
-  const input = { toolCallId: 'tool-1', runId: 'run-1', userId: 'user-1' }
+  const input = { toolCallId: 'tool-1', runId: 'run-1', userId: 'user-1', ownerToken: 'owner-1' }
 
   it.each(['complete', 'error', 'cancelled'] as const)(
     'closes %s admission and refuses preexisting terminal rows',
@@ -250,7 +250,7 @@ describe('durable Sim tool ownership', () => {
     queueTableRows(copilotAsyncToolCalls, [{ id: 'still-owned' }])
     expect(await areStreamToolExecutionsSettled('stream-1', input.userId)).toBe(false)
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
-    await settleSimToolExecution(input.toolCallId)
+    await settleSimToolExecution(input.toolCallId, input.ownerToken)
     expect(dbChainMockFns.set).toHaveBeenLastCalledWith({ executionSettledAt: expect.any(Date) })
   })
 

@@ -308,9 +308,12 @@ async function executeToolWithWatchdog(
   const executableName = toolCall.execName ?? toolCall.name
   const timeoutMs = toolWatchdogTimeoutMs(executableName)
   const controller = new AbortController()
-  const signal = toolContext.abortSignal
-    ? AbortSignal.any([toolContext.abortSignal, controller.signal])
-    : controller.signal
+  lifetime.signal.throwIfAborted()
+  const signal = AbortSignal.any([
+    controller.signal,
+    lifetime.signal,
+    ...(toolContext.abortSignal ? [toolContext.abortSignal] : []),
+  ])
   const execution = lifetime.hold(
     executeTool(executableName, toolCall.params || {}, {
       ...toolContext,
@@ -318,9 +321,16 @@ async function executeToolWithWatchdog(
     })
   )
   let timer: ReturnType<typeof setTimeout> | undefined
+  let rejectOwnershipLoss: () => void = () => {}
+  const ownershipLost = new Promise<never>((_, reject) => {
+    rejectOwnershipLoss = () => reject(lifetime.signal.reason)
+    lifetime.signal.addEventListener('abort', rejectOwnershipLoss, { once: true })
+    if (lifetime.signal.aborted) rejectOwnershipLoss()
+  })
   try {
     return await Promise.race([
       execution,
+      ownershipLost,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           const error = new ToolExecutionTimeoutError(toolCall.name, timeoutMs)
@@ -331,6 +341,7 @@ async function executeToolWithWatchdog(
     ])
   } finally {
     if (timer) clearTimeout(timer)
+    lifetime.signal.removeEventListener('abort', rejectOwnershipLoss)
     // Swallow the abandoned promise's eventual rejection so it can't surface
     // as an unhandled rejection after a watchdog loss.
     execution.catch(() => {})
@@ -545,6 +556,7 @@ async function executeToolAndReportInner(
         pendingToolWaitBudgetMs(toolCall),
         options?.abortSignal ?? execContext.abortSignal,
         {
+          executionScope: { runId: context.runId, userId: execContext.userId },
           acceptStatus: (status) =>
             status === 'success' || status === 'error' || status === 'cancelled',
         }
@@ -606,16 +618,11 @@ async function executeToolAndReportInner(
   ): Promise<AsyncCompletionSignal> {
     markToolCallCancelled(message)
     markToolResultSeen(context, toolCall.id)
-    await completeAsyncToolCall({
+    await lifetime.complete({
       toolCallId: toolCall.id,
       status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
       result: { cancelled: true },
       error: message,
-    }).catch((err) => {
-      logger.warn('Failed to persist async tool status', {
-        toolCallId: toolCall.id,
-        error: toError(err).message,
-      })
     })
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
@@ -665,6 +672,10 @@ async function executeToolAndReportInner(
   })
 
   const toolExecutionContext = buildToolExecutionContext(toolCall, execContext)
+  toolExecutionContext.abortSignal = AbortSignal.any([
+    lifetime.signal,
+    ...(toolExecutionContext.abortSignal ? [toolExecutionContext.abortSignal] : []),
+  ])
   let toolRegistryMerged = false
   const mergeToolRegistry = (projectionSafe: boolean) => {
     if (!projectionSafe || toolRegistryMerged) return
@@ -804,18 +815,13 @@ async function executeToolAndReportInner(
     const terminalData = getToolCallTerminalData(toolCall)
 
     markToolResultSeen(context, toolCall.id)
-    await completeAsyncToolCall({
+    await lifetime.complete({
       toolCallId: toolCall.id,
       status: modelSucceeded
         ? MothershipStreamV1AsyncToolRecordStatus.completed
         : MothershipStreamV1AsyncToolRecordStatus.failed,
       ...(terminalData !== undefined ? { result: terminalData } : {}),
       error: modelSucceeded ? null : terminalMessage,
-    }).catch((err) => {
-      logger.warn('Failed to persist async tool completion', {
-        toolCallId: toolCall.id,
-        error: toError(err).message,
-      })
     })
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
@@ -912,16 +918,11 @@ async function executeToolAndReportInner(
     })
 
     markToolResultSeen(context, toolCall.id)
-    await completeAsyncToolCall({
+    await lifetime.complete({
       toolCallId: toolCall.id,
       status: MothershipStreamV1AsyncToolRecordStatus.failed,
       result: { error: toolCall.error },
       error: toolCall.error,
-    }).catch((err) => {
-      logger.warn('Failed to persist async tool error', {
-        toolCallId: toolCall.id,
-        error: toError(err).message,
-      })
     })
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,

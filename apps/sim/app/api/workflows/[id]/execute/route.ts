@@ -90,7 +90,7 @@ import {
   getAsyncToolCall,
   getRunSegment,
   releaseWorkflowToolExecutionClaim,
-  settleSimToolExecution,
+  settleClientWorkflowToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
@@ -501,13 +501,15 @@ async function handleExecutePost(
   let copilotSettlement: Promise<void> | undefined
   const settleCopilotExecution = async () => {
     if (!copilotToolCallId || !workflowToolClaimAcquired) return
-    copilotSettlement ??= settleSimToolExecution(copilotToolCallId).catch((error) => {
-      reqLogger.warn('Could not record Copilot workflow execution settlement', {
-        copilotToolCallId,
-        executionId,
-        error: getErrorMessage(error),
-      })
-    })
+    copilotSettlement ??= settleClientWorkflowToolExecution(copilotToolCallId, executionId).catch(
+      (error) => {
+        reqLogger.warn('Could not record Copilot workflow execution settlement', {
+          copilotToolCallId,
+          executionId,
+          error: getErrorMessage(error),
+        })
+      }
+    )
     await copilotSettlement
   }
   const executeBoundWorkflow = async <T>(execute: () => Promise<T>): Promise<T> => {
