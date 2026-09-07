@@ -19,6 +19,12 @@ import { z } from "zod";
 
 export const PROTOCOL_VERSION = 1;
 
+/** A tool's resource effect keeps its identity across live delivery and transcript replay. */
+export interface StreamResourceEffect {
+  effectId?: string | undefined;
+  replay?: true | undefined;
+}
+
 /** Activity acknowledged through a completed leg, scoped to one emitter's lifetime. */
 export interface StreamActivityReceipt {
   emitterId: string;

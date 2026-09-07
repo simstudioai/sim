@@ -15,7 +15,11 @@ import {
   extractEditContent,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
-import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/go/parser'
+import {
+  FatalSseEventError,
+  processSSEStream,
+  StreamContinuityError,
+} from '@/lib/mothership/request/go/parser'
 import { scopeProviderToolCallEvent } from '@/lib/mothership/request/go/tool-call-identity'
 import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
 import {
@@ -378,6 +382,16 @@ export async function runStreamLoop(
 
         await prePersistClientExecutableToolCall(streamEvent, context, options, execContext)
 
+        if (streamEvent.type === MothershipStreamV1EventType.resource) {
+          try {
+            await applyStreamEvent(streamEvent, context, execContext, options)
+          } catch (error) {
+            // No receipt advances past an uncommitted effect. Reattach and replay
+            // this tool's saved result instead of silently dropping its panel.
+            throw new StreamContinuityError(getErrorMessage(error), { cause: error })
+          }
+        }
+
         try {
           await options.onEvent?.(streamEvent)
         } catch (error) {
@@ -400,7 +414,9 @@ export async function runStreamLoop(
           return context.streamComplete || undefined
         }
 
-        await applyStreamEvent(streamEvent, context, execContext, options)
+        if (streamEvent.type !== MothershipStreamV1EventType.resource) {
+          await applyStreamEvent(streamEvent, context, execContext, options)
+        }
         return context.streamComplete || undefined
       } finally {
         const dispatchMs = performance.now() - dispatchStart
