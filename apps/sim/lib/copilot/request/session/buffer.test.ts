@@ -9,6 +9,7 @@ import {
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { createEvent } from '@/lib/copilot/request/session/event'
+import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 
 type StoredEnvelope = {
   score: number
@@ -135,6 +136,18 @@ import {
   readEvents,
   scheduleBufferCleanup,
 } from '@/lib/copilot/request/session/buffer'
+
+async function makeEnvelope(text: string) {
+  const cursor = await allocateCursor('stream-1')
+  return createEvent({
+    streamId: 'stream-1',
+    cursor: cursor.cursor,
+    seq: cursor.seq,
+    requestId: 'req-1',
+    type: MothershipStreamV1EventType.text,
+    payload: { channel: MothershipStreamV1TextChannel.assistant, text },
+  })
+}
 
 describe('mothership-stream-outbox', () => {
   beforeEach(() => {
@@ -345,5 +358,44 @@ describe('mothership-stream-outbox', () => {
 
     expect(replayed).toHaveLength(1)
     expect(replayed[0]?.payload.text).toBe('hello')
+  })
+
+  it('splits an oversized batch instead of refusing it', async () => {
+    const limits = getRedisBudgetLimits('copilot_stream')
+    // Individually writable frames that collectively exceed the per-write ceiling. Refusing the
+    // whole batch would stop replay persistence for the rest of the stream over a batching artefact.
+    const envelopes = await Promise.all(
+      Array.from({ length: 3 }, () =>
+        makeEnvelope('x'.repeat(Math.floor(limits.maxSingleWriteBytes * 0.45)))
+      )
+    )
+
+    const result = await appendEvents(envelopes, { streamId: 'stream-1' })
+
+    expect(result.persisted).toBe(true)
+    expect(mockRedis.eval).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses a single frame that can never land, without splitting', async () => {
+    const limits = getRedisBudgetLimits('copilot_stream')
+    const oversized = await makeEnvelope('x'.repeat(limits.maxSingleWriteBytes + 10))
+    const result = await appendEvents([oversized], { streamId: 'stream-1' })
+
+    expect(result.persisted).toBe(false)
+    expect(mockRedis.eval).not.toHaveBeenCalled()
+  })
+
+  it('measures the ceiling in UTF-8 bytes, not UTF-16 units', async () => {
+    const limits = getRedisBudgetLimits('copilot_stream')
+    // Each astral char is 2 UTF-16 units but 4 UTF-8 bytes, so `String.length` under-reports by 2x
+    // and would call this batch writable when Redis will not.
+    const chars = Math.floor(limits.maxSingleWriteBytes / 3)
+    const astral = await makeEnvelope('\u{1D306}'.repeat(chars))
+    expect(JSON.stringify(astral).length).toBeLessThan(limits.maxSingleWriteBytes)
+
+    const result = await appendEvents([astral], { streamId: 'stream-1' })
+
+    expect(result.persisted).toBe(false)
+    expect(mockRedis.eval).not.toHaveBeenCalled()
   })
 })

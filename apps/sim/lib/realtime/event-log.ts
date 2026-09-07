@@ -198,12 +198,13 @@ export async function appendEvent<E extends EventLogEntry>(
           stream.events = stream.events.slice(-config.cap)
         }
         if (config.maxBytes > 0) {
-          let bytes = stream.events.reduce(
-            (total, event) => total + JSON.stringify(event).length,
-            0
-          )
+          // UTF-8 bytes, so this path bounds a stream identically to the Lua's `string.len`;
+          // `String.length` counts UTF-16 units and under-reports every non-ASCII event.
+          const entryBytes = (event: EventLogEntry) =>
+            Buffer.byteLength(JSON.stringify(event), 'utf8')
+          let bytes = stream.events.reduce((total, event) => total + entryBytes(event), 0)
           while (bytes > config.maxBytes && stream.events.length > 1) {
-            bytes -= JSON.stringify(stream.events[0]).length
+            bytes -= entryBytes(stream.events[0])
             stream.events = stream.events.slice(1)
           }
         }

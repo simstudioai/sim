@@ -236,50 +236,77 @@ export async function appendEvents(
   }
   const budgetKeys = getRedisBudgetKeys(budgetScope)
 
-  const zaddArgs: Array<number | string> = []
-  let batchBytes = 0
-  for (const envelope of envelopes) {
+  /*
+    Redis measures a member in UTF-8 bytes, so the ceiling has to be measured the same
+    way — `String.length` counts UTF-16 units and under-reports every non-ASCII frame,
+    which would let a batch past a check the Lua then applies differently.
+  */
+  const members = envelopes.map((envelope) => {
     const member = JSON.stringify(envelope)
-    batchBytes += member.length
-    zaddArgs.push(envelope.seq, member)
-  }
+    return { seq: envelope.seq, member, bytes: Buffer.byteLength(member, 'utf8') }
+  })
 
   /*
-    A single batch past the per-write ceiling can never land, and retrying it would
-    stall every later batch behind it. Refuse it the same way the budget would.
+    Split on the per-write ceiling rather than refusing the whole batch: a flush carries
+    whatever accumulated since the last one, so an ordinary run of large frames can exceed
+    the ceiling collectively while every frame is individually writable. Refusing that
+    batch would stop replay persistence for the rest of the stream over a batching
+    artefact. Chunks are written in sequence order, so the stored cursor stays monotonic.
   */
-  if (batchBytes > limits.maxSingleWriteBytes) {
-    const refusal: RedisBudgetRefusal = {
-      resource: 'owner_redis_bytes',
-      currentBytes: 0,
-      limitBytes: limits.maxSingleWriteBytes,
-      attemptedBytes: batchBytes,
+  const chunks: Array<{ members: typeof members; bytes: number }> = []
+  for (const entry of members) {
+    const last = chunks[chunks.length - 1]
+    if (!last || last.bytes + entry.bytes > limits.maxSingleWriteBytes) {
+      chunks.push({ members: [entry], bytes: entry.bytes })
+    } else {
+      last.members.push(entry)
+      last.bytes += entry.bytes
     }
-    logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })
-    return { persisted: false, refusal }
   }
 
-  const result = await withRedisRetry({ operation: 'append_event', streamId }, async (redis) =>
-    redis.eval(
-      APPEND_EVENTS_SCRIPT,
-      2 + budgetKeys.length,
-      getEventsKey(streamId),
-      getSeqKey(streamId),
-      ...budgetKeys,
-      config.ttlSeconds,
-      config.eventLimit,
-      limits.maxOwnerBytes,
-      limits.maxUserBytes,
-      limits.ttlSeconds,
-      String(envelopes[envelopes.length - 1].seq),
-      ...zaddArgs
-    )
-  )
+  for (const chunk of chunks) {
+    /*
+      A single frame past the ceiling can never land, and retrying it would stall every
+      later batch behind it. Refuse it the same way the budget would.
+    */
+    if (chunk.bytes > limits.maxSingleWriteBytes) {
+      const refusal: RedisBudgetRefusal = {
+        resource: 'owner_redis_bytes',
+        currentBytes: 0,
+        limitBytes: limits.maxSingleWriteBytes,
+        attemptedBytes: chunk.bytes,
+      }
+      logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })
+      return { persisted: false, refusal }
+    }
 
-  const refusal = parseRedisBudgetRefusal(result, batchBytes, limits)
-  if (refusal) {
-    logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })
-    return { persisted: false, refusal }
+    const zaddArgs: Array<number | string> = []
+    for (const entry of chunk.members) {
+      zaddArgs.push(entry.seq, entry.member)
+    }
+
+    const result = await withRedisRetry({ operation: 'append_event', streamId }, async (redis) =>
+      redis.eval(
+        APPEND_EVENTS_SCRIPT,
+        2 + budgetKeys.length,
+        getEventsKey(streamId),
+        getSeqKey(streamId),
+        ...budgetKeys,
+        config.ttlSeconds,
+        config.eventLimit,
+        limits.maxOwnerBytes,
+        limits.maxUserBytes,
+        limits.ttlSeconds,
+        String(chunk.members[chunk.members.length - 1].seq),
+        ...zaddArgs
+      )
+    )
+
+    const refusal = parseRedisBudgetRefusal(result, chunk.bytes, limits)
+    if (refusal) {
+      logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })
+      return { persisted: false, refusal }
+    }
   }
 
   return { persisted: true }

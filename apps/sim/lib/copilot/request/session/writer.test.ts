@@ -322,4 +322,58 @@ describe('StreamWriter', () => {
       userId: 'user-7',
     })
   })
+
+  it('does not persist a batch queued while an earlier append was already refusing', async () => {
+    vi.useFakeTimers()
+    let releaseFirst: () => void = () => {}
+    appendEvents
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirst = () =>
+              resolve({
+                persisted: false,
+                refusal: {
+                  resource: 'owner_redis_bytes',
+                  currentBytes: 1,
+                  limitBytes: 1,
+                  attemptedBytes: 1,
+                },
+              })
+          })
+      )
+      .mockResolvedValue({ persisted: true })
+
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      chatId: 'chat-1',
+      requestId: 'req-1',
+    })
+    const controller = {
+      enqueue: vi.fn(),
+      close: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    writer.attach(controller)
+
+    await writer.publish({
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'one' },
+    })
+    await vi.advanceTimersByTimeAsync(15)
+
+    // Queued while the first append is still in flight, so the enqueue-time check cannot see the
+    // refusal about to latch. Persisting it would leave replay holding a later event but not the
+    // refused one — a hole a resuming client cannot detect.
+    await writer.publish({
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'two' },
+    })
+    await vi.advanceTimersByTimeAsync(15)
+
+    releaseFirst()
+    await writer.close()
+
+    expect(writer.persistenceStopped).toBe(true)
+    expect(appendEvents).toHaveBeenCalledTimes(1)
+  })
 })

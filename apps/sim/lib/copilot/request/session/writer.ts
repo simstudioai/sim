@@ -22,6 +22,9 @@ export interface StreamWriterOptions {
   keepaliveMs?: number
 }
 
+/** Result used when the soft stop is already latched, so no further append is attempted. */
+const PERSISTENCE_ALREADY_STOPPED = { persisted: true } as const
+
 export class StreamWriter {
   private readonly streamId: string
   private readonly chatId: string | undefined
@@ -191,10 +194,18 @@ export class StreamWriter {
     this.persistenceTail = this.persistenceTail
       .catch(() => undefined)
       .then(() =>
-        appendEvents(batch, {
-          streamId: this.streamId,
-          ...(this.userId ? { userId: this.userId } : {}),
-        })
+        /*
+          Re-checked here, not only at enqueue: a batch queued while an earlier append was
+          in flight would otherwise land after that append had already stopped persistence,
+          leaving a replay that holds later events but not the refused ones — a hole a
+          resuming client cannot detect.
+        */
+        this._persistenceStopped
+          ? PERSISTENCE_ALREADY_STOPPED
+          : appendEvents(batch, {
+              streamId: this.streamId,
+              ...(this.userId ? { userId: this.userId } : {}),
+            })
       )
       .then((result) => {
         this.lastPersistenceError = null

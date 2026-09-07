@@ -470,6 +470,28 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it('keeps the byte trigger armed when compaction fails', async () => {
+    const a = await newStore()
+    const doc = new Y.Doc()
+    await a.attachRoom(NAME, doc)
+    const room = (a as any).rooms.get(NAME)
+    room.appendedBytes = 9 * 1024 * 1024
+    room.realEdited = true
+
+    const write = (a as any).write
+    const original = write.xTrim.bind(write)
+    write.xTrim = async () => {
+      throw new Error('redis blip')
+    }
+    await (a as any).maybeCompact(NAME, true)
+    write.xTrim = original
+
+    // A failed fold must not disarm the trigger — otherwise the stream stays oversized until
+    // this task happens to append another full threshold's worth of deltas.
+    expect(room.appendedBytes).toBe(9 * 1024 * 1024)
+    doc.destroy()
+  })
+
   it('stamps a compaction snapshot of an agent-ONLY stream as an agent frame (never persisted)', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64')

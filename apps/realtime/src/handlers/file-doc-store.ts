@@ -787,12 +787,10 @@ export class FileDocStore {
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
-        // Counts deltas appended SINCE this fold, so it must not carry the snapshot's own size: a
-        // document whose snapshot already exceeds the ceiling would otherwise re-breach it the instant
-        // compaction finished and force a full snapshot append on every subsequent keystroke — the
-        // write amplification this threshold exists to prevent. Reset before the appends so a
-        // concurrent publish is counted against the new baseline rather than the one being retired.
-        room.appendedBytes = 0
+        // Bytes this fold is accountable for. Deducted only once the trim succeeds, so a failed
+        // compaction leaves the trigger armed instead of silently disarming it — and deducting
+        // rather than zeroing preserves whatever a concurrent publish added while it ran.
+        const foldedBytes = room.appendedBytes
         // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
         // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
         // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
@@ -805,6 +803,10 @@ export class FileDocStore {
         // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
         // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
         await this.write.xTrim(streamKey(name), 'MINID', upTo)
+        // Never the snapshot's own size: a document whose snapshot already exceeds the ceiling
+        // would re-breach it the instant compaction finished and force a full snapshot append on
+        // every subsequent keystroke — the write amplification this threshold exists to prevent.
+        room.appendedBytes = Math.max(0, room.appendedBytes - foldedBytes)
       } finally {
         await this.releaseLock(key, token)
       }
