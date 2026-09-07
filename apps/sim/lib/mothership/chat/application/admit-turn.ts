@@ -38,6 +38,7 @@ export const admitChatTurn = defineAuthorizedWorkspaceUseCase({
     id: 'mothership.chats.admit_turn',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'copilot.use',
     principalKinds: ['session'],
   }),
   resolveContext({ principal, input }: { principal: SessionPrincipal; input: AdmitTurnInput }) {

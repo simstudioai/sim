@@ -34,8 +34,6 @@ import {
   cancelActiveBrowserTools,
   initBrowserAgentTransport,
 } from '@/lib/browser-agent/transport'
-import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-persistence-queue'
-import { type MothershipResourceUpdate, mergeChatResource } from '@/lib/mothership/resources/types'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
@@ -48,7 +46,7 @@ import {
 } from '@/lib/desktop/chat-scope'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
-import { getLiveAssistantMessageId } from '@/lib/mothership/chat/effective-transcript'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import type {
   PersistedFileAttachment,
   PersistedMessage,
@@ -65,9 +63,12 @@ import {
 } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { canDisplayResource } from '@/lib/mothership/resources/availability'
+import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-persistence-queue'
 import {
   isAddressableResource,
   isEphemeralResource,
+  type MothershipResourceUpdate,
+  mergeChatResource,
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
@@ -1753,8 +1754,7 @@ export function useChat(
         r.id !== 'streaming-file' &&
         !serverKeys.has(`${r.type}:${r.id}`) &&
         (isEphemeralResource(r) ||
-          pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`) ||
-          inFlightResourceAddsRef.current.has(`${r.type}:${r.id}`))
+          resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r.type, r.id))
     )
     // Server order is authoritative for persisted resources, but local-only
     // items (pending-persist adds and synthetic ephemeral panels)

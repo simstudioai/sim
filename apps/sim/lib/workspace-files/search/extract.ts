@@ -1,10 +1,10 @@
 import { Buffer, isUtf8 } from 'node:buffer'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType } from '@/lib/file-parsers'
 import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
+import { resolveServableDoc } from '@/lib/mothership/tools/server/files/doc-compile'
 import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,

@@ -134,9 +134,9 @@ import {
   executeRunToolOnClient,
   isRunToolActiveForId,
   isRunToolActiveForWorkflow,
-  subscribeToRunToolRelease,
   stopRunToolExecutions,
   stopRunToolForExecution,
+  subscribeToRunToolRelease,
 } from './run-tool-execution'
 
 describe('run tool execution cancellation', () => {
@@ -225,7 +225,7 @@ describe('run tool execution cancellation', () => {
     expect(saveExecutionPointer).toHaveBeenCalledWith(
       expect.objectContaining({ workflowId: 'wf-1', lastEventId: 0 })
     )
-    expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
+    await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
   })
 
   it.each([

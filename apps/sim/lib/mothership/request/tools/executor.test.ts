@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import '@sim/testing/mocks/executor'
 
 import { trace } from '@opentelemetry/api'
@@ -352,7 +353,7 @@ describe('executeToolAndReport provenance isolation', () => {
     const runWorkflow = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       expect(String(input)).toBe('https://cli-budget.test/api/v2/workflows/workflow-1/execute')
       expect(init?.method).toBe('POST')
-      await new Promise((resolve) => setTimeout(resolve, 70_000))
+      await sleep(70_000)
       init?.signal?.throwIfAborted()
       return Response.json({
         data: {
