@@ -1705,6 +1705,12 @@ export const OciObjectStorageNativeBlock: BlockConfig<OciObjectStorageNativeResp
           operationParams.objectName = params.scope === 'bucket' ? undefined : params.grantObject
         }
         const result: Record<string, unknown> = {
+          /** Explicitly unset absent semantic inputs because the executor merges this patch. */
+          ...Object.fromEntries(
+            Object.values(OPERATION_FIELDS)
+              .flat()
+              .map((field) => [field, undefined])
+          ),
           oauthCredential: params.oauthCredential,
           region: params.region || undefined,
           namespace: params.namespace || undefined,

@@ -8,6 +8,8 @@ import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciObjectStorageNativeTool } from '@/lib/internal/oci-object-storage-native/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { OciObjectStorageNativeBlock } from '@/blocks/blocks/oci_object_storage_native'
+import { ociObjectStorageNativeGetNamespaceTool } from '@/tools/oci_object_storage_native/get_namespace'
 import {
   createOciNativeOperationInput,
   OCI_NATIVE_JSON_BYTES,
@@ -83,6 +85,48 @@ describe('native OCI tool operation handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.executeOciNativeOperation.mockResolvedValue({ success: true, output: {} })
+  })
+
+  it.each([null, '', undefined, 'compartment'])(
+    'normalizes the optional namespace compartment through native merge (%s)',
+    async (compartmentId) => {
+      const raw = {
+        operation: ociObjectStorageNativeGetNamespaceTool.id,
+        oauthCredential: 'selected',
+        compartmentId,
+      }
+      const params = {
+        ...raw,
+        ...OciObjectStorageNativeBlock.tools.config?.params?.(raw),
+        accessToken: 'authorized',
+      }
+      const response = await executeOciObjectStorageNativeTool(
+        request('get_namespace', ociObjectStorageNativeGetNamespaceTool.operation.input(params))
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.executeOciNativeOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentialId: 'authorized',
+        }),
+        expect.anything()
+      )
+      expect(mocks.executeOciNativeOperation.mock.lastCall?.[0].compartmentId).toBe(
+        compartmentId || undefined
+      )
+    }
+  )
+
+  it('preserves zero-byte inline upload content when suppressing inactive fields', () => {
+    const raw = {
+      operation: 'oci_object_storage_native_upload_object',
+      uploadSource: 'content',
+      content: '',
+      file: { id: 'stale' },
+      newObjectName: 'empty.txt',
+    }
+    const params = { ...raw, ...OciObjectStorageNativeBlock.tools.config?.params?.(raw) }
+    expect(params.content).toBe('')
+    expect(params.file).toBeUndefined()
   })
 
   it.each(CASES)(
