@@ -68,6 +68,8 @@
     "check:spec-example-ids": "bun run scripts/check-spec-example-ids.ts",
     "check:script-tests": "bun run scripts/check-script-test-coverage.ts",
     "check:audits": "bun run scripts/run-audits.ts",
+    "images:generate": "bun run scripts/generate-image-manifest.ts",
+    "images:check": "bun run scripts/generate-image-manifest.ts --check",
     "check:skills": "bun run scripts/sync-skills.ts --check",
     "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
     "check:desktop-ipc": "bun run scripts/check-desktop-ipc-contract.ts",

@@ -22,7 +22,19 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/*.test.{ts,tsx}'],
-    exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
+    exclude: [
+      ...configDefaults.exclude,
+      '**/node_modules/**',
+      '**/dist/**',
+      /** Live database and hosted sandbox acceptance belongs in explicit local runs. */
+      ...(process.env.CI === 'true'
+        ? [
+            'lib/mothership/agent-cli/saved-run-read.postgres.test.ts',
+            'lib/mothership/tools/hosted-workbench.smoke.test.ts',
+            'lib/uploads/upload-session/workspace-file-provenance.postgres.test.ts',
+          ]
+        : []),
+    ],
     setupFiles: ['./vitest.setup.ts'],
     pool: 'threads',
     isolate: true,
