@@ -1,22 +1,20 @@
 import { NextResponse } from 'next/server'
 import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
+import { MAX_EMBEDDED_IMAGES } from '@/lib/uploads/server/embedded-image-refs'
 
 const rateLimiter = new RateLimiter()
 
-/** Metadata reads are cheap (one indexed lookup) — generous per-IP budget. */
-const METADATA_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 120,
-  refillRate: 120,
-  refillIntervalMs: 60_000,
-}
-
-/** Content reads stream bytes from storage (S3 egress) — tighter per-IP budget. */
-const CONTENT_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 60,
-  refillRate: 60,
-  refillIntervalMs: 60_000,
-}
+const PUBLIC_FILE_RATE_LIMITS = {
+  metadata: { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 },
+  content: { maxTokens: 60, refillRate: 60, refillIntervalMs: 60_000 },
+  /** Allow three image-heavy page loads in a burst without consuming the document's budget. */
+  inline: {
+    maxTokens: MAX_EMBEDDED_IMAGES * 3,
+    refillRate: 60,
+    refillIntervalMs: 60_000,
+  },
+} satisfies Record<string, TokenBucketConfig>
 
 /**
  * Per-IP rate limit for the unauthenticated public share endpoints, returning a
@@ -27,9 +25,9 @@ const CONTENT_RATE_LIMIT: TokenBucketConfig = {
  */
 export async function enforcePublicFileRateLimit(
   request: { headers: { get(name: string): string | null } },
-  scope: 'metadata' | 'content'
+  scope: keyof typeof PUBLIC_FILE_RATE_LIMITS
 ): Promise<NextResponse | null> {
-  const config = scope === 'content' ? CONTENT_RATE_LIMIT : METADATA_RATE_LIMIT
+  const config = PUBLIC_FILE_RATE_LIMITS[scope]
   const ip = getClientIp(request)
   if (!ip) {
     return NextResponse.json(

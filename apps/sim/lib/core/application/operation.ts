@@ -16,13 +16,15 @@ import {
  * authorizes in its own middleware — for every operation alike, ahead of and
  * independently of whatever module capability the operation names.
  *
+ * `oauth_apps.use` applies the same rule to OAuth credentials.
+ *
  * Excluded from {@link OperationDeclarableCapability} because an operation that
  * named it would be wrong either way: withheld, it would double-apply a refusal
  * the funnel has already made in the caller's own words; and a session caller
  * holding no API key at all would be refused an ordinary operation over a
  * setting about credentials they are not using.
  */
-export type PrincipalWideCapability = 'personal_api_key.use'
+export type PrincipalWideCapability = 'personal_api_key.use' | 'oauth_apps.use'
 
 /**
  * The capabilities an operation may name — every static rule except the
@@ -35,7 +37,10 @@ export type OperationDeclarableCapability = Exclude<
 >
 
 /** The runtime half of {@link PrincipalWideCapability}, for the builders' guard. */
-const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = ['personal_api_key.use']
+const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = [
+  'personal_api_key.use',
+  'oauth_apps.use',
+]
 
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id

@@ -97,6 +97,34 @@ describe('organization operation authorization', () => {
       authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })
     ).resolves.toMatchObject({ userId: 'member' })
   })
+  it.each(['client', SIM_CLI_CLIENT_ID])(
+    'rechecks OAuth app access for existing %s grants on organization reads',
+    async (clientId) => {
+      await expect(
+        authorizeOrganizationOperation({ ...oauth, clientId }, operation, { organizationId: 'org' })
+      ).resolves.toMatchObject({ userId: 'member' })
+      mocks.config.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableOAuthAppAccess: true,
+      })
+      await expect(
+        authorizeOrganizationOperation({ ...oauth, clientId }, operation, { organizationId: 'org' })
+      ).rejects.toThrow('OAuth app access')
+    }
+  )
+  it.each([
+    principal,
+    { kind: 'personal_api_key' as const, userId: 'member', keyId: 'key' },
+    delegated,
+  ])('keeps $kind access independent of the OAuth app restriction', async (caller) => {
+    mocks.config.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableOAuthAppAccess: true,
+    })
+    await expect(
+      authorizeOrganizationOperation(caller, operation, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: 'member' })
+  })
   it('does not let read-only OAuth consent perform an administrator write', async () => {
     mocks.membership.mockResolvedValue([{ role: 'admin' }])
     const write = defineOrganizationOperation({

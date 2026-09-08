@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth/auth'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
 const DISCOVERY_CACHE_SECONDS = 300
 
@@ -41,7 +41,7 @@ export async function getOAuthProviderMetadata() {
 
 /** One response contract for every RFC 8414 discovery alias Sim exposes. */
 export async function getOAuthProviderMetadataResponse(): Promise<NextResponse> {
-  if (!(await isOAuthProviderEnabled())) {
+  if (isAuthDisabled) {
     return NextResponse.json(
       { error: 'OAuth provider is not enabled' },
       { status: 404, headers: { ...DISCOVERY_HEADERS, 'Cache-Control': 'no-store' } }

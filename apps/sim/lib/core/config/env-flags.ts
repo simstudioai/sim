@@ -327,15 +327,14 @@ export const isSsoEnabled = enterpriseFeatureEnabled(
 /**
  * Is SCIM directory provisioning enabled.
  *
+ * Hosted deployments default on; an explicit false defers activation during a rolling deploy.
  * Gates the settings section, the admin API, and the provisioning endpoints
  * alike. A connection whose organization loses the entitlement stops
  * authenticating rather than continuing to accept directory writes.
  */
-export const isScimEnabled = enterpriseFeatureEnabled(
-  'scim',
-  env.SCIM_ENABLED,
-  'NEXT_PUBLIC_SCIM_ENABLED'
-)
+export const isScimEnabled = isHosted
+  ? (explicitEnterpriseFlag(env.SCIM_ENABLED, 'NEXT_PUBLIC_SCIM_ENABLED') ?? true)
+  : enterpriseFeatureEnabled('scim', env.SCIM_ENABLED, 'NEXT_PUBLIC_SCIM_ENABLED')
 
 /**
  * Is organization usage monitoring enabled.

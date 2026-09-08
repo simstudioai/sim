@@ -23,13 +23,13 @@ sim mcp-servers create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Server display name. |
 | `--description <value>` | No | Optional server description. |
-| `--transport <value>` | No | Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create. Accepted values: `streamable-http`. |
+| `--transport <value>` | No | Transport protocol. Defaults to `streamable-http` on creation. Accepted values: `streamable-http`. |
 | `--url <value>` | Yes | Absolute HTTP or HTTPS endpoint URL without `&#123;&#123;ENV_VAR&#125;&#125;` references. It determines server identity and is immutable: delete and recreate the server to change endpoints. |
 | `--auth-type <value>` | No | Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method. Accepted values: `none`, `headers`, `oauth`. |
 | `--headers <json\|@file>` | No | Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat. (JSON, or @path / @- to read a file or stdin). |
-| `--timeout <value>` | No | Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create. |
-| `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
-| `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
+| `--timeout <value>` | No | Per-request timeout in milliseconds. Defaults to 30000 on creation. |
+| `--retries <value>` | No | Number of retries per request. Defaults to 3 on creation. |
+| `--enabled` | No | Whether workflows can use the server's tools. Defaults to true on creation. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
 | `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
@@ -121,7 +121,7 @@ List MCP Server Tools (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--refresh` | No | Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip. |
+| `--refresh` | No | Refresh tools using your credentials. Otherwise results may reuse another workspace member's recent discovery and omit newly added tools. |
 | `--no-refresh` | No | Send --refresh as false. |
 
 </CommandTable>
@@ -150,13 +150,13 @@ sim mcp-servers update <mcpServerId> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Server display name. |
 | `--description <value>` | No | Optional server description. |
-| `--transport <value>` | No | Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create. Accepted values: `streamable-http`. |
+| `--transport <value>` | No | Transport protocol. Defaults to `streamable-http` on creation. Accepted values: `streamable-http`. |
 | `--url <value>` | No | Immutable server URL. When provided, it must equal the current URL; use delete and create to change endpoints. |
 | `--auth-type <value>` | No | Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method. Accepted values: `none`, `headers`, `oauth`. |
 | `--headers <json\|@file>` | No | Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat. (JSON, or @path / @- to read a file or stdin). |
-| `--timeout <value>` | No | Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create. |
-| `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
-| `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
+| `--timeout <value>` | No | Per-request timeout in milliseconds. Defaults to 30000 on creation. |
+| `--retries <value>` | No | Number of retries per request. Defaults to 3 on creation. |
+| `--enabled` | No | Whether workflows can use the server's tools. Defaults to true on creation. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
 | `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |

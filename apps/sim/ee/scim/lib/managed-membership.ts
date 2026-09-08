@@ -1,5 +1,5 @@
 import { scimConnection, scimUser } from '@sim/db/schema'
-import { type AnyColumn, type SQL, sql } from 'drizzle-orm'
+import { type AnyColumn, Column, getTableName, is, type SQL, sql } from 'drizzle-orm'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import type { DbOrTx } from '@/lib/db/types'
 import { isScimDeploymentEnabled, isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
@@ -36,15 +36,25 @@ export function scimManagedUserPredicate(
   organizationId: string,
   userIdColumn: SQL | AnyColumn
 ): SQL<boolean> {
+  const userId = is(userIdColumn, Column) ? qualifiedColumn(userIdColumn) : userIdColumn
   return sql<boolean>`exists (
     select 1
     from ${scimUser}
-    join ${scimConnection} on ${scimConnection.id} = ${scimUser.connectionId}
-    where ${scimUser.userId} = ${userIdColumn}
-      and ${scimConnection.organizationId} = ${organizationId}
-      and ${scimConnection.status} = 'active'
-      and coalesce((${scimConnection.settings} ->> 'lockManualMembership')::boolean, false) = true
+    join ${scimConnection} on ${qualifiedColumn(scimConnection.id)} = ${qualifiedColumn(scimUser.connectionId)}
+    where ${qualifiedColumn(scimUser.userId)} = ${userId}
+      and ${qualifiedColumn(scimConnection.organizationId)} = ${organizationId}
+      and ${qualifiedColumn(scimConnection.status)} = 'active'
+      and coalesce((${qualifiedColumn(scimConnection.settings)} ->> 'lockManualMembership')::boolean, false) = true
   )`
+}
+
+/**
+ * Drizzle removes Column qualifiers from single-table SELECT expressions,
+ * including nested SQL. Explicit identifiers preserve this subquery's joins
+ * and outer correlation, using the column's current table name or alias.
+ */
+function qualifiedColumn(column: AnyColumn): SQL {
+  return sql`${sql.identifier(getTableName(column.table))}.${sql.identifier(column.name)}`
 }
 
 /** Refuses a change to a member the directory owns. */
@@ -63,7 +73,7 @@ export async function assertMembershipNotScimManaged(params: {
    * manual changes on behalf of a directory that can no longer sync. Read only
    * once a managed row is found, so the common case costs nothing.
    */
-  if (!(await isScimEntitledForOrganization(params.organizationId))) return
+  if (!(await isScimEntitledForOrganization(params.organizationId, params.executor))) return
   throw new ForbiddenOperationError(
     'SCIM_MANAGED_MEMBERSHIP',
     'This member is managed by the organization’s identity provider. Make the change there, or turn off managed-membership locking in the organization’s directory settings.'

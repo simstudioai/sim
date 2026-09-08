@@ -4,9 +4,11 @@ import Script from 'next/script'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
+import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
+import { env } from '@/lib/core/config/env'
 import {
   isChatEnabled,
   isHosted,
@@ -47,6 +49,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <QueryProvider>
             <SessionProvider>
+              <BrowserTelemetry
+                disabled={env.NEXT_TELEMETRY_DISABLED === '1'}
+                consentRequired={isHosted}
+              />
               <TooltipProvider>
                 <BrandedLayout>{children}</BrandedLayout>
               </TooltipProvider>

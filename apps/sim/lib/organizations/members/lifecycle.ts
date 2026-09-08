@@ -46,6 +46,19 @@ export async function suspendMemberTx(
     organizationIds: [params.organizationId],
   })
 
+  const [membership] = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, params.organizationId), eq(member.userId, params.userId)))
+    .limit(1)
+  if (!membership) throw new OrchestrationError('not_found', 'Member not found')
+  if (membership.role === 'owner') {
+    throw new OrchestrationError(
+      'conflict',
+      'The organization owner cannot be suspended. Transfer ownership in Sim first.'
+    )
+  }
+
   const [updated] = await tx
     .update(user)
     .set({ suspendedAt: new Date(), suspensionSource: params.source, updatedAt: new Date() })

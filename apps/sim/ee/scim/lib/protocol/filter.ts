@@ -1,6 +1,6 @@
 import { SCIM_MAX_FILTER_TERMS } from '@/ee/scim/lib/protocol/constants'
 import { invalidFilter } from '@/ee/scim/lib/protocol/errors'
-import { normalizeAttributePath } from '@/ee/scim/lib/protocol/normalize'
+import { normalizeAttributePath, normalizeScimBoolean } from '@/ee/scim/lib/protocol/normalize'
 
 /**
  * The filter grammar this server accepts, which is the subset the provisioning
@@ -19,7 +19,14 @@ import { normalizeAttributePath } from '@/ee/scim/lib/protocol/normalize'
  */
 
 /** Attributes a User filter may name, mapped to the field the repository knows. */
-export type ScimUserFilterField = 'id' | 'userName' | 'externalId' | 'email' | 'active'
+export type ScimUserFilterField =
+  | 'id'
+  | 'userName'
+  | 'externalId'
+  | 'email'
+  | 'workEmail'
+  | 'primaryEmail'
+  | 'active'
 
 /** Attributes a Group filter may name. */
 export type ScimGroupFilterField = 'id' | 'displayName' | 'externalId'
@@ -34,8 +41,8 @@ const USER_FILTER_FIELDS: Record<string, ScimUserFilterField> = {
   username: 'userName',
   externalid: 'externalId',
   'emails.value': 'email',
-  'emails[type eq "work"].value': 'email',
-  'emails[primary eq true].value': 'email',
+  'emails[type eq "work"].value': 'workEmail',
+  'emails[primary eq true].value': 'primaryEmail',
   active: 'active',
 }
 
@@ -175,6 +182,13 @@ function parseTerm(term: string): { attribute: string; value: string } {
     value = JSON.parse(raw) as string
   } catch {
     throw invalidFilter('Filter values must be quoted strings')
+  }
+
+  if (normalizeAttributePath(attribute).toLowerCase() === 'active') {
+    const active = normalizeScimBoolean(value)
+    if (typeof active !== 'boolean')
+      throw invalidFilter('active must be compared with true or false')
+    return { attribute, value: String(active) }
   }
 
   return { attribute, value }

@@ -1,6 +1,4 @@
 {
-  "id": "621e13c3-aa09-4312-b403-8bf9edae0689",
-  "prevId": "76740278-febe-4038-b689-b8f0f6a9ef23",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12471,59 +12469,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.organization_search_integration": {
-      "name": "organization_search_integration",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "connector_type": {
-          "name": "connector_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approved": {
-          "name": "approved",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "organization_search_integration_organization_id_organization_id_fk": {
-          "name": "organization_search_integration_organization_id_organization_id_fk",
-          "tableFrom": "organization_search_integration",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "organization_search_integration_organization_id_connector_type_pk": {
-          "name": "organization_search_integration_organization_id_connector_type_pk",
-          "columns": ["organization_id", "connector_type"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.outbox_event": {
       "name": "outbox_event",
       "schema": "",
@@ -15141,6 +15086,13 @@
         },
         "permission_type": {
           "name": "permission_type",
+          "type": "permission_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baseline_permission": {
+          "name": "baseline_permission",
           "type": "permission_type",
           "typeSchema": "public",
           "primaryKey": false,
@@ -25101,8 +25053,10 @@
   "policies": {},
   "views": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "7e7a470b-3376-4148-929d-248b4bb86f0b",
+  "prevId": "88a214f2-db61-437b-bd1b-f1e353fa5cd6"
 }

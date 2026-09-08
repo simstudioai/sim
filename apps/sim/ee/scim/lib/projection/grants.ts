@@ -22,6 +22,8 @@ export interface ProjectionGrant {
   permissionType?: PermissionType
   /** Present on grants read back from provenance; a desired grant has no origin yet. */
   origin?: ProjectionGrantOrigin
+  /** Manual workspace permission that predates or exceeds the directory grant. */
+  baselinePermission?: PermissionType | null
 }
 
 /** One `scim_group_mapping` row the user reaches through a group they belong to. */
@@ -78,8 +80,8 @@ export function resolveDesiredGrants(rows: readonly MappingRow[]): ProjectionGra
 
 export interface GrantApplication {
   grant: ProjectionGrant
-  /** The level a previous pass set on a workspace, present when the level changes. */
-  previousPermission?: PermissionType
+  /** Provenance retained even when the actual access has drifted away. */
+  previousGrant?: ProjectionGrant
 }
 
 export interface GrantPlan {
@@ -92,17 +94,18 @@ export interface GrantPlan {
 /**
  * Diffs the desired set against what the directory previously granted.
  *
- * Only differences are returned, which is what makes a reconcile pass
- * idempotent: identical inputs plan nothing. A workspace already granted at a
- * different level is planned as an application carrying the previous level, so
- * the executor can lower as well as raise.
+ * The actual access, when supplied, must also satisfy the mapping. Provenance
+ * alone cannot detect a permission removed or lowered outside the directory.
+ * Unchanged mappings with intact access plan nothing.
  */
 export function planGrantChanges(
   desired: readonly ProjectionGrant[],
-  current: readonly ProjectionGrant[]
+  current: readonly ProjectionGrant[],
+  actual: readonly ProjectionGrant[] = current
 ): GrantPlan {
   const desiredByKey = new Map(desired.map((grant) => [grantKey(grant), grant]))
   const currentByKey = new Map(current.map((grant) => [grantKey(grant), grant]))
+  const actualByKey = new Map(actual.map((grant) => [grantKey(grant), grant]))
 
   const withdraw: ProjectionGrant[] = []
   for (const [key, grant] of currentByKey) {
@@ -120,7 +123,13 @@ export function planGrantChanges(
       grant.permissionType !== undefined &&
       existing.permissionType !== undefined &&
       grant.permissionType !== existing.permissionType
-    if (levelChanged) apply.push({ grant, previousPermission: existing.permissionType })
+    const observed = actualByKey.get(key)
+    const accessMissing =
+      !observed ||
+      (grant.permissionType !== undefined &&
+        (!observed.permissionType ||
+          permissionRank(observed.permissionType) < permissionRank(grant.permissionType)))
+    if (levelChanged || accessMissing) apply.push({ grant, previousGrant: existing })
   }
 
   return { withdraw, apply }

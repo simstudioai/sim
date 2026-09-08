@@ -6,7 +6,10 @@ import { Link } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
@@ -62,7 +65,7 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
         }
       />
 
-      {/* pl-[46px] indents past SettingsResourceRow's icon gutter (size-9 tile + gap-2.5). */}
+      {/** pl-[46px] indents past SettingsResourceRow's icon gutter (size-9 tile + gap-2.5). */}
       {!isVerified && domain.txtRecordValue && (
         <div className='flex flex-col gap-3 pl-[46px]'>
           <SettingRow
@@ -74,7 +77,6 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
               id={`${domain.id}-challenge-host`}
               value={domain.challengeHost}
               copyLabel='Copy host'
-              inputClassName='font-mono'
             />
           </SettingRow>
 
@@ -83,7 +85,6 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
               id={`${domain.id}-challenge-value`}
               value={domain.txtRecordValue}
               copyLabel='Copy value'
-              inputClassName='font-mono'
             />
           </SettingRow>
 
@@ -99,17 +100,18 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
 }
 
 /**
- * Domain-ownership management, rendered as a section of the SSO settings page.
- * A domain must be verified here before SSO can be configured for it, so the two
- * live together rather than sending the admin to a separate page mid-setup.
+ * Domain ownership shared by SSO and SCIM, managed in the Domains tab.
  */
 export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectionProps) {
-  const { data, isLoading } = useOrganizationDomains(organizationId)
+  const { data, isLoading, isError, error, isFetching, refetch } =
+    useOrganizationDomains(organizationId)
   const addDomain = useAddOrganizationDomain()
   const removeDomain = useRemoveOrganizationDomain()
 
   const [newDomain, setNewDomain] = useState('')
-  const [pendingRemoval, setPendingRemoval] = useState<OrganizationDomain | null>(null)
+  const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null)
+  const domains = data?.domains ?? []
+  const pendingRemoval = domains.find((domain) => domain.id === pendingRemovalId) ?? null
 
   async function handleAdd() {
     const value = newDomain.trim()
@@ -127,14 +129,13 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
     if (!pendingRemoval) return
     try {
       await removeDomain.mutateAsync({ orgId: organizationId, domainId: pendingRemoval.id })
-      setPendingRemoval(null)
+      setPendingRemovalId(null)
       toast.success(`${pendingRemoval.domain} removed`)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to remove domain'))
     }
   }
 
-  const domains = data?.domains ?? []
   /** Single source of truth for both the Add chip and the Enter shortcut. */
   const canAddDomain = !addDomain.isPending && newDomain.trim().length > 0
 
@@ -144,32 +145,39 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
         <div className='flex flex-col gap-4.5'>
           <SettingRow
             label='Add a domain'
-            description='Verify a domain your organization owns before configuring SSO for it. Verifying proves you control the domain, so no one else can point it at their identity provider.'
+            description='Prove ownership with a DNS record before using this domain for SSO or directory provisioning.'
             htmlFor={ADD_DOMAIN_FIELD_ID}
           >
-            <div className='flex items-center gap-2'>
+            <form
+              className='flex items-center gap-2'
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (canAddDomain) void handleAdd()
+              }}
+            >
               <ChipInput
                 id={ADD_DOMAIN_FIELD_ID}
                 value={newDomain}
                 onChange={(event) => setNewDomain(event.target.value)}
-                onKeyDown={(event) => {
-                  // This section renders inside the SSO provider <form>, so a bare
-                  // Enter would submit that form instead of adding the domain.
-                  if (event.key !== 'Enter') return
-                  event.preventDefault()
-                  if (canAddDomain) void handleAdd()
-                }}
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />
-              <Chip variant='primary' onClick={handleAdd} disabled={!canAddDomain}>
+              <Chip type='submit' variant='primary' disabled={!canAddDomain}>
                 {addDomain.isPending ? 'Adding...' : 'Add domain'}
               </Chip>
-            </div>
+            </form>
           </SettingRow>
 
           {isLoading ? (
             <SettingsEmptyState variant='inline'>Loading domains...</SettingsEmptyState>
+          ) : data === undefined && isError ? (
+            <SettingsQueryErrorState
+              error={error}
+              fallback='Failed to load verified domains'
+              isRetrying={isFetching}
+              onRetry={() => void refetch()}
+              variant='inline'
+            />
           ) : domains.length === 0 ? (
             <SettingsEmptyState variant='inline'>No domains yet.</SettingsEmptyState>
           ) : (
@@ -179,7 +187,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
                   key={domain.id}
                   organizationId={organizationId}
                   domain={domain}
-                  onRemove={setPendingRemoval}
+                  onRemove={(domain) => setPendingRemovalId(domain.id)}
                 />
               ))}
             </div>
@@ -189,7 +197,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
 
       <ChipConfirmModal
         open={pendingRemoval !== null}
-        onOpenChange={(open) => !open && setPendingRemoval(null)}
+        onOpenChange={(open) => !open && setPendingRemovalId(null)}
         title='Remove domain'
         text={[
           'Remove ',

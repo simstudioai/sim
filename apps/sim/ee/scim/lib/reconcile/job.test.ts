@@ -11,8 +11,22 @@ const mocks = vi.hoisted(() => ({
   reconcileBatch: vi.fn(),
   listScimUserIds: vi.fn(),
   prune: vi.fn(),
+  acquireLock: vi.fn(),
+  listGroups: vi.fn(),
+  autoMap: vi.fn(),
+  settleGroups: vi.fn(),
 }))
 
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationMutationLock: mocks.acquireLock,
+}))
+vi.mock('@/ee/scim/lib/projection/auto-map', () => ({
+  autoMapPermissionGroupByName: mocks.autoMap,
+  settleMappedPermissionGroupsExplicit: mocks.settleGroups,
+}))
+vi.mock('@/ee/scim/lib/repository/groups', () => ({
+  listScimGroupsForReconcile: mocks.listGroups,
+}))
 vi.mock('@sim/utils/id', () => ({ generateId: () => 'run-1' }))
 vi.mock('@/ee/scim/lib/entitlement', () => ({
   isScimEntitledForOrganization: mocks.isEntitled,
@@ -79,6 +93,8 @@ describe('reconcileConnection', () => {
     mocks.prune.mockResolvedValue(undefined)
     mocks.reconcileBatch.mockResolvedValue(delta())
     mocks.listScimUserIds.mockResolvedValue([])
+    mocks.listGroups.mockResolvedValue([])
+    mocks.autoMap.mockResolvedValue('mapped')
   })
 
   afterEach(() => {
@@ -172,6 +188,48 @@ describe('reconcileConnection', () => {
       scimUserIds: ['su-25', 'su-26', 'su-27'],
       settings: { autoMap: true, defaultRole: 'admin' },
     })
+  })
+
+  it('matches pre-existing groups before projecting users when automatic matching is enabled', async () => {
+    grantLease()
+    const settings = { autoMapPermissionGroupsByName: true }
+    const groups = [{ id: 'group-1', displayName: 'Engineering', orderKey: 'group-key-1' }]
+    mocks.listGroups.mockResolvedValueOnce(groups).mockResolvedValueOnce([])
+    queueTableRows(scimConnection, [{ status: 'active', token: 'run-1', settings }])
+    queueTableRows(scimConnection, [{ status: 'active', token: 'run-1', settings }])
+    mocks.listScimUserIds.mockResolvedValueOnce(page(['su-1'])).mockResolvedValueOnce([])
+    stageBatch('run-1', settings)
+
+    await reconcileConnection({ ...connection, settings })
+
+    expect(mocks.autoMap).toHaveBeenCalledWith(db, {
+      organizationId: 'org-1',
+      scimGroupId: 'group-1',
+      displayName: 'Engineering',
+    })
+    expect(mocks.listGroups).toHaveBeenNthCalledWith(2, db, {
+      connectionId: 'conn-1',
+      afterOrderKey: 'group-key-1',
+      limit: 25,
+    })
+    expect(mocks.settleGroups).toHaveBeenCalledWith(db, {
+      organizationId: 'org-1',
+      scimGroupId: 'group-1',
+    })
+    expect(mocks.autoMap.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.reconcileBatch.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('stops automatic matching when the rule was disabled after the pass was queued', async () => {
+    grantLease()
+    queueTableRows(scimConnection, [{ status: 'active', token: 'run-1', settings: {} }])
+    await reconcileConnection({
+      ...connection,
+      settings: { autoMapPermissionGroupsByName: true },
+    })
+    expect(mocks.listGroups).not.toHaveBeenCalled()
+    expect(mocks.autoMap).not.toHaveBeenCalled()
   })
 
   it('falls back to the settings the due query returned when the row cannot be re-read', async () => {

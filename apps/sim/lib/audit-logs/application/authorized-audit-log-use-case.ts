@@ -88,11 +88,17 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
         throw new PersonalApiKeysDisabledError()
       }
       /**
-       * permission-group-enforced: personal_api_key.use, cli.use — this path
+       * permission-group-enforced: personal_api_key.use, cli.use, oauth_apps.use — this path
        * authorizes against an organization rather than a workspace, so the
        * workspace-keyed funnel never runs. The user-global form is the policy
        * that applies when there is no workspace key.
        */
+      if (
+        principal.kind === 'oauth_access_token' &&
+        (await isCapabilityWithheldForUser(actorUserId, 'oauth_apps.use'))
+      ) {
+        refuseCapability('oauth_apps.use')
+      }
       if (
         principal.kind === 'oauth_access_token' &&
         principal.clientId === SIM_CLI_CLIENT_ID &&

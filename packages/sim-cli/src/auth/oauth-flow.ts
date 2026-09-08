@@ -432,7 +432,7 @@ function listenForCallback(
         finish({
           ok: false,
           error: new SimApiError(
-            `Timed out after ${Math.round(timeoutMs / 60000)} minutes waiting for the browser. Run sim login again, or use --browserless if this terminal's browser cannot reach it.`,
+            `Timed out after ${Math.round(timeoutMs / 60000)} minutes waiting for the browser. Run sim login again, or use --method api-key if this terminal's browser cannot reach it.`,
             0
           ),
         }),
@@ -567,9 +567,9 @@ export async function loginWithBrowser(
 
 /**
  * Whether this terminal's browser is unlikely to reach a loopback listener on
- * this machine: an SSH session, or a Linux box with no display. The signals
- * Railway and Stripe use to auto-select their pairing flows; `--browserless`
- * forces it and `--callback-port` overrides the guess.
+ * this machine: an SSH session, or a Linux box with no display. An explicit
+ * `--method` selects the flow without this guess; `--callback-port` opts into
+ * OAuth when a forwarded port makes the loopback listener reachable.
  */
 export function isLikelyRemoteSession(
   env: NodeJS.ProcessEnv = process.env,

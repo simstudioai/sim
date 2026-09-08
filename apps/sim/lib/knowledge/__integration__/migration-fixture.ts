@@ -101,7 +101,7 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
   }
   const migration = await readFile(
     new URL(
-      '../../../../../packages/db/migrations/0325_enterprise_organization_search.sql',
+      '../../../../../packages/db/migrations/0326_enterprise_organization_search.sql',
       import.meta.url
     ),
     'utf8'

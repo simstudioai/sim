@@ -39,7 +39,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
@@ -296,10 +296,10 @@
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
+              "description": "Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches."
             }
           }
         ],
@@ -356,7 +356,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve a run's workflow snapshot, trace spans, final output, and cost. Trace spans have separate retention, so an empty `traceSpans` array does not prove none were recorded. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty `traceSpans` array does not prove none were recorded. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.read_detail",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
@@ -428,7 +428,7 @@
       "get": {
         "operationId": "getLogStats",
         "summary": "Get Log Statistics",
-        "description": "Return workspace/workflow counts, success, errors, and latency. Defaults span runs, or 24 hours if empty; supplied bounds stay exact. Buckets are one-minute minimum and may pass the end. Folders include descendants; `workflowsTruncated` marks capped series, totals include all. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get run counts, success and error counts, and latency by workspace or workflow. Default bounds span recorded runs, or the last 24 hours when empty. Buckets may extend past the end. Folder filters include descendants; `workflowsTruncated` affects series, not totals. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.read_stats",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
@@ -459,10 +459,10 @@
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
+              "description": "Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches."
             }
           },
           {
@@ -514,10 +514,10 @@
             "name": "segmentCount",
             "in": "query",
             "required": false,
-            "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
+            "description": "Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets.",
             "schema": {
               "default": 72,
-              "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
+              "description": "Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets.",
               "type": "integer",
               "minimum": 1,
               "maximum": 500
@@ -1109,11 +1109,11 @@
           },
           "duration": {
             "type": "number",
-            "description": "Legacy span duration in milliseconds."
+            "description": "Current trace-span duration in milliseconds."
           },
           "durationMs": {
             "type": "number",
-            "description": "Span duration in milliseconds."
+            "description": "Compatibility field for span duration in milliseconds. Read `duration` for current trace spans."
           },
           "startTime": {
             "type": "string",
@@ -1549,7 +1549,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved."
+            "description": "Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved."
           },
           "traceSpans": {
             "type": "array",

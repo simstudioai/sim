@@ -1,0 +1,1 @@
+ALTER TABLE "scim_projection_grant" ADD COLUMN "baseline_permission" "permission_type";

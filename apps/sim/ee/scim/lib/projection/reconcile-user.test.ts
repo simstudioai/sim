@@ -2,7 +2,15 @@
  * @vitest-environment node
  */
 import { db } from '@sim/db'
-import { scimGroupMember, scimProjectionGrant, scimUser, workspace } from '@sim/db/schema'
+import {
+  member,
+  permissionGroupMember,
+  permissions,
+  scimGroupMember,
+  scimProjectionGrant,
+  scimUser,
+  workspace,
+} from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,10 +61,19 @@ interface Scenario {
   current?: Array<Record<string, unknown>>
   mappings?: Array<Record<string, unknown>>
   ownedWorkspaces?: string[]
+  actualWorkspaces?: Array<{ id: string; permissionType: 'read' | 'write' | 'admin' }>
+  actualGroups?: string[]
+  actualRole?: string
 }
 
-/** Queues the four reads the reconciler makes, in the order it makes them. */
-function stage({ current = [], mappings = [], ownedWorkspaces = ['ws-1'] }: Scenario) {
+function stage({
+  current = [],
+  mappings = [],
+  ownedWorkspaces = ['ws-1'],
+  actualWorkspaces,
+  actualGroups = [],
+  actualRole = 'member',
+}: Scenario) {
   queueTableRows(scimUser, [{ userId: 'u-1' }])
   queueTableRows(scimProjectionGrant, current)
   queueTableRows(scimGroupMember, mappings)
@@ -64,6 +81,18 @@ function stage({ current = [], mappings = [], ownedWorkspaces = ['ws-1'] }: Scen
     workspace,
     ownedWorkspaces.map((id) => ({ id }))
   )
+  queueTableRows(
+    permissions,
+    actualWorkspaces ??
+      current
+        .filter((grant) => grant.targetKind === 'workspace')
+        .map((grant) => ({ id: grant.targetId, permissionType: grant.permissionType }))
+  )
+  queueTableRows(
+    permissionGroupMember,
+    actualGroups.map((id) => ({ id }))
+  )
+  queueTableRows(member, [{ role: actualRole }])
 }
 
 const workspaceMapping = (workspaceId: string, permissionType: string) => ({
@@ -118,9 +147,16 @@ describe('reconcileUserProjection', () => {
 
   it('records access the person already held by hand as adopted, and counts no change', async () => {
     mocks.grantWorkspace.mockResolvedValue('unchanged')
-    stage({ mappings: [workspaceMapping('ws-1', 'write')] })
+    stage({
+      mappings: [workspaceMapping('ws-1', 'write')],
+      actualWorkspaces: [{ id: 'ws-1', permissionType: 'write' }],
+    })
     const delta = await reconcileUserProjection(db, params)
-    expect(insertedValues()[0]).toMatchObject({ targetId: 'ws-1', origin: 'adopted' })
+    expect(insertedValues()[0]).toMatchObject({
+      targetId: 'ws-1',
+      origin: 'adopted',
+      baselinePermission: 'write',
+    })
     expect(delta.added).toHaveLength(0)
   })
 
@@ -135,6 +171,142 @@ describe('reconcileUserProjection', () => {
     expect(mocks.grantWorkspace).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it.each([null, 'read'] as const)(
+    'repairs recorded workspace access that is actually %s',
+    async (permissionType) => {
+      stage({
+        current: [
+          {
+            targetKind: 'workspace',
+            targetId: 'ws-1',
+            permissionType: 'admin',
+            origin: 'directory',
+          },
+        ],
+        mappings: [workspaceMapping('ws-1', 'admin')],
+        actualWorkspaces: permissionType ? [{ id: 'ws-1', permissionType }] : [],
+      })
+      const delta = await reconcileUserProjection(db, params)
+      expect(mocks.grantWorkspace).toHaveBeenCalledWith(db, {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        permission: 'admin',
+      })
+      expect(delta.raised).toHaveLength(1)
+    }
+  )
+
+  it('repairs a missing permission-group membership and a manually lowered organization role', async () => {
+    stage({
+      current: [
+        { targetKind: 'permission_group', targetId: 'pg-1', origin: 'directory' },
+        { targetKind: 'org_role', targetId: 'admin', origin: 'directory' },
+      ],
+      mappings: [
+        { targetKind: 'permission_group', permissionGroupId: 'pg-1' },
+        { targetKind: 'org_role', role: 'admin' },
+      ],
+      actualGroups: [],
+      actualRole: 'member',
+    })
+    await reconcileUserProjection(db, params)
+    expect(mocks.addMember).toHaveBeenCalledWith(db, {
+      organizationId: 'org-1',
+      groupId: 'pg-1',
+      userId: 'u-1',
+    })
+    expect(mocks.changeMemberRole).toHaveBeenCalledWith(db, {
+      organizationId: 'org-1',
+      userId: 'u-1',
+      role: 'admin',
+    })
+  })
+
+  it('restores manual Read after a directory Admin mapping is removed', async () => {
+    stage({
+      mappings: [workspaceMapping('ws-1', 'admin')],
+      actualWorkspaces: [{ id: 'ws-1', permissionType: 'read' }],
+    })
+    await reconcileUserProjection(db, params)
+    const saved = insertedValues()[0]
+    expect(saved).toMatchObject({
+      permissionType: 'admin',
+      baselinePermission: 'read',
+      origin: 'directory',
+    })
+
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.readPermission.mockResolvedValue('admin')
+    stage({ current: [saved] })
+    await reconcileUserProjection(db, params)
+    expect(mocks.lowerWorkspace).toHaveBeenCalledWith(db, {
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      from: 'admin',
+      to: 'read',
+    })
+    expect(mocks.revokeWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('preserves an adopted manual Admin when the mapping is lowered', async () => {
+    stage({
+      current: [
+        { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'admin', origin: 'adopted' },
+      ],
+      mappings: [workspaceMapping('ws-1', 'read')],
+    })
+    mocks.grantWorkspace.mockResolvedValue('unchanged')
+    await reconcileUserProjection(db, params)
+    expect(mocks.lowerWorkspace).not.toHaveBeenCalled()
+    expect(mocks.grantWorkspace).toHaveBeenCalledWith(db, {
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      permission: 'admin',
+    })
+    expect(insertedValues()[0]).toMatchObject({ baselinePermission: 'admin' })
+  })
+
+  it('never lowers below the manual baseline during a directory downgrade', async () => {
+    stage({
+      current: [
+        {
+          targetKind: 'workspace',
+          targetId: 'ws-1',
+          permissionType: 'admin',
+          origin: 'directory',
+          baselinePermission: 'write',
+        },
+      ],
+      mappings: [workspaceMapping('ws-1', 'read')],
+    })
+    await reconcileUserProjection(db, params)
+    expect(mocks.lowerWorkspace).toHaveBeenCalledWith(db, {
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      from: 'admin',
+      to: 'write',
+    })
+  })
+
+  it('withdraws the entire covered access when managed membership is locked', async () => {
+    stage({
+      current: [
+        {
+          targetKind: 'workspace',
+          targetId: 'ws-1',
+          permissionType: 'admin',
+          origin: 'directory',
+          baselinePermission: 'read',
+        },
+      ],
+    })
+    mocks.readPermission.mockResolvedValue('admin')
+    await reconcileUserProjection(db, { ...params, settings: { lockManualMembership: true } })
+    expect(mocks.revokeWorkspace).toHaveBeenCalled()
+    expect(mocks.lowerWorkspace).not.toHaveBeenCalled()
   })
 
   it('forgets an adopted grant without touching the access unless the directory is the source of truth', async () => {

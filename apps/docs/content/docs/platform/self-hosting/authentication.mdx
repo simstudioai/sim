@@ -81,50 +81,32 @@ See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and th
 
 ## Sign in with Sim
 
-Your deployment can act as an OAuth 2.0 authorization server using authorization
-code with PKCE and current OAuth security guidance. The Sim CLI uses it when
-enabled; see [CLI authentication](/cli/authentication).
+Your deployment acts as an OAuth 2.0 authorization server using authorization
+code with PKCE. OAuth sign-in is available whenever authentication is enabled;
+see [CLI authentication](/cli/authentication).
 
-The global `oauth-provider` feature flag controls availability. Keep it off while
-applying the database migration, then deploy and drain every older app instance
-before enabling it.
+Apply database migrations before deploying a new app version. When upgrading
+from a version without the OAuth token-family lifecycle, drain older app
+instances before accepting OAuth traffic so every instance enforces the same
+refresh and revocation rules.
 
-If your deployment uses AWS AppConfig, add this entry to the existing
-`feature-flags` document and deploy that configuration:
-
-```json
-{
-  "oauth-provider": { "enabled": true }
-}
-```
-
-Preserve the document's other entries. This flag is global: use `enabled`, not
-workspace, organization, user, or admin targeting. Set `enabled` to `false` to
-turn it off; changes take effect as instances refresh their AppConfig cache.
-
-When AppConfig is disabled or no AppConfig document has been loaded, the
-fallback is:
-
-```bash
-OAUTH_PROVIDER_ENABLED=true
-```
-
-In that fallback mode, unset or false keeps the provider off. An available
-AppConfig document takes precedence over this variable, including when the
-`oauth-provider` entry is missing or disabled. AppConfig fetch failures retain
-the last successfully loaded document.
-
-When the provider is off, discovery at `/.well-known/oauth-authorization-server`
-returns 404 and the CLI falls back to the pairing-code handoff.
-`DISABLE_AUTH=true` also forces the provider off because the authorization flow
-requires a real Better Auth user session.
+`DISABLE_AUTH=true` disables OAuth sign-in and discovery because authorization
+requires a real Better Auth user session. Older servers without OAuth support
+return 404 from `/.well-known/oauth-authorization-server`, and the CLI falls
+back to the pairing-code handoff.
 
 Access tokens are opaque and last an hour; refresh tokens rotate on every use.
 Each login has a fixed thirty-day lifetime that refreshing does not extend.
 Token validation checks current grants, so revoking a grant under
-**Settings → General → Authorized apps** stops the app on its very next request. These
-settings remain available for reviewing and revoking existing grants while the
-provider is off, and scheduled OAuth token cleanup continues.
+**Settings → General → Authorized apps** stops the app on its very next request.
+Scheduled OAuth token cleanup runs independently of sign-in activity.
+
+Organization admins can restrict **OAuth App Access** under **Credentials & Access**
+in [permission groups](/platform/enterprise/access-control). Workspace requests use
+the group governing that workspace. Authorizing apps, issuing and refreshing tokens,
+and account-level billing and audit reads use the organization's default group.
+**CLI Access** also applies to the Sim CLI. Members can still review and revoke
+existing grants when OAuth app access is restricted.
 
 ### Registering an app
 

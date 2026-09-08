@@ -1,10 +1,13 @@
 /**
  * @vitest-environment node
  */
+
+import { recordAudit } from '@sim/audit'
 import { createMockRequest } from '@sim/testing'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { getServeStoragePrefix } from '@/lib/uploads/config'
 
 const {
   mockCheckAuth,
@@ -92,6 +95,62 @@ beforeEach(() => {
 })
 
 describe('markdown export bundling', () => {
+  it('rejects an unauthenticated request before reading file metadata', async () => {
+    mockCheckAuth.mockResolvedValue({ success: false })
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'Unauthorized' })
+    expect(mockGetFileMetadataById).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('preserves legacy missing-file and access-denied responses', async () => {
+    mockGetFileMetadataById.mockResolvedValueOnce(null)
+    const missing = await GET(request(), context)
+    expect(missing.status).toBe(404)
+    expect(await missing.json()).toEqual({ error: 'Not found' })
+
+    mockVerifyFileAccess.mockResolvedValue(false)
+    const forbidden = await GET(request(), context)
+    expect(forbidden.status).toBe(403)
+    expect(await forbidden.json()).toEqual({ error: 'Forbidden' })
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('keeps non-Markdown downloads as authorized serve redirects', async () => {
+    mockGetFileMetadataById.mockResolvedValue({
+      ...DOC_RECORD,
+      originalName: 'report.pdf',
+      contentType: 'application/pdf',
+      context: 'chat',
+    })
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toContain(
+      `/api/files/serve/${getServeStoragePrefix()}/${encodeURIComponent(DOC_RECORD.key)}`
+    )
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ format: 'file', assetCount: 0 }),
+      })
+    )
+  })
+
+  it('preserves exact plain Markdown bytes and download headers', async () => {
+    const content = '\uFEFF---\r\ntitle: "Résumé"\r\n---\r\n\r\n# 你好 😀\r\n'
+    mockDownloadFile.mockResolvedValue(Buffer.from(content))
+    const response = await GET(request(), context)
+
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from(content))
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(response.headers.get('content-length')).toBe(String(Buffer.byteLength(content)))
+    expect(response.headers.get('content-disposition')).toContain('doc.md')
+  })
+
   it('rejects on declared asset bytes before downloading any of them', async () => {
     embeds('a', 'b', 'c')
     assetsResolveTo((id) => assetRecord(id, 100 * MB))
@@ -107,12 +166,26 @@ describe('markdown export bundling', () => {
   it('counts the document body against the export limit, not just its assets', async () => {
     // Assets alone sit under the cap; the body is what carries the bundle over it.
     embeds('a')
-    mockDownloadFile.mockResolvedValue(Buffer.alloc(250 * MB))
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(2 * MB))
+    assetsResolveTo((id) => assetRecord(id, 249 * MB))
 
     const response = await GET(request(), context)
 
     expect(response.status).toBe(400)
     expect((await response.json()).error).toContain('document and its embedded files')
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('downloads large Markdown verbatim without parsing it or querying assets', async () => {
+    const content = Buffer.alloc(11 * MB, 'a')
+    mockDownloadFile.mockResolvedValue(content)
+    const response = await GET(request(), context)
+    expect(response.status).toBe(200)
+    expect(Buffer.from(await response.arrayBuffer()).equals(content)).toBe(true)
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(mockExtractEmbeddedFileRefs).not.toHaveBeenCalled()
+    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(1)
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
   })
 
   it('caps the document body read rather than loading it unbounded', async () => {
@@ -146,6 +219,23 @@ describe('markdown export bundling', () => {
       ([options]) => options.key === 'workspace/ws-1/a'
     )
     expect(assetCall?.[0].maxBytes).toBe(25 * MB)
+  })
+
+  it('rejects actual aggregate bytes that exceed underreported asset metadata', async () => {
+    const ids = Array.from({ length: 30 }, (_, index) => `image-${index}`)
+    embeds(...ids)
+    assetsResolveTo((id) => assetRecord(id, 1))
+    const asset = Buffer.alloc(25 * MB)
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key === DOC_RECORD.key ? Buffer.from('# Doc\n') : asset
+    )
+
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('exceeds')
+    expect(recordAudit).not.toHaveBeenCalled()
+    expect(mockDownloadFile.mock.calls.length).toBeLessThan(ids.length + 1)
   })
 
   it('drops an unreadable asset instead of failing the whole export', async () => {

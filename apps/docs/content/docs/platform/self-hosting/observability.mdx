@@ -78,16 +78,16 @@ app:
 
 See [Security](/platform/self-hosting/security) for the `INTERNAL_API_BASE_URL` requirement — the path fails closed without a cluster-reachable value.
 
-## Anonymous telemetry
+## Telemetry
 
-Whether anonymous telemetry runs depends on how you deploy. A Docker Compose or source deployment sends it unless you turn it off, so a deployment with an egress policy should decide about this deliberately rather than inherit the default.
+Whether telemetry runs depends on how you deploy. A Docker Compose or source deployment enables server telemetry unless you turn it off, so a deployment with an egress policy should decide about this deliberately rather than inherit the default.
 
 Telemetry has two halves that are decided at different times.
 
 | Half | When it is decided | Default |
 |---|---|---|
 | Server SDK | Runtime | **Off** on Helm (`app.envDefaults` sets `NEXT_TELEMETRY_DISABLED: "1"`); **on** for Docker Compose and source runs, which set nothing |
-| Browser | `next build` | **Off** in every published image — the value is inlined at build time, and no runtime variable changes it |
+| Browser | Server setting at page render, then browser preferences | Disabled when `NEXT_TELEMETRY_DISABLED=1`; otherwise waits for session resolution and the signed-in user's saved preference. Hosted Sim also requires the applicable analytics permission. |
 
 Neither half gates `POST /api/telemetry`, the relay that forwards browser events. See the warning below.
 
@@ -95,7 +95,7 @@ When the server SDK runs it exports three OTLP signals to the same base endpoint
 
 The log stream is different in kind: it carries every line at or above `LOG_LEVEL` with its structured metadata, error messages and stack traces, which can include user ids, emails and URLs. That matters if you raise `LOG_LEVEL` as suggested above, and it is a reason to point the exporter at your own collector rather than leaving it at the default.
 
-`NEXT_TELEMETRY_DISABLED=1` stops the server's OpenTelemetry SDK, which returns before it initializes, so it ends the app's own OTLP export to any endpoint. It does not affect Trigger.dev task telemetry, configured separately below. The **Settings → Privacy → Allow anonymous telemetry** toggle is browser-side only and does not stop server spans.
+`NEXT_TELEMETRY_DISABLED=1` stops the server's OpenTelemetry SDK and disables browser collection on newly loaded pages. It does not affect Trigger.dev task telemetry, configured separately below. The **Settings → General → Privacy → Allow browser telemetry** toggle stops optional browser performance and error diagnostics, discards queued events, and remembers the choice. It does not stop server spans.
 
 <Callout type="warn">
   On Helm, `NEXT_TELEMETRY_DISABLED` is what you must **clear** before any tracing works — including tracing to your own collector. Override it with `null` to remove the key entirely.

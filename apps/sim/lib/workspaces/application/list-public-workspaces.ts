@@ -93,6 +93,19 @@ export const listPublicWorkspaces: OperationUseCase<
         )
         if (personalCredentialsWithheld) return null
 
+        /** permission-group-enforced: oauth_apps.use — omit restricted workspaces before pagination. */
+        if (
+          principal.kind === 'oauth_access_token' &&
+          (await isWorkspaceCapabilityWithheld(
+            principal.userId,
+            workspace.id,
+            'oauth_apps.use',
+            workspace.organizationId
+          ))
+        ) {
+          return null
+        }
+
         if (principal.kind !== 'oauth_access_token' || principal.clientId !== SIM_CLI_CLIENT_ID) {
           return workspace
         }

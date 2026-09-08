@@ -10,12 +10,18 @@ const {
   waitForToolConfirmation,
   replaceTerminalAsyncToolCallResult,
   getTrustedWorkflowToolExecution,
+  mockError,
 } = vi.hoisted(() => ({
   encryptSecret: vi.fn(),
   decryptSecret: vi.fn(),
   waitForToolConfirmation: vi.fn(),
   replaceTerminalAsyncToolCallResult: vi.fn(),
   getTrustedWorkflowToolExecution: vi.fn(),
+  mockError: vi.fn(),
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -933,5 +939,121 @@ describe('generic client tool completion', () => {
       error: TOOL_RESULT_UNAVAILABLE_ERROR,
     })
     expect(JSON.stringify(completion)).not.toContain('raw')
+  })
+
+  it.each([
+    { kind: 'missing-completion', completionFailure: 'missing-envelope' },
+    { kind: 'missing-context', contextFailure: 'missing-envelope' },
+    { kind: 'malformed-completion', completionFailure: 'malformed-envelope' },
+    { kind: 'decrypt-failure', completionFailure: 'decrypt-failed' },
+    { kind: 'invalid-json', completionFailure: 'invalid-json' },
+    { kind: 'invalid-content', completionFailure: 'invalid-content' },
+    { kind: 'wrong-binding', completionFailure: 'binding-mismatch' },
+    { kind: 'wrong-registry', contextFailure: 'registry-mismatch' },
+    { kind: 'invalid-provenance', contextFailure: 'invalid-provenance' },
+  ])(
+    'attributes $kind before replacing the result without logging sealed content',
+    async ({ kind, ...failures }) => {
+      const registry = createClientRegistry()
+      const binding = { toolCallId: 'tool-1', runId: 'run-1', userId: 'user-1' }
+      const sealedContext = await sealClientToolContext({
+        ...binding,
+        registry,
+        toolInput: { query: 'resolved-secret' },
+      })
+      const data: Record<string, unknown> = {
+        ...sealedContext,
+        __sealedClientToolCompletionV1: JSON.stringify({
+          ...binding,
+          data: { content: 'resolved-secret' },
+        }),
+      }
+      switch (kind) {
+        case 'missing-completion':
+          data.__sealedClientToolCompletionV1 = undefined
+          break
+        case 'missing-context':
+          data.__sealedClientToolContextV1 = undefined
+          break
+        case 'malformed-completion':
+          data.__sealedClientToolCompletionV1 = 1
+          break
+        case 'decrypt-failure':
+          data.__sealedClientToolCompletionV1 = 'sensitive-ciphertext'
+          decryptSecret.mockImplementation(async (encrypted: string) => {
+            if (encrypted === 'sensitive-ciphertext') throw new Error('sensitive-decrypt-error')
+            return { decrypted: encrypted }
+          })
+          break
+        case 'invalid-json':
+          data.__sealedClientToolCompletionV1 = 'sensitive-invalid-json'
+          break
+        case 'invalid-content':
+          data.__sealedClientToolCompletionV1 = JSON.stringify({ ...binding, message: 1 })
+          break
+        case 'wrong-binding':
+          data.__sealedClientToolCompletionV1 = JSON.stringify({
+            ...binding,
+            toolCallId: 'different-tool',
+          })
+          break
+        case 'wrong-registry':
+          Object.assign(
+            data,
+            await sealClientToolContext({
+              ...binding,
+              registry: createClientRegistry(),
+              toolInput: {},
+            })
+          )
+          break
+        case 'invalid-provenance': {
+          const context = JSON.parse(sealedContext.__sealedClientToolContextV1)
+          data.__sealedClientToolContextV1 = JSON.stringify({
+            ...context,
+            provenance: { version: 999 },
+          })
+          break
+        }
+      }
+      waitForToolConfirmation.mockResolvedValue({ status: 'success', data })
+
+      await waitForClientToolCompletion({ ...binding, registry, timeoutMs: 1_000 })
+
+      const diagnostics = mockError.mock.calls.filter(
+        ([message]) => message === 'Client tool provenance could not be restored'
+      )
+      expect(diagnostics).toEqual([
+        [
+          'Client tool provenance could not be restored',
+          {
+            toolCallId: binding.toolCallId,
+            runId: binding.runId,
+            ...failures,
+          },
+        ],
+      ])
+      expect(mockError.mock.invocationCallOrder[0]).toBeLessThan(
+        replaceTerminalAsyncToolCallResult.mock.invocationCallOrder[0]
+      )
+      expect(JSON.stringify(diagnostics)).not.toMatch(/sensitive-|resolved-secret|SECRET|__sealed/)
+      expect(registry.isPermanentlyIncomplete()).toBe(false)
+    }
+  )
+
+  it('does not report an unseal fault when no run binding was supplied', async () => {
+    waitForToolConfirmation.mockResolvedValue({ status: 'error', data: {} })
+    await waitForClientToolCompletion({
+      toolCallId: 'tool-1',
+      userId: 'user-1',
+      registry: createClientRegistry(),
+      timeoutMs: 1_000,
+    })
+    expect(
+      mockError.mock.calls.filter(
+        ([message]) => message === 'Client tool provenance could not be restored'
+      )
+    ).toEqual([])
+    expect(decryptSecret).not.toHaveBeenCalled()
   })
 })

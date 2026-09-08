@@ -69,6 +69,11 @@ export function normalizeAttributePath(path: string): string {
   return value
 }
 
+/** Passwords are write-only, including case variants and core-schema-qualified names. */
+export function isScimPasswordAttribute(path: string): boolean {
+  return normalizeAttributePath(path).toLowerCase() === 'password'
+}
+
 /**
  * Microsoft's classic schema markers, sent by older provisioning jobs alongside
  * the core URNs. They carry no attributes and are never stored or returned.

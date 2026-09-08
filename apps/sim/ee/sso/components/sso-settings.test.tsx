@@ -4,6 +4,7 @@
 import { act, type ChangeEventHandler, type ReactNode } from 'react'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { getErrorMessage } from '@sim/utils/errors'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +28,9 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipCombobox: () => <div />,
-  ChipCopyInput: ({ value }: { value?: string }) => <input readOnly value={value ?? ''} />,
+  ChipCopyInput: ({ value, id }: { value?: string; id?: string }) => (
+    <input id={id} readOnly value={value ?? ''} />
+  ),
   ChipInput: ({
     value,
     onChange,
@@ -40,6 +43,29 @@ vi.mock('@sim/emcn', () => ({
     placeholder?: string
   }) => <input id={id} placeholder={placeholder} value={value ?? ''} onChange={onChange} />,
   ChipSelect: () => <div />,
+  ChipModalTabs: ({
+    tabs,
+    value,
+    onChange,
+  }: {
+    tabs: Array<{ label: string; value: string }>
+    value: string
+    onChange: (value: string) => void
+  }) => (
+    <div role='radiogroup'>
+      {tabs.map((tab) => (
+        <button
+          key={tab.value}
+          type='button'
+          role='radio'
+          aria-checked={tab.value === value}
+          onClick={() => onChange(tab.value)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  ),
   ChipSwitch: ({
     options,
     value,
@@ -71,6 +97,7 @@ vi.mock('@sim/emcn', () => ({
   }) => <textarea value={value ?? ''} onChange={onChange} />,
   Expandable: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   ExpandableContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Info: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Switch: () => <button type='button'>Switch</button>,
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
@@ -84,18 +111,17 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
 }))
 
-// Domain management is covered by its own tests and needs a QueryClient; this
-// suite only exercises the provider form's org-transition behavior.
+/** Domain management has its own tests; this suite covers the provider form and tab navigation. */
 vi.mock('@/ee/sso/components/verified-domains-section', () => ({
-  VerifiedDomainsSection: () => <div />,
+  VerifiedDomainsSection: () => <div>Domain ownership settings</div>,
 }))
 
 /** Directory provisioning has its own React Query hooks and its own tests; here it is a sibling section. */
 vi.mock('@/ee/scim/components/scim-section', () => ({
-  ScimSection: () => <div />,
+  ScimSection: () => <div>Directory provisioning settings</div>,
 }))
 
-// Surface the real Save/Update action so submit paths are reachable from tests.
+/** Surface the real Save/Update action so submit paths are reachable from tests. */
 vi.mock('@/components/settings/save-discard-actions', () => ({
   saveDiscardActions: ({ saveLabel, onSave }: { saveLabel?: string; onSave?: () => void }) => [
     { text: saveLabel ?? 'Save', onSelect: onSave },
@@ -174,8 +200,7 @@ function provider(organizationId: string) {
     jitProvisioningEnabled: true,
     providerType: 'oidc',
     oidcConfig: JSON.stringify({
-      // What the API actually returns: the sentinel plus a display-only hint,
-      // never the secret itself.
+      /** What the API actually returns: the sentinel plus a display-only hint, never the secret itself. */
       clientId: `client-${suffix}`,
       clientSecret: '[REDACTED]',
       clientSecretHint: '4f2a',
@@ -199,7 +224,11 @@ let root: Root
 
 function renderSso(organizationId: string) {
   act(() => {
-    root.render(<SSO organizationId={organizationId} />)
+    root.render(
+      <NuqsTestingAdapter>
+        <SSO organizationId={organizationId} />
+      </NuqsTestingAdapter>
+    )
   })
 }
 
@@ -210,9 +239,7 @@ beforeAll(() => {
 afterAll(resetEnvFlagsMock)
 
 beforeEach(() => {
-  // The component reads getBaseUrl() during render; make sure the env var is
-  // present even when the suite runs without a local .env or after another
-  // test file mutated the environment (auto-restored via unstubEnvs).
+  /** The component reads getBaseUrl() during render; make sure the env var is present even when the suite runs without a local .env or after another test file mutated the environment (auto-restored via unstubEnvs). */
   vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -322,7 +349,7 @@ describe('SSO member provisioning', () => {
     renderSso('org-a')
 
     expect(container).toHaveTextContent('Automatic')
-    expect(container).toHaveTextContent('No workspace access is granted automatically.')
+    expect(container).toHaveTextContent('Grant workspace access separately.')
   })
 
   it('sends invite-only when an admin changes the provisioning mode', async () => {
@@ -465,4 +492,93 @@ describe('SSO client secret preservation', () => {
     expect(secretInput()?.value).toBe('••••••••••••4f2a')
     expect(findButton('Replace')).toBeDefined()
   })
+})
+
+describe('SSO settings tabs', () => {
+  it('keeps the sign-in draft while switching concerns and hides unrelated header actions', () => {
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Invite only')?.click())
+    act(() => findButton('Domains')?.click())
+    expect(container).toHaveTextContent('Domain ownership settings')
+    expect(findButton('Update')).toBeUndefined()
+    expect(container.querySelector('form')?.closest('[hidden]')).not.toBeNull()
+    act(() => findButton('Sign-in')?.click())
+    expect(findButton('Invite only')).toHaveAttribute('aria-pressed', 'true')
+    expect(findButton('Update')).toBeDefined()
+  })
+
+  it('opens the domains tab from a shared link without showing provider actions', () => {
+    act(() =>
+      root.render(
+        <NuqsTestingAdapter searchParams='?tab=domains'>
+          <SSO organizationId='org-a' />
+        </NuqsTestingAdapter>
+      )
+    )
+    expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
+      'Domains'
+    )
+    expect(container).toHaveTextContent('Domain ownership settings')
+    expect(findButton('Edit')).toBeUndefined()
+  })
+
+  it('falls back to sign-in for an invalid tab', () => {
+    act(() =>
+      root.render(
+        <NuqsTestingAdapter searchParams='?tab=unknown'>
+          <SSO organizationId='org-a' />
+        </NuqsTestingAdapter>
+      )
+    )
+    expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
+      'Sign-in'
+    )
+  })
+})
+
+describe('SAML callback URLs', () => {
+  function renderSaml(samlConfig: string) {
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [{ ...provider('org-a'), providerType: 'saml', samlConfig }] },
+      isLoading: false,
+    })
+    renderSso('org-a')
+  }
+
+  function callbackValue() {
+    return container.querySelector<HTMLInputElement>('#sso-callback-url')?.value
+  }
+
+  it('shows the saved override as the copyable ACS URL', () => {
+    const override = 'https://sso.example.com/acs'
+    renderSaml(JSON.stringify({ callbackUrl: override }))
+    expect(callbackValue()).toBe(override)
+  })
+
+  it('keeps the copyable ACS URL in sync with the draft override and its removal', () => {
+    renderSaml(JSON.stringify({ callbackUrl: 'https://sso.example.com/acs' }))
+    startEditing()
+    const input = container.querySelector<HTMLInputElement>('#sso-callback-override')
+    expect(input).not.toBeNull()
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(input, 'https://sso.example.com/updated-acs')
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(callbackValue()).toBe('https://sso.example.com/updated-acs')
+    act(() => {
+      setter?.call(input, '')
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(callbackValue()).toMatch(/\/api\/auth\/sso\/saml2\/callback\/provider-a$/)
+  })
+
+  it.each(['{}', 'null', 'invalid-json'])(
+    'falls back to the generated ACS URL for stored config %s',
+    (samlConfig) => {
+      renderSaml(samlConfig)
+      expect(callbackValue()).toMatch(/\/api\/auth\/sso\/saml2\/callback\/provider-a$/)
+    }
+  )
 })

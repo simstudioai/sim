@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { APP_ENTRY_PATH, isAppSurfacePath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
@@ -310,7 +309,7 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
-export async function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl
 
   if (url.pathname.startsWith('/api/')) {
@@ -336,7 +335,7 @@ export async function proxy(request: NextRequest) {
       inviteFlow: url.searchParams.get('invite_flow'),
     })
     const isOAuthSignIn =
-      isOAuthAuthorizationCallback(rawCallbackUrl, url.origin) && (await isOAuthProviderEnabled())
+      isOAuthAuthorizationCallback(rawCallbackUrl, url.origin) && !isAuthDisabled
     if (hasActiveSession && !isOAuthSignIn) {
       return applyIndexingPolicy(
         request,

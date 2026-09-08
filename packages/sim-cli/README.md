@@ -33,16 +33,27 @@ Sign in to the default profile:
 sim login
 ```
 
-The CLI opens Sim in your browser, asks you to approve the requested access,
+With no `--method`, the CLI prefers OAuth when the server offers it and a local
+browser callback is possible. It selects API-key pairing for remote terminals
+or servers without OAuth. Use `sim login --method oauth` to require OAuth;
+if the server does not offer it, login fails without creating an API key.
+
+OAuth login opens Sim in your browser, asks you to approve the requested access,
 and receives the one-time authorization code on a loopback callback. It stores
 a short-lived OAuth login that renews automatically and can be revoked under
 **Settings → General → Authorized apps**. Choose a default workspace afterward with
 `sim configure --set-workspace <id>`.
 
-Use `sim login --no-browser` to print the OAuth URL without opening it. The
-browser must still be able to reach the CLI's loopback callback. Over SSH or in
-a container without port forwarding, use `sim login --browserless`; that
-pairing-code fallback creates a permanent personal API key instead.
+Use `--no-browser` with either method to print the approval URL without opening
+it. OAuth still needs the browser to reach the CLI's loopback callback. Over SSH
+or in a container without port forwarding, use
+`sim login --method api-key --no-browser` to approve from another device and
+create a permanent personal API key. `--method api-key` creates a new key;
+set `SIM_API_KEY` to supply an existing one.
+
+Pairing requires a server that supports `platform` API keys. Upgrade older
+deployments that only issue `copilot` keys before login; they are not compatible
+with the platform CLI. OAuth discovery does not check pairing compatibility.
 
 Check the active profile and verify that its endpoint, credential, and workspace
 work together:

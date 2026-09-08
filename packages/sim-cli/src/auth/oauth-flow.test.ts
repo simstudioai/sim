@@ -300,7 +300,7 @@ describe('loginWithBrowser', () => {
     expect(response.headers['cache-control']).toBe('no-store')
   })
 
-  it('gives up after the timeout with the browserless fallback named', async () => {
+  it('gives up after the timeout with an explicit API-key login alternative', async () => {
     vi.stubGlobal('fetch', vi.fn())
     await expect(
       loginWithBrowser(ENDPOINT, {
@@ -308,7 +308,7 @@ describe('loginWithBrowser', () => {
         onAuthorizeUrl: () => {},
         timeoutMs: 20,
       })
-    ).rejects.toThrow('--browserless')
+    ).rejects.toThrow('--method api-key')
   })
 })
 

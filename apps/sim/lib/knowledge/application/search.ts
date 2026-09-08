@@ -19,6 +19,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
   isDurableSecretProvenanceEnforced,
+  reportDurableSecretProvenanceRefusal,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
@@ -395,13 +396,17 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     })
 
     input.signal?.throwIfAborted()
+    /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */
+    const registrySubjectUserId = resolvePrincipalSubjectUserId(principal)
     const registry =
       resultSecretRegistry ??
-      (input.prepareModelInputProvenance
-        ? new ResolvedSecretTraceRegistry([], {
-            userId,
-            workspaceId: context.workspaceId,
-          })
+      (input.prepareModelInputProvenance || useReranker
+        ? new ResolvedSecretTraceRegistry(
+            [],
+            registrySubjectUserId
+              ? { userId: registrySubjectUserId, workspaceId: context.workspaceId }
+              : undefined
+          )
         : undefined)
     let provenanceSnapshot: Awaited<
       ReturnType<typeof importKnowledgeSearchResultSecretProvenance>
@@ -413,7 +418,14 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       })
       if (!provenanceSnapshot.imported) {
         registry.markIncomplete('knowledge-result-provenance-unavailable')
-        if (useReranker) throw new KnowledgeSearchProvenanceUnavailableError()
+        if (useReranker) {
+          reportDurableSecretProvenanceRefusal({
+            surface: 'knowledge',
+            cause: 'knowledge-result-provenance-unavailable',
+            workspaceId: context.workspaceId,
+          })
+          throw new KnowledgeSearchProvenanceUnavailableError()
+        }
       }
     }
 
@@ -491,6 +503,14 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         rows = rows.slice(0, input.topK)
         rerankerStatus = 'unavailable'
       }
+      logger.info('Knowledge reranker completed', {
+        status: rerankerStatus,
+        candidateCount,
+        resultCount: rows.length,
+        unrecordedChunkCount: provenanceSnapshot?.unrecordedCount ?? 0,
+        enforced: isDurableSecretProvenanceEnforced('knowledge'),
+        workspaceId: context.workspaceId,
+      })
     } else if (useReranker) {
       rows = rows.slice(0, input.topK)
     }

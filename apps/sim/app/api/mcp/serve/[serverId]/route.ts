@@ -27,6 +27,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -44,7 +45,9 @@ import {
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { encodeSSE, encodeSSEComment, SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   assertContentLengthWithinLimit,
   assertKnownSizeWithinLimit,
@@ -75,6 +78,7 @@ const MAX_MCP_WORKFLOW_REQUEST_BYTES = 10 * 1024 * 1024
 const MAX_MCP_TOOL_RESULT_TEXT_BYTES = 10 * 1024 * 1024
 const MAX_MCP_TOOLS_LIST_COUNT = MAX_MCP_TOOLS_PER_SERVER
 const MAX_MCP_TOOLS_LIST_SCHEMA_BYTES = MAX_MCP_PARAMETER_SCHEMA_BYTES
+const MCP_STREAM_KEEPALIVE_INTERVAL_MS = 15_000
 const MB = 1024 * 1024
 
 function negotiateProtocolVersion(rpcParams: unknown): string {
@@ -135,6 +139,95 @@ function callerAbortedJsonRpcResponse(
   abortSignal?: ManagedAbortSignal | null
 ): NextResponse | null {
   return abortSignal?.isCallerAborted() ? clientCancelledJsonRpcResponse(id) : null
+}
+
+function acceptsEventStream(request: NextRequest): boolean {
+  return acceptsMediaType(request.headers.get('accept'), 'text/event-stream')
+}
+
+/**
+ * Sends a Streamable HTTP response as SSE so a long tool call can keep the
+ * connection active before its terminal JSON-RPC message is available.
+ */
+function streamJsonRpcResponse(
+  id: RequestId,
+  requestSignal: AbortSignal,
+  run: (signal: AbortSignal) => Promise<NextResponse>
+): Response {
+  const executionController = new AbortController()
+  let cancelled = false
+  let keepaliveId: ReturnType<typeof setInterval> | undefined
+
+  const stopKeepalive = () => {
+    if (keepaliveId) {
+      clearInterval(keepaliveId)
+      keepaliveId = undefined
+    }
+  }
+  const abortExecution = (reason?: unknown) => {
+    if (!executionController.signal.aborted) {
+      executionController.abort(reason ?? new Error('MCP client disconnected'))
+    }
+  }
+  const abortFromRequest = () => abortExecution(requestSignal.reason)
+
+  if (requestSignal.aborted) {
+    abortFromRequest()
+  } else {
+    requestSignal.addEventListener('abort', abortFromRequest, { once: true })
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (chunk: Uint8Array): boolean => {
+        if (cancelled) return false
+        try {
+          controller.enqueue(chunk)
+          return true
+        } catch {
+          cancelled = true
+          stopKeepalive()
+          abortExecution()
+          return false
+        }
+      }
+
+      if (send(encodeSSEComment('keepalive'))) {
+        keepaliveId = setInterval(() => {
+          send(encodeSSEComment('keepalive'))
+        }, MCP_STREAM_KEEPALIVE_INTERVAL_MS)
+      }
+
+      void run(executionController.signal)
+        .then(async (response) => {
+          const message: unknown = await response.json()
+          send(encodeSSE(message))
+        })
+        .catch((error) => {
+          logger.error('MCP response stream failed', { error: getErrorMessage(error) })
+          send(encodeSSE(createError(id, ErrorCode.InternalError, 'Internal error')))
+        })
+        .finally(() => {
+          stopKeepalive()
+          requestSignal.removeEventListener('abort', abortFromRequest)
+          if (!cancelled) controller.close()
+        })
+    },
+    cancel(reason) {
+      cancelled = true
+      stopKeepalive()
+      requestSignal.removeEventListener('abort', abortFromRequest)
+      abortExecution(reason)
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      ...SSE_HEADERS,
+      'Cache-Control': 'no-cache, no-transform',
+      Vary: 'Accept',
+    },
+  })
 }
 
 function limitMessage(label: string, maxBytes: number): string {
@@ -406,12 +499,12 @@ async function authorizeMcpServeRequest(
   }
 }
 
-function unsupportedSseTransportResponse(): NextResponse {
+function unsupportedSseGetResponse(): NextResponse {
   return NextResponse.json(
     {
       error: {
         code: 'unsupported_transport',
-        message: 'SSE transport is not supported for workflow MCP servers',
+        message: 'Standalone SSE GET transport is not supported for workflow MCP servers',
         supportedTransports: ['streamable-http'],
         allowedMethods: ['GET', 'POST', 'DELETE'],
       },
@@ -438,8 +531,8 @@ export const GET = withRouteHandler(
       const authResult = await authorizeMcpServeRequest(request, server)
       if (authResult.response) return authResult.response
 
-      if (request.headers.get('accept')?.includes('text/event-stream')) {
-        return unsupportedSseTransportResponse()
+      if (acceptsEventStream(request)) {
+        return unsupportedSseGetResponse()
       }
 
       return NextResponse.json({
@@ -557,16 +650,22 @@ export const POST = withRouteHandler(
             )
           }
 
-          return handleToolsCall(
-            id,
-            serverId,
-            server.workspaceId,
-            paramsValidation.data,
-            executeAuthContext,
-            server.isPublic ? server.createdBy : undefined,
-            request.headers.get(SIM_VIA_HEADER),
-            request.signal
-          )
+          const callTool = (signal: AbortSignal) =>
+            handleToolsCall(
+              id,
+              serverId,
+              server.workspaceId,
+              paramsValidation.data,
+              executeAuthContext,
+              server.isPublic ? server.createdBy : undefined,
+              request.headers.get(SIM_VIA_HEADER),
+              signal
+            )
+
+          if (acceptsEventStream(request)) {
+            return streamJsonRpcResponse(id, request.signal, callTool)
+          }
+          return callTool(request.signal)
         }
 
         default:

@@ -29,7 +29,7 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
  */
 
 const DOCUMENT_NOT_READY =
-  'A document that has not finished processing answers `409`; the message names the status it is in.'
+  'Documents that have not finished processing return `409` with their current status.'
 const CONNECTOR_MANAGED =
   'Connector-synced chunks are read-only and return `403` with `error.details.code: "CONNECTOR_MANAGED_RESOURCE_READ_ONLY"`; change the source and re-sync, or exclude the document.'
 
@@ -40,7 +40,7 @@ export const knowledgeChunkOpenApiRoutes = [
       applicationOperation: knowledgeOperations.listChunks,
       operationId: 'listKnowledgeChunks',
       summary: 'List Chunks',
-      description: `List the passages a document was split into, with content search, enabled filtering, sorting, and opaque cursor pagination. Tag values are projected by slot; resolve slots to display names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List document chunks with content search, enabled filtering, sorting, and cursor pagination. Tags use slots; use List Tags to resolve display names. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'A page of document chunks.' },
     }),
@@ -148,7 +148,7 @@ export const knowledgeChunkOpenApiRoutes = [
       applicationOperation: knowledgeOperations.readChunk,
       operationId: 'getKnowledgeChunk',
       summary: 'Get Chunk',
-      description: `Retrieve one chunk of a document, including the exact text that was embedded. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Get one chunk of a document, including the exact text that was embedded. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The requested chunk.' },
     }),

@@ -59,7 +59,7 @@ const RUN_OUTCOME_OPERATIONS: Readonly<
 }
 
 /** The one-line explanation of an in-band run failure, or `null` if there is none. */
-function runFailureMessage(operation: V2OperationName, payload: unknown): string | null {
+export function runFailureMessage(operation: V2OperationName, payload: unknown): string | null {
   const failureMessages = RUN_OUTCOME_OPERATIONS[operation]
   if (!failureMessages) return null
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null

@@ -20,7 +20,7 @@ async function createMigrationFixture() {
 
   const schema = `organization_migration_${generateId().replaceAll('-', '')}`
   const migration = await readFile(
-    new URL('./migrations/0325_enterprise_organization_search.sql', import.meta.url),
+    new URL('./migrations/0326_enterprise_organization_search.sql', import.meta.url),
     'utf8'
   )
   const statements = migration

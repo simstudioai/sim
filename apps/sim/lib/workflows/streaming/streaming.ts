@@ -8,7 +8,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
-import { encodeSSE } from '@/lib/core/utils/sse'
+import { encodeSSE, encodeSSEComment } from '@/lib/core/utils/sse'
 import {
   getInlineJsonByteLength,
   materializeInlineExecutionValue,
@@ -47,6 +47,7 @@ import { DEFAULT_MAX_THINKING_CHARS } from '@/providers/stream-pump'
 const logger = createLogger('WorkflowStreaming')
 
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
+const STREAM_KEEPALIVE_INTERVAL_MS = 15_000
 const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
   'Selected output is too large to inline; select a nested field or use pagination/preview.'
 
@@ -531,8 +532,26 @@ export async function createStreamingResponse(
     options.requestSignal?.removeEventListener('abort', onRequestAbort)
   }
 
+  let keepaliveId: ReturnType<typeof setInterval> | undefined
+  const stopKeepalive = () => {
+    if (keepaliveId) {
+      clearInterval(keepaliveId)
+      keepaliveId = undefined
+    }
+  }
+
   return new ReadableStream({
     async start(controller) {
+      /** Flush headers promptly and keep silent blocks alive through idle-limited proxies. */
+      controller.enqueue(encodeSSEComment('keepalive'))
+      keepaliveId = setInterval(() => {
+        try {
+          controller.enqueue(encodeSSEComment('keepalive'))
+        } catch {
+          stopKeepalive()
+        }
+      }, STREAM_KEEPALIVE_INTERVAL_MS)
+
       const state: StreamingState = {
         streamedChunks: new Map(),
         processedOutputs: new Set(),
@@ -930,6 +949,7 @@ export async function createStreamingResponse(
 
         controller.close()
       } finally {
+        stopKeepalive()
         cleanupRequestAbort()
         timeoutController.cleanup()
       }
@@ -940,6 +960,7 @@ export async function createStreamingResponse(
         projectResolvedSecretDiagnosticError(reason, undefined)
       )
       requestAborted = true
+      stopKeepalive()
       timeoutController.abort()
       cleanupRequestAbort()
       timeoutController.cleanup()

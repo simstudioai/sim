@@ -112,11 +112,6 @@ export const PUT = withRouteHandler(
         }
       }
 
-      const currentConfig = parsePermissionGroupConfig(group.config)
-      const newConfig: PermissionGroupConfig = updates.config
-        ? { ...currentConfig, ...updates.config }
-        : currentConfig
-
       // Demoting the org default with no new scope: it becomes a non-default
       // group with no workspaces (inert) until an admin re-scopes it. The client
       // sends only `isDefault: false`, so this never forwards a workspace list.
@@ -169,19 +164,20 @@ export const PUT = withRouteHandler(
       const now = new Date()
 
       await db.transaction(async (tx) => {
+        await acquirePermissionGroupOrgLock(tx, organizationId)
+        const currentGroup = await loadGroupInOrganization(id, organizationId, tx)
+        if (!currentGroup) throw new Error('GROUP_NOT_FOUND')
+        const newConfig: PermissionGroupConfig | undefined = updates.config
+          ? { ...parsePermissionGroupConfig(currentGroup.config), ...updates.config }
+          : undefined
+
         // For a specific-scope group the target workspaces are the request's
         // explicit ids, or — when omitted ("keep current") — the group's current
         // workspaces read under the lock so the conflict check and write share
         // one snapshot.
         let resolvedWorkspaceIds: string[] = []
 
-        // When the scope changes, serialize against other permission-group writes
-        // for this org and re-check membership conflicts atomically with the
-        // write, so a concurrent member add (or scope change) can't slip a user
-        // into two groups that overlap on a workspace.
         if (scopeProvided) {
-          await acquirePermissionGroupOrgLock(tx, organizationId)
-
           if (!effectiveIsDefault) {
             // May resolve to an empty list — a non-default group is allowed to
             // target zero workspaces (governs nothing). The write below deletes
@@ -243,7 +239,7 @@ export const PUT = withRouteHandler(
             ...(updates.name !== undefined && { name: updates.name }),
             ...(updates.description !== undefined && { description: updates.description }),
             ...(updates.isDefault !== undefined && { isDefault: updates.isDefault }),
-            config: newConfig,
+            ...(newConfig !== undefined && { config: newConfig }),
             updatedAt: now,
           })
           .where(eq(permissionGroup.id, id))
@@ -302,6 +298,9 @@ export const PUT = withRouteHandler(
         },
       })
     } catch (error) {
+      if (error instanceof Error && error.message === 'GROUP_NOT_FOUND') {
+        return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
+      }
       if (error instanceof Error && error.message === 'SCOPE_CONFLICT') {
         return NextResponse.json(
           { error: formatScopeConflictError(scopeConflicts) },

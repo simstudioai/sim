@@ -3,13 +3,8 @@ import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
 import chalk from 'chalk'
-import { Command } from 'commander'
-import {
-  buildApprovalUrl,
-  type CliAuthScope,
-  createAuthRequest,
-  pollForKey,
-} from '../auth/device-flow'
+import { Command, Option } from 'commander'
+import { buildApprovalUrl, createAuthRequest, pollForKey } from '../auth/device-flow'
 import {
   discoverOAuthProvider,
   grantsWriteAccess,
@@ -367,9 +362,8 @@ function addProfileCommand(): Command {
 }
 
 interface LoginOptions {
-  scope: string
   browser: boolean
-  browserless?: boolean
+  method?: 'oauth' | 'api-key'
   readOnly?: boolean
   callbackPort?: string
   yes?: boolean
@@ -378,29 +372,29 @@ interface LoginOptions {
 /**
  * Which login to run.
  *
- * OAuth is the default: it leaves a short-lived, revocable login instead of a
- * permanent key. The pairing-code handoff remains for the cases OAuth's
- * loopback redirect cannot serve — a terminal whose browser is on another
- * machine (`--browserless`, or an SSH session detected), a copilot-scope key
- * (which only the handoff mints), and a server without the provider (an older
- * Sim, or one with it switched off), which discovery reports before the browser
- * opens. An unreachable server is an error, not a fallback: a typo'd endpoint
- * must not be mistaken for one that lacks the feature.
+ * An explicit method selects the credential type: OAuth never falls back to
+ * an API key, and API-key login skips OAuth discovery. With no method selected,
+ * OAuth is preferred, with the pairing-code handoff used for remote terminals
+ * or a server without the provider. An unreachable server remains
+ * an error rather than being mistaken for one that lacks the feature.
  *
  * `--callback-port` overrides the remote-session guess, because naming the port
  * is how someone with an SSH tunnel says the loopback redirect does reach them.
  */
 async function chooseLoginFlow(
   profile: ResolvedProfile,
-  options: LoginOptions,
-  scope: CliAuthScope
+  options: LoginOptions
 ): Promise<'oauth' | 'handoff'> {
   requireSecureEndpoint(profile.endpoint)
-  if (options.browserless || scope === 'copilot') return 'handoff'
-  if (isLikelyRemoteSession() && options.callbackPort === undefined) {
+  if (options.method === 'api-key') return 'handoff'
+  if (
+    options.method === undefined &&
+    isLikelyRemoteSession() &&
+    options.callbackPort === undefined
+  ) {
     console.log(
       chalk.dim(
-        'This looks like a remote session, so the browser on this machine cannot finish an OAuth login; using the pairing code instead. Forward a port and pass --callback-port <port> to sign in through the browser anyway.\n'
+        'This looks like a remote session; using the pairing code to create a personal API key. To use OAuth, forward a port and pass --method oauth --callback-port <port>.\n'
       )
     )
     return 'handoff'
@@ -410,9 +404,15 @@ async function chooseLoginFlow(
     throw new SimApiError(`Could not reach ${profile.endpoint}. Check the endpoint.`, 0)
   }
   if (status === 'unavailable') {
+    if (options.method === 'oauth') {
+      throw new SimApiError(
+        `${profile.endpoint} does not offer OAuth sign-in. Enable OAuth on the server or explicitly choose sim login --method api-key.`,
+        0
+      )
+    }
     console.log(
       chalk.dim(
-        `${profile.endpoint} does not offer OAuth sign-in; using the pairing code instead.\n`
+        `${profile.endpoint} does not offer OAuth sign-in; using the pairing code to create a personal API key.\n`
       )
     )
     return 'handoff'
@@ -532,16 +532,13 @@ async function loginWithOAuth(
 export function loginCommand(): Command {
   return new Command('login')
     .description('Sign in through the browser and store the login for the profile')
-    .option(
-      '--scope <scope>',
-      'Key space for the pairing-code handoff; only "copilot" changes anything, and it forces that flow',
-      'platform'
+    .addOption(
+      new Option(
+        '--method <method>',
+        'Credential to obtain: oauth requires OAuth support; api-key creates a permanent key through pairing (auto-selects when omitted)'
+      ).choices(['oauth', 'api-key'])
     )
-    .option('--no-browser', 'Print the URL instead of opening a browser')
-    .option(
-      '--browserless',
-      'Use the pairing-code handoff for a terminal whose browser cannot reach it (SSH, containers)'
-    )
+    .option('--no-browser', 'Print the approval URL without opening it (either login method)')
     .option('--read-only', 'Ask only for permission to read, never to change anything')
     .option('--callback-port <port>', 'Pin the local port the browser returns to')
     .option('-y, --yes', 'Overwrite an existing API-key profile without prompting')
@@ -556,11 +553,6 @@ export function loginCommand(): Command {
           0
         )
       }
-
-      if (options.scope !== 'platform' && options.scope !== 'copilot') {
-        throw new SimApiError(`Unknown scope "${options.scope}". Use platform or copilot.`, 0)
-      }
-      const scope = options.scope as CliAuthScope
 
       const snapshot = readLoginProfileSnapshot(profile.name)
       const storedCredential = snapshot.credential
@@ -581,7 +573,7 @@ export function loginCommand(): Command {
       /** Validate a pinned port before opening a browser or starting either flow. */
       const callbackPort = parseCallbackPort(options.callbackPort)
 
-      const loginFlow = await chooseLoginFlow(profile, options, scope)
+      const loginFlow = await chooseLoginFlow(profile, options)
       /**
        * Neither flag has a meaning in the handoff: it mints a permanent,
        * full-power API key on the server and never opens a local listener.
@@ -592,13 +584,13 @@ export function loginCommand(): Command {
       if (loginFlow === 'handoff') {
         if (options.readOnly) {
           throw new SimApiError(
-            'The pairing-code handoff cannot issue a read-only login; it mints a full API key. Drop --read-only, or sign in through the browser.',
+            'API-key login cannot issue a read-only login. Use --method oauth, or drop --read-only.',
             0
           )
         }
         if (callbackPort !== undefined) {
           throw new SimApiError(
-            'The pairing-code handoff has no local callback, so --callback-port does not apply. Drop it, or sign in through the browser.',
+            'API-key login has no local callback, so --callback-port does not apply. Use --method oauth, or drop --callback-port.',
             0
           )
         }
@@ -609,7 +601,7 @@ export function loginCommand(): Command {
           await loginWithOAuth(profile, options, callbackPort, snapshot)
           return
         }
-        await loginWithHandoff(profile, options, scope, snapshot)
+        await loginWithHandoff(profile, options, snapshot)
       })
     })
 }
@@ -618,11 +610,10 @@ export function loginCommand(): Command {
 async function loginWithHandoff(
   profile: ResolvedProfile,
   options: LoginOptions,
-  scope: CliAuthScope,
   expected: LoginProfileSnapshot
 ): Promise<void> {
   const auth = createAuthRequest()
-  const url = buildApprovalUrl(profile.endpoint, auth, scope, profile.workspaceId ?? undefined)
+  const url = buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined)
 
   console.log(
     `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
@@ -636,9 +627,9 @@ async function loginWithHandoff(
 
   const key = await pollForKey(profile.endpoint, auth)
   try {
-    if (key.scope !== scope) {
+    if (key.scope !== 'platform') {
       throw new SimApiError(
-        `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
+        `Server issued a ${key.scope} key, but the CLI requires a platform API key. Update the Sim deployment and try again.`,
         0
       )
     }

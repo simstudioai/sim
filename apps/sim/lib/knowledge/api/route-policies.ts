@@ -118,6 +118,9 @@ const v2KnowledgeUsageErrorPolicy = {
     if (error instanceof KnowledgeUsageLimitExceededError) {
       return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
     }
+    if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
+      return v2Error('CONFLICT', error.message)
+    }
     return v2OrchestrationErrorPolicy.render(error)
   },
 } satisfies V2ErrorPolicy

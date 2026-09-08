@@ -1,22 +1,25 @@
 ---
 title: Verified Domains
-description: Prove ownership of your email domains before configuring single sign-on
+description: Prove ownership of your email domains for single sign-on and directory provisioning
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
 import { FAQ } from '@/components/ui/faq'
 
-Verified Domains let organization owners and admins on Enterprise plans prove they control an email domain (like `acme.com`) with a DNS TXT record. Verifying a domain is the security precondition for configuring single sign-on for it.
+Verified Domains let organization owners and admins on Enterprise plans prove they control an email domain (like `acme.com`) with a DNS TXT record. Verify a domain before configuring single sign-on for it or provisioning members at that domain through SCIM.
 
 <Callout type="warn">
-  Configuring SSO for a domain requires it to be verified first. Verifying proves your organization controls the domain — without it, anyone could point another company's domain at their own identity provider. Domains you had already configured for SSO are automatically treated as verified.
+  Configuring SSO for a domain requires it to be verified first. Verifying proves your organization controls the domain — without it, anyone could point another company's domain at their own identity provider. The domain-verification migration preserved domains configured for SSO before this requirement was introduced.
 </Callout>
 
 ---
 
 ## Verify a domain
 
-Go to **Settings → Organization → Single sign-on** in your organization settings. Domains are managed in the **Verified domains** section at the top of that page, directly above the identity provider configuration.
+Go to **Settings → Organization → Single sign-on → Domains**. The **Verified domains** section is shared by sign-in and directory provisioning.
+
+<Image src="/static/enterprise/sso-domains.png" loading="eager" alt="Domains tab showing a verified domain and the DNS record for a pending domain" width={832} height={663} />
 
 1. Enter the domain, for example `acme.com`, and click **Add domain**.
 2. Sim shows a DNS **TXT record** to publish — a host (`_sim-challenge.acme.com`) and a unique value (`sim-domain-verification=…`).
@@ -24,10 +27,10 @@ Go to **Settings → Organization → Single sign-on** in your organization sett
 4. Click **Verify**. Sim looks up the record; on success the domain is marked **Verified**.
 
 <Callout type="warn">
-  Some DNS providers — GoDaddy, Namecheap, Hover, and most cPanel panels — append your zone to whatever you type in the host field. If yours does, enter the host with the trailing zone removed, or you will end up with `_sim-challenge.acme.com.acme.com` and verification will never succeed. If you manage the `acme.com` zone, enter `_sim-challenge`. To verify the subdomain `eng.acme.com` from that same zone, enter `_sim-challenge.eng`. Cloudflare and Route 53 take the full host as shown.
+  Some DNS providers append the zone automatically. If yours does, enter `_sim-challenge` when managing the `acme.com` zone, or `_sim-challenge.eng` to verify `eng.acme.com` from that zone. Check the resulting record name: it must match the full host Sim shows, without a repeated domain such as `_sim-challenge.acme.com.acme.com`.
 </Callout>
 
-DNS changes can take up to 48 hours to propagate — if verification does not succeed immediately, wait and retry. Leave the TXT record published — removing it can cause the domain to fail a later re-verification.
+DNS changes can take time to propagate. If verification does not succeed immediately, check the record name and value, then wait and retry. Keep the TXT record published. Sim verifies it when you select **Verify**; removing the DNS record does not itself revoke a completed verification.
 
 Add each domain you own separately. Subdomains (`eng.acme.com`) are verified independently of the apex.
 
@@ -40,12 +43,12 @@ Add each domain you own separately. Subdomains (`eng.acme.com`) are verified ind
     {
       question: 'Where does the TXT record go?',
       answer:
-        'On a dedicated host, _sim-challenge.<your-domain>, rather than the root of your domain — this avoids colliding with your SPF, DMARC, or other root TXT records.',
+        'On the dedicated host _sim-challenge.<your-domain>. Add the supplied TXT value there without replacing existing records on your domain.',
     },
     {
       question: 'What happens to domains we already use for SSO?',
       answer:
-        'They are automatically treated as verified, so existing single sign-on keeps working with no action needed.',
+        'Domains configured before domain verification was introduced were preserved as verified by the migration. New domains must complete DNS verification.',
     },
     {
       question: 'Can two organizations verify the same domain?',
@@ -55,7 +58,7 @@ Add each domain you own separately. Subdomains (`eng.acme.com`) are verified ind
     {
       question: 'What if I remove a verified domain?',
       answer:
-        'You lose the ownership proof, so you cannot configure SSO for that domain until you re-add and re-verify it. Removing it does not sign anyone out — an already-configured SSO provider keeps working.',
+        'New SSO sign-ins for that domain stop immediately, including through an existing provider. SCIM cannot create users or change an email to that domain until it is verified again. Removing the domain does not itself end existing sessions. Re-add and verify it to restore the ownership proof.',
     },
   ]}
 />
@@ -73,4 +76,4 @@ NEXT_PUBLIC_SSO_ENABLED=true
 
 `ENTERPRISE_ENABLED` turns both on together, but it needs its own browser twin — set `NEXT_PUBLIC_ENTERPRISE_ENABLED` alongside it, or the server and the settings page enable SSO while the login page still hides its SSO entry point. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
 
-Once enabled, verify domains from **Settings → Organization → Single sign-on**, in the **Verified domains** section above the identity provider configuration. The older `/workspace/<workspaceId>/settings/domains` path still resolves to the same page.
+Once enabled, verify domains from **Settings → Organization → Single sign-on → Domains**. The older `/workspace/<workspaceId>/settings/domains` path still resolves to the same page.

@@ -12,6 +12,9 @@ import {
   ChipModalHeader,
   ChipSelect,
   ChipTag,
+  Expandable,
+  ExpandableContent,
+  Label,
   Switch,
   toast,
 } from '@sim/emcn'
@@ -30,7 +33,10 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useOrganizationWorkspaces,
@@ -60,6 +66,8 @@ import {
 
 interface ScimSectionProps {
   organizationId: string
+  active: boolean
+  onOpenDomains: () => void
 }
 
 const RELATIVE_TIME = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
@@ -103,8 +111,7 @@ function CredentialRow({ credential, onRevoke }: CredentialRowProps) {
     : 'no expiry'
   return (
     <SettingsResourceRow
-      icon={<Key />}
-      title={<span className='font-mono'>{credential.tokenPrefix}…</span>}
+      title={`${credential.tokenPrefix}…`}
       description={`Last used ${formatRelative(credential.lastUsedAt)} · ${expiry}`}
       trailing={
         <RowActionsMenu
@@ -202,9 +209,10 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
 
 interface GroupMappingsProps {
   organizationId: string
+  active: boolean
 }
 
-function GroupMappings({ organizationId }: GroupMappingsProps) {
+function GroupMappings({ organizationId, active }: GroupMappingsProps) {
   const {
     data: groups,
     isLoading,
@@ -212,11 +220,11 @@ function GroupMappings({ organizationId }: GroupMappingsProps) {
     error,
     isFetching,
     refetch,
-  } = useScimGroupMappings(organizationId)
-  const { data: allPermissionGroups = [] } = usePermissionGroups(organizationId)
+  } = useScimGroupMappings(organizationId, active)
+  const { data: allPermissionGroups = [] } = usePermissionGroups(organizationId, active)
   /** The default group governs by having no members, so it cannot be a membership target. */
   const permissionGroups = allPermissionGroups.filter((group) => !group.isDefault)
-  const { data: workspaces = [] } = useOrganizationWorkspaces(organizationId)
+  const { data: workspaces = [] } = useOrganizationWorkspaces(organizationId, active)
   const deleteMapping = useDeleteScimGroupMapping()
 
   const names = {
@@ -236,7 +244,7 @@ function GroupMappings({ organizationId }: GroupMappingsProps) {
   if (isLoading) {
     return <SettingsEmptyState variant='inline'>Loading groups...</SettingsEmptyState>
   }
-  if (isError) {
+  if (groups === undefined && isError) {
     return (
       <SettingsQueryErrorState
         error={error}
@@ -263,7 +271,7 @@ function GroupMappings({ organizationId }: GroupMappingsProps) {
             title={group.displayName}
             description={`${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`}
           />
-          <div className='flex flex-col gap-3 pl-[46px]'>
+          <div className='flex flex-col gap-3'>
             {group.mappings.length > 0 && (
               <div className='flex flex-wrap gap-1.5'>
                 {group.mappings.map((mapping) => (
@@ -295,9 +303,10 @@ function GroupMappings({ organizationId }: GroupMappingsProps) {
 
 interface ActivityListProps {
   organizationId: string
+  active: boolean
 }
 
-function ActivityList({ organizationId }: ActivityListProps) {
+function ActivityList({ organizationId, active }: ActivityListProps) {
   const {
     data: entries,
     isLoading,
@@ -305,12 +314,12 @@ function ActivityList({ organizationId }: ActivityListProps) {
     error,
     isFetching,
     refetch,
-  } = useScimActivity(organizationId)
+  } = useScimActivity(organizationId, active)
 
   if (isLoading) {
     return <SettingsEmptyState variant='inline'>Loading activity...</SettingsEmptyState>
   }
-  if (isError) {
+  if (entries === undefined && isError) {
     return (
       <SettingsQueryErrorState
         error={error}
@@ -335,7 +344,7 @@ function ActivityList({ organizationId }: ActivityListProps) {
               <ChipTag variant={failed ? 'gray' : 'mono'} invalid={failed}>
                 {entry.status}
               </ChipTag>
-              <span className='truncate font-mono text-[var(--text-primary)]'>
+              <span className='truncate text-[var(--text-body)]'>
                 {entry.method} {entry.path}
               </span>
               <span className='ml-auto shrink-0 text-[var(--text-muted)]'>
@@ -357,18 +366,22 @@ function ActivityList({ organizationId }: ActivityListProps) {
 
 interface ConnectionDetailsProps {
   organizationId: string
+  active: boolean
   connection: ScimConnectionView
 }
 
-function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProps) {
+function ConnectionDetails({ organizationId, connection, active }: ConnectionDetailsProps) {
   const configure = useConfigureScimConnection()
   const issueCredential = useIssueScimCredential()
   const revokeCredential = useRevokeScimCredential()
   const reconcile = useReconcileScimConnection()
 
+  const [showRules, setShowRules] = useState(false)
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
   const [credentialExpiry, setCredentialExpiry] = useState<CredentialExpiry>('never')
-  const [pendingRevoke, setPendingRevoke] = useState<ScimCredentialView | null>(null)
+  const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null)
+  const pendingRevoke =
+    connection.credentials.find((credential) => credential.id === pendingRevokeId) ?? null
 
   async function handleToggleSetting(key: (typeof SETTING_TOGGLES)[number]['key'], value: boolean) {
     try {
@@ -395,7 +408,7 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
     if (!pendingRevoke) return
     try {
       await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })
-      setPendingRevoke(null)
+      setPendingRevokeId(null)
       toast.success('Token revoked')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to revoke token'))
@@ -418,102 +431,134 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
 
   return (
     <>
-      <SettingRow
-        label='Base URL'
-        description='Enter this as the tenant or connector URL in your identity provider.'
-        htmlFor='scim-base-url'
-      >
-        <ChipCopyInput
-          id='scim-base-url'
-          value={connection.baseUrl}
-          copyLabel='Copy base URL'
-          inputClassName='font-mono'
-        />
-      </SettingRow>
-
-      <SettingRow label='Status'>
-        <p className='text-[var(--text-muted)] text-small'>
-          {connection.userCount} provisioned member{connection.userCount === 1 ? '' : 's'},{' '}
-          {connection.groupCount} group{connection.groupCount === 1 ? '' : 's'}. Last request{' '}
-          {formatRelative(connection.lastRequestAt)}; last reconciled{' '}
-          {formatRelative(connection.reconciledAt)}.
-        </p>
-      </SettingRow>
-
-      {SETTING_TOGGLES.map((toggle) => (
-        <SettingRow
-          key={toggle.key}
-          label={toggle.label}
-          description={toggle.description}
-          htmlFor={`scim-${toggle.key}`}
-        >
-          <Switch
-            id={`scim-${toggle.key}`}
-            checked={connection.settings[toggle.key] ?? false}
-            onCheckedChange={(checked) => void handleToggleSetting(toggle.key, checked)}
-            disabled={configure.isPending}
-          />
-        </SettingRow>
-      ))}
-
-      <SettingRow
-        label='Tokens'
-        description='The token is shown once. Two can be active at a time so you can rotate without downtime.'
-      >
-        <div className='flex flex-col gap-3'>
-          {connection.credentials.length === 0 ? (
-            <SettingsEmptyState variant='inline'>No tokens yet.</SettingsEmptyState>
-          ) : (
-            connection.credentials.map((credential) => (
-              <CredentialRow
-                key={credential.id}
-                credential={credential}
-                onRevoke={setPendingRevoke}
-              />
-            ))
-          )}
-          <div className='flex flex-wrap items-center gap-2'>
-            <ChipSelect
-              aria-label='Token expiry'
-              align='start'
-              value={credentialExpiry}
-              onChange={(next) => setCredentialExpiry(next as CredentialExpiry)}
-              options={[...CREDENTIAL_EXPIRY_OPTIONS]}
+      <SettingsSection label='Connection'>
+        <div className='flex flex-col gap-4.5'>
+          <SettingRow
+            label='Base URL'
+            description='Enter this as the tenant or connector URL in your identity provider.'
+            htmlFor='scim-base-url'
+          >
+            <ChipCopyInput
+              id='scim-base-url'
+              value={connection.baseUrl}
+              copyLabel='Copy base URL'
             />
-            <Chip
-              variant='primary'
-              onClick={handleIssue}
-              disabled={issueCredential.isPending || connection.credentials.length >= 2}
-            >
-              {issueCredential.isPending ? 'Issuing...' : 'Issue token'}
-            </Chip>
-          </div>
-        </div>
-      </SettingRow>
+          </SettingRow>
 
-      <SettingRow
-        label='Group mappings'
-        description='Point each pushed group at a permission group, a workspace, or the organization admin role. A group can carry several mappings.'
-      >
-        <GroupMappings organizationId={organizationId} />
-      </SettingRow>
-
-      <SettingRow
-        label='Activity'
-        description='Recent requests from your identity provider. A failed request shows what was wrong.'
-      >
-        <div className='flex flex-col gap-3'>
-          <ActivityList organizationId={organizationId} />
-          <div>
-            <Chip onClick={handleReconcile} disabled={reconcile.isPending}>
-              {reconcile.isPending ? 'Reconciling...' : 'Reconcile now'}
-            </Chip>
-          </div>
+          <SettingRow label='Status'>
+            <p className='text-[var(--text-muted)] text-small'>
+              {connection.userCount} provisioned member{connection.userCount === 1 ? '' : 's'},{' '}
+              {connection.groupCount} group{connection.groupCount === 1 ? '' : 's'}. Last request{' '}
+              {formatRelative(connection.lastRequestAt)}; last reconciled{' '}
+              {formatRelative(connection.reconciledAt)}.
+            </p>
+          </SettingRow>
         </div>
-      </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection label='Tokens'>
+        <SettingRow
+          label='Access tokens'
+          description='Shown once. Keep up to two active tokens for rotation.'
+        >
+          <div className='flex flex-col gap-3'>
+            {connection.credentials.length === 0 ? (
+              <SettingsEmptyState variant='inline'>No tokens yet.</SettingsEmptyState>
+            ) : (
+              <div className={RESOURCE_LIST_STACK}>
+                {connection.credentials.map((credential) => (
+                  <CredentialRow
+                    key={credential.id}
+                    credential={credential}
+                    onRevoke={(credential) => setPendingRevokeId(credential.id)}
+                  />
+                ))}
+              </div>
+            )}
+            <div className='flex flex-wrap items-center gap-2'>
+              <ChipSelect
+                aria-label='Token expiry'
+                align='start'
+                value={credentialExpiry}
+                onChange={(next) => setCredentialExpiry(next as CredentialExpiry)}
+                options={[...CREDENTIAL_EXPIRY_OPTIONS]}
+              />
+              <Chip
+                variant='primary'
+                onClick={handleIssue}
+                disabled={issueCredential.isPending || connection.credentials.length >= 2}
+              >
+                {issueCredential.isPending ? 'Issuing...' : 'Issue token'}
+              </Chip>
+            </div>
+          </div>
+        </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection
+        label='Provisioning rules'
+        action={
+          <Chip
+            aria-expanded={showRules}
+            aria-controls='scim-rules'
+            onClick={() => setShowRules(!showRules)}
+          >
+            {showRules ? 'Hide rules' : 'Manage rules'}
+          </Chip>
+        }
+      >
+        <p className='text-[var(--text-muted)] text-caption'>
+          Control managed membership, first sign-in, and automatic group matching.
+        </p>
+        <Expandable expanded={showRules}>
+          <ExpandableContent id='scim-rules'>
+            <div className='flex flex-col gap-4.5 pt-4'>
+              {SETTING_TOGGLES.map((toggle) => (
+                <div key={toggle.key} className='flex items-center justify-between gap-4'>
+                  <div className='flex flex-col gap-1'>
+                    <Label htmlFor={`scim-${toggle.key}`}>{toggle.label}</Label>
+                    <p className='text-[var(--text-muted)] text-caption'>{toggle.description}</p>
+                  </div>
+                  <Switch
+                    id={`scim-${toggle.key}`}
+                    checked={connection.settings[toggle.key] ?? false}
+                    onCheckedChange={(checked) => void handleToggleSetting(toggle.key, checked)}
+                    disabled={configure.isPending}
+                  />
+                </div>
+              ))}
+            </div>
+          </ExpandableContent>
+        </Expandable>
+      </SettingsSection>
+
+      <SettingsSection label='Group mappings'>
+        <SettingRow
+          label='Directory groups'
+          description='Map directory groups to permission groups, workspaces, or the organization admin role.'
+        >
+          <GroupMappings organizationId={organizationId} active={active} />
+        </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection label='Activity'>
+        <SettingRow
+          label='Recent requests'
+          description='Requests from your identity provider, including errors.'
+        >
+          <div className='flex flex-col gap-3'>
+            <ActivityList organizationId={organizationId} active={active} />
+            <div>
+              <Chip onClick={handleReconcile} disabled={reconcile.isPending}>
+                {reconcile.isPending ? 'Reconciling...' : 'Reconcile now'}
+              </Chip>
+            </div>
+          </div>
+        </SettingRow>
+      </SettingsSection>
 
       <ChipModal
-        open={issuedSecret !== null}
+        open={active && issuedSecret !== null}
         onOpenChange={(open) => !open && setIssuedSecret(null)}
       >
         <ChipModalHeader icon={Key} onClose={() => setIssuedSecret(null)}>
@@ -521,16 +566,12 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
-            type='custom'
+            type='copy'
             title='Token'
+            value={issuedSecret ?? ''}
+            copyLabel='Copy token'
             hint='Copy it into your identity provider now. Sim stores only a digest and cannot show it again.'
-          >
-            <ChipCopyInput
-              value={issuedSecret ?? ''}
-              copyLabel='Copy token'
-              inputClassName='font-mono'
-            />
-          </ChipModalField>
+          />
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setIssuedSecret(null)}
@@ -539,8 +580,8 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
       </ChipModal>
 
       <ChipConfirmModal
-        open={pendingRevoke !== null}
-        onOpenChange={(open) => !open && setPendingRevoke(null)}
+        open={active && pendingRevoke !== null}
+        onOpenChange={(open) => !open && setPendingRevokeId(null)}
         title='Revoke token'
         text={[
           'Revoke ',
@@ -559,23 +600,21 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
 }
 
 /**
- * Directory provisioning (SCIM) settings, rendered as a section of the SSO page.
- * SSO decides who someone is; provisioning decides who exists and what they can
- * reach, so the two are configured together.
+ * Manages the SCIM connection in the Provisioning tab of organization sign-in settings.
  */
-export function ScimSection({ organizationId }: ScimSectionProps) {
-  const { hosted, features } = useDeploymentShape()
-  /** Hosted ships provisioning with the enterprise plan, which the SSO page already gates; self-hosted follows the flag. */
-  const available = hosted || features.scim
+export function ScimSection({ organizationId, onOpenDomains, active }: ScimSectionProps) {
+  const { features } = useDeploymentShape()
+  /** The deployment flag also allows activation to wait until older app instances are drained. */
+  const available = features.scim
   const { data, isLoading, isError, error, isFetching, refetch } = useScimConnection(
     organizationId,
-    available
+    available && active
   )
   const configure = useConfigureScimConnection()
 
   if (!available) return null
 
-  if (isError) {
+  if (data === undefined && isError) {
     return (
       <SettingsSection label='Directory provisioning'>
         <SettingsQueryErrorState
@@ -602,25 +641,41 @@ export function ScimSection({ organizationId }: ScimSectionProps) {
   }
 
   return (
-    <SettingsSection label='Directory provisioning'>
-      <div className='flex flex-col gap-4.5'>
-        <SettingRow
-          label='Enable directory provisioning'
-          description='Let your identity provider create, update, and deactivate members over SCIM 2.0. Requires a verified domain.'
-          htmlFor='scim-enabled'
-        >
-          <Switch
-            id='scim-enabled'
-            checked={enabled}
-            onCheckedChange={(checked) => void handleToggleEnabled(checked)}
-            disabled={isLoading || configure.isPending}
-          />
-        </SettingRow>
+    <div className='flex flex-col gap-7'>
+      <SettingsSection label='Directory provisioning'>
+        <div className='flex flex-col gap-4.5'>
+          <div className='flex items-center justify-between gap-4'>
+            <div className='flex flex-col gap-1'>
+              <Label htmlFor='scim-enabled'>Enable directory provisioning</Label>
+              <p className='text-[var(--text-muted)] text-caption'>
+                Create, update, and deactivate members from your identity provider with SCIM 2.0.
+              </p>
+            </div>
+            <Switch
+              id='scim-enabled'
+              checked={enabled}
+              onCheckedChange={(checked) => void handleToggleEnabled(checked)}
+              disabled={isLoading || configure.isPending}
+            />
+          </div>
 
-        {connection && enabled && (
-          <ConnectionDetails organizationId={organizationId} connection={connection} />
-        )}
-      </div>
-    </SettingsSection>
+          {!enabled && (
+            <div className='flex flex-wrap items-center justify-between gap-2'>
+              <p className='text-[var(--text-muted)] text-caption'>
+                Verify an email domain, then enable provisioning to connect your directory.
+              </p>
+              <Chip onClick={onOpenDomains}>Manage domains</Chip>
+            </div>
+          )}
+        </div>
+      </SettingsSection>
+      {connection && enabled && (
+        <ConnectionDetails
+          organizationId={organizationId}
+          connection={connection}
+          active={active}
+        />
+      )}
+    </div>
   )
 }

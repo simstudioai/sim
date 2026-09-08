@@ -36,10 +36,31 @@ function userFilterCondition(term: ScimFilterTerm<ScimUserFilterField>): SQL | u
       return eq(scimUser.userName, term.value.toLowerCase())
     case 'externalId':
       return eq(scimUser.externalId, term.value)
-    case 'email':
+    case 'primaryEmail':
       return sql`lower(trim(${user.email})) = ${normalizeEmail(term.value)}`
+    case 'email':
+    case 'workEmail': {
+      const address = normalizeEmail(term.value)
+      const matchesStoredEmail = sql`exists (
+        select 1 from jsonb_array_elements(${scimUser.attributes} -> 'emails') as stored_email(item)
+        where ${term.field === 'workEmail' ? sql`lower(stored_email.item ->> 'type') = 'work' and` : sql``}
+          (
+            (stored_email.item ->> 'primary' = 'true' and lower(trim(${user.email})) = ${address})
+            or (
+              stored_email.item ->> 'primary' is distinct from 'true'
+              and lower(trim(stored_email.item ->> 'value')) <> lower(trim(${user.email}))
+              and lower(trim(stored_email.item ->> 'value')) = ${address}
+            )
+          )
+      )`
+      return term.field === 'email'
+        ? sql`(lower(trim(${user.email})) = ${address} or ${matchesStoredEmail})`
+        : matchesStoredEmail
+    }
     case 'active':
-      return eq(scimUser.active, term.value.toLowerCase() === 'true')
+      return term.value.toLowerCase() === 'true'
+        ? sql`(${scimUser.active} = true and ${user.suspendedAt} is null)`
+        : sql`(${scimUser.active} = false or ${user.suspendedAt} is not null)`
   }
 }
 
@@ -53,6 +74,7 @@ const USER_SELECTION = {
   createdAt: scimUser.createdAt,
   updatedAt: scimUser.updatedAt,
   email: user.email,
+  name: user.name,
   userSuspendedAt: user.suspendedAt,
 } as const
 
@@ -66,6 +88,7 @@ export interface ScimUserRecord {
   createdAt: Date
   updatedAt: Date
   email: string
+  name: string
   userSuspendedAt: Date | null
 }
 

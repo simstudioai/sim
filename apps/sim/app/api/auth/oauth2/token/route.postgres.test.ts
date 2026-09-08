@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { randomBytes } from 'node:crypto'
+import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,11 @@ vi.unmock('@sim/db')
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 vi.unmock('@/lib/auth')
+vi.mock('@/lib/core/config/env-flags', () => ({
+  ...envFlagsMock,
+  isHosted: true,
+  isBillingEnabled: true,
+}))
 
 const databaseUrl = process.env.OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL
 
@@ -35,6 +41,7 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
       tokenStore,
       provider,
       { requestUtilsMockFns },
+      { isCapabilityWithheldForUser },
     ] = await Promise.all([
       import('@sim/db'),
       import('@sim/db/schema'),
@@ -46,6 +53,7 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
       import('@/lib/auth/oauth-access-token'),
       import('@/lib/auth/oauth-provider'),
       import('@sim/testing/mocks/request.mock'),
+      import('@/lib/permission-groups/user-scope.server'),
     ])
 
     const testId = randomBytes(8).toString('hex')
@@ -53,6 +61,8 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
     const sessionId = `oauth-route-test-session-${testId}`
     const sessionToken = `oauth-route-test-session-token-${testId}`
     const consentId = `oauth-route-test-consent-${testId}`
+    const organizationId = `oauth-route-test-org-${testId}`
+    const groupId = `oauth-route-test-group-${testId}`
     const email = `oauth-route-${testId}@example.com`
     const clientIp = `192.0.2.${Number.parseInt(testId.slice(0, 2), 16) || 1}`
     const baseUrl = 'https://test.sim.ai'
@@ -73,7 +83,7 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
         },
       })
 
-    const issueAuthorizationCode = async (verifier: string): Promise<string> => {
+    const createAuthorizeUrl = async (verifier: string) => {
       const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
       const authorizeUrl = new URL('/api/auth/oauth2/authorize', baseUrl)
       authorizeUrl.searchParams.set('client_id', provider.SIM_CLI_CLIENT_ID)
@@ -83,7 +93,11 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
       authorizeUrl.searchParams.set('code_challenge', Buffer.from(challenge).toString('base64url'))
       authorizeUrl.searchParams.set('code_challenge_method', 'S256')
       authorizeUrl.searchParams.set('state', `state-${testId}`)
+      return authorizeUrl
+    }
 
+    const issueAuthorizationCode = async (verifier: string): Promise<string> => {
+      const authorizeUrl = await createAuthorizeUrl(verifier)
       const response = await auth.handler(
         new Request(authorizeUrl, { headers: { cookie: sessionCookie } })
       )
@@ -91,7 +105,7 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
       const location = response.headers.get('location')
       expect(location).toBeTruthy()
       const code = new URL(location as string, baseUrl).searchParams.get('code')
-      expect(code, `Expected authorization code redirect, received ${location}`).toBeTruthy()
+      expect(code, 'Expected an authorization code redirect').toBeTruthy()
       issuedCodeHashes.push(tokenStore.hashOAuthToken(code as string))
       const authorizationCodes = await db
         .select({ identifier: schema.verification.identifier })
@@ -148,6 +162,42 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
     })
 
     try {
+      await db.insert(schema.organization).values({
+        id: organizationId,
+        name: 'OAuth route permission fixture',
+        slug: organizationId,
+        createdAt: now,
+      })
+      await db
+        .insert(schema.member)
+        .values({ id: `oauth-route-member-${testId}`, userId, organizationId, role: 'owner' })
+      await db
+        .insert(schema.userStats)
+        .values({ id: `oauth-route-stats-${testId}`, userId, billingBlocked: false })
+      await db.insert(schema.subscription).values({
+        id: `oauth-route-subscription-${testId}`,
+        plan: 'enterprise',
+        referenceId: organizationId,
+        status: 'active',
+        seats: 5,
+        periodStart: now,
+        periodEnd: sessionExpiresAt,
+        metadata: {
+          plan: 'enterprise',
+          referenceId: organizationId,
+          seats: 5,
+          monthlyPrice: 100,
+        },
+      })
+      await db.insert(schema.permissionGroup).values({
+        id: groupId,
+        organizationId,
+        createdBy: userId,
+        name: 'Default',
+        isDefault: true,
+        config: {},
+      })
+      expect(await isCapabilityWithheldForUser(userId, 'oauth_apps.use')).toBe(false)
       const firstVerifier = `${testId}-first-verifier-with-more-than-forty-three-characters`
       const firstTokens = await exchangeAuthorizationCode(
         await issueAuthorizationCode(firstVerifier),
@@ -349,6 +399,115 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
           .from(schema.oauthTokenFamily)
           .where(eq(schema.oauthTokenFamily.userId, userId))
       ).toHaveLength(1)
+
+      const activeTokens = (await racingResponses
+        .find((response) => response.status === 200)
+        ?.json()) as TokenResponseBody
+      const withheldVerifier = `${testId}-withheld-verifier-with-more-than-forty-three-characters`
+      const withheldCode = await issueAuthorizationCode(withheldVerifier)
+      const consentUrl = await createAuthorizeUrl(withheldVerifier)
+      consentUrl.searchParams.set('prompt', 'consent')
+      const consentPage = await auth.handler(
+        new Request(consentUrl, { headers: { cookie: sessionCookie } })
+      )
+      expect(consentPage.status).toBe(302)
+      const signedQuery = new URL(consentPage.headers.get('location')!, baseUrl).search.slice(1)
+      expect(new URLSearchParams(signedQuery).has('sig')).toBe(true)
+      const submitConsent = (accept: boolean) =>
+        auth.handler(
+          new Request(`${baseUrl}/api/auth/oauth2/consent`, {
+            method: 'POST',
+            headers: { cookie: sessionCookie, 'content-type': 'application/json', origin: baseUrl },
+            body: JSON.stringify({ accept, oauth_query: signedQuery }),
+          })
+        )
+
+      await db
+        .update(schema.permissionGroup)
+        .set({ config: { disableOAuthAppAccess: true } })
+        .where(eq(schema.permissionGroup.id, groupId))
+      expect(await isCapabilityWithheldForUser(userId, 'oauth_apps.use')).toBe(true)
+      const blockedCachedConsent = await auth.handler(
+        new Request(await createAuthorizeUrl(withheldVerifier), {
+          headers: { cookie: sessionCookie },
+        })
+      )
+      expect(blockedCachedConsent.status).toBe(403)
+      await expect(blockedCachedConsent.json()).resolves.toMatchObject({ error: 'access_denied' })
+      const blockedAccept = await submitConsent(true)
+      expect(blockedAccept.status).toBe(403)
+      await expect(blockedAccept.json()).resolves.toMatchObject({ error: 'access_denied' })
+
+      const denial = await submitConsent(false)
+      expect(denial.status).toBe(200)
+      const denialBody = (await denial.json()) as { redirect: boolean; url: string }
+      expect(denialBody.redirect).toBe(true)
+      const denialUrl = new URL(denialBody.url)
+      expect(`${denialUrl.origin}${denialUrl.pathname}`).toBe(redirectUri)
+      expect(denialUrl.searchParams.get('error')).toBe('access_denied')
+      expect(denialUrl.searchParams.get('state')).toBe(`state-${testId}`)
+      expect(denialUrl.searchParams.get('iss')).toBe(`${baseUrl}/api/auth`)
+      expect(denialUrl.searchParams.has('code')).toBe(false)
+      expect(
+        await db
+          .select({ scopes: schema.oauthConsent.scopes })
+          .from(schema.oauthConsent)
+          .where(eq(schema.oauthConsent.id, consentId))
+      ).toEqual([{ scopes: grantedScopes }])
+
+      const blockedCodeExchange = await exchangeToken(
+        createFormRequest(
+          '/api/auth/oauth2/token',
+          new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: provider.SIM_CLI_CLIENT_ID,
+            code: withheldCode,
+            code_verifier: withheldVerifier,
+            redirect_uri: redirectUri,
+          })
+        )
+      )
+      expect(blockedCodeExchange.status).toBe(400)
+      const blockedCodeBody = await blockedCodeExchange.json()
+      expect(blockedCodeBody).toMatchObject({ error: 'invalid_grant' })
+      expect(blockedCodeBody).not.toHaveProperty('access_token')
+      expect(blockedCodeBody).not.toHaveProperty('refresh_token')
+
+      const blockedRefresh = await exchangeToken(
+        createFormRequest(
+          '/api/auth/oauth2/token',
+          new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: provider.SIM_CLI_CLIENT_ID,
+            refresh_token: activeTokens.refresh_token,
+          })
+        )
+      )
+      expect(blockedRefresh.status).toBe(400)
+      await expect(blockedRefresh.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+      expect(
+        await db
+          .select({ generation: schema.oauthTokenFamily.currentGeneration })
+          .from(schema.oauthTokenFamily)
+          .where(eq(schema.oauthTokenFamily.userId, userId))
+      ).toEqual([{ generation: 0 }])
+      const revokedWhileWithheld = await revokeToken(
+        createFormRequest(
+          '/api/auth/oauth2/revoke',
+          new URLSearchParams({
+            client_id: provider.SIM_CLI_CLIENT_ID,
+            token: activeTokens.refresh_token,
+          })
+        )
+      )
+      expect(revokedWhileWithheld.status).toBe(200)
+      expect(await revokedWhileWithheld.text()).toBe('')
+      expect(
+        await db
+          .select({ id: schema.oauthTokenFamily.id })
+          .from(schema.oauthTokenFamily)
+          .where(eq(schema.oauthTokenFamily.userId, userId))
+      ).toHaveLength(0)
     } finally {
       if (issuedCodeHashes.length) {
         await db
@@ -357,6 +516,10 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
       }
       await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
       await db.delete(schema.user).where(eq(schema.user.id, userId))
+      await db
+        .delete(schema.subscription)
+        .where(eq(schema.subscription.referenceId, organizationId))
+      await db.delete(schema.organization).where(eq(schema.organization.id, organizationId))
       await db
         .delete(schema.rateLimitBucket)
         .where(

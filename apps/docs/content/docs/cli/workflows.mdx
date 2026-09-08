@@ -44,6 +44,8 @@ Activate Workflow Version (OAuth login or personal API key required)
 sim workflows operations apply <workflowId> [options]
 ```
 
+Apply Workflow Operations (OAuth login or personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -415,6 +417,8 @@ Show a workflow’s chat deployment (OAuth login or personal API key required)
 sim workflows chat publish <workflowId> [options]
 ```
 
+Publish or replace a workflow’s chat deployment (OAuth login or personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -527,7 +531,7 @@ sim workflows run <workflowId> [options]
 | --- | --- | --- |
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
-| `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
+| `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
 | `--select-output <value...>` | No | Return streamed outputs as blockName.path or childWorkflowId.blockName.path; selecting a child workflow applies to every invocation, requires --follow (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
@@ -641,6 +645,8 @@ sim workflows state get <workflowId>
 ```bash
 sim workflows state replace <workflowId> [options]
 ```
+
+Replace Workflow State (OAuth login or personal API key required)
 
 **Arguments**
 

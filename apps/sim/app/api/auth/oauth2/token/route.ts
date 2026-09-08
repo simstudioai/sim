@@ -15,11 +15,11 @@ import {
   unsupportedGrantResponse,
 } from '@/lib/auth/oauth-protocol-request'
 import { withOAuthProviderIssuanceCompensation } from '@/lib/auth/oauth-provider-adapter-guard'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import {
   rotateOAuthRefreshToken,
   validateOAuthClientCredentials,
 } from '@/lib/auth/oauth-token-family'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -40,7 +40,7 @@ const TOKEN_RATE_LIMIT: TokenBucketConfig = {
  * transaction that the provider does not expose as a configuration hook.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  if (!(await isOAuthProviderEnabled())) {
+  if (isAuthDisabled) {
     return NextResponse.json(
       { error: 'OAuth provider is not enabled' },
       { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }

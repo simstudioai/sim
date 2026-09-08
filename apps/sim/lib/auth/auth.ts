@@ -43,6 +43,7 @@ import {
   getRequestedSignInProviderId,
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
+import { getAuthDatabase } from '@/lib/auth/database-context'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
@@ -54,8 +55,8 @@ import {
   OAUTH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
+import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
@@ -269,7 +270,7 @@ export const auth = betterAuth({
        * revocation latency becomes the policy cache TTL, not the full `maxAge`.
        */
       version: async (session) =>
-        getSessionCookieCacheVersion(session as { userId?: string | null }),
+        getSessionCookieCacheVersion(session as { userId?: string | null }, getAuthDatabase()),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
@@ -657,85 +658,7 @@ export const auth = betterAuth({
     },
     session: {
       create: {
-        before: async (session) => {
-          /**
-           * Blocked emails/domains and suspended accounts must not establish
-           * sessions, whatever the provider (email/password, OAuth, SSO).
-           * Deliberately outside the try below: a thrown APIError must
-           * propagate, not be swallowed.
-           */
-          const accessControl = await getAccessControlConfig()
-          const [sessionUser] = await db
-            .select({ email: schema.user.email, suspendedAt: schema.user.suspendedAt })
-            .from(schema.user)
-            .where(eq(schema.user.id, session.userId))
-            .limit(1)
-
-          /**
-           * A suspension leaves the account's resources intact, so nothing else
-           * in the sign-in path refuses it. This is the gate that makes a
-           * directory deactivation take effect on the next sign-in attempt;
-           * existing sessions are deleted when the suspension is applied.
-           */
-          if (sessionUser?.suspendedAt) {
-            logger.warn('Blocking session creation for suspended account', {
-              userId: session.userId,
-            })
-            throw new APIError('FORBIDDEN', {
-              message: 'This account is suspended. Please contact your administrator.',
-            })
-          }
-
-          if (
-            accessControl.blockedSignupDomains.length > 0 ||
-            accessControl.blockedEmails.length > 0
-          ) {
-            if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
-              logger.warn('Blocking session creation for blocked account', {
-                userId: session.userId,
-              })
-              throw new APIError('FORBIDDEN', {
-                message: 'Access restricted. Please contact your administrator.',
-              })
-            }
-          }
-
-          try {
-            // Find the first organization this user is a member of
-            const members = await db
-              .select({ organizationId: schema.member.organizationId })
-              .from(schema.member)
-              .where(eq(schema.member.userId, session.userId))
-              .limit(1)
-
-            if (members.length > 0) {
-              logger.info('Found organization for user', {
-                userId: session.userId,
-                organizationId: members[0].organizationId,
-              })
-
-              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
-
-              return {
-                data: {
-                  ...session,
-                  expiresAt,
-                  activeOrganizationId: members[0].organizationId,
-                },
-              }
-            }
-            logger.info('No organizations found for user', {
-              userId: session.userId,
-            })
-            return { data: session }
-          } catch (error) {
-            logger.error('Error setting active organization', {
-              error,
-              userId: session.userId,
-            })
-            return { data: session }
-          }
-        },
+        before: prepareSessionForCreation,
       },
       update: {
         /**
@@ -750,10 +673,11 @@ export const auth = betterAuth({
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
           if (!current) return { data }
-          const expiresAt = await clampExpiryForSession({
-            ...current,
-            expiresAt: new Date(data.expiresAt),
-          })
+          const expiresAt = await clampExpiryForSession(
+            { ...current, expiresAt: new Date(data.expiresAt) },
+            undefined,
+            getAuthDatabase()
+          )
           return { data: { ...data, expiresAt } }
         },
       },
@@ -969,13 +893,13 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      /** Keep direct plugin calls behind the runtime gate without blocking connector OAuth. */
+      /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
       if (
         ((ctx.path.startsWith('/oauth2/') &&
           ctx.path !== '/oauth2/link' &&
           !ctx.path.startsWith('/oauth2/callback/')) ||
           ctx.path === '/.well-known/oauth-authorization-server') &&
-        !(await isOAuthProviderEnabled())
+        isAuthDisabled
       ) {
         throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
       }
@@ -1008,27 +932,34 @@ export const auth = betterAuth({
       }
 
       /**
-       * A user consenting to the Sim CLI is the one moment a human is present
-       * in a CLI login, so `cli.use` is checked here to refuse the grant
-       * outright. `requireCliAccessAllowed` checks it again on every bearer
-       * request, because a consent already on file lets later authorizations
-       * skip this endpoint entirely — neither check makes the other redundant.
-       *
-       * The client id is read from the signed authorize query the consent page
-       * forwards. The gate fires if `sim-cli` appears anywhere in it, which is
-       * strictly more conservative than the plugin's own first-value read.
-       *
-       * permission-group-enforced: cli.use — gates OAuth consent for the
-       * first-party CLI client, which owns no workspace resource for the
-       * authorization funnel to authorize.
+       * permission-group-enforced: oauth_apps.use, cli.use — account-level
+       * authorization uses the default group; token issuance rechecks it later.
+       * Explicit denial remains available even when access has been withheld.
        */
-      if (ctx.path === '/oauth2/consent') {
-        if (consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)) {
-          const session = await getSessionFromCtx(ctx)
-          const userId = session?.user?.id
-          if (userId && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
-            logger.warn('CLI OAuth consent blocked by permission group', { userId })
-            throw new APIError('FORBIDDEN', { message: capabilityRefusal('cli.use') })
+      if (
+        ctx.path === '/oauth2/authorize' ||
+        (ctx.path === '/oauth2/consent' && ctx.body?.accept === true)
+      ) {
+        const session = await getSessionFromCtx(ctx)
+        const userId = session?.user?.id
+        if (userId) {
+          if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('oauth_apps.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('oauth_apps.use'),
+            })
+          }
+          const isCli =
+            ctx.path === '/oauth2/authorize'
+              ? ctx.query?.client_id === SIM_CLI_CLIENT_ID
+              : consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)
+          if (isCli && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('cli.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('cli.use'),
+            })
           }
         }
       }
@@ -1346,9 +1277,6 @@ export const auth = betterAuth({
      * ID-token semantics out of the advertised protocol. Clients are DB rows
      * only (the CLI is seeded by migration, the rest are admin-created), so
      * both registration paths stay closed.
-     *
-     * Register once; request-time gates let AppConfig change availability
-     * without a restart.
      */
     ...(!isAuthDisabled
       ? [

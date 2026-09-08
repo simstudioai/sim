@@ -68,12 +68,12 @@ async function requireOrganizationSubjectMembership(
   const config = await getUserPermissionConfigForOrganization(organizationId)
   if (userCredential && capabilityDeniedBy('personal_api_key.use', config))
     refuseCapability('personal_api_key.use')
-  if (
-    userCredential?.kind === 'oauth_access_token' &&
-    userCredential.clientId === SIM_CLI_CLIENT_ID &&
-    capabilityDeniedBy('cli.use', config)
-  )
-    refuseCapability('cli.use')
+  if (userCredential?.kind === 'oauth_access_token') {
+    /** permission-group-enforced: oauth_apps.use — organization reads recheck existing grants after membership. */
+    if (capabilityDeniedBy('oauth_apps.use', config)) refuseCapability('oauth_apps.use')
+    if (userCredential.clientId === SIM_CLI_CLIENT_ID && capabilityDeniedBy('cli.use', config))
+      refuseCapability('cli.use')
+  }
   if (capability !== 'none' && capabilityDeniedBy(capability, config)) refuseCapability(capability)
   return { organizationId, userId, role: parsedRole.data }
 }

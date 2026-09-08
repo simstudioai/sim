@@ -3,6 +3,7 @@ import type { Command } from 'commander'
 import { clientFrom } from '../../context'
 import { type ChatResponse, V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { readNdjson } from '../../http/ndjson'
 import { sanitize } from '../../output/render'
 import { printProtocolResult } from './result'
 
@@ -25,17 +26,6 @@ interface ChatOptions {
   conversation?: string
 }
 
-function parseChatStreamLine(line: string): ChatStreamEvent | undefined {
-  const trimmed = line.trim()
-  if (!trimmed) return undefined
-
-  try {
-    return JSON.parse(trimmed) as ChatStreamEvent
-  } catch {
-    throw new SimApiError('Chat stream returned malformed data', 0)
-  }
-}
-
 /**
  * Consumes the chat NDJSON stream to its final payload.
  *
@@ -50,23 +40,16 @@ async function readChatStream(
   response: Response,
   onChunk: (content: string) => void
 ): Promise<ChatResult> {
-  if (!response.body) {
-    throw new SimApiError('Chat stream ended without a response body', 0)
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let finalResult: ChatResult | undefined
-
-  /** Reports whether the line ended the turn, so reading can stop there. */
-  const processLine = (line: string): boolean => {
-    const event = parseChatStreamLine(line)
-    if (!event || event.type === 'heartbeat') return false
+  for await (const value of readNdjson(response.body, 'Chat stream')) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new SimApiError('Chat stream returned an unknown event', 0)
+    }
+    const event = value as ChatStreamEvent
+    if (event.type === 'heartbeat') continue
 
     if (event.type === 'chunk') {
       if (event.content) onChunk(sanitize(event.content))
-      return false
+      continue
     }
 
     if (event.type === 'error') {
@@ -74,43 +57,12 @@ async function readChatStream(
     }
 
     if (event.type === 'final') {
-      finalResult = event.data
-      return true
+      return event.data
     }
 
     throw new SimApiError('Chat stream returned an unknown event', 0)
   }
-
-  try {
-    let ended = false
-    while (!ended) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-      for (const line of lines) {
-        if (processLine(line)) {
-          ended = true
-          break
-        }
-      }
-    }
-
-    if (!ended) {
-      buffer += decoder.decode()
-      processLine(buffer)
-    }
-
-    if (!finalResult) {
-      throw new SimApiError('Chat stream ended without a final result', 0)
-    }
-
-    return finalResult
-  } finally {
-    void reader.cancel().catch(() => undefined)
-  }
+  throw new SimApiError('Chat stream ended without a final result', 0)
 }
 
 /**

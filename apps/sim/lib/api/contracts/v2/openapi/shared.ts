@@ -345,7 +345,7 @@ export const V2_AUTH_SECURITY_SCHEMES = {
  * rendering one back do not need this sentence: the shared `413` response
  * description already covers them.
  */
-export const FOLDER_TREE_TOO_LARGE = 'A workspace folder tree over 10,000 folders is a `413`.'
+export const FOLDER_TREE_TOO_LARGE = 'Workspace folder trees exceeding 10,000 folders return `413`.'
 
 /**
  * Appended to a list whose result set is bounded by construction, so it answers
@@ -357,7 +357,7 @@ export const FOLDER_TREE_TOO_LARGE = 'A workspace folder tree over 10,000 folder
  * promise. The authoritative membership is pinned in
  * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
-export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCursor` is always null.'
+export const FULL_SET_LIST = 'Returns the complete set in one page; `nextCursor` is always null.'
 
 /**
  * Appended to a `GET` whose route declares `headSafe: false` because the read
@@ -366,7 +366,7 @@ export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCurs
  * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
  */
 export const HEAD_MIRRORS_GET =
-  '`HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only.'
+  '`HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.'
 
 /**
  * Appended where the skipped payload headers are the ones a caller is most
@@ -386,7 +386,7 @@ export const HEAD_OMITS_PAYLOAD_HEADERS =
  * so it is not something a workspace owner can grant around.
  */
 export const WORKSPACE_API_KEY_DENIED =
-  'Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.'
+  'Workspace API keys return `403`; use a personal API key or scoped OAuth token.'
 
 /**
  * {@link WORKSPACE_API_KEY_DENIED} for an operation behind the resource-concealment
@@ -424,7 +424,7 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  'Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.'
+  'Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

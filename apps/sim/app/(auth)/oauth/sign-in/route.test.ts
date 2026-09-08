@@ -6,20 +6,19 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const flags = vi.hoisted(() => ({
-  enabled: true,
+  authDisabled: false,
   registrationDisabled: false,
   appUrl: 'https://sim.test',
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
+  get isAuthDisabled() {
+    return flags.authDisabled
+  },
   get isRegistrationDisabled() {
     return flags.registrationDisabled
   },
-}))
-
-vi.mock('@/lib/auth/oauth-provider-feature', () => ({
-  isOAuthProviderEnabled: vi.fn(async () => flags.enabled),
 }))
 
 vi.mock('@/lib/core/config/env', () => {
@@ -48,15 +47,15 @@ function redirectParts(response: Response): { destination: URL; callback: URL } 
 
 describe('OAuth login bridge', () => {
   beforeEach(() => {
-    flags.enabled = true
+    flags.authDisabled = false
     flags.registrationDisabled = false
     flags.appUrl = 'https://sim.test'
   })
 
   it.each([true, false])(
-    'keeps the configured auth origin when Next normalizes loopback hosts (enabled=%s)',
-    async (enabled) => {
-      flags.enabled = enabled
+    'keeps the configured auth origin when Next normalizes loopback hosts (authDisabled=%s)',
+    async (authDisabled) => {
+      flags.authDisabled = authDisabled
       flags.appUrl = 'http://127.0.0.1:37488'
       const incoming = new NextRequest(`${flags.appUrl}/oauth/sign-in?client_id=sim-cli`)
       expect(incoming.nextUrl.origin).toBe('http://localhost:37488')
@@ -64,8 +63,8 @@ describe('OAuth login bridge', () => {
       const response = await GET(incoming)
       const destination = new URL(response.headers.get('location')!)
       expect(destination.origin).toBe(flags.appUrl)
-      expect(destination.pathname).toBe(enabled ? '/signup' : '/')
-      if (enabled) expect(redirectParts(response).callback.origin).toBe(flags.appUrl)
+      expect(destination.pathname).toBe(authDisabled ? '/' : '/signup')
+      if (!authDisabled) expect(redirectParts(response).callback.origin).toBe(flags.appUrl)
     }
   )
 
@@ -94,12 +93,12 @@ describe('OAuth login bridge', () => {
     expect(callback.searchParams.has('prompt')).toBe(false)
   })
 
-  it('uses login when registration is disabled and hides a disabled provider', async () => {
+  it('uses login when registration is disabled and hides OAuth when authentication is disabled', async () => {
     flags.registrationDisabled = true
     const enabled = await GET(request('client_id=sim-cli'))
     expect(redirectParts(enabled).destination.pathname).toBe('/login')
 
-    flags.enabled = false
+    flags.authDisabled = true
     const disabled = await GET(request('client_id=sim-cli'))
     expect(disabled.status).toBe(302)
     expect(new URL(disabled.headers.get('location') as string).pathname).toBe('/')
@@ -155,7 +154,7 @@ describe('OAuth login bridge', () => {
     }
   })
 
-  it('uses the same redirect precedence as the form and ignores a disabled OAuth provider', async () => {
+  it('uses the same redirect precedence as the form and requires authentication for OAuth', async () => {
     const destination = new URL('/login', 'https://sim.test')
     destination.searchParams.set('callbackUrl', '/api/auth/oauth2/authorize?client_id=sim-cli')
     destination.searchParams.set('redirect', '/workspace')
@@ -163,7 +162,7 @@ describe('OAuth login bridge', () => {
     expect((await proxy(new NextRequest(destination, { headers }))).status).toBe(307)
 
     destination.searchParams.delete('redirect')
-    flags.enabled = false
+    flags.authDisabled = true
     expect((await proxy(new NextRequest(destination, { headers }))).status).toBe(307)
   })
 })

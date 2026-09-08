@@ -39,7 +39,7 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     await fixture.migrate()
     const approvalMigration = await readFile(
       new URL(
-        '../../../../../packages/db/migrations/0326_organization_search_approvals.sql',
+        '../../../../../packages/db/migrations/0327_organization_search_approvals.sql',
         import.meta.url
       ),
       'utf8'

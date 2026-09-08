@@ -88,7 +88,7 @@ describe('memory secret provenance', () => {
 
     expect(inserted[0]).toMatchObject({ status: 'unknown', contentHash: 'unavailable' })
     expect(mockLogger.error).toHaveBeenCalledWith(
-      'Memory write persisted unrecorded secret provenance',
+      'Memory write staged unrecorded secret provenance',
       { surface: 'memory', cause: 'hash-unavailable', memoryId: 'memory-1' }
     )
   })
@@ -103,13 +103,12 @@ describe('memory secret provenance', () => {
 
     expect(inserted[0]).toMatchObject({ status: 'unknown' })
     expect(mockLogger.error).toHaveBeenCalledWith(
-      'Memory write persisted unrecorded secret provenance',
+      'Memory write staged unrecorded secret provenance',
       { surface: 'memory', cause: 'entries-unnormalizable', memoryId: 'memory-1' }
     )
   })
 
-  /** An incoming unknown was degraded by its producer, which already reported it. */
-  it('stays silent when the incoming provenance is already unknown', async () => {
+  it('counts incoming unknowns even when their originating fault happened in an older run', async () => {
     const { tx, inserted } = createTxStub()
 
     await replaceMemorySecretProvenanceInTx(tx, 'memory-1', [{ role: 'user', content: 'hello' }], {
@@ -117,6 +116,9 @@ describe('memory secret provenance', () => {
     })
 
     expect(inserted[0]).toMatchObject({ status: 'unknown' })
-    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Memory write staged unrecorded secret provenance',
+      { surface: 'memory', cause: 'incoming-provenance-incomplete', memoryId: 'memory-1' }
+    )
   })
 })

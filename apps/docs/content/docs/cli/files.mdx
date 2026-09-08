@@ -286,7 +286,7 @@ sim files list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--recursive` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. |
+| `--recursive` | No | Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter. |
 | `--no-recursive` | No | Send --recursive as false. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
