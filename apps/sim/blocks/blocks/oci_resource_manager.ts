@@ -1436,13 +1436,7 @@ export const OciResourceManagerBlock: BlockConfig<OciResourceManagerResponse> = 
                 ? params.jobLogKind
                 : params.workLogKind
               : params[key]
-          if (
-            value === undefined ||
-            value === '' ||
-            (value === null &&
-              action.startsWith('list_') &&
-              ['displayName', 'templateId', 'configurationSourceProviderId'].includes(key))
-          ) {
+          if (value === undefined || value === '' || value === null) {
             result[key] = undefined
             continue
           }

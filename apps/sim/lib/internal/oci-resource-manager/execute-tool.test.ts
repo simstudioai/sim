@@ -27,6 +27,7 @@ vi.mock('@/lib/internal/oci-resource-manager/operations', () => ({
 }))
 
 import { executeOciResourceManagerTool } from '@/lib/internal/oci-resource-manager/execute-tool'
+import { parseOciResourceManagerInput } from '@/lib/internal/oci-resource-manager/input'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { OciResourceManagerBlock } from '@/blocks/blocks/oci_resource_manager'
 import { ociResourceManagerListConfigurationSourceProvidersTool } from '@/tools/oci_resource_manager/list_configuration_source_providers'
@@ -63,6 +64,47 @@ beforeEach(() => {
   })
 })
 describe('Resource Manager execution authorization', () => {
+  it.each([
+    [
+      'create_stack',
+      {
+        compartmentId: 'c',
+        configSource: { configSourceType: 'TEMPLATE_CONFIG_SOURCE', templateId: 'template' },
+        terraformVersion: null,
+      },
+    ],
+    ['get_stack', { stackId: 'stack', includeVariables: null }],
+    ['update_stack', { stackId: 'stack', configSource: null, description: 'reviewed' }],
+    ['list_jobs', { stackId: 'stack', compartmentId: null }],
+    ['list_associated_resources', { scope: 'stack', stackId: 'stack', compartmentId: null }],
+    ['cancel_job', { jobId: 'job', isForced: false, confirmForce: null }],
+  ] as const)(
+    'normalizes untouched optional null fields in %s before contract validation',
+    (operation, values) => {
+      const raw = { operation, oauthCredential: 'supplied', ...values }
+      const params = { ...raw, ...OciResourceManagerBlock.tools.config?.params?.(raw) }
+      expect(() => parseOciResourceManagerInput(operation, params)).not.toThrow()
+      for (const [key, value] of Object.entries(values)) {
+        if (value === null) expect(params[key as keyof typeof params]).toBeUndefined()
+      }
+    }
+  )
+  it('keeps false booleans and requires explicit mutation confirmation after null normalization', () => {
+    const raw = {
+      operation: 'cancel_job',
+      oauthCredential: 'supplied',
+      jobId: 'job',
+      isForced: true,
+      confirmForce: null,
+    }
+    const params = OciResourceManagerBlock.tools.config?.params?.(raw)
+    expect(() => parseOciResourceManagerInput('cancel_job', params)).toThrow()
+    expect(() =>
+      OciResourceManagerBlock.tools.config?.params?.({ ...raw, isForced: 'yes' })
+    ).toThrow('Provide true or false')
+    const normal = OciResourceManagerBlock.tools.config?.params?.({ ...raw, isForced: false })
+    expect(normal?.isForced).toBe(false)
+  })
   it.each([
     ['list_stacks', ociResourceManagerListStacksTool, {}],
     [

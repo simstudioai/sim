@@ -49,7 +49,7 @@ export interface ResourceManagerRequest {
   ifMatch?: string
   retryToken?: string
   binary?: boolean
-  expectedStatus?: number
+  expectedStatus?: number | readonly number[]
 }
 export async function requestResourceManager(
   prepared: PreparedOciResourceManagerClient,
@@ -87,7 +87,9 @@ export async function requestResourceManager(
         ? { ...common, method: 'GET', retry: { kind: 'safe', maxAttempts: 2 } }
         : { ...common, method: 'DELETE' }
   )
-  if (response.status !== (request.expectedStatus ?? 200))
+  const expected = request.expectedStatus ?? 200
+  const acceptedStatuses = typeof expected === 'number' ? [expected] : expected
+  if (!acceptedStatuses.includes(response.status))
     throw new OciResourceManagerError('Unexpected OCI Resource Manager response status', 502)
   return response
 }

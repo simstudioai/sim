@@ -307,22 +307,104 @@ describe('job requests and replay classification', () => {
       expect(body(1).jobOperationDetails).not.toHaveProperty('confirmApply')
     }
   )
-  it('uses DELETE/202 for cancellation, and preserves work-request identity without parsing an empty body', async () => {
+  it('preserves completed delete semantics for HTTP 204', async () => {
+    mocks.request.mockResolvedValue({ status: 204, headers: {}, body: new Uint8Array() })
+    const result = await run('delete_stack', { stackId: 'stack', confirmDelete: true })
+    expect(result.output).toMatchObject({ status: 204, accepted: false, stackId: 'stack' })
+    expect(mocks.request).toHaveBeenCalledOnce()
+  })
+  it.each([202, 204])(
+    'uses DELETE/%i for cancellation and preserves acceptance without parsing an empty body',
+    async (status) => {
+      mocks.request.mockResolvedValue({
+        status,
+        headers: { 'opc-work-request-id': 'work' },
+        body: new Uint8Array(),
+      })
+      const result = await run('cancel_job', { jobId: 'job', isForced: false, ifMatch: 'etag' })
+      expect(mocks.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'DELETE',
+          encodedPath: '/20180917/jobs/job',
+          queryPairs: [['isForced', 'false']],
+        })
+      )
+      expect(result.output).toMatchObject({ accepted: true, jobId: 'job', workRequestId: 'work' })
+    }
+  )
+  it.each([202, 204])(
+    'accepts drift detection HTTP %i without parsing an empty body',
+    async (status) => {
+      mocks.request.mockResolvedValue({
+        status,
+        headers: { 'opc-work-request-id': 'work' },
+        body: new Uint8Array(),
+      })
+      const result = await run('detect_drift', {
+        stackId: 'stack',
+        ifMatch: 'etag',
+        retryToken: 'stable',
+        resourceAddresses: [],
+      })
+      expect(result.output).toMatchObject({
+        status,
+        accepted: true,
+        stackId: 'stack',
+        workRequestId: 'work',
+      })
+      expect(mocks.request.mock.calls[0][0]).toMatchObject({
+        method: 'POST',
+        encodedPath: '/20180917/stacks/stack/actions/detectDrift',
+        headers: { 'if-match': 'etag' },
+      })
+      expect(body()).toEqual({ resourceAddresses: [] })
+      expect(mocks.request).toHaveBeenCalledOnce()
+    }
+  )
+  it.each([202, 204])('accepts compartment move HTTP %i with an empty body', async (status) => {
     mocks.request.mockResolvedValue({
-      status: 202,
-      headers: { 'opc-work-request-id': 'work' },
+      status,
+      headers: { 'opc-work-request-id': 'move-work' },
+      opcRequestId: 'move-request',
       body: new Uint8Array(),
     })
-    const result = await run('cancel_job', { jobId: 'job', isForced: false, ifMatch: 'etag' })
-    expect(mocks.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'DELETE',
-        encodedPath: '/20180917/jobs/job',
-        queryPairs: [['isForced', 'false']],
-      })
-    )
-    expect(result.output).toMatchObject({ accepted: true, jobId: 'job', workRequestId: 'work' })
+    const result = await run('change_stack_compartment', {
+      stackId: 'stack',
+      compartmentId: 'target',
+      ifMatch: 'fresh-etag',
+      retryToken: 'stable',
+    })
+    expect(result.output).toMatchObject({
+      status,
+      accepted: true,
+      stackId: 'stack',
+      opcRequestId: 'move-request',
+      workRequestId: 'move-work',
+    })
+    expect(mocks.request.mock.calls[0][0]).toMatchObject({
+      method: 'POST',
+      encodedPath: '/20180917/stacks/stack/actions/changeCompartment',
+      headers: { 'if-match': 'fresh-etag' },
+    })
+    expect(body()).toEqual({ compartmentId: 'target' })
+    expect(mocks.request).toHaveBeenCalledOnce()
   })
+  it.each(['cancel_job', 'detect_drift', 'change_stack_compartment'] as const)(
+    'rejects undocumented success status for %s',
+    async (action) => {
+      mocks.request.mockResolvedValue(response({}, 201))
+      await expect(
+        run(
+          action,
+          action === 'cancel_job'
+            ? { jobId: 'job' }
+            : action === 'change_stack_compartment'
+              ? { stackId: 'stack', compartmentId: 'target' }
+              : { stackId: 'stack' }
+        )
+      ).rejects.toThrow('Unexpected OCI Resource Manager response status')
+    }
+  )
   it('classifies drift listing as read-only and sends repeated filters with an empty POST body', async () => {
     mocks.request.mockResolvedValue(response({ items: [] }, 200, { 'opc-next-page': 'next' }))
     const result = await run('list_drift_details', {

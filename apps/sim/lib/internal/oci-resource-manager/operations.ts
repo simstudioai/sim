@@ -284,7 +284,7 @@ export async function executeOciResourceManagerOperation(
         body: { compartmentId: input.compartmentId },
         ifMatch: input.ifMatch,
         retryToken: input.retryToken,
-        expectedStatus: 202,
+        expectedStatus: [202, 204],
       }
       break
     case 'plan':
@@ -364,7 +364,7 @@ export async function executeOciResourceManagerOperation(
         path: resourcePath('jobs', input.jobId),
         query: query(input, ['isForced']),
         ifMatch: input.ifMatch,
-        expectedStatus: 202,
+        expectedStatus: [202, 204],
       }
       break
     case 'get_job_logs':
@@ -438,7 +438,7 @@ export async function executeOciResourceManagerOperation(
         body: pick(input, ['resourceAddresses', 'isProviderUpgradeRequired']),
         ifMatch: input.ifMatch,
         retryToken: input.retryToken,
-        expectedStatus: 202,
+        expectedStatus: [202, 204],
       }
       break
     case 'list_drift_details':
@@ -583,7 +583,11 @@ export async function executeOciResourceManagerOperation(
   else if (response.status === 202 || response.status === 204)
     Object.assign(output, {
       ...pick(input, ['stackId', 'jobId']),
-      accepted: response.status === 202,
+      accepted:
+        response.status === 202 ||
+        operation === 'cancel_job' ||
+        operation === 'detect_drift' ||
+        operation === 'change_stack_compartment',
     })
   else {
     const raw = responseJson(response)
