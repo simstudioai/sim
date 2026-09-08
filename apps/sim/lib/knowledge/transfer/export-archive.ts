@@ -7,9 +7,8 @@ import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
 import { KNOWLEDGE_BUNDLE_VERSION } from '@/lib/knowledge/constants'
 import {
-  chunksEntryPath,
+  bundleEntryPaths,
   encodeVectorBase64,
-  fileEntryPath,
   KNOWLEDGE_BUNDLE_MANIFEST_ENTRY,
   type KnowledgeBundleChunkLine,
   type KnowledgeBundleDocument,
@@ -96,21 +95,19 @@ async function appendBundleEntries(
 ): Promise<void> {
   const documents: KnowledgeBundleDocument[] = []
   for (const document of bundle.documents) {
-    let file: string | null = null
-    if (document.file) {
-      file = fileEntryPath(document.id, document.filename)
-      await appendEntry(archive, await openFileSource(document.file), file)
+    const entries = bundleEntryPaths(document)
+    if (document.file && entries.file) {
+      await appendEntry(archive, await openFileSource(document.file), entries.file)
     }
-    const chunks = document.hasChunks ? chunksEntryPath(document.id) : null
-    const chunkCount = chunks
+    const chunkCount = entries.chunks
       ? await appendChunkEntry(
           archive,
           bundle.chunks(document.id),
           bundle.embedding.vectorsIncluded,
-          chunks
+          entries.chunks
         )
       : 0
-    documents.push(toManifestDocument(document, { file, chunks }, chunkCount))
+    documents.push(toManifestDocument(document, entries, chunkCount))
   }
 
   const manifest: KnowledgeBundleManifest = {

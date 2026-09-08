@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KB_EMBEDDING_STORAGE_DIMENSIONS } from '@/lib/embeddings/catalog'
 import {
   ALL_TAG_SLOTS,
@@ -13,6 +14,7 @@ import {
   SUPPORTED_FIELD_TYPES,
 } from '@/lib/knowledge/constants'
 import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
+import type { ExportableDocument } from '@/lib/knowledge/transfer/export-source'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
 
@@ -69,7 +71,7 @@ export const knowledgeBundleTagSchema = z
     message: 'Tag slot does not belong to its field type',
   })
 
-const bundleDocumentSchema = z
+export const knowledgeBundleDocumentSchema = z
   .object({
     id: z.string().regex(BUNDLE_DOCUMENT_ID_PATTERN, 'Document id must be a short identifier'),
     filename: z.string().min(1).max(MAX_BUNDLE_TEXT_LENGTH),
@@ -151,7 +153,7 @@ export const knowledgeBundleManifestSchema = z
           names.add(name)
         }
       }),
-    documents: z.array(bundleDocumentSchema).max(MAX_KNOWLEDGE_BUNDLE_DOCUMENTS),
+    documents: z.array(knowledgeBundleDocumentSchema).max(MAX_KNOWLEDGE_BUNDLE_DOCUMENTS),
   })
   .strict()
 
@@ -205,6 +207,31 @@ export function chunksEntryPath(documentId: string): string {
 
 export function fileEntryPath(documentId: string, filename: string): string {
   return `files/${documentId}/${safeBundleLeafName(filename)}`
+}
+
+/** Where an exportable document's entries sit inside the bundle, or `null` for entries it does not carry. */
+export function bundleEntryPaths(
+  document: Pick<ExportableDocument, 'id' | 'filename' | 'file' | 'hasChunks'>
+): KnowledgeBundleEntryPaths {
+  return {
+    file: document.file ? fileEntryPath(document.id, document.filename) : null,
+    chunks: document.hasChunks ? chunksEntryPath(document.id) : null,
+  }
+}
+
+/**
+ * Refuses an export whose stored values the bundle format cannot describe,
+ * before any byte streams: the manifest is written last, so a value the import
+ * side would reject must surface as a clear error rather than a truncated archive.
+ */
+export function assertDescribableByBundle(manifest: unknown): void {
+  const result = knowledgeBundleManifestSchema.safeParse(manifest)
+  if (result.success) return
+  const [issue] = result.error.issues
+  throw new OrchestrationError(
+    'conflict',
+    `Knowledge base cannot be exported: ${issue.path.join('.')} ${issue.message}`
+  )
 }
 
 /** A filesystem-safe leaf name for a bundle entry or the bundle download itself. */

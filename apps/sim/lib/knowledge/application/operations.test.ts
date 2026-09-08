@@ -12,6 +12,7 @@ describe('knowledge operation registry', () => {
     expect(ids).toEqual([
       'knowledge.list',
       'knowledge.read',
+      'knowledge.export',
       'knowledge.create',
       'knowledge.update',
       'knowledge.delete',

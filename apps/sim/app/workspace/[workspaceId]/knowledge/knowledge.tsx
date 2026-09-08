@@ -1545,7 +1545,7 @@ export function Knowledge() {
           onOpenInNewTab={handleOpenInNewTab}
           onViewTags={handleViewTags}
           onCopyId={handleCopyId}
-          onExport={handleExport}
+          onExport={permissionConfig.disableKnowledgeBaseExport ? undefined : handleExport}
           onTogglePin={handleToggleBasePin}
           pinned={pinnedBaseIds.has(activeKnowledgeBase.id)}
           onEdit={handleEdit}

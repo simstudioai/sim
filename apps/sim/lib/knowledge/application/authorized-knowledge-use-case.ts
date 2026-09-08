@@ -134,41 +134,89 @@ export function defineAuthorizedKnowledgeUseCase<
     }
   )
 
+  /**
+   * Resolves and authorizes the context every branch below shares, so `authorize`
+   * and `execute` cannot drift apart. An organization base is fully authorized
+   * here; a workspace base still owes the workspace funnel, which the returned
+   * scope tells the caller to run.
+   */
+  async function resolveAuthorizedContext({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: I
+  }): Promise<
+    | { scope: 'organization'; principal: KnowledgePrincipalForOperation<O>; context: C }
+    | {
+        scope: 'workspace'
+        principal: KnowledgePrincipalForOperation<O>
+        context: WorkspaceContext
+      }
+  > {
+    requireKnowledgePrincipal(principal, definition.operation)
+    const context = await definition.resolveContext({ principal, input })
+    if (context.organizationId) {
+      await authorizeOrganizationOperation(
+        principal,
+        definition.operation.organizationOperation,
+        context
+      )
+      return { scope: 'organization', principal, context }
+    }
+    if (principal.kind === 'organization_delegated')
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
+    assertWorkspaceKnowledgeContext(context)
+    return { scope: 'workspace', principal, context }
+  }
+
+  function recordAudit(resultContext: AuthorizedKnowledgeUseCaseResultContext<O, I, C, R>): void {
+    const projectedAudit = definition.projectAudit?.(resultContext)
+    if (projectedAudit === undefined) return
+    const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+    if (auditEntries.length === 0) return
+    const organizationId = resultContext.context.organizationId ?? undefined
+    recordProjectedUseCaseAuditEntries(
+      definition.operation,
+      organizationId ? undefined : resultContext.context.workspaceId,
+      resultContext.principal,
+      resultContext.request,
+      auditEntries,
+      organizationId
+    )
+  }
+
   return {
     operation: definition.operation,
-    async execute({ principal, input, request }) {
-      requireKnowledgePrincipal(principal, definition.operation)
-      const context = await definition.resolveContext({ principal, input })
-      if (context.organizationId) {
-        await authorizeOrganizationOperation(
-          principal,
-          definition.operation.organizationOperation,
-          context
-        )
-        const result = await definition.execute({ principal, input, context, request })
-        const resultContext = { principal, input, context, request, result }
-        const projectedAudit = definition.projectAudit?.(resultContext)
-        if (projectedAudit !== undefined) {
-          recordProjectedUseCaseAuditEntries(
-            definition.operation,
-            undefined,
-            principal,
-            request,
-            Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit],
-            context.organizationId
-          )
-        }
-        await definition.afterSuccess?.(resultContext)
-        return result
-      }
-      if (principal.kind === 'organization_delegated')
-        throw new OrchestrationError('not_found', 'Knowledge base not found')
-      assertWorkspaceKnowledgeContext(context)
-      return workspaceUseCase.execute({
-        principal,
-        input: { originalInput: input, context },
+    async authorize({ principal, input, request }) {
+      const resolved = await resolveAuthorizedContext({ principal, input })
+      if (resolved.scope !== 'workspace') return
+      await workspaceUseCase.authorize({
+        principal: resolved.principal,
+        input: { originalInput: input, context: resolved.context },
         request,
       })
+    },
+    async execute({ principal, input, request }) {
+      const resolved = await resolveAuthorizedContext({ principal, input })
+      if (resolved.scope === 'workspace') {
+        return workspaceUseCase.execute({
+          principal: resolved.principal,
+          input: { originalInput: input, context: resolved.context },
+          request,
+        })
+      }
+      const executionContext = {
+        principal: resolved.principal,
+        input,
+        context: resolved.context,
+        request,
+      }
+      const result = await definition.execute(executionContext)
+      const resultContext = { ...executionContext, result }
+      recordAudit(resultContext)
+      await definition.afterSuccess?.(resultContext)
+      return result
     },
   }
 }

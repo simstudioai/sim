@@ -3,8 +3,15 @@ import type { Principal } from '@sim/auth/principal'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveActiveKnowledgeBaseContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { KNOWLEDGE_BUNDLE_VERSION } from '@/lib/knowledge/constants'
 import { toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
-import type { KnowledgeBundleManifest, KnowledgeBundleTag } from '@/lib/knowledge/transfer/bundle'
+import {
+  assertDescribableByBundle,
+  bundleEntryPaths,
+  type KnowledgeBundleManifest,
+  type KnowledgeBundleTag,
+  toManifestDocument,
+} from '@/lib/knowledge/transfer/bundle'
 import {
   type ExportableChunk,
   type ExportableDocument,
@@ -50,7 +57,7 @@ export const exportKnowledgeBase = defineAuthorizedKnowledgeUseCase({
       listExportableTags(knowledgeBase.id),
       listExportableDocuments(knowledgeBase.id),
     ])
-    return {
+    const bundle: KnowledgeBaseExportBundle = {
       knowledgeBase: {
         name: knowledgeBase.name,
         description: knowledgeBase.description,
@@ -65,6 +72,17 @@ export const exportKnowledgeBase = defineAuthorizedKnowledgeUseCase({
       documents,
       chunks: (documentId) => iterateDocumentChunks(documentId, input.vectors ? dimension : null),
     }
+    assertDescribableByBundle({
+      version: KNOWLEDGE_BUNDLE_VERSION,
+      exportedAt: new Date().toISOString(),
+      embedding: bundle.embedding,
+      knowledgeBase: bundle.knowledgeBase,
+      tags,
+      documents: documents.map((document) =>
+        toManifestDocument(document, bundleEntryPaths(document), 0)
+      ),
+    })
+    return bundle
   },
   projectAudit: ({ context, input, result }) => ({
     action: AuditAction.KNOWLEDGE_BASE_EXPORTED,

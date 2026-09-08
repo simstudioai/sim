@@ -181,6 +181,21 @@ describe('exportKnowledgeBase', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  /** The manifest is written last, so a value the format rejects must fail before any byte streams. */
+  it('refuses a base whose stored values the bundle format cannot describe', async () => {
+    mocks.listDocuments.mockResolvedValueOnce([
+      { ...documents[0], tags: { tag1: 'x'.repeat(10_001) } },
+    ])
+
+    await expect(
+      exportKnowledgeBase.execute({
+        principal,
+        input: { knowledgeBaseId: 'knowledge-1', vectors: true },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
   it('propagates an oversized base without recording audit', async () => {
     mocks.listDocuments.mockRejectedValueOnce(
       new OrchestrationError('payload_too_large', 'Knowledge base has 2001 documents')
