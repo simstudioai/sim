@@ -5,9 +5,10 @@ description: Sign in from the terminal, authenticate CI with an API key, and kee
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-`sim login` signs you in through your browser and stores a short-lived login
-that renews itself and can be revoked at any time. In CI you supply an API key
-through the environment instead.
+`sim login` signs you in through your browser. It prefers OAuth, which stores a
+short-lived login that renews itself, and selects API-key pairing for remote
+terminals or servers without OAuth support. In CI you supply an existing API
+key through the environment instead.
 
 ## Signing in
 
@@ -15,7 +16,21 @@ through the environment instead.
 sim login
 ```
 
-The CLI opens your browser on Sim's sign-in page, then on a consent page that
+Choose a method explicitly when the credential type matters:
+
+```bash
+sim login --method oauth
+sim login --method api-key
+```
+
+`--method oauth` requires OAuth support and never falls back to an API key. The
+server must enable `OAUTH_PROVIDER_ENABLED=true`. Explicit OAuth selection also
+overrides SSH/headless detection; your browser still needs to reach the CLI's
+local callback. `--method api-key` uses pairing-code approval to create a new
+permanent API key. To supply an existing key, use the global `--api-key <key>`
+option or `SIM_API_KEY` instead.
+
+OAuth login opens your browser on Sim's sign-in page, then on a consent page that
 names the Sim CLI and what it will be able to do. Approve, and the browser hands
 control back to the terminal:
 
@@ -46,21 +61,21 @@ your login.
 
 | Option | What it does |
 | --- | --- |
-| `--no-browser` | Print the URL instead of opening a browser |
-| `--browserless` | Use the pairing-code handoff instead (see below) |
+| `--method <method>` | `oauth` requires OAuth login; `api-key` creates a permanent key through pairing. Auto-selects when omitted |
+| `--no-browser` | Print the approval URL without opening it; works with either method |
 | `--read-only` | Ask only for permission to read, never to change anything |
 | `--callback-port <port>` | Pin the loopback callback port, primarily for an SSH session that forwards the same fixed port |
-| `--scope <scope>` | Key space for the pairing-code handoff. Only `copilot` changes anything, and it forces that flow |
 | `-y, --yes` | Overwrite an existing API-key profile without prompting |
 
 ### Over SSH or in a container
 
-The browser login needs your browser to reach a listener on the machine running
+OAuth login needs your browser to reach a listener on the machine running
 `sim`. When it cannot — an SSH session, a dev container, a remote box — use the
-pairing-code handoff, which the CLI selects automatically in an SSH session:
+API-key pairing flow. The CLI selects it automatically in an SSH session when
+no method or callback port is specified:
 
 ```bash
-sim login --browserless
+sim login --method api-key --no-browser
 ```
 
 The terminal prints a pairing code and a URL you can open on any device:
@@ -86,15 +101,16 @@ approving. That check is what binds the approval to your terminal.
 The handoff issues a permanent personal API key rather than a renewing login,
 so revoke it under **Settings → API keys** when you are done with that machine.
 It is also the path for a deployment that predates OAuth sign-in, or one with
-the provider switched off; the CLI detects that and falls back on its own.
+the provider switched off; the CLI detects that and selects API-key login when
+`--method` is omitted. An explicit `--method oauth` fails in that case.
 
-`--read-only` and `--callback-port` belong to the browser login and have no
+`--read-only` and `--callback-port` belong to OAuth login and have no
 meaning here, so combining either with the handoff stops the login rather than
 storing a credential you did not ask for. If your SSH session forwards a port
-from the remote loopback interface to the browser's machine, pass that same
-`--callback-port <port>` on its own. An ordinary container port publication
+from the remote loopback interface to the browser's machine, use
+`--method oauth --callback-port <port>` with that port. An ordinary container port publication
 cannot reach a listener bound to the container's own loopback interface; use
-`--browserless` there.
+`--method api-key` there.
 
 ### Picking a workspace
 
@@ -160,7 +176,7 @@ authentication profile entirely is refused until its workspace profiles are
 removed, so it cannot leave dangling references.
 
 <Callout type="warn">
-For a login created with `--browserless`, `sim logout` removes the API key from
+For a login created with `--method api-key`, `sim logout` removes the API key from
 disk but does **not** revoke it. Revoke keys under **Settings → API keys**.
 </Callout>
 
@@ -279,5 +295,5 @@ a copied token from surviving an ambiguous refresh.
 ## Organization audit logs
 
 `sim audit-logs` requires a **personal** credential — an OAuth login, or the
-personal API key `sim login --browserless` issues. A workspace-scoped key cannot
+personal API key `sim login --method api-key` issues. A workspace-scoped key cannot
 read organization-level audit logs.
