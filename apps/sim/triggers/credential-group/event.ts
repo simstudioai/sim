@@ -37,7 +37,7 @@ export const credentialGroupEventTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Choose whether to trigger on a new credential, a reconnection, or a submitted form',
-        'Grant this workflow access in Connected accounts settings',
+        'Ask an organization admin to allow this workspace in Connected accounts settings',
         'Deploy the workflow to start receiving events',
       ]
         .map(
@@ -60,11 +60,11 @@ export const credentialGroupEventTrigger: TriggerConfig = {
     },
     credentialGroupId: {
       type: 'string',
-      description: 'Workspace accounts container ID',
+      description: 'Organization accounts container ID',
     },
     credentialGroupName: {
       type: 'string',
-      description: 'Workspace accounts container name',
+      description: 'Organization accounts container name',
     },
     enrollmentId: {
       type: 'string',
@@ -86,6 +86,11 @@ export const credentialGroupEventTrigger: TriggerConfig = {
     credentialGroupOptionId: {
       type: 'string',
       description: 'Connected account option ID',
+      condition: { field: 'eventType', value: [...CREDENTIAL_GROUP_CREDENTIAL_EVENT_TYPES] },
+    },
+    mcpServerId: {
+      type: 'string',
+      description: 'Managed MCP server configuration ID, or null for an OAuth account',
       condition: { field: 'eventType', value: [...CREDENTIAL_GROUP_CREDENTIAL_EVENT_TYPES] },
     },
     provider: {

@@ -22,12 +22,23 @@ describe('resolveCredentialGroupsAvailability', () => {
     vi.clearAllMocks()
   })
 
+  it('does not expose organization accounts in a personal workspace even with the global flag enabled', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(true)
+    await expect(
+      resolveCredentialGroupsAvailability({
+        organizationId: null,
+        ownerBilling: { isEnterprise: true },
+      })
+    ).resolves.toEqual({ available: false, reason: 'feature_disabled' })
+    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
+  })
+
   it('attributes a disabled feature flag before considering the plan', async () => {
     mockIsFeatureEnabled.mockResolvedValue(false)
 
     await expect(
       resolveCredentialGroupsAvailability({
-        workspaceId: 'ws-1',
+        organizationId: 'org-1',
         ownerBilling: { isEnterprise: false },
       })
     ).resolves.toEqual({
@@ -41,7 +52,7 @@ describe('resolveCredentialGroupsAvailability', () => {
 
     await expect(
       resolveCredentialGroupsAvailability({
-        workspaceId: 'ws-1',
+        organizationId: 'org-1',
         ownerBilling: { isEnterprise: false },
       })
     ).resolves.toEqual({
@@ -50,23 +61,23 @@ describe('resolveCredentialGroupsAvailability', () => {
     })
   })
 
-  it('evaluates the flag against the workspace id', async () => {
+  it('evaluates the flag against the organization id', async () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
 
     await resolveCredentialGroupsAvailability({
-      workspaceId: 'ws-1',
+      organizationId: 'org-1',
       ownerBilling: { isEnterprise: true },
     })
 
-    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('credential-groups', { workspaceId: 'ws-1' })
+    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('credential-groups', { orgId: 'org-1' })
   })
 
-  it('allows Enterprise workspaces when the hosted feature is enabled', async () => {
+  it('allows Enterprise organizations when the hosted feature is enabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
 
     await expect(
       resolveCredentialGroupsAvailability({
-        workspaceId: 'ws-1',
+        organizationId: 'org-1',
         ownerBilling: { isEnterprise: true },
       })
     ).resolves.toEqual({

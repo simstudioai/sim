@@ -368,6 +368,7 @@ export const selectorManifest = {
     staleTime: 0,
   }),
   'workspace.credentialProviders': internalSelector([], { detail: true }),
+  'workspace.organizationMcpProviders': internalSelector([], { detail: true }),
   'workspace.credentialGroupProviders': internalSelector([], {
     detail: true,
   }),

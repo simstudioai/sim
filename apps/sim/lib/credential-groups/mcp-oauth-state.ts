@@ -1,9 +1,11 @@
 import { sha256Hex } from '@sim/security/hash'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
 
 const MCP_OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const MCP_OAUTH_ATTEMPT_VERSION = 2 as const
+const MCP_OAUTH_ATTEMPT_VERSION = 3 as const
 const MCP_OAUTH_STATE_PREFIX = 'mcp_cg_'
 
 const CONSUME_SCRIPT = `
@@ -25,8 +27,11 @@ return #keys
 `
 
 interface StoredCredentialGroupMcpOAuthAttempt {
+  oauthConfigVersion: number
+  userId: string
   version: typeof MCP_OAUTH_ATTEMPT_VERSION
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentId: string
   credentialGroupId: string
@@ -37,8 +42,11 @@ interface StoredCredentialGroupMcpOAuthAttempt {
 }
 
 export interface CredentialGroupMcpOAuthAttempt {
+  oauthConfigVersion: number
+  userId: string
   state: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentId: string
   credentialGroupId: string
@@ -67,8 +75,17 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuth
   const candidate = value as Record<string, unknown>
   return (
     candidate.version === MCP_OAUTH_ATTEMPT_VERSION &&
-    typeof candidate.workspaceId === 'string' &&
-    candidate.workspaceId.length > 0 &&
+    typeof candidate.oauthConfigVersion === 'number' &&
+    Number.isInteger(candidate.oauthConfigVersion) &&
+    candidate.oauthConfigVersion > 0 &&
+    typeof candidate.userId === 'string' &&
+    candidate.userId.length > 0 &&
+    ((typeof candidate.workspaceId === 'string' &&
+      candidate.workspaceId.length > 0 &&
+      candidate.organizationId === undefined) ||
+      (typeof candidate.organizationId === 'string' &&
+        candidate.organizationId.length > 0 &&
+        candidate.workspaceId === undefined)) &&
     typeof candidate.email === 'string' &&
     candidate.email.length >= 3 &&
     candidate.email.length <= 320 &&
@@ -86,8 +103,11 @@ export function isCredentialGroupMcpOAuthState(state: string): boolean {
 }
 
 export async function createCredentialGroupMcpOAuthAttempt(params: {
+  oauthConfigVersion: number
+  userId: string
   state: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentId: string
   credentialGroupId: string
@@ -105,7 +125,9 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   ])
   const attempt: StoredCredentialGroupMcpOAuthAttempt = {
     version: MCP_OAUTH_ATTEMPT_VERSION,
-    workspaceId: params.workspaceId,
+    oauthConfigVersion: params.oauthConfigVersion,
+    userId: params.userId,
+    ...resourceScopeFields(resourceScopeFromOwner(params)),
     email: params.email,
     enrollmentId: params.enrollmentId,
     credentialGroupId: params.credentialGroupId,
@@ -134,6 +156,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   if (raw === null) return null
   if (typeof raw !== 'string') throw new Error('Credential Group MCP OAuth state is malformed')
   const parsed: unknown = JSON.parse(raw)
+  assertCredentialGroupOAuthAttemptVersion(parsed, MCP_OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential Group MCP OAuth state is malformed')
   await requireRedis().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
   if (Date.now() - parsed.createdAt > MCP_OAUTH_ATTEMPT_TTL_MS) return null
@@ -143,7 +166,9 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   ])
   return {
     state,
-    workspaceId: parsed.workspaceId,
+    oauthConfigVersion: parsed.oauthConfigVersion,
+    userId: parsed.userId,
+    ...resourceScopeFields(resourceScopeFromOwner(parsed)),
     email: parsed.email,
     enrollmentId: parsed.enrollmentId,
     credentialGroupId: parsed.credentialGroupId,

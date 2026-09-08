@@ -49,7 +49,7 @@ const slackCredentialGroupOptionInputSchema = z
   .object({
     provider: z.literal('slack'),
     ...credentialGroupOptionFields,
-    slackBotCredentialId: z.string().uuid('Select a custom Slack bot'),
+    slackBotCredentialId: z.string().uuid('Select a custom Slack bot').optional(),
   })
   .strict()
 
@@ -267,7 +267,17 @@ export type CredentialGroupOAuthCallbackQuery = z.output<
 
 export const startSlackCredentialGroupConfigurationBodySchema = z
   .object({
-    slackBotCredentialId: z.string().uuid('Select a custom Slack bot'),
+    slackBotCredentialId: z.string().uuid('Select a custom Slack bot').optional(),
+    appId: z
+      .string()
+      .regex(/^A[A-Z0-9]+$/, 'Enter the Slack App ID')
+      .max(64)
+      .optional(),
+    teamId: z
+      .string()
+      .regex(/^T[A-Z0-9]+$/, 'Enter the Slack workspace ID')
+      .max(64)
+      .optional(),
     clientId: z.string().trim().min(1, 'Slack Client ID is required').max(256),
     clientSecret: z.string().trim().min(1, 'Slack Client Secret is required').max(512),
     requiredScopes: z.array(z.string().trim().min(1).max(255)).min(1).max(100).optional(),

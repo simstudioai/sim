@@ -40,6 +40,7 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 import { getOrganizationSubscriptionUsable } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
+  bindCredentialGroupEnrollmentUser,
   completeCredentialGroupEnrollment,
   createCredentialGroupInvitationLink,
   createCredentialGroupSelfEnrollmentLink,
@@ -610,6 +611,7 @@ describe('enrollment context for session-authorized or consumed-attempt OAuth', 
   const row = {
     enrollment: {
       ...ENROLLMENT,
+      userId: 'person-1',
       invitationTokenHash: 'rotated-hash',
       invitationExpiresAt: new Date(0),
     },
@@ -712,7 +714,7 @@ describe('enrollment context for session-authorized or consumed-attempt OAuth', 
   })
 })
 
-describe('organization enrollment membership boundary', () => {
+describe('organization enrollment bound identity', () => {
   const identity = {
     organizationId: 'organization-1',
     credentialGroupId: 'group-1',
@@ -721,7 +723,7 @@ describe('organization enrollment membership boundary', () => {
     invitationTokenHash: ENROLLMENT.invitationTokenHash,
   }
   const row = {
-    enrollment: ENROLLMENT,
+    enrollment: { ...ENROLLMENT, userId: 'person-1' },
     groupId: 'group-1',
     groupName: 'Accounts',
     groupStatus: 'active',
@@ -748,21 +750,23 @@ describe('organization enrollment membership boundary', () => {
       getAuthorizedCredentialGroupOAuthContext(identity, 'gmail-option')
     ).resolves.toMatchObject({
       organizationId: 'organization-1',
-      credentialOwnerId: 'member-1',
+      credentialOwnerId: 'person-1',
       workspaceName: 'Acme',
     })
   })
-  it('denies a valid invitation after the person leaves the organization', async () => {
+  it('retains the bound identity when the contributor is not an organization member', async () => {
     queueTableRows(schemaMock.member, [])
     await expect(
       getAuthorizedCredentialGroupOAuthContext(identity, 'gmail-option')
-    ).resolves.toBeNull()
+    ).resolves.toMatchObject({ credentialOwnerId: 'person-1' })
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
   })
-  it('denies ambiguous verified identities', async () => {
+  it('uses the bound user instead of looking up matching member emails', async () => {
     queueTableRows(schemaMock.member, [{ userId: 'member-1' }, { userId: 'member-2' }])
     await expect(
       getAuthorizedCredentialGroupOAuthContext(identity, 'gmail-option')
-    ).resolves.toBeNull()
+    ).resolves.toMatchObject({ credentialOwnerId: 'person-1' })
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
   })
   it('conceals an enrollment from a different asserted organization', async () => {
     queueTableRows(schemaMock.member, [{ userId: 'member-1' }])
@@ -772,5 +776,69 @@ describe('organization enrollment membership boundary', () => {
         'gmail-option'
       )
     ).resolves.toBeNull()
+  })
+})
+
+describe('verified immutable enrollment identity binding', () => {
+  const identity = {
+    workspaceId: 'workspace-1',
+    credentialGroupId: 'group-1',
+    enrollmentId: ENROLLMENT.id,
+    email: ENROLLMENT.email,
+    invitationTokenHash: ENROLLMENT.invitationTokenHash,
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  it('binds an invitation once to its verified recipient', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      { enrollment: { ...ENROLLMENT, userId: null }, email: ENROLLMENT.email, verified: true },
+    ])
+    await bindCredentialGroupEnrollmentUser(identity, 'recipient')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'recipient' })
+    )
+    expect(isNull).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId)
+    expect(eq).toHaveBeenCalledWith(
+      schemaMock.credentialGroupEnrollment.invitationTokenHash,
+      identity.invitationTokenHash
+    )
+  })
+  it.each([
+    { email: 'someone-else@example.com', verified: true },
+    { email: ENROLLMENT.email, verified: false },
+  ])('rejects a different or unverified recipient', async ({ email, verified }) => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      { enrollment: { ...ENROLLMENT, userId: null }, email, verified },
+    ])
+    await expect(bindCredentialGroupEnrollmentUser(identity, 'recipient')).rejects.toThrow(
+      'verified email'
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+  it('keeps the same bound user after an email change', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        enrollment: { ...ENROLLMENT, userId: 'recipient' },
+        email: 'new@example.com',
+        verified: true,
+      },
+    ])
+    await expect(bindCredentialGroupEnrollmentUser(identity, 'recipient')).resolves.toBeUndefined()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+  it('never reassigns a bound enrollment to a different user with the old email', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        enrollment: { ...ENROLLMENT, userId: 'recipient' },
+        email: ENROLLMENT.email,
+        verified: true,
+      },
+    ])
+    await expect(bindCredentialGroupEnrollmentUser(identity, 'new-user')).rejects.toThrow(
+      'verified email'
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

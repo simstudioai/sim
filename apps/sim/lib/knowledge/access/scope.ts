@@ -185,7 +185,9 @@ async function loadUserAccessTokens(
       credentialGroupEnrollment,
       and(
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroup.id),
-        eq(credentialGroupEnrollment.email, foldedEmail(user.email)),
+        scope.kind === 'organization'
+          ? eq(credentialGroupEnrollment.userId, user.id)
+          : eq(credentialGroupEnrollment.email, foldedEmail(user.email)),
         inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
       )
     )

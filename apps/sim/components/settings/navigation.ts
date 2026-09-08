@@ -35,7 +35,13 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
+export type AccountSettingsSection =
+  | 'connected-accounts'
+  | 'general'
+  | 'billing'
+  | 'api-keys'
+  | 'admin'
+  | 'mothership'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -45,6 +51,7 @@ export type SelfHostSettingsSection = 'general' | 'billing' | 'chat-keys'
 
 export type OrganizationSettingsSection =
   | 'integrations'
+  | 'connected-accounts'
   | 'search-mcp'
   | 'members'
   | 'billing'
@@ -60,7 +67,6 @@ export type OrganizationSettingsSection =
 export type WorkspaceSettingsSection =
   | 'teammates'
   | 'secrets'
-  | 'credential-groups'
   | 'byok'
   | 'sandboxes'
   | 'custom-tools'
@@ -94,7 +100,6 @@ export type UnifiedSettingsSection =
   | 'browser'
   | 'terminal'
   | 'secrets'
-  | 'credential-groups'
   | 'access-control'
   | 'custom-blocks'
   | 'audit-logs'
@@ -525,17 +530,13 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Connected accounts',
     icon: GridOffset,
-    unified: {
-      id: 'credential-groups',
-      description: 'Manage the accounts people connect for Search and workflows.',
-      group: 'workspace',
-      order: 9,
-      requiresEnterprise: true,
-      allowNonOrgAdmin: true,
-      selfHostedOverride: 'always',
-    },
     planes: {
-      workspace: { id: 'credential-groups', group: 'workspace', order: 4 },
+      account: {
+        id: 'connected-accounts',
+        group: 'account',
+        order: 3,
+        description: 'Manage accounts you have contributed to organizations.',
+      },
     },
   },
   {
@@ -901,6 +902,7 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
   {
     billing: 'account',
     members: 'organization',
+    'connected-accounts': 'organization',
     usage: 'organization',
     whitelabeling: 'organization',
     'audit-logs': 'governance',
@@ -917,6 +919,15 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
   Object.keys(ORGANIZATION_SECTION_GROUPS) as OrganizationSettingsSection[]
 ).map((id) => {
   const group = ORGANIZATION_SECTION_GROUPS[id]
+  if (id === 'connected-accounts') {
+    return {
+      id,
+      label: 'Connected accounts',
+      description: 'Manage accounts shared with your organization’s workflows.',
+      icon: GridOffset,
+      group,
+    }
+  }
   if (id === 'integrations') {
     return {
       id,
@@ -1016,6 +1027,7 @@ export function getOrganizationSettingsFeatures(
     hasEnterprisePlan,
     hosted: deployment.hosted,
     selfHosted: {
+      'connected-accounts': true,
       'access-control': features.accessControl,
       'audit-logs': features.auditLogs,
       sso: features.sso,
@@ -1069,7 +1081,6 @@ export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsS
 }
 
 export interface WorkspaceSettingsEntitlements {
-  credentialGroups: boolean
   customBlocks: boolean
   forks: boolean
   inbox: boolean
@@ -1138,7 +1149,6 @@ export interface ResolvedWorkspaceNavigationItem
 const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, PermissionType> = {
   teammates: 'admin',
   secrets: 'write',
-  'credential-groups': 'admin',
   byok: 'admin',
   sandboxes: 'admin',
   'custom-tools': 'write',
@@ -1177,12 +1187,6 @@ export function resolveWorkspaceNavigation({
     const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
     if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
-    if (
-      item.id === 'credential-groups' &&
-      (permission !== 'admin' || !entitlements.credentialGroups)
-    ) {
-      return []
-    }
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
 
     const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]

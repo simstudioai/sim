@@ -18,7 +18,8 @@ import { credentialGroupOperations } from '@/lib/credential-groups/application/o
 import { POST } from '@/app/api/organizations/[id]/connected-accounts/[groupId]/slack-managed-users/route'
 
 const body = {
-  slackBotCredentialId: '11111111-1111-4111-8111-111111111111',
+  appId: 'A123',
+  teamId: 'T123',
   clientId: 'fixture-client-id',
   clientSecret: 'fixture-client-secret',
 }

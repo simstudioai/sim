@@ -73,6 +73,7 @@ interface ResolveManagedOAuthTokenParams {
 }
 
 export interface ManagedOAuthCredentialApplicationContext extends WorkspaceAuthorizationContext {
+  organizationId?: string
   credentialId: string
   credentialGroupId: string
   credentialGroupEnrollmentId: string
@@ -180,15 +181,24 @@ async function getManagedCredential(exec: DbOrTx, credentialId: string, owner?: 
 
 /** Resolves the canonical workspace context for authorization without exposing token material. */
 export async function loadManagedOAuthCredentialApplicationContext(
-  credentialId: string
+  credentialId: string,
+  executingWorkspaceId?: string
 ): Promise<ManagedOAuthCredentialApplicationContext | null> {
   const row = await getManagedCredential(db, credentialId)
-  if (!row?.workspaceId) return null
-
-  const workspaceContext = await loadActiveWorkspaceApplicationContext(row.workspaceId)
+  if (!row) return null
+  const workspaceId = executingWorkspaceId ?? row.workspaceId
+  if (!workspaceId) return null
+  const workspaceContext = await loadActiveWorkspaceApplicationContext(workspaceId)
   if (!workspaceContext) return null
+  if (
+    row.organizationId
+      ? row.organizationId !== workspaceContext.workspaceOrganizationId
+      : row.workspaceId !== workspaceId
+  )
+    return null
   return {
     ...workspaceContext,
+    ...(row.organizationId ? { organizationId: row.organizationId } : {}),
     credentialId: row.id,
     credentialGroupId: row.credentialGroupId,
     credentialGroupEnrollmentId: row.credentialGroupEnrollmentId,

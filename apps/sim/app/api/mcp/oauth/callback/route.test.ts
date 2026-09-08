@@ -10,6 +10,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
 const {
   mockAuthenticateEnrollment,
@@ -193,6 +194,15 @@ describe('MCP OAuth callback route', () => {
 
     expect(response.status).toBe(429)
     expect(mockConsumeManagedAttempt).not.toHaveBeenCalled()
+    expect(mockCompleteManagedMcpOAuth).not.toHaveBeenCalled()
+  })
+  it('reports a state protocol change without exchanging a code or loading an enrollment', async () => {
+    mockConsumeManagedAttempt.mockRejectedValue(new CredentialGroupOAuthStateVersionError())
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=mcp_cg_old&code=code')
+    )
+    expect(await response.text()).toContain('Reopen your invitation and connect again')
+    expect(mockAuthenticateEnrollment).not.toHaveBeenCalled()
     expect(mockCompleteManagedMcpOAuth).not.toHaveBeenCalled()
   })
 })

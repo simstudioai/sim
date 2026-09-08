@@ -8,8 +8,9 @@ import {
 } from '@/components/settings/navigation'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { OrganizationIntegrationsSetup } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup'
+import { OrganizationIntegrationsSettings } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
 import { OrganizationSearchMcp } from '@/app/o/[organizationId]/settings/components/organization-search-mcp'
+import { OrganizationConnectedAccounts } from '@/ee/credential-groups/components/organization-connected-accounts'
 
 const TeamManagement = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management').then(
@@ -59,7 +60,10 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
 
   return (
     <SettingsSectionProvider section={section} meta={meta}>
-      {section === 'integrations' && <OrganizationIntegrationsSetup />}
+      {section === 'integrations' && <OrganizationIntegrationsSettings />}
+      {section === 'connected-accounts' && (
+        <OrganizationConnectedAccounts organizationId={organizationId} />
+      )}
       {section === 'search-mcp' && <OrganizationSearchMcp />}
       {section === 'members' && (
         <TeamManagement

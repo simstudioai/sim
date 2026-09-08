@@ -8,7 +8,7 @@ import {
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   ORGANIZATION_SETTINGS_OUTBOUND_LINKS,
@@ -23,7 +23,8 @@ interface OrganizationSettingsSidebarProps {
 }
 
 export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarProps) {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer, connectedAccountsAvailable, searchAccess } =
+    useOrganizationContext()
   const pathname = usePathname()
   const deployment = useDeploymentShape()
   const { data: billing } = useOrganizationBilling(organization.id, {
@@ -42,10 +43,13 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
       plane='organization'
       activeSection={resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general'}
       groups={ORGANIZATION_SETTINGS_GROUPS}
-      items={organizationSurfaceSettingsNavigation(viewer.isAdmin, features)}
-      outboundLinks={ORGANIZATION_SETTINGS_OUTBOUND_LINKS}
+      items={organizationSurfaceSettingsNavigation(viewer.isAdmin, features, {
+        connectedAccounts: connectedAccountsAvailable,
+        search: searchAccess.memberScoped,
+      })}
+      outboundLinks={searchAccess.memberScoped ? ORGANIZATION_SETTINGS_OUTBOUND_LINKS : []}
       hrefForSection={(section) => routes.settingsSection(section)}
-      backHref={routes.home}
+      backHref={searchAccess.memberScoped ? routes.home : WORKSPACE_SETTINGS_PATH}
     />
   )
 }

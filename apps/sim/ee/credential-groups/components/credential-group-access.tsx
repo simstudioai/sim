@@ -13,7 +13,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { CredentialGroupAddWorkflowModal } from '@/ee/credential-groups/components/credential-group-add-workflow-modal'
+import { CredentialGroupAddResourceModal } from '@/ee/credential-groups/components/credential-group-add-resource-modal'
 import {
   useCredentialGroupAccess,
   useUpdateCredentialGroupAccess,
@@ -274,10 +274,14 @@ export function CredentialGroupAccess({
       </SettingsSection>
 
       {showAddWorkflow && (
-        <CredentialGroupAddWorkflowModal
-          workflows={availableWorkflows}
+        <CredentialGroupAddResourceModal
+          resourceType='workflow'
+          resources={availableWorkflows}
           disabled={saving}
-          onAdd={addWorkflow}
+          onAdd={(id) => {
+            addWorkflow(id)
+            setShowAddWorkflow(false)
+          }}
           onClose={() => setShowAddWorkflow(false)}
         />
       )}

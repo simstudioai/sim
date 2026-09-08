@@ -3,7 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAvailability, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
@@ -471,6 +471,12 @@ describe('organization document ACL scope', () => {
       tokens: ['org', 'pub', 's:google-email:-:gmail-subject', 'u:viewer@example.com'],
     })
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+  })
+  it('binds org indexing identities to the enrolled Sim user rather than a matching email', async () => {
+    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+    queueSubjects([])
+    await resolveKnowledgeAccessScope(SESSION, organization)
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, schemaMock.user.id)
   })
   it('grants nothing after removal, even when stored provider grants remain', async () => {
     queueTableRows(schemaMock.member, [])

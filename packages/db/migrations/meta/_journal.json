@@ -2283,6 +2283,13 @@
       "when": 1788844432798,
       "tag": "0326_organization_search_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1788849461024,
+      "tag": "0327_organization_connected_accounts",
+      "breakpoints": true
     }
   ]
 }

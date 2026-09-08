@@ -82,6 +82,7 @@ interface AddConnectorModalProps {
   isSearchIndex?: boolean
   initialConnectorType?: string | null
   initialAccessMode?: ConnectorAccessSelection['accessMode']
+  membersOnly?: boolean
   initialSyncIntervalMinutes?: number
   onCreated?: (connectorType: string) => void
   setupDraftKey?: string
@@ -97,6 +98,7 @@ export function AddConnectorModal({
   isSearchIndex = false,
   initialConnectorType,
   initialAccessMode = 'workspace',
+  membersOnly = false,
   initialSyncIntervalMinutes = 1440,
   onCreated,
   setupDraftKey,
@@ -127,7 +129,7 @@ export function AddConnectorModal({
   )
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
     accessMode:
-      draft?.accessMode ??
+      (membersOnly ? 'members' : draft?.accessMode) ??
       (isSearchIndex && initialAccessMode === 'workspace'
         ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
           ? 'admin'
@@ -449,15 +451,17 @@ export function AddConnectorModal({
         <ChipModalHeader onClose={() => closeSetup(false)}>
           {step === 'configure' ? (
             <span className='flex items-center gap-2'>
-              <Chip
-                leftIcon={ArrowLeft}
-                aria-label='Choose another source'
-                onClick={() => {
-                  if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
-                  setStep('select-type')
-                  onConnectorTypeChange?.('')
-                }}
-              />
+              {!membersOnly && (
+                <Chip
+                  leftIcon={ArrowLeft}
+                  aria-label='Choose another source'
+                  onClick={() => {
+                    if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
+                    setStep('select-type')
+                    onConnectorTypeChange?.('')
+                  }}
+                />
+              )}
               {`Configure ${connectorConfig?.name}`}
             </span>
           ) : (
@@ -515,23 +519,24 @@ export function AddConnectorModal({
                   />
                 </ChipModalField>
               )}
-              {(memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
-                <ConnectorAccessField
-                  scope={scope}
-                  connectorConfig={connectorConfig}
-                  value={access}
-                  onChange={setAccess}
-                  canAdmin={canAdmin}
-                  allowMembers={allowMembers}
-                  allowAdmin={allowAdmin}
-                  allowWorkspace={!isSearchIndex}
-                  disabled={isCreating}
-                  searchSetupSource={
-                    isSearchIndex && selectedType === 'slack' ? 'slack' : undefined
-                  }
-                  onSetupNavigate={saveSetup}
-                />
-              )}
+              {!membersOnly &&
+                (memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
+                  <ConnectorAccessField
+                    scope={scope}
+                    connectorConfig={connectorConfig}
+                    value={access}
+                    onChange={setAccess}
+                    canAdmin={canAdmin}
+                    allowMembers={allowMembers}
+                    allowAdmin={allowAdmin}
+                    allowWorkspace={!isSearchIndex}
+                    disabled={isCreating}
+                    searchSetupSource={
+                      isSearchIndex && selectedType === 'slack' ? 'slack' : undefined
+                    }
+                    onSetupNavigate={saveSetup}
+                  />
+                )}
 
               {!slackSetupRequired && (
                 <>

@@ -2,9 +2,15 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { issue } = vi.hoisted(() => ({ issue: vi.fn() }))
+const { issue, authenticate, bind } = vi.hoisted(() => ({
+  issue: vi.fn(),
+  authenticate: vi.fn(),
+  bind: vi.fn(),
+}))
 vi.mock('@/lib/credential-groups/enrollments', () => ({
   createCredentialGroupSelfEnrollmentLink: issue,
+  authenticatePublicCredentialGroupEnrollment: authenticate,
+  bindCredentialGroupEnrollmentUser: bind,
   CredentialGroupEnrollmentError: class extends Error {
     constructor(
       message: string,
@@ -24,11 +30,14 @@ describe('viewer account enrollment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    authenticate.mockResolvedValue({ enrollmentId: 'enrollment' })
+    bind.mockResolvedValue(undefined)
   })
 
   it('uses the verified account email rather than a caller-supplied address', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ email: ' Viewer@Example.com ', emailVerified: true }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
     issue.mockResolvedValue({
       enrollment: { id: 'enrollment' },
@@ -53,6 +62,7 @@ describe('viewer account enrollment', () => {
   it('refuses a revoked enrollment without minting a link', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ email: 'viewer@example.com', emailVerified: true }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ status: 'revoked' }])
     await expect(createViewerCredentialGroupEnrollment(input)).rejects.toThrow(
       'removed your access'
@@ -63,6 +73,7 @@ describe('viewer account enrollment', () => {
   it('preserves a revocation applied during the invitation transaction', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ email: 'viewer@example.com', emailVerified: true }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ status: 'revoked' }])
     issue.mockRejectedValue(new CredentialGroupEnrollmentError('Revoked', 409))

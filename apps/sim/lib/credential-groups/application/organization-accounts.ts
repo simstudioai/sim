@@ -10,6 +10,10 @@ import {
 } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { validateUpdateCredentialGroupInput } from '@/lib/credential-groups/application/validation'
+import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
+import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
+import { ManagedMcpConnectorError } from '@/lib/credential-groups/managed-mcp-service'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
@@ -22,6 +26,7 @@ import type {
   CredentialGroupOptionInput,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 
 export const organizationAccountOperations = {
   read: defineOrganizationOperation({
@@ -54,14 +59,17 @@ interface OrganizationAccountsInput {
   organizationId: string
 }
 
-function defineOrganizationAccountsUseCase<
+export function defineOrganizationAccountsUseCase<
   const O extends OrganizationOperation,
   I extends OrganizationAccountsInput,
   R,
 >(definition: {
   operation: O
   execute(args: { input: I; context: OrganizationMembershipContext }): Promise<R>
-  projectAudit?(result: R): { resourceId: string; resourceName: string; description: string } | null
+  projectAudit?(
+    result: NoInfer<R>
+  ): { resourceId: string; resourceName: string; description: string } | null
+  afterSuccess?(args: { result: NoInfer<R>; context: OrganizationMembershipContext }): Promise<void>
 }): OperationUseCase<O, I, R> {
   return {
     operation: definition.operation,
@@ -75,7 +83,33 @@ function defineOrganizationAccountsUseCase<
       ) {
         throw new OrchestrationError('not_found', 'Connected accounts are not available')
       }
-      const result = await definition.execute({ input, context })
+      if (definition.operation.id !== organizationAccountOperations.ensure.id) {
+        const group = await loadScopedAccountsCredentialListContext({
+          kind: 'organization',
+          organizationId: context.organizationId,
+        })
+        if (group)
+          await requireOrganizationAccountsSetup(context.organizationId, group.credentialGroupId)
+      }
+      const result = await definition.execute({ input, context }).catch((error: unknown) => {
+        if (error instanceof ManagedMcpConnectorError)
+          throw new OrchestrationError(
+            error.code === 'bad_gateway' ? 'internal' : error.code,
+            error.message
+          )
+        if (error instanceof CredentialGroupEnrollmentError)
+          throw new OrchestrationError(
+            error.status === 404
+              ? 'not_found'
+              : error.status === 409
+                ? 'conflict'
+                : error.status === 400
+                  ? 'validation'
+                  : 'internal',
+            error.message
+          )
+        throw error
+      })
       const audit = definition.projectAudit?.(result)
       if (audit)
         recordAudit({
@@ -86,6 +120,7 @@ function defineOrganizationAccountsUseCase<
           metadata: { organizationId: context.organizationId },
           request,
         })
+      await definition.afterSuccess?.({ result, context })
       return result
     },
   }
@@ -98,6 +133,9 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
       credentialGroup: await getOrganizationAccountsGroup(context.organizationId),
       availableProviders: listConfiguredCredentialGroupProviders(),
       canManage: context.role === 'owner' || context.role === 'admin',
+      indexingAvailable: await isKnowledgeMemberAccessAvailable({
+        organizationId: context.organizationId,
+      }),
     }
   },
 })

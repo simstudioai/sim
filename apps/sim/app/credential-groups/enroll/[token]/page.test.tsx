@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import type { ReactNode } from 'react'
+import { authMockFns } from '@sim/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PublicCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
@@ -21,6 +22,8 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
   enforcePublicCredentialGroupIpRateLimit: mocks.rateLimit,
 }))
 vi.mock('@/lib/credential-groups/providers', () => ({
+  CREDENTIAL_GROUP_PROVIDER_IDS: ['confluence', 'slack'],
+  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS: ['confluence'],
   getCredentialGroupProviderService: (provider: string) => ({
     providerId: provider,
     name: provider === 'confluence' ? 'Confluence' : 'Slack',
@@ -77,6 +80,10 @@ function oauthLinks() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authMockFns.mockGetSession.mockResolvedValue({
+    user: { id: 'member', email: 'member@example.test', emailVerified: true },
+    session: { id: 'session-1' },
+  })
   mocks.authenticate.mockResolvedValue(principal)
   mocks.rateLimit.mockResolvedValue(null)
   enrollment = {

@@ -15,13 +15,14 @@ interface OrganizationHomeProps {
   chatId?: string
 }
 
-/**
- * The organization home: a private Assistant conversation with the routed
- * organization's sources. Empty, it is the greeting over the composer with the
- * onboarding steps beneath; once a turn is sent, or a routed chat is opened, the
- * transcript takes the surface and the same composer moves to its foot.
- */
-export function OrganizationHome({ userName, chatId }: OrganizationHomeProps) {
+/** Search and private Assistant chats for the routed organization. */
+export function OrganizationHome(props: OrganizationHomeProps) {
+  const { searchAccess } = useOrganizationContext()
+  if (!searchAccess.memberScoped) return null
+  return <OrganizationHomeContent {...props} />
+}
+
+function OrganizationHomeContent({ userName, chatId }: OrganizationHomeProps) {
   const { organization } = useOrganizationContext()
   const { data: session } = useSession()
   const [draft, setDraft] = useState('')

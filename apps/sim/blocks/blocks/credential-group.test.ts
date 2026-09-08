@@ -9,7 +9,8 @@ import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 
 describe('Connected Accounts block', () => {
   it('uses the workspace container without selectable or manual group inputs', () => {
-    expect(CredentialGroupBlock.name).toBe('Connected Accounts')
+    expect(CredentialGroupBlock.name).toBe('Connected Accounts (Legacy)')
+    expect(CredentialGroupBlock.hideFromToolbar).toBe(true)
     const operation = CredentialGroupBlock.subBlocks.find((field) => field.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'List Credentials', id: 'list_credentials' },

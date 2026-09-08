@@ -11,6 +11,11 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, gt } from 'drizzle-orm'
 import { acquireLock, extendLock, releaseLock } from '@/lib/core/config/redis'
+import {
+  resourceScopeColumns,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const logger = createLogger('McpOauthStorage')
@@ -25,7 +30,8 @@ export interface McpOauthRow {
   id: string
   mcpServerId: string
   userId: string | null
-  workspaceId: string
+  workspaceId: string | null
+  organizationId: string | null
   clientInformation: OAuthClientInformationMixed | null
   tokens: OAuthTokens | null
   codeVerifier: string | null
@@ -72,10 +78,16 @@ async function safeDecrypt<T>(
 export async function getOrCreateOauthRow(params: {
   mcpServerId: string
   userId?: string | null
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
 }): Promise<McpOauthRow> {
+  const scope = resourceScopeFromOwner(params)
   const existing = await loadOauthRow(params)
-  if (existing) return existing
+  if (existing) {
+    if (!sameResourceScope(scope, resourceScopeFromOwner(existing)))
+      throw new Error('MCP OAuth client belongs to another scope')
+    return existing
+  }
 
   const id = generateId()
   try {
@@ -83,11 +95,11 @@ export async function getOrCreateOauthRow(params: {
       id,
       mcpServerId: params.mcpServerId,
       userId: params.userId ?? null,
-      workspaceId: params.workspaceId,
+      ...resourceScopeColumns(scope),
     })
   } catch (error) {
     const winner = await loadOauthRow(params)
-    if (winner) return winner
+    if (winner && sameResourceScope(scope, resourceScopeFromOwner(winner))) return winner
     throw error
   }
 
@@ -95,7 +107,7 @@ export async function getOrCreateOauthRow(params: {
     id,
     mcpServerId: params.mcpServerId,
     userId: params.userId ?? null,
-    workspaceId: params.workspaceId,
+    ...resourceScopeColumns(scope),
     clientInformation: null,
     tokens: null,
     codeVerifier: null,
@@ -113,6 +125,7 @@ async function mapOauthRow(row: RawOauthRow): Promise<McpOauthRow> {
     mcpServerId: row.mcpServerId,
     userId: row.userId,
     workspaceId: row.workspaceId,
+    organizationId: row.organizationId,
     clientInformation: row.clientInformation
       ? await safeDecrypt(
           row.id,

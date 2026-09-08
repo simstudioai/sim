@@ -10,7 +10,6 @@ import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
-import {} from '@/hooks/queries/current-user-data'
 import {
   MOTHERSHIP_CHAT_LIST_STALE_TIME,
   mapChat,

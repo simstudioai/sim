@@ -6,6 +6,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  bind: vi.fn(),
   completeEnrollment: vi.fn(),
   completeOAuth: vi.fn(),
   fireTrigger: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/credential-groups/enrollments', () => ({
+  bindCredentialGroupEnrollmentUser: mocks.bind,
   completeAuthorizedCredentialGroupEnrollment: mocks.completeEnrollment,
   getAuthorizedCredentialGroupMcpOAuthContext: mocks.getMcpOAuthContext,
   getAuthorizedCredentialGroupOAuthContext: mocks.getOAuthContext,
@@ -54,21 +56,24 @@ import {
 const invitationToken = 'invitation-token'
 const principal: CredentialGroupEnrollmentPrincipal = {
   kind: 'credential_group_enrollment',
-  workspaceId: 'workspace-1',
+  userId: 'user-1',
+  organizationId: 'org-1',
   credentialGroupId: 'group-1',
   enrollmentId: 'enrollment-1',
   email: 'person@example.com',
   invitationTokenHash: sha256Hex(invitationToken),
 }
 const identity = {
-  workspaceId: principal.workspaceId,
+  organizationId: principal.organizationId,
+  userId: principal.userId,
   credentialGroupId: principal.credentialGroupId,
   enrollmentId: principal.enrollmentId,
   email: principal.email,
   invitationTokenHash: principal.invitationTokenHash,
 }
 const oauthAttempt = {
-  workspaceId: principal.workspaceId,
+  organizationId: principal.organizationId,
+  userId: principal.userId,
   email: principal.email,
   state: 'state-1',
   provider: 'gmail' as const,
@@ -87,6 +92,7 @@ const oauthAttempt = {
 describe('public Credential Group enrollment application operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.bind.mockResolvedValue(undefined)
     mocks.getEnrollment.mockResolvedValue({
       status: 'invited',
       credentialGroupName: 'Credential Group',
@@ -235,7 +241,7 @@ describe('public Credential Group enrollment application operations', () => {
     expect(result).toEqual({ completed: true })
     expect(mocks.fireTrigger).toHaveBeenCalledWith({
       event: 'form_submitted',
-      workspaceId: 'workspace-1',
+      organizationId: 'org-1',
       credentialGroupId: 'group-1',
       credentialGroupName: 'Credential Group',
       enrollmentId: 'enrollment-1',
@@ -297,30 +303,19 @@ describe('public Credential Group enrollment application operations', () => {
       expect.objectContaining({ event: 'credential_reconnected', enrollmentStatus: 'completed' })
     )
   })
-  it('completes a consumed attempt after invitation rotation without granting new public read authority', async () => {
-    mocks.getOAuthContext.mockResolvedValue(null)
-    mocks.getEnrollment.mockResolvedValue(null)
+  it('rejects a consumed attempt after invitation rotation before exchanging its code', async () => {
+    mocks.bind.mockRejectedValue(new Error('Invitation is invalid or expired'))
     await expect(
       completePublicCredentialGroupOAuth.execute({
         principal,
         input: { attempt: oauthAttempt, code: 'code' },
       })
-    ).resolves.toEqual({ connectedOptionId: 'option-1' })
-    expect(mocks.getAttemptContext).toHaveBeenCalledWith(identity, 'option-1')
-    expect(mocks.getOAuthContext).not.toHaveBeenCalled()
-    await expect(
-      readPublicCredentialGroupEnrollment.execute({ principal, input: {} })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    await expect(
-      startPublicCredentialGroupOAuth.execute({
-        principal,
-        input: { invitationToken, optionId: 'option-1' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.startOAuth).not.toHaveBeenCalled()
+    ).rejects.toThrow('Invitation is invalid or expired')
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
   it.each([
-    { workspaceId: 'other' },
+    { organizationId: 'other' },
+    { userId: 'other-user' },
     { credentialGroupId: 'other' },
     { enrollmentId: 'other' },
     { email: 'other@example.com' },
@@ -346,30 +341,90 @@ describe('public Credential Group enrollment application operations', () => {
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
     expect(mocks.fireTrigger).not.toHaveBeenCalled()
   })
-  it('completes a pinned MCP attempt after another account rotates its invitation, but cannot restart', async () => {
-    const attempt = { ...oauthAttempt, mcpServerId: 'mcp-server-1', codeVerifier: 'verifier' }
-    mocks.getMcpOAuthContext.mockResolvedValue(null)
-    mocks.getMcpAttemptContext.mockResolvedValue({ server: { id: 'mcp-server-1' } })
-    mocks.completeMcpOAuth.mockResolvedValue({
-      connectionId: 'connection',
+  it('emits the personal MCP connection ID after completing the current configuration', async () => {
+    const attempt = {
+      ...oauthAttempt,
       mcpServerId: 'mcp-server-1',
+      oauthConfigVersion: 2,
+      codeVerifier: 'verifier',
+    }
+    mocks.getMcpAttemptContext.mockResolvedValue({
+      credentialGroupName: 'Accounts',
+      server: {
+        id: 'mcp-server-1',
+        connectorId: 'fireflies',
+        name: 'Fireflies',
+        oauthConfigVersion: 2,
+      },
+    })
+    mocks.completeMcpOAuth.mockResolvedValue({
+      connectionId: 'mcp-cg-person',
+      mcpServerId: 'mcp-server-1',
+      created: true,
+      enrollmentStatus: 'in_progress',
     })
     await expect(
       completePublicCredentialGroupMcpOAuth.execute({ principal, input: { attempt, code: 'code' } })
-    ).resolves.toEqual({ connectionId: 'connection', mcpServerId: 'mcp-server-1' })
-    expect(mocks.getMcpAttemptContext).toHaveBeenCalledWith(identity, 'mcp-server-1')
-    expect(mocks.getMcpOAuthContext).not.toHaveBeenCalled()
-    await expect(
-      startPublicCredentialGroupMcpOAuth.execute({
-        principal,
-        input: { invitationToken, mcpServerId: 'mcp-server-1' },
+    ).resolves.toEqual({ connectionId: 'mcp-cg-person', mcpServerId: 'mcp-server-1' })
+    expect(mocks.completeMcpOAuth).toHaveBeenCalledWith(
+      expect.any(Object),
+      'verifier',
+      'code',
+      invitationToken
+    )
+    expect(mocks.fireTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'credential_added',
+        organizationId: 'org-1',
+        credential: expect.objectContaining({
+          credentialId: 'mcp-cg-person',
+          mcpServerId: 'mcp-server-1',
+        }),
       })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.startMcpOAuth).not.toHaveBeenCalled()
+    )
+  })
+
+  it('rejects a changed MCP configuration before exchanging the code', async () => {
+    mocks.getMcpAttemptContext.mockResolvedValue({ server: { oauthConfigVersion: 3 } })
+    await expect(
+      completePublicCredentialGroupMcpOAuth.execute({
+        principal,
+        input: {
+          attempt: {
+            ...oauthAttempt,
+            mcpServerId: 'mcp-server-1',
+            oauthConfigVersion: 2,
+            codeVerifier: 'verifier',
+          },
+          code: 'code',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.completeMcpOAuth).not.toHaveBeenCalled()
+  })
+
+  it('rejects a pending MCP attempt after disconnect rotates its invitation', async () => {
+    mocks.bind.mockRejectedValue(new Error('Invitation is invalid or expired'))
+    await expect(
+      completePublicCredentialGroupMcpOAuth.execute({
+        principal,
+        input: {
+          attempt: {
+            ...oauthAttempt,
+            mcpServerId: 'mcp-server-1',
+            oauthConfigVersion: 2,
+            codeVerifier: 'verifier',
+          },
+          code: 'code',
+        },
+      })
+    ).rejects.toThrow('Invitation is invalid or expired')
+    expect(mocks.completeMcpOAuth).not.toHaveBeenCalled()
   })
 
   it.each([
-    'workspaceId',
+    'organizationId',
+    'userId',
     'credentialGroupId',
     'enrollmentId',
     'email',

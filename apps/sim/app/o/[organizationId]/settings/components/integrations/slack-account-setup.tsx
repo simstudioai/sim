@@ -24,7 +24,6 @@ import {
   useEnsureOrganizationAccounts,
   useOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
-import { useScopedCredentials } from '@/hooks/queries/scoped-credentials'
 
 /** Slack's provider verification returns to the source form that started setup. */
 export function OrganizationSlackAccountSetup() {
@@ -47,12 +46,6 @@ export function OrganizationSlackAccountSetup() {
     isIdle: setupIdle,
     isPending: setupPending,
   } = useEnsureOrganizationAccounts()
-  const bots = useScopedCredentials({
-    organizationId: organization.id,
-    type: 'service_account',
-    providerId: 'slack-custom-bot',
-    enabled: open,
-  })
   const prepared = preparedAccounts?.credentialGroup
   const group =
     accounts.data?.credentialGroup ??
@@ -75,9 +68,9 @@ export function OrganizationSlackAccountSetup() {
         open
         organizationId={organization.id}
         credentialGroupId={group.id}
-        bots={bots.data ?? []}
-        isLoading={bots.isPending}
-        error={bots.error}
+        bots={[]}
+        isLoading={false}
+        error={null}
         initialCredentialId={
           group.options.find((option) => option.provider === 'slack')?.slackBotCredentialId ??
           undefined

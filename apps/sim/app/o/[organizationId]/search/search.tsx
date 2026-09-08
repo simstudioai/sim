@@ -108,6 +108,12 @@ function SearchField({
  * Summarizing a document hands the turn to the Assistant on Home.
  */
 export function OrganizationSearch() {
+  const { searchAccess } = useOrganizationContext()
+  if (!searchAccess.memberScoped) return null
+  return <OrganizationSearchContent />
+}
+
+function OrganizationSearchContent() {
   const { organization } = useOrganizationContext()
   const router = useRouter()
   const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)

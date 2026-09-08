@@ -3,9 +3,11 @@
  */
 import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
+  requirePolicy: vi.fn(),
   listMcpConnections: vi.fn(),
   loadGroup: vi.fn(),
   loadWorkspace: vi.fn(),
@@ -17,12 +19,16 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
   getWorkspaceOwnerSubscriptionAccess: mocks.getWorkspaceOwnerSubscriptionAccess,
 }))
 
-vi.mock('@/lib/credential-groups/availability', () => ({
-  resolveCredentialGroupsAvailability: mocks.resolveCredentialGroupsAvailability,
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: async () =>
+    (await mocks.resolveCredentialGroupsAvailability()).available,
+}))
+vi.mock('@/lib/resource-policies/repository', () => ({
+  requireResourcePolicy: mocks.requirePolicy,
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadWorkspaceAccountsCredentialListContext: mocks.loadGroup,
+  loadScopedAccountsCredentialListContext: mocks.loadGroup,
 }))
 
 vi.mock('@/lib/credential-groups/mcp-connections', () => ({
@@ -58,7 +64,7 @@ const groupContext = {
 }
 const workspaceContext = {
   workspaceId: 'workspace-1',
-  workspaceOrganizationId: null,
+  workspaceOrganizationId: 'org-1',
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
@@ -90,6 +96,9 @@ function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelega
 describe('listCredentialGroupMcpConnections', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', ['workspace-1']),
+    })
     mocks.loadGroup.mockResolvedValue(groupContext)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
@@ -144,12 +153,13 @@ describe('listCredentialGroupMcpConnections', () => {
     })
 
     expect(mocks.listMcpConnections).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
+      organizationId: 'org-1',
       credentialGroupId: 'group-1',
       limit: 50,
       cursor: undefined,
       email: 'person@example.com',
       mcpServerId: 'mcp-server-1',
+      connectorId: undefined,
     })
     expect(result).toEqual({
       mcpConnections: [

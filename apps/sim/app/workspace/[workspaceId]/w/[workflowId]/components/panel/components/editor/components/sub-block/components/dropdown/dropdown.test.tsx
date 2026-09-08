@@ -76,6 +76,9 @@ vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight',
   () => ({ getWorkflowSearchLabelHighlight: () => undefined })
 )
+vi.mock('@/hooks/queries/organization-accounts', () => ({
+  useWorkspaceOrganizationAccounts: () => ({ data: { allowed: false } }),
+}))
 vi.mock('@/hooks/use-operation-access', () => ({
   useOperationAccess: () => ({
     getDeniedOperations: () => new Set<string>(),
@@ -89,7 +92,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 }))
 vi.mock('@/stores/workflows/registry/store', () => ({
   useWorkflowRegistry: (selector: (state: unknown) => unknown) =>
-    selector({ activeWorkflowId: 'wf-1' }),
+    selector({ activeWorkflowId: 'wf-1', hydration: { workspaceId: 'workspace-1' } }),
 }))
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: (selector: (state: unknown) => unknown) => selector({ workflowValues: {} }),

@@ -30,9 +30,13 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/credential-groups/service', () => ({
   ensureWorkspaceAccountsGroup: vi.fn(),
 }))
+vi.mock('@/lib/credential-groups/organization-setup', () => ({
+  requireOrganizationAccountsSetup: vi.fn(),
+}))
 
 import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
@@ -73,6 +77,7 @@ describe('provisionKnowledgeConnectorMembersBinding', () => {
     })
   beforeEach(() => {
     vi.mocked(ensureWorkspaceAccountsGroup).mockReset()
+    vi.mocked(requireOrganizationAccountsSetup).mockReset()
   })
 
   it('reuses the configured Slack option in the workspace singleton', async () => {
@@ -141,6 +146,7 @@ describe('provisionKnowledgeConnectorMembersBinding', () => {
         userId: 'user-1',
       })
     ).resolves.toEqual({ credentialGroupId: 'accounts-1', credentialGroupOptionId: 'option-1' })
+    expect(requireOrganizationAccountsSetup).toHaveBeenCalledWith('org-1', 'accounts-1')
     expect(ensureWorkspaceAccountsGroup).toHaveBeenCalledExactlyOnceWith(
       { kind: 'organization', organizationId: 'org-1' },
       'user-1',

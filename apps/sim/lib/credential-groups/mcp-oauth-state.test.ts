@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
 const { mockRedis, values } = vi.hoisted(() => {
   const values = new Map<string, string>()
@@ -57,9 +58,11 @@ describe('Credential Group MCP OAuth state', () => {
     await createCredentialGroupMcpOAuthAttempt({
       state,
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
+      oauthConfigVersion: 1,
       mcpServerId: 'mcp-server-1',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
@@ -72,9 +75,11 @@ describe('Credential Group MCP OAuth state', () => {
     await expect(consumeCredentialGroupMcpOAuthAttempt(state)).resolves.toMatchObject({
       state,
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
+      oauthConfigVersion: 1,
       mcpServerId: 'mcp-server-1',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
@@ -89,9 +94,11 @@ describe('Credential Group MCP OAuth state', () => {
       createCredentialGroupMcpOAuthAttempt({
         state: 'mcp_cg_state-1',
         workspaceId: 'workspace-1',
+        userId: 'user-1',
         email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
+        oauthConfigVersion: 1,
         mcpServerId: 'mcp-server-1',
         codeVerifier: 'code-verifier',
         invitationToken: 'invitation-token',
@@ -104,9 +111,11 @@ describe('Credential Group MCP OAuth state', () => {
       createCredentialGroupMcpOAuthAttempt({
         state: 'ordinary-state',
         workspaceId: 'workspace-1',
+        userId: 'user-1',
         email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
+        oauthConfigVersion: 1,
         mcpServerId: 'mcp-server-1',
         codeVerifier: 'code-verifier',
         invitationToken: 'invitation-token',
@@ -117,9 +126,11 @@ describe('Credential Group MCP OAuth state', () => {
   it('keeps parallel MCP attempts pinned to their original enrollment when the invitation rotates', async () => {
     const params = {
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
+      oauthConfigVersion: 1,
       mcpServerId: 'mcp-server-1',
       codeVerifier: 'verifier',
       invitationToken: 'first-invitation',
@@ -143,9 +154,11 @@ describe('Credential Group MCP OAuth state', () => {
       await createCredentialGroupMcpOAuthAttempt({
         state: 'mcp_cg_attempt',
         workspaceId: 'workspace-1',
+        userId: 'user-1',
         email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
+        oauthConfigVersion: 1,
         mcpServerId: 'mcp-server-1',
         codeVerifier: 'verifier',
         invitationToken: 'token',
@@ -160,4 +173,28 @@ describe('Credential Group MCP OAuth state', () => {
       expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_attempt')).toBeNull()
     }
   )
+  it('requires a new authorization for pre-binding v2 state', async () => {
+    const state = 'mcp_cg_old'
+    await createCredentialGroupMcpOAuthAttempt({
+      state,
+      organizationId: 'org-1',
+      userId: 'user-1',
+      email: 'person@example.com',
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      oauthConfigVersion: 1,
+      mcpServerId: 'server-1',
+      codeVerifier: 'verifier',
+      invitationToken: 'token',
+    })
+    const [key, raw] = [...values.entries()][0]
+    const stored = { ...JSON.parse(raw), version: 2 }
+    stored.userId = undefined
+    stored.oauthConfigVersion = undefined
+    values.set(key, JSON.stringify(stored))
+    await expect(consumeCredentialGroupMcpOAuthAttempt(state)).rejects.toBeInstanceOf(
+      CredentialGroupOAuthStateVersionError
+    )
+    await expect(consumeCredentialGroupMcpOAuthAttempt(state)).resolves.toBeNull()
+  })
 })

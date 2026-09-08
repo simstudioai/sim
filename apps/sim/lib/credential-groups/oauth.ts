@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
-import { credential, credentialGroup, credentialGroupEnrollment, member } from '@sim/db/schema'
+import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne, sql } from 'drizzle-orm'
-import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import {
   resourceScopeColumns,
   resourceScopeFields,
@@ -112,10 +112,12 @@ export async function startCredentialGroupOAuth(
   invitationToken: string,
   options: { completionRedirect?: boolean; returnTo?: 'search' } = {}
 ): Promise<string> {
+  if (!context.credentialOwnerId) throw new CredentialGroupInvitationUnavailableError()
   const adapter = getOptionAdapter(context)
   const policy = await assertCurrentPolicy(context, adapter)
   const prepared = await adapter.prepareAuthorization(context, policy)
   const { state, nonce } = await createCredentialGroupOAuthAttempt({
+    userId: context.credentialOwnerId,
     provider: policy.provider,
     ...resourceScopeFields(resourceScopeFromOwner(context)),
     email: context.email,
@@ -138,31 +140,15 @@ async function persistGrant(
   context: CredentialGroupOAuthContext,
   adapter: CredentialGroupProviderAdapter,
   policy: CredentialGroupProviderPolicy,
-  grant: VerifiedCredentialGroupGrant
+  grant: VerifiedCredentialGroupGrant,
+  invitationTokenHash: string
 ): Promise<CredentialGroupOAuthCompletion> {
   if (grant.providerId !== policy.providerId) {
     throw new CredentialGroupOAuthError('Provider returned a credential for another app.', 502)
   }
 
   const completion: CredentialGroupOAuthCompletion = await db.transaction(async (tx) => {
-    if (context.organizationId) {
-      if (!context.credentialOwnerId) throw new CredentialGroupInvitationUnavailableError()
-      await acquireOrganizationUserMutationLocks(tx, {
-        userId: context.credentialOwnerId,
-        organizationIds: [context.organizationId],
-      })
-      const [membership] = await tx
-        .select({ id: member.id })
-        .from(member)
-        .where(
-          and(
-            eq(member.organizationId, context.organizationId),
-            eq(member.userId, context.credentialOwnerId)
-          )
-        )
-        .limit(1)
-      if (!membership) throw new CredentialGroupInvitationUnavailableError()
-    }
+    if (!context.credentialOwnerId) throw new CredentialGroupInvitationUnavailableError()
     await lockCredentialGroupEnrollmentLifecycle(tx, context.enrollmentId)
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
@@ -177,7 +163,9 @@ async function persistGrant(
         and(
           eq(credentialGroupEnrollment.id, context.enrollmentId),
           eq(credentialGroupEnrollment.credentialGroupId, context.credentialGroupId),
-          eq(credentialGroupEnrollment.email, context.email)
+          eq(credentialGroupEnrollment.email, context.email),
+          eq(credentialGroupEnrollment.userId, context.credentialOwnerId),
+          eq(credentialGroupEnrollment.invitationTokenHash, invitationTokenHash)
         )
       )
       .limit(1)
@@ -301,7 +289,7 @@ async function persistGrant(
         .values({
           id: generateId(),
           ...values,
-          createdBy: context.credentialOwnerId ?? context.workspaceOwnerId,
+          createdBy: context.credentialOwnerId,
           createdAt: now,
         })
         .returning({ id: credential.id })
@@ -371,6 +359,7 @@ export async function completeCredentialGroupOAuth(
     attempt.email !== context.email ||
     attempt.enrollmentId !== context.enrollmentId ||
     attempt.credentialGroupId !== context.credentialGroupId ||
+    attempt.userId !== context.credentialOwnerId ||
     attempt.optionId !== context.option.id ||
     attempt.provider !== context.option.provider
   ) {
@@ -379,5 +368,5 @@ export async function completeCredentialGroupOAuth(
   const adapter = getOptionAdapter(context)
   const policy = await assertCurrentPolicy(context, adapter, attempt)
   const grant = await adapter.exchangeAndVerify({ context, attempt, code, policy })
-  return persistGrant(context, adapter, policy, grant)
+  return persistGrant(context, adapter, policy, grant, sha256Hex(attempt.invitationToken))
 }

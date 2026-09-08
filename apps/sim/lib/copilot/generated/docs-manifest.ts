@@ -366,6 +366,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'logs-debugging.mdx',
   'logs-debugging/alerts.mdx',
   'logs-debugging/logging.mdx',
+  'platform/connected-accounts.mdx',
   'platform/costs.mdx',
   'platform/credentials.mdx',
   'platform/enterprise.mdx',

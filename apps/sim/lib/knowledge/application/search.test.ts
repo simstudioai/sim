@@ -2,10 +2,15 @@
  * @vitest-environment node
  */
 
+import { member } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
+  resolveOrganization: vi.fn(),
+  requireOrganizationSearch: vi.fn(),
   resolvePermission: vi.fn(),
   getKnowledgeBase: vi.fn(),
   resolveBilling: vi.fn(),
@@ -48,6 +53,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 /** Retrieval defaults are the flag's concern; here the flag is off so the search stays as configured. */
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: async () => false,
+  requireOrganizationSearchAvailable: mocks.requireOrganizationSearch,
 }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
@@ -56,6 +62,12 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
+  resolveKnowledgeOrganizationContext: mocks.resolveOrganization,
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: async () => null,
+  getUserPermissionConfigForOrganization: async () => null,
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
@@ -107,6 +119,12 @@ const knowledgeBase = {
 describe('knowledge search application use case', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.requireOrganizationSearch.mockResolvedValue(undefined)
+    mocks.resolveOrganization.mockResolvedValue({
+      organizationId: 'org-canonical',
+      workspaceId: undefined,
+    })
     mocks.resolveWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
@@ -165,6 +183,28 @@ describe('knowledge search application use case', () => {
     })
     expect(result.results).toEqual([])
     expect(result.totalResults).toBe(0)
+  })
+
+  it('gates organization search using the persisted owner even when the request omits it', async () => {
+    mocks.getKnowledgeBase.mockResolvedValue({
+      ...knowledgeBase,
+      workspaceId: null,
+      organizationId: 'org-canonical',
+    })
+    queueTableRows(member, [{ role: 'member' }])
+    mocks.requireOrganizationSearch.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Search is not enabled for this organization')
+    )
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+      })
+    ).rejects.toThrow('Search is not enabled for this organization')
+    expect(mocks.requireOrganizationSearch).toHaveBeenCalledExactlyOnceWith('org-canonical')
+    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+    expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
   it('authorizes every canonical knowledge base before billing and search', async () => {

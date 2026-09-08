@@ -3,6 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
@@ -247,6 +248,16 @@ describe('credential group OAuth callback', () => {
     const response = await GET(request('state=state-1&code=code-1'), context)
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('/credential-groups/complete?oauth=rate_limited')
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
+  })
+  it('reports a state protocol change as an explicit restart without exchanging a code', async () => {
+    mocks.consumeAttempt.mockRejectedValue(new CredentialGroupOAuthStateVersionError())
+    const response = await GET(request('state=state-1&code=code-1'), context)
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: expect.stringContaining('Reopen your invitation and connect again'),
+    })
+    expect(mocks.authenticate).not.toHaveBeenCalled()
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
 })

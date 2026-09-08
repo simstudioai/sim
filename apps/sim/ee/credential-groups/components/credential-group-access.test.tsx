@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const mocks = vi.hoisted(() => ({
-  addWorkflowModalProps: null as {
-    workflows: Array<{ id: string; name: string }>
+  addResourceModalProps: null as {
+    resources: Array<{ id: string; name: string }>
     onAdd: (workflowId: string) => void
     onClose: () => void
   } | null,
@@ -107,13 +107,13 @@ vi.mock(
   })
 )
 
-vi.mock('@/ee/credential-groups/components/credential-group-add-workflow-modal', () => ({
-  CredentialGroupAddWorkflowModal: (props: {
-    workflows: Array<{ id: string; name: string }>
+vi.mock('@/ee/credential-groups/components/credential-group-add-resource-modal', () => ({
+  CredentialGroupAddResourceModal: (props: {
+    resources: Array<{ id: string; name: string }>
     onAdd: (workflowId: string) => void
     onClose: () => void
   }) => {
-    mocks.addWorkflowModalProps = props
+    mocks.addResourceModalProps = props
     return <div>Add workflow modal</div>
   },
 }))
@@ -194,7 +194,7 @@ function renderAccess(overrides: Partial<React.ComponentProps<typeof CredentialG
 beforeEach(() => {
   vi.clearAllMocks()
   useSettingsDirtyStore.getState().reset()
-  mocks.addWorkflowModalProps = null
+  mocks.addResourceModalProps = null
   mocks.mutationError = null
   mocks.useAccess.mockReturnValue({
     data: {
@@ -346,10 +346,10 @@ describe('CredentialGroupAccess', () => {
 
     act(() => access.button('Add workflow').click())
 
-    expect(mocks.addWorkflowModalProps?.workflows).toEqual([
+    expect(mocks.addResourceModalProps?.resources).toEqual([
       { id: 'workflow-2', name: 'Support workflow' },
     ])
-    act(() => mocks.addWorkflowModalProps?.onAdd('workflow-2'))
+    act(() => mocks.addResourceModalProps?.onAdd('workflow-2'))
     expect(access.onAllowedWorkflowIdsChange).toHaveBeenCalledWith(['workflow-1', 'workflow-2'], 7)
   })
 

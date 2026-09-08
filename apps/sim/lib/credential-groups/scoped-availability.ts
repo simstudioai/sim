@@ -8,11 +8,14 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 
-/** Uses the resource's exact payer and flag scope; organization membership never implies workspace access. */
+/** Workspace callers inherit their canonical organization's rollout; authorization remains separate. */
 export async function isScopedCredentialGroupsAvailable(scope: ResourceScope): Promise<boolean> {
   if (scope.kind === 'workspace') {
     const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(scope.workspaceId)
-    return isCredentialGroupsAvailable({ workspaceId: scope.workspaceId, ownerBilling })
+    return isCredentialGroupsAvailable({
+      organizationId: ownerBilling.organizationId,
+      ownerBilling,
+    })
   }
   if (!(await isFeatureEnabled('credential-groups', { orgId: scope.organizationId }))) return false
   if (!isHosted) return true

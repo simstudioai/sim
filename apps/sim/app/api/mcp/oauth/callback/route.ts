@@ -15,6 +15,7 @@ import {
   consumeCredentialGroupMcpOAuthAttempt,
   isCredentialGroupMcpOAuthState,
 } from '@/lib/credential-groups/mcp-oauth-state'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import {
   assertSafeOauthServerUrl,
@@ -84,7 +85,15 @@ async function completeManagedMcpCallback(params: {
   code?: string
   error?: string
 }): Promise<NextResponse> {
-  const attempt = await consumeCredentialGroupMcpOAuthAttempt(params.state)
+  let attempt
+  try {
+    attempt = await consumeCredentialGroupMcpOAuthAttempt(params.state)
+  } catch (error) {
+    if (error instanceof CredentialGroupOAuthStateVersionError) {
+      return htmlClose(error.message, false, 'invalid_state', undefined, params.state)
+    }
+    throw error
+  }
   if (!attempt) {
     return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
   }
@@ -97,7 +106,7 @@ async function completeManagedMcpCallback(params: {
     })
   }
   try {
-    const principal = credentialGroupOAuthAttemptPrincipal(attempt)
+    const principal = await credentialGroupOAuthAttemptPrincipal(attempt)
     const result = await completePublicCredentialGroupMcpOAuth.execute({
       principal,
       input: { attempt, code: params.code },
@@ -194,7 +203,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
         .limit(1)
     )
-    if (!server || !server.url) {
+    if (!server || !server.url || !server.workspaceId) {
       return respond('Server no longer exists.', false, 'server_gone', serverId)
     }
     if (server.workspaceId !== row.workspaceId) {
@@ -206,6 +215,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
     const serverUrl = server.url
+    const serverWorkspaceId = server.workspaceId
     try {
       assertSafeOauthServerUrl(serverUrl)
     } catch {
@@ -257,7 +267,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       // forceRefresh: skip any stale cache from before re-auth.
       await timedStep('discoverServerTools', 60_000, () =>
-        mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, 'force')
+        mcpService.discoverServerTools(session.user.id, server.id, serverWorkspaceId, 'force')
       )
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)

@@ -21,9 +21,12 @@ const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
   { id: 'integrations', label: 'Integrations', icon: Integration, route: 'integrations' },
 ]
 
-export function buildOrganizationNavItems(organizationId: string): SidebarNavItemData[] {
+export function buildOrganizationNavItems(
+  organizationId: string,
+  searchAvailable: boolean
+): SidebarNavItemData[] {
   const routes = organizationRoutes(organizationId)
-  return ORGANIZATION_NAV_ENTRIES.map(({ route, ...entry }) => ({
+  return ORGANIZATION_NAV_ENTRIES.filter(() => searchAvailable).map(({ route, ...entry }) => ({
     ...entry,
     href: routes[route],
   }))

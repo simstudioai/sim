@@ -4,7 +4,6 @@ import {
   credentialGroup,
   credentialGroupEnrollment,
   credentialMember,
-  foldedEmail,
   permissions,
   user,
   workspace,
@@ -876,11 +875,21 @@ export async function getEnrolledManagedOAuthCredentials(
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .innerJoin(user, eq(foldedEmail(user.email), credentialGroupEnrollment.email))
+    .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
+    .innerJoin(workspace, eq(workspace.id, workspaceId))
     .where(
       and(
-        eq(credential.workspaceId, workspaceId),
-        eq(credentialGroup.workspaceId, workspaceId),
+        or(
+          and(
+            eq(credential.workspaceId, workspaceId),
+            eq(credentialGroup.workspaceId, workspaceId)
+          ),
+          and(
+            eq(credential.organizationId, workspace.organizationId),
+            eq(credentialGroup.organizationId, workspace.organizationId)
+          )
+        ),
+        eq(credential.createdBy, userId),
         eq(credential.type, 'managed_oauth'),
         credentialId === undefined ? undefined : eq(credential.id, credentialId),
         eq(user.id, userId),

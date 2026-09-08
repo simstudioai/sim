@@ -10,6 +10,10 @@ const { mockSearchAccess, mockPermissionConfig, featureFlags } = vi.hoisted(() =
   mockPermissionConfig: vi.fn(),
   featureFlags: { invitationsDisabled: false },
 }))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
+}))
+
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mockPermissionConfig,
 }))
@@ -60,6 +64,7 @@ describe('getOrganizationSurfaceContext', () => {
         canInviteMembers: true,
         canUsePersonalApiKeys: true,
       },
+      connectedAccountsAvailable: true,
       searchAccess: { memberScoped: true, sourceMirrored: false },
     })
     expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })

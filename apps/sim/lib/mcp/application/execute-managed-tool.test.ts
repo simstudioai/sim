@@ -92,6 +92,9 @@ describe('executeManagedMcpToolUseCase', () => {
       mcpServerId: context.mcpServerId,
       mcpServerName: context.mcpServerName,
       workspaceId: context.workspaceId,
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      oauthConfigVersion: 2,
+      grantedAt: new Date('2026-09-01'),
       tokenVersion: 'encrypted-token-version-1',
       tokens: { access_token: 'access-token' },
       tools: [],
@@ -185,27 +188,32 @@ describe('executeManagedMcpToolUseCase', () => {
     expect(mocks.loadRuntime).toHaveBeenCalledWith(context.credentialId, context.workspaceId)
     expect(mocks.discoverTools).toHaveBeenCalledWith(
       context.mcpServerId,
-      context.workspaceId,
+      { kind: 'organization', organizationId: 'org-1' },
       { credentialId: context.credentialId, loadProvider: expect.any(Function) },
       signal,
       { requireComplete: true }
     )
-    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(context.credentialId, [
-      {
-        name: 'search_transcripts',
-        description: 'Search Fireflies transcripts',
-        inputSchema: {
-          type: 'object',
-          required: ['query'],
-          properties: { query: { type: 'string' } },
+    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(
+      context.credentialId,
+      [
+        {
+          name: 'search_transcripts',
+          description: 'Search Fireflies transcripts',
+          inputSchema: {
+            type: 'object',
+            required: ['query'],
+            properties: { query: { type: 'string' } },
+          },
         },
-      },
-    ])
+      ],
+      2,
+      new Date('2026-09-01')
+    )
     expect(mocks.executeTool).toHaveBeenCalledWith(
       expect.objectContaining({
         connectionId: context.credentialId,
         serverId: context.mcpServerId,
-        workspaceId: context.workspaceId,
+        scope: { kind: 'organization', organizationId: 'org-1' },
         toolCall: {
           name: 'search_transcripts',
           arguments: { query: 'onboarding' },

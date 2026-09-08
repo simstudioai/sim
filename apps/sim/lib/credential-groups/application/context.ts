@@ -13,7 +13,10 @@ import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/applicat
 
 export async function requireCredentialGroupsAvailable(workspaceId: string): Promise<void> {
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)
-  const availability = await resolveCredentialGroupsAvailability({ workspaceId, ownerBilling })
+  const availability = await resolveCredentialGroupsAvailability({
+    organizationId: ownerBilling.organizationId,
+    ownerBilling,
+  })
   if (!availability.available) {
     const message =
       availability.reason === 'enterprise_plan_required'
@@ -25,7 +28,12 @@ export async function requireCredentialGroupsAvailable(workspaceId: string): Pro
 
 export async function requireCredentialGroupSettingsAvailable(workspaceId: string): Promise<void> {
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)
-  if (!(await isCredentialGroupsAvailable({ workspaceId, ownerBilling }))) {
+  if (
+    !(await isCredentialGroupsAvailable({
+      organizationId: ownerBilling.organizationId,
+      ownerBilling,
+    }))
+  ) {
     throw new OrchestrationError('not_found', 'Credential Groups are not available')
   }
 }

@@ -1,5 +1,4 @@
-import { getWorkspaceAccountsSettings } from '@/lib/credential-groups/application/manage-groups'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import { getWorkspaceOrganizationAccounts } from '@/lib/credential-groups/application/workspace-organization-accounts'
 import { listInternalCredentials } from '@/lib/credentials/application/credential-crud'
 import { fetchOllamaEmbeddingModelCatalog } from '@/lib/embeddings/ollama-model-catalog.server'
 import { fetchOpenRouterEmbeddingModelCatalog } from '@/lib/embeddings/openrouter-model-catalog.server'
@@ -214,20 +213,32 @@ export const internalSelectorAttachments = {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
       if (!args.workspaceId) throw new SelectorContextUnavailableError()
-      const { credentialGroup: group } = await getWorkspaceAccountsSettings.execute({
+      const result = await getWorkspaceOrganizationAccounts.execute({
         principal: args.principal,
         input: { workspaceId: args.workspaceId },
       })
-      const options = (group?.options ?? [])
-        .filter((option) => option.status === 'active')
-        .map((option) => {
-          const service = getCredentialGroupProviderService(option.provider)
-          return { id: service.providerId, label: service.name }
-        })
-        .sort((left, right) => left.label.localeCompare(right.label))
+      if (!result.allowed) throw new SelectorOptionsUnavailableError()
+      const options = result.providers
       if (args.request.kind === 'detail') {
-        const detailId = args.request.id
-        return detailSelectorResult(options.find((option) => option.id === detailId) ?? null)
+        const id = args.request.id
+        return detailSelectorResult(options.find((option) => option.id === id) ?? null)
+      }
+      return listSelectorResult(options)
+    },
+  },
+  'workspace.organizationMcpProviders': {
+    destination: 'fixed',
+    async execute(args: ExecuteServerSelectorArgs) {
+      if (!args.workspaceId) throw new SelectorContextUnavailableError()
+      const result = await getWorkspaceOrganizationAccounts.execute({
+        principal: args.principal,
+        input: { workspaceId: args.workspaceId },
+      })
+      if (!result.allowed) throw new SelectorOptionsUnavailableError()
+      const options = result.mcpProviders
+      if (args.request.kind === 'detail') {
+        const id = args.request.id
+        return detailSelectorResult(options.find((option) => option.id === id) ?? null)
       }
       return listSelectorResult(options)
     },

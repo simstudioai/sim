@@ -40,7 +40,10 @@ function requireToolSchema(value: unknown): McpToolSchema {
 export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.useManagedMcp,
   resolveContext: async ({ input }: { input: ExecuteManagedMcpToolInput }) => {
-    const context = await loadManagedMcpCredentialApplicationContext(input.credentialId)
+    const context = await loadManagedMcpCredentialApplicationContext(
+      input.credentialId,
+      input.workspaceId
+    )
     if (!context) throw new OrchestrationError('not_found', 'Managed MCP connection not found')
     if (context.workspaceId !== input.workspaceId) {
       throw new OrchestrationError('not_found', 'Managed MCP connection not found')
@@ -56,7 +59,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
     const tools = await mcpService.discoverManagedMcpTools(
       runtime.mcpServerId,
-      runtime.workspaceId,
+      runtime.scope,
       {
         credentialId: runtime.credentialId,
         loadProvider: () => loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
@@ -70,7 +73,9 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
         name: tool.name,
         ...(tool.description ? { description: tool.description } : {}),
         inputSchema: tool.inputSchema,
-      }))
+      })),
+      runtime.oauthConfigVersion,
+      runtime.grantedAt
     )
     const discovered = tools.find((tool) => tool.name === input.toolName)
     if (!discovered) {
@@ -93,7 +98,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     const providerResult = await mcpService.executeManagedMcpTool({
       connectionId: runtime.credentialId,
       serverId: runtime.mcpServerId,
-      workspaceId: runtime.workspaceId,
+      scope: runtime.scope,
       toolCall,
       extraHeaders,
       signal: input.signal,

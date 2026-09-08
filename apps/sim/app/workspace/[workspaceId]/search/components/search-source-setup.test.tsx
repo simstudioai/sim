@@ -520,6 +520,25 @@ describe('Search source setup with real connector dialogs', () => {
     expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
   })
 
+  it('prepares organization connected-account indexing in members mode even when central access is available', async () => {
+    mocks.bases = []
+    await render(
+      <SearchSourceSetup
+        scope={{ kind: 'organization', organizationId: 'org-1' }}
+        canAdmin
+        memberAccessAvailable
+        mirroredAccessAvailable
+        membersOnly
+      />,
+      '?addConnector=slack'
+    )
+    await click(button('Continue setup'))
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      { organizationId: 'org-1', connectorType: 'slack', accessMode: 'members' },
+      expect.any(Object)
+    )
+  })
+
   it('does not reuse mutation data after the current index has been removed', async () => {
     mocks.prepareData = { knowledgeBaseId: 'kb-search' }
     mocks.bases = []
@@ -1160,8 +1179,9 @@ describe('administrator source prerequisites in real connector dialogs', () => {
           initialAccessMode={accessMode}
         />
       )
-      expect(document.body.textContent).toContain('Crawl as')
-      expect(document.body.textContent).not.toContain('Crawl as*')
+      const subjectLabel = accessMode === 'members' ? 'Sync documents with' : 'Crawl as'
+      expect(document.body.textContent).toContain(subjectLabel)
+      expect(document.body.textContent).not.toContain(`${subjectLabel}*`)
       const submit = button(accessMode === 'members' ? 'Create & Invite' : 'Connect & Sync')
       expect(submit).toBeEnabled()
       await click(submit)

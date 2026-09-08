@@ -1,12 +1,15 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
-  requireCredentialGroupsAvailable,
-  resolveWorkspaceAccountsContext,
-} from '@/lib/credential-groups/application/context'
+  credentialGroupDelegationPolicy,
+  requireCredentialGroupWorkflowActor,
+} from '@/lib/credential-groups/application/authorization'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
+import {
+  requireOrganizationAccountsWorkspaceAccess,
+  resolveOrganizationAccountsWorkspaceContext,
+} from '@/lib/credential-groups/application/organization-workspace-access'
 import {
   CredentialGroupCredentialCursorNotFoundError,
   type CredentialGroupCredentialReference,
@@ -36,8 +39,12 @@ export interface ListCredentialGroupCredentialsResult {
 export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listCredentials,
   resolveContext: ({ input }: { input: ListCredentialGroupCredentialsInput }) =>
-    resolveWorkspaceAccountsContext(input.workspaceId),
+    resolveOrganizationAccountsWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+  async authorizeResource({ principal, context }) {
+    requireCredentialGroupWorkflowActor(principal)
+    await requireOrganizationAccountsWorkspaceAccess(context)
+  },
   execute: async ({ input, context }): Promise<ListCredentialGroupCredentialsResult> => {
     if (
       !Number.isInteger(input.limit) ||
@@ -81,12 +88,10 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
       )
     }
 
-    await requireCredentialGroupsAvailable(context.workspaceId)
-
     let page
     try {
       page = await listCredentialGroupCredentialReferences({
-        workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
         credentialGroupId: context.credentialGroupId,
         credentialGroupOptionIds: activeOptions.map((option) => option.id),
         limit: input.limit,

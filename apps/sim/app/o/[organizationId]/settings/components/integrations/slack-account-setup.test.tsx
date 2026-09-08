@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
   ensure: vi.fn(),
   prepare: vi.fn(),
-  credentials: vi.fn(),
   modal: vi.fn(),
   setProvider: vi.fn(),
   setReturnSource: vi.fn(),
@@ -29,7 +28,6 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccounts: mocks.accounts,
   useEnsureOrganizationAccounts: mocks.prepare,
 }))
-vi.mock('@/hooks/queries/scoped-credentials', () => ({ useScopedCredentials: mocks.credentials }))
 vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
   SlackManagedUsersModal: mocks.modal,
 }))
@@ -55,7 +53,6 @@ describe('organization Slack setup continuation', () => {
       isPending: false,
       error: null,
     })
-    mocks.credentials.mockReturnValue({ data: [], isPending: false, error: null })
     mocks.modal.mockReturnValue(null)
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -77,12 +74,6 @@ describe('organization Slack setup continuation', () => {
     expect(mocks.ensure).toHaveBeenCalledExactlyOnceWith({ organizationId: 'org-a' })
     expect(document.body.textContent).toContain('Loading Slack setup')
     expect(document.body.textContent).not.toContain('Continue')
-    expect(mocks.credentials).toHaveBeenCalledWith({
-      organizationId: 'org-a',
-      type: 'service_account',
-      providerId: 'slack-custom-bot',
-      enabled: true,
-    })
   })
 
   it('does not prepare accounts or open admin setup for an ordinary member', async () => {
@@ -105,6 +96,7 @@ describe('organization Slack setup continuation', () => {
     const props = mocks.modal.mock.calls[0][0]
     expect(props).toMatchObject({ organizationId: 'org-a', credentialGroupId: 'group-a' })
     expect(props).not.toHaveProperty('workspaceId')
+    expect(props.bots).toEqual([])
     props.onOpenChange(false)
     expect(mocks.setProvider).toHaveBeenCalledExactlyOnceWith(null)
     expect(mocks.setReturnSource).toHaveBeenCalledExactlyOnceWith(null, { history: 'replace' })

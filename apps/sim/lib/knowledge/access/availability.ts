@@ -13,9 +13,10 @@ import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scope
  * Who is asking. Members mode — creating, switching, syncing, and honouring
  * member tokens — is judged by the resource owner alone, because the member engine
  * has no person to speak for and every gate must agree with it. Retrieval
- * defaults pass the signed-in user as well, so the flag's platform-admin
+ * defaults for workspaces pass the signed-in user as well, so the flag's platform-admin
  * clause lets an admin try hybrid retrieval anywhere; an actorless caller
- * (a schedule, a cron, a workspace API key) passes none.
+ * (a schedule, a cron, a workspace API key) passes none. Organization access
+ * always uses the target organization alone, including retrieval.
  */
 export interface KnowledgeMemberAccessContext {
   workspaceId?: string
@@ -41,17 +42,19 @@ export interface KnowledgeAccessAvailability {
 export async function resolveKnowledgeAccessAvailability(
   context: KnowledgeMemberAccessContext
 ): Promise<KnowledgeAccessAvailability> {
+  if (context.organizationId && context.workspaceId)
+    throw new Error('Knowledge access requires one resource owner')
   if (
-    !(await isFeatureEnabled('knowledge-member-access', {
-      workspaceId: context.workspaceId,
-      orgId: context.organizationId,
-      userId: context.userId,
-    }))
+    !(await isFeatureEnabled(
+      'knowledge-member-access',
+      context.organizationId
+        ? { orgId: context.organizationId }
+        : { workspaceId: context.workspaceId, userId: context.userId }
+    ))
   ) {
     return { sourceMirrored: false, memberScoped: false }
   }
   if (context.organizationId) {
-    if (context.workspaceId) throw new Error('Knowledge access requires one resource owner')
     return {
       sourceMirrored:
         !isHosted || (await isOrganizationOnEnterprisePlan(context.organizationId, 'throw')),
@@ -70,7 +73,7 @@ export async function resolveKnowledgeAccessAvailability(
   return {
     sourceMirrored,
     memberScoped: await isCredentialGroupsAvailable({
-      workspaceId: context.workspaceId,
+      organizationId: ownerBilling.organizationId,
       ownerBilling,
     }),
   }
@@ -84,13 +87,20 @@ export async function resolveKnowledgeAccessAvailability(
  * check this; the reader's tokens come from `resolveKnowledgeAccessAvailability`
  * directly, which this is the `memberScoped` half of, so they can never
  * disagree. When it turns off, member-scoped documents are hidden on the next
- * read, members-mode connectors wait rather than change anything, and search
- * returns to the semantic-only default; nothing is deleted.
+ * read and members-mode connectors wait rather than change anything. Organization
+ * Search is blocked; workspace search returns to the semantic-only default.
+ * Nothing is deleted.
  */
 export async function isKnowledgeMemberAccessAvailable(
   context: KnowledgeMemberAccessContext
 ): Promise<boolean> {
   return (await resolveKnowledgeAccessAvailability(context)).memberScoped
+}
+
+/** Organization Search is available only when both owner-scoped rollout gates are enabled. */
+export async function requireOrganizationSearchAvailable(organizationId: string): Promise<void> {
+  if (await isKnowledgeMemberAccessAvailable({ organizationId })) return
+  throw new OrchestrationError('forbidden', 'Search is not enabled for this organization')
 }
 
 /** Refuses with the one message every source-mirroring gate uses when the feature is off. */
