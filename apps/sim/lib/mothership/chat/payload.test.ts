@@ -529,6 +529,8 @@ describe('buildCopilotRequestPayload', () => {
         model: 'claude-opus-4-8',
         workspaceId: 'ws-1',
         userTimezone: 'America/Los_Angeles',
+        effort: 'max',
+        modelSelection: { model: 'gpt-6-astra', fastMode: true },
       },
       { selectedModel: 'claude-opus-4-8' }
     )
@@ -540,6 +542,8 @@ describe('buildCopilotRequestPayload', () => {
         messageId: 'msg-1',
         workspaceId: 'ws-1',
         userTimezone: 'America/Los_Angeles',
+        effort: 'max',
+        modelSelection: { model: 'gpt-6-astra', fastMode: true },
       })
     )
     // Model/provider/mode are server-decided (P12); permissions are enforced by v2 under
