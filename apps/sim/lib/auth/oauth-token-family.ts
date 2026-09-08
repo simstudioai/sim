@@ -276,8 +276,6 @@ export async function rotateOAuthRefreshToken(
 
   const membership = await getUserOrganization(provisionalToken.userId, database)
   const organizationId = membership?.organizationId ?? null
-  const permissionRegimeActive =
-    organizationId !== null && (await isOrganizationPermissionRegimeActive(organizationId))
   const nextRefreshBody = generateSecureToken(32)
   const nextAccessBody = generateSecureToken(32)
   const nextRefreshId = generateId()
@@ -295,6 +293,8 @@ export async function rotateOAuthRefreshToken(
         'Organization membership changed. Please sign in again.'
       )
     }
+    const permissionRegimeActive =
+      organizationId !== null && (await isOrganizationPermissionRegimeActive(organizationId, tx))
 
     const [activeUser] = await tx
       .select({

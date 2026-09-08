@@ -310,24 +310,22 @@ export async function getUserPermissionConfigForOrganization(
  * enables Access Control, and the organization holds the Enterprise entitlement
  * that turns the regime on.
  *
- * Split out of {@link getUserPermissionConfigForOrganization} so a caller that
- * must re-read the *group* under `acquirePermissionGroupOrgLock` can settle this
- * half BEFORE opening its transaction. The entitlement read cannot move into a
- * transaction: {@link isOrganizationOnEnterprisePlan} is `cache()`d on its
- * argument list, so it admits no executor, and giving it one would both miss the
- * memo on every call and — because an unentitled organization resolves to
- * `config: null`, meaning every capability ALLOWED — turn a read failure into a
- * fail-open. The lock never serialized this half either way: it guards
- * permission-group writes, not subscription changes.
+ * Callers that serialize entitlement changes with an organization mutation
+ * lock must pass their transaction after acquiring that lock. The executor is
+ * part of the entitlement cache key, so this read cannot reuse a preflight
+ * result. A permission-group lock alone only serializes group writes.
  *
  * `'throw'` for the same reason as in
  * {@link resolveUserAccessControlContextForOrganization}.
  */
 export async function isOrganizationPermissionRegimeActive(
-  organizationId: string
+  organizationId: string,
+  executor?: DbOrTx
 ): Promise<boolean> {
   if (!isHosted && !isAccessControlEnabled) return false
-  return isOrganizationOnEnterprisePlan(organizationId, 'throw')
+  return executor
+    ? isOrganizationOnEnterprisePlan(organizationId, 'throw', executor)
+    : isOrganizationOnEnterprisePlan(organizationId, 'throw')
 }
 
 /**
