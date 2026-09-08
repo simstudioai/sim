@@ -5,8 +5,6 @@ import type { InternalToolOperationImplementation } from '@/lib/internal/tool-op
 import {
   DEFAULT_CONVERSATION_PAGE_LIMIT,
   MAX_CONVERSATION_PAGE_LIMIT,
-  MAX_CONVERSATION_PAGES,
-  MAX_CONVERSATIONS,
 } from '@/tools/slack/list_channels'
 import type { SlackListChannelsParams, SlackListChannelsResponse } from '@/tools/slack/types'
 import {
@@ -115,51 +113,33 @@ export const executeSlackListConversationsOperation: InternalToolOperationImplem
     'Conversation page size',
     MAX_CONVERSATION_PAGE_LIMIT
   )
-  const maxPages = resolveBoundedInteger(
-    params.maxPages,
-    MAX_CONVERSATION_PAGES,
-    'Maximum conversation pages',
-    MAX_CONVERSATION_PAGES
-  )
-  let cursor =
+  const cursor =
     params.cursor === undefined ? undefined : requireSlackString(params.cursor, 'Pagination cursor')
-  const seenCursors = new Set(cursor ? [cursor] : [])
-  const channels: SlackConversation[] = []
-  let nextCursor: string | null = null
-  let pages = 0
+  const { data } = await requestSlackApi({
+    accessToken,
+    method: 'conversations.list',
+    httpMethod: 'GET',
+    query: {
+      types,
+      exclude_archived: String(excludeArchived),
+      limit,
+      cursor,
+    },
+    signal,
+  })
+  const parsed = slackListConversationsResponseSchema.parse(data)
+  assertSlackApiSuccess(parsed, 'Failed to list conversations from Slack')
+  if (!parsed.channels) {
+    throw new Error('Slack returned a malformed conversations list')
+  }
+  if (parsed.channels.length > limit) {
+    throw new Error(`Slack returned more than the requested ${limit} conversations`)
+  }
 
-  while (pages < maxPages && channels.length < MAX_CONVERSATIONS) {
-    const pageLimit = Math.min(limit, MAX_CONVERSATIONS - channels.length)
-    const { data } = await requestSlackApi({
-      accessToken,
-      method: 'conversations.list',
-      httpMethod: 'GET',
-      query: {
-        types,
-        exclude_archived: String(excludeArchived),
-        limit: pageLimit,
-        cursor,
-      },
-      signal,
-    })
-    const parsed = slackListConversationsResponseSchema.parse(data)
-    assertSlackApiSuccess(parsed, 'Failed to list conversations from Slack')
-    if (!parsed.channels) {
-      throw new Error('Slack returned a malformed conversations list')
-    }
-    if (parsed.channels.length > pageLimit) {
-      throw new Error(`Slack returned more than the requested ${pageLimit} conversations`)
-    }
-
-    channels.push(...parsed.channels.map(mapSlackConversation))
-    pages += 1
-    nextCursor = parsed.response_metadata?.next_cursor?.trim() || null
-    if (!nextCursor) break
-    if (seenCursors.has(nextCursor)) {
-      throw new Error('Slack returned a repeated conversation pagination cursor')
-    }
-    seenCursors.add(nextCursor)
-    cursor = nextCursor
+  const channels = parsed.channels.map(mapSlackConversation)
+  const nextCursor = parsed.response_metadata?.next_cursor?.trim() || null
+  if (nextCursor && nextCursor === cursor) {
+    throw new Error('Slack returned a repeated conversation pagination cursor')
   }
 
   return {
@@ -173,7 +153,7 @@ export const executeSlackListConversationsOperation: InternalToolOperationImplem
       count: channels.length,
       hasMore: Boolean(nextCursor),
       nextCursor,
-      pages,
+      pages: 1,
     },
   }
 }

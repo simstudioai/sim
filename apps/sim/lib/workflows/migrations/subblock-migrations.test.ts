@@ -177,6 +177,34 @@ describe('migrateSubblockIds', () => {
     expect(blocks.b1.subBlocks.metrics).toBeUndefined()
   })
 
+  it.each(['slack', 'slack_v2'])(
+    'removes the retired channel page cap from %s while preserving pagination inputs',
+    (type) => {
+      const input = {
+        b1: makeBlock({
+          type,
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'list_channels' },
+            channelMaxPages: { id: 'channelMaxPages', type: 'short-input', value: '200' },
+            channelLimit: { id: 'channelLimit', type: 'short-input', value: '50' },
+            paginationCursor: { id: 'paginationCursor', type: 'short-input', value: 'cursor-2' },
+            historyMaxPages: { id: 'historyMaxPages', type: 'short-input', value: '10' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks).not.toHaveProperty('channelMaxPages')
+      expect(blocks.b1.subBlocks).not.toHaveProperty('_removed_channelMaxPages')
+      expect(blocks.b1.subBlocks.channelLimit.value).toBe('50')
+      expect(blocks.b1.subBlocks.paginationCursor.value).toBe('cursor-2')
+      expect(blocks.b1.subBlocks.historyMaxPages.value).toBe('10')
+      expect(migrateSubblockIds(blocks).migrated).toBe(false)
+    }
+  )
+
   describe('snowflake block', () => {
     it('renames the object fields onto their advanced text inputs', () => {
       const input: Record<string, BlockState> = {

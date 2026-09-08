@@ -9,12 +9,6 @@ export const DEFAULT_CONVERSATION_PAGE_LIMIT = 100
 /** Slack's recommended upper bound for conversations.list page size. */
 export const MAX_CONVERSATION_PAGE_LIMIT = 200
 
-/** Default and hard cap on Slack conversation provider pages fetched per invocation. */
-export const MAX_CONVERSATION_PAGES = 200
-
-/** Hard cap on Slack conversations accumulated per invocation. */
-export const MAX_CONVERSATIONS = 10_000
-
 export const slackListChannelsTool: InternalToolConfig<
   SlackListChannelsParams,
   SlackListChannelsResponse
@@ -22,8 +16,8 @@ export const slackListChannelsTool: InternalToolConfig<
   id: 'slack_list_channels',
   name: 'Slack List Channels',
   description:
-    'List up to 10,000 accessible public and private Slack channels across as many cursor pages as Slack supplies, capped at 200 provider pages.',
-  version: '1.3.0',
+    'List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page.',
+  version: '1.3.1',
 
   oauth: {
     required: true,
@@ -75,12 +69,6 @@ export const slackListChannelsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination cursor from a previous response.nextCursor to resume from',
     },
-    maxPages: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of Slack pages to fetch (default: 200, max: 200)',
-    },
   },
 
   operation: {
@@ -90,7 +78,7 @@ export const slackListChannelsTool: InternalToolConfig<
   outputs: {
     channels: {
       type: 'array',
-      description: 'Up to 10,000 accessible public and private channels',
+      description: 'One page of accessible public and private channels',
       items: {
         type: 'object',
         properties: CONVERSATION_LIST_OUTPUT_PROPERTIES,
@@ -108,11 +96,11 @@ export const slackListChannelsTool: InternalToolConfig<
     },
     count: {
       type: 'number',
-      description: 'Total number of conversations returned across all fetched pages, up to 10,000',
+      description: 'Number of conversations returned in this page',
     },
     hasMore: {
       type: 'boolean',
-      description: 'Whether more Slack conversation pages remain beyond the fetched window',
+      description: 'Whether a next cursor is available to fetch more Slack conversations',
     },
     nextCursor: {
       type: 'string',
@@ -121,7 +109,7 @@ export const slackListChannelsTool: InternalToolConfig<
     },
     pages: {
       type: 'number',
-      description: 'Number of Slack conversation pages fetched in this invocation',
+      description: 'Number of Slack conversation pages fetched in this invocation (always 1)',
     },
   },
 }

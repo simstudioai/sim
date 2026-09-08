@@ -111,6 +111,9 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  /** List Channels now returns one page and a cursor; automatic page limits are retired. */
+  slack: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
+  slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
   /** Connected accounts resolve from the workspace; group selectors have no replacement. */

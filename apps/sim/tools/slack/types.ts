@@ -749,7 +749,6 @@ export interface SlackListChannelsParams extends SlackBaseParams {
   excludeArchived?: boolean
   limit?: number
   cursor?: string
-  maxPages?: number
 }
 
 export interface SlackListMembersParams extends SlackBaseParams {

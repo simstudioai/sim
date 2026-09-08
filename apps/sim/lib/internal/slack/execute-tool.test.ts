@@ -45,7 +45,7 @@ const INPUTS = {
   },
   slack_delete_message: { accessToken: 'token', channel: 'C1', timestamp: '1.0' },
   slack_download: { accessToken: 'token', fileId: 'F1', fileName: 'report.pdf' },
-  slack_list_channels: { accessToken: 'token', limit: 100, maxPages: 10 },
+  slack_list_channels: { accessToken: 'token', limit: 100, cursor: 'cursor-1' },
   slack_ephemeral_message: {
     accessToken: 'token',
     channel: 'C1',

@@ -22205,7 +22205,7 @@
         },
         {
           "name": "List Channels",
-          "description": "List up to 10,000 accessible public and private Slack channels across as many cursor pages as Slack supplies, capped at 200 provider pages."
+          "description": "List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page."
         },
         {
           "name": "List Channel Members",

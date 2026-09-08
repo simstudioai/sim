@@ -771,17 +771,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       mode: 'advanced',
     },
-    {
-      id: 'channelMaxPages',
-      title: 'Max Pages',
-      type: 'short-input',
-      placeholder: '200',
-      condition: {
-        field: 'operation',
-        value: 'list_channels',
-      },
-      mode: 'advanced',
-    },
     // List Members specific fields
     {
       id: 'memberLimit',
@@ -823,7 +812,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       id: 'paginationCursor',
       title: 'Pagination Cursor',
       type: 'short-input',
-      placeholder: 'next_cursor from a previous response',
+      placeholder: 'nextCursor from a previous response',
       condition: {
         field: 'operation',
         value: ['list_channels', 'list_members', 'list_users'],
@@ -1923,7 +1912,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           emojiName,
           includePrivate,
           channelLimit,
-          channelMaxPages,
           memberLimit,
           includeDeleted,
           userLimit,
@@ -2149,17 +2137,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
               throw new Error('Conversations per page must be an integer between 1 and 200')
             }
             baseParams.limit = parsedLimit
-            const hasChannelMaxPages =
-              channelMaxPages !== undefined &&
-              channelMaxPages !== null &&
-              (typeof channelMaxPages !== 'string' || Boolean(channelMaxPages.trim()))
-            if (hasChannelMaxPages) {
-              const parsedMaxPages = Number(channelMaxPages)
-              if (!Number.isInteger(parsedMaxPages) || parsedMaxPages < 1 || parsedMaxPages > 200) {
-                throw new Error('Max pages must be an integer between 1 and 200')
-              }
-              baseParams.maxPages = parsedMaxPages
-            }
             if (paginationCursor) {
               baseParams.cursor = String(paginationCursor).trim()
             }
@@ -2426,7 +2403,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     // List Channels inputs
     includePrivate: { type: 'string', description: 'Include private channels (true/false)' },
     channelLimit: { type: 'string', description: 'Conversations to request per Slack page' },
-    channelMaxPages: { type: 'string', description: 'Maximum Slack pages to fetch (max 200)' },
     // List Members inputs
     memberLimit: { type: 'string', description: 'Maximum number of members to return' },
     // List Users inputs
@@ -2435,7 +2411,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     // Shared pagination input
     paginationCursor: {
       type: 'string',
-      description: 'Pagination cursor (next_cursor) for list_channels/list_members/list_users',
+      description: 'Pagination cursor (nextCursor) for list_channels/list_members/list_users',
     },
     // Ephemeral message inputs
     ephemeralUser: { type: 'string', description: 'User ID who will see the ephemeral message' },
@@ -2657,7 +2633,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     channels: {
       type: 'json',
       description:
-        'Array of up to 10,000 accessible public and private channel objects, including conversation type and membership fields.',
+        'One page of accessible public and private channel objects, including conversation type and membership fields.',
     },
     count: {
       type: 'number',
