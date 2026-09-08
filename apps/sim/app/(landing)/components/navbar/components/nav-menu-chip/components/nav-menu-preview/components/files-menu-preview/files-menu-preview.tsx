@@ -7,6 +7,10 @@ import {
   MenuPreviewToolbar,
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 
+interface FilesMenuPreviewProps {
+  layout?: 'menu' | 'hero'
+}
+
 const FILES = [
   {
     name: 'Brand assets',
@@ -51,9 +55,9 @@ const FILES = [
 ] as const
 
 /** A native Files resource list with the product’s file types and columns, without creation actions. */
-export function FilesMenuPreview() {
+export function FilesMenuPreview({ layout = 'menu' }: FilesMenuPreviewProps) {
   return (
-    <MenuPreviewFrame kind='files'>
+    <MenuPreviewFrame kind='files' layout={layout}>
       <div className='w-[660px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] font-normal text-[13px] text-[var(--text-body)] shadow-xs'>
         <MenuPreviewHeader icon={Files} title='Files' />
         <MenuPreviewToolbar>

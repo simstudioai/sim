@@ -6,8 +6,12 @@ import {
   SolutionsLogosRow,
   SolutionsStructuredData,
 } from '@/app/(landing)/components/solutions-page/components'
+import { SolutionsProductPage } from '@/app/(landing)/components/solutions-page/components/solutions-product-page'
 import { SOLUTIONS_SPACING } from '@/app/(landing)/components/solutions-page/constants'
-import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-page/types'
+import type {
+  SolutionsPageConfig,
+  SolutionsProductPageConfig,
+} from '@/app/(landing)/components/solutions-page/types'
 
 /**
  * Shared main content for platform and solutions routes. The content column
@@ -18,10 +22,14 @@ import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-p
 
 interface SolutionsPageProps {
   /** The complete page content - identity, hero, and ordered card rows. */
-  config: SolutionsPageConfig
+  config: SolutionsPageConfig | SolutionsProductPageConfig
 }
 
 export function SolutionsPage({ config }: SolutionsPageProps) {
+  if ('features' in config) {
+    return <SolutionsProductPage config={config} />
+  }
+
   return (
     <>
       <SolutionsStructuredData config={config} />

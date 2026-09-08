@@ -7,6 +7,10 @@ import {
   MenuPreviewToolbar,
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 
+interface KnowledgeMenuPreviewProps {
+  layout?: 'menu' | 'hero'
+}
+
 const DOCUMENTS = [
   {
     name: 'Product handbook.pdf',
@@ -51,9 +55,9 @@ const DOCUMENTS = [
 ] as const
 
 /** The production knowledge document list, cropped around its content and indexing metadata. */
-export function KnowledgeMenuPreview() {
+export function KnowledgeMenuPreview({ layout = 'menu' }: KnowledgeMenuPreviewProps) {
   return (
-    <MenuPreviewFrame kind='knowledge'>
+    <MenuPreviewFrame kind='knowledge' layout={layout}>
       <div className='w-[624px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] font-normal text-[13px] text-[var(--text-body)] shadow-xs'>
         <MenuPreviewHeader
           icon={Database}
@@ -110,7 +114,7 @@ export function KnowledgeMenuPreview() {
                 <td>{chunks}</td>
                 <td>{uploaded}</td>
                 <td>
-                  <Badge variant='green' size='sm'>
+                  <Badge variant='gray-secondary' size='sm'>
                     Enabled
                   </Badge>
                 </td>

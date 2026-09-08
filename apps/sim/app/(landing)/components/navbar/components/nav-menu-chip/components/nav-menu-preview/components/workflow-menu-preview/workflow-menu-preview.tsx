@@ -1,3 +1,6 @@
+'use client'
+
+import { useRef } from 'react'
 import { cn } from '@sim/emcn'
 import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import { STAGE_BLOCKS } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'
@@ -21,16 +24,40 @@ const BLOCKS = STAGE_BLOCKS.slice(0, 3).map((block, index) => ({
 
 const CONTINUATION = horizontalHandleAnchors(BLOCKS[2]).out
 
+interface WorkflowMenuPreviewProps {
+  layout?: 'menu' | 'hero'
+  onReady?: () => void
+}
+
 /** A cropped production canvas with a clear center and progressively softened inner edges. */
-export function WorkflowMenuPreview() {
+export function WorkflowMenuPreview({ layout = 'menu', onReady }: WorkflowMenuPreviewProps) {
+  const readyBlocksRef = useRef(new Set<string>())
+
+  const handleBlockReady = (blockId: string) => {
+    if (readyBlocksRef.current.has(blockId)) return
+    readyBlocksRef.current.add(blockId)
+    if (readyBlocksRef.current.size === BLOCKS.length) onReady?.()
+  }
+
   return (
     <div
       aria-hidden='true'
       inert
       data-workflow-menu-preview
-      className='pointer-events-none absolute inset-0 isolate flex select-none items-center justify-center overflow-hidden bg-[var(--surface-3)] [container-type:inline-size]'
+      data-preview-layout={layout}
+      className={cn(
+        'pointer-events-none absolute inset-0 isolate flex select-none items-center justify-center overflow-hidden [container-type:inline-size]',
+        layout === 'hero' ? 'bg-[var(--bg)]' : 'bg-[var(--surface-3)]'
+      )}
     >
-      <div className='relative h-[360px] w-[900px] shrink-0 [scale:min(0.9,tan(atan2(100cqw,800px)))]'>
+      <div
+        className={cn(
+          'relative h-[360px] w-[900px] shrink-0',
+          layout === 'hero'
+            ? '@max-[640px]:translate-x-[51px] [scale:clamp(0.9,tan(atan2(100cqw,900px)),1)]'
+            : '[scale:min(0.9,tan(atan2(100cqw,800px)))]'
+        )}
+      >
         <svg
           className='absolute inset-0 size-full overflow-visible text-[var(--text-secondary)]'
           viewBox='0 0 900 360'
@@ -49,7 +76,7 @@ export function WorkflowMenuPreview() {
             )
           })}
           <path
-            d={`M${CONTINUATION.x} ${CONTINUATION.y}H980`}
+            d={`M${CONTINUATION.x} ${CONTINUATION.y}H${layout === 'hero' ? 1000 : 980}`}
             stroke='var(--border-1)'
             strokeWidth={1.5}
           />
@@ -66,11 +93,21 @@ export function WorkflowMenuPreview() {
               orientation='horizontal'
               selected={block.id === 'enrich'}
               decorative
+              onReady={layout === 'hero' && onReady ? handleBlockReady : undefined}
             />
           </div>
         ))}
       </div>
-      <EdgeFade ground='surface' depth='preview' />
+      {layout === 'hero' ? (
+        <>
+          <div className='-translate-x-1/2 pointer-events-none absolute inset-y-0 left-1/2 w-[1100px] max-w-full'>
+            <EdgeFade ground='canvas' edges={['left', 'right']} depth='stage' />
+          </div>
+          <EdgeFade ground='canvas' edges={['top', 'bottom']} depth='preview' />
+        </>
+      ) : (
+        <EdgeFade ground='surface' depth='preview' />
+      )}
     </div>
   )
 }

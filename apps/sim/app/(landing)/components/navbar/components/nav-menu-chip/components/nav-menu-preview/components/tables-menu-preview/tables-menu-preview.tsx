@@ -15,6 +15,10 @@ import {
   MenuPreviewToolbar,
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 
+interface TablesMenuPreviewProps {
+  layout?: 'menu' | 'hero'
+}
+
 const LEADS = [
   { company: 'Acme Corp', score: 94, status: 'Qualified', contact: 'Alice Johnson' },
   { company: 'Northstar', score: 88, status: 'Qualified', contact: 'Daniel Park' },
@@ -31,9 +35,9 @@ const COLUMNS = [
 ] as const
 
 /** A cropped Tables editor with production column types, ruled cells, and neutral select values. */
-export function TablesMenuPreview() {
+export function TablesMenuPreview({ layout = 'menu' }: TablesMenuPreviewProps) {
   return (
-    <MenuPreviewFrame kind='tables'>
+    <MenuPreviewFrame kind='tables' layout={layout}>
       <div className='w-[620px] overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text-body)] text-small shadow-xs'>
         <MenuPreviewHeader icon={Table} title='Qualified leads' actions='5 rows' />
         <MenuPreviewToolbar>
@@ -80,7 +84,7 @@ export function TablesMenuPreview() {
                   {lead.score}
                 </td>
                 <td className='border-[var(--border)] border-r px-2.5'>
-                  <Badge variant='gray' size='sm'>
+                  <Badge variant='gray-secondary' size='sm'>
                     {lead.status}
                   </Badge>
                 </td>

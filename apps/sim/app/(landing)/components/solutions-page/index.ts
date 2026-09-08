@@ -5,4 +5,6 @@ export type {
   SolutionsHeroConfig,
   SolutionsPageConfig,
   SolutionsPillCta,
+  SolutionsProductFeatureConfig,
+  SolutionsProductPageConfig,
 } from './types'

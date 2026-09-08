@@ -1,8 +1,12 @@
-import { Chip } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
 import { LogsRunGraph } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/logs-menu-preview/components/logs-run-graph/logs-run-graph'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
+
+interface LogsMenuPreviewProps {
+  layout?: 'menu' | 'hero'
+}
 
 /** Successful runs grouped into hourly buckets, following the earlier RunHealth overview. */
 const RUN_COUNTS = [
@@ -19,10 +23,15 @@ const SUMMARY_STATS = [
 ] as const
 
 /** A successful-only sample of the earlier high-level Logs overview and run-volume graph. */
-export function LogsMenuPreview() {
+export function LogsMenuPreview({ layout = 'menu' }: LogsMenuPreviewProps) {
   return (
-    <MenuPreviewFrame kind='logs' interactive>
-      <div className='w-[560px] overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg)] font-normal text-[var(--text-body)] text-small shadow-xs'>
+    <MenuPreviewFrame kind='logs' layout={layout} interactive>
+      <div
+        className={cn(
+          'w-[560px] overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg)] font-normal text-[var(--text-body)] text-small shadow-xs',
+          layout === 'hero' && 'max-sm:w-[calc(100vw-48px)]'
+        )}
+      >
         <div aria-hidden='true' inert>
           <div className='flex h-11 items-center gap-1 px-2'>
             <Chip leftIcon={Search} tabIndex={-1}>

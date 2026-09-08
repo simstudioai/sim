@@ -38,6 +38,9 @@ const STANDALONE_LINKS = [{ label: 'Pricing', href: '/pricing' }] as const
 const SHEET_ROW =
   'rounded-lg px-3 py-2.5 text-[15px] text-[var(--text-body)] transition-colors hover:bg-[var(--surface-hover)]'
 
+const MENU_TRANSITION =
+  'transition-[opacity,translate,visibility] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none'
+
 export function MobileNav({ stars }: MobileNavProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { open, updateOpen } = useNavbarMenu('mobile')
@@ -71,30 +74,50 @@ export function MobileNav({ stars }: MobileNavProps) {
         onClick={() => updateOpen(!open)}
         className='flex size-[30px] items-center justify-center rounded-lg border border-[var(--border-1)] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-hover)]'
       >
-        {open ? <X className='size-[18px]' /> : <Menu className='size-[18px]' />}
+        <span aria-hidden='true' className='relative size-[18px]'>
+          <Menu
+            className={cn(
+              'absolute inset-0 size-full transition-[opacity,rotate] duration-150 ease-out motion-reduce:transition-none',
+              open ? 'rotate-45 opacity-0' : 'rotate-0 opacity-100'
+            )}
+          />
+          <X
+            className={cn(
+              'absolute inset-0 size-full transition-[opacity,rotate] duration-150 ease-out motion-reduce:transition-none',
+              open ? 'rotate-0 opacity-100' : '-rotate-45 opacity-0'
+            )}
+          />
+        </span>
       </button>
 
-      {open ? (
-        <button
-          type='button'
-          aria-hidden='true'
-          tabIndex={-1}
-          onClick={() => updateOpen(false)}
-          className={cn(
-            'fixed inset-0 top-[var(--landing-header-height)] z-40 cursor-default',
-            colorMixFallbacks.mobileBackdrop
-          )}
-        />
-      ) : null}
+      <button
+        type='button'
+        aria-hidden='true'
+        tabIndex={-1}
+        disabled={!open}
+        onClick={() => updateOpen(false)}
+        className={cn(
+          'fixed inset-0 top-[var(--landing-header-height)] z-40 cursor-default',
+          MENU_TRANSITION,
+          open
+            ? 'pointer-events-auto visible opacity-100 duration-[240ms]'
+            : 'pointer-events-none invisible opacity-0 duration-[180ms]'
+        )}
+      >
+        <span className={cn('absolute inset-0', colorMixFallbacks.mobileBackdrop)} />
+      </button>
 
       <div
         id='mobile-nav-sheet'
+        aria-hidden={!open}
+        inert={!open}
         className={cn(
-          'absolute top-full right-0 left-0 z-50 max-h-[calc(100dvh-var(--landing-header-height))] origin-top overflow-y-auto overscroll-contain border-[var(--border)] border-b transition-[opacity,transform,visibility] duration-200 motion-reduce:transition-none',
+          'absolute top-full right-0 left-0 z-50 max-h-[calc(100dvh-var(--landing-header-height))] origin-top overflow-y-auto overscroll-contain border-[var(--border)] border-b motion-reduce:translate-y-0',
           NAVBAR_GLASS_SURFACE,
+          MENU_TRANSITION,
           open
-            ? 'pointer-events-auto visible translate-y-0 opacity-100'
-            : '-translate-y-2 pointer-events-none invisible opacity-0'
+            ? 'pointer-events-auto visible translate-y-0 opacity-100 duration-[240ms]'
+            : '-translate-y-2 pointer-events-none invisible opacity-0 duration-[180ms]'
         )}
       >
         <div className='mx-auto flex w-full max-w-[1728px] flex-col gap-1 px-7 pt-2 pb-5'>

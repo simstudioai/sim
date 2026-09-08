@@ -60,6 +60,7 @@ interface FooterProps {
  * and Status remain external.
  */
 const PRODUCT_LINKS: FooterItem[] = [
+  { label: 'Overview', href: '/platform' },
   { label: 'Enterprise', href: '/enterprise' },
   { label: 'Chat', href: 'https://docs.sim.ai/mothership', external: true },
   { label: 'Workflows', href: '/workflows' },

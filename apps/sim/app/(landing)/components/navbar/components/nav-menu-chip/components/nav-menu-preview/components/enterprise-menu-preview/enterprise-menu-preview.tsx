@@ -1,4 +1,4 @@
-import { Chip, ChipDropdown } from '@sim/emcn'
+import { Chip, ChipDropdown, cn } from '@sim/emcn'
 import { Building, MoreHorizontal, Plus } from '@sim/emcn/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
@@ -11,11 +11,20 @@ const MEMBERS = [
   { name: 'Jamie', email: 'jamie@example.com', role: 'Member' },
 ] as const
 
+interface EnterpriseMenuPreviewProps {
+  layout?: 'menu' | 'hero'
+}
+
 /** Production member rows, role chips, and allowance meter make organization controls tangible. */
-export function EnterpriseMenuPreview() {
+export function EnterpriseMenuPreview({ layout = 'menu' }: EnterpriseMenuPreviewProps) {
   return (
-    <MenuPreviewFrame kind='enterprise'>
-      <div className='w-[566px] overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg)] shadow-xs'>
+    <MenuPreviewFrame kind='enterprise' layout={layout}>
+      <div
+        className={cn(
+          'w-[566px] overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg)] shadow-xs',
+          layout === 'hero' && '@max-[640px]:w-[calc(100cqw-48px)] min-w-[340px]'
+        )}
+      >
         <MenuPreviewHeader
           icon={Building}
           title='Organization'

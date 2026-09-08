@@ -20,7 +20,7 @@ export const PLATFORM_MENU: NavMenu = {
           title: 'Overview',
           description:
             'See how Sim’s products work together to build, run, and govern agent systems.',
-          href: '/#platform',
+          href: '/platform',
           preview: {
             kind: 'overview',
             eyebrow: 'Overview',

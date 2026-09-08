@@ -225,7 +225,7 @@ export function GovernanceLoop() {
                         </Badge>
                       </td>
                       <td className='px-6 align-middle'>
-                        <Badge variant={near ? 'amber' : 'gray-secondary'} size='sm' dot>
+                        <Badge variant='gray-secondary' size='sm' dot>
                           {near ? 'Near limit' : 'Under limit'}
                         </Badge>
                       </td>

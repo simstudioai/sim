@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Check,
@@ -38,6 +38,8 @@ interface StageBlockCardProps {
   runStatus?: 'idle' | 'running' | 'complete'
   onSelect?: (blockId: string) => void
   onRunToggle?: (blockId: string) => void
+  /** Reports when the initial silhouette and any selection toolbar are painted. */
+  onReady?: (blockId: string) => void
 }
 
 const CONNECTION_TAB_LENGTH = 36
@@ -202,7 +204,10 @@ export function StageBlockCard({
   runStatus = 'idle',
   onSelect,
   onRunToggle,
+  onReady,
 }: StageBlockCardProps) {
+  const borderHostRef = useRef<HTMLDivElement>(null)
+  const readyReportedRef = useRef(false)
   const type = block.type ?? (block.isTrigger ? 'start_trigger' : 'starter')
   const running = runStatus === 'running'
   const complete = runStatus === 'complete'
@@ -215,6 +220,30 @@ export function StageBlockCard({
   useEffect(() => {
     if (!showActionMenu) setActionMenuReady(false)
   }, [showActionMenu])
+
+  useEffect(() => {
+    const host = borderHostRef.current
+    if (!onReady || !host || readyReportedRef.current || (showActionMenu && !actionMenuReady)) {
+      return
+    }
+
+    const reportReady = () => {
+      const silhouette = host.querySelector(':scope > svg > path[fill][stroke]')
+      if (!silhouette?.getAttribute('d')) return false
+      readyReportedRef.current = true
+      onReady(block.id)
+      return true
+    }
+
+    if (reportReady()) return
+
+    /** The production renderer commits its measured SVG after its first layout pass. */
+    const observer = new MutationObserver(() => {
+      if (reportReady()) observer.disconnect()
+    })
+    observer.observe(host, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [actionMenuReady, block.id, onReady, showActionMenu])
 
   const ringStyles = selected
     ? 'ring-[1.5px] ring-[var(--text-secondary)]'
@@ -239,7 +268,10 @@ export function StageBlockCard({
             className='-top-[28px] pointer-events-auto absolute inset-x-0 z-10 h-[28px]'
           />
           <div
-            className='-top-[28px] pointer-events-auto absolute right-[24px] z-40 flex h-[28px] items-center gap-[2px] overflow-hidden rounded-lg px-[0.2rem] py-0.5 opacity-0 transition-opacity duration-[30ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-data-[action-menu-ready]:opacity-100 group-data-[action-menu-ready]:duration-100'
+            className={cn(
+              '-top-[28px] pointer-events-auto absolute right-[24px] z-40 flex h-[28px] items-center gap-[2px] overflow-hidden rounded-lg px-[0.2rem] py-0.5 opacity-0 transition-opacity duration-[30ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-data-[action-menu-ready]:opacity-100 group-data-[action-menu-ready]:duration-100',
+              onReady && 'transition-none'
+            )}
             style={{ width: actionMenuWidth }}
           >
             <Tooltip.Root preferAbove>
@@ -302,6 +334,7 @@ export function StageBlockCard({
       ) : null}
 
       <div
+        ref={borderHostRef}
         role={onSelect ? 'button' : undefined}
         tabIndex={onSelect ? 0 : undefined}
         aria-label={onSelect ? `Select ${block.name} block` : undefined}

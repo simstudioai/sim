@@ -134,3 +134,21 @@ export interface SolutionsPageConfig {
   /** Card rows rendered in order beneath the logos row. */
   rows: SolutionsCardRowConfig[]
 }
+
+/** A product demonstration with a short, visible caption. */
+export interface SolutionsProductFeatureConfig {
+  id: string
+  label: string
+  title: string
+  description: string
+  visual: ReactNode
+  visualSize?: 'default' | 'compact'
+  cta?: SolutionsPillCta
+}
+
+/** Product pages lead with an interactive demo and two supporting visual cards. */
+export interface SolutionsProductPageConfig extends Omit<SolutionsPageConfig, 'rows' | 'hero'> {
+  layout: 'product'
+  hero: SolutionsHeroConfig
+  features: readonly SolutionsProductFeatureConfig[]
+}

@@ -37,6 +37,7 @@ export const LANDING_ROUTES = [
   'library',
   'logs',
   'models',
+  'platform',
   'pricing',
   'privacy',
   'solutions',

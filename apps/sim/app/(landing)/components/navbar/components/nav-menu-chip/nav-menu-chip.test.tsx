@@ -102,9 +102,9 @@ describe('NavMenuCluster feature selection', () => {
     act(() => {
       platform.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
     })
-    const overview = element('a[href="/#platform"]')
+    const overview = element('a[href="/platform"]')
     expect(document.activeElement).toBe(overview)
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
 
     act(() => {
       overview.dispatchEvent(
@@ -139,7 +139,7 @@ describe('NavMenuCluster feature selection', () => {
     expect(platform.getAttribute('aria-expanded')).toBe('false')
 
     act(() => platform.click())
-    expect(document.activeElement).toBe(element('a[href="/#platform"]'))
+    expect(document.activeElement).toBe(element('a[href="/platform"]'))
   })
 
   it('releases the desktop scroll lock when resized below the visible breakpoint', () => {
@@ -175,7 +175,7 @@ describe('NavMenuCluster feature selection', () => {
     const platform = element('#nav-platform-menu-trigger')
     hover(platform)
     const bridge = element('[data-navigation-hover-bridge]')
-    const overview = element('a[href="/#platform"]')
+    const overview = element('a[href="/platform"]')
     setMenuOpen.mockClear()
 
     act(() => {
@@ -185,7 +185,7 @@ describe('NavMenuCluster feature selection', () => {
       overview.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: bridge }))
     })
 
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
     expect(setMenuOpen).not.toHaveBeenCalled()
 
     act(() => {
@@ -215,7 +215,7 @@ describe('NavMenuCluster feature selection', () => {
 
   it('opens on Overview and keeps the selected feature highlighted while viewing its preview', () => {
     hover(element('#nav-platform-menu-trigger'))
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
 
     const workflows = element('a[href="/workflows"]')
     hover(workflows)
@@ -240,7 +240,7 @@ describe('NavMenuCluster feature selection', () => {
 
     hover(platform)
     expect(platform.getAttribute('aria-expanded')).toBe('true')
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
   })
 
   it('starts with Overview again after closing and reopening Platform', () => {
@@ -259,25 +259,25 @@ describe('NavMenuCluster feature selection', () => {
     expect(element('#primary-navigation-mega-menu').getAttribute('aria-hidden')).toBe('true')
 
     hover(platform)
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
   })
 
   it('keeps keyboard selection and previews together when returning to a trigger or changing menus', () => {
     const platform = element('#nav-platform-menu-trigger')
     act(() => platform.focus())
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
 
     act(() => element('a[href="/knowledge"]').focus())
     expectSelected('/knowledge', 'knowledge')
 
     act(() => platform.focus())
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
 
     act(() => element('#nav-resources-menu-trigger').focus())
     expect(platform.getAttribute('aria-expanded')).toBe('false')
     expectSelected('https://docs.sim.ai', 'docs')
 
     act(() => platform.focus())
-    expectSelected('/#platform', 'overview')
+    expectSelected('/platform', 'overview')
   })
 })
