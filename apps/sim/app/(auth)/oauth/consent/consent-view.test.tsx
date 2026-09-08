@@ -68,10 +68,13 @@ describe('OAuth consent view', () => {
     vi.useRealTimers()
   })
 
-  it('shows the registered app, account and destination with one row per distinct capability', () => {
+  it('shows the account below the decisions without a CLI destination sentence', () => {
     expect(container.querySelector('h1')?.textContent).toBe('Authorize Sim CLI')
     expect(container.textContent).toContain('Continuing as test@example.com.')
-    expect(container.textContent).toContain('Returns to this computer.')
+    expect(container.textContent).not.toContain('Returns to this computer.')
+    expect(
+      Array.from(container.querySelectorAll('button')).map((element) => element.textContent)
+    ).toEqual(['Allow', 'Deny', 'Use another account'])
     expect(container.querySelectorAll('li')).toHaveLength(2)
     expect(button('Allow').disabled).toBe(false)
     expect(button('Deny').disabled).toBe(false)

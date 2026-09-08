@@ -152,12 +152,6 @@ export function OAuthConsentView({
             ))}
           </ul>
         )}
-        <p className='break-words text-center text-[var(--text-muted)] text-caption'>
-          Continuing as {email}.{' '}
-          <AuthTextLink onClick={changeAccount} disabled={isPending}>
-            {switchAccount.isPending ? 'Signing out…' : 'Use another account'}
-          </AuthTextLink>
-        </p>
         <AuthSubmitButton
           type='button'
           loading={consent.isPending && consent.variables === true}
@@ -177,7 +171,7 @@ export function OAuthConsentView({
         >
           {consent.isPending && consent.variables === false ? 'Declining…' : 'Deny'}
         </Chip>
-        {destination && (
+        {!isCli && destination && (
           <p className='break-words text-center text-[var(--text-muted)] text-caption'>
             Returns to {destination}.
           </p>
@@ -192,6 +186,12 @@ export function OAuthConsentView({
             </AuthFormMessage>
           </div>
         )}
+        <p className='break-words text-center text-[var(--text-muted)] text-caption'>
+          Continuing as {email}.{' '}
+          <AuthTextLink onClick={changeAccount} disabled={isPending}>
+            {switchAccount.isPending ? 'Signing out…' : 'Use another account'}
+          </AuthTextLink>
+        </p>
       </div>
     </div>
   )
