@@ -1878,6 +1878,24 @@ describe('durable embedding batches', () => {
     expect(JSON.stringify([...checkpoints.stored.keys()])).not.toContain('private input')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+  it('preserves valid projected OpenAI inputs when the heuristic exceeds the token limit', async () => {
+    const text = 'x();\n'.repeat(3200).trimEnd()
+    const checkpoints = memoryCheckpoints()
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embed(['source input'], {
+      apiKey: 'fixture-key',
+      model: 'text-embedding-3-small',
+      projectInputs: () => [text],
+      checkpoints,
+      inputOverflow: 'reject',
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).input).toEqual([text])
+    expect(checkpoints.save).toHaveBeenCalledOnce()
+  })
+
   it('rejects projected indexing inputs that would otherwise be silently shortened', async () => {
     const checkpoints = memoryCheckpoints()
     await expect(

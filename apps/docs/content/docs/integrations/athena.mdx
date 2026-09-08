@@ -11,13 +11,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon Athena](https://aws.amazon.com/athena/) queries data in Amazon S3 with SQL. Start a query, check its execution status, then retrieve the results; cancel a query when needed. The integration also manages named queries and reads database and table metadata. Connect with an AWS access key and secret access key.
+[Amazon Athena](https://aws.amazon.com/athena/) queries data in Amazon S3 with SQL. Start a query, check its execution status, then retrieve the results; cancel a query when needed. Run parameterized queries with execution parameters and prepared statements, reuse recent results, and read runtime statistics after a query completes. The integration also manages named queries, browses data catalogs, databases, and table schemas, and inspects workgroup configuration. Connect with an AWS access key and secret access key.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.
+Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.
 
 
 
@@ -39,6 +39,9 @@ Start an SQL query execution in AWS Athena
 | `catalog` | string | No | Data catalog name \(default: AwsDataCatalog\) |
 | `outputLocation` | string | No | S3 output location for query results \(e.g., s3://bucket/path/\) |
 | `workGroup` | string | No | Workgroup to execute the query in \(default: primary\) |
+| `executionParameters` | json | No | Values for ? placeholders in a parameterized query or EXECUTE statement, applied in order. Pass a JSON array of strings \(e.g. \["2024-01-01", "US"\]\); a plain comma-separated list is also accepted when no value contains a comma |
+| `resultReuseEnabled` | boolean | No | Reuse a previous result of the same query instead of re-scanning data \(default: false\) |
+| `resultReuseMaxAgeInMinutes` | number | No | Maximum age in minutes of a previous result eligible for reuse \(0-10080, default: 60\) |
 
 #### Output
 
@@ -292,9 +295,10 @@ List the databases available in an Athena data catalog
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `databases` | array | List of databases \(name, description\) |
+| `databases` | array | List of databases \(name, description, parameters\) |
 |   ↳ `name` | string | Database name |
 |   ↳ `description` | string | Database description |
+|   ↳ `parameters` | json | Key/value properties set on the database |
 | `nextToken` | string | Pagination token for next page |
 
 ### Athena List Table Metadata
@@ -319,7 +323,7 @@ List tables and their column/partition metadata for an Athena database
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tables` | array | Table metadata \(name, type, columns, partition keys\) |
+| `tables` | array | Table metadata \(name, type, columns, partition keys, parameters\) |
 |   ↳ `name` | string | Table name |
 |   ↳ `tableType` | string | Table type |
 |   ↳ `createTime` | number | Table creation time \(Unix epoch ms\) |
@@ -332,6 +336,415 @@ List tables and their column/partition metadata for an Athena database
 |     ↳ `name` | string | Partition key name |
 |     ↳ `type` | string | Partition key data type |
 |     ↳ `comment` | string | Partition key comment |
+|   ↳ `parameters` | json | Key/value table properties \(e.g., classification, location\) |
 | `nextToken` | string | Pagination token for next page |
+
+### Athena Get Query Runtime Statistics
+
+Get runtime statistics (timeline, row counts, and output stage) for a completed Athena query execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryExecutionId` | string | Yes | Query execution ID to get runtime statistics for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryExecutionId` | string | Query execution ID |
+| `timeline` | json | Timing breakdown in milliseconds \(available once the query has SUCCEEDED or FAILED\) |
+|   ↳ `queryQueueTimeInMillis` | number | Time spent in queue |
+|   ↳ `servicePreProcessingTimeInMillis` | number | Service pre-processing time |
+|   ↳ `queryPlanningTimeInMillis` | number | Query planning time |
+|   ↳ `engineExecutionTimeInMillis` | number | Engine execution time |
+|   ↳ `serviceProcessingTimeInMillis` | number | Service processing time |
+|   ↳ `totalExecutionTimeInMillis` | number | Total execution time |
+| `rowStatistics` | json | Row and byte counts \(updated asynchronously; may be null shortly after completion\) |
+|   ↳ `inputRows` | number | Rows read |
+|   ↳ `inputBytes` | number | Bytes read |
+|   ↳ `outputRows` | number | Rows produced |
+|   ↳ `outputBytes` | number | Bytes produced |
+| `outputStage` | json | Summary of the final query stage |
+|   ↳ `stageId` | number | Stage identifier |
+|   ↳ `state` | string | Stage state |
+|   ↳ `inputRows` | number | Rows read by the stage |
+|   ↳ `inputBytes` | number | Bytes read by the stage |
+|   ↳ `outputRows` | number | Rows produced by the stage |
+|   ↳ `outputBytes` | number | Bytes produced by the stage |
+|   ↳ `executionTime` | number | Stage execution time in milliseconds |
+|   ↳ `subStageCount` | number | Number of direct sub-stages |
+
+### Athena Batch Get Named Queries
+
+Get the details of up to 50 Athena named queries by ID in a single call
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namedQueryIds` | string | Yes | Comma-separated named query IDs \(up to 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `namedQueries` | array | Details for each named query that was found |
+|   ↳ `namedQueryId` | string | Named query ID |
+|   ↳ `name` | string | Named query name |
+|   ↳ `description` | string | Named query description |
+|   ↳ `database` | string | Database the query runs against |
+|   ↳ `queryString` | string | SQL text of the named query |
+|   ↳ `workGroup` | string | Workgroup the query is saved in |
+| `unprocessedNamedQueryIds` | array | Named query IDs that could not be retrieved, with error details |
+|   ↳ `namedQueryId` | string | Named query ID |
+|   ↳ `errorCode` | string | Error code |
+|   ↳ `errorMessage` | string | Error message |
+
+### Athena Update Named Query
+
+Update the name, description, or SQL of an existing Athena named query (database and workgroup cannot change)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namedQueryId` | string | Yes | Named query ID to update |
+| `name` | string | Yes | New name for the query \(1-128 characters\) |
+| `queryString` | string | Yes | New SQL query text |
+| `description` | string | No | New description; omit to keep the current one, or pass an empty string to clear it |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation succeeded |
+
+### Athena Create Prepared Statement
+
+Create a parameterized prepared statement in an Athena workgroup for use with EXECUTE or execution parameters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
+| `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
+| `queryStatement` | string | Yes | SQL statement with ? placeholders for parameters |
+| `description` | string | No | Description of the prepared statement |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation succeeded |
+
+### Athena Get Prepared Statement
+
+Get the SQL and metadata of a prepared statement in an Athena workgroup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
+| `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementName` | string | Prepared statement name |
+| `queryStatement` | string | SQL text of the prepared statement |
+| `workGroupName` | string | Workgroup the statement belongs to |
+| `description` | string | Prepared statement description |
+| `lastModifiedTime` | number | Last modified time \(Unix epoch ms\) |
+
+### Athena Batch Get Prepared Statements
+
+Get the details of up to 256 prepared statements in an Athena workgroup by name in a single call
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `preparedStatementNames` | string | Yes | Comma-separated prepared statement names \(up to 256\) |
+| `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `preparedStatements` | array | Details for each prepared statement that was found |
+|   ↳ `statementName` | string | Prepared statement name |
+|   ↳ `queryStatement` | string | SQL text of the prepared statement |
+|   ↳ `workGroupName` | string | Workgroup the statement belongs to |
+|   ↳ `description` | string | Prepared statement description |
+|   ↳ `lastModifiedTime` | number | Last modified time \(Unix epoch ms\) |
+| `unprocessedPreparedStatementNames` | array | Statement names that could not be retrieved, with error details |
+|   ↳ `statementName` | string | Prepared statement name |
+|   ↳ `errorCode` | string | Error code |
+|   ↳ `errorMessage` | string | Error message |
+
+### Athena Update Prepared Statement
+
+Replace the SQL and description of an existing prepared statement in an Athena workgroup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
+| `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
+| `queryStatement` | string | Yes | New SQL statement with ? placeholders for parameters |
+| `description` | string | No | New description of the prepared statement |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation succeeded |
+
+### Athena List Prepared Statements
+
+List the prepared statements saved in an Athena workgroup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `workGroup` | string | Yes | Workgroup to list prepared statements for |
+| `maxResults` | number | No | Maximum number of results \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `preparedStatements` | array | Prepared statement summaries |
+|   ↳ `statementName` | string | Prepared statement name |
+|   ↳ `lastModifiedTime` | number | Last modified time \(Unix epoch ms\) |
+| `nextToken` | string | Pagination token for next page |
+
+### Athena Delete Prepared Statement
+
+Delete a prepared statement from an Athena workgroup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
+| `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation succeeded |
+
+### Athena List Data Catalogs
+
+List the data catalogs (data sources) registered in the AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `workGroup` | string | No | Workgroup name \(required for IAM Identity Center requests\) |
+| `maxResults` | number | No | Maximum number of results \(2-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dataCatalogs` | array | Data catalog summaries |
+|   ↳ `catalogName` | string | Catalog name |
+|   ↳ `type` | string | Catalog type \(LAMBDA, GLUE, HIVE, FEDERATED\) |
+|   ↳ `status` | string | Creation or deletion status \(e.g., CREATE_COMPLETE\) |
+|   ↳ `connectionType` | string | Connector type for FEDERATED catalogs \(e.g., MYSQL, REDSHIFT\) |
+|   ↳ `error` | string | Error text from catalog creation or deletion |
+| `nextToken` | string | Pagination token for next page |
+
+### Athena Get Data Catalog
+
+Get the type, status, and connection parameters of an Athena data catalog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
+| `workGroup` | string | No | Workgroup name \(required for IAM Identity Center requests\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Catalog name |
+| `type` | string | Catalog type \(LAMBDA, GLUE, HIVE, FEDERATED\) |
+| `description` | string | Catalog description |
+| `status` | string | Creation or deletion status \(e.g., CREATE_COMPLETE\) |
+| `connectionType` | string | Connector type for FEDERATED catalogs \(e.g., MYSQL, REDSHIFT\) |
+| `error` | string | Error text from catalog creation or deletion |
+| `parameters` | json | Catalog connection parameters \(e.g., catalog-id, function ARN\) |
+
+### Athena Get Database
+
+Get a single database (name, description, and parameters) from an Athena data catalog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `catalogName` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
+| `databaseName` | string | Yes | Database name |
+| `workGroup` | string | No | Workgroup name \(required for IAM Identity Center enabled catalogs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Database name |
+| `description` | string | Database description |
+| `parameters` | json | Key/value properties set on the database |
+
+### Athena Get Table Metadata
+
+Get the columns, partition keys, and properties of a single table in an Athena data catalog database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `catalogName` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
+| `databaseName` | string | Yes | Database name |
+| `tableName` | string | Yes | Table name |
+| `workGroup` | string | No | Workgroup name \(required for IAM Identity Center enabled catalogs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Table name |
+| `tableType` | string | Table type \(e.g., EXTERNAL_TABLE, VIRTUAL_VIEW\) |
+| `createTime` | number | Table creation time \(Unix epoch ms\) |
+| `lastAccessTime` | number | Last access time \(Unix epoch ms\) |
+| `columns` | array | Table columns |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Column data type |
+|   ↳ `comment` | string | Column comment |
+| `partitionKeys` | array | Partition key columns |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Column data type |
+|   ↳ `comment` | string | Column comment |
+| `parameters` | json | Key/value table properties \(e.g., classification, location\) |
+
+### Athena List Workgroups
+
+List the Athena workgroups available in the AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `maxResults` | number | No | Maximum number of results \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workGroups` | array | Workgroup summaries |
+|   ↳ `name` | string | Workgroup name |
+|   ↳ `state` | string | Workgroup state \(ENABLED, DISABLED\) |
+|   ↳ `description` | string | Workgroup description |
+|   ↳ `creationTime` | number | Creation time \(Unix epoch ms\) |
+|   ↳ `engineVersion` | json | Engine version setting \(selected and effective versions\) |
+|     ↳ `selectedEngineVersion` | string | Requested engine version |
+|     ↳ `effectiveEngineVersion` | string | Engine version Athena actually uses |
+|   ↳ `identityCenterApplicationArn` | string | IAM Identity Center application ARN |
+| `nextToken` | string | Pagination token for next page |
+
+### Athena Get Workgroup
+
+Get the configuration of an Athena workgroup, including its result location, encryption, and limits
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `workGroup` | string | Yes | Workgroup name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Workgroup name |
+| `state` | string | Workgroup state \(ENABLED, DISABLED\) |
+| `description` | string | Workgroup description |
+| `creationTime` | number | Creation time \(Unix epoch ms\) |
+| `identityCenterApplicationArn` | string | IAM Identity Center application ARN |
+| `engineVersion` | json | Engine version setting \(selected and effective versions\) |
+|   ↳ `selectedEngineVersion` | string | Requested engine version |
+|   ↳ `effectiveEngineVersion` | string | Engine version Athena actually uses |
+| `outputLocation` | string | S3 location where query results are written |
+| `encryptionOption` | string | Result encryption option \(SSE_S3, SSE_KMS, CSE_KMS\) |
+| `kmsKey` | string | KMS key ARN or ID used for result encryption |
+| `expectedBucketOwner` | string | Expected AWS account ID of the results bucket owner |
+| `managedQueryResultsEnabled` | boolean | Whether results are stored in Athena-owned storage |
+| `enforceWorkGroupConfiguration` | boolean | Whether workgroup settings override client-side settings |
+| `publishCloudWatchMetricsEnabled` | boolean | Whether CloudWatch metrics are published for the workgroup |
+| `bytesScannedCutoffPerQuery` | number | Per-query data scan limit in bytes |
+| `requesterPaysEnabled` | boolean | Whether Requester Pays S3 buckets may be queried |
+| `enableMinimumEncryptionConfiguration` | boolean | Whether a minimum encryption level is enforced |
+| `executionRole` | string | Execution role ARN for Spark or IAM Identity Center workgroups |
 
 

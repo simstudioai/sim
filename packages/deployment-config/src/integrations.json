@@ -1753,7 +1753,7 @@
       "slug": "athena",
       "name": "Athena",
       "description": "Run SQL queries on data in Amazon S3 using AWS Athena",
-      "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.",
+      "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)",
       "iconName": "AthenaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/athena",
@@ -1769,6 +1769,10 @@
         {
           "name": "Get Query Results",
           "description": "Retrieve the results of a completed Athena query execution"
+        },
+        {
+          "name": "Get Query Runtime Statistics",
+          "description": "Get runtime statistics (timeline, row counts, and output stage) for a completed Athena query execution"
         },
         {
           "name": "Stop Query",
@@ -1791,6 +1795,14 @@
           "description": "Get details of a saved/named query in AWS Athena"
         },
         {
+          "name": "Batch Get Named Queries",
+          "description": "Get the details of up to 50 Athena named queries by ID in a single call"
+        },
+        {
+          "name": "Update Named Query",
+          "description": "Update the name, description, or SQL of an existing Athena named query (database and workgroup cannot change)"
+        },
+        {
           "name": "List Named Queries",
           "description": "List saved/named query IDs in AWS Athena"
         },
@@ -1799,15 +1811,63 @@
           "description": "Delete a saved/named query in AWS Athena"
         },
         {
+          "name": "Create Prepared Statement",
+          "description": "Create a parameterized prepared statement in an Athena workgroup for use with EXECUTE or execution parameters"
+        },
+        {
+          "name": "Get Prepared Statement",
+          "description": "Get the SQL and metadata of a prepared statement in an Athena workgroup"
+        },
+        {
+          "name": "Batch Get Prepared Statements",
+          "description": "Get the details of up to 256 prepared statements in an Athena workgroup by name in a single call"
+        },
+        {
+          "name": "Update Prepared Statement",
+          "description": "Replace the SQL and description of an existing prepared statement in an Athena workgroup"
+        },
+        {
+          "name": "List Prepared Statements",
+          "description": "List the prepared statements saved in an Athena workgroup"
+        },
+        {
+          "name": "Delete Prepared Statement",
+          "description": "Delete a prepared statement from an Athena workgroup"
+        },
+        {
+          "name": "List Data Catalogs",
+          "description": "List the data catalogs (data sources) registered in the AWS account"
+        },
+        {
+          "name": "Get Data Catalog",
+          "description": "Get the type, status, and connection parameters of an Athena data catalog"
+        },
+        {
           "name": "List Databases",
           "description": "List the databases available in an Athena data catalog"
         },
         {
+          "name": "Get Database",
+          "description": "Get a single database (name, description, and parameters) from an Athena data catalog"
+        },
+        {
           "name": "List Table Metadata",
           "description": "List tables and their column/partition metadata for an Athena database"
+        },
+        {
+          "name": "Get Table Metadata",
+          "description": "Get the columns, partition keys, and properties of a single table in an Athena data catalog database"
+        },
+        {
+          "name": "List Workgroups",
+          "description": "List the Athena workgroups available in the AWS account"
+        },
+        {
+          "name": "Get Workgroup",
+          "description": "Get the configuration of an Athena workgroup, including its result location, encryption, and limits"
         }
       ],
-      "operationCount": 12,
+      "operationCount": 27,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",

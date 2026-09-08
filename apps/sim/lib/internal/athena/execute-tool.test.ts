@@ -16,6 +16,21 @@ const mockOperations = vi.hoisted(() => ({
   executeAthenaListTableMetadata: vi.fn(),
   executeAthenaStartQuery: vi.fn(),
   executeAthenaStopQuery: vi.fn(),
+  executeAthenaBatchGetNamedQuery: vi.fn(),
+  executeAthenaBatchGetPreparedStatement: vi.fn(),
+  executeAthenaCreatePreparedStatement: vi.fn(),
+  executeAthenaDeletePreparedStatement: vi.fn(),
+  executeAthenaGetDataCatalog: vi.fn(),
+  executeAthenaGetDatabase: vi.fn(),
+  executeAthenaGetPreparedStatement: vi.fn(),
+  executeAthenaGetQueryRuntimeStatistics: vi.fn(),
+  executeAthenaGetTableMetadata: vi.fn(),
+  executeAthenaGetWorkGroup: vi.fn(),
+  executeAthenaListDataCatalogs: vi.fn(),
+  executeAthenaListPreparedStatements: vi.fn(),
+  executeAthenaListWorkGroups: vi.fn(),
+  executeAthenaUpdateNamedQuery: vi.fn(),
+  executeAthenaUpdatePreparedStatement: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/athena/operations', () => mockOperations)
@@ -49,6 +64,8 @@ function createRequest(
 
 const NAMED_QUERY = { ...CONNECTION, namedQueryId: 'named-query-id' }
 const QUERY_EXECUTION = { ...CONNECTION, queryExecutionId: 'query-execution-id' }
+const PREPARED_WORKGROUP = { ...CONNECTION, workGroup: 'primary' }
+const PREPARED_STATEMENT = { ...PREPARED_WORKGROUP, statementName: 'daily_report' }
 
 const TOOL_CASES = [
   [
@@ -83,6 +100,74 @@ const TOOL_CASES = [
     mockOperations.executeAthenaStartQuery,
   ],
   ['athena_stop_query', QUERY_EXECUTION, mockOperations.executeAthenaStopQuery],
+  [
+    'athena_get_query_runtime_statistics',
+    QUERY_EXECUTION,
+    mockOperations.executeAthenaGetQueryRuntimeStatistics,
+  ],
+  [
+    'athena_batch_get_named_query',
+    { ...CONNECTION, namedQueryIds: ['named-query-id'] },
+    mockOperations.executeAthenaBatchGetNamedQuery,
+  ],
+  [
+    'athena_update_named_query',
+    { ...NAMED_QUERY, name: 'renamed', queryString: 'SELECT 2' },
+    mockOperations.executeAthenaUpdateNamedQuery,
+  ],
+  [
+    'athena_get_database',
+    { ...CONNECTION, catalogName: 'AwsDataCatalog', databaseName: 'analytics' },
+    mockOperations.executeAthenaGetDatabase,
+  ],
+  [
+    'athena_get_table_metadata',
+    {
+      ...CONNECTION,
+      catalogName: 'AwsDataCatalog',
+      databaseName: 'analytics',
+      tableName: 'events',
+    },
+    mockOperations.executeAthenaGetTableMetadata,
+  ],
+  ['athena_list_data_catalogs', CONNECTION, mockOperations.executeAthenaListDataCatalogs],
+  [
+    'athena_get_data_catalog',
+    { ...CONNECTION, name: 'AwsDataCatalog' },
+    mockOperations.executeAthenaGetDataCatalog,
+  ],
+  ['athena_list_work_groups', CONNECTION, mockOperations.executeAthenaListWorkGroups],
+  ['athena_get_work_group', PREPARED_WORKGROUP, mockOperations.executeAthenaGetWorkGroup],
+  [
+    'athena_create_prepared_statement',
+    { ...PREPARED_STATEMENT, queryStatement: 'SELECT * FROM events WHERE day = ?' },
+    mockOperations.executeAthenaCreatePreparedStatement,
+  ],
+  [
+    'athena_get_prepared_statement',
+    PREPARED_STATEMENT,
+    mockOperations.executeAthenaGetPreparedStatement,
+  ],
+  [
+    'athena_update_prepared_statement',
+    { ...PREPARED_STATEMENT, queryStatement: 'SELECT 1' },
+    mockOperations.executeAthenaUpdatePreparedStatement,
+  ],
+  [
+    'athena_delete_prepared_statement',
+    PREPARED_STATEMENT,
+    mockOperations.executeAthenaDeletePreparedStatement,
+  ],
+  [
+    'athena_list_prepared_statements',
+    PREPARED_WORKGROUP,
+    mockOperations.executeAthenaListPreparedStatements,
+  ],
+  [
+    'athena_batch_get_prepared_statement',
+    { ...PREPARED_WORKGROUP, preparedStatementNames: ['daily_report'] },
+    mockOperations.executeAthenaBatchGetPreparedStatement,
+  ],
 ] as const
 
 describe('executeAthenaTool', () => {
@@ -112,6 +197,53 @@ describe('executeAthenaTool', () => {
       details: expect.any(Array),
     })
     expect(mockOperations.executeAthenaListNamedQueries).not.toHaveBeenCalled()
+  })
+
+  it('rejects out-of-range pagination and malformed batch input before provider work', async () => {
+    const tooFewCatalogs = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_list_data_catalogs',
+        input: { ...CONNECTION, maxResults: 1 },
+      })
+    )
+    expect(tooFewCatalogs.status).toBe(400)
+    expect(mockOperations.executeAthenaListDataCatalogs).not.toHaveBeenCalled()
+
+    const emptyBatch = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_batch_get_named_query',
+        input: { ...CONNECTION, namedQueryIds: [] },
+      })
+    )
+    expect(emptyBatch.status).toBe(400)
+    expect(mockOperations.executeAthenaBatchGetNamedQuery).not.toHaveBeenCalled()
+
+    const missingWorkGroup = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_list_prepared_statements',
+        input: CONNECTION,
+      })
+    )
+    expect(missingWorkGroup.status).toBe(400)
+    expect(mockOperations.executeAthenaListPreparedStatements).not.toHaveBeenCalled()
+
+    const badStatementName = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_get_prepared_statement',
+        input: { ...PREPARED_WORKGROUP, statementName: '1-bad name' },
+      })
+    )
+    expect(badStatementName.status).toBe(400)
+    expect(mockOperations.executeAthenaGetPreparedStatement).not.toHaveBeenCalled()
+
+    const badWorkGroup = await executeAthenaTool(
+      createRequest({
+        toolId: 'athena_get_work_group',
+        input: { ...CONNECTION, workGroup: 'my wg' },
+      })
+    )
+    expect(badWorkGroup.status).toBe(400)
+    expect(mockOperations.executeAthenaGetWorkGroup).not.toHaveBeenCalled()
   })
 
   it('preserves the provider error envelope', async () => {

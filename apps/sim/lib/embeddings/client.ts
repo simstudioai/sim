@@ -731,12 +731,14 @@ function prepareEmbeddingInputs(
    */
   const ceiling = limits.maxInputTokens
   const boundedInputs = modelInputs.map((text) => {
-    const tokenCount = estimateTokenCount(text, limits.tokenizerProvider).count
-    const boundedCount =
-      inputOverflow === 'reject'
-        ? Math.max(tokenCount, getAccurateTokenCount(text, model))
-        : tokenCount
-    if (boundedCount <= ceiling) return text
+    let tokenCount = estimateTokenCount(text, limits.tokenizerProvider).count
+    if (inputOverflow === 'reject') {
+      const tokenizerCount = getAccurateTokenCount(text, model)
+      tokenCount = limits.approximateTokenCount
+        ? Math.max(tokenCount, tokenizerCount)
+        : tokenizerCount
+    }
+    if (tokenCount <= ceiling) return text
     if (inputOverflow === 'reject') throw new EmbeddingInputLimitError(model, ceiling)
     logger.warn('Embedding input exceeds the model token limit and will be truncated', {
       model,

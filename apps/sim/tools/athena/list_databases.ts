@@ -85,12 +85,13 @@ export const listDatabasesTool: InternalToolConfig<
   outputs: {
     databases: {
       type: 'array',
-      description: 'List of databases (name, description)',
+      description: 'List of databases (name, description, parameters)',
       items: {
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Database name' },
           description: { type: 'string', description: 'Database description', optional: true },
+          parameters: { type: 'json', description: 'Key/value properties set on the database' },
         },
       },
     },
