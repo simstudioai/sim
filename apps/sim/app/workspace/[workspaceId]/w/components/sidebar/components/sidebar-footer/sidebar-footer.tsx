@@ -157,7 +157,9 @@ export function SidebarFooter({
   const name = profile ? profile.name?.trim() || profile.email : ''
   const updateAvailable = hasAvailableDesktopUpdate(updateState)
   const organizationHref =
-    hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember
+    hostContext.hostOrganizationId &&
+    hostContext.viewer.isHostOrganizationMember &&
+    hostContext.features?.organizationSearch
       ? organizationRoutes(hostContext.hostOrganizationId).root
       : null
 

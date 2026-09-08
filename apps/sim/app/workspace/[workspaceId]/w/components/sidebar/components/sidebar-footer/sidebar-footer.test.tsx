@@ -19,6 +19,10 @@ const { hostContext } = vi.hoisted(() => ({
   hostContext: {
     hostOrganizationId: null as string | null,
     viewer: { isHostOrganizationMember: false },
+    features: {
+      organizationSearch: undefined as boolean | undefined,
+      knowledgeMemberAccess: false,
+    },
   },
 }))
 
@@ -127,6 +131,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   hostContext.hostOrganizationId = null
   hostContext.viewer.isHostOrganizationMember = false
+  hostContext.features.organizationSearch = undefined
+  hostContext.features.knowledgeMemberAccess = false
   desktopMocks.listener = null
   desktopMocks.onState.mockImplementation((listener) => {
     desktopMocks.listener = listener
@@ -147,6 +153,7 @@ describe('SidebarFooter', () => {
   it('links members back to the organization hosting the current workspace', async () => {
     hostContext.hostOrganizationId = 'host-org'
     hostContext.viewer.isHostOrganizationMember = true
+    hostContext.features.organizationSearch = true
     await renderFooter({ status: 'idle' })
 
     openProfileMenu()
@@ -154,8 +161,28 @@ describe('SidebarFooter', () => {
     expect(menuItem('Organization')).toHaveAttribute('href', '/o/host-org')
   })
 
+  it.each([false, undefined])(
+    'keeps the workspace profile menu when org rollout is %s',
+    async (enabled) => {
+      hostContext.hostOrganizationId = 'host-org'
+      hostContext.viewer.isHostOrganizationMember = true
+      hostContext.features.organizationSearch = enabled
+      hostContext.features.knowledgeMemberAccess = true
+      await renderFooter({ status: 'idle' })
+
+      openProfileMenu()
+
+      expect(document.querySelector('[role="menu"]')).not.toHaveTextContent('Organization')
+      expect(menuItem('Settings')).toHaveAttribute(
+        'href',
+        '/workspace/workspace-1/settings/general'
+      )
+    }
+  )
+
   it.each([null, 'host-org'])('hides Organization without host membership (%s)', async (orgId) => {
     hostContext.hostOrganizationId = orgId
+    hostContext.features.organizationSearch = true
     await renderFooter({ status: 'idle' })
 
     openProfileMenu()

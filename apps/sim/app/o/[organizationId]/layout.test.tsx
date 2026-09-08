@@ -60,6 +60,7 @@ const mockGetSession = authMockFns.mockGetSession
 const SURFACE_CONTEXT = {
   organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null, memberCount: 1 },
   viewer: { role: 'member', isAdmin: false },
+  searchAccess: { memberScoped: true, sourceMirrored: true },
 }
 
 describe('OrganizationLayout', () => {
@@ -111,4 +112,23 @@ describe('OrganizationLayout', () => {
     expect(html).not.toContain('Secret organization child')
     expect(mockWorkspaceChrome).not.toHaveBeenCalled()
   })
+
+  it.each(['owner', 'admin', 'member'])(
+    'returns %s viewers outside the rollout to workspace settings before rendering org chrome',
+    async (role) => {
+      mockGetOrganizationSurfaceContext.mockResolvedValue({
+        ...SURFACE_CONTEXT,
+        viewer: { role, isAdmin: role !== 'member' },
+        searchAccess: { memberScoped: false, sourceMirrored: true },
+      })
+
+      await expect(
+        OrganizationLayout({
+          children: <div>Organization settings</div>,
+          params: Promise.resolve({ organizationId: 'org-1' }),
+        })
+      ).rejects.toThrow('redirect:/workspace?redirect=settings')
+      expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+    }
+  )
 })

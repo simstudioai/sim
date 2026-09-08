@@ -130,6 +130,10 @@ export function SettingsSidebar({
   const userId = session?.user?.id
 
   const isOrgAdminOrOwner = hostContext.viewer.isHostOrganizationAdmin
+  const organizationSettingsId =
+    hostContext.features?.organizationSearch && hostContext.viewer.isHostOrganizationMember
+      ? hostContext.hostOrganizationId
+      : null
   const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
   const inboxEntitled = inboxConfig?.entitled ?? false
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
@@ -145,7 +149,11 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
-      if (hostContext.hostOrganizationId && ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id)) {
+      if (
+        hostContext.hostOrganizationId &&
+        ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) &&
+        (organizationSettingsId || !hostContext.viewer.isHostOrganizationMember)
+      ) {
         return false
       }
       if (item.requiresSelfHosted && hosted) {
@@ -255,6 +263,7 @@ export function SettingsSidebar({
     hostContext,
     userId,
     isOrgAdminOrOwner,
+    organizationSettingsId,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
     permissionConfig,
@@ -352,10 +361,7 @@ export function SettingsSidebar({
             }))
             .filter(
               ({ key, items }) =>
-                items.length > 0 ||
-                (key === 'organization' &&
-                  hostContext.hostOrganizationId &&
-                  hostContext.viewer.isHostOrganizationMember)
+                items.length > 0 || (key === 'organization' && organizationSettingsId)
             )
             .map(({ key, title, items: sectionItems }, index) => (
               <SidebarSection
@@ -365,37 +371,32 @@ export function SettingsSidebar({
                 className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'shrink-0')}
               >
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                  {key === 'organization' &&
-                    hostContext.hostOrganizationId &&
-                    hostContext.viewer.isHostOrganizationMember && (
-                      <SidebarTooltip label='Organization' enabled={showCollapsedTooltips}>
-                        <SettingsIntentLink
-                          href={getOrganizationSettingsHref(
-                            hostContext.hostOrganizationId,
-                            'members'
-                          )}
-                          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
-                          onNavigate={(event) => {
-                            if (!useSettingsDirtyStore.getState().isDirty) return
-                            event.preventDefault()
-                            const organizationId = hostContext.hostOrganizationId
-                            if (organizationId)
-                              requestLeave(() =>
-                                router.push(getOrganizationSettingsHref(organizationId, 'members'))
-                              )
-                          }}
-                        >
-                          <Building className={chipContentIconClass} />
-                          <OverflowText
-                            label='Organization'
-                            className='sidebar-collapse-hide text-[var(--text-body)]'
-                          />
-                          <ArrowUpRight
-                            className={cn('sidebar-collapse-hide ml-auto', chipContentIconClass)}
-                          />
-                        </SettingsIntentLink>
-                      </SidebarTooltip>
-                    )}
+                  {key === 'organization' && organizationSettingsId && (
+                    <SidebarTooltip label='Organization' enabled={showCollapsedTooltips}>
+                      <SettingsIntentLink
+                        href={getOrganizationSettingsHref(organizationSettingsId, 'members')}
+                        className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+                        onNavigate={(event) => {
+                          if (!useSettingsDirtyStore.getState().isDirty) return
+                          event.preventDefault()
+                          requestLeave(() =>
+                            router.push(
+                              getOrganizationSettingsHref(organizationSettingsId, 'members')
+                            )
+                          )
+                        }}
+                      >
+                        <Building className={chipContentIconClass} />
+                        <OverflowText
+                          label='Organization'
+                          className='sidebar-collapse-hide text-[var(--text-body)]'
+                        />
+                        <ArrowUpRight
+                          className={cn('sidebar-collapse-hide ml-auto', chipContentIconClass)}
+                        />
+                      </SettingsIntentLink>
+                    </SidebarTooltip>
+                  )}
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
