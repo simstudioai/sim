@@ -2,7 +2,7 @@ import type { Command } from 'commander'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
-import { pageProgress, SimApiError, type V2Page } from '../http/client'
+import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
 import { safeOneLine } from '../output/render'
 import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
@@ -402,6 +402,7 @@ export async function executeOperation(
     }
     const limit = pagedLimit === 0 ? Number.POSITIVE_INFINITY : pagedLimit
     const rows: unknown[] = []
+    const seenCursors = new Set<string>(initialCursor ? [initialCursor] : [])
     const progress = pageProgress()
     let cursor: string | null = initialCursor ?? null
     /** The first page's envelope: where a fact about the whole query is stated. */
@@ -428,6 +429,7 @@ export async function executeOperation(
             0
           )
         }
+        assertCursorAdvances(page.nextCursor, seenCursors)
         envelope = foldPageEnvelope(envelope, page)
         rows.push(...page.data)
         cursor = page.nextCursor

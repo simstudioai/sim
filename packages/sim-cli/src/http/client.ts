@@ -763,6 +763,15 @@ export function pageProgress(): PageProgress {
   }
 }
 
+/** Rejects cursor cycles before a pager repeats requests or returns an unusable continuation. */
+export function assertCursorAdvances(cursor: string | null, seenCursors: Set<string>): void {
+  if (cursor === null) return
+  if (seenCursors.has(cursor)) {
+    throw new SimApiError('The API returned a repeated pagination cursor; cannot continue.', 0)
+  }
+  seenCursors.add(cursor)
+}
+
 /** Follows a standard v2 cursor envelope without duplicating pagination loops. */
 export async function requestAllPages<T>(
   client: Pick<SimClient, 'request'>,
@@ -774,6 +783,7 @@ export async function requestAllPages<T>(
   if (limit <= 0) return []
 
   const items: T[] = []
+  const seenCursors = new Set<string>()
   const progress = pageProgress()
   let cursor: string | null = null
   // `finally`, because a page that throws part-way through would otherwise skip
@@ -789,6 +799,7 @@ export async function requestAllPages<T>(
           cursor,
         },
       })
+      assertCursorAdvances(page.nextCursor, seenCursors)
       items.push(...page.data)
       cursor = page.nextCursor
 

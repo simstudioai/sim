@@ -1325,6 +1325,31 @@ describe('contract-selected list rendering', () => {
 
 describe('pagination slot', () => {
   it.each([
+    { argv: ['files', 'list'], cursors: ['c1', 'c1'] },
+    { argv: ['files', 'list'], cursors: ['c1', 'c2', 'c1'] },
+    { argv: ['tables', 'rows', 'query', 'tbl_1', '--limit', '0'], cursors: ['c1', 'c1'] },
+    { argv: ['logs', 'list', '--cursor', 'c1'], cursors: ['c1'] },
+    { argv: ['tables', 'rows', 'query', 'tbl_1', '--cursor', 'c1'], cursors: ['c1'] },
+  ])(
+    'rejects cursor cycles in $argv without printing partial results',
+    async ({ argv, cursors }) => {
+      mockRequest.mockReset()
+      mockRequest.mockRejectedValue(new Error('Pagination did not stop at the cycle'))
+      for (const nextCursor of cursors) {
+        mockRequest.mockResolvedValueOnce({ data: [{ id: 'r1' }], nextCursor })
+      }
+      const printed = vi.spyOn(console, 'log').mockImplementation(() => {})
+      printed.mockClear()
+
+      await expect(program().parseAsync(['node', 'sim', ...argv])).rejects.toThrow(
+        'repeated pagination cursor'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(cursors.length)
+      expect(printed).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
     ['files', 'list'],
     ['tables', 'list'],
     ['workflows', 'list'],
