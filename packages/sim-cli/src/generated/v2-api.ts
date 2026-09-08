@@ -11418,7 +11418,7 @@ export const V2_OPERATIONS = {
       'x-run-id': {
         kind: 'string',
         describe:
-          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it when retrying an uncertain request. An already claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying the result; use Get Workflow Run to check progress. A fresh ID or an omitted header can start another run.',
+          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.',
       },
       'x-sim-via': {
         kind: 'string',

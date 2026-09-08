@@ -197,10 +197,11 @@ Audited against the primary specs and against Stripe, GitHub, and Google's AIPs.
 `POST /workflows/{id}/execute` accepts `X-Run-Id` from API-key and OAuth callers; anonymous requests ignore it. It is a **uniqueness claim, not an idempotency key**:
 
 - An available ID is claimed before execution starts.
-- An already claimed ID returns **409** with `error.details.code: "RUN_ID_CONFLICT"`, the run id in `error.details.runId`, and an `X-Run-Id` response header. It never replays the earlier run's result — the client recovers it by polling the runs resource.
+- An already claimed ID returns **409** with `error.details.code: "RUN_ID_CONFLICT"`, the run id in `error.details.runId`, and an `X-Run-Id` response header. It never replays the earlier run's result. Get Workflow Run can retrieve an existing run, but a claim does not guarantee a retrievable run.
 - IDs of runs that started remain reserved after their execution logs are deleted.
+- An ambiguous enqueue can retain the claim indefinitely without creating a retrievable run. A **409** followed by **404** is an unresolved outcome, not proof that execution never started or that the ID will become reusable.
 
-For an uncertain execution outcome, retry with the same run ID or poll Get Workflow Run. A fresh ID or an omitted header can start another execution; never describe either as a safe retry of the original request. Failures before a run starts can release the claim, so phrase the conflict rule as an ID that is already claimed.
+For an uncertain execution outcome, reuse the same run ID if retrying and check Get Workflow Run. Do not promise polling will eventually find a run. If the outcome cannot be verified, do not automatically restart with a fresh ID or an omitted header: either can start another execution. Failures before a run starts can release the claim, so phrase the conflict rule as an ID that is already claimed.
 
 That makes the money path safe against double-execution **for callers that opt in**. What it is not: a Stripe-style `Idempotency-Key` that stores and replays the original status and body. Building that means a request fingerprint, a retention window, an in-flight-vs-completed distinction (the expired IETF draft would have these be 422 and 409 respectively), and somewhere to put a large synchronous execution body. It is a designed piece of work, not an increment — do not half-build it by aliasing the header name, which would invite clients written against Stripe semantics to treat our 409 as a hard failure.
 

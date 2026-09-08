@@ -69,15 +69,12 @@ export const v2WorkflowRunIdSchema = runIdSchema
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
 /**
- * `X-Run-Id` is a **one-shot uniqueness claim, not an idempotency key.** The
- * first request to claim a value starts a run; every later request reusing it
- * is rejected with a `409` carrying `error.details.code: "RUN_ID_CONFLICT"`, and
- * the original result is never
- * replayed. Retry logic written against idempotency-key semantics either
- * double-executes (fresh id per attempt) or hard-fails (same id per attempt).
+ * `X-Run-Id` reserves an execution ID without guaranteeing a retrievable run.
+ * Claims can survive uncertain execution outcomes; a missing run does not make
+ * a claimed ID reusable. Reusing a claimed ID returns a conflict, never a replay.
  */
 const X_RUN_ID_DESCRIPTION =
-  'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it when retrying an uncertain request. An already claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying the result; use Get Workflow Run to check progress. A fresh ID or an omitted header can start another run.'
+  'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.'
 
 const X_SIM_VIA_DESCRIPTION =
   'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.'

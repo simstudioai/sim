@@ -1109,11 +1109,11 @@
           },
           "duration": {
             "type": "number",
-            "description": "Span duration in milliseconds."
+            "description": "Current trace-span duration in milliseconds."
           },
           "durationMs": {
             "type": "number",
-            "description": "Span duration in milliseconds."
+            "description": "Compatibility field for span duration in milliseconds. Read `duration` for current trace spans."
           },
           "startTime": {
             "type": "string",
