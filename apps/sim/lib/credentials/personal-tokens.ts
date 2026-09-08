@@ -3,14 +3,14 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
-  foldedEmail,
   user,
+  workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { loadWorkspaceAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import {
   encryptPersonalToken,
@@ -53,13 +53,8 @@ export async function getPersonalTokenCredentials(
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .innerJoin(
-      user,
-      and(
-        eq(user.id, credential.createdBy),
-        eq(foldedEmail(user.email), credentialGroupEnrollment.email)
-      )
-    )
+    .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
+    .innerJoin(workspace, eq(workspace.id, workspaceId))
     .where(
       and(
         eq(credential.workspaceId, workspaceId),
@@ -88,7 +83,13 @@ export async function getPersonalTokenCredentials(
 
 function liveEnrollmentConditions(workspaceId: string, userId: string) {
   return [
-    eq(credentialGroup.workspaceId, workspaceId),
+    or(
+      and(eq(credentialGroup.workspaceId, workspaceId), isNull(credentialGroup.organizationId)),
+      and(
+        eq(credentialGroup.organizationId, workspace.organizationId),
+        isNull(credentialGroup.workspaceId)
+      )
+    ),
     eq(credentialGroup.status, 'active'),
     eq(user.id, userId),
     eq(user.emailVerified, true),
@@ -110,10 +111,15 @@ export async function requirePersonalTokenEnrollment(
     )
   if (lock) await lockCredentialGroupEnrollmentLifecycle(executor, input.enrollmentId)
   const query = executor
-    .select({ id: credentialGroupEnrollment.id })
+    .select({
+      id: credentialGroupEnrollment.id,
+      credentialGroupId: credentialGroup.id,
+      organizationId: credentialGroup.organizationId,
+    })
     .from(credentialGroupEnrollment)
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .innerJoin(user, eq(foldedEmail(user.email), credentialGroupEnrollment.email))
+    .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
+    .innerJoin(workspace, eq(workspace.id, input.workspaceId))
     .where(
       and(
         eq(credentialGroupEnrollment.id, input.enrollmentId),
@@ -127,11 +133,19 @@ export async function requirePersonalTokenEnrollment(
       'forbidden',
       'Your personal account is no longer available in Connected accounts'
     )
+  if (binding.organizationId) {
+    await requireOrganizationAccountsSetup(
+      binding.organizationId,
+      binding.credentialGroupId,
+      executor
+    )
+  }
 }
 
 export interface CreatePersonalTokenParams {
   workspaceId: string
   userId: string
+  accounts: { organizationId: string; credentialGroupId: string }
   providerId?: string
   apiToken?: string
   domain?: string
@@ -143,12 +157,6 @@ export interface CreatePersonalTokenParams {
 export async function createPersonalTokenCredential(input: CreatePersonalTokenParams) {
   if (input.providerId !== 'gitlab' || !input.apiToken)
     throw new OrchestrationError('validation', 'A personal GitLab access token is required')
-  const group = await loadWorkspaceAccountsCredentialListContext(input.workspaceId)
-  if (!group || group.status !== 'active')
-    throw new OrchestrationError(
-      'forbidden',
-      'Connected accounts is not available in this workspace'
-    )
   const verified = await verifyGitLabPersonalToken(input.apiToken, input.domain)
   const encryptedPersonalToken = await encryptPersonalToken({
     providerId: verified.providerId,
@@ -160,8 +168,8 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
   })
   const { enrollment } = await createViewerCredentialGroupEnrollment({
     userId: input.userId,
-    workspaceId: input.workspaceId,
-    credentialGroupId: group.credentialGroupId,
+    organizationId: input.accounts.organizationId,
+    credentialGroupId: input.accounts.credentialGroupId,
   })
   const values = {
     type: 'personal_token' as const,

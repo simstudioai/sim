@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   personal: vi.fn(),
   oauthContext: vi.fn(),
   startOAuth: vi.fn(),
+  organizationMembership: vi.fn(),
+  available: vi.fn(),
+  policy: vi.fn(),
 }))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.workspace,
@@ -27,7 +30,17 @@ vi.mock('@/lib/credentials/application/provider-catalog', () => ({
   listCredentialProviderCatalog: mocks.catalog,
 }))
 vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadWorkspaceAccountsCredentialListContext: mocks.group,
+  loadScopedAccountsCredentialListContext: mocks.group,
+}))
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  requireOrganizationMembership: mocks.organizationMembership,
+}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: mocks.available,
+}))
+vi.mock('@/lib/resource-policies/repository', () => ({
+  requireResourcePolicy: mocks.policy,
+  ResourcePolicyNotFoundError: class extends Error {},
 }))
 vi.mock('@/lib/credential-groups/enrollments', () => ({
   getCredentialGroupOAuthContextForEnrollment: mocks.oauthContext,
@@ -40,13 +53,15 @@ vi.mock('@/lib/credential-groups/self-enrollment', () => ({
 vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: mocks.personal }))
 vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
 
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { startPersonalCredentialConnection } from '@/lib/credentials/application/personal-connection'
 
 const principal: Principal = { kind: 'session', userId: 'viewer', sessionId: 'session' }
 const input = { workspaceId: 'workspace', providerId: 'confluence' }
 const group = {
   credentialGroupId: 'canonical-group',
-  workspaceId: 'workspace',
+  workspaceId: null,
+  organizationId: 'organization',
   status: 'active',
   options: [{ id: 'option', provider: 'confluence', status: 'active' }],
 }
@@ -60,10 +75,15 @@ describe('personal connection launch', () => {
     vi.clearAllMocks()
     mocks.workspace.mockResolvedValue({
       workspaceId: 'workspace',
-      workspaceOrganizationId: null,
+      workspaceOrganizationId: 'organization',
       allowPersonalApiKeys: true,
     })
     mocks.permission.mockResolvedValue('read')
+    mocks.organizationMembership.mockResolvedValue({ userId: 'viewer', role: 'member' })
+    mocks.available.mockResolvedValue(true)
+    mocks.policy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('canonical-group', ['workspace']),
+    })
     mocks.catalog.mockResolvedValue([
       {
         type: 'oauth',
@@ -89,7 +109,7 @@ describe('personal connection launch', () => {
     })
     expect(mocks.oauthContext).toHaveBeenCalledWith(
       {
-        workspaceId: 'workspace',
+        organizationId: 'organization',
         credentialGroupId: 'canonical-group',
         enrollmentId: 'enrollment',
         email: 'viewer@example.com',
@@ -103,14 +123,24 @@ describe('personal connection launch', () => {
     )
     expect(mocks.enroll).toHaveBeenCalledWith({
       userId: 'viewer',
-      workspaceId: 'workspace',
+      organizationId: 'organization',
       credentialGroupId: 'canonical-group',
     })
     expect(mocks.ensure).not.toHaveBeenCalled()
+    expect(mocks.group).toHaveBeenCalledWith({
+      kind: 'organization',
+      organizationId: 'organization',
+    })
+    expect(mocks.organizationMembership).toHaveBeenCalledWith(
+      principal,
+      'organization',
+      'member',
+      'integrations.manage'
+    )
     expect(mocks.catalog).toHaveBeenCalledWith(principal, expect.any(Object), 'managed_oauth')
   })
 
-  it('connects a configured Slack workspace app through its enrollment', async () => {
+  it('connects a configured organization Slack app through its enrollment', async () => {
     mocks.catalog.mockResolvedValue([
       {
         type: 'oauth',
@@ -145,23 +175,19 @@ describe('personal connection launch', () => {
     expect(mocks.enroll).not.toHaveBeenCalled()
   })
 
-  it('does not let a reader add a provider to workspace configuration', async () => {
+  it('does not let a reader add a provider to organization configuration', async () => {
     mocks.group.mockResolvedValue({ ...group, options: [] })
-    await expect(execute()).rejects.toThrow('Ask a workspace admin')
+    await expect(execute()).rejects.toThrow('Ask an organization admin')
     expect(mocks.ensure).not.toHaveBeenCalled()
     expect(mocks.enroll).not.toHaveBeenCalled()
   })
 
-  it('lets an admin configure the standard provider once before connecting their own account', async () => {
+  it('requires provider setup in organization settings even for a workspace admin', async () => {
     mocks.permission.mockResolvedValue('admin')
-    mocks.group.mockResolvedValueOnce({ ...group, options: [] }).mockResolvedValueOnce(group)
-    await execute()
-    expect(mocks.ensure).toHaveBeenCalledWith('workspace', 'viewer', {
-      provider: 'confluence',
-      label: 'Confluence',
-      required: false,
-    })
-    expect(mocks.enroll).toHaveBeenCalledTimes(1)
+    mocks.group.mockResolvedValue({ ...group, options: [] })
+    await expect(execute()).rejects.toThrow('Ask an organization admin')
+    expect(mocks.ensure).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -206,12 +232,81 @@ describe('personal connection launch', () => {
         authorizationOptions: [{ providerId: 'slack' }],
       },
     ])
-    await expect(execute({ providerId: 'slack' })).rejects.toThrow('Configure Slack')
+    await expect(execute({ providerId: 'slack' })).rejects.toThrow(
+      'enable Slack in organization settings'
+    )
     expect(mocks.ensure).not.toHaveBeenCalled()
   })
 
   it('propagates revoked enrollment refusal', async () => {
     mocks.enroll.mockRejectedValue(new Error('Access revoked'))
     await expect(execute()).rejects.toThrow('Access revoked')
+  })
+
+  it('does not create a group when the organization has not configured accounts', async () => {
+    mocks.group.mockResolvedValue(null)
+    await expect(execute()).rejects.toThrow('set up Connected accounts in organization settings')
+    expect(mocks.ensure).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it('refuses personal workspaces before looking up organization accounts', async () => {
+    mocks.workspace.mockResolvedValue({
+      workspaceId: 'workspace',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+    })
+    await expect(execute()).rejects.toThrow('does not belong to an organization')
+    expect(mocks.group).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it('requires organization membership even when the caller administers the workspace', async () => {
+    mocks.permission.mockResolvedValue('admin')
+    mocks.organizationMembership.mockRejectedValueOnce(new Error('Organization not found'))
+    await expect(execute()).rejects.toThrow('Organization not found')
+    expect(mocks.group).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it('honors the organization feature flag before enrollment', async () => {
+    mocks.available.mockResolvedValue(false)
+    await expect(execute()).rejects.toThrow('not available')
+    expect(mocks.available).toHaveBeenCalledWith({
+      kind: 'organization',
+      organizationId: 'organization',
+    })
+    expect(mocks.policy).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it('connects the person’s own account without granting their workspace workflow access', async () => {
+    mocks.policy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('canonical-group', []),
+    })
+    await expect(execute()).resolves.toMatchObject({ providerId: 'confluence' })
+    expect(mocks.enroll).toHaveBeenCalledWith({
+      organizationId: 'organization',
+      credentialGroupId: 'canonical-group',
+      userId: 'viewer',
+    })
+  })
+
+  it('propagates policy read failures without provisioning or enrollment', async () => {
+    mocks.policy.mockRejectedValueOnce(new Error('Database unavailable'))
+    await expect(execute()).rejects.toThrow('Database unavailable')
+    expect(mocks.ensure).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
+  })
+
+  it('rejects workspace keys before loading protected context', async () => {
+    await expect(
+      startPersonalCredentialConnection.execute({
+        principal: { kind: 'workspace_api_key', keyId: 'key', workspaceId: 'workspace' },
+        input,
+      })
+    ).rejects.toThrow()
+    expect(mocks.workspace).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
   })
 })

@@ -103,7 +103,9 @@ describe('personal account connection errors', () => {
     )
     expect(response).toMatchObject({
       status: 409,
-      body: { error: 'Ask a workspace admin to configure this integration in Connected accounts' },
+      body: {
+        error: 'Ask an organization admin to configure this integration in organization settings',
+      },
     })
   })
 

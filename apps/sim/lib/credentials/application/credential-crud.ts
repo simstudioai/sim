@@ -15,6 +15,7 @@ import {
 } from '@/lib/credentials/application/authorized-credential-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
+import { requireWorkspacePersonalAccounts } from '@/lib/credentials/application/workspace-personal-accounts'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   createCredentialRecord,
@@ -230,7 +231,11 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
     }
     const result =
       input.type === 'personal_token'
-        ? await createPersonalTokenCredential({ ...input, userId })
+        ? await createPersonalTokenCredential({
+            ...input,
+            userId,
+            accounts: await requireWorkspacePersonalAccounts(principal, context),
+          })
         : await createCredentialRecord({ ...input, userId }, { authorizeWorkspace: false })
     if (!result.success) throwCredentialMutationFailure(result)
     if (!result.credential) throw new Error('Credential creation succeeded without a credential')

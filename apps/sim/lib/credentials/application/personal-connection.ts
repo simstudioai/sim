@@ -1,29 +1,26 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import type { StartPersonalCredentialConnectionBody } from '@/lib/api/contracts/credentials'
-import {
-  defineAuthorizedWorkspaceUseCase,
-  InsufficientWorkspacePermissionsError,
-  requireCurrentHumanRole,
-} from '@/lib/core/application'
+import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { loadWorkspaceAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
 import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
-import {
-  findCredentialGroupProviderFromProviderId,
-  isCredentialGroupStandardOAuthProvider,
-} from '@/lib/credential-groups/providers'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
-import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
+import { requireWorkspacePersonalAccounts } from '@/lib/credentials/application/workspace-personal-accounts'
 import { getPersonalOAuthCredentials } from '@/lib/credentials/personal'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
-/** Connects the authenticated person through the workspace's canonical account enrollment. */
+export interface StartPersonalCredentialConnectionInput {
+  workspaceId: string
+  providerId: string
+  credentialId?: string
+}
+
+/** Connects the authenticated person through the workspace's organization account enrollment. */
 export const startPersonalCredentialConnection = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.startPersonalConnection,
-  resolveContext: async ({ input }: { input: StartPersonalCredentialConnectionBody }) => {
+  resolveContext: async ({ input }: { input: StartPersonalCredentialConnectionInput }) => {
     const context = await loadActiveWorkspaceApplicationContext(input.workspaceId)
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
@@ -42,6 +39,7 @@ export const startPersonalCredentialConnection = defineAuthorizedWorkspaceUseCas
     if (!provider || !service) {
       throw new OrchestrationError('validation', 'This integration cannot be connected here')
     }
+    const group = await requireWorkspacePersonalAccounts(principal, context)
     if (input.credentialId) {
       const credentials = await getPersonalOAuthCredentials(
         context.workspaceId,
@@ -56,42 +54,15 @@ export const startPersonalCredentialConnection = defineAuthorizedWorkspaceUseCas
         throw new OrchestrationError('forbidden', 'You can only reconnect your own account')
       }
     }
-    let group = await loadWorkspaceAccountsCredentialListContext(context.workspaceId)
-    if (!group || !group.options.some((option) => option.provider === provider)) {
-      try {
-        await requireCurrentHumanRole(userId, context, 'admin')
-      } catch (error) {
-        if (!(error instanceof InsufficientWorkspacePermissionsError)) throw error
-        throw new OrchestrationError(
-          'forbidden',
-          `Ask a workspace admin to enable ${service.name} in Connected accounts`
-        )
-      }
-      if (!isCredentialGroupStandardOAuthProvider(provider)) {
-        throw new OrchestrationError(
-          'validation',
-          'Configure Slack sign-in in Connected accounts first'
-        )
-      }
-      await ensureWorkspaceAccountsGroup(context.workspaceId, userId, {
-        provider,
-        label: service.name,
-        required: false,
-      })
-      group = await loadWorkspaceAccountsCredentialListContext(context.workspaceId)
-    }
-    if (group?.status !== 'active') {
-      throw new OrchestrationError('forbidden', 'Connected accounts is disabled in this workspace')
-    }
     const options = group.options.filter((option) => option.provider === provider)
     if (options.length !== 1 || options[0]?.status !== 'active') {
       throw new OrchestrationError(
         'conflict',
-        `Ask a workspace admin to enable ${service.name} in Connected accounts`
+        `Ask an organization admin to enable ${service.name} in organization settings`
       )
     }
     const { enrollment, invitationLink } = await createViewerCredentialGroupEnrollment({
-      workspaceId: context.workspaceId,
+      organizationId: group.organizationId,
       credentialGroupId: group.credentialGroupId,
       userId,
     })
@@ -99,7 +70,7 @@ export const startPersonalCredentialConnection = defineAuthorizedWorkspaceUseCas
     if (!token) throw new Error('Account enrollment did not return an invitation token')
     const oauth = await getCredentialGroupOAuthContextForEnrollment(
       {
-        workspaceId: context.workspaceId,
+        organizationId: group.organizationId,
         credentialGroupId: group.credentialGroupId,
         enrollmentId: enrollment.id,
         email: enrollment.email,

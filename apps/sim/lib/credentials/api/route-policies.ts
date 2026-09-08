@@ -75,7 +75,7 @@ export const internalPersonalCredentialConnectionErrorPolicy = extendInternalErr
   (error) => {
     if (error instanceof CredentialGroupProviderConfigurationError) {
       return internalErrorResponse(409, {
-        error: 'Ask a workspace admin to configure this integration in Connected accounts',
+        error: 'Ask an organization admin to configure this integration in organization settings',
       })
     }
     const status =

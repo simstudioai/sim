@@ -13,17 +13,19 @@ const {
   mockResolveGoverningPermissionGroupOrganization,
   mockLockWorkspaceCreationContext,
   mockGetWorkspaceInvitePolicy,
+  mockCreateWorkspaceAccountsGroup,
 } = vi.hoisted(() => ({
   mockResolveGoverningPermissionGroupOrganization: vi.fn(),
   mockLockWorkspaceCreationContext: vi.fn(),
   mockGetWorkspaceInvitePolicy: vi.fn(),
+  mockCreateWorkspaceAccountsGroup: vi.fn(),
 }))
 
 /** The starter workflow is not what these cases are about, and it reaches the block registry. */
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/credential-groups/workspace-accounts', () => ({
-  createWorkspaceAccountsGroup: vi.fn(),
+  createWorkspaceAccountsGroup: mockCreateWorkspaceAccountsGroup,
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
@@ -115,6 +117,8 @@ describe('createWorkspace capability-gate placement', () => {
 
     await createWorkspace({ ...params, skipDefaultWorkflow: true })
 
+    expect(mockCreateWorkspaceAccountsGroup).not.toHaveBeenCalled()
+
     expect(mockLockWorkspaceCreationContext).toHaveBeenCalledWith(tx, {
       userId: 'creator-1',
       organizationId: 'org-1',
@@ -169,6 +173,8 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
       userId: 'user-1',
       userName: 'Ada Lovelace',
     })
+
+    expect(mockCreateWorkspaceAccountsGroup).not.toHaveBeenCalled()
 
     expect(mockResolveGoverningPermissionGroupOrganization).not.toHaveBeenCalled()
     expect(mockLockWorkspaceCreationContext).toHaveBeenCalledWith(tx, {

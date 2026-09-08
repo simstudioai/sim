@@ -3,7 +3,6 @@ import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { createWorkspaceAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
 import type { DbOrTx } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -78,7 +77,7 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * The caller supplies the creation-policy snapshot. This function revalidates
  * that snapshot — including the `workspace.create` capability under the
  * permission-group advisory lock — before inserting the workspace, owner
- * permission, connected accounts, and optional starter workflow atomically.
+ * permission and optional starter workflow atomically.
  */
 export async function createWorkspaceInTransaction(
   tx: DbOrTx,
@@ -144,8 +143,6 @@ export async function createWorkspaceInTransaction(
     })
   }
   await tx.insert(permissions).values(permissionRows)
-
-  await createWorkspaceAccountsGroup(tx, workspaceId, userId)
 
   if (defaultWorkflowArtifacts) {
     await tx.insert(workflow).values({

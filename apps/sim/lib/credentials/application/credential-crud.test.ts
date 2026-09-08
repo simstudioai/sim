@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   getActor: vi.fn(),
   updateRecord: vi.fn(),
   createRecord: vi.fn(),
+  personalAccounts: vi.fn(),
+  createPersonalToken: vi.fn(),
 }))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
@@ -43,6 +45,18 @@ vi.mock('@/lib/credentials/orchestration', () => ({
   updateCredentialRecord: mocks.updateRecord,
   createCredentialRecord: mocks.createRecord,
   isProviderOutageCode: () => false,
+}))
+vi.mock('@/lib/credentials/application/workspace-personal-accounts', () => ({
+  requireWorkspacePersonalAccounts: mocks.personalAccounts,
+}))
+vi.mock('@/lib/credentials/personal-tokens', () => ({
+  createPersonalTokenCredential: mocks.createPersonalToken,
+  updatePersonalTokenCredential: vi.fn(),
+}))
+vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: vi.fn() }))
+vi.mock('@/lib/integrations/principal-scope.server', () => ({ allowedIntegrationTypes: vi.fn() }))
+vi.mock('@/lib/integrations/credential-visibility.server', () => ({
+  createIntegrationCredentialVisibility: () => ({ isCredentialVisible: () => true }),
 }))
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/credentials/oauth', () => ({ syncWorkspaceOAuthCredentialsForUser: vi.fn() }))
@@ -412,5 +426,55 @@ describe('personal-credential capability', () => {
     })
 
     expect(result.credential).toEqual(created)
+  })
+})
+
+describe('personal-token organization enrollment', () => {
+  const accounts = { organizationId: 'organization', credentialGroupId: 'organization-group' }
+  const tokenInput = {
+    workspaceId: WORKSPACE_ID,
+    type: 'personal_token' as const,
+    providerId: 'gitlab',
+    displayName: 'My GitLab',
+    apiToken: 'personal-token',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resolveGroupConfigMock.mockResolvedValue(null)
+    mocks.loadWorkspace.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'organization' })
+    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.personalAccounts.mockResolvedValue(accounts)
+  })
+
+  it('passes the authorized organization group into token creation', async () => {
+    const created = { ...credential, type: 'personal_token', providerId: 'gitlab' }
+    mocks.createPersonalToken.mockResolvedValue({
+      success: true,
+      created: true,
+      credential: created,
+    })
+    mocks.getActor.mockResolvedValue({ credential: created, isAdmin: true })
+    await createWorkspaceCredential.execute({ principal: sessionPrincipal, input: tokenInput })
+    expect(mocks.personalAccounts).toHaveBeenCalledWith(
+      sessionPrincipal,
+      expect.objectContaining({ workspaceOrganizationId: 'organization' })
+    )
+    expect(mocks.createPersonalToken).toHaveBeenCalledWith({
+      ...tokenInput,
+      userId: 'user-1',
+      accounts,
+    })
+    expect(mocks.createRecord).not.toHaveBeenCalled()
+  })
+
+  it('refuses unapproved organization access before verifying or storing a token', async () => {
+    mocks.personalAccounts.mockRejectedValueOnce(new Error('Organization accounts unavailable'))
+    await expect(
+      createWorkspaceCredential.execute({ principal: sessionPrincipal, input: tokenInput })
+    ).rejects.toThrow('Organization accounts unavailable')
+    expect(mocks.createPersonalToken).not.toHaveBeenCalled()
+    expect(mocks.createRecord).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 })
