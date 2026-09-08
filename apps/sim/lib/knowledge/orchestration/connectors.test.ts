@@ -1396,9 +1396,10 @@ describe('members-mode connectors', () => {
     expect(mockDispatchMemberSync).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockRevoke).toHaveBeenCalledWith(
-      expect.objectContaining({ connectorId: expect.not.stringMatching(MEMBERS_CONNECTOR.id) }),
+      expect.objectContaining({ connectorId: expect.any(String) }),
       ACTOR.userId
     )
+    expect(mockRevoke.mock.calls[0][0].connectorId).not.toBe(MEMBERS_CONNECTOR.id)
   })
 
   it('does not reuse matching settings bound to a different account option', async () => {
