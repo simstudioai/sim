@@ -764,18 +764,23 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               <Button
                 type='button'
                 variant='ghost'
-                className='gap-1.5'
+                className='h-[28px] gap-1.5 text-sm leading-5'
                 aria-label='Model and reasoning effort'
               >
-                {modelSelection.fastMode && <Zap className='size-[14px]' />}
-                {
-                  MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
-                    ?.label
-                }
-                <span className='text-[var(--text-muted)]'>
-                  {MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label}
+                {modelSelection.fastMode && <Zap className='size-[16px] shrink-0' />}
+                <span className='inline-flex items-baseline gap-1'>
+                  <span>
+                    {
+                      MOTHERSHIP_MODEL_OPTIONS.find(
+                        (option) => option.value === modelSelection.model
+                      )?.label
+                    }
+                  </span>
+                  <span className='text-[var(--text-muted)]'>
+                    {MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label}
+                  </span>
                 </span>
-                <ChevronDown className='size-[14px]' />
+                <ChevronDown className='size-[16px] shrink-0' />
               </Button>
             </PopoverTrigger>
             <PopoverContent side='top' align='start' minWidth={280} maxWidth={280}>
@@ -799,6 +804,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
                         <Button
                           type='button'
                           variant={modelSelection.fastMode ? 'active' : 'ghost'}
+                          className='size-[30px] shrink-0 p-0'
                           aria-label='Fast mode'
                           aria-pressed={modelSelection.fastMode}
                           onClick={() => setFastMode(!modelSelection.fastMode)}
