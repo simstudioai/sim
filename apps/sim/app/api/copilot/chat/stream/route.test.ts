@@ -38,7 +38,6 @@ vi.mock('@/lib/copilot/request/session', () => ({
   }),
   encodeSSEEnvelope: (event: Record<string, unknown>) =>
     new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
-  encodeSSEComment: (comment: string) => new TextEncoder().encode(`: ${comment}\n\n`),
   SSE_RESPONSE_HEADERS: {
     'Content-Type': 'text/event-stream',
   },

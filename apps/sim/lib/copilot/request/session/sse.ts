@@ -1,7 +1,5 @@
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
-export { encodeSSEComment } from '@/lib/core/utils/sse'
-
 const encoder = new TextEncoder()
 
 export function encodeSSEEnvelope(envelope: unknown): Uint8Array {

@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
 import { createEvent } from './event'
-import { encodeSSEComment, encodeSSEEnvelope } from './sse'
+import { encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
 
 const logger = createLogger('StreamWriter')

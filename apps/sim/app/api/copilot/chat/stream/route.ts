@@ -22,13 +22,13 @@ import { getCopilotTracer, markSpanForError } from '@/lib/copilot/request/otel'
 import {
   checkForReplayGap,
   createEvent,
-  encodeSSEComment,
   encodeSSEEnvelope,
   readEvents,
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const maxDuration = 3600
