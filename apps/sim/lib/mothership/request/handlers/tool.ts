@@ -50,6 +50,7 @@ import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   getToolDisplayTitle,
   normalizeToolActivityDescription,
@@ -480,6 +481,16 @@ async function handleCallPhase(
     existing.agentId ??= agentId
     existing.activityDescription ??= activityDescription
   }
+  /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
+  const suppliedActivity = readToolActivity(args) ?? readToolActivity(existing?.params)
+  const activity = suppliedActivity?.title
+    ? suppliedActivity
+    : suppliedActivity &&
+      Array.from(context.toolCalls.values())
+        .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
+        .map((tool) => readToolActivity(tool.params))
+        .find((candidate) => candidate?.id === suppliedActivity.id && candidate.title)
+  const displayArgs = activity ? { ...args, activity } : args
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
@@ -497,8 +508,8 @@ async function handleCallPhase(
 
   if (isSubagent) {
     if (wasToolResultSeen(context, toolCallId) || existing?.endTime) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
-        if (existing) updateToolCallFromFrame(existing, toolName, args, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
+        if (existing) updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -508,8 +519,8 @@ async function handleCallPhase(
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
-        updateToolCallFromFrame(existing, toolName, args, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
+        updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -521,7 +532,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      args,
+      displayArgs,
       parentToolCallId!,
       agentId,
       ui,
@@ -534,7 +545,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      args,
+      displayArgs,
       existing,
       agentId,
       ui,

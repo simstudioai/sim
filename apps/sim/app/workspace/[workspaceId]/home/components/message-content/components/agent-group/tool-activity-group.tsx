@@ -1,9 +1,13 @@
 'use client'
 
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
-import { getToolActivitySummaryActions } from '@/lib/copilot/tools/tool-activity'
-import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import {
+  getToolActivitySummaryActions,
+  readToolActivity,
+} from '@/lib/mothership/tools/tool-activity'
+import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
@@ -78,6 +82,8 @@ export function getActivityStatusTool(tools: ToolCallData[]): ToolCallData | und
 }
 
 interface ToolActivityGroupProps {
+  activity?: ToolActivity
+  completedGroupCount?: number
   tools: ToolCallData[]
   ToolCallComponent: ComponentType<ToolCallItemProps>
   autoScrollActivity?: boolean
@@ -85,6 +91,8 @@ interface ToolActivityGroupProps {
 }
 
 export function ToolActivityGroup({
+  activity,
+  completedGroupCount = 0,
   tools,
   ToolCallComponent,
   autoScrollActivity = true,
@@ -93,12 +101,44 @@ export function ToolActivityGroup({
   const [expanded, setExpanded] = useState(false)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
-  const working = isActive || tools.some((tool) => tool.status === ToolCallStatus.executing)
+  const groupedActivity =
+    activity ??
+    tools
+      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .findLast((entry) => entry?.title && entry.completedTitle)
+  const working =
+    (!groupedActivity && isActive) || tools.some((tool) => tool.status === ToolCallStatus.executing)
   const headerActive =
     working &&
     (statusTool.status === ToolCallStatus.executing || statusTool.status === ToolCallStatus.success)
   const attentionKey = getActivityAttentionKey(tools)
   const SummaryIcon = getToolIcon(tools[0].toolName)
+  const activityTools =
+    completedGroupCount > 1 && groupedActivity
+      ? tools.filter(
+          (tool) => readToolActivity(tool.params, tool.streamingArgs)?.id === groupedActivity.id
+        )
+      : tools
+  const failedActivityTool = activityTools.find(
+    (tool) => tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
+  )
+  const stoppedActivityTool = activityTools.find(
+    (tool) =>
+      tool.status === ToolCallStatus.cancelled ||
+      tool.status === ToolCallStatus.interrupted ||
+      tool.status === ToolCallStatus.skipped
+  )
+  const completedActivityLabel =
+    groupedActivity?.title && groupedActivity.completedTitle
+      ? failedActivityTool
+        ? getToolStatusDisplayTitle(groupedActivity.title, ToolCallStatus.error)
+        : stoppedActivityTool
+          ? getToolStatusDisplayTitle(groupedActivity.title, ToolCallStatus.cancelled)
+          : groupedActivity.completedTitle
+      : undefined
+  const completedLabel = completedActivityLabel
+    ? `${completedActivityLabel}${completedGroupCount > 1 ? ` + ${completedGroupCount - 1}` : ''}`
+    : undefined
 
   return (
     <ToolCallComponent
@@ -109,9 +149,8 @@ export function ToolActivityGroup({
           activity={{
             label: working
               ? getActiveToolActivityTitle(status.activeLabel, statusTool, tools)
-              : tools.length === 1
-                ? status.label
-                : getToolActivitySummary(tools),
+              : (completedLabel ??
+                (tools.length === 1 ? status.label : getToolActivitySummary(tools))),
             isActive: headerActive,
             icon:
               working || tools.length === 1 ? status.icon : <SummaryIcon className='size-full' />,
