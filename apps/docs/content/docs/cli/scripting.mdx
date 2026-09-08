@@ -69,12 +69,48 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --sort '[{"field":"cr
 
 ## Pagination
 
-List commands page automatically up to `--limit`, which defaults to `100`. Pass
-`--limit 0` to fetch everything:
+Resource lists and directory `ls` follow every page by default. Pass `--limit N`
+to cap the returned items:
+
+```bash
+sim workflows list --output json
+sim files ls /Reports --limit 50
+```
+
+Table rows (including queries), logs, audit/billing events, workflow runs and
+versions, and knowledge documents/chunks retain a default limit of `100`.
+Connector document lists also use this cap. Use `--limit 0` to fetch every page
+of a large dataset:
 
 ```bash
 sim logs list --limit 0 --output json > all-logs.json
 ```
+
+Pages are fetched sequentially, accumulated in memory, and printed as one
+result. A large table can consume substantial memory; use filters or an explicit
+limit when you only need a subset. Each API request fetches at most 100 items.
+
+Paginated JSON and YAML results have the shape `{ data: [...], nextCursor }`.
+`nextCursor` is the cursor after the last returned row, or `null` when all pages
+have been fetched. Scripts that read list rows should use `.data[]`:
+
+```bash
+sim logs list --output json | jq -r '.data[].runId'
+```
+
+The capped dataset commands accept `--cursor` to resume from the previous
+result's `nextCursor`. Keep the same resource, filters, and sort order, and stop
+when the cursor is `null`:
+
+```bash
+sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --output json
+sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --cursor "$nextCursor" --output json
+```
+
+`--limit` applies to each invocation starting at its cursor. `--limit 0` with
+`--cursor` fetches every remaining page. Table-row queries, logs (including
+billing and audit logs), workflow run/version histories, and knowledge
+document/chunk lists all support this continuation.
 
 ## Destructive commands
 

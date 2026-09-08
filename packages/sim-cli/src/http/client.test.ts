@@ -81,6 +81,23 @@ describe('cursor pagination', () => {
     })
   })
 
+  it.each([{ cursors: ['c1', 'c1'] }, { cursors: ['c1', 'c2', 'c1'] }])(
+    'rejects cursor cycles $cursors before making another request',
+    async ({ cursors }) => {
+      const request = vi.fn().mockRejectedValue(new Error('Pagination did not stop at the cycle'))
+      for (const nextCursor of cursors) {
+        request.mockResolvedValueOnce({ data: ['item'], nextCursor })
+      }
+
+      await expect(
+        requestAllPages<string>({ request } as Pick<SimClient, 'request'>, '/api/v2/items', {
+          pageSize: 100,
+        })
+      ).rejects.toThrow('repeated pagination cursor')
+      expect(request).toHaveBeenCalledTimes(cursors.length)
+    }
+  )
+
   it('reports progress on stderr once a second page is coming, then clears the line', async () => {
     const request = vi
       .fn()

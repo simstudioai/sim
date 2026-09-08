@@ -27,6 +27,15 @@ SIM_OUTPUT=yaml sim logs list > logs.yaml
 `json` and `yaml` emit the API's raw values, not the table's formatting — a
 duration stays `1500`, not `"1.5s"`.
 
+Paginated lists include the rows under `data` and the continuation cursor under
+`nextCursor`. A `null` cursor means no pages remain:
+
+```json
+{ "data": [{ "runId": "9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543" }], "nextCursor": null }
+```
+
+Read list rows with `jq '.data[]'` and check for more pages with `jq '.nextCursor'`.
+
 `table` formats for reading: timestamps without milliseconds, sizes as `4.2 MB`,
 booleans as `yes`/`no`, costs as `$0.0142`. Long cells are clipped to keep rows
 on one line; switch to `json` for the full value.

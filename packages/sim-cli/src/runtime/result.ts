@@ -283,29 +283,26 @@ function unwrapResource(data: unknown): unknown {
 
 export function renderPage(
   format: OutputFormat,
-  rows: unknown[],
+  page: { data: unknown[]; nextCursor: string | null },
   spec: CommandSpec,
-  envelope?: unknown,
-  options: { truncated?: boolean } = {}
+  envelope?: unknown
 ): void {
   writePageNote(spec, envelope)
   writeEnvelopeTruncation(envelope)
-  writeCursorTruncation(rows.length, options.truncated === true)
   printList(
     format,
-    rows,
-    spec.columns ? columnsFrom(spec.columns) : inferColumns(rows, spec.expand)
+    page.data,
+    spec.columns ? columnsFrom(spec.columns) : inferColumns(page.data, spec.expand),
+    page
   )
 }
 
 /**
  * States a page-envelope fact once, above the rows, on stderr.
  *
- * stdout is the rows and stays byte-for-byte what it was: `--output text` is
- * positional and tab-separated, and a script cutting fields from it must not
- * have to skip a header it did not ask for. Every format gets the note, the
- * machine ones included — a paginated command walks the pages itself and prints
- * the accumulated rows, so the envelope reaches no output format on stdout.
+ * `--output text` is positional and tab-separated, so this note cannot occupy
+ * a row. JSON and YAML expose the rows and continuation cursor; other envelope
+ * facts such as billing scope are reported here for every format.
  */
 function writePageNote(spec: CommandSpec, envelope: unknown): void {
   if (!spec.pageNote) return
@@ -318,8 +315,8 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
  * Response fields that state the server itself clipped what it returned.
  *
  * Matched by shape rather than listed per command, so a flag added to a route
- * envelope is surfaced the day it lands: the CLI accumulates the rows and
- * prints those, so an envelope field reaches no output format on its own.
+ * envelope is surfaced the day it lands. Structured list output carries data
+ * and nextCursor; truncation flags are reported separately.
  */
 const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
 
@@ -409,10 +406,9 @@ function clippedSubject(flag: string): string {
 /**
  * States a server-side clip once, on stderr, in every format.
  *
- * The API answers a clipped inventory with a flag on the envelope, and the CLI
- * printed only `data` — so `--output json` could not tell a complete list from
- * one the server cut short. stdout stays byte-for-byte the rows, for the reason
- * `writePageNote` gives.
+ * The API answers a clipped inventory with a flag on the envelope. It is
+ * separate from pagination: a null nextCursor does not establish whether the
+ * server clipped fields within the returned rows.
  */
 function writeEnvelopeTruncation(envelope: unknown): void {
   for (const flag of responseTruncationFlags(envelope)) {
@@ -422,22 +418,6 @@ function writeEnvelopeTruncation(envelope: unknown): void {
       )
     )
   }
-}
-
-/**
- * States that the walk stopped at `--limit` while more pages remained.
- *
- * `sim tools list` answered 100 of 4708 rows with an exit code of 0 and nothing
- * on stderr, in every format — indistinguishable from a complete inventory.
- * Said whenever a cursor survives, including when the caller set a small limit:
- * the answer is incomplete either way, and the caller who capped it is the one
- * most likely to reuse the result as if it were whole.
- */
-export function writeCursorTruncation(count: number, truncated: boolean): void {
-  if (!truncated) return
-  process.stderr.write(
-    chalk.dim(`showing the first ${count}; more results exist — re-run with --limit 0 for all\n`)
-  )
 }
 
 /** Renders one non-paginated operation result according to its CLI contract. */

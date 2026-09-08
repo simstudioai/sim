@@ -37,7 +37,7 @@ export function isProfileWorkspacePath(commandSpec: CommandSpec, param: string):
  * lives here rather than beside its reader in `execute.ts` because `options.ts`
  * has to ask the same question while it builds the flag, and importing
  * `execute.ts` from `options.ts` would close a module cycle — `execute.ts`
- * already reads `DEFAULT_LIMIT` from `options.ts`.
+ * already reads `DEFAULT_PAGE_SIZE` from `options.ts`.
  */
 export function cursorSlot(
   operationSpec: Pick<OperationSpec, 'query' | 'body'>

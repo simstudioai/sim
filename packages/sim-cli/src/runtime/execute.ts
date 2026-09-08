@@ -2,10 +2,10 @@ import type { Command } from 'commander'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
-import { pageProgress, SimApiError, type V2Page } from '../http/client'
+import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
 import { safeOneLine } from '../output/render'
 import { camel } from './derive'
-import { DEFAULT_LIMIT } from './options'
+import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
 import { warnRenamedFlag } from './renamed'
 import {
   buildRequest,
@@ -222,8 +222,8 @@ const EXCLUSIVE_CAP_FIELDS: Readonly<
  * this, `--limit ''` would go from today's error to an unbounded walk of a
  * shared workspace.
  */
-function readPagedLimit(raw: unknown): number {
-  const text = String(raw ?? DEFAULT_LIMIT).trim()
+function readPagedLimit(raw: unknown, operation: V2OperationName): number {
+  const text = String(raw ?? defaultListLimit(operation)).trim()
   const value = text === '' ? Number.NaN : Number(text)
   if (!Number.isInteger(value) || value < 0) {
     throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
@@ -384,7 +384,7 @@ export async function executeOperation(
    * generic integer refusal — losing the `0 for everything` this pager depends
    * on the caller knowing.
    */
-  const pagedLimit = paging ? readPagedLimit(requestFlags.limit) : 0
+  const pagedLimit = paging ? readPagedLimit(requestFlags.limit, operation) : 0
   const request = buildRequest(
     operation,
     positional,
@@ -393,12 +393,18 @@ export async function executeOperation(
   )
 
   if (paging) {
+    const initialCursor = request[paging]?.cursor
+    if (
+      initialCursor !== undefined &&
+      (typeof initialCursor !== 'string' || initialCursor.trim() === '')
+    ) {
+      throw new SimApiError('--cursor must be a non-empty string', 0)
+    }
     const limit = pagedLimit === 0 ? Number.POSITIVE_INFINITY : pagedLimit
-    const pageSize = Math.min(Number.isFinite(limit) ? limit : DEFAULT_LIMIT, DEFAULT_LIMIT)
-    const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
     const rows: unknown[] = []
+    const seenCursors = new Set<string>(initialCursor ? [initialCursor] : [])
     const progress = pageProgress()
-    let cursor: string | null = null
+    let cursor: string | null = initialCursor ?? null
     /** The first page's envelope: where a fact about the whole query is stated. */
     let envelope: unknown
 
@@ -406,6 +412,8 @@ export async function executeOperation(
     // would otherwise leave the progress text on the line the error prints onto.
     try {
       do {
+        const pageSize = Math.min(DEFAULT_PAGE_SIZE, limit - rows.length)
+        const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
         const page: V2Page<unknown> = await client.request(request.path, {
           method: operationSpec.method,
           headers: request.headers,
@@ -415,6 +423,13 @@ export async function executeOperation(
               ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
               : request.body,
         })
+        if (page.data.length > pageSize) {
+          throw new SimApiError(
+            `The API returned ${page.data.length} items for a page limit of ${pageSize}; nextCursor would skip unreturned items.`,
+            0
+          )
+        }
+        assertCursorAdvances(page.nextCursor, seenCursors)
         envelope = foldPageEnvelope(envelope, page)
         rows.push(...page.data)
         cursor = page.nextCursor
@@ -423,16 +438,7 @@ export async function executeOperation(
     } finally {
       progress.finish()
     }
-    // A cursor still in hand means the walk stopped at `--limit`, not at the
-    // end of the list — the one fact that separates a clipped answer from a
-    // complete one, and it was dropped with the loop variable.
-    renderPage(
-      profile.output,
-      Number.isFinite(limit) ? rows.slice(0, limit) : rows,
-      commandSpec,
-      envelope,
-      { truncated: Boolean(cursor) }
-    )
+    renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope)
     return
   }
 
