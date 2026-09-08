@@ -11,6 +11,7 @@ import type { CancelWorkflowRunParams } from '@/lib/mothership/tools/handlers/pa
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     apiKey: vi.fn(),
+    credential: vi.fn(),
     executeWorkflowUseCase: vi.fn(),
     hasExecutionResult: vi.fn(),
     readAttemptedExecutionId: vi.fn(),
@@ -25,6 +26,9 @@ vi.mock('@/lib/mothership/application/execute-workflow-use-case', () => ({
 
 vi.mock('@/lib/mothership/application/execute-api-key-use-case', () => ({
   executeCopilotApiKeyUseCase: mocks.apiKey,
+}))
+vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
+  executeCopilotCredentialUseCase: mocks.credential,
 }))
 
 vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
@@ -483,6 +487,79 @@ describe('workflow mutation Copilot adapters', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('requires admin access')
     expect(mocks.apiKey).not.toHaveBeenCalled()
+  })
+
+  it('dispatches stored Slack connection by its registered name and returns only public metadata', async () => {
+    ensureHandlersRegistered()
+    mocks.credential.mockResolvedValue({
+      credential: {
+        id: 'slack-1',
+        displayName: 'Support',
+        encryptedServiceAccountKey: 'must-not-return',
+      },
+      created: true,
+    })
+    const result = await executeTool(
+      'connect_slack_bot',
+      {
+        displayName: 'Support',
+        signingSecretEnvVar: 'SIGNING',
+        botTokenEnvVar: 'BOT',
+        activity: { id: 'auth', title: 'Connecting Support', completedTitle: 'Connected Support' },
+      },
+      { ...context, userPermission: 'write' }
+    )
+    expect(result.success).toBe(true)
+    expect(mocks.credential).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'credentials.service_accounts.create' }),
+      }),
+      {
+        workspaceId: 'workspace-1',
+        displayName: 'Support',
+        description: undefined,
+        storedSlackSecrets: { signingSecretEnvVar: 'SIGNING', botTokenEnvVar: 'BOT' },
+      }
+    )
+    expect(result.output).toEqual({
+      credentialId: 'slack-1',
+      displayName: 'Support',
+      created: true,
+      requestUrl: expect.stringContaining('slack-1'),
+    })
+    expect(JSON.stringify(result)).not.toContain('must-not-return')
+  })
+
+  it('refuses stored Slack connection for read-only callers before the application call', async () => {
+    ensureHandlersRegistered()
+    const result = await executeTool(
+      'connect_slack_bot',
+      {
+        displayName: 'Support',
+        signingSecretEnvVar: 'SIGNING',
+        botTokenEnvVar: 'BOT',
+      },
+      { ...context, userPermission: 'read' }
+    )
+    expect(result.success).toBe(false)
+    expect(mocks.credential).not.toHaveBeenCalled()
+  })
+
+  it('rejects model-provided scope on a stored Slack connection', async () => {
+    ensureHandlersRegistered()
+    const result = await executeTool(
+      'connect_slack_bot',
+      {
+        displayName: 'Support',
+        signingSecretEnvVar: 'SIGNING',
+        botTokenEnvVar: 'BOT',
+        workspaceId: 'other',
+      },
+      { ...context, userPermission: 'write' }
+    )
+    expect(result.success).toBe(false)
+    expect(mocks.credential).not.toHaveBeenCalled()
   })
 
   it('logs the full unknown run failure but returns a generic model-visible error', async () => {

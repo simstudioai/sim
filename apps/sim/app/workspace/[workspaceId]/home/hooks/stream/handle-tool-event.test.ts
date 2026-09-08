@@ -18,6 +18,9 @@ vi.mock(
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
@@ -84,6 +87,38 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
+  it.each([false, true])(
+    'refreshes credential lists and selectors after Slack connection (replay=%s)',
+    (replay) => {
+      const deps = makeStreamLoopDeps()
+      const ctx = createStreamLoopContext(deps)
+      dispatchStreamEvent(ctx, toolCall('slack', 'connect_slack_bot'))
+      expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
+      const result = toolResult('slack', true, 'connect_slack_bot')
+      dispatchStreamEvent(ctx, replay ? toStreamBatchEvent(result).event : result)
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: workspaceCredentialKeys.lists(),
+      })
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: oauthCredentialKeys.lists(),
+      })
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: selectorQueryRoots.selectors,
+      })
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: selectorQueryRoots.workflowSearchReplace,
+      })
+    }
+  )
+
+  it('does not refresh credentials after a failed Slack connection', () => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+    dispatchStreamEvent(ctx, toolCall('slack', 'connect_slack_bot'))
+    dispatchStreamEvent(ctx, toolResult('slack', false, 'connect_slack_bot'))
+    expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  })
+
   it('replays a completed file write without reopening its tab or preview', () => {
     const onResourceEvent = vi.fn()
     const deps = makeStreamLoopDeps({ onResourceEventRef: ref(onResourceEvent) })

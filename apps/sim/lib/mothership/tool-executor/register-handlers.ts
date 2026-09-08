@@ -1,12 +1,14 @@
 import { createLogger } from '@sim/logger'
 import {
   CancelWorkflowRun,
+  ConnectSlackBot,
   GenerateApiKey,
   RunBlock,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
 } from '@/lib/mothership/generated/tool-catalog-v1'
+import { executeConnectSlackBot } from '@/lib/mothership/tools/handlers/connect-slack-bot'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/mothership/tools/server/router'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
@@ -53,6 +55,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
   return {
     [CancelWorkflowRun.id]: h(executeCancelWorkflowRun),
     [GenerateApiKey.id]: h(executeGenerateApiKey),
+    [ConnectSlackBot.id]: executeConnectSlackBot,
     [RunWorkflow.id]: h(executeRunWorkflow),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),

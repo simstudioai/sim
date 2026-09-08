@@ -956,6 +956,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const keyName = stringArg(args, 'name')
       return keyName ? `Generating API key ${keyName}` : 'Generating API key'
     }
+    case 'connect_slack_bot': {
+      const botName = stringArg(args, 'displayName')
+      return botName ? `Connecting ${botName}` : 'Connecting Slack bot'
+    }
     case 'list_integration_tools': {
       const integration = stringArg(args, 'integration')
       return integration

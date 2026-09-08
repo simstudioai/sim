@@ -4,7 +4,11 @@ import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { ApplyFileEdit, PrepareFileEdit } from '@/lib/mothership/generated/tool-catalog-v1'
+import {
+  ApplyFileEdit,
+  ConnectSlackBot,
+  PrepareFileEdit,
+} from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   extractResourcesFromToolResult,
@@ -26,8 +30,11 @@ import {
   type ToolNode,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 type ToolEvent = Extract<PersistedStreamEventEnvelope, { type: 'tool' }>
 
@@ -64,6 +71,11 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
 
   if (FOLDER_TOOL_NAMES.has(name) && isSuccess) {
     deps.queryClient.invalidateQueries({ queryKey: folderKeys.list(deps.workspaceId) })
+  }
+  if (name === ConnectSlackBot.id && isSuccess) {
+    void deps.queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
+    void deps.queryClient.invalidateQueries({ queryKey: oauthCredentialKeys.lists() })
+    void invalidateSelectorQueries(deps.queryClient)
   }
   if (WORKFLOW_MUTATION_TOOL_NAMES.has(name) && isSuccess) {
     // `rm` archives, so the archived list moves too — and the shared helper also
