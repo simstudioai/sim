@@ -6,6 +6,7 @@ import { getConfiguredRedisUrl, getRedisConnectionDefaults } from '@/lib/core/co
 
 const logger = createLogger('ExecutionSignalHub')
 const EXECUTION_SIGNAL_PREFIX = 'execution:signal:'
+const SUBSCRIBER_TIMEOUT_MS = 5000
 export const LEGACY_EXECUTION_CANCEL_CHANNEL = 'execution:cancel'
 
 export type ExecutionSignalReason = 'event' | 'cancelled' | 'reconnected' | 'unavailable'
@@ -23,12 +24,13 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
   private readonly subscriber: Redis
   private readonly handlers = new Map<string, Set<ExecutionSignalHandler>>()
   private readonly subscriptionReady = new Map<string, Promise<void>>()
+  private connectionReady: Promise<void> | undefined
   private connectedOnce = false
 
   constructor(redisUrl: string) {
     const options = {
       ...getRedisConnectionDefaults(redisUrl),
-      commandTimeout: 5000,
+      commandTimeout: SUBSCRIBER_TIMEOUT_MS,
       connectionName: 'execution-signal-hub',
       maxRetriesPerRequest: null,
       retryStrategy: (attempt: number) => Math.min(attempt * 500, 5000),
@@ -70,9 +72,7 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
 
     let ready = this.subscriptionReady.get(channel)
     if (!ready) {
-      ready = this.subscriber
-        .subscribe(channel, LEGACY_EXECUTION_CANCEL_CHANNEL)
-        .then(() => undefined)
+      ready = this.subscribeChannels(channel, LEGACY_EXECUTION_CANCEL_CHANNEL)
       this.subscriptionReady.set(channel, ready)
     }
     try {
@@ -104,15 +104,60 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     }
   }
 
+  /**
+   * ioredis can send SUBSCRIBE during its handshake because Redis permits it
+   * while loading. Wait until the handshake's INFO completes before entering
+   * subscriber mode, including when new executions arrive during reconnect.
+   */
+  private async subscribeChannels(...channels: string[]): Promise<void> {
+    while (this.subscriber.status !== 'ready') {
+      await this.waitForConnectionReady()
+    }
+    await this.subscriber.subscribe(...channels)
+  }
+
+  private waitForConnectionReady(): Promise<void> {
+    if (this.connectionReady) return this.connectionReady
+    if (this.subscriber.status === 'end') {
+      return Promise.reject(new Error('Redis subscriber connection ended'))
+    }
+
+    this.connectionReady = new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timeout)
+        this.subscriber.removeListener('ready', onReady)
+        this.subscriber.removeListener('error', onError)
+        this.subscriber.removeListener('end', onEnd)
+      }
+      const onReady = () => {
+        cleanup()
+        resolve()
+      }
+      const onError = (error: Error) => {
+        cleanup()
+        reject(error)
+      }
+      const onEnd = () => onError(new Error('Redis subscriber connection ended'))
+      const timeout = setTimeout(
+        () => onError(new Error('Timed out waiting for Redis subscriber readiness')),
+        SUBSCRIBER_TIMEOUT_MS
+      )
+      this.subscriber.once('ready', onReady)
+      this.subscriber.once('error', onError)
+      this.subscriber.once('end', onEnd)
+    }).finally(() => {
+      this.connectionReady = undefined
+    })
+    return this.connectionReady
+  }
+
   private async handleReady(): Promise<void> {
     const reconnect = this.connectedOnce
     this.connectedOnce = true
     if (!reconnect || this.handlers.size === 0) return
 
     const channels = [...this.handlers.keys()]
-    const ready = this.subscriber
-      .subscribe(...channels, LEGACY_EXECUTION_CANCEL_CHANNEL)
-      .then(() => undefined)
+    const ready = this.subscribeChannels(...channels, LEGACY_EXECUTION_CANCEL_CHANNEL)
     for (const channel of channels) {
       if (this.handlers.has(channel)) this.subscriptionReady.set(channel, ready)
     }
