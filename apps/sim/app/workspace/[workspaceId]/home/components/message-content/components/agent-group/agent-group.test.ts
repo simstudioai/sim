@@ -195,6 +195,26 @@ describe('AgentGroup inline main activity', () => {
     expect(Boolean(container.querySelector('[class*="shimmer"]'))).toBe(status === 'executing')
   })
 
+  it('preserves manual expansion when more main-agent tools arrive', () => {
+    const items = [tool('success'), tool('executing')]
+    const render = (nextItems: AgentGroupItem[]) => act(() => {
+      root.render(createElement(AgentGroup, {
+        agentName: 'mothership', agentLabel: 'Sim', items: nextItems,
+        isStreaming: true, isLaneOpen: true,
+      }))
+    })
+    render(items)
+    const header = () => container.querySelector<HTMLElement>('[role="button"][aria-expanded]')
+    expect(header()?.getAttribute('aria-expanded')).toBe('false')
+    act(() => header()?.click())
+    expect(header()?.getAttribute('aria-expanded')).toBe('true')
+    render([...items, tool('executing')])
+    expect(header()?.getAttribute('aria-expanded')).toBe('true')
+    act(() => header()?.click())
+    render([...items, tool('executing')])
+    expect(header()?.getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('paces the active status in place and expands the full completed history', () => {
     vi.useFakeTimers()
     const first: AgentGroupItem = {
