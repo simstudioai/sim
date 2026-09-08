@@ -1,5 +1,5 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { MothershipResource, MothershipResourceUpdate } from '@/lib/mothership/resources/types'
+import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -25,8 +25,6 @@ export interface ToolExecutionContext {
   copilotToolExecution?: boolean
   /** Trusted lifecycle classification stamped by the server, never from model parameters. */
   copilotInteractionMode?: 'interactive' | 'headless'
-  /** Server-owned base image selected from the fixed Go route for this turn. */
-  sandboxProfile?: 'mothership'
   requestMode?: string
   currentAgentId?: string
   /**

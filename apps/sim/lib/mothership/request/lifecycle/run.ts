@@ -76,12 +76,6 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const logger = createLogger('CopilotLifecycle')
 
-const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
-  '/api/copilot',
-  '/api/mothership',
-  '/api/mothership/execute',
-])
-
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
 
 class CopilotModelContentProjectionError extends Error {
@@ -336,11 +330,6 @@ export async function runCopilotLifecycle(
     if (options.recovery?.requestMode) execContext.requestMode = options.recovery.requestMode
     execContext.copilotInteractionMode =
       lifecycleOptions.interactive === true ? 'interactive' : 'headless'
-    if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
-      execContext.sandboxProfile = 'mothership'
-    } else {
-      execContext.sandboxProfile = undefined
-    }
     if (isHosted && (!execContext.workspaceId || !execContext.billingAttribution)) {
       throw new Error('Billing attribution is required for hosted Copilot execution')
     }

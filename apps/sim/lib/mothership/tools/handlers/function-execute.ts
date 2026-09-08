@@ -572,7 +572,7 @@ export async function executeFunctionExecute(
           resolvedSecretTraceRegistry: mountedRegistry,
         },
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
-        ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),
+        internalSandboxProfile: 'mothership',
       })
       crossingValue = result
       return result

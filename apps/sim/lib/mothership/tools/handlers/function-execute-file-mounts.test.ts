@@ -69,7 +69,6 @@ const context: ToolExecutionContext = {
   chatId: 'chat',
   toolCallId: 'mount',
   copilotToolExecution: true,
-  sandboxProfile: 'mothership',
 }
 
 function queueProvenance(status: 'exact' | 'unknown', currentRevision = revision, secret = false) {

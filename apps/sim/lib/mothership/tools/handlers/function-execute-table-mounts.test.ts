@@ -71,7 +71,6 @@ const context: ToolExecutionContext = {
   chatId: 'chat',
   toolCallId: 'mount-call',
   copilotToolExecution: true,
-  sandboxProfile: 'mothership',
 }
 const table: TableDefinition = {
   id: 'table-orders',
