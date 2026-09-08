@@ -36,7 +36,7 @@ export function ProductCodeExample({ example }: ProductCodeExampleProps) {
             </LandingCtaLink>
           </div>
         </div>
-        <div className='min-w-0 overflow-hidden rounded-xl bg-[var(--text-secondary)] pt-8 pl-8 max-sm:pt-5 max-sm:pl-5'>
+        <div className='min-w-0 overflow-hidden rounded-xl bg-[var(--text-secondary)] pt-8 pl-8 max-sm:pt-5 max-sm:pl-5 dark:bg-[var(--surface-3)]'>
           <CodeWindowGraphic
             icon={<TerminalWindow className='size-[14px] text-[var(--text-muted-inverse)]' />}
             filename={example.filename}

@@ -37,7 +37,7 @@ const LINE_STEP_CLASSES = [
 /** Segment inks on the dark tile - the deploy tile's dark-surface palette. */
 const SEGMENT_TONE_CLASS = {
   muted: 'text-[var(--text-muted-inverse)]',
-  primary: 'text-[var(--text-inverse)]',
+  primary: 'text-[var(--text-inverse)] dark:text-[var(--text-primary)]',
 } as const
 
 /** Shared hairline ink for the window outline, header rule, and icon box. */
@@ -76,7 +76,9 @@ export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicPr
           >
             {icon}
           </span>
-          <span className='text-[var(--text-inverse)] text-base'>{filename}</span>
+          <span className='text-[var(--text-inverse)] text-base dark:text-[var(--text-primary)]'>
+            {filename}
+          </span>
         </div>
 
         <div className='space-y-2 overflow-x-auto p-4 font-mono text-[var(--text-muted-inverse)] text-caption leading-[1.7] max-sm:text-[11px]'>
@@ -101,7 +103,7 @@ export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicPr
                   </span>
                 ))}
                 {index === lines.length - 1 && (
-                  <span className='ml-px inline-block h-[1.1em] w-px translate-y-[2px] animate-pulse bg-[var(--text-inverse)] align-text-bottom motion-reduce:animate-none' />
+                  <span className='ml-px inline-block h-[1.1em] w-px translate-y-[2px] animate-pulse bg-[var(--text-inverse)] align-text-bottom motion-reduce:animate-none dark:bg-[var(--text-primary)]' />
                 )}
               </code>
             </div>

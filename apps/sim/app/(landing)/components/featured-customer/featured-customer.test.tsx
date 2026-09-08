@@ -86,14 +86,14 @@ describe('FeaturedCustomer', () => {
       '/landing/customer-stories/rivian-r2-loop.mp4'
     )
     const expVideo = expRealty.querySelector('video') as HTMLVideoElement
-    expect(expVideo.getAttribute('src')).toBe('/landing/customer-stories/exp-house-loop.mp4')
+    expect(expVideo.getAttribute('src')).toBe('/landing/customer-stories/exp-house-color-loop.mp4')
     expect(expVideo.getAttribute('preload')).toBe('none')
     expect(expVideo.muted).toBe(true)
     expect(vi.mocked(video.play).mock.contexts).not.toContain(expVideo)
     expect(
       [...expRealty.querySelectorAll('img')].map((image) => image.getAttribute('src'))
     ).toEqual([
-      '/landing/customer-stories/exp-house-monochrome-poster.jpg',
+      '/landing/customer-stories/exp-house-color-poster.jpg',
       '/landing/logos/exp-realty.svg',
     ])
 
@@ -154,7 +154,7 @@ describe('FeaturedCustomer', () => {
     expect(
       [...expRealty.querySelectorAll('img')].map((image) => image.getAttribute('src'))
     ).toEqual([
-      '/landing/customer-stories/exp-house-monochrome-poster.jpg',
+      '/landing/customer-stories/exp-house-color-poster.jpg',
       '/landing/logos/exp-realty.svg',
     ])
     expect(

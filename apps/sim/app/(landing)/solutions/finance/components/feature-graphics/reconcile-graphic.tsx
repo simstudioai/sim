@@ -85,7 +85,7 @@ export function ReconcileGraphic() {
 
           <div
             className={cn(
-              'mt-2 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs',
+              'mt-2 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]',
               styles.exceptionIn
             )}
           >

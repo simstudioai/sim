@@ -765,7 +765,10 @@ function ProductionWorkflowCanvas({
         onNodeClick={interactive ? handleNodeClick : undefined}
         onNodeDragStart={interactive ? (_event, node) => setSelectedId(node.id) : undefined}
         proOptions={{ hideAttribution: true }}
-        className={REACT_FLOW_STYLES}
+        className={cn(
+          REACT_FLOW_STYLES,
+          interactive ? '[--xy-background-color:var(--bg)]' : '[--xy-background-color:transparent]'
+        )}
       />
       {interactive && <CanvasZoomControls />}
       {interactive && (

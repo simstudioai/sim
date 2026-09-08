@@ -138,7 +138,7 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
                     'flex items-center gap-3 px-3 py-2.5',
                     newest &&
                       cn(
-                        'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-xs',
+                        'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
                         styles.stampIn
                       )
                   )}
