@@ -5,6 +5,8 @@
  * so a partially-denied block is trimmed to the operations this viewer may configure.
  */
 
+import { omit } from '@sim/utils/object'
+import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 import { resolveDeniedBlockOperations } from '@/lib/mothership/integration-tool-projection'
@@ -16,22 +18,13 @@ export interface CurationViewer {
   userId: string
 }
 
-interface BlockDetailShape {
-  type: string
-  operations?: Record<string, unknown>
-  tools?: Array<{ id?: unknown }>
-}
-
-function parseBlockDetail(stdout: string): BlockDetailShape | null {
-  let parsed: unknown
+function parseBlockDetail(stdout: string): V2BlockDetail | null {
   try {
-    parsed = JSON.parse(stdout)
+    const parsed = v2BlockDetailSchema.safeParse(JSON.parse(stdout))
+    return parsed.success ? parsed.data : null
   } catch {
     return null
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-  const candidate = parsed as { type?: unknown }
-  return typeof candidate.type === 'string' ? (parsed as BlockDetailShape) : null
 }
 
 export async function curateBlockDetail(
@@ -45,16 +38,28 @@ export async function curateBlockDetail(
   if (!deniedTools?.length) return result
   const isToolAllowed = createToolAccessGate(deniedTools)
   const denied = resolveDeniedBlockOperations(deniedTools, isToolAllowed)
-  if (denied.fullyDenied.has(detail.type)) {
-    return agentCliFail(`Block "${detail.type}" is not available to you in this workspace.`)
+  if (denied.fullyDenied.has(detail.id)) {
+    return agentCliFail(`Block "${detail.id}" is not available to you in this workspace.`)
   }
-  const deniedOperations = denied.needsProjection.get(detail.type)
+  const deniedOperations = denied.needsProjection.get(detail.id)
   if (!deniedOperations) return result
-  const operations = Object.fromEntries(
-    Object.entries(detail.operations ?? {}).filter(([id]) => !deniedOperations.has(id))
+  const operations = omit(detail.operations, [...deniedOperations])
+  const tools = detail.tools.filter((tool) => isToolAllowed(tool.id))
+  const inputSchema = detail.inputSchema.map((field) =>
+    field.id === 'operation'
+      ? { ...field, options: field.options?.filter((option) => !deniedOperations.has(option.id)) }
+      : field
   )
-  const tools = (detail.tools ?? []).filter(
-    (tool) => typeof tool.id !== 'string' || isToolAllowed(tool.id)
-  )
-  return { ...result, stdout: JSON.stringify({ ...detail, operations, tools }, null, 2) }
+  return {
+    ...result,
+    stdout: JSON.stringify({
+      ...detail,
+      operations,
+      operationIds: detail.operationIds.filter((id) => !deniedOperations.has(id)),
+      operationInputSchema: omit(detail.operationInputSchema, [...deniedOperations]),
+      inputSchema,
+      tools,
+      toolIds: detail.toolIds.filter(isToolAllowed),
+    }),
+  }
 }
