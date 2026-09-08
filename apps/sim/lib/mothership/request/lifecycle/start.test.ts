@@ -531,6 +531,7 @@ describe('requestChatTitle billing protocol', () => {
     })
 
     expect(title).toBe('Billing Protocol')
+    expect(fetchGo.mock.calls[0]?.[1]?.attributes).toBeUndefined()
     const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
     const billingRequestId = headers['x-sim-billing-request-id']
     expect(billingRequestId).toMatch(

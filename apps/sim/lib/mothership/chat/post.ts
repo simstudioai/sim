@@ -990,8 +990,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       activeOtelRoot.setRequestShape({
         branchKind: branch.kind,
         mode: body.mode,
-        model: branch.effectiveModel,
-        provider: body.provider,
+        /** Only the explicit selection is known here; the worker resolves the default and provider. */
+        model: body.modelSelection?.model,
         createNewChat: body.createNewChat,
         prefetch: body.prefetch,
         fileAttachmentsCount: body.fileAttachments?.length ?? 0,

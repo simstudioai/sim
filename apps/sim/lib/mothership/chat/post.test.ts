@@ -1312,16 +1312,27 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
 
     expect(response.status).toBe(200)
     expect(createSSEStream).toHaveBeenCalledTimes(1)
+    expect(startCopilotOtelRoot.mock.results.at(-1)?.value.setRequestShape).toHaveBeenCalledWith(
+      expect.objectContaining({ model: undefined })
+    )
   })
 
   /** A personal workspace, or any non-enterprise organization, is governed by no group. */
   it('streams the send when no permission group governs the user', async () => {
     resolvePermissionGroupConfig.mockResolvedValue(null)
 
-    const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
+    const response = await handleUnifiedChatPost(
+      chatRequest({
+        createNewChat: true,
+        modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      })
+    )
 
     expect(response.status).toBe(200)
     expect(createSSEStream).toHaveBeenCalledTimes(1)
+    expect(startCopilotOtelRoot.mock.results.at(-1)?.value.setRequestShape).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'gpt-6-astra' })
+    )
   })
 
   /**

@@ -579,8 +579,7 @@ export async function requestChatTitle(params: {
   billingAttribution?: BillingAttributionSnapshot
   otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, userId, workspaceId, chatId, billingAttribution, otelContext } =
-    params
+  const { message, model, userId, workspaceId, chatId, billingAttribution, otelContext } = params
   if (!message || !model) return null
 
   const headers = mothershipRequestHeaders()
@@ -619,10 +618,6 @@ export async function requestChatTitle(params: {
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',
       operation: 'generate_chat_title',
-      attributes: {
-        [TraceAttr.GenAiRequestModel]: model,
-        ...(provider ? { [TraceAttr.GenAiSystem]: provider } : {}),
-      },
     })
 
     const payload = await response.json().catch(() => ({}))
