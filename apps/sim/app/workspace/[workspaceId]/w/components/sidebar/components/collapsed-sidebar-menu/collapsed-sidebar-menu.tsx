@@ -139,6 +139,8 @@ export interface CollapsedSidebarMenuNavLink {
 type CollapsedSidebarMenuProps = {
   hover: ReturnType<typeof useHoverMenu>
   children: React.ReactNode
+  /** Keeps menu hover from blurring an inline rename, including in portaled folders. */
+  isEditing?: boolean
   primaryAction?: {
     label: string
     onSelect: () => void
@@ -181,16 +183,9 @@ interface CollapsedWorkflowFlyoutItemProps {
 }
 
 /**
- * Suppresses the Radix menu row's own pointer handlers, which focus the row on
- * `pointermove` and hand focus back to the flyout content on `pointerleave`.
- * A submenu closes on any focus that is not its trigger, so while this row's
- * actions submenu is open those two handlers would close it the instant the
- * cursor moved — the path a right-click takes, since it opens the submenu with
- * the cursor still over the row rather than over the trigger. Radix composes
- * consumer handlers ahead of its own and skips its own once the event is
- * defaulted, so preventing default here holds focus still until the cursor
- * reaches the submenu. Only applied to the row whose submenu is open: moving on
- * to any other row still steals focus and closes it, as it should.
+ * Prevents Radix's mouse pointer handlers from transferring focus. Row handlers keep
+ * actions submenus open; content capture handlers preserve inline rename focus,
+ * including inside portaled folders. Radix skips handlers for defaulted events.
  */
 const holdRowFocus = (e: React.PointerEvent) => {
   if (e.pointerType === 'mouse') e.preventDefault()
@@ -223,6 +218,7 @@ export function CollapsedSidebarMenu({
   children,
   primaryAction,
   navLink,
+  isEditing = false,
 }: CollapsedSidebarMenuProps) {
   return (
     <DropdownMenu
@@ -258,7 +254,14 @@ export function CollapsedSidebarMenu({
           )}
         </DropdownMenuTrigger>
       </div>
-      <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
+      <DropdownMenuContent
+        side='right'
+        align='start'
+        sideOffset={8}
+        {...hover.contentProps}
+        onPointerMoveCapture={isEditing ? holdRowFocus : undefined}
+        onPointerOutCapture={isEditing ? holdRowFocus : undefined}
+      >
         {primaryAction && (
           <>
             <DropdownMenuItem onSelect={primaryAction.onSelect}>
@@ -299,7 +302,10 @@ export function CollapsedChatFlyoutItem({
           ref={inputRef}
           value={editValue ?? chat.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
-          onKeyDown={onEditKeyDown}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            onEditKeyDown?.(e)
+          }}
           onBlur={onEditBlur}
           className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
@@ -378,7 +384,10 @@ export function CollapsedWorkflowFlyoutItem({
           ref={inputRef}
           value={editValue ?? workflow.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
-          onKeyDown={onEditKeyDown}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            onEditKeyDown?.(e)
+          }}
           onBlur={onEditBlur}
           className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}

@@ -1446,6 +1446,7 @@ export const Sidebar = memo(function Sidebar() {
                               icon={chatsCollapsedIcon}
                               hover={chatsHover}
                               ariaLabel='Chats'
+                              isEditing={!!chatFlyoutRename.editingId}
                             >
                               {chatsLoading ? (
                                 <DropdownMenuItem disabled>
@@ -1677,6 +1678,7 @@ export const Sidebar = memo(function Sidebar() {
                             icon={workflowsCollapsedIcon}
                             hover={workflowsHover}
                             ariaLabel='Workflows'
+                            isEditing={!!workflowFlyoutRename.editingId}
                             primaryAction={workflowsPrimaryAction}
                           >
                             {workflowsLoading && regularWorkflows.length === 0 ? (
