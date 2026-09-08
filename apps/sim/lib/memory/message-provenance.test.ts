@@ -34,6 +34,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 import {
   type DurableSecretProvenance,
   hashDurableSecretProvenanceValue,
+  importDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -42,7 +43,10 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { readMemoryWriteProvenance } from '@/lib/internal/memory/provenance'
 import { appendMemoryUseCase } from '@/lib/memory/application/use-cases'
-import { bindMemorySecretProvenanceToMessages } from '@/lib/memory/secret-provenance'
+import {
+  bindMemorySecretProvenanceToMessages,
+  createMemorySecretProvenanceSelector,
+} from '@/lib/memory/secret-provenance'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
@@ -324,6 +328,80 @@ describe.each([false, true])('memory message provenance with enforcement %s', (e
     })
     if (provenance.status !== 'exact') throw new Error('Expected exact provenance')
     expect(provenance.entries).toHaveLength(2)
+  })
+
+  it('retains more than ten thousand message bindings for one secret while selecting only the current window', async () => {
+    const messages: Message[] = Array.from({ length: 10_001 }, (_, index) => ({
+      role: 'user',
+      content: `${SECRET} message-${index}`,
+    }))
+    const provenance = await bindMemorySecretProvenanceToMessages(messages, {
+      status: 'exact',
+      entries: [ENTRY, ENTRY],
+    })
+    if (provenance.status !== 'exact') throw new Error('Expected exact provenance')
+    expect(provenance.entries).toHaveLength(messages.length)
+    expect(new Set(provenance.entries.map((entry) => entry.encryptedValue))).toEqual(
+      new Set([ENTRY.encryptedValue])
+    )
+    const selector = await createMemorySecretProvenanceSelector(provenance, messages)
+    expect(selector.recoveredEntryCount).toBe(0)
+    const selected = messages.slice(-2)
+    expect(selector.select(selected, false)).toEqual({
+      status: 'exact',
+      entries: expect.arrayContaining(
+        selected.map((message) => ({
+          ...ENTRY,
+          sourceValueHash: hashDurableSecretProvenanceValue(message),
+        }))
+      ),
+    })
+    const selection = selector.select(selected, false)
+    if (selection.status !== 'exact') throw new Error('Expected exact selection')
+    expect(selection.entries).toHaveLength(2)
+    const readerRegistry = new ResolvedSecretTraceRegistry([], SCOPE)
+    expect(
+      await importDurableSecretProvenance(
+        readerRegistry,
+        selector.select(messages, false),
+        messages,
+        'memory'
+      )
+    ).toBe(true)
+    expect(readerRegistry.exportProvenance().entries).toHaveLength(1)
+    expect(readerRegistry.isComplete()).toBe(true)
+    expect(mocks.logger.error).not.toHaveBeenCalled()
+  })
+
+  it('still rejects more than ten thousand distinct secrets', async () => {
+    const provenance = await bindMemorySecretProvenanceToMessages(
+      [{ role: 'user', content: SECRET }],
+      {
+        status: 'exact',
+        entries: Array.from({ length: 10_001 }, (_, index) => ({
+          ...ENTRY,
+          encryptedValue: `ciphertext-${index}`,
+        })),
+      }
+    )
+    expect(provenance).toEqual({ status: 'unknown' })
+    expect(mocks.decrypt).not.toHaveBeenCalled()
+  })
+
+  it('still rejects message bindings whose serialized sidecar exceeds eight MiB', async () => {
+    const messages: Message[] = Array.from({ length: 8_000 }, (_, index) => ({
+      role: 'user',
+      content: `${SECRET} message-${index}`,
+    }))
+    const provenance = await bindMemorySecretProvenanceToMessages(messages, {
+      status: 'exact',
+      entries: [{ ...ENTRY, encryptedValue: 'ciphertext'.repeat(120) }],
+    })
+    expect(provenance).toEqual({ status: 'unknown' })
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      'Memory message secret provenance could not be bound',
+      { surface: 'memory', cause: 'entries-unnormalizable' }
+    )
   })
 
   it('recovers valid historical entries without newly refusing an unreadable old ciphertext', async () => {

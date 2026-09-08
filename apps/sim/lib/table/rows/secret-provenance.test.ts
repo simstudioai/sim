@@ -22,6 +22,7 @@ vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
   reportUnrecordedDurableProvenance: mockReport,
 }))
 
+import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -745,6 +746,104 @@ describe('table row secret provenance', () => {
         provenance: null,
       })
     ).toEqual({ mode: 'legacy' })
+  })
+
+  it('preserves more than ten thousand column bindings when they describe eleven secrets', () => {
+    const entries = Array.from({ length: 1_000 }, (_, column) =>
+      Array.from({ length: 11 }, (_, secret) => ({
+        columnId: `column-${column}`,
+        encryptedValue: `encrypted-${secret}`,
+        name: `SECRET_${secret}`,
+        sourceUserId: column === 999 ? 'foreign-user' : 'user-1',
+        sourceWorkspaceId: 'workspace-1',
+      }))
+    ).flat()
+
+    const classified = classifyTableRowSecretProvenanceForCopy({
+      secretProvenanceVersion: 1,
+      provenanceIsCurrent: true,
+      provenance: { status: 'exact', entries },
+    })
+    expect(classified).toMatchObject({ mode: 'tracked', status: 'exact' })
+    if (classified.mode !== 'tracked') throw new Error('Expected tracked provenance')
+    expect(classified.entries).toHaveLength(11_000)
+    expect(new Set(classified.entries.map((entry) => JSON.stringify(entry)))).toEqual(
+      new Set(entries.map((entry) => JSON.stringify(entry)))
+    )
+  })
+
+  it('deduplicates repeated bindings before charging the secret or serialized budgets', () => {
+    const entry = { columnId: 'column-1', encryptedValue: 'encrypted-secret' }
+    expect(
+      classifyTableRowSecretProvenanceForCopy({
+        secretProvenanceVersion: 1,
+        provenanceIsCurrent: true,
+        provenance: { status: 'exact', entries: Array.from({ length: 11_000 }, () => entry) },
+      })
+    ).toEqual({ mode: 'tracked', status: 'exact', entries: [entry] })
+  })
+
+  it('keeps distinct binding fields separate even when they contain delimiter characters', () => {
+    const entries = [
+      { columnId: 'column\u0000one', encryptedValue: 'two' },
+      { columnId: 'column', encryptedValue: 'one\u0000two' },
+    ]
+    expect(
+      classifyTableRowSecretProvenanceForCopy({
+        secretProvenanceVersion: 1,
+        provenanceIsCurrent: true,
+        provenance: { status: 'exact', entries },
+      })
+    ).toEqual({ mode: 'tracked', status: 'exact', entries: [entries[1], entries[0]] })
+  })
+
+  it('still rejects a stored row carrying ten thousand and one distinct encrypted values', () => {
+    const entries = Array.from({ length: 10_001 }, (_, index) => ({
+      columnId: 'column-1',
+      encryptedValue: `encrypted-${index}`,
+    }))
+    expect(
+      classifyTableRowSecretProvenanceForCopy({
+        secretProvenanceVersion: 1,
+        provenanceIsCurrent: true,
+        provenance: { status: 'exact', entries },
+      })
+    ).toEqual({ mode: 'tracked', status: 'unknown', entries: [] })
+  })
+
+  it('stops before later bindings when one entry already exceeds the serialized budget', () => {
+    const entries = [
+      { columnId: 'column-1', encryptedValue: 'x'.repeat(PROVENANCE_MAX_SERIALIZED_BYTES + 1) },
+    ]
+    const readNextEntry = vi.fn(() => {
+      throw new Error('Oversized provenance must stop before the next entry')
+    })
+    Object.defineProperty(entries, 1, { get: readNextEntry, enumerable: true })
+    expect(
+      classifyTableRowSecretProvenanceForCopy({
+        secretProvenanceVersion: 1,
+        provenanceIsCurrent: true,
+        provenance: { status: 'exact', entries },
+      })
+    ).toEqual({ mode: 'tracked', status: 'unknown', entries: [] })
+    expect(readNextEntry).not.toHaveBeenCalled()
+  })
+
+  it('charges each retained column binding against the serialized budget even for one secret', () => {
+    const encryptedValue = 'x'.repeat(PROVENANCE_MAX_SERIALIZED_BYTES / 2)
+    expect(
+      classifyTableRowSecretProvenanceForCopy({
+        secretProvenanceVersion: 1,
+        provenanceIsCurrent: true,
+        provenance: {
+          status: 'exact',
+          entries: [
+            { columnId: 'column-1', encryptedValue },
+            { columnId: 'column-2', encryptedValue },
+          ],
+        },
+      })
+    ).toEqual({ mode: 'tracked', status: 'unknown', entries: [] })
   })
 
   it('copies only exact provenance bound to the current source row version', () => {

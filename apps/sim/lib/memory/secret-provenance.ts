@@ -10,10 +10,7 @@ import {
   importDurableSecretProvenance,
   normalizeDurableSecretProvenanceEntries,
 } from '@/lib/execution/durable-secret-provenance'
-import {
-  PROVENANCE_MAX_ENTRIES,
-  PROVENANCE_MAX_SERIALIZED_BYTES,
-} from '@/lib/execution/provenance-limits'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('MemorySecretProvenance')
@@ -127,7 +124,7 @@ export async function bindMemorySecretProvenanceToMessages(
     return { status: 'unknown' }
   }
   const entries = new Map<string, (typeof provenance.entries)[number]>()
-  let serializedBytes = 2
+  const budget = new SecretProvenanceBudget()
   for (const message of messages) {
     const sourceValueHash = hashDurableSecretProvenanceValue(message)
     if (!sourceValueHash) {
@@ -145,11 +142,7 @@ export async function bindMemorySecretProvenanceToMessages(
       const bound = { ...entry, sourceValueHash }
       const key = JSON.stringify(bound)
       if (entries.has(key)) continue
-      serializedBytes += Buffer.byteLength(key, 'utf8') + (entries.size > 0 ? 1 : 0)
-      if (
-        entries.size >= PROVENANCE_MAX_ENTRIES ||
-        serializedBytes > PROVENANCE_MAX_SERIALIZED_BYTES
-      ) {
+      if (!budget.add(entry.encryptedValue, Buffer.byteLength(key, 'utf8'))) {
         logger.error('Memory message secret provenance could not be bound', {
           surface: 'memory',
           cause: 'entries-unnormalizable',

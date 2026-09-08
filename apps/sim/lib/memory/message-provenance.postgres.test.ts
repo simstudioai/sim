@@ -51,6 +51,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   }),
 }))
 
+import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { appendMemoryUseCase } from '@/lib/memory/application/use-cases'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { AgentInputs } from '@/executor/handlers/agent/types'
@@ -189,6 +190,58 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
   })
 
   describe.each([false, true])('enforcement %s', (enforced) => {
+    it('keeps a large one-secret conversation exact across tool and native writes and model reads', async () => {
+      if (!connection) throw new Error('PostgreSQL test database is not initialized')
+      mockIsEnforced.mockReturnValue(enforced)
+      const key = `large-conversation-${enforced}`
+      const messages = Array.from({ length: 17_000 }, (_, index) => ({
+        role: 'user',
+        content: `secret-SHARED message-${index}`,
+      }))
+      await appendMemoryUseCase.execute({
+        principal: principal(),
+        input: {
+          workspaceId: SCOPE.workspaceId,
+          key,
+          data: messages,
+          writeProvenance: {
+            status: 'exact',
+            entries: [
+              {
+                encryptedValue: 'cipher-SHARED',
+                name: 'TOKEN_SHARED',
+                sourceUserId: SCOPE.userId,
+                sourceWorkspaceId: SCOPE.workspaceId,
+              },
+            ],
+          },
+        },
+      })
+      await nativeAppend(key, 'SHARED')
+      await toolAppend(key, 'SHARED')
+      const [record] = await connection`
+        SELECT m.data, m.secret_provenance_version, p.content_hash, p.status, p.entries
+        FROM memory m JOIN memory_secret_provenance p ON p.memory_id = m.id
+        WHERE m.key = ${key}
+      `
+      expect(record.data).toHaveLength(messages.length + 2)
+      expect(record.secret_provenance_version).toBe(1)
+      expect(record.status).toBe('exact')
+      expect(record.content_hash).toBe(hashDurableSecretProvenanceValue(record.data))
+      expect(record.entries).toHaveLength(messages.length + 1)
+      const execution = context()
+      const selected = await new Memory().fetchMemoryMessages(execution, {
+        ...inputs(key),
+        memoryType: 'sliding_window',
+        slidingWindowSize: '2',
+      })
+      expect(selected).toEqual([
+        { role: 'user', content: '{{TOKEN_SHARED}}' },
+        { role: 'user', content: '{{TOKEN_SHARED}}' },
+      ])
+      expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
+    })
+
     it.each(['tool-tool', 'tool-native', 'native-native'] as const)(
       'preserves both first appends and secret bindings for %s',
       async (mode) => {

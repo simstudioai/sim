@@ -13,12 +13,15 @@ import { eq, sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   getTableSnapshotModelMountSafety,
+  loadTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
   updateTableRowsWithDerivedSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
+import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
 const { database, mockIsEnforced, mockReport, mockError } = vi.hoisted(() => ({
   database: { current: undefined as PostgresJsDatabase | undefined },
@@ -59,13 +62,21 @@ interface Fixture {
   status?: string
   entries?: unknown
   stale?: boolean
+  data?: RowData
 }
 
-async function insertRow({ id = 'row-1', version = 1, status, entries = [], stale }: Fixture) {
+async function insertRow({
+  id = 'row-1',
+  version = 1,
+  status,
+  entries = [],
+  stale,
+  data = { retained: 'value', removed: 'other' },
+}: Fixture) {
   if (!connection) throw new Error('PostgreSQL test database is not initialized')
   await connection`
     INSERT INTO user_table_rows (id, table_id, workspace_id, data, updated_at, secret_provenance_version)
-    VALUES (${id}, 'table-1', 'workspace-1', '{"retained":"value","removed":"other"}', ${updatedAt.toISOString()}, ${version})
+    VALUES (${id}, 'table-1', 'workspace-1', ${JSON.stringify(data)}::jsonb, ${updatedAt.toISOString()}, ${version})
   `
   if (status !== undefined) {
     await connection`
@@ -73,6 +84,48 @@ async function insertRow({ id = 'row-1', version = 1, status, entries = [], stal
       VALUES (${id}, ${(stale ? new Date(0) : updatedAt).toISOString()}, ${status}, ${JSON.stringify(entries)}::jsonb)
     `
   }
+}
+
+function wideRowFixture() {
+  const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+  const entries = Array.from({ length: 11 }, (_, index) => ({
+    encryptedValue: `encrypted-${String(index).padStart(2, '0')}`,
+    name: `SECRET_${index}`,
+  }))
+  const value = entries.map((entry) => entry.name).join(' ')
+  const data: RowData = {}
+  const provenance: TableRowSecretProvenanceWrite = { complete: true, columns: {} }
+  for (let column = 0; column < 1_000; column++) {
+    const columnId = `column-${String(column).padStart(3, '0')}`
+    data[columnId] = value
+    provenance.columns[columnId] = {
+      version: 1,
+      complete: true,
+      entries,
+      scope: column === 999 ? { ...scope, userId: 'foreign-user' } : scope,
+    }
+  }
+  return { scope, entries, data, provenance }
+}
+
+async function writeWideRow() {
+  if (!database.current) throw new Error('PostgreSQL test database is not initialized')
+  const fixture = wideRowFixture()
+  await database.current.transaction(async (tx) => {
+    await mutateTableRowsWithSecretProvenance(tx as DbTransaction, {
+      rows: [{ rowId: 'row-1', provenance: fixture.provenance }],
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => {
+        await tx.execute(sql`
+          INSERT INTO user_table_rows (id, table_id, workspace_id, data, updated_at)
+          VALUES ('row-1', 'table-1', 'workspace-1', ${JSON.stringify(fixture.data)}::jsonb, ${updatedAt.toISOString()}::timestamp)
+        `)
+        return { value: undefined, affectedRowIds: ['row-1'] }
+      },
+    })
+  })
+  return fixture
 }
 
 describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
@@ -284,4 +337,175 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
       }
     )
   })
+
+  it('writes and reads 1,000 columns carrying eleven secrets without losing their column or source bindings', async () => {
+    if (!connection) throw new Error('PostgreSQL test database is not initialized')
+    const { scope, entries, data } = await writeWideRow()
+    const [stored] = await connection`
+      SELECT p.status, jsonb_array_length(p.entries) AS bindings,
+        (SELECT count(DISTINCT entry ->> 'encryptedValue')::integer
+          FROM jsonb_array_elements(p.entries) AS value(entry)) AS secrets,
+        r.secret_provenance_version AS version, p.content_updated_at = r.updated_at AS current
+      FROM user_table_rows r JOIN user_table_row_secret_provenance p ON p.row_id = r.id
+    `
+    expect(stored).toEqual({
+      status: 'exact',
+      bindings: 11_000,
+      secrets: 11,
+      version: 1,
+      current: true,
+    })
+    for (const [columnId, expectedEntries] of [
+      ['column-000', entries],
+      ['column-999', entries.map(({ encryptedValue }) => ({ encryptedValue }))],
+    ] as const) {
+      await expect(
+        loadTableRowSecretProvenance(
+          [{ id: 'row-1', updatedAt, selectedValues: { [columnId]: data[columnId] } }],
+          scope
+        )
+      ).resolves.toEqual({ version: 1, complete: true, entries: expectedEntries, scope })
+    }
+    expect(mockError).not.toHaveBeenCalled()
+    expect(mockReport).not.toHaveBeenCalled()
+  })
+
+  it('preserves wide bindings through derived SQL and removes only the deleted column', async () => {
+    if (!connection || !database.current)
+      throw new Error('PostgreSQL test database is not initialized')
+    const { scope, entries } = await writeWideRow()
+    await database.current.transaction(async (tx) => {
+      await updateTableRowsWithDerivedSecretProvenance(tx as DbTransaction, {
+        rowWhere: eq(userTableRows.tableId, 'table-1'),
+        transformation: {
+          mode: 'preserve',
+          dataExpression: sql`jsonb_set(${userTableRows.data}, '{column-000}', to_jsonb((${userTableRows.data} ->> 'column-000') || ' retained'))`,
+        },
+      })
+    })
+    const [preserved] = await connection`
+      SELECT p.status, jsonb_array_length(p.entries) AS bindings,
+        p.content_updated_at = r.updated_at AS current
+      FROM user_table_rows r JOIN user_table_row_secret_provenance p ON p.row_id = r.id
+    `
+    expect(preserved).toEqual({ status: 'exact', bindings: 11_000, current: true })
+
+    await database.current.transaction(async (tx) => {
+      await updateTableRowsWithDerivedSecretProvenance(tx as DbTransaction, {
+        rowWhere: eq(userTableRows.tableId, 'table-1'),
+        transformation: { mode: 'remove-columns', columnIds: ['column-999'] },
+      })
+    })
+    const [removed] = await connection`
+      SELECT p.status, jsonb_array_length(p.entries) AS bindings,
+        r.data ? 'column-999' AS has_removed_data,
+        EXISTS (SELECT 1 FROM jsonb_array_elements(p.entries) AS value(entry)
+          WHERE entry ->> 'columnId' = 'column-999') AS has_removed_binding,
+        p.content_updated_at = r.updated_at AS current
+      FROM user_table_rows r JOIN user_table_row_secret_provenance p ON p.row_id = r.id
+    `
+    expect(removed).toEqual({
+      status: 'exact',
+      bindings: 10_989,
+      has_removed_data: false,
+      has_removed_binding: false,
+      current: true,
+    })
+    const [row] = await database.current
+      .select({ updatedAt: userTableRows.updatedAt })
+      .from(userTableRows)
+    await expect(
+      loadTableRowSecretProvenance([{ id: 'row-1', updatedAt: row.updatedAt }], scope)
+    ).resolves.toEqual({ version: 1, complete: true, entries, scope })
+    expect(mockError).not.toHaveBeenCalled()
+  })
+
+  it('merges a wide row without losing untouched column bindings', async () => {
+    if (!connection || !database.current)
+      throw new Error('PostgreSQL test database is not initialized')
+    const { scope, entries, data } = await writeWideRow()
+    await database.current.transaction(async (tx) => {
+      await mutateTableRowsWithSecretProvenance(tx as DbTransaction, {
+        rows: [
+          {
+            rowId: 'row-1',
+            provenance: {
+              complete: true,
+              columns: { 'column-000': { version: 1, complete: true, entries: [] } },
+            },
+          },
+        ],
+        rowState: 'existing',
+        mode: 'merge',
+        mutate: async () => {
+          await tx.execute(
+            sql`UPDATE user_table_rows SET data = jsonb_set(data, '{column-000}', '"public"'::jsonb) WHERE id = 'row-1'`
+          )
+          return { value: undefined, affectedRowIds: ['row-1'] }
+        },
+      })
+    })
+    const [row] = await database.current
+      .select({ updatedAt: userTableRows.updatedAt })
+      .from(userTableRows)
+    const [stored] =
+      await connection`SELECT status, jsonb_array_length(entries) AS bindings FROM user_table_row_secret_provenance`
+    expect(stored).toEqual({ status: 'exact', bindings: 10_989 })
+    await expect(
+      loadTableRowSecretProvenance(
+        [{ id: 'row-1', updatedAt: row.updatedAt, selectedValues: { 'column-000': 'public' } }],
+        scope
+      )
+    ).resolves.toEqual({ version: 1, complete: true, entries: [], scope })
+    await expect(
+      loadTableRowSecretProvenance(
+        [
+          {
+            id: 'row-1',
+            updatedAt: row.updatedAt,
+            selectedValues: { 'column-001': data['column-001'] },
+          },
+        ],
+        scope
+      )
+    ).resolves.toEqual({ version: 1, complete: true, entries, scope })
+    expect(mockError).not.toHaveBeenCalled()
+  })
+
+  it.each(['distinct-secrets', 'serialized-bytes'] as const)(
+    'keeps the %s bound in the real derived SQL predicate',
+    async (limit) => {
+      if (!connection || !database.current)
+        throw new Error('PostgreSQL test database is not initialized')
+      await insertRow({
+        status: 'exact',
+        entries:
+          limit === 'distinct-secrets'
+            ? Array.from({ length: 10_001 }, (_, index) => ({
+                columnId: 'retained',
+                encryptedValue: `encrypted-${index}`,
+              }))
+            : ['retained', 'removed'].map((columnId) => ({
+                columnId,
+                encryptedValue: 'x'.repeat(PROVENANCE_MAX_SERIALIZED_BYTES / 2),
+              })),
+      })
+      await database.current.transaction(async (tx) => {
+        await updateTableRowsWithDerivedSecretProvenance(tx as DbTransaction, {
+          rowWhere: eq(userTableRows.tableId, 'table-1'),
+          transformation: {
+            mode: 'preserve',
+            dataExpression: sql`${userTableRows.data} || '{"removed":"changed"}'::jsonb`,
+          },
+        })
+      })
+      expect(
+        await connection`SELECT status, entries FROM user_table_row_secret_provenance`
+      ).toEqual([{ status: 'unknown', entries: [] }])
+      expect(mockError).toHaveBeenCalledWith(
+        'Table row write staged unrecorded secret provenance',
+        expect.objectContaining({ cause: 'derived-base-unnormalizable', rowCount: 1 })
+      )
+    }
+  )
 })

@@ -1011,6 +1011,27 @@ describe('workspace file secret provenance', () => {
     ).toEqual({ status: 'unknown' })
   })
 
+  it('does not discard known secret entries when another contributor is unrecorded', () => {
+    const known = {
+      status: 'exact' as const,
+      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+    }
+    const unrecorded = { status: 'unrecorded' as const }
+    expect(mergeWorkspaceFileSecretProvenance(known, unrecorded)).toEqual({ status: 'unknown' })
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, known)).toEqual({ status: 'unknown' })
+  })
+
+  it('preserves absences without known secrets and never relaxes an unknown contributor', () => {
+    const unrecorded = { status: 'unrecorded' as const }
+    const empty = { status: 'exact' as const, entries: [] }
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded)).toEqual(unrecorded)
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, empty)).toEqual(unrecorded)
+    expect(mergeWorkspaceFileSecretProvenance(empty, unrecorded)).toEqual(unrecorded)
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, { status: 'unknown' })).toEqual({
+      status: 'unknown',
+    })
+  })
+
   it('fails closed when persisted provenance is malformed', async () => {
     queueTableRows(workspaceFiles, [
       {

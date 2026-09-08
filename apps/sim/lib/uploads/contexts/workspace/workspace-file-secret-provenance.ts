@@ -120,10 +120,9 @@ interface ModelSafeWorkspaceFileRow {
 /**
  * Combines byte-contributing classifications without broadening any source.
  *
- * Ordered by how little each says: `unknown` beats `unrecorded`, which beats `exact`. An absence
- * has to survive the merge — bytes nobody vouched for do not become vouched-for by being combined
- * with bytes that were, and dropping through to the exact branch would hand a later boundary a
- * positive claim that neither input made.
+ * An absence stays unrecorded only when no contributor carries known secrets. Mixing it with
+ * known secret entries cannot preserve an exact classification or discard those entries into a
+ * permissive absence; the newly combined bytes must remain unknown.
  */
 export function mergeWorkspaceFileSecretProvenance(
   ...provenances: readonly WorkspaceFileSecretProvenance[]
@@ -132,7 +131,11 @@ export function mergeWorkspaceFileSecretProvenance(
     return { status: 'unknown' }
   }
   if (provenances.some((provenance) => provenance.status === 'unrecorded')) {
-    return { status: 'unrecorded' }
+    return provenances.some(
+      (provenance) => provenance.status === 'exact' && provenance.entries.length > 0
+    )
+      ? { status: 'unknown' }
+      : { status: 'unrecorded' }
   }
 
   return {

@@ -11,6 +11,7 @@ import {
   isDurableSecretProvenanceEnforced,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
@@ -154,36 +155,71 @@ function isStoredEntry(value: unknown): value is StoredTableRowSecretProvenanceE
   )
 }
 
-function storedEntryKey(entry: StoredTableRowSecretProvenanceEntry): string {
-  return [
-    entry.columnId,
-    entry.encryptedValue,
-    entry.name ?? '',
-    entry.sourceUserId ?? '',
-    entry.sourceWorkspaceId ?? '',
-  ].join('\u0000')
+function normalizeStoredEntryBindings(
+  values: Iterable<unknown>
+): StoredTableRowSecretProvenanceEntry[] | undefined {
+  const deduplicated = new Map<string, StoredTableRowSecretProvenanceEntry>()
+  const budget = new SecretProvenanceBudget()
+  for (const entry of values) {
+    if (!isStoredEntry(entry)) return undefined
+    let minimumBytes = 0
+    for (const value of Object.values(entry)) {
+      if (typeof value === 'string') minimumBytes += Buffer.byteLength(value, 'utf8')
+      if (minimumBytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
+    }
+    const normalized = {
+      columnId: entry.columnId,
+      encryptedValue: entry.encryptedValue,
+      ...(entry.name ? { name: entry.name } : {}),
+      ...(entry.sourceUserId ? { sourceUserId: entry.sourceUserId } : {}),
+      ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
+    }
+    const key = JSON.stringify(normalized)
+    if (deduplicated.has(key)) continue
+    if (!budget.add(entry.encryptedValue, Buffer.byteLength(key, 'utf8'))) return undefined
+    deduplicated.set(key, normalized)
+  }
+  return [...deduplicated.values()].sort(
+    (left, right) =>
+      compareStrings(left.columnId, right.columnId) ||
+      compareStrings(left.encryptedValue, right.encryptedValue) ||
+      compareStrings(left.name ?? '', right.name ?? '') ||
+      compareStrings(left.sourceUserId ?? '', right.sourceUserId ?? '') ||
+      compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '')
+  )
 }
 
 function normalizeStoredEntries(value: unknown): StoredTableRowSecretProvenanceEntry[] | undefined {
-  if (
-    !Array.isArray(value) ||
-    value.length > PROVENANCE_MAX_ENTRIES ||
-    !value.every(isStoredEntry)
-  ) {
-    return undefined
+  return Array.isArray(value) ? normalizeStoredEntryBindings(value) : undefined
+}
+
+function* storedEntriesFromColumns(
+  columns: [string, ResolvedSecretTraceProvenanceV1][]
+): Generator<StoredTableRowSecretProvenanceEntry> {
+  for (const [columnId, provenance] of columns) {
+    for (const entry of provenance.entries) {
+      yield {
+        columnId,
+        encryptedValue: entry.encryptedValue,
+        ...(entry.name ? { name: entry.name } : {}),
+        ...(provenance.scope?.userId ? { sourceUserId: provenance.scope.userId } : {}),
+        ...(provenance.scope?.workspaceId
+          ? { sourceWorkspaceId: provenance.scope.workspaceId }
+          : {}),
+      }
+    }
   }
-  const deduplicated = new Map<string, StoredTableRowSecretProvenanceEntry>()
-  for (const entry of value) deduplicated.set(storedEntryKey(entry), { ...entry })
-  const entries = [...deduplicated.values()].sort((left, right) =>
-    compareStrings(storedEntryKey(left), storedEntryKey(right))
-  )
-  if (
-    entries.length > PROVENANCE_MAX_ENTRIES ||
-    serializedBytes(entries) > PROVENANCE_MAX_SERIALIZED_BYTES
-  ) {
-    return undefined
+}
+
+function* mergedStoredEntries(
+  existing: StoredTableRowSecretProvenanceEntry[],
+  incoming: StoredTableRowSecretProvenanceEntry[],
+  touchedColumns: Set<string>
+): Generator<StoredTableRowSecretProvenanceEntry> {
+  for (const entry of existing) {
+    if (!touchedColumns.has(entry.columnId)) yield entry
   }
-  return entries
+  yield* incoming
 }
 
 function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
@@ -205,21 +241,7 @@ function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
     return { complete: false, touchedColumns, entries: [] }
   }
 
-  const entries: StoredTableRowSecretProvenanceEntry[] = []
-  for (const [columnId, columnProvenance] of columnEntries) {
-    for (const entry of columnProvenance.entries) {
-      entries.push({
-        columnId,
-        encryptedValue: entry.encryptedValue,
-        ...(entry.name ? { name: entry.name } : {}),
-        ...(columnProvenance.scope?.userId ? { sourceUserId: columnProvenance.scope.userId } : {}),
-        ...(columnProvenance.scope?.workspaceId
-          ? { sourceWorkspaceId: columnProvenance.scope.workspaceId }
-          : {}),
-      })
-    }
-  }
-  const normalized = normalizeStoredEntries(entries)
+  const normalized = normalizeStoredEntryBindings(storedEntriesFromColumns(columnEntries))
   return normalized
     ? { complete: true, touchedColumns, entries: normalized }
     : { complete: false, touchedColumns, entries: [] }
@@ -405,10 +427,9 @@ export async function mutateTableRowsWithSecretProvenance<T>(
       ) {
         const existing = normalizeStoredEntries(row.sidecarEntries)
         if (existing) {
-          const merged = normalizeStoredEntries([
-            ...existing.filter((entry) => !incoming.touchedColumns.has(entry.columnId)),
-            ...incoming.entries,
-          ])
+          const merged = normalizeStoredEntryBindings(
+            mergedStoredEntries(existing, incoming.entries, incoming.touchedColumns)
+          )
           if (merged) entries = merged
           else {
             status = 'unknown'
@@ -625,12 +646,15 @@ export async function updateTableRowsWithDerivedSecretProvenance(
               AND source.provenance_status = 'exact'
               AND source.provenance_content_updated_at = source.old_updated_at
               AND jsonb_typeof(source.provenance_entries) = 'array'
-              AND jsonb_array_length(
-                CASE
-                  WHEN jsonb_typeof(source.provenance_entries) = 'array'
-                  THEN source.provenance_entries
-                  ELSE '[]'::jsonb
-                END
+              AND (
+                SELECT count(DISTINCT value.entry ->> 'encryptedValue')
+                FROM jsonb_array_elements(
+                  CASE
+                    WHEN jsonb_typeof(source.provenance_entries) = 'array'
+                    THEN source.provenance_entries
+                    ELSE '[]'::jsonb
+                  END
+                ) AS value(entry)
               ) <= ${PROVENANCE_MAX_ENTRIES}
               AND octet_length(source.provenance_entries::text) <= ${PROVENANCE_MAX_SERIALIZED_BYTES}
               AND NOT EXISTS (
