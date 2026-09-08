@@ -317,13 +317,14 @@ describe('AgentGroup main tool summary', () => {
 
   afterEach(() => act(() => root.unmount()))
 
-  const render = (items: AgentGroupItem[], isStreaming = true) => {
+  const render = (items: AgentGroupItem[], isStreaming = true, completedGroupCount = 0) => {
     act(() => {
       root.render(
         createElement(AgentGroup, {
           agentName: 'mothership',
           agentLabel: 'Sim',
           items,
+          completedGroupCount,
           isStreaming,
           isLaneOpen: isStreaming,
         })
@@ -332,16 +333,172 @@ describe('AgentGroup main tool summary', () => {
     return container.querySelector<HTMLButtonElement>('button[aria-expanded]')!
   }
 
+  const call = (id: string, status: ToolCallStatus, activity?: string): AgentGroupItem => ({
+    type: 'tool',
+    data: {
+      id,
+      toolName: 'cli_blocks_get',
+      displayTitle: `Reading ${id} configuration`,
+      status,
+      params: {
+        args: ['blocks', 'get', id],
+        ...(activity
+          ? {
+              activity: {
+                id: activity,
+                title: activity,
+                completedTitle: activity
+                  .replace(/^Checking/, 'Checked')
+                  .replace(/^Testing/, 'Tested')
+                  .replace(/^Building/, 'Built'),
+              },
+            }
+          : {}),
+      },
+    },
+  })
+
+  it('preserves intent through omitted updates and completion, and only renames on an explicit update', () => {
+    const first = call('Exa', 'success', 'Checking search input requirements')
+    const second = call('Start', 'executing')
+    const third = call('Function', 'executing')
+    const header = render([first, second, third])
+    expect(header.textContent).toBe('Checking search input requirements + 1')
+    expect(header.querySelectorAll('svg')).toHaveLength(1)
+    render([first, call('Start', 'success'), third])
+    expect(header.textContent).toBe('Checking search input requirements')
+    render([first, call('Start', 'success'), call('Function', 'success')], false)
+    expect(header.textContent).toBe('Checked search input requirements')
+    const update = call('API', 'executing', 'Testing both API workflows')
+    render([first, second, update])
+    expect(header.textContent).toBe('Testing both API workflows + 1')
+    render([call('Next', 'executing')])
+    expect(header.textContent).toBe('Reading Next configuration')
+  })
+
+  it('summarizes a completed batch with the additional group count and a flat tool log', () => {
+    const items = [
+      call('Exa', 'success', 'Checking search inputs'),
+      call('Start', 'success', 'Checking start inputs'),
+      call('Function', 'success'),
+    ]
+    const header = render(items, true, 2)
+    expect(header.textContent).toBe('Checked start inputs + 1')
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    act(() => header.click())
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelectorAll('button[aria-expanded]')).toHaveLength(1)
+    expect(container.textContent).not.toContain('Checked search inputs')
+  })
+
+  it.each(['cancelled', 'interrupted', 'skipped', 'rejected'] as const)(
+    'does not claim completion for %s activity calls',
+    (status) => {
+      const header = render([call('Start', status, 'Checking start inputs')], false)
+      expect(header.textContent).toBe(
+        status === 'rejected' ? 'Failed checking start inputs' : 'Stopped checking start inputs'
+      )
+    }
+  )
+
+  it('does not attribute another activity failure to the representative completed activity', () => {
+    const header = render(
+      [
+        call('Exa', 'error', 'Checking search inputs'),
+        call('Start', 'success', 'Checking start inputs'),
+      ],
+      false,
+      2
+    )
+    expect(header.textContent).toBe('Checked start inputs + 1')
+    render(
+      [
+        call('Exa', 'success', 'Checking search inputs'),
+        call('Start', 'error', 'Checking start inputs'),
+      ],
+      false,
+      2
+    )
+    expect(header.textContent).toBe('Failed checking start inputs + 1')
+  })
+
+  it('waits for a complete streamed activity string and retains it when later calls omit activity', () => {
+    const streaming = (streamingArgs: string): AgentGroupItem => ({
+      type: 'tool',
+      data: {
+        id: 'streaming',
+        toolName: 'sim_cli',
+        displayTitle: 'Running CLI command',
+        status: 'executing',
+        streamingArgs,
+      },
+    })
+    const header = render([streaming('{"activity":{"id":"inputs","title":"Checking')])
+    expect(header.textContent).toBe('Working…')
+    render([
+      streaming(
+        '{"activity":{"id":"inputs","title":"Checking search inputs","completedTitle":"Checked search inputs"},"args":['
+      ),
+    ])
+    expect(header.textContent).toBe('Checking search inputs')
+    render([
+      streaming(
+        '{"activity":{"id":"inputs","title":"Checking search inputs","completedTitle":"Checked search inputs"},"args":['
+      ),
+      call('Exa', 'executing'),
+    ])
+    expect(header.textContent).toBe('Checking search inputs + 1')
+  })
+
+  it('uses current concrete calls and counts down across nested lanes when activity is absent', () => {
+    const header = render([
+      call('Exa', 'executing'),
+      group([call('Start', 'executing'), call('Function', 'executing')]),
+    ])
+    expect(header.textContent).toBe('Reading Function configuration + 2')
+    render([
+      call('Exa', 'executing'),
+      group([call('Start', 'executing'), call('Function', 'success')]),
+    ])
+    expect(header.textContent).toBe('Reading Start configuration + 1')
+    render([
+      call('Exa', 'executing'),
+      group([call('Start', 'success'), call('Function', 'success')]),
+    ])
+    expect(header.textContent).toBe('Reading Exa configuration')
+  })
+
+  it('does not let a nested agent rename the parent or treat a resource title as intent', () => {
+    const header = render([
+      call('Exa', 'executing', 'Checking search inputs'),
+      group([call('Start', 'executing', 'Building an unrelated API')]),
+    ])
+    expect(header.textContent).toBe('Checking search inputs + 1')
+    render([
+      {
+        type: 'tool',
+        data: {
+          id: 'file',
+          toolName: 'cli_files_create',
+          displayTitle: 'Creating Report',
+          status: 'executing',
+          params: { title: 'Report' },
+        },
+      },
+    ])
+    expect(header.textContent).toBe('Creating Report')
+  })
+
   it('starts collapsed while streaming, shows the tool and count, and preserves manual expansion', () => {
     const items = [tool('success'), tool('executing')]
     const header = render(items)
-    expect(header.textContent).toBe('Searching + 1')
+    expect(header.textContent).toBe('Searching')
     expect(header.textContent).not.toContain('Sim')
     expect(header.getAttribute('aria-expanded')).toBe('false')
     act(() => header.click())
     expect(header.getAttribute('aria-expanded')).toBe('true')
     render([...items, tool('executing')])
-    expect(header.textContent).toBe('Searching + 2')
+    expect(header.textContent).toBe('Searching + 1')
     expect(header.getAttribute('aria-expanded')).toBe('true')
     act(() => header.click())
     render([...items, tool('executing')])
@@ -349,14 +506,14 @@ describe('AgentGroup main tool summary', () => {
   })
 
   it.each(['success', 'error', 'cancelled'] as const)(
-    'shows an honest terminal label for %s without losing the collapsed history count',
+    'shows an honest terminal label for %s with no remaining-call count',
     (status) => {
       const header = render([tool('success'), tool(status)], false)
       expect(header.textContent).toBe(
         {
-          success: 'Searched + 1',
-          error: 'Failed searching + 1',
-          cancelled: 'Stopped searching + 1',
+          success: 'Searched',
+          error: 'Failed searching',
+          cancelled: 'Stopped searching',
         }[status]
       )
       expect(header.getAttribute('aria-expanded')).toBe('false')

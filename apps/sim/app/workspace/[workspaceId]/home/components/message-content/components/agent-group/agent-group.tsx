@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText, Wrench } from '@sim/emcn'
+import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { Terminal as TerminalTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { type ToolCallData, ToolCallStatus } from '../../../../types'
@@ -35,6 +37,8 @@ export type AgentGroupItem =
   | { type: 'agent_group'; group: NestedAgentGroup }
 
 interface AgentGroupProps {
+  activity?: ToolActivity
+  completedGroupCount?: number
   error?: string
   agentName: string
   agentLabel: string
@@ -46,9 +50,19 @@ interface AgentGroupProps {
 }
 
 function toolStatusTitle(tool: ToolCallData): string {
-  // Raw tool names must never surface — derive a human title when no display
-  // title was resolved upstream.
   return tool.displayTitle || getToolDisplayTitle(String(tool.toolName ?? ''), tool.params)
+}
+
+/** Only explicit intent updates rename a main group; nested agents own their own headings. */
+function groupActivityTitle(items: AgentGroupItem[]): ToolActivity | undefined {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.type !== 'tool') continue
+    const tool = item.data
+    const activity = readToolActivity(tool.params, tool.streamingArgs)
+    if (activity?.title && activity.completedTitle) return activity
+  }
+  return undefined
 }
 
 /**
@@ -142,6 +156,8 @@ export function AgentGroup({
   isDelegating = false,
   isStreaming = false,
   isLaneOpen = false,
+  activity: groupActivity,
+  completedGroupCount = 0,
   error,
 }: AgentGroupProps) {
   const isMainAgent = agentName === 'mothership'
@@ -156,17 +172,51 @@ export function AgentGroup({
         )
       : tools.at(-1)
     if (!latest) return undefined
+    const activity = isMainAgent ? (groupActivity ?? groupActivityTitle(items)) : undefined
+    const initialCall = tools[0]
+    const generatingFirstCall =
+      tools.length === 1 &&
+      initialCall?.status === ToolCallStatus.executing &&
+      (initialCall.toolName === 'sim_cli' || initialCall.toolName === 'run_code') &&
+      Object.keys(initialCall.params ?? {}).length === 0
+    const activityTools =
+      completedGroupCount > 1 && activity
+        ? tools.filter(
+            (tool) => readToolActivity(tool.params, tool.streamingArgs)?.id === activity.id
+          )
+        : tools
+    const failed = activityTools.find(
+      (tool) => tool.status !== ToolCallStatus.success && isToolDone(tool.status)
+    )
+    const activityComplete = !failed && isAgentGroupResolved(items)
+    const mainTitle =
+      activity?.title && activity.completedTitle
+        ? activityComplete
+          ? activity.completedTitle
+          : activity.title
+        : generatingFirstCall
+          ? 'Working…'
+          : toolStatusTitle(latest)
     return {
-      toolName: latest.toolName,
       title: isMainAgent
-        ? getToolStatusDisplayTitle(toolStatusTitle(latest), latest.status, latest.toolName)
+        ? getToolStatusDisplayTitle(
+            mainTitle,
+            activity
+              ? running.length > 0
+                ? 'executing'
+                : failed
+                  ? failed.status === 'error' || failed.status === 'rejected'
+                    ? 'error'
+                    : 'cancelled'
+                  : 'executing'
+              : latest.status,
+            latest.toolName
+          )
         : toolStatusTitle(latest),
-      additionalCount: isMainAgent ? tools.length - 1 : Math.max(0, running.length - 1),
+      additionalCount: Math.max(0, (isMainAgent ? completedGroupCount : 0) - 1, running.length - 1),
     }
-  }, [isLaneOpen, isMainAgent, items])
-  const AgentIcon = isMainAgent
-    ? getAgentIcon(status?.toolName ?? '', Wrench)
-    : getAgentIcon(agentName)
+  }, [isLaneOpen, isMainAgent, items, groupActivity, completedGroupCount])
+  const AgentIcon = getAgentIcon(agentName)
   const headerText = error
     ? isMainAgent
       ? 'Tool call failed'
@@ -183,7 +233,8 @@ export function AgentGroup({
     browserAgentAvailable && isLaneOpen ? getActiveBrowserTakeover(items) : null
   const nestedBrowserTakeover = browserAgentAvailable && hasNestedBrowserTakeover(items)
   const isWorking =
-    !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
+    !activeBrowserTakeover &&
+    ((isDelegating && !resolved) || (isStreaming && isLaneOpen && (!isMainAgent || !resolved)))
 
   /** Keep every log collapsed until opened, except for blocking user interactions. */
   const [manualExpanded, setManualExpanded] = useState(false)
@@ -213,9 +264,11 @@ export function AgentGroup({
           aria-expanded={expanded}
           className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
         >
-          <div className='flex size-[16px] shrink-0 items-center justify-center'>
-            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
-          </div>
+          {!isMainAgent && (
+            <div className='flex size-[16px] shrink-0 items-center justify-center'>
+              <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
+            </div>
+          )}
           {isWorking ? (
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
@@ -236,9 +289,11 @@ export function AgentGroup({
         </button>
       ) : (
         <div className='flex min-w-0 items-center gap-2'>
-          <div className='flex size-[16px] shrink-0 items-center justify-center'>
-            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
-          </div>
+          {!isMainAgent && (
+            <div className='flex size-[16px] shrink-0 items-center justify-center'>
+              <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
+            </div>
+          )}
           {isWorking ? (
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (

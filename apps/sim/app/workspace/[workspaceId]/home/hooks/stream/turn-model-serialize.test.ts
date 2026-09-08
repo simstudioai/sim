@@ -44,6 +44,92 @@ function build(events: PersistedStreamEventEnvelope[]): TurnModel {
   return m
 }
 
+describe('activity metadata replay', () => {
+  it('carries hidden discovery labels onto later visible calls without crossing agent lanes', () => {
+    const activity = {
+      id: 'inputs',
+      title: 'Checking invoice requirements',
+      completedTitle: 'Checked invoice requirements',
+    }
+    const childActivity = {
+      id: 'inputs',
+      title: 'Checking customer requirements',
+      completedTitle: 'Checked customer requirements',
+    }
+    const model = build([
+      env(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'skill',
+        toolName: 'load_skill',
+        arguments: { name: 'build-workflow', activity },
+        ui: { hidden: true },
+      }),
+      env(
+        2,
+        'tool',
+        {
+          phase: 'call',
+          toolCallId: 'child-skill',
+          toolName: 'load_skill',
+          arguments: { name: 'build-workflow', activity: childActivity },
+          ui: { hidden: true },
+        },
+        { lane: 'subagent', spanId: 'child' }
+      ),
+      env(3, 'text', { channel: 'assistant', text: 'Now inspecting the inputs.' }),
+      env(4, 'tool', {
+        phase: 'call',
+        toolCallId: 'read',
+        toolName: 'sim_cli',
+        arguments: { args: ['blocks', 'get', 'start_trigger'], activity: { id: 'inputs' } },
+      }),
+    ])
+    const blocks = modelToContentBlocks(model)
+    expect(blocks.filter((block) => block.toolCall)).toHaveLength(1)
+    expect(blocks.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+    const replay = modelToContentBlocks(contentBlocksToModel(blocks))
+    expect(replay.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+  })
+
+  it('keeps the gateway activity when its concrete tool arguments replace the outer call', () => {
+    const activity = {
+      id: 'search',
+      title: 'Checking search results',
+      completedTitle: 'Checked search results',
+    }
+    const model = build([
+      env(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'gateway',
+        toolName: 'call_integration_tool',
+        arguments: { activity, toolId: 'exa_search', arguments: { query: 'Sim' } },
+      }),
+      env(2, 'tool', {
+        phase: 'call',
+        toolCallId: 'gateway',
+        toolName: 'exa_search',
+        arguments: { query: 'Sim' },
+      }),
+      env(3, 'tool', {
+        phase: 'result',
+        toolCallId: 'gateway',
+        toolName: 'exa_search',
+        result: { success: true },
+      }),
+    ])
+    const blocks = modelToContentBlocks(model)
+    expect(blocks.find((block) => block.toolCall)?.toolCall?.params).toEqual({
+      query: 'Sim',
+      activity,
+    })
+    const replay = modelToContentBlocks(contentBlocksToModel(blocks))
+    expect(replay.find((block) => block.toolCall)?.toolCall?.params).toEqual({
+      query: 'Sim',
+      activity,
+    })
+  })
+})
+
 describe('streaming resource titles', () => {
   it('includes resource names as soon as they appear in streamed arguments', () => {
     expect(resolveStreamingToolDisplayTitle('create_workflow', '{"name":"Lead Router"}')).toBe(

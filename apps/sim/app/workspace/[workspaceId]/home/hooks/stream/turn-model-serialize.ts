@@ -1,4 +1,10 @@
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import {
+  resolveNamedCliToolDisplayTitle,
+  type ToolResourceContext,
+} from '@/lib/mothership/tools/client/resource-display'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,
@@ -49,13 +55,18 @@ function isOpenToolStatus(status: ToolCallStatus): boolean {
  * the streaming-args title while args stream, then the arg-derived title, then
  * the explicit `ui.title`.
  */
-function toolDisplayTitle(node: ToolNode): string | undefined {
+function toolDisplayTitle(node: ToolNode, context?: ToolResourceContext): string | undefined {
   const integrationTitle = resolveIntegrationToolDisplayTitle(node)
   if (integrationTitle) return integrationTitle
   const streamingTitle = node.streamingArgs
     ? resolveStreamingToolDisplayTitle(node.name, node.streamingArgs)
     : undefined
-  return streamingTitle ?? resolveToolDisplayTitle(node.name, node.args) ?? node.uiTitle
+  return (
+    resolveNamedCliToolDisplayTitle(node.name, node.args, context ?? {}) ??
+    streamingTitle ??
+    resolveToolDisplayTitle(node.name, node.args, context) ??
+    node.uiTitle
+  )
 }
 
 interface SeqBlock {
@@ -70,8 +81,12 @@ interface SeqBlock {
  * emits a paired `subagent_end` at its end seq so the projection closes the lane
  * exactly as the live browser path did.
  */
-export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
+export function modelToContentBlocks(
+  model: TurnModel,
+  context?: ToolResourceContext
+): ContentBlock[] {
   const entries: SeqBlock[] = []
+  const activities = new Map<string, Map<string, ToolActivity>>()
 
   for (const id of model.order) {
     const node = model.nodes.get(id)
@@ -124,9 +139,19 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
     }
 
     if (node.kind === 'tool') {
+      /** Hidden discovery may introduce an activity; carry its labels onto visible calls and replay. */
+      const supplied = node.activity ?? readToolActivity(node.args, node.streamingArgs)
+      if (supplied?.title && supplied.completedTitle) {
+        const lane = activities.get(node.spanId) ?? new Map<string, ToolActivity>()
+        if (!lane.has(supplied.id)) lane.set(supplied.id, supplied)
+        activities.set(node.spanId, lane)
+      }
+      const activity = supplied
+        ? (activities.get(node.spanId)?.get(supplied.id) ?? supplied)
+        : undefined
       // Per-call hidden tools are tracked for side effects but never rendered.
       if (node.hidden) continue
-      const displayTitle = toolDisplayTitle(node)
+      const displayTitle = toolDisplayTitle(node, context)
       entries.push({
         seq: node.seq,
         block: {
@@ -139,7 +164,9 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
             ...(node.integrationDescription
               ? { integrationDescription: node.integrationDescription }
               : {}),
-            ...(node.args ? { params: node.args } : {}),
+            ...(node.args || activity
+              ? { params: { ...node.args, ...(activity ? { activity } : {}) } }
+              : {}),
             ...(node.streamingArgs ? { streamingArgs: node.streamingArgs } : {}),
             ...(node.result
               ? {

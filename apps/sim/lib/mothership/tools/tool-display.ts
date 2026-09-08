@@ -816,6 +816,59 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
+    case 'cli_blocks_get': {
+      const block = stringArg({ value: cliFirstPositional(name, args) }, 'value')
+      const operation = cliFlag(args, '--operation')
+      const operationName =
+        block && operation?.startsWith(`${block}_`) ? operation.slice(block.length + 1) : operation
+      const subject = [
+        block && blockDisplayName(block),
+        operationName && humanizeToolName(operationName),
+      ]
+        .filter(Boolean)
+        .join(' ')
+      return subject ? `Reading ${subject} configuration` : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_blocks_tips': {
+      const block = stringArg({ value: cliFirstPositional(name, args) }, 'value')
+      return block ? `Reading ${blockDisplayName(block)} guidance` : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_blocks_list':
+    case 'cli_tools_list': {
+      const query = cliFlag(args, '--search') ?? cliFlag(args, '--query')
+      return query
+        ? `Searching ${name === 'cli_blocks_list' ? 'blocks' : 'integration operations'} for ${truncateMiddle(query, 60)}`
+        : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_tools_get': {
+      const operation = stringArg({ value: cliFirstPositional(name, args) }, 'value')
+      return operation ? `Reading ${humanizeToolName(operation)} operation` : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_reference':
+    case 'cli_docs_search':
+    case 'cli_grep': {
+      const target = stringArg({ value: cliFirstPositional(name, args) }, 'value')
+      return target
+        ? `${CLI_TOOL_TITLES[name]} for ${truncateMiddle(target, 60)}`
+        : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_integrations_list': {
+      const query = cliFlag(args, '--query')
+      const service = cliFlag(args, '--service')
+      if (query) return `Finding integration actions for ${truncateMiddle(query, 60)}`
+      return service ? `Finding ${humanizeToolName(service)} actions` : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_files_view': {
+      const path = stringArg({ value: cliFirstPositional(name, args) }, 'value')
+      return path ? `Viewing ${pathLeaf(path)}` : CLI_TOOL_TITLES[name]
+    }
+    case 'cli_workflows_create':
+    case 'cli_tables_create':
+    case 'cli_files_create':
+    case 'cli_knowledge_create': {
+      const title = cliFlag(args, '--name') ?? cliFlag(args, '--title')
+      return title ? `Creating ${title}` : CLI_TOOL_TITLES[name]
+    }
     case 'cli_workflows_operations_apply':
     case 'cli_workflows_state_replace':
       if (stringArrayArg(args, 'args').includes('--dry-run')) {
@@ -1299,6 +1352,48 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   return TOOL_TITLES[name] ?? CLI_TOOL_TITLES[name] ?? humanizeToolName(name)
+}
+
+/** First positional after the synthetic CLI command path; shared by resource and operation labels. */
+export function cliFirstPositional(
+  name: string,
+  args?: Record<string, unknown>
+): string | undefined {
+  const argv = stringArrayArg(args, 'args')
+  const tokens: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i]
+    if (token === '--output') {
+      i++
+      continue
+    }
+    if (token.startsWith('--output=')) continue
+    if (token.startsWith('-')) break
+    tokens.push(token)
+  }
+  let joined = 'cli'
+  for (let i = 0; i < tokens.length; i++) {
+    joined += `_${tokens[i].replace(/-/g, '_')}`
+    if (joined === name) return tokens[i + 1]
+  }
+  return undefined
+}
+
+/** Display-safe selectors only; command execution remains owned by the CLI parser. */
+function cliFlag(args: ToolArgs, flag: string): string | undefined {
+  const argv = stringArrayArg(args, 'args')
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i]
+    if (token === '--' || token === '|') break
+    const value =
+      token === flag
+        ? argv[i + 1]
+        : token.startsWith(`${flag}=`)
+          ? token.slice(flag.length + 1)
+          : undefined
+    if (value !== undefined) return stringArg({ value }, 'value') || undefined
+  }
+  return undefined
 }
 
 /**

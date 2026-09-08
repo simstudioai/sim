@@ -90,6 +90,29 @@ describe('copilot tool executor fallback', () => {
     expect(handler).toHaveBeenCalledOnce()
   })
 
+  it('keeps display activity out of native execution parameters', async () => {
+    getToolEntry.mockReturnValue({ requiredPermission: 'write' })
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('run_function', handler)
+    const context = { userId: 'user-1', workflowId: '', userPermission: 'write' as const }
+    await executeTool(
+      'run_function',
+      {
+        activity: { id: 'inputs', title: 'Checking inputs', completedTitle: 'Checked inputs' },
+        code: 'return 1',
+        arguments: { activity: 'business input' },
+      },
+      context
+    )
+    expect(handler).toHaveBeenCalledWith(
+      { code: 'return 1', arguments: { activity: 'business input' } },
+      context
+    )
+  })
+
   it('projects resolved secrets before logging registered handler failures', async () => {
     const secret = 'mounted-secret-value'
     const registry = new ResolvedSecretTraceRegistry([

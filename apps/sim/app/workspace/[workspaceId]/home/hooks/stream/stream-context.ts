@@ -245,7 +245,10 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     if (isStale()) return
     // The model is authoritative: serialize it to the persisted/rendered block
     // shape and main-lane content for every snapshot write.
-    const modelBlocks = modelToContentBlocks(state.model)
+    const modelBlocks = modelToContentBlocks(state.model, {
+      workspaceId: deps.workspaceId,
+      resources: deps.resourcesRef.current,
+    })
     const modelContent = modelMainText(state.model)
     deps.streamingBlocksRef.current = modelBlocks
     deps.streamingContentRef.current = modelContent

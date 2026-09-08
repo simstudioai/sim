@@ -10,6 +10,7 @@ import {
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
@@ -69,6 +70,7 @@ export interface ToolNode extends NodeBase {
   name: string
   status: NodeStatus
   args?: Record<string, unknown>
+  activity?: ToolActivity
   streamingArgs?: string
   uiTitle?: string
   /**
@@ -532,7 +534,11 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // back into an ordinary running row without waiting for the result.
           node.status = 'running'
         }
-        if (isRecordLike(payload.arguments)) node.args = payload.arguments
+        if (isRecordLike(payload.arguments)) {
+          node.args = payload.arguments
+          const activity = ToolActivity.safeParse(payload.arguments.activity)
+          if (!node.activity && activity.success) node.activity = activity.data
+        }
         // Only the snapshot-replay path (contentBlocksToModel) carries this
         // field — the live wire never does; it restores the rebound gateway
         // description across a preserve-state rebuild.

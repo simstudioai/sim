@@ -11,19 +11,23 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
   humanizeToolName,
 } from '@/lib/mothership/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { TaskPill } from '@/app/workspace/[workspaceId]/home/components/message-content/components/task-pill'
+import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
@@ -58,6 +62,8 @@ interface TextSegment {
 }
 
 interface AgentGroupSegment {
+  activity?: ToolActivity
+  completedGroupCount?: number
   error?: string
   type: 'agent_group'
   id: string
@@ -532,22 +538,66 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   )
 }
 
-/**
- * Groups content blocks into agent-scoped segments.
- * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
- * into the agent header. Inner tool_calls are nested underneath their agent.
- * Orphan tool_calls (no calledBy, not a dispatch) group under "Sim".
- *
- * New backends stamp every subagent block with deterministic span identity; in
- * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The
- * legacy flat heuristics below are retained for transcripts persisted before
- * span identity existed.
- */
-export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
-  if (blocks.some((block) => Boolean(block.spanId))) {
-    return parseBlocksWithSpanTree(blocks)
+/** Each explicit activity owns a top-level group, including interleaved parallel calls. */
+function groupByActivity(segments: MessageSegment[]): MessageSegment[] {
+  const labels = new Map<string, ToolActivity>()
+  for (const segment of segments) {
+    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') continue
+    for (const item of segment.items) {
+      if (item.type !== 'tool') continue
+      const activity = readToolActivity(item.data.params, item.data.streamingArgs)
+      if (activity?.title && activity.completedTitle && !labels.has(activity.id))
+        labels.set(activity.id, activity)
+    }
   }
-  return parseBlocksLegacy(blocks)
+  return segments.flatMap((segment): MessageSegment[] => {
+    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') return [segment]
+    const groups: AgentGroupSegment[] = []
+    const byActivity = new Map<string, AgentGroupSegment>()
+    let current: AgentGroupSegment | undefined
+    let currentActivityId: string | undefined
+    for (const item of segment.items) {
+      const activity =
+        item.type === 'tool'
+          ? readToolActivity(item.data.params, item.data.streamingArgs)
+          : undefined
+      if (activity && byActivity.has(activity.id)) current = byActivity.get(activity.id)
+      else if (!current || activity || currentActivityId) {
+        current = {
+          ...segment,
+          activity: activity ? labels.get(activity.id) : undefined,
+          id:
+            groups.length === 0
+              ? segment.id
+              : `${segment.id}-${item.type === 'tool' ? item.data.id : groups.length}`,
+          items: [],
+        }
+        groups.push(current)
+        if (activity) byActivity.set(activity.id, current)
+      }
+      currentActivityId = activity?.id
+      current?.items.push(item)
+    }
+    /** Prose and subagents remain boundaries; finished tool batches retain stream order. */
+    const summaryActivity = [...groups].reverse().find((group) => group.activity)?.activity
+    if (
+      groups.length > 1 &&
+      summaryActivity &&
+      segment.items.every((item) => item.type === 'tool') &&
+      isAgentGroupResolved(segment.items)
+    ) {
+      return [{ ...segment, activity: summaryActivity, completedGroupCount: groups.length }]
+    }
+    return groups.length ? groups : [segment]
+  })
+}
+
+export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
+  return groupByActivity(
+    blocks.some((block) => Boolean(block.spanId))
+      ? parseBlocksWithSpanTree(blocks)
+      : parseBlocksLegacy(blocks)
+  )
 }
 
 function joinRenderableText(parts: string[]): string {
@@ -917,9 +967,10 @@ function MessageContentInner({
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const titledBlocks = useToolResourceTitles(blocks)
   const parsed = useMemo(
-    () => (blocks.length > 0 ? parseBlocks(blocks) : []),
-    [blocks, blockOverlayVersion]
+    () => (titledBlocks.length > 0 ? parseBlocks(titledBlocks) : []),
+    [titledBlocks, blockOverlayVersion]
   )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
@@ -1062,6 +1113,8 @@ function MessageContentInner({
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <AgentGroup
+                    activity={segment.activity}
+                    completedGroupCount={segment.completedGroupCount}
                     key={segment.id}
                     agentName={segment.agentName}
                     agentLabel={segment.agentLabel}

@@ -1224,6 +1224,42 @@ describe('sse-handlers tool lifecycle', () => {
     expect(waitForToolCompletion).not.toHaveBeenCalled()
   })
 
+  it('persists labels introduced by hidden discovery on a later visible activity reference', async () => {
+    const activity = {
+      id: 'requirements',
+      title: 'Reviewing workflow prerequisites',
+      completedTitle: 'Reviewed workflow prerequisites',
+    }
+    for (const [id, name, args] of [
+      ['hidden-activity', 'load_skill', { name: 'build-workflow', activity }],
+      [
+        'visible-activity',
+        'cli_workflows_get',
+        { args: ['workflows', 'get', 'workflow-id'], activity: { id: 'requirements' } },
+      ],
+    ] as const) {
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: id,
+            toolName: name,
+            arguments: args,
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.call,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+    }
+    expect(context.contentBlocks).toHaveLength(1)
+    expect(context.toolCalls.get('visible-activity')?.params?.activity).toEqual(activity)
+    expect(executeTool).not.toHaveBeenCalled()
+  })
+
   it('does not add hidden tool calls to content blocks', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { skill: 'ok' } })
 

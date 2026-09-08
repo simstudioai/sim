@@ -123,7 +123,8 @@ export async function executeTool(
   }
 
   try {
-    return await handler(params, context)
+    const { activity: _activity, ...executionParams } = params
+    return await handler(executionParams, context)
   } catch (error) {
     const message = toError(error).message
     logger.error('Tool execution failed', {

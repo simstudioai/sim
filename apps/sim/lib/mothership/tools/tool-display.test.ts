@@ -20,6 +20,7 @@ import {
   getWaitCountdownTitle,
   humanizeToolName,
   mvDisplayVerb,
+  refineStreamingCliToolName,
 } from '@/lib/mothership/tools/tool-display'
 
 function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
@@ -71,6 +72,59 @@ describe('humanizeToolName', () => {
 })
 
 describe('getToolDisplayTitle natural-language coverage', () => {
+  it('names the discovered block and operation instead of a generic inspection', () => {
+    expect(
+      getToolDisplayTitle('cli_blocks_get', { args: ['--output=json', 'blocks', 'get', 'exa'] })
+    ).toBe('Reading Exa configuration')
+    expect(
+      getToolDisplayTitle('cli_blocks_get', {
+        args: ['blocks', 'get', 'exa', '--operation', 'exa_search'],
+      })
+    ).toBe('Reading Exa Search configuration')
+    expect(
+      getToolDisplayTitle('cli_blocks_get', { args: ['blocks', 'get', 'google_sheets_v2'] })
+    ).toBe('Reading Google Sheets configuration')
+  })
+
+  it.each([
+    [['blocks', 'tips', 'exa'], 'cli_blocks_tips', 'Reading Exa guidance'],
+    [
+      ['docs', 'search', 'advanced inputs'],
+      'cli_docs_search',
+      'Searching Sim docs for advanced inputs',
+    ],
+    [
+      ['reference', 'workflows operations apply'],
+      'cli_reference',
+      'Reading command reference for workflows operations apply',
+    ],
+    [['workflows', 'lint', 'wf-1'], 'cli_workflows_lint', 'Validating workflow'],
+    [['outputs', 'get', 'output-1'], 'cli_outputs_get', 'Reading saved tool output'],
+  ])(
+    'uses the same readable augmentation name during argument streaming and replay: %s',
+    (argv, name, title) => {
+      const args = { args: argv }
+      expect(refineStreamingCliToolName(JSON.stringify(args).slice(0, -1))).toBe(name)
+      expect(getToolDisplayTitle(name as string, args)).toBe(title)
+    }
+  )
+
+  it('names queries and newly created resources without exposing command bodies', () => {
+    expect(
+      getToolDisplayTitle('cli_blocks_list', { args: ['blocks', 'list', '--query=Exa'] })
+    ).toBe('Searching blocks for Exa')
+    expect(
+      getToolDisplayTitle('cli_integrations_list', {
+        args: ['integrations', 'list', '--service', 'gmail'],
+      })
+    ).toBe('Finding Gmail actions')
+    expect(
+      getToolDisplayTitle('cli_workflows_create', {
+        args: ['workflows', 'create', '--name', 'Invoice API', '--description', 'private body'],
+      })
+    ).toBe('Creating Invoice API')
+  })
+
   it.each(['cli_workflows_operations_apply', 'cli_workflows_state_replace'])(
     'distinguishes validation from mutation for %s',
     (name) => {
