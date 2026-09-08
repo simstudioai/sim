@@ -29,7 +29,7 @@ export function NavbarAuthPill({ size = 'compact', className, onNavigate }: Navb
         href={LOGIN_HREF}
         prefetch={false}
         onClick={onNavigate}
-        className={cn(SEGMENT_CLASSES, 'rounded-l-full', compact ? 'px-3' : 'flex-1 px-4')}
+        className={cn(SEGMENT_CLASSES, 'rounded-l-full', compact ? 'px-3' : 'flex-auto px-2')}
       >
         Log in
       </Link>
@@ -41,7 +41,7 @@ export function NavbarAuthPill({ size = 'compact', className, onNavigate }: Navb
         href={SIGNUP_HREF}
         prefetch={false}
         onClick={onNavigate}
-        className={cn(SEGMENT_CLASSES, 'rounded-r-full', compact ? 'px-3' : 'flex-1 px-4')}
+        className={cn(SEGMENT_CLASSES, 'rounded-r-full', compact ? 'px-3' : 'flex-auto px-2')}
       >
         Start building
       </Link>
