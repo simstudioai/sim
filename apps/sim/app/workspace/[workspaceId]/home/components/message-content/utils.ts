@@ -131,8 +131,8 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   wait: Clock,
 }
 
-export function getAgentIcon(name: string): IconComponent {
-  return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? Blimp
+export function getAgentIcon(name: string, fallback: IconComponent = Blimp): IconComponent {
+  return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? fallback
 }
 
 export type MessagePhase = 'streaming' | 'revealing' | 'settled'

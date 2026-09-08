@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
+import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText, Wrench } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { Terminal as TerminalTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
+import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { type ToolCallData, ToolCallStatus } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
@@ -40,8 +41,6 @@ interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  /** This group is the latest section in its parent sequence (drives collapse). */
-  isCurrentSection?: boolean
   /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
   isLaneOpen?: boolean
 }
@@ -49,7 +48,7 @@ interface AgentGroupProps {
 function toolStatusTitle(tool: ToolCallData): string {
   // Raw tool names must never surface — derive a human title when no display
   // title was resolved upstream.
-  return tool.displayTitle || getToolDisplayTitle(String(tool.toolName ?? ''), undefined)
+  return tool.displayTitle || getToolDisplayTitle(String(tool.toolName ?? ''), tool.params)
 }
 
 /**
@@ -69,12 +68,18 @@ function collectGroupTools(items: AgentGroupItem[]): ToolCallData[] {
   return tools
 }
 
-/** True when any row in this group (or a nested one) is waiting on a permission decision. */
-function hasAwaitingApproval(items: AgentGroupItem[]): boolean {
+/** Blocking decisions must stay visible even when the surrounding log is collapsed. */
+function hasBlockingInteraction(items: AgentGroupItem[]): boolean {
   return items.some((item) => {
-    if (item.type === 'tool') return item.data.status === ToolCallStatus.awaiting_approval
-    // Text rows carry no tool calls, so only nested groups need recursing into.
-    return item.type === 'agent_group' ? hasAwaitingApproval(item.group.items) : false
+    if (item.type === 'tool') {
+      return (
+        item.data.status === ToolCallStatus.awaiting_approval ||
+        (item.data.toolName === TerminalTool.id &&
+          item.data.status === ToolCallStatus.executing &&
+          item.data.params?.operation === 'handoff')
+      )
+    }
+    return item.type === 'agent_group' ? hasBlockingInteraction(item.group.items) : false
   })
 }
 
@@ -136,39 +141,41 @@ export function AgentGroup({
   items,
   isDelegating = false,
   isStreaming = false,
-  isCurrentSection = false,
   isLaneOpen = false,
   error,
 }: AgentGroupProps) {
-  const AgentIcon = getAgentIcon(agentName)
   const isMainAgent = agentName === 'mothership'
-  // Collapsed status line: the latest tool call, always in its RUNNING
-  // phrasing — it never flips to the completed rewrite (that lives in the
-  // expanded log). Work delegated further down bubbles up, so a group whose
-  // own turn is idle still narrates what its nested agent is doing rather
-  // than freezing on its last own tool. With several tools running at any
-  // depth, the most recently started wins and the rest become "+ n"; between
-  // rounds the last tool's title stays frozen; a closed lane shows the bare
-  // name.
+  /** Main groups summarize their tool log; subagents retain their named live status. */
   const status = useMemo(() => {
-    if (isMainAgent || !isLaneOpen) return undefined
+    if (!isMainAgent && !isLaneOpen) return undefined
     const tools = collectGroupTools(items)
     const running = tools.filter((tool) => tool.status === ToolCallStatus.executing)
-    if (running.length > 0) {
-      const latest = running.reduce((newest, tool) =>
-        (tool.startedAt ?? 0) >= (newest.startedAt ?? 0) ? tool : newest
-      )
-      const title = toolStatusTitle(latest)
-      return running.length > 1 ? `${title} + ${running.length - 1}` : title
+    const latest = running.length
+      ? running.reduce((newest, tool) =>
+          (tool.startedAt ?? 0) >= (newest.startedAt ?? 0) ? tool : newest
+        )
+      : tools.at(-1)
+    if (!latest) return undefined
+    return {
+      toolName: latest.toolName,
+      title: isMainAgent
+        ? getToolStatusDisplayTitle(toolStatusTitle(latest), latest.status, latest.toolName)
+        : toolStatusTitle(latest),
+      additionalCount: isMainAgent ? tools.length - 1 : Math.max(0, running.length - 1),
     }
-    const last = tools.at(-1)
-    return last ? toolStatusTitle(last) : undefined
   }, [isLaneOpen, isMainAgent, items])
+  const AgentIcon = isMainAgent
+    ? getAgentIcon(status?.toolName ?? '', Wrench)
+    : getAgentIcon(agentName)
   const headerText = error
-    ? `${agentLabel} — Failed`
-    : status
-      ? `${agentLabel} — ${status}`
-      : agentLabel
+    ? isMainAgent
+      ? 'Tool call failed'
+      : `${agentLabel} — Failed`
+    : isMainAgent
+      ? (status?.title ?? 'Working')
+      : status
+        ? `${agentLabel} — ${status.title}`
+        : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -178,24 +185,16 @@ export function AgentGroup({
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
 
-  // SUBAGENT groups never auto-expand: the collapsed row IS the live view —
-  // label plus latest running tool title. Expanding is a deliberate user
-  // action; only a pending permission prompt or a browser hand-back forces
-  // one open. The MAIN lane ("Sim") is not a delegation card: its narration
-  // and tool calls are the turn itself, so it keeps the original live-expand
-  // behavior (open while streaming/current, settles when superseded).
-  const autoExpanded = isMainAgent && isStreaming && (isCurrentSection || isLaneOpen || !resolved)
-  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
+  /** Keep every log collapsed until opened, except for blocking user interactions. */
+  const [manualExpanded, setManualExpanded] = useState(false)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
   // cannot proceed until it is answered, so hiding it would deadlock the chat
   // with nothing on screen to explain why.
   const expanded =
-    hasAwaitingApproval(items) ||
+    hasBlockingInteraction(items) ||
     nestedBrowserTakeover ||
-    (activeBrowserTakeover
-      ? expandedTakeoverId === activeBrowserTakeover.id
-      : (manualExpanded ?? autoExpanded))
+    (activeBrowserTakeover ? expandedTakeoverId === activeBrowserTakeover.id : manualExpanded)
 
   const toggleExpanded = () => {
     if (activeBrowserTakeover) {
@@ -211,6 +210,7 @@ export function AgentGroup({
         <button
           type='button'
           onClick={toggleExpanded}
+          aria-expanded={expanded}
           className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
         >
           <div className='flex size-[16px] shrink-0 items-center justify-center'>
@@ -220,6 +220,12 @@ export function AgentGroup({
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
             <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
+          )}
+          {status && status.additionalCount > 0 && (
+            <span className='shrink-0 text-[var(--text-secondary)] text-sm'>
+              {' + '}
+              {status.additionalCount}
+            </span>
           )}
           <ChevronDown
             className={cn(
@@ -271,7 +277,6 @@ export function AgentGroup({
                           items={item.group.items}
                           isDelegating={item.group.isDelegating}
                           isStreaming={isStreaming}
-                          isCurrentSection={idx === items.length - 1}
                           isLaneOpen={item.group.isOpen}
                           error={item.group.error}
                         />

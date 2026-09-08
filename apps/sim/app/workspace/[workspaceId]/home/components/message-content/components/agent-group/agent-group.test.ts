@@ -2,14 +2,18 @@
  * @vitest-environment jsdom
  */
 import { act, createElement } from 'react'
-import { createRoot } from 'react-dom/client'
-import { describe, expect, it, vi } from 'vitest'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ToolCallData, ToolCallStatus } from '../../../../types'
 import type { AgentGroupItem } from './agent-group'
 import { AgentGroup, isAgentGroupResolved } from './agent-group'
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   isBrowserAgentAvailable: () => true,
+}))
+
+vi.mock('./tool-permission-card', () => ({
+  ToolPermissionCard: () => createElement('div', { 'data-permission-card': true }, 'Allow tool'),
 }))
 
 vi.mock('../special-tags', () => ({
@@ -110,7 +114,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [tool('success'), browserTakeover(reason)],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -184,7 +187,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [takeover],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -206,7 +208,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [completedTakeover],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -301,5 +302,93 @@ describe('AgentGroup nested status line', () => {
       group([namedTool('Deploying Invoice Sync as API', 'success' as ToolCallStatus, 2)]),
     ])
     expect(header).toContain('Workflow Agent — Deploying Invoice Sync as API')
+  })
+})
+
+describe('AgentGroup main tool summary', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement('div')
+    root = createRoot(container)
+  })
+
+  afterEach(() => act(() => root.unmount()))
+
+  const render = (items: AgentGroupItem[], isStreaming = true) => {
+    act(() => {
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          items,
+          isStreaming,
+          isLaneOpen: isStreaming,
+        })
+      )
+    })
+    return container.querySelector<HTMLButtonElement>('button[aria-expanded]')!
+  }
+
+  it('starts collapsed while streaming, shows the tool and count, and preserves manual expansion', () => {
+    const items = [tool('success'), tool('executing')]
+    const header = render(items)
+    expect(header.textContent).toBe('Searching + 1')
+    expect(header.textContent).not.toContain('Sim')
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    act(() => header.click())
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    render([...items, tool('executing')])
+    expect(header.textContent).toBe('Searching + 2')
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    act(() => header.click())
+    render([...items, tool('executing')])
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it.each(['success', 'error', 'cancelled'] as const)(
+    'shows an honest terminal label for %s without losing the collapsed history count',
+    (status) => {
+      const header = render([tool('success'), tool(status)], false)
+      expect(header.textContent).toBe(
+        {
+          success: 'Searched + 1',
+          error: 'Failed searching + 1',
+          cancelled: 'Stopped searching + 1',
+        }[status]
+      )
+      expect(header.getAttribute('aria-expanded')).toBe('false')
+    }
+  )
+
+  it('keeps nested permission decisions visible even after a manual collapse', () => {
+    const header = render([tool('success'), group([tool('awaiting_approval')])])
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('[data-permission-card]')).not.toBeNull()
+    act(() => header.click())
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('opens a terminal handoff so the user can unblock it', () => {
+    const handoff: AgentGroupItem = {
+      type: 'tool',
+      data: {
+        id: 'terminal-handoff',
+        toolName: 'terminal',
+        displayTitle: 'Waiting for terminal input',
+        status: 'executing',
+        params: {
+          operation: 'handoff',
+          args: { terminalId: 'terminal-1', reason: 'Finish login' },
+        },
+      },
+    }
+    const header = render([handoff])
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(container.textContent).toContain('Finish login')
+    render([tool('success')])
+    expect(header.getAttribute('aria-expanded')).toBe('false')
   })
 })
