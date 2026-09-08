@@ -1,13 +1,23 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages, copilotRuns } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { buildLiveAssistantMessage } from '@/lib/mothership/chat/effective-transcript'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import {
+  type PersistedMessage,
+  withStoppedContentBlock,
+} from '@/lib/mothership/chat/persisted-message'
+import {
+  mergeAndRedactPersistedBlocks,
+  redactSensitiveContent,
+} from '@/lib/mothership/chat/sim-key-redaction'
 import { CopilotChatFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
+import { readEvents } from '@/lib/mothership/request/session/buffer'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
 type StreamMarkerPolicy = 'active-only' | 'active-or-cleared'
 
@@ -18,6 +28,7 @@ interface FinalizeAssistantTurnParams {
   assistantMessage?: PersistedMessage
   streamMarkerPolicy?: StreamMarkerPolicy
   runController?: { id: string; token: string }
+  preferServerReplay?: boolean
 }
 
 export interface FinalizeAssistantTurnResult {
@@ -39,6 +50,7 @@ export async function finalizeAssistantTurn({
   assistantMessage,
   streamMarkerPolicy = 'active-only',
   runController,
+  preferServerReplay = false,
 }: FinalizeAssistantTurnParams): Promise<FinalizeAssistantTurnResult> {
   return withCopilotSpan(
     TraceSpan.CopilotChatFinalizeAssistantTurn,
@@ -140,10 +152,37 @@ export async function finalizeAssistantTurn({
         }
 
         if (assistantMessage && canAppendAssistant) {
+          let response = assistantMessage
+          if (preferServerReplay) {
+            const events = await readEvents(userMessageId, '0')
+            /** StreamWriter starts at 1; Redis trims oldest events and skips corrupt entries. */
+            const replayIsComplete =
+              events.length > 0 && events.every((event, index) => event.seq === index + 1)
+            const replay = replayIsComplete
+              ? buildLiveAssistantMessage({
+                  streamId: userMessageId,
+                  events: events.map(toStreamBatchEvent),
+                  status: 'cancelled',
+                })
+              : null
+            /** A stopped client's snapshot may be empty; preserve canonical output before the first finalizer commits. */
+            const replayHasContent =
+              !!replay?.content.trim() ||
+              replay?.contentBlocks?.some((block) => block.type !== 'complete')
+            const partial =
+              replay && replayHasContent ? { ...replay, id: assistantMessage.id } : assistantMessage
+            response = withStoppedContentBlock({
+              ...partial,
+              content: redactSensitiveContent(partial.content),
+              ...(partial.contentBlocks
+                ? { contentBlocks: mergeAndRedactPersistedBlocks(partial.contentBlocks) }
+                : {}),
+            })
+          }
           await tx.update(copilotChats).set(baseUpdate).where(updateWhere)
           await appendCopilotChatMessages(
             chatId,
-            [assistantMessage],
+            [response],
             { streamId: userMessageId, chatModel },
             tx
           )

@@ -6,6 +6,7 @@ import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
 
 const BILLING_ATTRIBUTION = {
@@ -780,6 +781,8 @@ describe('MothershipBlockHandler', () => {
 
     const body = JSON.parse(String(options.body))
     expect(body).toEqual({
+      modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      effort: 'high',
       messages: [{ role: 'user', content: 'Hello from workflow' }],
       workspaceId: 'workspace-1',
       userId: 'user-1',
@@ -864,6 +867,8 @@ describe('MothershipBlockHandler', () => {
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(options.body))
     expect(body).toEqual({
+      modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      effort: 'high',
       messages: [{ role: 'user', content: 'Continue this thread' }],
       workspaceId: 'workspace-1',
       userId: 'user-1',
@@ -1785,6 +1790,98 @@ describe('MothershipBlockHandler', () => {
       handler.execute(context, block, { prompt: 'Hello from workflow' })
     ).rejects.toThrow('Sim execution failed: Mothership execution aborted')
   })
+
+  it.each([
+    { model: 'gpt-6-astra', effort: 'max', fastMode: true },
+    { model: 'claude-opus-5', effort: 'low', fastMode: true },
+  ])('forwards model controls and clears hidden Opus Fast mode: $model', async (selection) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ content: 'done' })))
+    await handler.execute(context, block, { prompt: 'hello', ...selection })
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toMatchObject({
+      effort: selection.effort,
+      modelSelection: { model: selection.model, fastMode: selection.model === 'gpt-6-astra' },
+    })
+  })
+
+  it.each([{ model: 'arbitrary' }, { effort: 'ultra' }, { fastMode: 'true' }])(
+    'rejects unsupported model controls before HTTP dispatch: %j',
+    async (selection) => {
+      await expect(
+        handler.execute(context, block, { prompt: 'hello', ...selection })
+      ).rejects.toThrow()
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([true, false])('uses deployment agent-event opt-in: %s', async (agentEvents) => {
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+    context.metadata.agentEvents = agentEvents
+    const timeline = [
+      { type: 'thinking_delta', text: 'Considering the request' },
+      { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' },
+      { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+    ]
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        ...timeline.map((event) => ({ type: 'agent_event', event })),
+        { type: 'chunk', content: 'Answer' },
+        { type: 'final', data: { content: 'Answer', tokens: { total: 9 } } },
+      ])
+    )
+    const result = (await handler.execute(context, block, {
+      prompt: 'hello',
+    })) as StreamingExecution
+    expect(result.streamFormat).toBe(agentEvents ? 'agent-events-v1' : 'text')
+    if (agentEvents) {
+      const reader = result.stream.getReader()
+      const events = []
+      for (;;) {
+        const next = await reader.read()
+        if (next.done) break
+        events.push(next.value)
+      }
+      expect(events).toEqual([...timeline, { type: 'text_delta', text: 'Answer' }])
+    } else {
+      await expect(readStreamText(result.stream)).resolves.toBe('Answer')
+    }
+    expect(result.execution.output).toMatchObject({ content: 'Answer', tokens: { total: 9 } })
+  })
+
+  it.each([true, false])(
+    'projects only the post-tool final answer: agent events %s',
+    async (agentEvents) => {
+      context.stream = true
+      context.selectedOutputs = [`${block.id}_content`]
+      context.metadata.agentEvents = agentEvents
+      fetchMock.mockResolvedValue(
+        createNdjsonResponse([
+          { type: 'chunk', content: 'I will check.', turn: 'pending' },
+          { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
+          { type: 'agent_event', event: { type: 'tool_call_start', id: 'lookup', name: 'Lookup' } },
+          {
+            type: 'agent_event',
+            event: { type: 'tool_call_end', id: 'lookup', name: 'Lookup', status: 'success' },
+          },
+          { type: 'chunk', content: 'Final answer.', turn: 'pending' },
+          { type: 'agent_event', event: { type: 'turn_end', turn: 'final' } },
+          { type: 'final', data: { content: 'Final answer.' } },
+        ])
+      )
+      const result = (await handler.execute(context, block, {
+        prompt: 'hello',
+      })) as StreamingExecution
+      const pump = createAgentStreamPump({
+        source: result.stream,
+        streamFormat: result.streamFormat,
+      })
+      const text = readStreamText(pump.textStream!)
+      await pump.run()
+      expect(await text).toBe('Final answer.')
+      expect(result.execution.output.content).toBe('Final answer.')
+    }
+  )
 
   it('streams mothership assistant chunks and preserves final metadata', async () => {
     context.stream = true

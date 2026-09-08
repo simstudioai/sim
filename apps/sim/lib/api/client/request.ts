@@ -28,6 +28,7 @@ export type ApiClientRequest<C extends AnyApiRouteContract> = MaybeField<
   MaybeField<'body', ContractBodyInput<C>> &
   MaybeField<'headers', ContractHeadersInput<C>> & {
     signal?: AbortSignal
+    keepalive?: boolean
   }
 
 export interface ApiRawRequestOptions {
@@ -205,6 +206,7 @@ export async function requestJson<C extends AnyApiRouteContract>(
     headers: buildHeaders(parsedHeaders, hasBody),
     body: hasBody ? JSON.stringify(parsedBody) : undefined,
     signal: input.signal,
+    ...(input.keepalive === undefined ? {} : { keepalive: input.keepalive }),
   })
 
   const { parsed, raw } = await readResponseBody(response)

@@ -242,6 +242,135 @@ describe('mothership private trace provenance transport', () => {
     expect(contextRegistry).toBe(lifecycleOptions.environmentContext?.resolvedSecretTraceRegistry)
   })
 
+  it('forwards closed model controls and an ordered deduplicated safe timeline', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(
+      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(payload).toMatchObject({
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
+          effort: 'max',
+        })
+        const base = { v: 1 as const, ts: new Date().toISOString(), stream: { id: 'message-1' } }
+        const thinking = {
+          ...base,
+          seq: 1,
+          type: 'text' as const,
+          payload: { channel: 'thinking' as const, text: 'Considering' },
+        }
+        await options.onEvent?.({
+          ...base,
+          seq: 0,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'I will check.' },
+        })
+        await options.onEvent?.(thinking)
+        await options.onEvent?.(thinking)
+        await options.onEvent?.({
+          ...base,
+          seq: 2,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+            partial: true,
+            arguments: { secret: 'private-args' },
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 3,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 4,
+          type: 'tool',
+          payload: {
+            phase: 'result',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+            success: true,
+            output: 'private-result',
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 5,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'Answer' },
+        })
+        return { ...successResult(), content: 'Answer' }
+      }
+    )
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          ...requestBody,
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
+          effort: 'max',
+        },
+        {
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+          Accept: 'application/x-ndjson',
+        },
+        'http://localhost:3000/api/mothership/execute'
+      ),
+      undefined
+    )
+    const text = await response.text()
+    const events = text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(events.filter((event) => event.type === 'agent_event')).toEqual([
+      { type: 'agent_event', event: { type: 'thinking_delta', text: 'Considering' } },
+      { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
+      { type: 'agent_event', event: { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' } },
+      {
+        type: 'agent_event',
+        event: { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+      },
+      { type: 'agent_event', event: { type: 'turn_end', turn: 'final' } },
+    ])
+    expect(events.filter((event) => event.type === 'chunk')).toEqual([
+      { type: 'chunk', content: 'I will check.', turn: 'pending' },
+      { type: 'chunk', content: 'Answer', turn: 'pending' },
+    ])
+    expect(text).not.toContain('private-args')
+    expect(text).not.toContain('private-result')
+  })
+
+  it.each([
+    { modelSelection: { model: 'arbitrary' } },
+    { modelSelection: { model: 'claude-opus-5', fastMode: true } },
+    { effort: 'ultra' },
+  ])('rejects unsupported controls before lifecycle dispatch: %j', async (selection) => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { ...requestBody, ...selection },
+        { Authorization: 'Bearer internal' },
+        'http://localhost:3000/api/mothership/execute'
+      ),
+      undefined
+    )
+    expect(response.status).toBe(400)
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+  })
+
   it('keeps context routing and display inputs raw until the lifecycle boundary', async () => {
     mockGetPersonalAndWorkspaceEnv.mockResolvedValueOnce({
       personalEncrypted: { API_KEY: 'encrypted-secret' },

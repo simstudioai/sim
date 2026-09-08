@@ -98,7 +98,37 @@ export const ModelSelectionSchema = z
   });
 export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 
+/** Desktop capabilities and bounded session hints, supplied by Sim for this turn. */
+export const DesktopContextSchema = z.object({
+  browser: z.boolean().default(false),
+  terminal: z.boolean().default(false),
+  terminals: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(64),
+        cwd: z.string().max(1024).optional(),
+        running: z.string().max(1024).optional(),
+        interactive: z.boolean().optional(),
+        active: z.boolean().optional(),
+      }),
+    )
+    .max(20)
+    .default([]),
+  browserSessions: z
+    .array(
+      z.object({
+        hostname: z.string().max(253),
+        evidence: z.enum(["cookies", "sign-in-completed"]),
+        lastObservedAt: z.string().max(64),
+      }),
+    )
+    .max(20)
+    .default([]),
+});
+export type DesktopContext = z.infer<typeof DesktopContextSchema>;
+
 export const ChatPayloadSchema = z.strictObject({
+  desktop: DesktopContextSchema.optional(),
   simConnection: SimConnection.optional(),
   message: z.string().min(1),
   ...ResponseReceiptSchema.shape,
@@ -167,6 +197,7 @@ export interface StreamToolReplay {
 
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
+  desktop?: DesktopContext | undefined;
   effort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
   modelSelection?: ModelSelection | undefined;
   simConnection?: SimConnection | undefined;
@@ -330,6 +361,8 @@ export interface ProtocolMismatch {
  * execution gateway expose only the caller-provided integration/MCP operations.
  */
 export interface ExecuteRequest extends StreamResponseReceipt {
+  effort?: ChatRequest["effort"];
+  modelSelection?: ModelSelection | undefined;
   messages: ExecuteMessage[];
   /** JSON schema for structured output; enforced by instruction + caller-side validation. */
   responseFormat?: unknown | undefined;

@@ -514,3 +514,48 @@ describe('buildCopilotRequestPayload', () => {
     }
   })
 })
+
+describe('desktop request capabilities', () => {
+  it('preserves desktop capabilities and current session hints on the worker wire', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Inspect my local page',
+        workspaceId: 'workspace',
+        userId: 'user',
+        userMessageId: 'message',
+        mode: 'ask',
+        model: 'gpt-6-astra',
+        browser: true,
+        terminalCapable: true,
+        terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
+        browserSessions: [
+          { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
+        ],
+      },
+      { selectedModel: 'gpt-6-astra' }
+    )
+    expect(payload.desktop).toEqual({
+      browser: true,
+      terminal: true,
+      terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
+      browserSessions: [
+        { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
+      ],
+    })
+  })
+  it('does not advertise desktop tools for a web-only turn', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Hello',
+        workspaceId: 'workspace',
+        userId: 'user',
+        userMessageId: 'message',
+        mode: 'ask',
+        model: 'gpt-6-astra',
+        terminals: [{ id: 'stale-terminal' }],
+      },
+      { selectedModel: 'gpt-6-astra' }
+    )
+    expect(payload.desktop).toBeUndefined()
+  })
+})

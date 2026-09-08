@@ -1,22 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { ModelSelection } from '@/lib/mothership/generated/protocol'
-
-/** The composer's model-effort dial, forwarded per request to the mothership. */
-export type MothershipEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-
-export const MOTHERSHIP_EFFORT_OPTIONS: Array<{ value: MothershipEffort; label: string }> = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'Extra High' },
-  { value: 'max', label: 'Max' },
-]
-
-export const MOTHERSHIP_MODEL_OPTIONS = [
-  { value: 'gpt-6-astra', label: 'GPT-6 Astra' },
-  { value: 'claude-opus-5', label: 'Opus 5' },
-] satisfies Array<{ value: ModelSelection['model']; label: string }>
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 
 interface MothershipEffortState {
   modelSelection: ModelSelection

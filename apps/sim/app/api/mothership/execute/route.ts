@@ -143,6 +143,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const {
       messages,
       responseFormat,
+      modelSelection,
+      effort,
       workspaceId,
       userId: bodyUserId,
       chatId,
@@ -273,6 +275,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     const requestPayload: Record<string, unknown> = {
       messages: wireMessages,
+      ...(modelSelection ? { modelSelection } : {}),
+      ...(effort ? { effort } : {}),
       ...(responseFormat !== undefined ? { responseFormat } : {}),
       userId,
       protocolVersion: PROTOCOL_VERSION,
@@ -347,7 +351,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
-          let lastForwardedTextSeq = -1
+          let lastForwardedSeq = -1
+          const startedTools = new Set<string>()
+          const endedTools = new Set<string>()
           const send = (event: unknown) => {
             if (!cancelled) {
               controller.enqueue(encodeNdjson(event))
@@ -364,20 +370,53 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           void (async () => {
             try {
               const result = await runLifecycle(async (event) => {
-                if (
-                  event.type === MothershipStreamV1EventType.text &&
-                  event.payload.channel === MothershipStreamV1TextChannel.assistant &&
-                  event.payload.text
-                ) {
-                  /* The wire carries text DELTAS with monotone seqs; a transport-retry
-                     replay re-delivers earlier seqs. Dedupe replays by seq — the old
-                     string-prefix guess sliced characters off a genuine delta that
-                     happened to begin with the already-forwarded content. */
-                  if (typeof event.seq === 'number') {
-                    if (event.seq <= lastForwardedTextSeq) return
-                    lastForwardedTextSeq = event.seq
+                /** Reconnect replays share the same monotone sequence across event types. */
+                if (typeof event.seq === 'number') {
+                  if (event.seq <= lastForwardedSeq) return
+                  lastForwardedSeq = event.seq
+                }
+                if (event.type === MothershipStreamV1EventType.text && event.payload.text) {
+                  if (event.payload.channel === MothershipStreamV1TextChannel.assistant) {
+                    if (event.scope?.lane === 'subagent') return
+                    send({ type: 'chunk', content: event.payload.text, turn: 'pending' })
+                  } else if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
+                    send({
+                      type: 'agent_event',
+                      event: { type: 'thinking_delta', text: event.payload.text },
+                    })
                   }
-                  send({ type: 'chunk', content: event.payload.text })
+                } else if (event.type === MothershipStreamV1EventType.tool) {
+                  const tool = event.payload
+                  if (!('phase' in tool)) return
+                  if (tool.phase === 'call' && !startedTools.has(tool.toolCallId)) {
+                    startedTools.add(tool.toolCallId)
+                    if (event.scope?.lane !== 'subagent' && !tool.replay) {
+                      send({
+                        type: 'agent_event',
+                        event: { type: 'turn_end', turn: 'intermediate' },
+                      })
+                    }
+                    send({
+                      type: 'agent_event',
+                      event: { type: 'tool_call_start', id: tool.toolCallId, name: tool.toolName },
+                    })
+                  } else if (tool.phase === 'result' && !endedTools.has(tool.toolCallId)) {
+                    endedTools.add(tool.toolCallId)
+                    send({
+                      type: 'agent_event',
+                      event: {
+                        type: 'tool_call_end',
+                        id: tool.toolCallId,
+                        name: tool.toolName,
+                        status:
+                          tool.status === 'cancelled'
+                            ? 'cancelled'
+                            : tool.success
+                              ? 'success'
+                              : 'error',
+                      },
+                    })
+                  }
                 }
               })
               allowExplicitAbort = false
@@ -420,6 +459,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 return
               }
 
+              send({ type: 'agent_event', event: { type: 'turn_end', turn: 'final' } })
               send({
                 type: 'final',
                 data: withPrivateProvenance(

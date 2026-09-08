@@ -31,6 +31,7 @@ import { useParams } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
+import { MOTHERSHIP_EFFORT_OPTIONS, MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -57,11 +58,7 @@ import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-import {
-  MOTHERSHIP_EFFORT_OPTIONS,
-  MOTHERSHIP_MODEL_OPTIONS,
-  useMothershipEffortStore,
-} from '@/stores/mothership-effort/store'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'

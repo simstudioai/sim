@@ -123,3 +123,29 @@ describe('requestJson client id header', () => {
     expect(sentHeaders(fetchMock)[CLIENT_ID_HEADER]).toBeUndefined()
   })
 })
+
+describe('requestJson navigation lifetime', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('opts small lifecycle requests into keepalive without changing other requests', async () => {
+    const fetchMock = mockFetchReturning({ ok: true })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/api/test/stop',
+      body: z.object({ streamId: z.string() }),
+      response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
+    })
+    const signal = new AbortController().signal
+    await requestJson(contract, { body: { streamId: 'stream' }, signal, keepalive: true })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/test/stop',
+      expect.objectContaining({
+        keepalive: true,
+        signal,
+        body: JSON.stringify({ streamId: 'stream' }),
+      })
+    )
+    await requestJson(contract, { body: { streamId: 'stream' } })
+    expect(fetchMock.mock.calls.at(-1)?.[1]).not.toHaveProperty('keepalive')
+  })
+})

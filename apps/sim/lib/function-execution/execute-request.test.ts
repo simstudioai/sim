@@ -3,6 +3,7 @@
  */
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { runInNewContext } from 'node:vm'
 import {
   createMockRequest,
   envFlagsMock,
@@ -2963,6 +2964,29 @@ describe('Function execution request', () => {
       expect(request.code).toContain(`new ${runtimeBinding.name}.RegExp`)
       expect(request.code).not.toContain('secret')
     })
+
+    it.each(['console.log("checked")', 'console.log("checked"); return undefined'])(
+      'serializes a JavaScript call without a result as valid JSON: %s',
+      async (code) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        const response = await POST(
+          createMockRequest('POST', {
+            code: `import fs from 'node:fs'\n${code}`,
+            language: 'javascript',
+          })
+        )
+        expect(response.status).toBe(200)
+        const [request] = mockExecuteInSandbox.mock.calls.at(-1) ?? []
+        const source: string = request.code
+        const wrapper = source.slice(source.indexOf(';(async () => {'))
+        const lines: string[] = []
+        await runInNewContext(wrapper, { console: { log: (value: string) => lines.push(value) } })
+        expect(lines[0]).toBe('checked')
+        const marker = lines.at(-1)?.trim()
+        expect(marker).toBe('__SIM_RESULT__=null')
+        expect(JSON.parse(marker!.slice('__SIM_RESULT__='.length))).toBeNull()
+      }
+    )
 
     it('captures regex constructors in the remote preload before static imports execute', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true

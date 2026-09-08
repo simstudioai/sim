@@ -7,6 +7,7 @@ import {
   secretMountScopeSchema,
 } from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   message: 'Expected a valid date string',
@@ -108,6 +109,8 @@ const mothershipExecuteMcpToolSchema = z
   .passthrough()
 
 export const mothershipExecuteBodySchema = z.object({
+  effort: ChatPayloadSchema.shape.effort,
+  modelSelection: ChatPayloadSchema.shape.modelSelection,
   messages: z.array(mothershipExecuteMessageSchema).min(1, 'At least one message is required'),
   responseFormat: z.any().optional(),
   workspaceId: z.string().min(1, 'workspaceId is required'),

@@ -392,8 +392,8 @@ export async function buildCopilotRequestPayload(
 
   // The wire payload IS the shared contract (ChatRequest in lib/mothership/generated/
   // protocol.ts) — nothing else. The closed model selection is separate from raw model/provider/mode; permissions
-  // are enforced by v2 under the delegation token, not asserted here; desktop capabilities
-  // are out of scope for v1. The params above still carry sim-internal knowledge (mode
+  // are enforced by v2 under the delegation token, not asserted here. Desktop capabilities
+  // enable client execution through the mounted chat. The params also carry internal knowledge (mode
   // gates which tool schemas get built), but none of it rides the wire.
   // Orientation for the agent: names and ids per world, under the caller's own principal.
   // Absent when the surface has no principal to read with (headless callers).
@@ -414,6 +414,16 @@ export async function buildCopilotRequestPayload(
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
     ...(inventory ? { inventory } : {}),
+    ...(params.browser || params.terminalCapable
+      ? {
+          desktop: {
+            browser: params.browser === true,
+            terminal: params.terminalCapable === true,
+            terminals: params.terminalCapable ? (params.terminals ?? []).slice(0, 20) : [],
+            browserSessions: params.browser ? (params.browserSessions ?? []).slice(0, 20) : [],
+          },
+        }
+      : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit or send [] and the
     // server runs those tools immediately instead of waiting out the pickup grace.

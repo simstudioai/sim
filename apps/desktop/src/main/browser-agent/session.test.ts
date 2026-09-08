@@ -2512,6 +2512,26 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(13)
   })
 
+  it('gives background automation a viewport without taking panel ownership', () => {
+    const tab = session.withBrowserScope('background-chat', () => session.ensureTab())
+
+    expect(tab.view.setBounds).toHaveBeenCalledWith({
+      x: 0,
+      y: 0,
+      width: 1180,
+      height: 850,
+    })
+    expect(win.contentView.addChildView).not.toHaveBeenCalledWith(tab.view)
+    expect(session.getActiveBrowserScopeId()).toBe('chat-test')
+  })
+
+  it('initializes a detached viewport when no application window exists', () => {
+    const headlessSession = freshSession(null)
+    const tab = headlessSession.ensureTab()
+
+    expect(tab.view.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 1280, height: 720 })
+  })
+
   it('embeds the active view in the MAIN window only while panel bounds are reported', () => {
     const tab = session.ensureTab()
     const view = tab.view as unknown as MockView

@@ -5,10 +5,15 @@ import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendCopilotChatMessages, mockPublishStatusChanged } = vi.hoisted(() => ({
-  mockAppendCopilotChatMessages: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
-}))
+const { mockAppendCopilotChatMessages, mockPublishStatusChanged, mockReadEvents } = vi.hoisted(
+  () => ({
+    mockAppendCopilotChatMessages: vi.fn(),
+    mockPublishStatusChanged: vi.fn(),
+    mockReadEvents: vi.fn(),
+  })
+)
+
+vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
 vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
@@ -52,6 +57,7 @@ describe('copilot chat stop route', () => {
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockReadEvents.mockResolvedValue([])
   })
 
   it('preserves task and subagent identity through the partial-response contract', async () => {
@@ -133,6 +139,7 @@ describe('copilot chat stop route', () => {
       createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
     )
 
+    expect(mockReadEvents).toHaveBeenCalledWith('stream-1', '0')
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
 

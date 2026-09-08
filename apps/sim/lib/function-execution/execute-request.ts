@@ -2783,7 +2783,7 @@ export async function executeFunctionRequest(
           // code's last stdout write was not newline-terminated (chunks are
           // concatenated verbatim on the parse side, so a glued marker would
           // otherwise be missed silently).
-          `    console.log('\\n${SIM_RESULT_PREFIX}' + JSON.stringify(__sim_result));`,
+          `    console.log('\\n${SIM_RESULT_PREFIX}' + JSON.stringify(__sim_result === undefined ? null : __sim_result));`,
           '  } catch (error) {',
           '    console.log(String((error && (error.stack || error.message)) || error));',
           '    throw error;',

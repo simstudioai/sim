@@ -1251,6 +1251,67 @@ describe('useChat remount send recovery', () => {
     expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
   })
 
+  it.each(['active', 'complete', 'cancelled'] as const)(
+    'removes a recovered queue entry already accepted by the server (%s)',
+    async (status) => {
+      useMothershipQueueStore.getState().enqueue('chat-a', {
+        id: 'withdrawn-entry',
+        content: 'check the trace for this req',
+        resumeUserMessageId: 'accepted-request',
+        retryRequired: true,
+      })
+      const { getResult } = renderUseChatInChat('chat-a', {
+        id: 'chat-a',
+        title: 'Trace inspection',
+        activeStreamId: status === 'active' ? 'accepted-request' : null,
+        messages: [
+          { id: 'accepted-request', role: 'user', content: 'check the trace for this req' },
+          ...(status === 'active'
+            ? []
+            : [
+                {
+                  id: 'accepted-answer',
+                  role: 'assistant' as const,
+                  content: '',
+                  contentBlocks: [
+                    {
+                      type: 'complete' as const,
+                      status:
+                        status === 'cancelled' ? ('cancelled' as const) : ('success' as const),
+                    },
+                  ],
+                },
+              ]),
+        ],
+        resources: [],
+      })
+      await waitFor(() => getResult().messageQueue.length === 0)
+      expect(state.postBodies).toHaveLength(0)
+      expect(state.abortBodies).toHaveLength(0)
+    }
+  )
+
+  it('keeps an unsent correction with matching text queued', async () => {
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'unsent-entry',
+      content: 'check the trace for this req',
+      retryRequired: true,
+      resumeUserMessageId: 'unsent-request',
+    })
+    const { getResult } = renderUseChatInChat('chat-a', {
+      id: 'chat-a',
+      title: 'Trace inspection',
+      activeStreamId: null,
+      messages: [
+        { id: 'different-request', role: 'user', content: 'check the trace for this req' },
+      ],
+      resources: [],
+    })
+    await act(async () => {})
+    expect(getResult().messageQueue.map((entry) => entry.id)).toEqual(['unsent-entry'])
+    expect(state.postBodies).toHaveLength(0)
+  })
+
   it('restores the last edited table view after switching away and back', async () => {
     const chatId = 'chat-with-table'
     const sharedQueryClient = new QueryClient({

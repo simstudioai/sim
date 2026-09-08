@@ -72,6 +72,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
         userMessageId: streamId,
         assistantMessage,
         streamMarkerPolicy: 'active-or-cleared',
+        preferServerReplay: true,
       })
       span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, result.appendedAssistant)
       const stopOutcome = !result.found

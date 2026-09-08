@@ -29,7 +29,7 @@ const FORM = `<!doctype html><html><head><title>Form fixture</title></head><body
 test.describe('browser tools', () => {
   const calls = new Map<
     string,
-    { chatId: string; toolName: BrowserToolName; args: Record<string, unknown> }
+    { chatId: string; toolName: BrowserToolName | 'terminal'; args: Record<string, unknown> }
   >()
   let server: Server
   let origin: string
@@ -44,6 +44,7 @@ test.describe('browser tools', () => {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
         const authorization = calls.get(JSON.parse(body).toolCallId)
+        calls.delete(JSON.parse(body).toolCallId)
         response.writeHead(authorization ? 200 : 403, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify(authorization ?? {}))
         return
@@ -240,5 +241,38 @@ test.describe('browser tools', () => {
     })
     expect(fill.result).toMatchObject({ completed: false, completedCount: 0 })
     expect(await formState()).toMatchObject({ name: '', password: '' })
+  })
+  test('local terminal executes through its native PTY and refuses repeated authorization', async () => {
+    await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      await api.terminal.activateScope(scope)
+      await api.terminal.start({ cols: 100, rows: 30 }, scope)
+    }, SCOPE)
+    calls.set('local-cwd', {
+      chatId: SCOPE,
+      toolName: 'terminal',
+      args: { operation: 'cwd', args: {} },
+    })
+    const cwd = await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      return api.terminal.executeTool('local-cwd', 'cwd', {}, scope)
+    }, SCOPE)
+    expect(cwd.ok).toBe(true)
+    calls.set('local-run', {
+      chatId: SCOPE,
+      toolName: 'terminal',
+      args: { operation: 'run', args: { command: "printf 'SIM_NATIVE_TERMINAL_VERIFIED\\n'" } },
+    })
+    const result = await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      return api.terminal.executeTool('local-run', 'run', {}, scope)
+    }, SCOPE)
+    expect(result.ok).toBe(true)
+    expect(JSON.stringify(result)).toContain('SIM_NATIVE_TERMINAL_VERIFIED')
+    const replay = await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      return api.terminal.executeTool('local-run', 'run', {}, scope)
+    }, SCOPE)
+    expect(replay.ok).toBe(false)
   })
 })

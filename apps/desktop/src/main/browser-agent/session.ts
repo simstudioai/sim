@@ -2217,6 +2217,9 @@ function createTabView(): WebContentsView {
     },
   })
   try {
+    /** Detached tabs must lay out before a foreground panel owns their native view. */
+    const [width, height] = getMainWindow()?.getContentSize() ?? [1280, 720]
+    view.setBounds({ x: 0, y: 0, width: Math.max(1, width), height: Math.max(1, height) })
     return initializeTabView(view, scopeId)
   } catch (error) {
     if (!view.webContents.isDestroyed()) view.webContents.close()
