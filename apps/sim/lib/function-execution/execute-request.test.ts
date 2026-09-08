@@ -568,6 +568,43 @@ describe('Function execution request', () => {
     })
 
     it.each([
+      {
+        language: 'javascript',
+        code: 'return { template: "{{API_KEY}}", name: "environmentVariables" }',
+      },
+      { language: 'python', code: '__sim_result__ = {"template": "{{API_KEY}}"}' },
+      { language: 'shell', code: "printf '%s' '{{API_KEY}}'" },
+    ])(
+      'preserves literal $language templates in trusted Mothership code with an explicitly mounted secret',
+      async ({ language, code }) => {
+        envFlagsMock.isMothershipSandboxEnabled = true
+        hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+          success: true,
+          userId: 'user-123',
+          authType: 'internal_jwt',
+          sandboxProfile: 'mothership',
+        })
+        const secret = 'private-test-value-938'
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            envVars: { API_KEY: secret },
+            secretScope: 'selected',
+            mountedSecrets: ['API_KEY'],
+          })
+        )
+        expect(response.status).toBe(200)
+        const request =
+          language === 'shell'
+            ? mockExecuteShellInSandbox.mock.calls.at(-1)?.[0]
+            : mockExecuteInSandbox.mock.calls.at(-1)?.[0]
+        expect(request.code).toContain('{{API_KEY}}')
+        expect(request.code).not.toContain(secret)
+      }
+    )
+
+    it.each([
       { language: 'javascript', code: 'return 42' },
       { language: 'python', code: '__sim_result__ = 42' },
     ])(

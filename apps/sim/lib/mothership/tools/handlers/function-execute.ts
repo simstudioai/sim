@@ -17,6 +17,7 @@ import {
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
 import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
+import { WorkbenchSecretNames } from '@/lib/mothership/generated/workbench'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type {
   ToolExecutionContext,
@@ -47,7 +48,6 @@ import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
 } from '@/lib/workspace-files/folder-display-path'
-import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeAppTool } from '@/tools'
 
@@ -404,6 +404,7 @@ export async function executeFunctionExecute(
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
   const enrichedParams = omit(params, [
+    'secrets',
     'sandboxProfile',
     'internalSandboxProfile',
     // Server-derived below — a model-supplied value must never select a session.
@@ -440,7 +441,7 @@ export async function executeFunctionExecute(
     enrichedParams.sandboxId = params.sandboxId.trim()
   }
   const requestedNames = applySecretMountPolicy(
-    await extractCodeSecretNames(params.code, params.language),
+    WorkbenchSecretNames.parse(params.secrets === undefined ? [] : params.secrets),
     context.secretMountPolicy
   )
   const completePendingActivation =

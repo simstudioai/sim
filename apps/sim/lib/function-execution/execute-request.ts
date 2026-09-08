@@ -20,6 +20,7 @@ import {
   CodePlaceholderCompileError,
   type CodePlaceholderPrivateInput,
   type CodePlaceholderRuntimeBinding,
+  type CompiledCodePlaceholders,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
 import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
@@ -2413,13 +2414,23 @@ export async function executeFunctionRequest(
       outputSandboxPaths.length > 0 ||
       Boolean(outputSandboxPath)
 
-    const compilation = await compileCodePlaceholders({
-      code: codeResolution.resolvedCode,
-      language: lang,
-      params: executionParams,
-      environmentVariables: envVars,
-      reservedNames: Object.keys(contextVariables),
-    })
+    /** Mothership mounts named secrets explicitly; its code may author literal workflow templates. */
+    const compilation: CompiledCodePlaceholders = usesMothershipSandbox
+      ? {
+          code: codeResolution.resolvedCode,
+          bindings: [],
+          privateInputs: [],
+          runtimeBindings: [],
+          internalIdentifiers: [],
+          resolvedSecretNames: Object.keys(envVars),
+        }
+      : await compileCodePlaceholders({
+          code: codeResolution.resolvedCode,
+          language: lang,
+          params: executionParams,
+          environmentVariables: envVars,
+          reservedNames: Object.keys(contextVariables),
+        })
     for (const name of compilation.resolvedSecretNames) {
       if (!Object.hasOwn(envVars, name)) continue
       const plaintext = envVars[name]

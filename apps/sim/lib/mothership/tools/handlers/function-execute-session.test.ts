@@ -3,13 +3,17 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({
+const { mockExecuteTool, mockMaterializeSecrets } = vi.hoisted(() => ({
   mockExecuteTool: vi.fn().mockResolvedValue({ success: true, output: {} }),
+  mockMaterializeSecrets: vi
+    .fn()
+    .mockResolvedValue({ envVars: { API_KEY: 'test-value' }, catalogEntries: [] }),
 }))
 
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-vi.mock('@/executor/utils/code-secret-references', () => ({
-  extractCodeSecretNames: vi.fn().mockResolvedValue([]),
+vi.mock('@/lib/mothership/tools/secret-mount-materializer.server', () => ({
+  materializeCopilotCodeSecrets: mockMaterializeSecrets,
+  CopilotCodeSecretAccessError: class extends Error {},
 }))
 vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   ResolvedSecretTraceRegistry: class {
@@ -51,6 +55,7 @@ const BASE_CONTEXT: ToolExecutionContext = {
 describe('executeFunctionExecute session plumbing', () => {
   beforeEach(() => {
     mockExecuteTool.mockClear()
+    mockMaterializeSecrets.mockClear()
   })
 
   it('derives the session key from the chat, one per chat', async () => {
@@ -75,6 +80,57 @@ describe('executeFunctionExecute session plumbing', () => {
     await executeFunctionExecute({ code: 'print(1)', language: 'python' }, BASE_CONTEXT)
     const [, params] = mockExecuteTool.mock.calls[0]
     expect(params.sandboxSessionKey).toBeUndefined()
+  })
+
+  it.each([
+    { language: 'python', code: 'import json\nprint(json.dumps({"apiKey": "{{EXA_API_KEY}}"}))' },
+    { language: 'python', code: 'print("{{" + "EXA_API_KEY" + "}}")' },
+    { language: 'javascript', code: 'return JSON.stringify({ apiKey: "{{EXA_API_KEY}}" })' },
+    { language: 'shell', code: "printf '%s' '{{EXA_API_KEY}}'" },
+  ])('keeps authored $language templates literal without requesting secrets', async (params) => {
+    await executeFunctionExecute(params, BASE_CONTEXT)
+    expect(mockMaterializeSecrets).not.toHaveBeenCalled()
+    expect(mockExecuteTool.mock.calls[0][1]).toMatchObject({
+      code: params.code,
+      envVars: {},
+      secretScope: 'selected',
+      mountedSecrets: [],
+    })
+  })
+
+  it('mounts only explicitly named secrets within the caller policy', async () => {
+    await executeFunctionExecute(
+      {
+        code: "return environmentVariables['API_KEY']",
+        language: 'javascript',
+        secrets: [' API_KEY ', 'API_KEY'],
+      },
+      {
+        ...BASE_CONTEXT,
+        secretMountPolicy: { secretScope: 'selected', mountedSecrets: ['API_KEY'] },
+      }
+    )
+    expect(mockMaterializeSecrets).toHaveBeenCalledExactlyOnceWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      requestedNames: ['API_KEY'],
+    })
+    expect(mockExecuteTool.mock.calls[0][1]).toMatchObject({
+      envVars: { API_KEY: 'test-value' },
+      mountedSecrets: ['API_KEY'],
+    })
+    expect(mockExecuteTool.mock.calls[0][1]).not.toHaveProperty('secrets')
+  })
+
+  it('rejects explicit secrets outside the allowlist before materialization or execution', async () => {
+    await expect(
+      executeFunctionExecute(
+        { code: 'return 1', secrets: ['API_KEY'] },
+        { ...BASE_CONTEXT, secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] } }
+      )
+    ).rejects.toThrow('Secret access is not allowed for: API_KEY')
+    expect(mockMaterializeSecrets).not.toHaveBeenCalled()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
   it('converts second-denominated timeouts, including string values', async () => {

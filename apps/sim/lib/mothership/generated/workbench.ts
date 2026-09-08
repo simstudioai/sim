@@ -3,6 +3,9 @@
 
 import { z } from "zod";
 
+/** Secret names explicitly requested for one workbench code call. Values never cross this wire. */
+export const WorkbenchSecretNames = z.array(z.string().trim().min(1).max(1024)).max(100);
+
 /** Executable bootstrap is served only on the authenticated Sim → worker connection. */
 export const WorkbenchBootstrap = z.strictObject({
   version: z.literal(1),
