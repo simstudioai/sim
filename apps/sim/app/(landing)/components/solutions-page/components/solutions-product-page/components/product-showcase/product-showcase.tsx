@@ -11,7 +11,10 @@ interface ProductShowcaseProps {
   description: ReactNode
 }
 
-/** A split introduction opens into a broad, layered product scene without a surrounding card. */
+/**
+ * A split introduction opens into a broad product scene. Native scroll areas
+ * chain vertically to the page; portaled menus and dialogs retain their own containment.
+ */
 export function ProductShowcase({ feature, description }: ProductShowcaseProps) {
   return (
     <section id={feature.id} aria-labelledby={`${feature.id}-heading`} className='scroll-mt-24'>
@@ -44,7 +47,7 @@ export function ProductShowcase({ feature, description }: ProductShowcaseProps) 
       <div
         data-product-feature-visual={feature.id}
         className={cn(
-          'relative isolate mx-3 overflow-hidden bg-[var(--bg)] [container-type:inline-size] max-sm:mx-0',
+          'relative isolate mx-3 overflow-hidden bg-[var(--bg)] [container-type:inline-size] max-sm:mx-0 [&_*]:overscroll-y-auto',
           feature.visualSize === 'compact'
             ? 'h-[560px] max-sm:h-[420px] max-lg:h-[480px]'
             : 'h-[680px] max-sm:h-[500px] max-lg:h-[560px]'
