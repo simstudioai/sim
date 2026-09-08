@@ -84,6 +84,7 @@ describe('buildPiSearchProviderArgs', () => {
       num: 3,
     })
     expect(buildPiSearchProviderArgs('parallel', query)).toEqual({
+      search_queries: ['ts 5.9 release notes'],
       objective: 'ts 5.9 release notes',
       max_results: 3,
     })

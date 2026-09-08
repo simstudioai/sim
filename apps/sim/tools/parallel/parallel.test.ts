@@ -18,7 +18,7 @@ function searchBody(params: Record<string, unknown>) {
     search_queries: 'q',
     apiKey: API_KEY,
     ...params,
-  } as never) as Record<string, any>
+  } as never) as Record<string, unknown>
 }
 
 function extractBody(params: Record<string, unknown>) {
@@ -26,7 +26,7 @@ function extractBody(params: Record<string, unknown>) {
     urls: 'https://a.com',
     apiKey: API_KEY,
     ...params,
-  } as never) as Record<string, any>
+  } as never) as Record<string, unknown>
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -175,7 +175,7 @@ describe('parallel_deep_research', () => {
       input: 'HVAC market',
       apiKey: API_KEY,
       include_domains: 'a.com',
-    } as never) as Record<string, any>
+    } as never) as Record<string, unknown>
     expect(body.task_spec).toEqual({ output_schema: { type: 'text' } })
     expect(body.enable_events).toBe(false)
     expect(body.processor).toBe('pro')
@@ -187,7 +187,7 @@ describe('parallel_deep_research', () => {
       input: 'HVAC market',
       output_format: 'auto',
       apiKey: API_KEY,
-    } as never) as Record<string, any>
+    } as never) as Record<string, unknown>
     expect(body.task_spec).toEqual({ output_schema: { type: 'auto' } })
   })
 
