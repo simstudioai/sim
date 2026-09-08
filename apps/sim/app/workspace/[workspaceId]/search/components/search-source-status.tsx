@@ -62,7 +62,9 @@ export function SearchSourceStatus({
           label: 'Start searching',
           onClick: () =>
             router.push(
-              `${scope.kind === 'organization' ? organizationRoutes(scope.organizationId).home : `/workspace/${scope.workspaceId}/home`}?mode=search`
+              scope.kind === 'organization'
+                ? organizationRoutes(scope.organizationId).search
+                : `/workspace/${scope.workspaceId}/home?mode=search`
             ),
         }}
       />

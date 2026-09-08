@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipConfirmModal, Switch } from '@sim/emcn'
+import { Chip, ChipConfirmModal, ChipModalError, Switch } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
@@ -23,6 +23,10 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connectors'
+import {
+  useSearchIntegrations,
+  useUpdateSearchIntegration,
+} from '@/hooks/queries/search-integrations'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -34,16 +38,16 @@ interface PendingApproval {
 }
 
 /**
- * The organization admin's Sim Search setup: every source the organization can
- * search, listed once. A source already set up is the same row members see on
- * Integrations, with Manage; one not yet set up offers Set up, which opens the
- * same setup flow the source picker did. The setup and Slack account flows are
- * mounted here, so an OAuth detour returns to this section.
+ * Organization approval is independent of source setup. Each integration lists
+ * all of its configured sources using the same rows members see, with management
+ * actions for admins. Setup and OAuth returns stay within this settings section.
  */
 export function OrganizationIntegrationsSetup() {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const sources = useSearchSources(scope)
+  const integrations = useSearchIntegrations(organization.id)
+  const updateApproval = useUpdateSearchIntegration()
   const {
     integrationAvailability,
     oauthServiceAvailability,
@@ -74,24 +78,25 @@ export function OrganizationIntegrationsSetup() {
     [sources.data]
   )
   const enrollment = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
-  const sourceByType = useMemo(
-    () => new Map(sources.data?.map((source) => [source.connectorType, source])),
-    [sources.data]
-  )
   const enabled = searchAccess.memberScoped || searchAccess.sourceMirrored
-
-  /**
-   * Which sources the organization has approved for Sim Search. Held here until
-   * approval is recorded server-side; the switch never moves until the admin
-   * confirms what the change means.
-   */
-  const [approved, setApproved] = useState<Record<string, boolean>>({})
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null)
+  const approvals = new Map(
+    integrations.data?.map((integration) => [integration.connectorType, integration.approved])
+  )
+  const failedQuery = sources.isError ? sources : integrations.isError ? integrations : null
 
   const confirmApproval = () => {
     if (!pendingApproval) return
-    setApproved((current) => ({ ...current, [pendingApproval.type]: pendingApproval.approve }))
-    setPendingApproval(null)
+    updateApproval.mutate(
+      {
+        organizationId: organization.id,
+        connectorType: pendingApproval.type,
+        approved: pendingApproval.approve,
+      },
+      {
+        onSuccess: () => setPendingApproval(null),
+      }
+    )
   }
 
   if (!enabled) {
@@ -105,12 +110,12 @@ export function OrganizationIntegrationsSetup() {
   return (
     <>
       <div className={RESOURCE_LIST_STACK}>
-        {sources.isError ? (
+        {failedQuery ? (
           <SettingsQueryErrorState
-            error={sources.error}
+            error={failedQuery.error}
             fallback='Could not load sources'
-            isRetrying={sources.isFetching}
-            onRetry={() => void sources.refetch()}
+            isRetrying={failedQuery.isFetching}
+            onRetry={() => void failedQuery.refetch()}
             variant='inline'
           />
         ) : integrationAvailabilityError ? (
@@ -123,27 +128,7 @@ export function OrganizationIntegrationsSetup() {
           />
         ) : (
           SEARCH_SOURCE_TYPES.map(([type, meta]) => {
-            const source = sourceByType.get(type)
-            if (source) {
-              return (
-                <SearchSourceRow
-                  key={type}
-                  source={source}
-                  scope={scope}
-                  canAdmin={viewer.isAdmin}
-                  available={
-                    source.accessMode === 'members'
-                      ? searchAccess.memberScoped
-                      : searchAccess.sourceMirrored &&
-                        (!source.connectionRequired || searchAccess.memberScoped)
-                  }
-                  waiting={enrollment.isAwaiting(source.connectorId)}
-                  isPending={enrollment.isPending}
-                  onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-                  onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
-                />
-              )
-            }
+            const configured = sources.data?.filter((source) => source.connectorType === type) ?? []
             const { admin: central, members } = getConnectorAccessAvailability(
               meta,
               integrationAvailability,
@@ -155,40 +140,65 @@ export function OrganizationIntegrationsSetup() {
               }
             )
             const available = central || members
+            const approved = approvals.get(type) ?? false
+            const loading = sources.isPending || integrations.isPending
             return (
-              <SettingsResourceRow
-                key={type}
-                iconVariant='custom'
-                icon={<IntegrationTile blockType={type} icon={meta.icon} />}
-                title={meta.name}
-                description={
-                  !available
-                    ? 'Not available in this organization'
-                    : central
-                      ? meta.adminSetupHint
-                      : undefined
-                }
-                disabled={!available}
-                trailing={
-                  available ? (
+              <div key={type}>
+                <SettingsResourceRow
+                  iconVariant='custom'
+                  icon={<IntegrationTile blockType={type} icon={meta.icon} />}
+                  title={meta.name}
+                  description={
+                    loading
+                      ? 'Loading approval…'
+                      : approved
+                        ? available
+                          ? 'Approved for Sim Search'
+                          : 'Approved · Connection setup is unavailable'
+                        : 'Not approved for Sim Search'
+                  }
+                  trailing={
                     <div className='flex items-center gap-2'>
-                      <Chip
-                        variant='primary'
-                        onClick={() => void setSelectedType(searchSetupParam.parser.parse(type))}
-                      >
-                        Set up
-                      </Chip>
+                      {available && (
+                        <Chip
+                          disabled={loading || !viewer.isAdmin}
+                          variant='primary'
+                          onClick={() => void setSelectedType(searchSetupParam.parser.parse(type))}
+                        >
+                          Set up
+                        </Chip>
+                      )}
                       <Switch
                         aria-label={`Approve ${meta.name} for Sim Search`}
-                        checked={approved[type] ?? false}
-                        onCheckedChange={(approve) =>
+                        checked={approved}
+                        disabled={loading || updateApproval.isPending || !viewer.isAdmin}
+                        onCheckedChange={(approve) => {
+                          updateApproval.reset()
                           setPendingApproval({ type, name: meta.name, approve })
-                        }
+                        }}
                       />
                     </div>
-                  ) : undefined
-                }
-              />
+                  }
+                />
+                {configured.map((source) => (
+                  <SearchSourceRow
+                    key={source.connectorId}
+                    source={source}
+                    scope={scope}
+                    canAdmin={viewer.isAdmin}
+                    available={
+                      source.accessMode === 'members'
+                        ? searchAccess.memberScoped
+                        : searchAccess.sourceMirrored &&
+                          (!source.connectionRequired || searchAccess.memberScoped)
+                    }
+                    waiting={enrollment.isAwaiting(source.connectorId)}
+                    isPending={enrollment.isPending}
+                    onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
+                    onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
+                  />
+                ))}
+              </div>
             )
           })
         )}
@@ -207,7 +217,7 @@ export function OrganizationIntegrationsSetup() {
       <ChipConfirmModal
         open={pendingApproval !== null}
         onOpenChange={(open) => {
-          if (!open) setPendingApproval(null)
+          if (!open && !updateApproval.isPending) setPendingApproval(null)
         }}
         title={
           pendingApproval?.approve
@@ -219,20 +229,24 @@ export function OrganizationIntegrationsSetup() {
             ? [
                 'You are approving ',
                 { text: pendingApproval.name, bold: true },
-                ' for your organization in Sim Search. Members will be able to connect their accounts and search what it indexes.',
+                ' for your organization in Sim Search. Members can connect their own accounts when supported. Sources that need a service account or custom app still require setup.',
               ]
             : [
                 'Are you sure you want to deactivate ',
                 { text: pendingApproval?.name ?? '', bold: true },
-                ' for your organization? Members will lose access to everything it indexed in Sim Search until it is approved again.',
+                ' for your organization? Its indexed content will be unavailable in Search, Assistant, and MCP until approved again. Source setup and connected accounts are preserved.',
               ]
         }
         confirm={{
           label: pendingApproval?.approve ? 'Approve' : 'Deactivate',
           variant: pendingApproval?.approve ? 'primary' : 'destructive',
           onClick: confirmApproval,
+          pending: updateApproval.isPending,
+          pendingLabel: 'Saving…',
         }}
-      />
+      >
+        {updateApproval.error && <ChipModalError>{updateApproval.error.message}</ChipModalError>}
+      </ChipConfirmModal>
     </>
   )
 }

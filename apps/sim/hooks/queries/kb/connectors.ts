@@ -50,6 +50,7 @@ import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/cons
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
 
 export type {
   SearchSourceSummary,
@@ -301,6 +302,7 @@ export function useCreateConnector() {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       void invalidateConnectorAccounts(queryClient)
     },
   })
@@ -354,6 +356,7 @@ export function useUpdateConnector() {
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
     },
   })
 }
@@ -503,6 +506,7 @@ export function useStartConnectorMemberEnrollment() {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
         queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() }),
       ]),
   })
 }
@@ -531,6 +535,7 @@ export function useUpdateConnectorAccess() {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
       void invalidateConnectorAccounts(queryClient)
     },
@@ -569,6 +574,7 @@ export function useDeleteConnector() {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
@@ -639,6 +645,7 @@ export function useTriggerSync() {
      */
     onError: (_error, { knowledgeBaseId, connectorId }, previous) => {
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       if (previous) {
         setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
       }
@@ -831,6 +838,7 @@ export function useConnectSimSearchConnector() {
       queryClient.invalidateQueries({ queryKey: searchIndexKeys.details() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       void invalidateConnectorAccounts(queryClient)
     },

@@ -29,7 +29,10 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
-import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
+import {
+  createApprovedSearchSource,
+  createKnowledgeConnector,
+} from '@/lib/knowledge/application/connectors'
 import {
   type KnowledgeOrganizationContext,
   type KnowledgeWorkspaceContext,
@@ -39,6 +42,7 @@ import { createKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
+import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { findSearchIndex } from '@/lib/knowledge/search/search-index'
 import { createAuthorizedKnowledgeBase } from '@/lib/knowledge/service'
 import {
@@ -130,7 +134,8 @@ export const readSearchIndex = defineAuthorizedKnowledgeUseCase({
 async function ensureSearchKnowledgeBase(
   scope: ResourceScope,
   principal: Principal,
-  request?: OrchestrationRequestContext
+  request?: OrchestrationRequestContext,
+  approvedConnectorType?: string
 ): Promise<string> {
   return coalesceLocally(`sim-search:base:${resourceScopeKey(scope)}`, async () => {
     const existing = await findSearchIndex(scope)
@@ -139,10 +144,12 @@ async function ensureSearchKnowledgeBase(
       if (scope.kind === 'organization') {
         const userId = resolvePrincipalSubjectUserId(principal)
         if (!userId) throw new OrchestrationError('forbidden', 'Sign in to configure sources')
+        if (approvedConnectorType)
+          await requireOrganizationSearchApproval(scope.organizationId, approvedConnectorType)
         await requireOrganizationMembership(
           principal,
           scope.organizationId,
-          'admin',
+          approvedConnectorType ? 'member' : 'admin',
           'knowledge.create'
         )
         const embedding = await getConfiguredKbEmbedding()
@@ -262,14 +269,11 @@ async function requireSimSearchSetupAdmin(
 }
 
 /**
- * One click on a Sim Search source: the workspace's Sim Search knowledge base
- * and a per-member connector for that source exist after this, and the caller
- * gets the link that connects their own account. The first connect of a
- * source creates both, which takes a workspace admin and the source's setup
- * fields when it has any; every connect after that only enrolls. The OAuth
- * completion queues the member run, so indexing starts on its own.
+ * Connects the caller's account, creating the owner's index and personal source
+ * when needed. Organization members may set up approved integrations; workspace
+ * setup requires an admin. OAuth completion queues indexing for the member.
  *
- * The database identifies one active search index per workspace. Local
+ * The database identifies one active search index per owner. Local
  * singleflight also coalesces repeated setup clicks for each source; concurrent
  * source creation is serialized by the connector insert transaction before enrollment.
  */
@@ -288,6 +292,9 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
     const scope = resourceScopeFromOwner(context)
     const owner = resourceScopeFields(scope)
     const workspaceId = context.workspaceId
+    if (context.organizationId) {
+      await requireOrganizationSearchApproval(context.organizationId, input.connectorType)
+    }
     let target = await findSimSearchConnector({ ...input, ...owner })
     if (!target) {
       const userId = resolvePrincipalSubjectUserId(principal)
@@ -306,14 +313,34 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
        */
       await Promise.all([
         requireKnowledgeMemberAccessAvailable(owner),
-        requireSimSearchSetupAdmin(principal, context, meta.name),
+        context.organizationId
+          ? Promise.resolve()
+          : requireSimSearchSetupAdmin(principal, context, meta.name),
       ])
-      const knowledgeBaseId = await ensureSearchKnowledgeBase(scope, principal, request)
+      const knowledgeBaseId = await ensureSearchKnowledgeBase(
+        scope,
+        principal,
+        request,
+        context.organizationId ? input.connectorType : undefined
+      )
       target = await coalesceLocally(
         `sim-search:connect:${resourceScopeKey(scope)}:${input.connectorType}:${searchSourceIdentity(meta, sourceConfig)}`,
         async () => {
           const existing = await findSimSearchConnector({ ...input, ...owner })
           if (existing) return existing
+          if (context.organizationId) {
+            const created = await createApprovedSearchSource.execute({
+              principal,
+              input: {
+                knowledgeBaseId,
+                assertedOrganizationId: context.organizationId,
+                connectorType: input.connectorType,
+                sourceConfig,
+              },
+              request,
+            })
+            return { knowledgeBaseId, connectorId: created.connector.id }
+          }
           const created = await createKnowledgeConnector.execute({
             principal,
             input: {

@@ -44,6 +44,7 @@ import {
 } from '@/lib/knowledge/orchestration/connector-access'
 import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
+import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -75,6 +76,9 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
+    if (owner.organizationId && context.knowledgeBase.isSearchIndex) {
+      await requireOrganizationSearchApproval(owner.organizationId, connector.connectorType)
+    }
     await requireKnowledgeMemberAccessAvailable(owner)
     const connectorMeta = getConnectorMeta(connector.connectorType)
     if (!connectorMeta || (context.knowledgeBase.isSearchIndex && !connectorMeta.search)) {

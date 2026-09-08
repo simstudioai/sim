@@ -34,7 +34,7 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 vi.mock('@/lib/credential-groups/credentials', () => ({
   CredentialGroupCredentialCursorNotFoundError: class extends Error {},
   isManagedCredentialGroupBindingLive: vi.fn(async () => true),
-  loadCredentialGroupCredentialListContext: vi.fn(async () => ({
+  loadScopedAccountsCredentialListContext: vi.fn(async () => ({
     status: 'active',
     options: [{ id: 'option', status: 'active' }],
   })),
@@ -101,7 +101,10 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
-import { CredentialGroupCredentialCursorNotFoundError } from '@/lib/credential-groups/credentials'
+import {
+  CredentialGroupCredentialCursorNotFoundError,
+  loadScopedAccountsCredentialListContext,
+} from '@/lib/credential-groups/credentials'
 import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 
@@ -142,6 +145,7 @@ function arrange(
     contentIncomplete?: boolean
     changedIdentity?: boolean
     directoryCheckpoint?: Record<string, unknown>
+    organizationId?: string
   } = {}
 ) {
   const connector = {
@@ -170,7 +174,13 @@ function arrange(
   for (let i = 0; i < 40; i++) {
     queueTableRows(schemaMock.knowledgeConnector, [connector])
     queueTableRows(schemaMock.knowledgeBase, [
-      { id: 'kb', workspaceId: 'workspace', userId: 'owner', deletedAt: null },
+      {
+        id: 'kb',
+        workspaceId: options.organizationId ? null : 'workspace',
+        organizationId: options.organizationId ?? null,
+        userId: 'owner',
+        deletedAt: null,
+      },
     ])
   }
   const memberRow = options.openMemberFeed
@@ -283,7 +293,9 @@ function arrange(
       forceContentRefresh: options.forceContentRefresh,
       billingAttribution: {
         actorUserId: 'owner',
-        workspaceId: 'workspace',
+        ...(options.organizationId
+          ? { organizationId: options.organizationId }
+          : { workspaceId: 'workspace' }),
       } as Parameters<typeof executeMemberSync>[1]['billingAttribution'],
     })
 }
@@ -293,6 +305,20 @@ describe('member engine with a dedicated content credential', () => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
+
+  it.each([undefined, 'organization'])(
+    'loads the account container within the canonical owner %s',
+    async (organizationId) => {
+      const result = await arrange({ organizationId, contentFresh: true, noDueMembers: true })()
+      expect(result.error).toBeUndefined()
+      expect(loadScopedAccountsCredentialListContext).toHaveBeenCalledWith(
+        organizationId
+          ? { kind: 'organization', organizationId }
+          : { kind: 'workspace', workspaceId: 'workspace' },
+        'group'
+      )
+    }
+  )
 
   it('invalidates authorization freshness and cursors before reusing a changed provider identity', async () => {
     const run = arrange({ changedIdentity: true, contentFresh: true, noDueMembers: true })

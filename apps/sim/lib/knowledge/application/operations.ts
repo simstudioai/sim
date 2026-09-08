@@ -603,6 +603,24 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  listSearchIntegrations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.integrations.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  approveSearchIntegration: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.integrations.approve',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   /** Sources with a personal connection, including identities used by mirrored ACLs. */
   listWorkspaceMemberConnectors: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -635,6 +653,15 @@ export const knowledgeOperations = {
   simSearchConnect: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.simSearch.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  createApprovedSearchSource: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.connectApproved',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',

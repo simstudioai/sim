@@ -2742,6 +2742,20 @@ export const memorySecretProvenance = pgTable(
   })
 )
 
+/** Organization Search approval is independent of credentials, sources, and sync status. */
+export const organizationSearchIntegration = pgTable(
+  'organization_search_integration',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    connectorType: text('connector_type').notNull(),
+    approved: boolean('approved').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.connectorType] })]
+)
+
 export const knowledgeBase = pgTable(
   'knowledge_base',
   {

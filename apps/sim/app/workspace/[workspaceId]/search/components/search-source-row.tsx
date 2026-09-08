@@ -45,6 +45,7 @@ export function SearchSourceRow({
     usable &&
     supported &&
     source.enabled &&
+    source.approved !== false &&
     source.viewerEmailVerified &&
     source.connectionRequired &&
     membership !== null &&
@@ -52,6 +53,7 @@ export function SearchSourceRow({
   const count = `${source.viewerDocumentCount} searchable document${source.viewerDocumentCount === 1 ? '' : 's'}`
   let status: string
   if (!supported) status = 'Available in its knowledge base'
+  else if (source.approved === false) status = 'Deactivated by an organization admin'
   else if (!usable) status = `Not available in this ${scope.kind}`
   else if (!source.enabled) status = 'Syncing is paused'
   else if (!source.viewerEmailVerified || membership === 'unverified_email')
