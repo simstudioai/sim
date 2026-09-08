@@ -1,13 +1,16 @@
-import type { AthenaListDatabasesParams, AthenaListDatabasesResponse } from '@/tools/athena/types'
+import type {
+  AthenaListPreparedStatementsParams,
+  AthenaListPreparedStatementsResponse,
+} from '@/tools/athena/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const listDatabasesTool: InternalToolConfig<
-  AthenaListDatabasesParams,
-  AthenaListDatabasesResponse
+export const listPreparedStatementsTool: InternalToolConfig<
+  AthenaListPreparedStatementsParams,
+  AthenaListPreparedStatementsResponse
 > = {
-  id: 'athena_list_databases',
-  name: 'Athena List Databases',
-  description: 'List the databases available in an Athena data catalog',
+  id: 'athena_list_prepared_statements',
+  name: 'Athena List Prepared Statements',
+  description: 'List the prepared statements saved in an Athena workgroup',
   version: '1.0.0',
 
   params: {
@@ -29,18 +32,11 @@ export const listDatabasesTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'AWS secret access key',
     },
-    catalogName: {
+    workGroup: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Data catalog name to list databases from (e.g., AwsDataCatalog)',
-    },
-    workGroup: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Workgroup for which the metadata is being fetched (required for IAM Identity Center enabled catalogs)',
+      description: 'Workgroup to list prepared statements for',
     },
     maxResults: {
       type: 'number',
@@ -61,8 +57,7 @@ export const listDatabasesTool: InternalToolConfig<
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
-      catalogName: params.catalogName,
-      ...(params.workGroup && { workGroup: params.workGroup }),
+      workGroup: params.workGroup,
       ...(params.maxResults !== undefined && { maxResults: params.maxResults }),
       ...(params.nextToken && { nextToken: params.nextToken }),
     }),
@@ -71,27 +66,30 @@ export const listDatabasesTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to list Athena databases')
+      throw new Error(data.error || 'Failed to list Athena prepared statements')
     }
     return {
       success: true,
       output: {
-        databases: data.output.databases ?? [],
+        preparedStatements: data.output.preparedStatements ?? [],
         nextToken: data.output.nextToken ?? null,
       },
     }
   },
 
   outputs: {
-    databases: {
+    preparedStatements: {
       type: 'array',
-      description: 'List of databases (name, description, parameters)',
+      description: 'Prepared statement summaries',
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Database name' },
-          description: { type: 'string', description: 'Database description', optional: true },
-          parameters: { type: 'json', description: 'Key/value properties set on the database' },
+          statementName: { type: 'string', description: 'Prepared statement name' },
+          lastModifiedTime: {
+            type: 'number',
+            description: 'Last modified time (Unix epoch ms)',
+            optional: true,
+          },
         },
       },
     },

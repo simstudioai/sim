@@ -1,13 +1,16 @@
-import type { AthenaListDatabasesParams, AthenaListDatabasesResponse } from '@/tools/athena/types'
+import type {
+  AthenaListDataCatalogsParams,
+  AthenaListDataCatalogsResponse,
+} from '@/tools/athena/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const listDatabasesTool: InternalToolConfig<
-  AthenaListDatabasesParams,
-  AthenaListDatabasesResponse
+export const listDataCatalogsTool: InternalToolConfig<
+  AthenaListDataCatalogsParams,
+  AthenaListDataCatalogsResponse
 > = {
-  id: 'athena_list_databases',
-  name: 'Athena List Databases',
-  description: 'List the databases available in an Athena data catalog',
+  id: 'athena_list_data_catalogs',
+  name: 'Athena List Data Catalogs',
+  description: 'List the data catalogs (data sources) registered in the AWS account',
   version: '1.0.0',
 
   params: {
@@ -29,24 +32,17 @@ export const listDatabasesTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'AWS secret access key',
     },
-    catalogName: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Data catalog name to list databases from (e.g., AwsDataCatalog)',
-    },
     workGroup: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Workgroup for which the metadata is being fetched (required for IAM Identity Center enabled catalogs)',
+      description: 'Workgroup name (required for IAM Identity Center requests)',
     },
     maxResults: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results (1-50)',
+      description: 'Maximum number of results (2-50)',
     },
     nextToken: {
       type: 'string',
@@ -61,7 +57,6 @@ export const listDatabasesTool: InternalToolConfig<
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
-      catalogName: params.catalogName,
       ...(params.workGroup && { workGroup: params.workGroup }),
       ...(params.maxResults !== undefined && { maxResults: params.maxResults }),
       ...(params.nextToken && { nextToken: params.nextToken }),
@@ -71,27 +66,45 @@ export const listDatabasesTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to list Athena databases')
+      throw new Error(data.error || 'Failed to list Athena data catalogs')
     }
     return {
       success: true,
       output: {
-        databases: data.output.databases ?? [],
+        dataCatalogs: data.output.dataCatalogs ?? [],
         nextToken: data.output.nextToken ?? null,
       },
     }
   },
 
   outputs: {
-    databases: {
+    dataCatalogs: {
       type: 'array',
-      description: 'List of databases (name, description, parameters)',
+      description: 'Data catalog summaries',
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Database name' },
-          description: { type: 'string', description: 'Database description', optional: true },
-          parameters: { type: 'json', description: 'Key/value properties set on the database' },
+          catalogName: { type: 'string', description: 'Catalog name' },
+          type: {
+            type: 'string',
+            description: 'Catalog type (LAMBDA, GLUE, HIVE, FEDERATED)',
+            optional: true,
+          },
+          status: {
+            type: 'string',
+            description: 'Creation or deletion status (e.g., CREATE_COMPLETE)',
+            optional: true,
+          },
+          connectionType: {
+            type: 'string',
+            description: 'Connector type for FEDERATED catalogs (e.g., MYSQL, REDSHIFT)',
+            optional: true,
+          },
+          error: {
+            type: 'string',
+            description: 'Error text from catalog creation or deletion',
+            optional: true,
+          },
         },
       },
     },

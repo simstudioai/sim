@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  athenaConnectionSchema,
+  athenaOptionalWorkGroupSchema,
+} from '@/lib/api/contracts/tools/aws/athena-shared'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -6,15 +10,21 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const StartQuerySchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+const StartQuerySchema = athenaConnectionSchema.extend({
   queryString: z.string().min(1, 'Query string is required'),
   database: z.string().optional(),
   catalog: z.string().optional(),
   outputLocation: z.string().optional(),
-  workGroup: z.string().optional(),
+  workGroup: athenaOptionalWorkGroupSchema,
+  executionParameters: z
+    .array(z.string().min(1, 'Execution parameters cannot be empty').max(1024))
+    .min(1, 'At least one execution parameter is required when provided')
+    .optional(),
+  resultReuseEnabled: z.boolean().optional(),
+  resultReuseMaxAgeInMinutes: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? undefined : v),
+    z.coerce.number().int().min(0).max(10080).optional()
+  ),
 })
 
 const StartQueryResponseSchema = z.object({
