@@ -104,7 +104,7 @@ export function KnowledgeDocumentDetail({
                 <col className='w-[80px]' />
               </colgroup>
               <thead>
-                <tr className='h-9 border-[var(--border)] border-b text-[var(--text-muted)]'>
+                <tr className='h-9 border-[var(--border)] border-b text-[var(--text-secondary)]'>
                   <th scope='col' className='pl-4 font-normal'>
                     Content
                   </th>
@@ -140,8 +140,8 @@ export function KnowledgeDocumentDetail({
                             setChunkIndex(index)
                           }}
                           className='block h-11 w-full truncate pr-4 text-left text-[var(--text-body)] underline-offset-4 focus-visible:underline focus-visible:outline-none'
-                          aria-label={`Open chunk ${index}: ${item.title}`}
                         >
+                          <span className='sr-only'>Open chunk {index}: </span>
                           {item.content}
                         </button>
                       </td>

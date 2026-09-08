@@ -17,7 +17,7 @@ import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
-import { LogoShell } from '@/app/(landing)/components'
+import { LogoShell } from '@/app/(landing)/components/logo-shell/logo-shell'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 import { CredentialGroupOAuthToast } from '@/app/credential-groups/enroll/[token]/oauth-toast'
 import {

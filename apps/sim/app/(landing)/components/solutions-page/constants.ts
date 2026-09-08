@@ -124,7 +124,7 @@ export const SOLUTIONS_FEATURE_TILE_TONE = {
   light: {
     surface: 'bg-[var(--surface-3)]',
     title: 'text-[var(--text-primary)]',
-    description: 'text-[var(--text-muted)]',
+    description: 'text-[var(--text-secondary)]',
   },
   dark: {
     surface: 'bg-[var(--text-secondary)]',

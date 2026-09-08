@@ -65,8 +65,7 @@ export function NavMenuCard({ item, onSelect }: NavMenuCardProps) {
             alt=''
             fill
             sizes='292px'
-            /* The panel is hidden until it opens; a lazy picture would arrive late on the first open. */
-            loading='eager'
+            loading='lazy'
             className={PICTURE}
           />
           <span aria-hidden='true' className={SCRIM} />
@@ -78,8 +77,7 @@ export function NavMenuCard({ item, onSelect }: NavMenuCardProps) {
           alt={card.imageAlt}
           height={card.height}
           width={Math.round(card.height * card.aspect)}
-          /* The panel is hidden until it opens; a lazy mark would arrive late on the first open. */
-          loading='eager'
+          loading='lazy'
           className={cn('relative h-auto max-w-full', tone.mark)}
         />
       )}

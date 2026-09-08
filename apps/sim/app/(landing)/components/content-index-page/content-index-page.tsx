@@ -48,7 +48,7 @@ export function ContentIndexPage({
             <h1 className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
               {heading}
             </h1>
-            <p className='max-w-[540px] text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+            <p className='max-w-[540px] text-[var(--text-secondary)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
               {subheading}
             </p>
           </div>
@@ -80,7 +80,7 @@ export function ContentIndexPage({
                         />
                       </div>
                       <div className='flex flex-col gap-2'>
-                        <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'>
+                        <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'>
                           {new Date(p.date).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -91,7 +91,7 @@ export function ContentIndexPage({
                         <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
                           {p.title}
                         </h3>
-                        <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
+                        <p className='line-clamp-2 text-[var(--text-secondary)] text-sm leading-[150%]'>
                           {p.description}
                         </p>
                       </div>
@@ -109,7 +109,7 @@ export function ContentIndexPage({
                   href={`${basePath}/${p.slug}`}
                   className='group flex items-start gap-6 p-6 transition-colors hover:bg-[var(--surface-hover)] md:items-center'
                 >
-                  <span className='hidden w-[120px] shrink-0 pt-1 text-[var(--text-muted)] text-xs uppercase tracking-[0.1em] md:block'>
+                  <span className='hidden w-[120px] shrink-0 pt-1 text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:block'>
                     {new Date(p.date).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -119,7 +119,7 @@ export function ContentIndexPage({
                   </span>
 
                   <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                    <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em] md:hidden'>
+                    <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:hidden'>
                       {new Date(p.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
@@ -130,7 +130,7 @@ export function ContentIndexPage({
                     <h3 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg lg:leading-7'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--text-secondary)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>
@@ -162,7 +162,7 @@ export function ContentIndexPage({
                       Previous
                     </ChipLink>
                   )}
-                  <span className='text-[var(--text-muted)] text-sm'>
+                  <span className='text-[var(--text-secondary)] text-sm'>
                     Page {page} of {totalPages}
                   </span>
                   {page < totalPages && (

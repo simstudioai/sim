@@ -51,7 +51,10 @@ export function NavMenuItem({ item, active = false, onSelect, onActivate }: NavM
         </span>
       </span>
       <span
-        className={cn(DESC_CLASS, active ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)]')}
+        className={cn(
+          DESC_CLASS,
+          active ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
+        )}
       >
         {description}
       </span>

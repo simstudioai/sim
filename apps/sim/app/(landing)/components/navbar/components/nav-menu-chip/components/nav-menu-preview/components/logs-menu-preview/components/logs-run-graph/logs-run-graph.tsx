@@ -70,11 +70,12 @@ export function LogsRunGraph({ buckets }: LogsRunGraphProps) {
       </Tooltip.Trigger>
       <Tooltip.Content offset={10}>
         <div className='flex flex-col gap-1 whitespace-nowrap'>
-          <span className='text-[var(--text-muted)]'>{timeRange}</span>
+          <span className='text-[var(--text-secondary)]'>{timeRange}</span>
           <span className='flex items-center gap-1.5 tabular-nums'>
             <span className='size-1.5 rounded-full bg-[#525252]' />
             {bucket.count} succeeded
-            <span className='text-[var(--text-muted)]'>·</span>${(bucket.count * 0.11).toFixed(2)}
+            <span className='text-[var(--text-secondary)]'>·</span>$
+            {(bucket.count * 0.11).toFixed(2)}
           </span>
         </div>
       </Tooltip.Content>

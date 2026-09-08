@@ -15,7 +15,7 @@ export function BlogMenuPreview() {
           width={1200}
           height={675}
           sizes='620px'
-          loading='eager'
+          loading='lazy'
           unoptimized
           className='h-[260px] w-full object-cover'
         />

@@ -73,7 +73,11 @@ function ContactField({ label, htmlFor, required, error, children }: ContactFiel
       role={isGroup ? 'group' : undefined}
       aria-labelledby={isGroup ? labelId : undefined}
     >
-      <Label id={labelId} htmlFor={htmlFor} className='pl-0.5 font-normal text-[var(--text-muted)]'>
+      <Label
+        id={labelId}
+        htmlFor={htmlFor}
+        className='pl-0.5 font-normal text-[var(--text-secondary)]'
+      >
         {label}
         {required ? (
           <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
@@ -196,7 +200,7 @@ export function ContactForm() {
           <Check className='size-7' />
         </div>
         <h2 className='mt-5 text-[var(--text-primary)] text-xl leading-[1.2]'>Message received</h2>
-        <p className='mt-2 max-w-sm text-[var(--text-muted)] text-sm leading-[1.6]'>
+        <p className='mt-2 max-w-sm text-[var(--text-secondary)] text-sm leading-[1.6]'>
           Thanks for reaching out. Our team will get back to you shortly.
         </p>
         <button
@@ -215,7 +219,7 @@ export function ContactForm() {
       <h2 id='contact-form-heading' className='text-[var(--text-primary)] text-xl leading-[1.2]'>
         Send us a message
       </h2>
-      <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
+      <p className='mt-1.5 text-[var(--text-secondary)] text-sm'>
         Ask a question, request an integration, or get help — we'll get back to you shortly.
       </p>
 

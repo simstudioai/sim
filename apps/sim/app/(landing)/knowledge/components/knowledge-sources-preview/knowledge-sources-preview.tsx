@@ -54,7 +54,7 @@ export function KnowledgeSourcesPreview() {
           title={
             <>
               <span>Knowledge Base</span>
-              <ChevronRight className='size-3 text-[var(--text-muted)]' />
+              <ChevronRight className='size-3 text-[var(--text-secondary)]' />
               <span>Product knowledge</span>
             </>
           }
@@ -132,7 +132,7 @@ export function KnowledgeSourcesPreview() {
                       Active
                     </Badge>
                   </div>
-                  <p className='text-[var(--text-muted)] text-xs'>
+                  <p className='text-[var(--text-secondary)] text-xs'>
                     Last sync: Sep 4, 9:41 AM · {source.documents.length} docs
                   </p>
                 </div>

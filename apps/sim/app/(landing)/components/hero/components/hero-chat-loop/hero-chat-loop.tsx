@@ -153,7 +153,8 @@ export function HeroChatLoop({
   const showThinking = phase === 'thinking' || phase === 'dispatching'
   const showBuilding = phase === 'building'
   const showReply = phase === 'reply'
-  const replyWordCount = replyMessage.trim().split(/\s+/).length
+  const replyWords = replyMessage.match(/\S+\s*/g) ?? []
+  const replyWordCount = replyWords.length
   const revealedWords = useElapsedReveal(showReply, STREAM_WORD_MS, replyWordCount)
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null)
 
@@ -239,8 +240,7 @@ export function HeroChatLoop({
                 defaultExpanded
               />
               <HeroChatReply
-                content={replyMessage}
-                isStreaming={!replyComplete}
+                content={replyComplete ? replyMessage : replyWords.slice(0, revealedWords).join('')}
                 onOpenWorkflowResource={onOpenWorkflowResource}
               />
               {replyComplete && (

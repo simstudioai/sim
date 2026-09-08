@@ -32,7 +32,7 @@ export function LeadRecordList({ rows, selectedId, onSelect, showContact }: Lead
         </colgroup>
         <thead>
           <tr className='h-[34px] border-[var(--border)] border-b'>
-            <th className={cn(CELL, 'text-center font-normal text-[var(--text-muted)]')}>#</th>
+            <th className={cn(CELL, 'text-center font-normal text-[var(--text-secondary)]')}>#</th>
             {columns.map(({ name, icon: Icon }) => (
               <th key={name} className={cn(CELL, 'font-normal')}>
                 <span className='flex items-center gap-1.5'>
@@ -52,7 +52,7 @@ export function LeadRecordList({ rows, selectedId, onSelect, showContact }: Lead
                 selectedId === row.id && 'bg-[var(--surface-active)]'
               )}
             >
-              <td className={cn(CELL, 'text-center text-[var(--text-muted)] tabular-nums')}>
+              <td className={cn(CELL, 'text-center text-[var(--text-secondary)] tabular-nums')}>
                 {index + 1}
               </td>
               <td className={CELL}>

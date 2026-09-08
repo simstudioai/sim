@@ -16,7 +16,7 @@ interface TrustedByProps {
 export function TrustedBy({ className }: TrustedByProps) {
   return (
     <div className={cn('flex flex-col gap-[22px]', className)}>
-      <p className='text-[var(--text-muted)] text-sm'>Trusted by technical teams at</p>
+      <p className='text-[var(--text-secondary)] text-sm'>Trusted by technical teams at</p>
       <Logos layout='grid' />
     </div>
   )

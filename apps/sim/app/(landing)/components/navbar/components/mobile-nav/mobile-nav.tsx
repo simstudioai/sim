@@ -16,9 +16,8 @@ import { DEMO_HREF } from '@/app/(landing)/constants'
 /**
  * Navigation below `xl`. Tablets keep Log in, Start building, and the demo CTA
  * in the bar; phones show only the wordmark and the menu button, since the
- * actions no longer fit beside the wordmark at narrow widths. The sheet
- * carries the actions at the top,
- * followed by product links, and closes on navigation or Escape.
+ * actions no longer fit beside the wordmark at narrow widths. On phones,
+ * the sheet carries the actions above the product links. It closes on navigation or Escape.
  * The navbar shell locks the page scroll and coordinates its frosted surface.
  */
 
@@ -63,8 +62,14 @@ export function MobileNav({ stars }: MobileNavProps) {
 
   return (
     <div className='ml-auto flex items-center gap-2 xl:hidden'>
-      <NavbarAuthPill className='max-sm:hidden' />
-      <LandingCtaLink href={DEMO_HREF} size='compact' withArrow className='max-sm:hidden'>
+      <NavbarAuthPill className='max-sm:hidden' onNavigate={() => updateOpen(false)} />
+      <LandingCtaLink
+        href={DEMO_HREF}
+        size='compact'
+        withArrow
+        className='max-sm:hidden'
+        onClick={() => updateOpen(false)}
+      >
         Request a demo
       </LandingCtaLink>
       <button
@@ -123,7 +128,7 @@ export function MobileNav({ stars }: MobileNavProps) {
         )}
       >
         <div className='mx-auto flex w-full max-w-[1728px] flex-col gap-1 px-7 pt-2 pb-5'>
-          <div className='flex flex-col gap-2 pb-4'>
+          <div className='flex flex-col gap-2 pb-4 sm:hidden'>
             <NavbarAuthPill size='default' onNavigate={() => updateOpen(false)} />
             <LandingCtaLink href={DEMO_HREF} withArrow onClick={() => updateOpen(false)}>
               Request a demo

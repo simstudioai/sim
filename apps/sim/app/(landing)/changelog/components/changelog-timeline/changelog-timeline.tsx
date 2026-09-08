@@ -126,7 +126,7 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
                   </div>
                 ) : null}
               </div>
-              <span className='text-[12px] text-[var(--text-muted)]'>
+              <span className='text-[12px] text-[var(--text-secondary)]'>
                 {formatDate(new Date(entry.date))}
               </span>
             </div>

@@ -2,26 +2,19 @@
 
 import { Workflow } from '@sim/emcn/icons'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
-import { useSmoothText } from '@/hooks/use-smooth-text'
 
 interface HeroChatReplyProps {
   content: string
-  isStreaming: boolean
   onOpenWorkflowResource: () => void
 }
 
 const WORKFLOW_TITLE = 'Lead enrichment'
 
-/** The seeded reply uses the native text pacer and resource chip without workspace data queries. */
-export function HeroChatReply({
-  content,
-  isStreaming,
-  onOpenWorkflowResource,
-}: HeroChatReplyProps) {
-  const revealed = useSmoothText(content, isStreaming)
+/** The seeded reply renders the paced content and native resource chip without workspace data queries. */
+export function HeroChatReply({ content, onOpenWorkflowResource }: HeroChatReplyProps) {
   return (
     <div className='space-y-4 font-[family-name:var(--font-inter)] text-[var(--text-primary)] text-base leading-[25px] tracking-[0] antialiased'>
-      {revealed.split('\n\n').map((paragraph, index) => {
+      {content.split('\n\n').map((paragraph, index) => {
         const resourceIndex = paragraph.indexOf(WORKFLOW_TITLE)
         return (
           <p key={index}>

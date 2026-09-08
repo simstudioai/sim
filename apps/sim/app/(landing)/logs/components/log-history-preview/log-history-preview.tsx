@@ -111,20 +111,20 @@ export function LogHistoryPreview() {
           />
           <ChipDropdown
             leftIcon={ListFilter}
-            aria-label='Filter sample logs by status'
+            aria-label={`Filter sample logs by status: ${FILTERS.find((option) => option.value === filter)?.label ?? filter}`}
             value={filter}
             options={FILTERS}
             onChange={setFilter}
             matchTriggerWidth={false}
           />
         </MenuPreviewToolbar>
-        <div className='relative flex min-h-0 flex-1 flex-col'>
+        <div className='relative flex min-h-0 flex-1 flex-col [--text-muted:var(--text-secondary)]'>
           <Resource.Table
             columns={COLUMNS}
             rows={rows}
             selectedRowId={selectedRun?.id}
             onRowClick={setSelectedId}
-            emptyState={<p className='p-6 text-[var(--text-muted)]'>No matching runs</p>}
+            emptyState={<p className='p-6 text-[var(--text-secondary)]'>No matching runs</p>}
             overlay={
               selectedRun && (
                 <div

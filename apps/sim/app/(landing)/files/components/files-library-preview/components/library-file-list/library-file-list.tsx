@@ -19,7 +19,7 @@ export function LibraryFileList({ files, onSelect }: LibraryFileListProps) {
           <col className='w-[132px]' />
         </colgroup>
         <thead>
-          <tr className='h-9 border-[var(--border)] border-b text-[var(--text-muted)]'>
+          <tr className='h-9 border-[var(--border)] border-b text-[var(--text-secondary)]'>
             {['Name', 'Size', 'Type', 'Created', 'Owner'].map((name) => (
               <th key={name} className='font-normal first:pl-4'>
                 {name}
@@ -40,12 +40,12 @@ export function LibraryFileList({ files, onSelect }: LibraryFileListProps) {
                     type='button'
                     onClick={() => onSelect(file.id)}
                     className='flex h-11 max-w-full items-center gap-2.5 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
-                    aria-label={`Open ${file.name}`}
                   >
                     <Icon
                       aria-hidden='true'
                       className='size-[14px] shrink-0 text-[var(--text-icon)]'
                     />
+                    <span className='sr-only'>Open {file.type} </span>
                     <span className='truncate'>{file.name}</span>
                   </button>
                 </td>
@@ -74,7 +74,7 @@ export function LibraryFileList({ files, onSelect }: LibraryFileListProps) {
         </tbody>
       </table>
       {files.length === 0 && (
-        <p role='status' className='p-6 text-[var(--text-muted)] text-small'>
+        <p role='status' className='p-6 text-[var(--text-secondary)] text-small'>
           No files match your search.
         </p>
       )}

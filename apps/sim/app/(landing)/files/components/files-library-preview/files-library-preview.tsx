@@ -52,11 +52,11 @@ export function FilesLibraryPreview() {
                     ref={backRef}
                     type='button'
                     onClick={() => setSelectedId(null)}
-                    className='rounded-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] focus-visible:outline-2'
+                    className='rounded-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:outline-2'
                   >
                     Files
                   </button>
-                  <ChevronRight className='size-3 shrink-0 text-[var(--text-muted)]' />
+                  <ChevronRight className='size-3 shrink-0 text-[var(--text-secondary)]' />
                   <span className='truncate'>{selectedFile.name}</span>
                 </>
               ) : (
@@ -77,7 +77,7 @@ export function FilesLibraryPreview() {
           ) : (
             <>
               <MenuPreviewToolbar>
-                <label className='mr-auto ml-2 flex min-w-0 flex-1 items-center gap-2 text-[var(--text-muted)]'>
+                <label className='mr-auto ml-2 flex min-w-0 flex-1 items-center gap-2 text-[var(--text-secondary)]'>
                   <Search aria-hidden='true' className='size-[14px] shrink-0' />
                   <input
                     ref={searchRef}
@@ -86,7 +86,7 @@ export function FilesLibraryPreview() {
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder='Search files...'
-                    className='h-8 w-full min-w-0 rounded-sm bg-transparent text-small outline-none placeholder:text-[var(--text-muted)] focus-visible:outline-2 focus-visible:outline-[var(--border)] max-sm:text-[16px]'
+                    className='h-8 w-full min-w-0 rounded-sm bg-transparent text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--border)] max-sm:text-[16px]'
                   />
                 </label>
                 <Chip

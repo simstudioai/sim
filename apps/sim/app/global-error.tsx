@@ -3,7 +3,7 @@
 import { Chip } from '@sim/emcn'
 import { StatusPageContent } from '@/components/status-page'
 import { season } from '@/app/_styles/fonts/season/season'
-import { LogoShell } from '@/app/(landing)/components'
+import { LogoShell } from '@/app/(landing)/components/logo-shell/logo-shell'
 import '@/app/_styles/globals.css'
 
 interface GlobalErrorProps {

@@ -31,7 +31,7 @@ export function ProductFeature({ feature }: ProductFeatureProps) {
         >
           {feature.title}
         </h2>
-        <p className='mt-1 max-w-[44ch] text-balance text-[15px] text-[var(--text-muted)] leading-6'>
+        <p className='mt-1 max-w-[44ch] text-balance text-[15px] text-[var(--text-secondary)] leading-6'>
           {feature.description}
         </p>
         {feature.cta && (

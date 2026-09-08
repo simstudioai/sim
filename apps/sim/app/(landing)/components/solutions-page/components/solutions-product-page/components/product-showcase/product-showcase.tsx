@@ -59,7 +59,7 @@ export function ProductShowcase({ feature, description }: ProductShowcaseProps) 
       <div className={LANDING_GUTTER}>
         <div className={cn(HOME_INSET, 'pt-5 pb-10 max-sm:pt-2 max-sm:pb-7')}>
           <p className='text-[15px] text-[var(--text-primary)] leading-6'>{feature.label}</p>
-          <p className='mt-1 max-w-[56ch] text-balance text-[15px] text-[var(--text-muted)] leading-6'>
+          <p className='mt-1 max-w-[56ch] text-balance text-[15px] text-[var(--text-secondary)] leading-6'>
             {feature.description}
           </p>
           {feature.cta && (

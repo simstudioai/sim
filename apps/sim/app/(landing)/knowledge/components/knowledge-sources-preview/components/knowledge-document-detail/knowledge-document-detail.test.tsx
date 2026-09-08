@@ -54,7 +54,9 @@ afterEach(() => {
 })
 
 function button(label: string): HTMLButtonElement {
-  const element = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+  const element = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(
+    (button) => button.getAttribute('aria-label') === label || button.textContent === label
+  )
   if (!element) throw new Error(`Missing button: ${label}`)
   return element
 }
@@ -62,7 +64,7 @@ function button(label: string): HTMLButtonElement {
 describe('KnowledgeDocumentDetail focus', () => {
   it.each([0, 1])('moves focus into chunk %i and restores its row on return', (index) => {
     expect(document.activeElement).toBe(document.body)
-    const label = `Open chunk ${index}: ${PREVIEW_DOCUMENT.chunks[index].title}`
+    const label = `Open chunk ${index}: ${PREVIEW_DOCUMENT.chunks[index].content}`
     const rowButton = button(label)
     rowButton.focus()
     act(() => rowButton.click())

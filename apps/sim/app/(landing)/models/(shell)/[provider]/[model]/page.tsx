@@ -25,7 +25,8 @@ import {
 
 const baseUrl = SITE_URL
 
-export const dynamicParams = false
+/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   return ALL_CATALOG_MODELS.map((model) => ({

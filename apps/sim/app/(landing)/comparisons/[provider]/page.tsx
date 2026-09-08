@@ -26,7 +26,8 @@ import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/component
 const baseUrl = SITE_URL
 
 export const revalidate = 3600
-export const dynamicParams = false
+/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   return ALL_COMPETITORS.map((competitor) => ({ provider: competitor.id }))

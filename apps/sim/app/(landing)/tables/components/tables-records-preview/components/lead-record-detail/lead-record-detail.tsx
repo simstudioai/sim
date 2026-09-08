@@ -30,7 +30,7 @@ export function LeadRecordDetail({ record, onClose, onSave }: LeadRecordDetailPr
     >
       <ChipModalHeader onClose={onClose}>Edit Row</ChipModalHeader>
       <ChipModalBody>
-        <p className='px-2 text-[var(--text-muted)] text-small'>
+        <p className='px-2 text-[var(--text-secondary)] text-small'>
           Update values for Qualified leads
         </p>
         <ChipModalField

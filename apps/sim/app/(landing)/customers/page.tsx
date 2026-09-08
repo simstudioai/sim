@@ -37,7 +37,7 @@ export default async function Page() {
     <main id='main-content' className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
       <div className={HOME_INSET}>
         <header className={cn('pb-16 max-sm:pb-10', LANDING_HERO_TOP_PADDING)}>
-          <p className='mb-6 text-[14px] text-[var(--text-muted)]'>Customer stories</p>
+          <p className='mb-6 text-[14px] text-[var(--text-secondary)]'>Customer stories</p>
           <h1 className='max-w-[850px] text-balance text-[64px] leading-[1.04] tracking-[-0.03em] max-sm:text-[36px] max-xl:text-[52px]'>
             The teams building their future with Sim.
           </h1>

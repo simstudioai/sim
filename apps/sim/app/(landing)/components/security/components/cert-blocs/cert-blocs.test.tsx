@@ -33,7 +33,7 @@ describe('CertBlocs', () => {
     const stars = document.querySelectorAll('[data-cert-stars] path')
     expect(stars).toHaveLength(12)
     expect([...stars].every((star) => star.getAttribute('pathLength') === '1')).toBe(true)
-    expect(html).toContain('GDPR Details, Sim Trust Center')
+    expect(html).toContain('in the Sim Trust Center')
   })
 })
 
@@ -135,7 +135,9 @@ describe('CertBlocs draw trigger', () => {
 
   it('replays the hovered GDPR mark and stars on every entry and cancels unfinished strokes', () => {
     act(() => root?.render(renderCerts()))
-    const card = host?.querySelector('a[aria-label^="GDPR"]')
+    const card = Array.from(host?.querySelectorAll('a') ?? []).find((link) =>
+      link.textContent?.startsWith('GDPR')
+    )
     expect(card).toBeTruthy()
     /** JSDOM does not inherit the CSS module's custom properties. */
     card?.style.setProperty('--draw-duration-ms', '900')

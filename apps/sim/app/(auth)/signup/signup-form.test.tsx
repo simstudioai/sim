@@ -112,7 +112,7 @@ describe('signup shell navigation', () => {
     await submit(false)
     expect(signUp).toHaveBeenCalledOnce()
     expect(refetchSession).toHaveBeenCalledOnce()
-    expect(destination.href).toBe('/workspace')
+    expect(destination.href).toBe('/home')
     expect(push).not.toHaveBeenCalled()
   })
 

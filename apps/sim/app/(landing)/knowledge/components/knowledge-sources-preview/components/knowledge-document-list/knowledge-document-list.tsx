@@ -30,7 +30,7 @@ export function KnowledgeDocumentList({
           <col className='w-[90px]' />
         </colgroup>
         <thead>
-          <tr className='h-9 border-[var(--border)] border-b text-[var(--text-muted)]'>
+          <tr className='h-9 border-[var(--border)] border-b text-[var(--text-secondary)]'>
             <th scope='col' className='pl-4 font-normal'>
               Name
             </th>
@@ -93,7 +93,7 @@ export function KnowledgeDocumentList({
         </tbody>
       </table>
       {documents.length === 0 && (
-        <p className='p-4 text-[var(--text-muted)]'>No matching documents</p>
+        <p className='p-4 text-[var(--text-secondary)]'>No matching documents</p>
       )}
     </div>
   )

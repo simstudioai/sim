@@ -34,6 +34,7 @@ vi.mock('@sim/emcn', () => ({
   },
 }))
 vi.mock('@sim/emcn/icons', () => ({
+  Workflow: () => null,
   Mic: () => null,
   Paperclip: () => null,
   Plus: () => null,
@@ -67,9 +68,6 @@ vi.mock(
     },
   })
 )
-vi.mock('@/app/(landing)/components/hero/components/hero-chat-loop/hero-chat-reply', () => ({
-  HeroChatReply: ({ content }: { content: string }) => <p>{content}</p>,
-}))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/question',
   () => ({
@@ -194,6 +192,24 @@ describe('HeroChatLoop production thinking handoff', () => {
     ])
     const groups = renderAgentGroup.mock.calls.map(([props]) => props)
     expect(groups.every((group) => !group.isStreaming && !hasExecutingTool(group.items))).toBe(true)
+    expect(host.textContent).toContain('The workflow is ready to test with a sample lead.')
+    expect(host.textContent).toContain('What would you like to do next?')
+  })
+  it('reveals the reply before showing follow-up actions when motion is enabled', () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    renderPhase('reply')
+    expect(host.textContent).not.toContain('The workflow is ready')
+    expect(host.textContent).not.toContain('What would you like to do next?')
+
+    act(() => vi.advanceTimersByTime(110))
+    expect(host.textContent).toContain('The workflow')
+    expect(host.textContent).not.toContain('The workflow is ready to test with a sample lead.')
+
+    act(() => vi.advanceTimersByTime(1000))
     expect(host.textContent).toContain('The workflow is ready to test with a sample lead.')
     expect(host.textContent).toContain('What would you like to do next?')
   })

@@ -30,7 +30,7 @@ export function SolutionsProductPage({ config }: SolutionsProductPageProps) {
           <div className={LANDING_GUTTER}>
             <div className={cn(HOME_INSET, 'pt-5 text-center max-sm:pt-0')}>
               <p className='sr-only'>{config.hero.summary}</p>
-              <p className='mb-6 text-[15px] text-[var(--text-muted)]'>Sim / {config.module}</p>
+              <p className='mb-6 text-[15px] text-[var(--text-secondary)]'>Sim / {config.module}</p>
               <h1
                 id='product-heading'
                 className='mx-auto max-w-[20ch] text-balance font-normal text-[80px] text-[var(--text-primary)] leading-[1.02] tracking-[-0.035em] max-sm:text-[44px] max-lg:text-[64px]'

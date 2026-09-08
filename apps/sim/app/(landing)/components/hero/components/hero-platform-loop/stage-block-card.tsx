@@ -337,7 +337,6 @@ export function StageBlockCard({
         ref={borderHostRef}
         role={onSelect ? 'button' : undefined}
         tabIndex={onSelect ? 0 : undefined}
-        aria-label={onSelect ? `Select ${block.name} block` : undefined}
         aria-pressed={onSelect ? selected : undefined}
         onClick={() => onSelect?.(block.id)}
         onKeyDown={(event) => {
@@ -401,7 +400,7 @@ export function StageBlockCard({
 
             {showErrorRow ? (
               <div className='flex h-[24px] shrink-0 items-center justify-between rounded-[6px] bg-[var(--surface-5)] pr-1 pl-2 dark:bg-[var(--surface-4)]'>
-                <span className='text-[var(--text-muted)] text-caption'>On error</span>
+                <span className='text-[var(--text-secondary)] text-caption'>On error</span>
                 <Switch
                   checked={false}
                   aria-label='On error branch disabled in preview'

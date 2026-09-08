@@ -68,7 +68,7 @@ export function WorkflowBuilderPreview() {
             </Chip>
           ))}
         </div>
-        <p role='status' aria-live='polite' className='text-[var(--text-muted)] text-caption'>
+        <p role='status' aria-live='polite' className='text-[var(--text-secondary)] text-caption'>
           {runningId
             ? 'Running sample block…'
             : completedId

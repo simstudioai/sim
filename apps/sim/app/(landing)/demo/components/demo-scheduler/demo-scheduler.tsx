@@ -138,7 +138,7 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
       <h2 className='text-[var(--text-primary)] text-xl leading-[1.2]'>
         Pick a time{lead.name ? `, ${lead.name}` : ''}
       </h2>
-      <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
+      <p className='mt-1.5 text-[var(--text-secondary)] text-sm'>
         Choose a slot that works for your team and we'll send a calendar invite.
       </p>
       <div className='mt-5 min-h-0 flex-1'>

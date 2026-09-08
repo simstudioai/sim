@@ -33,7 +33,7 @@ export function MenuPreviewHeader({
           {title}
         </div>
         {actions && (
-          <div className='ml-auto flex shrink-0 items-center gap-1 text-[var(--text-muted)] text-small'>
+          <div className='ml-auto flex shrink-0 items-center gap-1 text-[var(--text-secondary)] text-small'>
             {actions}
           </div>
         )}

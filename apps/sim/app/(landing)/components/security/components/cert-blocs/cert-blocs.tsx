@@ -115,7 +115,6 @@ export function CertBlocs({ href }: CertBlocsProps) {
           <a
             href={href}
             {...OUTBOUND_LINK}
-            aria-label={`${title} Details, Sim Trust Center`}
             onPointerEnter={(event) => {
               if (event.pointerType === 'touch') return
               setDrawn(true)
@@ -150,7 +149,7 @@ export function CertBlocs({ href }: CertBlocsProps) {
                 HOME_TYPE.meta
               )}
             >
-              Details
+              Details<span className='sr-only'> in the Sim Trust Center</span>
               <DetailsArrow className='size-[12px]' />
             </span>
           </a>

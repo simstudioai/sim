@@ -64,7 +64,7 @@ export function LogsMenuPreview({ layout = 'menu' }: LogsMenuPreviewProps) {
             ))}
           </div>
           <LogsRunGraph buckets={RUN_BUCKETS} />
-          <div className='mt-1.5 flex justify-between text-[var(--text-muted)] text-caption'>
+          <div className='mt-1.5 flex justify-between text-[var(--text-secondary)] text-caption'>
             <span>24 hours ago</span>
             <span>Now</span>
           </div>

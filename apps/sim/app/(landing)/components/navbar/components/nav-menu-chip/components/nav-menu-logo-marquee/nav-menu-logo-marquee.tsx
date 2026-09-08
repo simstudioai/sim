@@ -89,7 +89,7 @@ export function NavMenuLogoMarquee() {
       /** biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users can scrub this carousel with the arrow keys. */
       tabIndex={0}
       className={cn(
-        'cursor-grab touch-pan-y select-none overflow-hidden py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--border)] focus-visible:outline-offset-[-2px] data-[dragging]:cursor-grabbing',
+        'cursor-grab touch-pan-y touch-pinch-zoom select-none overflow-hidden py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-secondary)] focus-visible:outline-offset-[-2px] data-[dragging]:cursor-grabbing',
         styles.viewport,
         EDGE_FADE
       )}
@@ -138,7 +138,7 @@ export function NavMenuLogoMarquee() {
                     alt={decorative ? '' : logo.name}
                     height={logo.height}
                     width={Math.round(logo.height * logo.aspect)}
-                    loading='eager'
+                    loading='lazy'
                     draggable={false}
                     className={cn('pointer-events-none', MUTED_MARK)}
                   />

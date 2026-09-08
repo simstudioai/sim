@@ -67,7 +67,7 @@ export function ContentAuthorPage({
                   href={`${basePath}/${p.slug}`}
                   className='group flex items-start gap-6 p-6 transition-colors hover:bg-[var(--surface-hover)] md:items-center'
                 >
-                  <span className='hidden w-[120px] shrink-0 pt-1 text-[var(--text-muted)] text-xs uppercase tracking-[0.1em] md:block'>
+                  <span className='hidden w-[120px] shrink-0 pt-1 text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:block'>
                     {new Date(p.date).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -77,7 +77,7 @@ export function ContentAuthorPage({
                   </span>
 
                   <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                    <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em] md:hidden'>
+                    <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:hidden'>
                       {new Date(p.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
@@ -88,7 +88,7 @@ export function ContentAuthorPage({
                     <h3 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg lg:leading-7'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--text-secondary)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>

@@ -34,7 +34,7 @@ export function HeroChatWelcome({ visible, onSelect }: HeroChatWelcomeProps) {
           visible ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
       >
-        <span data-preview-skeleton-label='' className='text-[13px] text-[var(--text-muted)]'>
+        <span data-preview-skeleton-label='' className='text-[13px] text-[var(--text-secondary)]'>
           Suggested actions
         </span>
         <div className='mt-2 flex flex-col'>

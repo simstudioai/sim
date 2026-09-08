@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
-import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
+import { LogoMark } from '@/app/(landing)/components/navbar/components/logo-mark'
+import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 
 /**
  * Logo-only page frame shared by status pages and public interfaces. Interfaces
