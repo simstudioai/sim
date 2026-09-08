@@ -3,6 +3,7 @@ import {
   claudeCoworkProfile,
   crewaiProfile,
   dustProfile,
+  type FactSource,
   flowiseProfile,
   gumloopProfile,
   langchainProfile,
@@ -26,6 +27,17 @@ import {
 export interface ComparisonFaq {
   question: string
   answer: string
+  sources: FactSource[]
+}
+
+/** Keeps one citation per URL when a summary combines multiple sourced facts. */
+function mergeSources(...groups: FactSource[][]): FactSource[] {
+  const sources = new Map<string, FactSource>()
+  for (const source of groups.flat()) {
+    const existing = sources.get(source.url)
+    if (!existing || source.asOf > existing.asOf) sources.set(source.url, source)
+  }
+  return [...sources.values()]
 }
 
 /** Every competitor Sim is compared against, in display/build order. */
@@ -91,6 +103,14 @@ export const SIM_LATEST_VERIFIED = getLatestVerifiedDate(simProfile)
 export interface ComparisonVerdict {
   chooseSim: string
   chooseCompetitor: string
+  simPoints: ComparisonChoicePoint[]
+  competitorPoints: ComparisonChoicePoint[]
+}
+
+export interface ComparisonChoicePoint {
+  title: string
+  description: string
+  sources: FactSource[]
 }
 
 export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdict {
@@ -102,6 +122,50 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
   return {
     chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, environment promotion (dev/qa/prod), human-in-the-loop approvals, and enterprise governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,
     chooseCompetitor,
+    simPoints: [
+      {
+        title: 'Open source and self-hostable',
+        description:
+          'Run your AI workspace under Apache 2.0, with Docker and Kubernetes deployment options.',
+        sources: mergeSources(
+          simProfile.facts.platform.license.sources,
+          simProfile.facts.platform.selfHostOption.sources
+        ),
+      },
+      {
+        title: 'AI agents with human approvals',
+        description:
+          'Build with multiple models and approval steps that pause a run and resume it later.',
+        sources: mergeSources(
+          simProfile.facts.aiCapabilities.multiLlmSupport.sources,
+          simProfile.facts.aiCapabilities.humanInTheLoop.sources
+        ),
+      },
+      {
+        title: 'Collaboration across environments',
+        description:
+          'Build together in real time, then fork and promote changes between dev, QA, and production.',
+        sources: mergeSources(
+          simProfile.facts.platform.realtimeCollaboration.sources,
+          simProfile.facts.platform.environmentPromotion.sources
+        ),
+      },
+      {
+        title: 'Enterprise access controls',
+        description:
+          'Manage SSO, credential-level permissions, and audit logs in the same workspace.',
+        sources: mergeSources(
+          simProfile.facts.security.sso.sources,
+          simProfile.facts.security.credentialGovernance.sources,
+          simProfile.facts.security.auditLogging.sources
+        ),
+      },
+    ],
+    competitorPoints: competitor.standoutFeatures.slice(0, 4).map((feature) => ({
+      title: feature.title,
+      description: feature.shortDescription ?? feature.description,
+      sources: [feature.source],
+    })),
   }
 }
 
@@ -119,34 +183,70 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     {
       question: `Is Sim a good alternative to ${name}?`,
       answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
+      sources: mergeSources(
+        simProfile.facts.platform.builderType.sources,
+        simProfile.facts.platform.license.sources,
+        simProfile.facts.platform.selfHostOption.sources,
+        facts.platform.builderType.sources
+      ),
     },
     {
       question: `What is the main difference between Sim and ${name}?`,
       answer: buildKeyDifferenceAnswer(competitor),
+      sources: mergeSources(
+        simProfile.facts.aiCapabilities.multiLlmSupport.sources,
+        simProfile.facts.aiCapabilities.naturalLanguageBuilding.sources,
+        simProfile.facts.aiCapabilities.knowledgeBaseRag.sources,
+        competitor.standoutFeatures.slice(0, 1).map((item) => item.source),
+        competitor.limitations.slice(0, 1).map((item) => item.source)
+      ),
     },
     {
       question: `Does Sim support self-hosting compared to ${name}?`,
       answer: `Sim can be self-hosted via Docker or Kubernetes under an Apache 2.0 license, in addition to a managed cloud-hosted plan. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
+      sources: mergeSources(
+        simProfile.facts.platform.selfHostOption.sources,
+        simProfile.facts.platform.license.sources,
+        simProfile.facts.platform.deploymentOptions.sources,
+        facts.platform.selfHostOption.sources
+      ),
     },
     {
       question: `How does Sim's pricing compare to ${name}?`,
       answer: `Sim uses ${summarizeFact(simProfile.facts.pricing.pricingModel.value)} ${name} uses ${summarizeFact(facts.pricing.pricingModel.value)}`,
+      sources: mergeSources(
+        simProfile.facts.pricing.pricingModel.sources,
+        facts.pricing.pricingModel.sources
+      ),
     },
     {
       question: `Is Sim more secure than ${name}?`,
       answer: `Security is a like-for-like comparison, not a one-line verdict. Sim: ${summarizeFact(simProfile.facts.security.compliance.value)} ${name}: ${summarizeFact(facts.security.compliance.value)} Check the Security & compliance rows above for the full breakdown, including SSO, audit logging, and data residency.`,
+      sources: mergeSources(
+        simProfile.facts.security.compliance.sources,
+        facts.security.compliance.sources
+      ),
     },
     {
       question: `Which has stronger AI agent capabilities, Sim or ${name}?`,
       answer: `Sim: ${summarizeFact(simProfile.facts.aiCapabilities.multiLlmSupport.value)} ${name}: ${summarizeFact(facts.aiCapabilities.multiLlmSupport.value)} Sim also ships native human-in-the-loop approvals, a hybrid vector-plus-keyword knowledge base, and an in-editor AI Copilot that can read execution logs and directly edit the workflow to fix a failed run.`,
+      sources: mergeSources(
+        simProfile.facts.aiCapabilities.multiLlmSupport.sources,
+        facts.aiCapabilities.multiLlmSupport.sources,
+        simProfile.facts.aiCapabilities.humanInTheLoop.sources,
+        simProfile.facts.aiCapabilities.knowledgeBaseRag.sources,
+        simProfile.facts.aiCapabilities.naturalLanguageBuilding.sources
+      ),
     },
     {
       question: `What are ${name}'s documented limitations compared to Sim?`,
       answer: buildLimitationAnswer(competitor),
+      sources: mergeSources(competitor.limitations.map((item) => item.source)),
     },
     {
       question: `Can I migrate from ${name} to Sim?`,
       answer: `There is no automated one-click migration tool between ${name} and Sim. Workflows and automations need to be rebuilt in Sim's visual builder, natural-language Chat surface, or API. Most teams start by recreating their highest-value automation first to validate the switch before migrating the rest.`,
+      sources: [],
     },
   ]
 
@@ -154,6 +254,11 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     faqs.push({
       question: `Is ${name} a workflow builder like Sim?`,
       answer: `Not in the same sense. ${competitor.oneLiner} Sim, by contrast, is a visual and code-based workflow builder that deploys agents as REST APIs, scheduled jobs, or chat interfaces, so the two solve different parts of the AI agent problem rather than competing feature-for-feature.`,
+      sources: mergeSources(
+        facts.platform.builderType.sources,
+        simProfile.facts.platform.builderType.sources,
+        simProfile.facts.platform.deploymentOptions.sources
+      ),
     })
   }
 
