@@ -37,7 +37,7 @@ export const ociDevopsCreateBuildPipelineStageTool: InternalToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Typed BuildPipelineStage configuration discriminated by buildPipelineStageType. Supports only documented fields; see the configuration example. Supported buildPipelineStageType values: BUILD, DELIVER_ARTIFACT, TRIGGER_DEPLOYMENT_PIPELINE, WAIT. Example: {"buildPipelineStagePredecessorCollection":{"items":[{"id":"ocid1.resource.oc1..example"}]},"buildPipelineStageType":"BUILD","buildSourceCollection":{"items":[{"branch":"example","connectionType":"BITBUCKET_CLOUD","name":"example","repositoryUrl":"https://example.com/repository","connectionId":"ocid1.resource.oc1..example"}]},"image":"OL7_X86_64_STANDARD_10"}',
+        'Typed BuildPipelineStage configuration discriminated by buildPipelineStageType. Supports only documented fields; see the configuration example. Supported buildPipelineStageType values: BUILD, DELIVER_ARTIFACT, TRIGGER_DEPLOYMENT_PIPELINE, WAIT. Example: {"buildPipelineStagePredecessorCollection":{"items":[{"id":"ocid1.resource.oc1..example"}]},"buildPipelineStageType":"BUILD","buildSourceCollection":{"items":[{"branch":"example","connectionType":"BITBUCKET_CLOUD","name":"example","repositoryUrl":"https://example.com/repository","connectionId":"ocid1.resource.oc1..example"}]},"image":"OL8_X86_64_STANDARD_10"}',
     },
     retryToken: {
       type: 'string',

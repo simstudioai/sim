@@ -8,7 +8,8 @@ export const ociDevopsListRepositoriesTool: InternalToolConfig<
 > = {
   id: 'oci_devops_list_repositories',
   name: 'OCI DevOps List Repositories',
-  description: 'List Repositories in OCI DevOps',
+  description:
+    'List OCI DevOps repositories using exactly one compartment ID, project ID, or repository ID.',
   version: '1.0.0',
   params: {
     oauthCredential: {
@@ -27,19 +28,19 @@ export const ociDevopsListRepositoriesTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The OCID of the compartment in which to list resources.',
+      description: 'Compartment scope. Leave project ID and repository ID empty when provided.',
     },
     projectId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Project OCID. Provide a project ID or compartment ID to scope the list.',
+      description: 'Project scope. Leave compartment ID and repository ID empty when provided.',
     },
     repositoryId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unique repository identifier.',
+      description: 'Repository scope. Leave compartment ID and project ID empty when provided.',
     },
     lifecycleState: {
       type: 'string',

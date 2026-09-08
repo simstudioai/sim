@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const buildImageSchema = z.enum(['OL7_X86_64_STANDARD_10', 'OL8_X86_64_STANDARD_10'])
+
 /** OCI DevOps 20210630 request models. Unknown request fields are rejected. */
 const definedTagsSchema = z.record(
   z.string().max(255),
@@ -202,7 +204,7 @@ const createBuildStageDetailsSchema = z
     buildRunnerShapeConfig: buildRunnerShapeConfigSchema.optional(),
     buildSourceCollection: buildSourceCollectionSchema,
     buildSpecFile: z.string().max(8192).optional(),
-    image: z.literal('OL7_X86_64_STANDARD_10'),
+    image: buildImageSchema,
     primaryBuildSource: z
       .string()
       .min(1)
@@ -1379,7 +1381,7 @@ const updateBuildStageDetailsSchema = z
     buildRunnerShapeConfig: buildRunnerShapeConfigSchema.optional(),
     buildSourceCollection: buildSourceCollectionSchema.optional(),
     buildSpecFile: z.string().max(8192).optional(),
-    image: z.literal('OL7_X86_64_STANDARD_10').optional(),
+    image: buildImageSchema.optional(),
     primaryBuildSource: z
       .string()
       .min(1)
@@ -2751,7 +2753,7 @@ export const listRepositoriesInputSchema = z
     region: z.string().trim().min(1).max(255).optional(),
     compartmentId: z.string().trim().min(1).max(8192).optional(),
     projectId: z.string().trim().min(1).max(255).optional(),
-    repositoryId: z.string().max(8192).optional(),
+    repositoryId: z.string().trim().min(1).max(8192).optional(),
     lifecycleState: z.enum(['ACTIVE', 'CREATING', 'DELETED', 'FAILED', 'DELETING']).optional(),
     name: z.string().min(1).max(255).optional(),
     limit: z.number().int().min(1).max(100).default(50),
@@ -2760,10 +2762,16 @@ export const listRepositoriesInputSchema = z
     sortBy: z.enum(['timeCreated', 'name']).optional(),
   })
   .strict()
-  .refine((input) => input.compartmentId !== undefined || input.projectId !== undefined, {
-    message: 'Provide a compartment ID or project ID',
-    path: ['compartmentId'],
-  })
+  .refine(
+    (input) =>
+      [input.compartmentId, input.projectId, input.repositoryId].filter(
+        (value) => value !== undefined
+      ).length === 1,
+    {
+      message: 'Provide exactly one compartment ID, project ID, or repository ID',
+      path: ['compartmentId'],
+    }
+  )
 
 export const listTriggersInputSchema = z
   .object({

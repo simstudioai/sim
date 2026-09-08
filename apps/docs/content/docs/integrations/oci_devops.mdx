@@ -146,7 +146,7 @@ Create Build Pipeline Stage in OCI DevOps
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
 | `buildPipelineId` | string | Yes | The OCID of the build pipeline. |
-| `stage` | json | Yes | Typed BuildPipelineStage configuration discriminated by buildPipelineStageType. Supports only documented fields; see the configuration example. Supported buildPipelineStageType values: BUILD, DELIVER_ARTIFACT, TRIGGER_DEPLOYMENT_PIPELINE, WAIT. Example: \{"buildPipelineStagePredecessorCollection":\{"items":\[\{"id":"ocid1.resource.oc1..example"\}\]\},"buildPipelineStageType":"BUILD","buildSourceCollection":\{"items":\[\{"branch":"example","connectionType":"BITBUCKET_CLOUD","name":"example","repositoryUrl":"https://example.com/repository","connectionId":"ocid1.resource.oc1..example"\}\]\},"image":"OL7_X86_64_STANDARD_10"\} |
+| `stage` | json | Yes | Typed BuildPipelineStage configuration discriminated by buildPipelineStageType. Supports only documented fields; see the configuration example. Supported buildPipelineStageType values: BUILD, DELIVER_ARTIFACT, TRIGGER_DEPLOYMENT_PIPELINE, WAIT. Example: \{"buildPipelineStagePredecessorCollection":\{"items":\[\{"id":"ocid1.resource.oc1..example"\}\]\},"buildPipelineStageType":"BUILD","buildSourceCollection":\{"items":\[\{"branch":"example","connectionType":"BITBUCKET_CLOUD","name":"example","repositoryUrl":"https://example.com/repository","connectionId":"ocid1.resource.oc1..example"\}\]\},"image":"OL8_X86_64_STANDARD_10"\} |
 | `retryToken` | string | Yes | Stable idempotency token \(1–64 ASCII characters\). Reuse for retries of this action; use a new token for a new action. |
 
 #### Output
@@ -1507,7 +1507,7 @@ List Refs in OCI DevOps
 
 ### OCI DevOps List Repositories
 
-List Repositories in OCI DevOps
+List OCI DevOps repositories using exactly one compartment ID, project ID, or repository ID.
 
 #### Input
 
@@ -1515,9 +1515,9 @@ List Repositories in OCI DevOps
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | OCI API-key service-account credential ID |
 | `region` | string | No | OCI region; defaults to the credential region |
-| `compartmentId` | string | No | The OCID of the compartment in which to list resources. |
-| `projectId` | string | No | Project OCID. Provide a project ID or compartment ID to scope the list. |
-| `repositoryId` | string | No | Unique repository identifier. |
+| `compartmentId` | string | No | Compartment scope. Leave project ID and repository ID empty when provided. |
+| `projectId` | string | No | Project scope. Leave compartment ID and repository ID empty when provided. |
+| `repositoryId` | string | No | Repository scope. Leave compartment ID and project ID empty when provided. |
 | `lifecycleState` | string | No | A filter to return only resources whose lifecycle state matches the given lifecycle state. Allowed: ACTIVE, CREATING, DELETED, FAILED, DELETING. |
 | `name` | string | No | A filter to return only resources that match the entire name given. |
 | `limit` | number | No | The maximum number of items to return. |

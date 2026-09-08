@@ -16399,7 +16399,7 @@
         },
         {
           "name": "List Repositories",
-          "description": "List Repositories in OCI DevOps"
+          "description": "List OCI DevOps repositories using exactly one compartment ID, project ID, or repository ID."
         },
         {
           "name": "List Triggers",

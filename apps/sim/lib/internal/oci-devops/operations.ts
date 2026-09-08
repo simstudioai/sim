@@ -29,7 +29,7 @@ interface OperationDefinition {
   bodyFields: readonly string[]
   wrapper?: string
   parent?: string
-  status: number
+  status: number | readonly number[]
   list: boolean
   identity?: string
 }
@@ -74,7 +74,7 @@ export const operationDefinitions = {
       'freeformTags',
       'projectId',
     ],
-    status: 201,
+    status: [201, 202],
     list: false,
     identity: 'id',
   },
@@ -83,7 +83,7 @@ export const operationDefinitions = {
     path: '/buildPipelineStages',
     query: [],
     bodyFields: [],
-    status: 201,
+    status: [201, 202],
     list: false,
     wrapper: 'stage',
     parent: 'buildPipelineId',
@@ -101,7 +101,7 @@ export const operationDefinitions = {
       'displayName',
       'freeformTags',
     ],
-    status: 200,
+    status: [200, 202],
     list: false,
     identity: 'id',
   },
@@ -110,7 +110,7 @@ export const operationDefinitions = {
     path: '/connections',
     query: [],
     bodyFields: [],
-    status: 201,
+    status: [201, 202],
     list: false,
     wrapper: 'connection',
     parent: 'projectId',
@@ -216,7 +216,7 @@ export const operationDefinitions = {
     path: '/triggers',
     query: [],
     bodyFields: [],
-    status: 201,
+    status: [201, 202],
     list: false,
     wrapper: 'trigger',
     parent: 'projectId',
@@ -854,7 +854,7 @@ export const operationDefinitions = {
       'name',
       'repositoryType',
     ],
-    status: 200,
+    status: [200, 202],
     list: false,
     identity: 'id',
   },
@@ -1044,7 +1044,9 @@ export async function requestOciDevopsOperation(
                 : new TextEncoder().encode(JSON.stringify(body)),
             ...(tokenRetry ? { retry: tokenRetry } : {}),
           })
-  if (response.status !== definition.status) {
+  const acceptedStatuses =
+    typeof definition.status === 'number' ? [definition.status] : definition.status
+  if (!acceptedStatuses.includes(response.status)) {
     throw new OciClientError('request_failed', {
       status: response.status,
       opcRequestId: response.opcRequestId,

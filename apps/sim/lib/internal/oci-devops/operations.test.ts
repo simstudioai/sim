@@ -160,24 +160,171 @@ describe('OCI DevOps operations', () => {
     }
   )
 
-  it('submits a build with a caller-stable retry token, preserving acceptance and ETag', async () => {
-    mocks.request.mockResolvedValue(
-      response({ id: 'run', lifecycleState: 'ACCEPTED' }, 200, { etag: 'version-1' })
+  it.each([200, 202])(
+    'submits a build with HTTP %i and a stable token, preserving acceptance and ETag',
+    async (status) => {
+      mocks.request.mockResolvedValue(
+        response({ id: 'run', lifecycleState: 'ACCEPTED' }, status, { etag: 'version-1' })
+      )
+      const result = await execute('create_build_run', {
+        buildPipelineId: 'pipeline',
+        retryToken: 'submission-1',
+      })
+      const request = mocks.request.mock.calls[0][0]
+      expect(request.retry).toEqual({
+        kind: 'tokenized',
+        retryToken: 'submission-1',
+        maxAttempts: 3,
+      })
+      expect(JSON.parse(new TextDecoder().decode(request.body))).toEqual({
+        buildPipelineId: 'pipeline',
+      })
+      expect(result.output).toMatchObject({
+        accepted: true,
+        etag: 'version-1',
+        resource: { id: 'run', terminal: false, succeeded: null },
+      })
+      expect(mocks.request).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([
+    ['create_build_pipeline', { projectId: 'project', retryToken: 'stable' }, [201, 202]],
+    [
+      'create_build_pipeline_stage',
+      {
+        buildPipelineId: 'pipeline',
+        retryToken: 'stable',
+        stage: {
+          buildPipelineStageType: 'WAIT',
+          buildPipelineStagePredecessorCollection: { items: [{ id: 'pipeline' }] },
+          waitCriteria: { waitType: 'ABSOLUTE_WAIT', waitDuration: 'PT1S' },
+        },
+      },
+      [201, 202],
+    ],
+    [
+      'update_repository',
+      { repositoryId: 'repository', ifMatch: 'etag', description: 'reviewed' },
+      [200, 202],
+    ],
+  ] as const)(
+    'preserves documented and live success contracts for %s',
+    async (action, input, statuses) => {
+      for (const status of statuses) {
+        mocks.request.mockResolvedValue(
+          response({ id: 'resource', lifecycleState: 'ACTIVE' }, status, {
+            etag: 'version-2',
+            'opc-work-request-id': 'work',
+          })
+        )
+        expect((await execute(action, input)).output).toMatchObject({
+          accepted: true,
+          etag: 'version-2',
+          workRequestId: 'work',
+          resource: { id: 'resource' },
+        })
+      }
+      mocks.request.mockResolvedValue(response({ id: 'resource' }, 204))
+      await expect(execute(action, input)).rejects.toMatchObject({ status: 204 })
+    }
+  )
+
+  it('rejects combined repository scope before creating a client', async () => {
+    await expect(
+      execute('list_repositories', { compartmentId: 'compartment', projectId: 'project' })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(mocks.createClient).not.toHaveBeenCalled()
+  })
+
+  it.each([201, 202])(
+    'accepts trigger creation HTTP %i with projected metadata',
+    async (status) => {
+      mocks.request.mockResolvedValue(
+        response(
+          {
+            id: 'trigger',
+            projectId: 'project',
+            compartmentId: 'compartment',
+            triggerSource: 'DEVOPS_CODE_REPOSITORY',
+            repositoryId: 'repository',
+            actions: [{ type: 'TRIGGER_BUILD_PIPELINE', buildPipelineId: 'pipeline' }],
+            lifecycleState: 'ACTIVE',
+            webhookSecret: 'private',
+          },
+          status,
+          { etag: '"trigger-version"', 'opc-work-request-id': 'work' }
+        )
+      )
+      const result = await execute('create_trigger', {
+        projectId: 'project',
+        retryToken: 'stable',
+        trigger: {
+          triggerSource: 'DEVOPS_CODE_REPOSITORY',
+          repositoryId: 'repository',
+          actions: [{ type: 'TRIGGER_BUILD_PIPELINE', buildPipelineId: 'pipeline' }],
+        },
+      })
+      expect(result).toMatchObject({
+        success: true,
+        output: {
+          accepted: true,
+          requestId: 'request-1',
+          etag: '"trigger-version"',
+          workRequestId: 'work',
+          resource: { id: 'trigger', repositoryId: 'repository', lifecycleState: 'ACTIVE' },
+        },
+      })
+      expect(JSON.stringify(result)).not.toContain('private')
+      expect(mocks.request).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([
+    { status: 200, body: new TextEncoder().encode('{"id":"trigger"}'), errorStatus: 200 },
+    { status: 204, body: new Uint8Array(), errorStatus: 204 },
+    { status: 202, body: new Uint8Array(), errorStatus: 502 },
+    { status: 202, body: new TextEncoder().encode('{'), errorStatus: 502 },
+    { status: 202, body: new TextEncoder().encode('{"id":123}'), errorStatus: 502 },
+  ])('rejects invalid trigger creation response %j', async ({ status, body, errorStatus }) => {
+    mocks.request.mockResolvedValue({ ...response(null, status), body })
+    await expect(
+      execute('create_trigger', {
+        projectId: 'project',
+        retryToken: 'stable',
+        trigger: {
+          triggerSource: 'DEVOPS_CODE_REPOSITORY',
+          repositoryId: 'repository',
+          actions: [{ type: 'TRIGGER_BUILD_PIPELINE', buildPipelineId: 'pipeline' }],
+        },
+      })
+    ).rejects.toMatchObject({ status: errorStatus })
+    expect(mocks.request).toHaveBeenCalledOnce()
+  })
+
+  it('preserves a quoted trigger ETag through a conditional empty-body deletion', async () => {
+    const etag = '"trigger-version"'
+    mocks.request.mockResolvedValue(response({ id: 'trigger' }, 200, { etag }))
+    const read = await execute('get_trigger', { triggerId: 'trigger' })
+    mocks.request.mockResolvedValue({ ...response(null, 202), body: new Uint8Array() })
+    expect(
+      (await execute('delete_trigger', { triggerId: 'trigger', ifMatch: read.output.etag })).success
+    ).toBe(true)
+    expect(mocks.request.mock.calls[1][0]).toMatchObject({
+      method: 'DELETE',
+      encodedPath: '/20210630/triggers/trigger',
+      headers: { 'if-match': etag },
+    })
+    expect(mocks.request.mock.calls[1][0].retry).toBeUndefined()
+  })
+
+  it('does not reinterpret an original build-run provider 500 as acceptance', async () => {
+    mocks.request.mockRejectedValue(
+      new OciClientError('request_failed', { status: 500, opcRequestId: 'original-run' })
     )
-    const result = await execute('create_build_run', {
-      buildPipelineId: 'pipeline',
-      retryToken: 'submission-1',
-    })
-    const request = mocks.request.mock.calls[0][0]
-    expect(request.retry).toEqual({ kind: 'tokenized', retryToken: 'submission-1', maxAttempts: 3 })
-    expect(JSON.parse(new TextDecoder().decode(request.body))).toEqual({
-      buildPipelineId: 'pipeline',
-    })
-    expect(result.output).toMatchObject({
-      accepted: true,
-      etag: 'version-1',
-      resource: { id: 'run', terminal: false, succeeded: null },
-    })
+    await expect(
+      execute('create_build_run', { buildPipelineId: 'pipeline', retryToken: 'stable' })
+    ).rejects.toMatchObject({ status: 500, opcRequestId: 'original-run' })
     expect(mocks.request).toHaveBeenCalledOnce()
   })
 
@@ -220,24 +367,59 @@ describe('OCI DevOps operations', () => {
     expect(JSON.stringify(result)).not.toContain('sensitive diagnostic')
   })
 
-  it('translates a Vault reference into the documented connection body field', async () => {
-    mocks.request.mockResolvedValue(
-      response({ id: 'connection' }, 201, { 'opc-work-request-id': 'work' })
-    )
-    const result = await execute('create_connection', {
-      projectId: 'project',
-      retryToken: 'stable',
-      connection: {
+  it.each([201, 202])(
+    'preserves connection creation HTTP %i and Vault references',
+    async (status) => {
+      mocks.request.mockResolvedValue(
+        response({ id: 'connection', accessToken: 'private', lifecycleState: 'ACTIVE' }, status, {
+          etag: 'connection-version',
+          'opc-work-request-id': 'work',
+        })
+      )
+      const result = await execute('create_connection', {
+        projectId: 'project',
+        retryToken: 'stable',
+        connection: {
+          connectionType: 'GITHUB_ACCESS_TOKEN',
+          secretId: 'ocid1.vaultsecret.oc1..example',
+        },
+      })
+      expect(JSON.parse(new TextDecoder().decode(mocks.request.mock.calls[0][0].body))).toEqual({
+        projectId: 'project',
         connectionType: 'GITHUB_ACCESS_TOKEN',
-        secretId: 'ocid1.vaultsecret.oc1..example',
-      },
-    })
-    expect(JSON.parse(new TextDecoder().decode(mocks.request.mock.calls[0][0].body))).toEqual({
-      projectId: 'project',
-      connectionType: 'GITHUB_ACCESS_TOKEN',
-      accessToken: 'ocid1.vaultsecret.oc1..example',
-    })
-    expect(result.output.workRequestId).toBe('work')
+        accessToken: 'ocid1.vaultsecret.oc1..example',
+      })
+      expect(result.output).toMatchObject({
+        accepted: true,
+        etag: 'connection-version',
+        requestId: 'request-1',
+        workRequestId: 'work',
+        resource: { id: 'connection', lifecycleState: 'ACTIVE' },
+      })
+      expect(JSON.stringify(result)).not.toContain('private')
+      expect(mocks.request).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([
+    { status: 200, body: new TextEncoder().encode('{"id":"connection"}'), errorStatus: 200 },
+    { status: 204, body: new Uint8Array(), errorStatus: 204 },
+    { status: 202, body: new Uint8Array(), errorStatus: 502 },
+    { status: 202, body: new TextEncoder().encode('{'), errorStatus: 502 },
+    { status: 202, body: new TextEncoder().encode('{"id":123}'), errorStatus: 502 },
+  ])('rejects invalid connection creation response %j', async ({ status, body, errorStatus }) => {
+    mocks.request.mockResolvedValue({ ...response(null, status), body })
+    await expect(
+      execute('create_connection', {
+        projectId: 'project',
+        retryToken: 'stable',
+        connection: {
+          connectionType: 'GITHUB_ACCESS_TOKEN',
+          secretId: 'ocid1.vaultsecret.oc1..example',
+        },
+      })
+    ).rejects.toMatchObject({ status: errorStatus })
+    expect(mocks.request).toHaveBeenCalledOnce()
   })
 
   it('never retries a non-tokenized update or refreshes a rejected ETag', async () => {

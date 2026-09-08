@@ -13,7 +13,6 @@ describe('OCI DevOps request contracts', () => {
     'list_deploy_artifacts',
     'list_deploy_environments',
     'list_deploy_pipelines',
-    'list_repositories',
     'list_triggers',
   ] as const)(
     '%s accepts compartment or project scope but rejects unscoped discovery',
@@ -50,6 +49,23 @@ describe('OCI DevOps request contracts', () => {
     ).toBe(false)
   })
 
+  it('requires exactly one repository discovery scope', () => {
+    const schema = operationSchemas.list_repositories
+    for (const scope of [{ compartmentId: 'c' }, { projectId: 'p' }, { repositoryId: 'r' }]) {
+      expect(schema.safeParse({ ...credential, ...scope }).success).toBe(true)
+    }
+    for (const scope of [
+      {},
+      { compartmentId: 'c', projectId: 'p' },
+      { compartmentId: 'c', repositoryId: 'r' },
+      { projectId: 'p', repositoryId: 'r' },
+      { compartmentId: 'c', projectId: 'p', repositoryId: 'r' },
+      { repositoryId: ' ' },
+    ]) {
+      expect(schema.safeParse({ ...credential, ...scope }).success).toBe(false)
+    }
+  })
+
   it('requires explicit stable tokens and conditional ETags', () => {
     expect(
       operationSchemas.create_build_run.safeParse({ ...credential, buildPipelineId: 'p' }).success
@@ -65,7 +81,7 @@ describe('OCI DevOps request contracts', () => {
   it.each([
     {
       buildPipelineStageType: 'BUILD',
-      image: 'OL7_X86_64_STANDARD_10',
+      image: 'OL8_X86_64_STANDARD_10',
       buildSourceCollection: {
         items: [
           {
@@ -120,6 +136,22 @@ describe('OCI DevOps request contracts', () => {
       operationSchemas.update_build_pipeline_stage.safeParse({
         ...update,
         stage: { ...update.stage, image: 'OL7_X86_64_STANDARD_10' },
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts an OL8 image update and rejects undocumented images', () => {
+    const input = {
+      ...credential,
+      ifMatch: 'etag',
+      buildPipelineStageId: 'stage',
+      stage: { buildPipelineStageType: 'BUILD', image: 'OL8_X86_64_STANDARD_10' },
+    }
+    expect(operationSchemas.update_build_pipeline_stage.safeParse(input).success).toBe(true)
+    expect(
+      operationSchemas.update_build_pipeline_stage.safeParse({
+        ...input,
+        stage: { ...input.stage, image: 'invented-image' },
       }).success
     ).toBe(false)
   })
