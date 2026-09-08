@@ -627,6 +627,24 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  readSearchSourceOverview: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.overview',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readSearchSourceProgress: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.progress',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   listSearchIntegrations: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.list',

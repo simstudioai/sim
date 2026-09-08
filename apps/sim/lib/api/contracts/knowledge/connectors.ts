@@ -15,6 +15,9 @@ import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_SEARCH_SOURCE_PROGRESS_ITEMS,
+  MAX_SEARCH_SOURCE_PROVIDER_TYPES,
+  SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
 import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
 
@@ -61,6 +64,7 @@ export const deleteConnectorQuerySchema = z.object({
 })
 
 export const connectorDocumentsQuerySchema = z.object({
+  failedOnly: booleanQueryFlagSchema.optional().default(false),
   includeExcluded: booleanQueryFlagSchema.optional(),
   limit: z.coerce
     .number()
@@ -218,7 +222,12 @@ export type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
 
 export const connectorDocumentsDataSchema = z.object({
   documents: z.array(connectorDocumentDataSchema),
-  counts: z.object({ active: z.number(), excluded: z.number() }),
+  counts: z.object({
+    active: z.number().int().nonnegative(),
+    excluded: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative().default(0),
+  }),
+  hasMore: z.boolean().optional(),
 })
 export type ConnectorDocumentsData = z.output<typeof connectorDocumentsDataSchema>
 
@@ -322,6 +331,7 @@ const searchSourceSummaryFields = {
   lastSyncAt: z.string().datetime().nullable(),
   hasSyncError: z.boolean(),
   viewerDocumentCount: z.number().int().nonnegative(),
+  viewerFailedDocumentCount: z.number().int().nonnegative().default(0),
   viewerEmailVerified: z.boolean(),
 }
 
@@ -339,13 +349,74 @@ export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequire
 ])
 export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
 
+export const searchSourceCursorSchema = z.object({
+  createdAt: z.string().datetime(),
+  id: knowledgeConnectorParamsSchema.shape.connectorId.max(255),
+  scope: z.string().min(1).max(64),
+})
+
+export const listSearchSourcesQuerySchema = resourceOwnerSchema.safeExtend({
+  cursor: z.string().min(1).max(1024).optional(),
+  search: z.string().trim().max(200).optional(),
+  mine: booleanQueryFlagSchema.optional(),
+})
+export type ListSearchSourcesQuery = z.input<typeof listSearchSourcesQuerySchema>
+
+export const searchSourcePageSchema = z.object({
+  sources: z.array(searchSourceSummarySchema).max(SEARCH_SOURCE_PAGE_SIZE),
+  nextCursor: z.string().max(1024).nullable(),
+})
+export type SearchSourcePage = z.output<typeof searchSourcePageSchema>
+
 export const listSearchSourcesContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/sim-search/sources',
+  query: listSearchSourcesQuerySchema,
+  response: { mode: 'json', schema: successResponseSchema(searchSourcePageSchema) },
+})
+
+export const searchSourceOverviewSchema = z.object({
+  providers: z
+    .array(
+      z.object({
+        connectorType: z.string().min(1).max(100),
+        isSyncing: z.boolean(),
+      })
+    )
+    .max(MAX_SEARCH_SOURCE_PROVIDER_TYPES),
+  hasSearchableDocuments: z.boolean(),
+})
+export type SearchSourceOverview = z.output<typeof searchSourceOverviewSchema>
+
+export const readSearchSourceOverviewContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/sim-search/sources/overview',
   query: resourceOwnerSchema,
+  response: { mode: 'json', schema: successResponseSchema(searchSourceOverviewSchema) },
+})
+
+export const searchSourceProgressSchema = z.object({
+  connectorId: knowledgeConnectorParamsSchema.shape.connectorId,
+  isSyncing: z.boolean(),
+  hasSyncError: z.boolean(),
+  hasIndexingError: z.boolean(),
+})
+export type SearchSourceProgress = z.output<typeof searchSourceProgressSchema>
+
+export const readSearchSourceProgressContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/sim-search/sources/progress',
+  body: resourceOwnerSchema.safeExtend({
+    connectorIds: z
+      .array(knowledgeConnectorParamsSchema.shape.connectorId.max(255))
+      .min(1)
+      .max(MAX_SEARCH_SOURCE_PROGRESS_ITEMS),
+  }),
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.array(searchSourceSummarySchema)),
+    schema: successResponseSchema(
+      z.array(searchSourceProgressSchema).max(MAX_SEARCH_SOURCE_PROGRESS_ITEMS)
+    ),
   },
 })
 

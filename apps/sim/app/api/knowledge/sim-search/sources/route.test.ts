@@ -2,7 +2,7 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn(), connect: vi.fn() }))
+const mocks = vi.hoisted(() => ({ execute: vi.fn(), connect: vi.fn(), overview: vi.fn() }))
 vi.mock('@/lib/knowledge/application/sim-search', () => ({
   connectSimSearchConnector: {
     operation: { id: 'knowledge.simSearch.connect' },
@@ -11,6 +11,12 @@ vi.mock('@/lib/knowledge/application/sim-search', () => ({
 }))
 vi.mock('@/lib/knowledge/application/search-sources', () => ({
   listSearchSources: { operation: { id: 'knowledge.search.sources.list' }, execute: mocks.execute },
+}))
+vi.mock('@/lib/knowledge/application/search-source-overview', () => ({
+  readSearchSourceOverview: {
+    operation: { id: 'knowledge.search.sources.overview' },
+    execute: mocks.overview,
+  },
 }))
 vi.mock('@/lib/knowledge/application/search', () => ({
   KnowledgeSearchProvenanceUnavailableError: class extends Error {},
@@ -21,6 +27,7 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
 
 import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
 import { POST as connectSource } from '@/app/api/knowledge/sim-search/connect/route'
+import { GET as getOverview } from '@/app/api/knowledge/sim-search/sources/overview/route'
 import { GET } from '@/app/api/knowledge/sim-search/sources/route'
 
 const WORKSPACE_ID = '7d28e5e2-fb03-4118-9c52-4ab77ccff369'
@@ -36,6 +43,7 @@ const source = {
   lastSyncAt: null,
   hasSyncError: false,
   viewerDocumentCount: 0,
+  viewerFailedDocumentCount: 0,
   viewerEmailVerified: true,
   connectionRequired: false,
   viewerMembership: null,
@@ -47,7 +55,7 @@ beforeEach(() => {
     user: { id: 'reader' },
     session: { id: 'session' },
   })
-  mocks.execute.mockResolvedValue({ sources: [source] })
+  mocks.execute.mockResolvedValue({ sources: [source], nextCursor: null })
 })
 
 describe('GET Search sources', () => {
@@ -93,6 +101,7 @@ describe('GET Search sources', () => {
 
   it('passes the authenticated subject into the registered operation and projects only the contract fields', async () => {
     mocks.execute.mockResolvedValue({
+      nextCursor: null,
       sources: [
         {
           ...source,
@@ -113,8 +122,8 @@ describe('GET Search sources', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     const body = await response.json()
-    expect(body).toMatchObject({ success: true, data: [source] })
-    expect(body.data[0]).toEqual(source)
+    expect(body).toMatchObject({ success: true, data: { sources: [source], nextCursor: null } })
+    expect(body.data.sources[0]).toEqual(source)
     expect(mocks.execute).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: { kind: 'session', userId: 'reader', sessionId: 'session' },
@@ -151,5 +160,75 @@ describe('GET Search sources', () => {
     const body = await response.json()
     expect(body.error).toBe('Internal server error')
     expect(body).not.toHaveProperty('data')
+  })
+})
+
+describe('Search pagination boundary', () => {
+  it('forwards bounded source filters and opaque cursors to the authorized operation', async () => {
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost/api/knowledge/sim-search/sources?workspaceId=${WORKSPACE_ID}&search=Handbook&mine=true&cursor=opaque`
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { workspaceId: WORKSPACE_ID, search: 'Handbook', mine: true, cursor: 'opaque' },
+      })
+    )
+  })
+  it.each([`search=${'x'.repeat(201)}`, `cursor=${'x'.repeat(1025)}`])(
+    'rejects an oversized filter or cursor before source reads',
+    async (filter) => {
+      const response = await GET(
+        createMockRequest(
+          'GET',
+          undefined,
+          {},
+          `http://localhost/api/knowledge/sim-search/sources?workspaceId=${WORKSPACE_ID}&${filter}`
+        )
+      )
+      expect(response.status).toBe(400)
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
+  it('serves only the bounded provider overview through the registered operation', async () => {
+    mocks.overview.mockResolvedValue({
+      providers: [{ connectorType: 'google_drive', isSyncing: true }],
+      hasSearchableDocuments: false,
+      credentials: 'private',
+    })
+    const response = await getOverview(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost/api/knowledge/sim-search/sources/overview?workspaceId=${WORKSPACE_ID}`
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(await response.json()).toEqual({
+      success: true,
+      data: {
+        providers: [{ connectorType: 'google_drive', isSyncing: true }],
+        hasSearchableDocuments: false,
+      },
+    })
+    expect(mocks.overview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: { kind: 'session', userId: 'reader', sessionId: 'session' },
+        input: { workspaceId: WORKSPACE_ID },
+      })
+    )
+  })
+  it('authenticates before parsing the overview scope', async () => {
+    authMockFns.mockGetSession.mockResolvedValue(null)
+    const response = await getOverview(createMockRequest('GET'))
+    expect(response.status).toBe(401)
+    expect(mocks.overview).not.toHaveBeenCalled()
   })
 })

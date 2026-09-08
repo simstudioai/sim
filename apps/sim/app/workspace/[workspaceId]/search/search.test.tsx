@@ -40,10 +40,14 @@ vi.mock('@/hooks/queries/workspace', () => ({
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   searchSourceKeys: { list: (id: string) => ['search-sources', id] },
-  useSearchSources: (id: string) => {
-    mocks.sourceQuery(id)
+  useSearchSources: (id: string, options: { search: string }) => {
+    mocks.sourceQuery(id, options)
     return {
-      data: mocks.sources,
+      data: mocks.sources.filter((source) =>
+        `${source.connectorType.replaceAll('_', ' ')} ${source.sourceDescription}`
+          .toLowerCase()
+          .includes(options.search.trim().toLowerCase())
+      ),
       isPending: mocks.sourcePending,
       isError: Boolean(mocks.sourceError),
       error: mocks.sourceError,
@@ -168,7 +172,7 @@ describe('unified Search sources', () => {
     expect(button('Add source')).toBeUndefined()
     expect(button('Manage')).toBeUndefined()
     expect(button('Connect account')).toBeUndefined()
-    expect(mocks.sourceQuery).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.sourceQuery).toHaveBeenCalledWith('workspace-1', { search: '' })
     expect(mocks.setup).toHaveBeenLastCalledWith(expect.objectContaining({ canAdmin: false }))
   })
 

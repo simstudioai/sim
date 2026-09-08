@@ -11,6 +11,7 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
+import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
 import {
@@ -42,12 +43,12 @@ export function Search() {
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const { data: permissions } = useWorkspacePermissionsQuery(workspaceId)
   const canAdmin = permissions?.viewer?.isAdmin ?? false
-  const sources = useSearchSources(workspaceId)
   const shared = useWorkspaceMemberConnectors(workspaceId, { enabled: memberAccessAvailable })
   const [searchTerm, setSearchTermParam] = useQueryState(connectorSearchParam.key, {
     ...connectorSearchParam.parser,
     ...connectorSearchUrlKeys,
   })
+  const sources = useSearchSources(workspaceId, { search: searchTerm })
   const [, setSelectedType] = useQueryState(
     searchSetupParam.key,
     searchSetupParam.parser.withOptions({ history: 'replace' })
@@ -77,8 +78,7 @@ export function Search() {
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const matches = (type: string, description: string) =>
     `${connectorDisplayName(type)} ${description}`.toLowerCase().includes(normalizedSearch)
-  const visibleSources =
-    sources.data?.filter((source) => matches(source.connectorType, source.sourceDescription)) ?? []
+  const visibleSources = sources.data ?? []
   const sharedConnectors = memberAccessAvailable
     ? (shared.data?.filter(
         (source) =>
@@ -120,7 +120,7 @@ export function Search() {
             onChange={(event) => setSearchTerm(event.target.value)}
           />
           <IntegrationSection label='Sources' layout='list'>
-            {sources.isError ? (
+            {sources.isError && !sources.isFetchNextPageError ? (
               <SettingsQueryErrorState
                 error={sources.error}
                 fallback='Could not load sources'
@@ -149,7 +149,7 @@ export function Search() {
                   onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
                 />
               ))
-            ) : (
+            ) : !sources.hasNextPage ? (
               <SettingsEmptyState variant='inline'>
                 {normalizedSearch
                   ? 'No matching sources.'
@@ -157,6 +157,9 @@ export function Search() {
                     ? 'Add a source to start indexing documents for Search.'
                     : 'Your workspace hasn’t added any sources yet. Ask a workspace admin to get started.'}
               </SettingsEmptyState>
+            ) : null}
+            {(!sources.isError || sources.isFetchNextPageError) && (
+              <SearchSourcePagination {...sources} />
             )}
           </IntegrationSection>
           {memberAccessAvailable &&

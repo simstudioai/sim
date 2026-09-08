@@ -267,6 +267,7 @@ export function AddConnectorModal({
   const {
     sourceConfig,
     setSourceConfig,
+    selectionLabels,
     canonicalModes,
     setCanonicalModes,
     canonicalGroups,
@@ -280,6 +281,7 @@ export function AddConnectorModal({
     accessMode: access.accessMode,
     initialSourceConfig: draft?.sourceConfig,
     initialCanonicalModes: draft?.canonicalModes,
+    initialSelectionLabels: draft?.selectionLabels,
   })
 
   const indexingCredentialId = isApiKeyMode
@@ -307,6 +309,7 @@ export function AddConnectorModal({
     if (!setupDraftKey) return
     useConnectorSetupStore.getState().saveDraft(setupDraftKey, {
       sourceConfig,
+      selectionLabels,
       canonicalModes,
       accessMode: access.accessMode,
       credentialId: effectiveCredentialId,

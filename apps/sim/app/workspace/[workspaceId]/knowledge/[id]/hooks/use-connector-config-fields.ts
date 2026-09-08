@@ -2,6 +2,13 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  createSourceLabelMetadata,
+  normalizeSourceSelectionLabels,
+  SOURCE_LABELS_KEY,
+  type SourceSelectionLabel,
+  type SourceSelectionLabels,
+} from '@/lib/sim-search/source-identity'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
@@ -13,17 +20,23 @@ export interface UseConnectorConfigFieldsOptions {
   accessMode?: ConnectorAccessMode
   initialSourceConfig?: ConfigFieldMap
   initialCanonicalModes?: Record<string, 'basic' | 'advanced'>
+  initialSelectionLabels?: SourceSelectionLabels
 }
 
 export interface UseConnectorConfigFieldsResult {
   sourceConfig: ConfigFieldMap
+  selectionLabels: SourceSelectionLabels
   setSourceConfig: React.Dispatch<React.SetStateAction<ConfigFieldMap>>
   canonicalModes: Record<string, 'basic' | 'advanced'>
   setCanonicalModes: React.Dispatch<React.SetStateAction<Record<string, 'basic' | 'advanced'>>>
   canonicalGroups: Map<string, ConnectorConfigField[]>
   isFieldVisible: (field: ConnectorConfigField) => boolean
   isFieldPopulated: (field: ConnectorConfigField) => boolean
-  handleFieldChange: (fieldId: string, value: ConfigFieldValue) => void
+  handleFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
   toggleCanonicalMode: (canonicalId: string) => void
   resolveSourceConfig: () => Record<string, unknown>
 }
@@ -74,8 +87,19 @@ export function useConnectorConfigFields({
   accessMode = 'workspace',
   initialSourceConfig,
   initialCanonicalModes,
+  initialSelectionLabels,
 }: UseConnectorConfigFieldsOptions): UseConnectorConfigFieldsResult {
-  const [sourceConfig, setSourceConfig] = useState<ConfigFieldMap>(() => initialSourceConfig ?? {})
+  const [sourceConfig, setFieldValues] = useState<ConfigFieldMap>(() => initialSourceConfig ?? {})
+  const [selectionLabels, setSelectionLabels] = useState(() =>
+    normalizeSourceSelectionLabels(initialSelectionLabels)
+  )
+  const setSourceConfig = useCallback<React.Dispatch<React.SetStateAction<ConfigFieldMap>>>(
+    (value) => {
+      setFieldValues(value)
+      setSelectionLabels({})
+    },
+    []
+  )
   const [selectedCanonicalModes, setCanonicalModes] = useState<
     Record<string, 'basic' | 'advanced'>
   >(() => initialCanonicalModes ?? {})
@@ -167,8 +191,8 @@ export function useConnectorConfigFields({
   )
 
   const handleFieldChange = useCallback(
-    (fieldId: string, value: ConfigFieldValue) => {
-      setSourceConfig((prev) => {
+    (fieldId: string, value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => {
+      setFieldValues((prev) => {
         const next: ConfigFieldMap = { ...prev, [fieldId]: value }
         const toClear = dependentFieldIds.get(fieldId)
         if (toClear) {
@@ -176,11 +200,27 @@ export function useConnectorConfigFields({
         }
         return next
       })
+      setSelectionLabels((prev) => {
+        const next = { ...prev }
+        for (const id of [fieldId, ...(dependentFieldIds.get(fieldId) ?? [])]) {
+          delete next[fieldsById.get(id)?.canonicalParamId ?? id]
+        }
+        const canonicalId = fieldsById.get(fieldId)?.canonicalParamId ?? fieldId
+        return {
+          ...next,
+          ...normalizeSourceSelectionLabels({ [canonicalId]: selectedOptions }),
+        }
+      })
     },
     [dependentFieldIds, fieldsById]
   )
 
   const toggleCanonicalMode = useCallback((canonicalId: string) => {
+    setSelectionLabels((prev) => {
+      const next = { ...prev }
+      delete next[canonicalId]
+      return next
+    })
     setCanonicalModes((prev) => ({
       ...prev,
       [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
@@ -207,11 +247,14 @@ export function useConnectorConfigFields({
         resolved[field.id] = coerceForField(field, raw)
       }
     }
+    resolved[SOURCE_LABELS_KEY] =
+      createSourceLabelMetadata(connectorConfig, resolved, selectionLabels) ?? null
     return resolved
-  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig])
+  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig, selectionLabels])
 
   return {
     sourceConfig,
+    selectionLabels,
     setSourceConfig,
     canonicalModes,
     setCanonicalModes,

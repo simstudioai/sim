@@ -1,4 +1,4 @@
-import { listSearchSourcesContract } from '@/lib/api/contracts/knowledge'
+import { readSearchSourceOverviewContract } from '@/lib/api/contracts/knowledge/connectors'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
@@ -6,18 +6,18 @@ import {
 } from '@/lib/api/server/routes'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { listSearchSources } from '@/lib/knowledge/application/search-sources'
+import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
 
 export const GET = defineInternalJsonRoute({
-  contract: listSearchSourcesContract,
+  contract: readSearchSourceOverviewContract,
   auth: internalSessionAuth,
-  operation: knowledgeOperations.listSearchSources,
+  operation: knowledgeOperations.readSearchSourceOverview,
   rateLimit: internalRateLimits.none({
-    reason: 'Workspace source summaries for the Search page and indexing status polling',
+    reason: 'Bounded provider existence probes for source setup and indexing progress',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
   mapInput: ({ query }) => query,
-  useCase: listSearchSources,
-  present: (page) => ({ success: true as const, data: page }),
+  useCase: readSearchSourceOverview,
+  present: (overview) => ({ success: true as const, data: overview }),
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
 })

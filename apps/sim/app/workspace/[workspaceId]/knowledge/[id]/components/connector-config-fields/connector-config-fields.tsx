@@ -5,6 +5,7 @@ import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
@@ -29,7 +30,11 @@ export interface ConnectorConfigFieldsProps {
   /** Visibility predicate honoring `condition` / canonical mode. */
   isFieldVisible: (field: ConnectorConfigField) => boolean
   /** Field value change handler. */
-  onFieldChange: (fieldId: string, value: ConfigFieldValue) => void
+  onFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
   /** Swaps a canonical pair between selector and manual input. */
   onToggleCanonicalMode: (canonicalId: string) => void
   /** Disables configuration fields during submission. */
@@ -129,7 +134,9 @@ export function ConnectorConfigFields({
                 scope={scope}
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
                 value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
-                onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}
+                onChange={(value, selectedOptions) =>
+                  onFieldChange(field.id, value, selectedOptions)
+                }
                 credentialId={credentialId}
                 sourceConfig={sourceConfig}
                 configFields={connectorConfig.configFields}

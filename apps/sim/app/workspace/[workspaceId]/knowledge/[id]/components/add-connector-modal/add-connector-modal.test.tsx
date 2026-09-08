@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   accountsQuery: vi.fn(),
   configFields: vi.fn(),
+  resolveSourceConfig: vi.fn((): Record<string, unknown> => ({})),
   credentials: [] as Pick<Credential, 'id' | 'name' | 'type'>[],
   memberAccess: true,
   mirroredAccess: true,
@@ -149,7 +150,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config
     isFieldPopulated: () => true,
     handleFieldChange: vi.fn(),
     toggleCanonicalMode: vi.fn(),
-    resolveSourceConfig: () => ({}),
+    resolveSourceConfig: mocks.resolveSourceConfig,
   }),
 }))
 
@@ -212,6 +213,24 @@ afterEach(async () => {
 })
 
 describe('Slack member setup readiness', () => {
+  it('persists selector display metadata alongside the unchanged provider selection', async () => {
+    mocks.accountState = 'ready'
+    const sourceConfig = {
+      channel: ['channel-1'],
+      _sourceLabels: {
+        identity: 'saved-config-identity',
+        fields: { channel: [{ id: 'channel-1', label: 'Engineering' }] },
+      },
+    }
+    mocks.resolveSourceConfig.mockReturnValueOnce(sourceConfig)
+    await render()
+    await act(async () => button('Create & Invite').click())
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConfig }),
+      expect.any(Object)
+    )
+  })
+
   it('uses the organization account container and returns to organization setup', async () => {
     await render({ scope: { kind: 'organization', organizationId: 'org-1' } })
     expect(mocks.accountsQuery).toHaveBeenCalledWith('org-1')

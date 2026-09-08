@@ -5,7 +5,7 @@ description: Scheduled workflows, polling triggers, and the cron endpoints that 
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-A large part of Sim runs on a schedule rather than in response to a user request: scheduled workflows, every polling trigger, connector syncs, the outbox, data drains, and retention. All of it is driven by **HTTP endpoints that something external must call on a timer**.
+A large part of Sim runs on a schedule rather than in response to a user request: scheduled workflows, every polling trigger, connector syncs, the outbox, data drains, and retention. The default self-hosted scheduler calls **HTTP endpoints on a timer**. Deployments using Trigger.dev also run the document-indexing tasks described below.
 
 Both deployments ship a scheduler and enable it by default: Kubernetes as CronJobs, Docker Compose as a `cron` service. Both authenticate with `CRON_SECRET`, and both use the same schedules.
 
@@ -147,3 +147,16 @@ Scheduled execution volume is bounded per app instance by:
 </Callout>
 
 Raise the schedule limit only alongside memory headroom: concurrent executions run in the app process, so throughput is bounded by the pod's memory before it is bounded by this number.
+
+## Trigger.dev document indexing
+
+If Trigger.dev is enabled, document indexing uses a durable dispatch queue. Large imports wait in the database, and organizations share the existing worker budget. Temporary provider-capacity waits retry later without keeping a worker occupied. Default self-hosted installs continue to process documents in the app.
+
+When upgrading a deployment that uses Trigger.dev:
+
+1. Apply the database migrations before starting the new workers or application.
+2. Deploy the Trigger tasks from the same revision before deploying the application. New workers accept existing queued jobs as well as the new compact document references.
+3. Confirm the application and workers use the same database and Trigger environment. Verify that the `knowledge-document-dispatch-schedule` task is enabled; it runs every minute to resume delayed work and recover missed dispatch notifications.
+4. Sync a small source and confirm its documents become searchable. A successful sync only confirms the source was fetched; indexing can still be running.
+
+Enqueue and completion notifications normally start the next work promptly. The minute schedule provides recovery when a notification is missed; it does not repeatedly download documents. Keep the updated workers running until their durable queue has drained before rolling them back.

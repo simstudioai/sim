@@ -791,6 +791,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
     queueTableRows(document, [{ value: 5 }])
     queueTableRows(document, [{ value: 2 }])
+    queueTableRows(document, [{ value: 1 }])
     queueTableRows(document, [
       { id: 'document-3', filename: 'c.txt', userExcluded: false },
       { id: 'document-4', filename: 'd.txt', userExcluded: true },
@@ -813,7 +814,7 @@ describe('knowledge connector application use cases', () => {
         { id: 'document-3', filename: 'c.txt', userExcluded: false },
         { id: 'document-4', filename: 'd.txt', userExcluded: true },
       ],
-      counts: { active: 5, excluded: 2 },
+      counts: { active: 5, excluded: 2, failed: 1 },
       hasMore: false,
       offset: 2,
       limit: 2,

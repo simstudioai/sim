@@ -299,7 +299,8 @@ describe('migrated internal Knowledge routes', () => {
           processingStatus: 'completed',
         },
       ],
-      counts: { active: 1, excluded: 0 },
+      counts: { active: 1, excluded: 0, failed: 0 },
+      hasMore: false,
     })
     const params = Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' })
     const listResponse = await listConnectorDocuments(
@@ -314,12 +315,18 @@ describe('migrated internal Knowledge routes', () => {
         documents: [
           expect.objectContaining({ id: 'document-1', uploadedAt: '2026-01-01T00:00:00.000Z' }),
         ],
-        counts: { active: 1, excluded: 0 },
+        counts: { active: 1, excluded: 0, failed: 0 },
+        hasMore: false,
       },
     })
     expect(mocks.listConnectorDocuments).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        input: expect.objectContaining({ includeExcluded: true, limit: 25, offset: 50 }),
+        input: expect.objectContaining({
+          includeExcluded: true,
+          failedOnly: false,
+          limit: 25,
+          offset: 50,
+        }),
       })
     )
 

@@ -23,7 +23,7 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
 vi.mock('@/hooks/queries/kb/knowledge', () => ({ useWorkspaceKnowledgeSearch: mocks.search }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: () => ({ data: { knowledgeBaseId: 'index-a' }, isPending: false }),
-  useSearchSources: () => ({ data: [] }),
+  useSearchSourceOverview: () => ({ data: { providers: [], hasSearchableDocuments: true } }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/search-sources', () => ({
   isIndexing: () => false,

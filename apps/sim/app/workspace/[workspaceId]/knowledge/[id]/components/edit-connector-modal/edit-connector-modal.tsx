@@ -6,7 +6,6 @@ import {
   ButtonGroupItem,
   Chip,
   ChipCombobox,
-  ChipLink,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -15,10 +14,8 @@ import {
   ChipModalHeader,
   ChipModalTabs,
   type ComboboxOption,
-  Skeleton,
-  Tooltip,
 } from '@sim/emcn'
-import { Plus, RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
@@ -29,6 +26,11 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import {
+  readSourceSelectionLabels,
+  SOURCE_LABELS_KEY,
+  type SourceSelectionLabel,
+} from '@/lib/sim-search/source-identity'
 import {
   ConnectServiceAccountModal,
   useServiceAccountConnectTarget,
@@ -48,6 +50,7 @@ import {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import { ConnectorDocumentsTab } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-documents-tab'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type {
   ConfigFieldMap,
@@ -61,13 +64,7 @@ import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
-import {
-  useConnectorDocuments,
-  useExcludeConnectorDocument,
-  useRestoreConnectorDocument,
-  useUpdateConnector,
-  useUpdateConnectorAccess,
-} from '@/hooks/queries/kb/connectors'
+import { useUpdateConnector, useUpdateConnectorAccess } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -82,7 +79,12 @@ const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
 }
 
 /** Keys injected by the sync engine or modal state — not user-editable */
-const INTERNAL_CONFIG_KEYS = new Set(['tagSlotMapping', 'disabledTagIds', '_canonicalModes'])
+const INTERNAL_CONFIG_KEYS = new Set([
+  'tagSlotMapping',
+  'disabledTagIds',
+  '_canonicalModes',
+  SOURCE_LABELS_KEY,
+])
 
 const CANONICAL_MODES_KEY = '_canonicalModes'
 
@@ -106,7 +108,7 @@ function readPersistedCanonicalModes(
 }
 
 /**
- * Deep equality for sourceConfig values (string, string[], or undefined/null).
+ * Equality for sourceConfig values, including serialized source-label metadata.
  *
  * Empty string, empty array, and nullish are treated as equivalent to absence.
  * When either side is an array (multi-value field), both sides are normalized
@@ -147,6 +149,7 @@ function valuesEqual(a: unknown, b: unknown): boolean {
     const setA = new Set(arrA)
     return arrB.every((v) => setA.has(v))
   }
+  if (typeof a === 'object' || typeof b === 'object') return JSON.stringify(a) === JSON.stringify(b)
   return a === b
 }
 
@@ -233,6 +236,9 @@ export function EditConnectorModal({
   const [initialCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>(() =>
     readPersistedCanonicalModes(connector.sourceConfig)
   )
+  const [initialSelectionLabels] = useState(() =>
+    connectorConfig ? readSourceSelectionLabels(connectorConfig, connector.sourceConfig) : {}
+  )
 
   const {
     sourceConfig,
@@ -248,6 +254,7 @@ export function EditConnectorModal({
     accessMode: access.accessMode,
     initialSourceConfig,
     initialCanonicalModes,
+    initialSelectionLabels,
   })
 
   const { scope, canAdmin, memberAccessAvailable, mirroredAccessAvailable, hasMaxAccess } =
@@ -380,6 +387,7 @@ export function EditConnectorModal({
       } else {
         delete next[CANONICAL_MODES_KEY]
       }
+      if (next[SOURCE_LABELS_KEY] === null) delete next[SOURCE_LABELS_KEY]
       updates.sourceConfig = next
     }
 
@@ -516,7 +524,7 @@ export function EditConnectorModal({
             onWorkspaceCredentialChange={setWorkspaceCredentialId}
           />
         ) : (
-          <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
+          <ConnectorDocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
         )}
       </ChipModalBody>
 
@@ -555,7 +563,11 @@ interface SettingsTabProps {
   canonicalGroups: Map<string, ConnectorConfigField[]>
   canonicalModes: Record<string, 'basic' | 'advanced'>
   onToggleCanonicalMode: (canonicalId: string) => void
-  onFieldChange: (fieldId: string, value: ConfigFieldValue) => void
+  onFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
   isFieldVisible: (field: ConnectorConfigField) => boolean
   syncInterval: number
   setSyncInterval: (v: number) => void
@@ -857,110 +869,5 @@ function SettingsTab({
 
       <ChipModalError>{error}</ChipModalError>
     </>
-  )
-}
-
-interface DocumentsTabProps {
-  knowledgeBaseId: string
-  connectorId: string
-}
-
-function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
-  const [filter, setFilter] = useState<'active' | 'excluded'>('active')
-
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useConnectorDocuments(
-    knowledgeBaseId,
-    connectorId,
-    {
-      includeExcluded: true,
-    }
-  )
-
-  const { mutate: excludeDoc, isPending: isExcluding } = useExcludeConnectorDocument()
-  const { mutate: restoreDoc, isPending: isRestoring } = useRestoreConnectorDocument()
-
-  const documents = useMemo(() => {
-    const loadedDocuments = data?.pages.flatMap((page) => page.documents) ?? []
-    return loadedDocuments.filter((document) =>
-      filter === 'excluded' ? document.userExcluded : !document.userExcluded
-    )
-  }, [data?.pages, filter])
-
-  const counts = data?.pages[0]?.counts ?? { active: 0, excluded: 0 }
-  const visibleDocumentCount = filter === 'excluded' ? counts.excluded : counts.active
-  const hasMoreVisibleDocuments = Boolean(hasNextPage && documents.length < visibleDocumentCount)
-
-  if (isLoading) {
-    return (
-      <div className='flex flex-col gap-2 px-2'>
-        <Skeleton className='h-7 w-[180px] rounded-md' />
-        <Skeleton className='h-[30px] w-full rounded-lg' />
-        <Skeleton className='h-[30px] w-full rounded-lg' />
-        <Skeleton className='h-[30px] w-full rounded-lg' />
-      </div>
-    )
-  }
-
-  return (
-    <div className='flex flex-col gap-3 px-2'>
-      <ButtonGroup value={filter} onValueChange={(val) => setFilter(val as 'active' | 'excluded')}>
-        <ButtonGroupItem value='active'>Active ({counts.active})</ButtonGroupItem>
-        <ButtonGroupItem value='excluded'>Excluded ({counts.excluded})</ButtonGroupItem>
-      </ButtonGroup>
-
-      <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
-        {visibleDocumentCount === 0 ? (
-          <p className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-small'>
-            {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
-          </p>
-        ) : (
-          <div className='flex flex-col gap-0.5 pr-1'>
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                className='flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
-              >
-                <div className='flex min-w-0 items-center gap-1.5'>
-                  <span className='truncate text-[var(--text-primary)] text-small'>
-                    {doc.filename}
-                  </span>
-                  {doc.sourceUrl && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <ChipLink
-                          href={doc.sourceUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          leftIcon={SquareArrowUpRight}
-                          aria-label='Open source document'
-                        />
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>Open source document</Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                </div>
-                <Chip
-                  leftIcon={doc.userExcluded ? RefreshCw : undefined}
-                  className='shrink-0'
-                  disabled={doc.userExcluded ? isRestoring : isExcluding}
-                  onClick={() =>
-                    doc.userExcluded
-                      ? restoreDoc({ knowledgeBaseId, connectorId, documentIds: [doc.id] })
-                      : excludeDoc({ knowledgeBaseId, connectorId, documentIds: [doc.id] })
-                  }
-                >
-                  {doc.userExcluded ? 'Restore' : 'Exclude'}
-                </Chip>
-              </div>
-            ))}
-            {hasMoreVisibleDocuments && (
-              <Chip fullWidth disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>
-                {isFetchingNextPage ? 'Loading…' : 'Load more documents'}
-              </Chip>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
   )
 }

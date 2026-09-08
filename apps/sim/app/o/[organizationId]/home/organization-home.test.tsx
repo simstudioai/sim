@@ -28,7 +28,7 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSources: mocks.sources }))
+vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSourceOverview: mocks.sources }))
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
   MothershipChat: mocks.renderer,
@@ -47,7 +47,7 @@ beforeEach(() => {
     searchAccess: { memberScoped: true },
     viewer: { isAdmin: false },
   })
-  mocks.sources.mockReturnValue({ data: [] })
+  mocks.sources.mockReturnValue({ data: { providers: [], hasSearchableDocuments: false } })
   mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
   mocks.chat.mockReturnValue({ messages: [], isChatHistoryPending: true, sendMessage: mocks.send })
   mocks.composer.mockReturnValue(<div>Question composer</div>)

@@ -28,6 +28,7 @@ function source(overrides: Partial<SearchSourceSummary> = {}): SearchSourceSumma
     lastSyncAt: null,
     hasSyncError: false,
     viewerDocumentCount: 0,
+    viewerFailedDocumentCount: 0,
     viewerEmailVerified: true,
     connectionRequired: true,
     viewerMembership: 'invited',
@@ -151,6 +152,14 @@ describe('Search source viewer actions', () => {
       status: 'Sync needs attention · 4 searchable documents',
     },
     { change: { hasSyncError: true }, status: 'Sync needs admin attention' },
+    {
+      change: { viewerFailedDocumentCount: 1 },
+      status: "1 document couldn't be indexed",
+    },
+    {
+      change: { viewerFailedDocumentCount: 2, viewerDocumentCount: 4 },
+      status: "2 documents couldn't be indexed · 4 searchable documents",
+    },
     {
       change: { isSyncing: true, viewerDocumentCount: 4 },
       status: 'Indexing · 4 searchable documents',

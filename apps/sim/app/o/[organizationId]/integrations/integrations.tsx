@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import { Chip } from '@sim/emcn'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import {
-  connectorDisplayName,
   getConnectorAccessAvailability,
   SEARCH_CONNECTORS,
   SEARCH_SOURCE_TYPES,
@@ -14,6 +13,7 @@ import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import {
   SettingsEmptyState,
@@ -23,7 +23,11 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connectors'
+import {
+  searchSourceKeys,
+  useSearchSourceOverview,
+  useSearchSources,
+} from '@/hooks/queries/kb/connectors'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -45,10 +49,11 @@ export function OrganizationIntegrations() {
   useDesktopOAuthConnectListener()
   const { organization, searchAccess } = useOrganizationContext()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const sources = useSearchSources(scope)
+  const { tab, search } = useOrganizationPageFilters()
+  const sources = useSearchSources(scope, { search, mine: tab === 'mine' })
+  const overview = useSearchSourceOverview(scope)
   const integrations = useSearchIntegrations(organization.id)
   const availability = usePermissionConfig()
-  const { tab, search } = useOrganizationPageFilters()
   const membershipQueryKeys = useMemo(
     () => [searchSourceKeys.list({ kind: 'organization', organizationId: organization.id })],
     [organization.id]
@@ -65,21 +70,16 @@ export function OrganizationIntegrations() {
   const enrollment = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
   const query = search.trim().toLowerCase()
   const mineOnly = tab === 'mine'
-  const visibleSources =
-    sources.data?.filter(
-      (source) =>
-        (!mineOnly || source.viewerMembership === 'connected') &&
-        `${connectorDisplayName(source.connectorType)} ${source.sourceDescription}`
-          .toLowerCase()
-          .includes(query)
-    ) ?? []
+  const visibleSources = sources.data ?? []
 
   const approvedTypes = new Set(
     integrations.data
       ?.filter((integration) => integration.approved)
       .map((integration) => integration.connectorType)
   )
-  const configuredTypes = new Set(sources.data?.map((source) => source.connectorType))
+  const configuredTypes = new Set(
+    overview.data?.providers.map((provider) => provider.connectorType)
+  )
   const unconfigured = mineOnly
     ? []
     : SEARCH_SOURCE_TYPES.filter(
@@ -88,7 +88,14 @@ export function OrganizationIntegrations() {
           !configuredTypes.has(type) &&
           meta.name.toLowerCase().includes(query)
       )
-  const failedQuery = sources.isError ? sources : integrations.isError ? integrations : null
+  const failedQuery =
+    sources.isError && !sources.isFetchNextPageError
+      ? sources
+      : overview.isError
+        ? overview
+        : integrations.isError
+          ? integrations
+          : null
 
   return (
     <OrganizationPage
@@ -105,7 +112,20 @@ export function OrganizationIntegrations() {
             onRetry={() => void failedQuery.refetch()}
             variant='inline'
           />
-        ) : visibleSources.length > 0 || unconfigured.length > 0 ? (
+        ) : availability.integrationAvailabilityError ? (
+          <SettingsQueryErrorState
+            error={availability.integrationAvailabilityError}
+            fallback='Could not load connection availability'
+            isRetrying={availability.isIntegrationAvailabilityFetching}
+            onRetry={() => void availability.refetchIntegrationAvailability()}
+            variant='inline'
+          />
+        ) : sources.isPending ||
+          overview.isPending ||
+          integrations.isPending ||
+          !availability.isIntegrationAvailabilityReady ? (
+          <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+        ) : visibleSources.length > 0 || unconfigured.length > 0 || sources.hasNextPage ? (
           <>
             {unconfigured.map(([type, meta]) => {
               const connector = SEARCH_CONNECTORS.find((item) => item.type === type)
@@ -162,8 +182,9 @@ export function OrganizationIntegrations() {
                 onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
               />
             ))}
+            <SearchSourcePagination {...sources} />
           </>
-        ) : sources.isPending || integrations.isPending ? null : (
+        ) : (
           <SettingsEmptyState variant='inline'>
             {query
               ? 'No matching sources.'

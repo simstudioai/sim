@@ -71,6 +71,8 @@ export function SearchSourceRow({
       source.viewerDocumentCount > 0
         ? `Sync needs attention · ${count}`
         : 'Sync needs admin attention'
+  else if (source.viewerFailedDocumentCount > 0)
+    status = `${source.viewerFailedDocumentCount} document${source.viewerFailedDocumentCount === 1 ? '' : 's'} couldn't be indexed${source.viewerDocumentCount > 0 ? ` · ${count}` : ''}`
   else if (source.isSyncing)
     status = source.viewerDocumentCount > 0 ? `Indexing · ${count}` : 'Indexing'
   else if (source.viewerDocumentCount > 0) status = count

@@ -109,6 +109,14 @@ Workspace Search remains separate. Workspace admins add sources through **Search
 3. Ask a teammate with different source access to repeat the search. Documents restricted to you should not appear for them.
 4. Change or remove a test document's access in the source and check again after the next completed content and permission refresh.
 
-Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query. Admins can inspect errors and progress under **Manage**.
+Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query.
+
+## If indexing needs attention
+
+A completed sync means the source was checked; some documents may still be indexing. The source row shows how many documents you can search and whether indexing failed for any documents you can access.
+
+As an admin, open **Manage → Settings → Documents → Failed** to inspect those files. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; use the **Excluded** tab and **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+
+Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
 
 These guides cover permission-aware Search sources. For a general knowledge base used by workflows, see [Knowledge-base connectors](/knowledgebase/connectors); its workspace access settings are a separate choice.

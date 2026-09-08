@@ -158,6 +158,7 @@ export interface SyncKnowledgeConnectorInput extends KnowledgeConnectorApplicati
 }
 
 export interface ListKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
+  failedOnly?: boolean
   includeExcluded?: boolean
   limit?: number
   offset?: number
@@ -1137,7 +1138,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
       isNull(document.deletedAt),
       knowledgeAccessCondition(await context.access.get()),
     ] as const
-    const [[activeCount], excludedCountRows] = await Promise.all([
+    const [[activeCount], excludedCountRows, [failedCount]] = await Promise.all([
       db
         .select({ value: count() })
         .from(document)
@@ -1148,22 +1149,40 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
             .from(document)
             .where(and(...baseConditions, eq(document.userExcluded, true)))
         : Promise.resolve([{ value: 0 }]),
+      db
+        .select({ value: count() })
+        .from(document)
+        .where(
+          and(
+            ...baseConditions,
+            eq(document.userExcluded, false),
+            eq(document.processingStatus, 'failed')
+          )
+        ),
     ])
     const excludedCount = excludedCountRows[0]
     const rows = await db
       .select(connectorDocumentSelection)
       .from(document)
       .where(
-        and(...baseConditions, input.includeExcluded ? undefined : eq(document.userExcluded, false))
+        and(
+          ...baseConditions,
+          input.includeExcluded && !input.failedOnly ? undefined : eq(document.userExcluded, false),
+          input.failedOnly ? eq(document.processingStatus, 'failed') : undefined
+        )
       )
-      .orderBy(asc(document.userExcluded), asc(document.filename))
+      .orderBy(asc(document.userExcluded), asc(document.filename), asc(document.id))
       .limit(limit + 1)
       .offset(offset)
     const hasMore = rows.length > limit
     const documents = rows.slice(0, limit)
     return {
       documents,
-      counts: { active: activeCount?.value ?? 0, excluded: excludedCount?.value ?? 0 },
+      counts: {
+        active: activeCount?.value ?? 0,
+        excluded: excludedCount?.value ?? 0,
+        failed: failedCount?.value ?? 0,
+      },
       hasMore,
       offset,
       limit,

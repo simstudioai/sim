@@ -8,6 +8,7 @@ import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-s
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
 import {
@@ -83,7 +84,12 @@ export function OrganizationIntegrationsSetup() {
   const approvals = new Map(
     integrations.data?.map((integration) => [integration.connectorType, integration.approved])
   )
-  const failedQuery = sources.isError ? sources : integrations.isError ? integrations : null
+  const failedQuery =
+    sources.isError && !sources.isFetchNextPageError
+      ? sources
+      : integrations.isError
+        ? integrations
+        : null
 
   const confirmApproval = () => {
     if (!pendingApproval) return
@@ -202,6 +208,7 @@ export function OrganizationIntegrationsSetup() {
             )
           })
         )}
+        {!failedQuery && !integrationAvailabilityError && <SearchSourcePagination {...sources} />}
         {enrollment.error && (
           <p className='text-[var(--text-error)] text-caption'>{enrollment.error}</p>
         )}

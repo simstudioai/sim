@@ -16,17 +16,12 @@ import {
   isHttpUrl,
   type SourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
 import {
   resourceUrlKeys,
   searchFilterParsers,
   UPDATED_WINDOWS,
 } from '@/app/workspace/[workspaceId]/home/search-params'
-import {
-  useSearchIndex,
-  useSearchSources,
-  type WorkspaceMemberConnector,
-} from '@/hooks/queries/kb/connectors'
+import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 /** Filters appear only once a list is long and mixed enough for them to help. */
@@ -50,25 +45,6 @@ export function groupResultsByDocument(
     grouped.push(result)
   }
   return grouped
-}
-
-/**
- * The names of the sources still indexing for the viewer among the bases the
- * search spans, each once. A base outside the search cannot grow its results,
- * so its indexing is not the reader's concern here.
- */
-export function indexingSourceNames(
-  memberConnectors: readonly WorkspaceMemberConnector[],
-  knowledgeBaseIds: readonly string[]
-): string[] {
-  const searched = new Set(knowledgeBaseIds)
-  return [
-    ...new Set(
-      memberConnectors
-        .filter((connection) => searched.has(connection.knowledgeBaseId) && isIndexing(connection))
-        .map((connection) => connectorDisplayName(connection.connectorType))
-    ),
-  ]
 }
 
 /**
@@ -162,14 +138,10 @@ export function KnowledgeSearchResults({
     isError: searchFailed,
     refetch: refetchSearch,
   } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
-  const { data: sources = [] } = useSearchSources(scope)
-  const indexing = [
-    ...new Set(
-      sources
-        .filter((source) => source.isSyncing)
-        .map((source) => connectorDisplayName(source.connectorType))
-    ),
-  ]
+  const { data: overview } = useSearchSourceOverview(scope)
+  const indexing = (overview?.providers ?? [])
+    .filter((provider) => provider.isSyncing)
+    .map((provider) => connectorDisplayName(provider.connectorType))
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
   const sourceTypes = [
     ...new Set([
