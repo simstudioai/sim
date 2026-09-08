@@ -289,6 +289,8 @@ export async function executeOciSecretsOperation(
   let body: Record<string, unknown> | undefined
   let query: Record<string, string | number | undefined> = {}
   let expectedStatus = 200
+  let emptyResponse = false
+  let acceptsEmpty200 = false
   const page = {
     limit: 'limit' in input ? (input.limit ?? 100) : 100,
     page: 'page' in input ? input.page : undefined,
@@ -357,6 +359,13 @@ export async function executeOciSecretsOperation(
       path = `/20180608/secrets/${encodeURIComponent(input.secretId)}${versionPath}/actions/${action}`
       method = 'POST'
       expectedStatus = input.operation === 'rotate_secret' ? 202 : 204
+      emptyResponse = true
+      acceptsEmpty200 =
+        input.operation === 'schedule_secret_deletion' ||
+        input.operation === 'cancel_secret_deletion' ||
+        input.operation === 'schedule_secret_version_deletion' ||
+        input.operation === 'cancel_secret_version_deletion' ||
+        input.operation === 'change_secret_compartment'
       if (
         input.operation === 'schedule_secret_deletion' ||
         input.operation === 'schedule_secret_version_deletion'
@@ -475,7 +484,7 @@ export async function executeOciSecretsOperation(
         }
   )
   signal?.throwIfAborted()
-  if (response.status !== expectedStatus) {
+  if (response.status !== expectedStatus && !(acceptsEmpty200 && response.status === 200)) {
     throw new OciClientError('request_failed', {
       status: response.status,
       opcRequestId: response.opcRequestId,
@@ -497,7 +506,7 @@ export async function executeOciSecretsOperation(
   }
   if (input.operation.startsWith('list_'))
     output.nextPage = response.headers['opc-next-page'] ?? null
-  if (expectedStatus === 200) {
+  if (!emptyResponse) {
     const data = parseBody(response)
     try {
       switch (input.operation) {

@@ -208,6 +208,20 @@ describe('OCI Secrets provider operations', () => {
     expect(sent.retry).toBeUndefined()
   })
 
+  it.each([
+    'schedule_secret_deletion',
+    'cancel_secret_deletion',
+    'schedule_secret_version_deletion',
+    'cancel_secret_version_deletion',
+    'change_secret_compartment',
+  ])('accepts observed bodyless 200 for %s', async (operation) => {
+    request.mockResolvedValue({ ...response(undefined, 204), status: 200 })
+    const result = await executeOciSecretsOperation(client, input(operation))
+    expect(result.output).toEqual({ status: 200, opcRequestId: 'request-1', etag: 'etag-1' })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0].retry).toBeUndefined()
+  })
+
   it('reports accepted rotation and its work request without claiming completion', async () => {
     request.mockResolvedValue(response(undefined, 202))
     const result = await executeOciSecretsOperation(
