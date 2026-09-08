@@ -132,19 +132,20 @@ The run verified connection testing with a raw secret token, direct user
 assignment and creation with default mappings (including a minimal profile with
 no Mail or structured name attributes), structured-name and display-name
 updates, display-name precedence, repeated provisioning without duplicate
-accounts, unassignment deactivation, reactivation of the same account, an initial
-scheduled cycle, reconciliation, and overlapping token rotation. Entra continued
-to match the provisioned user after the old token was revoked; the old token
-returned 401 and the replacement returned 200. PostgreSQL checks confirmed stable
-SCIM and account IDs, retained membership on deactivation, and no implicit
-workspace grants.
+accounts, unassignment deactivation, reactivation of the same account, scheduled
+directory account disablement, reconciliation, and overlapping token rotation.
+Re-enabling the directory account and provisioning it on demand restored the same
+Sim account. Entra continued to match the provisioned user after the old token was
+revoked; the old token returned 401 and the replacement returned 200. PostgreSQL
+checks confirmed stable SCIM and account IDs, retained membership on deactivation,
+and no implicit workspace grants.
 
 The tenant used Entra ID Free. Live group provisioning and group access changes
 remain unverified because group assignment requires Premium. Directory account
-disablement and deletion also require a scheduled-cycle check; app unassignment
-was tested separately through on-demand provisioning. Synthetic users and a
-seeded verified domain were used, so this does not verify real DNS ownership,
-end-user SSO, or Microsoft gallery certification.
+deletion still requires a scheduled-cycle check. App unassignment was tested
+separately through on-demand provisioning. Synthetic users and a seeded verified
+domain were used, so this does not verify real DNS ownership, end-user SSO, or
+Microsoft gallery certification.
 
 ## Provider verification checklist
 
