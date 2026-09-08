@@ -7,12 +7,14 @@ import { Paragraph } from '@tiptap/extension-paragraph'
 import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
+import { splitBlockImageParagraph } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-image-paragraph'
 import { JoiningBulletList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/bullet-list'
 import { MarkdownCodeBlock } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block-schema'
 import { Highlight } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/highlight'
 import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
 import { MarkdownLinkInputRule } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/link-input-rule'
 import { joinListInputRules } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-input-rules'
+import { MarkdownListItem } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-item'
 import { MarkdownMention } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-node'
 import { SIM_LINK_SCHEME } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/sim-link'
 import { createJoiningOrderedList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/ordered-list'
@@ -142,6 +144,10 @@ function guardParagraphLeading(text: string): string {
  * paragraph renders as just its inline children; this override wraps that with the leading guard.
  */
 const BlockSafeParagraph = Paragraph.extend({
+  parseMarkdown: (token, helpers) => {
+    const parsed = Paragraph.config.parseMarkdown?.(token, helpers) ?? []
+    return Array.isArray(parsed) ? parsed : splitBlockImageParagraph(parsed)
+  },
   renderMarkdown: (node: JSONContent, h, context) => {
     if (!node.content?.length && context.parentType === 'blockquote') return '<p></p>'
     const rendered = h.renderChildren(node.content ?? [])
@@ -206,6 +212,7 @@ export function createMarkdownContentExtensions(
       paragraph: false,
       bulletList: false,
       orderedList: false,
+      listItem: false,
       document: false,
       hardBreak: false,
       /** Collaboration owns undo/redo whenever the document is shared. */
@@ -220,6 +227,7 @@ export function createMarkdownContentExtensions(
       },
     }),
     createJoiningOrderedList(),
+    MarkdownListItem,
     MarkdownHardBreak,
     InlineCode,
     Highlight,
@@ -228,6 +236,13 @@ export function createMarkdownContentExtensions(
     nodeViews.mention ?? MarkdownMention,
     TaskList,
     TaskItem.extend({
+      parseMarkdown: (token, helpers) => {
+        const parsed = TaskItem.config.parseMarkdown?.(token, helpers) ?? []
+        if (Array.isArray(parsed)) return parsed
+        const content = (parsed.content ?? []).flatMap(splitBlockImageParagraph)
+        if (content[0]?.type !== 'paragraph') content.unshift({ type: 'paragraph' })
+        return { ...parsed, content }
+      },
       addInputRules() {
         return excludeTableBlockInputRules(
           joinListInputRules(

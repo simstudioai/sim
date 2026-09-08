@@ -150,6 +150,37 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('![kept](/image)\n\n| h |\n| --- |\n| <img src="/image"> |')).toBe(false)
   })
 
+  it.each([
+    '# Before ![Image](/image.png) after',
+    '# [![Image](/image.png)](/destination)',
+    '# Before <img src="/image.png" width="320"> after',
+    'Before ![Image](/image.png) after\n===',
+    '> # Before ![Image](/image.png) after',
+    '- # Before ![Image](/image.png) after',
+    '| Header |\n| --- |\n| Before ![Image](/image.png) after |',
+    '| Before ![Image](/image.png) after |\n| --- |\n| Cell |',
+    '| Header |\n| --- |\n| [![Image](/image.png)](/destination) |',
+    '| Header |\n| --- |\n| ![Image][image] |\n\n[image]: /image.png',
+    '| Header |\n| --- |\n| Before <img src="/image.png" width="320"> after |',
+  ])('preserves unsupported heading or table images in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it.each([
+    '# Example `![Image](/image.png)`',
+    '# Example `<img src="/image.png">`',
+    '# Example <!-- <img src="/image.png"> -->',
+    '# Example \\![Image](/image.png)',
+    '| Header |\n| --- |\n| `![Image](/image.png)` |',
+    '| Header |\n| --- |\n| `<img src="/image.png">` |',
+    'Before ![Image](/image.png) after',
+    '- Before ![Image](/image.png) after',
+    '- [x] Before ![Image](/image.png) after',
+  ])('keeps literal image examples and supported block images editable: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(true)
+  })
+
   it('passes a code block followed by other content (idempotent block separation)', () => {
     expect(isRoundTripSafe('```\ncode\n```\n\ntext after')).toBe(true)
     expect(

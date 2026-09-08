@@ -293,6 +293,7 @@
         "heic-convert": "2.1.0",
         "heic-decode": "2.1.0",
         "html-to-text": "^9.0.5",
+        "htmlparser2": "10.1.0",
         "http-proxy-agent": "7.0.2",
         "https-proxy-agent": "7.0.6",
         "idb-keyval": "6.2.2",
