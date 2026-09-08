@@ -521,6 +521,46 @@ describe('OCI Queue operation contracts', () => {
     expect(request.mock.calls[0][0].encodedPath).toBe('/20210201/workRequests/work')
   })
 
+  it.each([null, undefined, timestamp])(
+    'normalizes pending or preserves populated work timestamps %s',
+    async (time) => {
+      const pending = {
+        ...work,
+        status: 'ACCEPTED',
+        percentComplete: 0,
+        ...(time === undefined ? {} : { timeStarted: time, timeFinished: time }),
+      }
+      const expected = {
+        ...work,
+        status: 'ACCEPTED',
+        percentComplete: 0,
+        ...(time == null ? {} : { timeStarted: time, timeFinished: time }),
+      }
+      request.mockResolvedValue(response(pending))
+      const detail = await run('get_work_request')
+      expect(JSON.parse(JSON.stringify(detail))).toMatchObject({ workRequest: expected })
+      request.mockResolvedValue(response({ items: [pending] }))
+      const list = await run('list_work_requests')
+      expect(JSON.parse(JSON.stringify(list))).toMatchObject({ workRequests: [expected] })
+      if (time == null) {
+        expect(JSON.stringify(detail)).not.toContain('timeStarted')
+        expect(JSON.stringify(detail)).not.toContain('timeFinished')
+        expect(JSON.stringify(list)).not.toContain('timeStarted')
+        expect(JSON.stringify(list)).not.toContain('timeFinished')
+      }
+    }
+  )
+
+  it.each([1, true])('rejects invalid work timestamps %s', async (time) => {
+    for (const field of ['timeStarted', 'timeFinished']) {
+      const invalid = { ...work, [field]: time }
+      request.mockResolvedValue(response(invalid))
+      await expect(run('get_work_request')).rejects.toThrow('invalid response')
+      request.mockResolvedValue(response({ items: [invalid] }))
+      await expect(run('list_work_requests')).rejects.toThrow('invalid response')
+    }
+  })
+
   it('enforces UTF-8 content and serialized batch byte limits before discovery', async () => {
     await expect(
       run('put_messages', { messages: [{ content: 'é'.repeat(131073) }] })

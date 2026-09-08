@@ -233,8 +233,14 @@ export const ociQueueWorkRequestSchema = z.object({
   compartmentId: z.string(),
   percentComplete: z.number(),
   timeAccepted: z.string(),
-  timeStarted: z.string().optional(),
-  timeFinished: z.string().optional(),
+  timeStarted: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  timeFinished: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
   resources: z.array(
     z.object({
       actionType: z.string(),
