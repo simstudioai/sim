@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, type ReactNode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -50,8 +50,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams.current,
 }))
 
-vi.mock('@tanstack/react-query', async () => {
-  const React = await import('react')
+vi.mock('@tanstack/react-query', () => {
   return {
     useQueryClient: () => ({
       cancelQueries: mockCancelQueries,
@@ -66,13 +65,13 @@ vi.mock('@tanstack/react-query', async () => {
       queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
       enabled?: boolean
     }) => {
-      const [state, setState] = React.useState<{
+      const [state, setState] = useState<{
         data: unknown
         error: unknown
         isPending: boolean
       }>({ data: undefined, error: null, isPending: true })
       const enabled = options.enabled !== false
-      React.useEffect(() => {
+      useEffect(() => {
         if (!enabled) return
         let cancelled = false
         options.queryFn({}).then(
@@ -108,10 +107,11 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: mockUseSession,
 }))
 
-vi.mock('@/app/invite/components', async () => ({
-  InvitationDisclosure: (await import('@/app/invite/components/invitation-disclosure'))
-    .InvitationDisclosure,
-  InviteLayout: ({ children }: { children: ReactNode }) => children,
+vi.mock('@/app/invite/components/layout', () => ({
+  default: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock('@/app/invite/components/status-card', () => ({
   InviteStatusCard: ({
     actions = [],
     description,
