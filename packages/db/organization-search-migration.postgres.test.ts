@@ -147,7 +147,7 @@ async function createMigrationFixture() {
 }
 
 describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay', () => {
-  it('preserves old uniqueness and data when a concurrent replacement fails, then replays after repair', async () => {
+  it('preserves data on duplicate failures and rebuilds the invalid index after duplicates are removed', async () => {
     const fixture = await createMigrationFixture()
     const { sql, schema } = fixture
     try {
@@ -158,11 +158,7 @@ describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay',
         await sql`SELECT indisvalid FROM pg_index
         WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique"`}::regclass`
       ).toEqual([{ indisvalid: false }])
-      await expect(fixture.migrate()).rejects.toMatchObject({
-        code: 'P0001',
-        message: expect.stringContaining('credential_group_workspace_unique'),
-        hint: expect.stringContaining('Repair the listed indexes'),
-      })
+      await expect(fixture.migrate()).rejects.toMatchObject({ code: '23505' })
       expect(await sql`SELECT id FROM credential_group`).toHaveLength(2)
       await expect(sql`INSERT INTO credential_group (id, workspace_id, name)
         VALUES ('third', 'workspace-a', 'First')`).rejects.toMatchObject({
@@ -170,13 +166,80 @@ describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay',
         constraint_name: 'credential_group_workspace_name_unique',
       })
       await sql`DELETE FROM credential_group WHERE id = 'duplicate'`
-      await sql.unsafe('DROP INDEX CONCURRENTLY credential_group_workspace_unique')
       await fixture.migrate()
+      expect(
+        await sql`SELECT indisvalid, indisready FROM pg_index
+        WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique"`}::regclass`
+      ).toEqual([{ indisvalid: true, indisready: true }])
+      expect(await sql`SELECT id FROM credential_group`).toEqual([{ id: 'first' }])
       await expect(sql`INSERT INTO credential_group (id, workspace_id, name)
         VALUES ('third', 'workspace-a', 'Different')`).rejects.toMatchObject({
         code: '23505',
         constraint_name: 'credential_group_workspace_unique',
       })
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('resumes index recovery after interruption between renaming and dropping the failed index', async () => {
+    const fixture = await createMigrationFixture()
+    const { sql, schema } = fixture
+    try {
+      await sql`INSERT INTO credential_group (id, workspace_id, name)
+        VALUES ('first', 'workspace-a', 'First'), ('duplicate', 'workspace-a', 'Second')`
+      await expect(fixture.migrate()).rejects.toMatchObject({ code: '23505' })
+      await sql`DELETE FROM credential_group WHERE id = 'duplicate'`
+      const recovery = fixture.statements.find((statement) =>
+        statement.includes('RENAME TO "credential_group_workspace_unique_failed_0326"')
+      )
+      expect(recovery).toBeDefined()
+      await sql.unsafe(recovery!)
+      await fixture.migrate()
+      expect(
+        await sql`SELECT indisvalid FROM pg_index
+        WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique"`}::regclass`
+      ).toEqual([{ indisvalid: true }])
+      expect(
+        await sql`SELECT to_regclass(${`"${schema}"."credential_group_workspace_unique_failed_0326"`}) AS recovery`
+      ).toEqual([{ recovery: null }])
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('does not drop a healthy index occupying the recovery name', async () => {
+    const fixture = await createMigrationFixture()
+    const { sql, schema } = fixture
+    try {
+      await sql.unsafe(
+        'CREATE INDEX credential_group_workspace_unique_failed_0326 ON credential_group (workspace_id)'
+      )
+      await expect(fixture.migrate()).rejects.toMatchObject({
+        code: 'P0001',
+        message: expect.stringContaining('Refusing to drop unexpected index'),
+      })
+      expect(
+        await sql`SELECT indisvalid FROM pg_index
+        WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique_failed_0326"`}::regclass`
+      ).toEqual([{ indisvalid: true }])
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('preserves the healthy workspace index when the migration is replayed', async () => {
+    const fixture = await createMigrationFixture()
+    const { sql, schema } = fixture
+    try {
+      await fixture.migrate()
+      const before = await sql`SELECT indexrelid::oid AS oid FROM pg_index
+        WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique"`}::regclass`
+      await fixture.migrate()
+      expect(
+        await sql`SELECT indexrelid::oid AS oid FROM pg_index
+        WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique"`}::regclass`
+      ).toEqual(before)
     } finally {
       await fixture.cleanup()
     }

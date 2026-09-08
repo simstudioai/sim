@@ -73,6 +73,21 @@ const WORKSPACE_PAYLOAD = {
   billingAttribution: BILLING_ATTRIBUTION,
 }
 
+const ORGANIZATION_PAYLOAD = {
+  ...BASE_PAYLOAD,
+  billingScope: 'organization' as const,
+  actorUserId: 'organization-member',
+  workspaceId: null,
+  organizationId: 'organization-1',
+  billingAttribution: {
+    ...BILLING_ATTRIBUTION,
+    actorUserId: 'organization-member',
+    workspaceId: null,
+    organizationId: 'organization-1',
+    billingEntity: { type: 'organization' as const, id: 'organization-1' },
+  },
+}
+
 function mockQuotaExhaustion(error: EmbeddingQuotaExhaustedError): void {
   mockProcessDocumentAsync.mockImplementation(async (...args: unknown[]) => {
     const attemptContext = args[6] as {
@@ -227,6 +242,36 @@ describe('knowledge processing worker', () => {
         scheduleQuotaContinuation: expect.any(Function),
       })
     )
+  })
+
+  it('preserves organization ownership and billing attribution in the worker', async () => {
+    await runDocumentProcessing(structuredClone(ORGANIZATION_PAYLOAD))
+
+    expect(mockProcessDocumentAsync).toHaveBeenCalledWith(
+      BASE_PAYLOAD.knowledgeBaseId,
+      BASE_PAYLOAD.documentId,
+      BASE_PAYLOAD.docData,
+      BASE_PAYLOAD.processingOptions,
+      {
+        billingScope: 'organization',
+        actorUserId: ORGANIZATION_PAYLOAD.actorUserId,
+        workspaceId: null,
+        organizationId: ORGANIZATION_PAYLOAD.organizationId,
+        billingAttribution: ORGANIZATION_PAYLOAD.billingAttribution,
+      },
+      BASE_PAYLOAD.requestId,
+      expect.objectContaining({
+        chargedAtDispatch: true,
+        processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
+      })
+    )
+  })
+
+  it('rejects an organization mismatch before document processing starts', async () => {
+    await expect(
+      runDocumentProcessing({ ...ORGANIZATION_PAYLOAD, organizationId: 'organization-2' })
+    ).rejects.toThrow('Document processing organization does not match billing attribution')
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
   it('rejects an actor mismatch before document processing starts', async () => {

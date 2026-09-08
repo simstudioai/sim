@@ -384,6 +384,31 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "credential_group_organization_id_idx" O
 --> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "credential_group_organization_unique" ON "credential_group" USING btree ("organization_id");
 --> statement-breakpoint
+-- A failed concurrent build leaves an INVALID index that IF NOT EXISTS skips.
+-- Rename only that failed index so it can be dropped concurrently outside this block.
+-- The recovery name also survives interruption between the rename and drop.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_index
+    WHERE indexrelid = to_regclass('"public"."credential_group_workspace_unique_failed_0326"')
+      AND (indisvalid OR indrelid <> '"public"."credential_group"'::regclass)
+  ) THEN
+    RAISE EXCEPTION 'Refusing to drop unexpected index credential_group_workspace_unique_failed_0326';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_index
+    WHERE indexrelid = to_regclass('"public"."credential_group_workspace_unique"')
+      AND indrelid = '"public"."credential_group"'::regclass
+      AND NOT indisvalid
+  ) THEN
+    ALTER INDEX "public"."credential_group_workspace_unique" RENAME TO "credential_group_workspace_unique_failed_0326";
+  END IF;
+END $$;
+--> statement-breakpoint
+-- migration-safe: Only the invalid workspace index left by 0326 is renamed above. Valid indexes and legacy uniqueness remain intact; the following statement rebuilds the failed index without removing rows.
+DROP INDEX CONCURRENTLY IF EXISTS "public"."credential_group_workspace_unique_failed_0326";
+--> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "credential_group_workspace_unique" ON "credential_group" USING btree ("workspace_id");
 --> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "doc_connector_source_lookup_idx" ON "document" USING btree ("connector_id","external_id");
