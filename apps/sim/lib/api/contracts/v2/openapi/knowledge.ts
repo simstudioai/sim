@@ -573,8 +573,14 @@ const declaredRoutes = [
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
-        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.',
-      errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
+        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`. Reranking returns `409` when the stored results cannot pass secret-provenance enforcement.',
+      errors: [
+        ...WORKSPACE_ERRORS,
+        'UsageLimitExceeded',
+        'NotFound',
+        'PayloadTooLarge',
+        'Conflict',
+      ],
       success: {
         description: 'Matching document chunks ordered by relevance.',
       },

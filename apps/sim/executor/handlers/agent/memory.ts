@@ -7,7 +7,6 @@ import { and, eq, sql } from 'drizzle-orm'
 import {
   bindDurableSecretProvenanceToValue,
   durableSecretProvenanceFromRegistry,
-  filterDurableSecretProvenanceBySourceValues,
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
@@ -16,7 +15,9 @@ import {
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
+import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import {
+  createMemorySecretProvenanceSelector,
   readBoundMemorySecretProvenance,
   replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
@@ -75,10 +76,62 @@ export class Memory {
         messages = stored.messages
     }
 
-    const selectedProvenance = filterDurableSecretProvenanceBySourceValues(
+    const selection = await createMemorySecretProvenanceSelector(
       stored.provenance,
-      messages
+      stored.messages,
+      workspaceId
     )
+    let includeRecovered = false
+    if (selection.recoveredEntryCount > 0 && ctx.resolvedSecretTraceRegistry) {
+      const scope = ctx.resolvedSecretTraceRegistry.exportProvenance().scope
+      const staged = new ResolvedSecretTraceRegistry([], scope, { staged: true })
+      staged.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+      includeRecovered =
+        (await importDurableSecretProvenance(
+          staged,
+          selection.select(messages, true),
+          messages,
+          'memory'
+        )) && staged.getModelEgressSnapshot().complete
+      if (includeRecovered) {
+        for (const message of messages) {
+          const stagedMessage = new ResolvedSecretTraceRegistry([], scope, { staged: true })
+          if (
+            !(await importDurableSecretProvenance(
+              stagedMessage,
+              selection.select([message], true),
+              message,
+              'memory'
+            )) ||
+            !stagedMessage.getModelEgressSnapshot().complete
+          ) {
+            includeRecovered = false
+            break
+          }
+        }
+      }
+      if (includeRecovered) {
+        /** Recheck and merge synchronously after the preflight's awaits, including sibling work. */
+        const current = new ResolvedSecretTraceRegistry([], scope, { staged: true })
+        current.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+        current.mergeToolCallRegistry(staged)
+        includeRecovered = current.getModelEgressSnapshot().complete
+        if (includeRecovered) ctx.resolvedSecretTraceRegistry.mergeToolCallRegistry(staged)
+      }
+    }
+    if (selection.recoveredEntryCount > 0 && !includeRecovered) {
+      logger.error('Historical memory secret provenance recovery was skipped', {
+        surface: 'memory',
+        cause: ctx.resolvedSecretTraceRegistry
+          ? 'legacy-recovery-capacity-exceeded'
+          : 'legacy-recovery-context-unavailable',
+        entryCount: selection.recoveredEntryCount,
+        workspaceId,
+      })
+    }
+    const selectProvenance = (values: readonly unknown[]) =>
+      selection.select(values, includeRecovered)
+    const selectedProvenance = selectProvenance(messages)
     /**
      * Unrecorded provenance is checked through the same policy the shared import uses, so stored
      * memory written by a run that could not vouch does not permanently refuse every later turn.
@@ -115,9 +168,7 @@ export class Memory {
 
     return Promise.all(
       messages.map(async (message) => {
-        const messageProvenance = filterDurableSecretProvenanceBySourceValues(selectedProvenance, [
-          message,
-        ])
+        const messageProvenance = selectProvenance([message])
         const modelRegistry = new ResolvedSecretTraceRegistry(
           [],
           ctx.resolvedSecretTraceRegistry?.exportProvenance().scope
@@ -168,7 +219,7 @@ export class Memory {
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    message = await this.maskContentForStorage(ctx, message)
+    message = this.sanitizeMessageForStorage(await this.maskContentForStorage(ctx, message))
 
     this.validateContent(message.content)
 
@@ -217,7 +268,9 @@ export class Memory {
     }
 
     messagesToStore = await Promise.all(
-      messagesToStore.map((message) => this.maskContentForStorage(ctx, message))
+      messagesToStore.map(async (message) =>
+        this.sanitizeMessageForStorage(await this.maskContentForStorage(ctx, message))
+      )
     )
 
     const provenance = ctx.resolvedSecretTraceRegistry
@@ -503,6 +556,7 @@ export class Memory {
     const sanitizedMessages = messages.map((message) => this.sanitizeMessageForStorage(message))
 
     await db.transaction(async (tx) => {
+      await lockMemoryConversationInTx(tx, workspaceId, key)
       const id = generateId()
       const [inserted] = await tx
         .insert(memory)
@@ -534,6 +588,7 @@ export class Memory {
     const sanitizedMessage = this.sanitizeMessageForStorage(message)
 
     await db.transaction(async (tx) => {
+      await lockMemoryConversationInTx(tx, workspaceId, key)
       const [existing] = await tx
         .select({
           id: memory.id,
@@ -586,11 +641,17 @@ export class Memory {
         })
         .where(eq(memory.id, existing.id))
       if (messageProvenance) {
+        const nextProvenance = mergeDurableSecretProvenance(previousProvenance, messageProvenance)
         await replaceMemorySecretProvenanceInTx(
           tx,
           existing.id,
           nextData,
-          mergeDurableSecretProvenance(previousProvenance, messageProvenance)
+          nextProvenance,
+          previousProvenance.status === 'unknown'
+            ? 'inherited-provenance-unknown'
+            : messageProvenance.status === 'exact' && nextProvenance.status === 'unknown'
+              ? 'merge-provenance-limit'
+              : undefined
         )
       }
     })

@@ -1317,7 +1317,7 @@
       "post": {
         "operationId": "searchKnowledge",
         "summary": "Search Knowledge",
-        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`. Reranking returns `409` when the stored results cannot pass secret-provenance enforcement.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.search",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -1368,6 +1368,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"

@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   oauth-postgres:
-    name: OAuth and SCIM PostgreSQL (${{ matrix.provision }})
+    name: PostgreSQL integration (${{ matrix.provision }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     strategy:
@@ -143,6 +143,16 @@ jobs:
             ${{ runner.temp }}/scim-http-status.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Verify durable provenance bindings and concurrent memory writes
+        working-directory: apps/sim
+        env:
+          TABLE_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+          MEMORY_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+        run: >-
+          bunx vitest run
+          lib/table/rows/secret-provenance.postgres.test.ts
+          lib/memory/message-provenance.postgres.test.ts
 
   test-build:
     name: Lint and Test

@@ -2,23 +2,31 @@
  * @vitest-environment node
  */
 import { document, embedding } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
+import type { DbTransaction } from '@/lib/db/types'
+import {
+  type DurableSecretProvenance,
+  hashDurableSecretProvenanceValue,
+} from '@/lib/execution/durable-secret-provenance'
 import {
   createKnowledgeDocumentSourceValue,
   importKnowledgePersistedResponseSecretProvenance,
   importKnowledgeSearchResultSecretProvenance,
   loadKnowledgeDocumentSecretRegistry,
   readBoundKnowledgeDocumentSecretProvenance,
+  replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockDecryptSecret, mockIsEnforced, mockReport } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockIsEnforced: vi.fn(() => false),
-  mockReport: vi.fn(),
-}))
+const { mockDecryptSecret, mockIsEnforced, mockReport, mockReportWrite, mockReportRefusal } =
+  vi.hoisted(() => ({
+    mockDecryptSecret: vi.fn(),
+    mockIsEnforced: vi.fn(() => false),
+    mockReport: vi.fn(),
+    mockReportWrite: vi.fn(),
+    mockReportRefusal: vi.fn(),
+  }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
@@ -27,6 +35,8 @@ vi.mock('@/lib/core/security/encryption', () => ({
 vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
   isDurableSecretProvenanceEnforced: mockIsEnforced,
   reportUnrecordedDurableProvenance: mockReport,
+  reportDurableSecretProvenanceWrite: mockReportWrite,
+  reportDurableSecretProvenanceRefusal: mockReportRefusal,
 }))
 
 const DOCUMENT_SOURCE = createKnowledgeDocumentSourceValue({
@@ -126,6 +136,43 @@ describe('knowledge durable secret provenance', () => {
         { status: 'unknown' }
       )
     ).rejects.toThrow('Knowledge document secret provenance is unavailable')
+    expect(mockReportRefusal).toHaveBeenCalledWith({
+      surface: 'knowledge',
+      cause: 'knowledge-document-source-unavailable',
+      workspaceId: 'workspace-1',
+      resourceId: DOCUMENT_ROW.id,
+    })
+  })
+
+  it.each([
+    [{ status: 'unknown' }, 'source-provenance-unknown'],
+    [{ status: 'exact', entries: [{ encryptedValue: '' }] }, 'invalid-provenance-entries'],
+  ] satisfies [DurableSecretProvenance, string][])(
+    'reports a non-exact document write without source values',
+    async (provenance, cause) => {
+      await replaceKnowledgeDocumentSecretProvenanceInTx(
+        dbChainMock.db as unknown as DbTransaction,
+        DOCUMENT_ROW.id,
+        DOCUMENT_SOURCE,
+        provenance
+      )
+      expect(mockReportWrite).toHaveBeenCalledExactlyOnceWith({
+        surface: 'knowledge',
+        status: 'unknown',
+        cause,
+        resourceId: DOCUMENT_ROW.id,
+      })
+    }
+  )
+
+  it('does not report an exact-empty document write as a writer failure', async () => {
+    await replaceKnowledgeDocumentSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      DOCUMENT_ROW.id,
+      DOCUMENT_SOURCE,
+      { status: 'exact', entries: [] }
+    )
+    expect(mockReportWrite).not.toHaveBeenCalled()
   })
 
   it('marks a fresh exact-empty source as tracked without creating a registry', async () => {

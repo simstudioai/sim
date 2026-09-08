@@ -6,9 +6,14 @@ import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
+const { mockIsEnforced, mockReport, mockError } = vi.hoisted(() => ({
   mockIsEnforced: vi.fn(() => false),
   mockReport: vi.fn(),
+  mockError: vi.fn(),
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ error: mockError, warn: vi.fn() }),
 }))
 
 vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
@@ -61,10 +66,10 @@ describe('table row secret provenance', () => {
     mockIsEnforced.mockReturnValue(false)
   })
 
-  it('checks a version-pinned table with one bounded unsafe-row query', async () => {
+  it('checks a version-pinned table with one aggregate rather than loading its rows', async () => {
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
-    queueTableRows(userTableRows, [])
+    queueTableRows(userTableRows, [{ unsafeCount: 0, unrecordedCount: 0 }])
 
     await expect(
       getTableSnapshotModelMountSafety({
@@ -74,13 +79,13 @@ describe('table row secret provenance', () => {
       })
     ).resolves.toBe('safe')
 
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
   it('classifies unsafe provenance after confirming the snapshot remains current', async () => {
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
-    queueTableRows(userTableRows, [{ id: 'unsafe-row' }])
+    queueTableRows(userTableRows, [{ unsafeCount: 1, unrecordedCount: 3 }])
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
 
     await expect(
@@ -91,13 +96,14 @@ describe('table row secret provenance', () => {
       })
     ).resolves.toBe('unsafe-provenance')
 
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+    expect(mockReport).not.toHaveBeenCalled()
   })
 
   it('rejects a snapshot when the table changes during the safety check', async () => {
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
     queueTableRows(userTableDefinitions, [{ rowsVersion: 8 }])
-    queueTableRows(userTableRows, [])
+    queueTableRows(userTableRows, [{ unsafeCount: 0, unrecordedCount: 3 }])
 
     await expect(
       getTableSnapshotModelMountSafety({
@@ -106,7 +112,35 @@ describe('table row secret provenance', () => {
         rowsVersion: 7,
       })
     ).resolves.toBe('stale')
+    expect(mockReport).not.toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'applies the table-row enforcement policy to snapshot absences (%s)',
+    async (enforced) => {
+      mockIsEnforced.mockReturnValue(enforced)
+      queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
+      queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
+      queueTableRows(userTableRows, [{ unsafeCount: '0', unrecordedCount: '3' }])
+
+      await expect(
+        getTableSnapshotModelMountSafety({
+          tableId: 'table-1',
+          workspaceId: 'workspace-1',
+          rowsVersion: 7,
+        })
+      ).resolves.toBe(enforced ? 'unsafe-provenance' : 'safe')
+
+      if (enforced) expect(mockReport).not.toHaveBeenCalled()
+      else
+        expect(mockReport).toHaveBeenCalledExactlyOnceWith({
+          surface: 'table-row',
+          cause: 'row-sidecar-not-exact',
+          affectedCount: 3,
+          workspaceId: 'workspace-1',
+        })
+    }
+  )
 
   it('keeps untouched legacy rows readable with exact-empty provenance', async () => {
     queueTableRows(userTableRows, [
@@ -526,7 +560,7 @@ describe('table row secret provenance', () => {
     })
 
     expect(pendingRowsFromLastExecute()).toEqual([
-      { row_id: 'tracked-row', status: 'unknown', entries: [] },
+      { row_id: 'tracked-row', status: 'unknown', entries: [], cause: 'merge-base-unvouchable' },
     ])
   })
 
@@ -535,7 +569,7 @@ describe('table row secret provenance', () => {
       rows: [
         {
           rowId: 'missing-row',
-          provenance: { complete: true, columns: {} },
+          provenance: { complete: false, columns: {} },
         },
       ],
       rowState: 'new',
@@ -546,6 +580,55 @@ describe('table row secret provenance', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(dbChainMockFns.for).not.toHaveBeenCalled()
     expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+    expect(mockError).not.toHaveBeenCalled()
+  })
+
+  it('does not report a planned unrecorded write when the mutation throws', async () => {
+    await expect(
+      mutateTableRowsWithSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
+        rows: [{ rowId: 'missing-row', provenance: { complete: false, columns: {} } }],
+        rowState: 'new',
+        mode: 'replace',
+        mutate: async () => {
+          throw new Error('Mutation failed')
+        },
+      })
+    ).rejects.toThrow('Mutation failed')
+    expect(mockError).not.toHaveBeenCalled()
+  })
+
+  it('reports only bound ordinary writes with their canonical table and workspace', async () => {
+    dbChainMockFns.execute.mockResolvedValueOnce([
+      {
+        workspaceId: 'workspace-1',
+        tableId: 'table-1',
+        cause: 'incoming-provenance-incomplete',
+        rowCount: 1,
+      },
+    ])
+    await mutateTableRowsWithSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
+      rows: ['bound-row', 'unaffected-row'].map((rowId) => ({
+        rowId,
+        provenance: { complete: false, columns: {} },
+      })),
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => ({ value: undefined, affectedRowIds: ['bound-row'] }),
+    })
+    expect(mockError).toHaveBeenCalledExactlyOnceWith(
+      'Table row write staged unrecorded secret provenance',
+      {
+        surface: 'table-row',
+        cause: 'incoming-provenance-incomplete',
+        mode: 'replace',
+        rowCount: 1,
+        workspaceId: 'workspace-1',
+        tableId: 'table-1',
+      }
+    )
+    expect(mockError.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dbChainMockFns.execute.mock.invocationCallOrder[0]
+    )
   })
 
   it('binds exact provenance for a new row without a pre-insert read', async () => {
@@ -611,6 +694,47 @@ describe('table row secret provenance', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('attributes derived unrecorded writes after their sidecars and markers are bound', async () => {
+    queueTableRows(userTableRows, [{ id: 'unknown-row' }, { id: 'malformed-row' }])
+    dbChainMockFns.execute.mockResolvedValueOnce([
+      {
+        workspaceId: 'workspace-1',
+        tableId: 'table-1',
+        cause: 'derived-base-unvouchable',
+        rowCount: 1,
+      },
+      {
+        workspaceId: 'workspace-1',
+        tableId: 'table-1',
+        cause: 'derived-base-unnormalizable',
+        rowCount: 1,
+      },
+    ])
+
+    await updateTableRowsWithDerivedSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
+      rowWhere: eq(userTableRows.tableId, 'table-1'),
+      transformation: { mode: 'remove-columns', columnIds: ['deleted-column'] },
+    })
+
+    expect(mockError).toHaveBeenCalledTimes(2)
+    for (const cause of ['derived-base-unvouchable', 'derived-base-unnormalizable']) {
+      expect(mockError).toHaveBeenCalledWith(
+        'Table row write staged unrecorded secret provenance',
+        {
+          surface: 'table-row',
+          cause,
+          mode: 'remove-columns',
+          rowCount: 1,
+          workspaceId: 'workspace-1',
+          tableId: 'table-1',
+        }
+      )
+    }
+    expect(mockError.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dbChainMockFns.execute.mock.invocationCallOrder[1]
+    )
   })
 
   it('preserves legacy fork compatibility without manufacturing provenance', () => {
