@@ -1066,6 +1066,11 @@ export async function deleteKnowledgeBase(
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
+    /**
+     * Soft deletion leaves the referenced key intact. Allow embedding inserts to
+     * take their foreign-key KEY SHARE lock while holding a document row lock,
+     * so they can finish before we archive that document without a lock cycle.
+     */
     const [locked] = await tx
       .select({
         id: knowledgeBase.id,
@@ -1084,7 +1089,7 @@ export async function deleteKnowledgeBase(
         )
       )
       .limit(1)
-      .for('update')
+      .for('no key update')
     if (!locked) throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     if (locked.isSearchIndex && !options?.allowSearchIndexDelete) {
       throw new KnowledgeBasePermissionError('Only workspace admins can delete the search index')
