@@ -502,6 +502,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build application
+        id: app_build
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
@@ -513,3 +514,22 @@ jobs:
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=@sim/app
+
+      - name: Identify conflicting Turbopack modules
+        if: ${{ failure() && steps.app_build.outcome == 'failure' }}
+        run: |
+          bun --eval '
+          const { execFileSync } = require("node:child_process")
+          const { readdirSync, readFileSync } = require("node:fs")
+          const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean)
+          const directory = "apps/sim/.next"
+          function sources(map) {
+            return [...(map.sources ?? []), ...(map.sections ?? []).flatMap(section => sources(section.map))]
+          }
+          for (const file of readdirSync(directory).filter(name => /^[0-9a-f]{16}\.map$/.test(name))) {
+            const map = JSON.parse(readFileSync(`${directory}/${file}`, "utf8"))
+            const paths = sources(map).map(source => source.split("?")[0].replace(/ \[.*$/, ""))
+            const matched = tracked.filter(path => paths.some(source => source === path || source.endsWith(`/${path}`)))
+            process.stdout.write(JSON.stringify({ diagnostic: file, trackedFiles: matched }) + "\n")
+          }
+          '
