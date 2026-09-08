@@ -117,10 +117,36 @@ token rotation, and downstream group deletion. Resulting names, memberships,
 and grants were checked in PostgreSQL as well as the admin interfaces.
 
 This used synthetic users and a seeded verified test domain. It did not exercise
-real DNS ownership verification, an end-user SSO login, or a Microsoft Entra
-tenant. It is a provider interoperability check, not OIN certification.
+real DNS ownership verification or an end-user SSO login. It is a provider
+interoperability check, not OIN certification.
 
-## Remaining provider verification
+## Live Microsoft Entra verification
+
+A non-gallery enterprise application has been exercised through the Azure
+portal against an isolated Sim organization over HTTPS. The
+[Microsoft Entra guide](../../../docs/content/docs/platform/enterprise/scim/entra.mdx)
+includes the connection, scope, and on-demand screens with private details
+redacted.
+
+The run verified connection testing with a raw secret token, direct user
+assignment and creation with default mappings (including a minimal profile with
+no Mail or structured name attributes), structured-name and display-name
+updates, display-name precedence, repeated provisioning without duplicate
+accounts, unassignment deactivation, reactivation of the same account, an initial
+scheduled cycle, reconciliation, and overlapping token rotation. Entra continued
+to match the provisioned user after the old token was revoked; the old token
+returned 401 and the replacement returned 200. PostgreSQL checks confirmed stable
+SCIM and account IDs, retained membership on deactivation, and no implicit
+workspace grants.
+
+The tenant used Entra ID Free. Live group provisioning and group access changes
+remain unverified because group assignment requires Premium. Directory account
+disablement and deletion also require a scheduled-cycle check; app unassignment
+was tested separately through on-demand provisioning. Synthetic users and a
+seeded verified domain were used, so this does not verify real DNS ownership,
+end-user SSO, or Microsoft gallery certification.
+
+## Provider verification checklist
 
 Before claiming a provider integration has been validated, use an actual Okta
 or Microsoft Entra tenant to run its connection test and provisioning job against

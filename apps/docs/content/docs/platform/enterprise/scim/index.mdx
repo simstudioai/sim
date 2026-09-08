@@ -84,12 +84,14 @@ Okta never deletes users over SCIM. Unassigning someone, or deactivating them in
 </Tab>
 <Tab value="Microsoft Entra ID">
 
-In your enterprise application, open **Provisioning** and set Provisioning Mode to **Automatic**.
+For a step-by-step walkthrough, see [Microsoft Entra provisioning](/platform/enterprise/scim/entra).
+
+Create a non-gallery enterprise application. Open **Provisioning → New configuration** and choose **Bearer authentication**. In the legacy experience, set Provisioning Mode to **Automatic** instead.
 
 - **Tenant URL**: `https://<your-sim-domain>/api/scim/v2`
-- **Secret Token**: your Sim token
+- **Secret token**: your Sim token, without a `Bearer ` prefix
 
-Select **Test Connection**, then save and start provisioning.
+Test the connection and create the configuration. Keep **Sync only assigned users and groups** as the scope, assign a test user, and verify them with **Provision on demand** before starting automatic provisioning. Group provisioning requires Entra ID P1 or higher; individual user provisioning is available on the Free plan.
 
 Entra runs an initial cycle over everyone in scope, then incremental cycles roughly every 40 minutes. Unassignment normally sends a deactivation. Soft-deleted directory users are retained for 30 days; hard deletion can then send a SCIM DELETE during a provisioning cycle. An administrator can hard-delete earlier, and users already unassigned may no longer be managed. See [Microsoft’s provisioning lifecycle](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works).
 
