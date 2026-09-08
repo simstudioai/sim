@@ -58,6 +58,135 @@ function mainToolCall(id: string, name: string): ContentBlock {
   return { type: 'tool_call', toolCall: { id, name, status: 'success' }, timestamp: 1 }
 }
 
+describe('top-level activity groups', () => {
+  const activityCall = (id: string, title?: string, spanId?: string): ContentBlock => ({
+    type: 'tool_call',
+    spanId,
+    toolCall: {
+      id,
+      name: 'sim_cli',
+      status: 'executing',
+      params: title
+        ? {
+            activity: { id: title, title, completedTitle: title.replace('Checking', 'Checked') },
+          }
+        : {},
+    },
+  })
+  const activityReference = (id: string, activityId: string, spanId?: string): ContentBlock => ({
+    type: 'tool_call',
+    spanId,
+    toolCall: {
+      id,
+      name: 'sim_cli',
+      status: 'executing',
+      params: { activity: { id: activityId } },
+    },
+  })
+
+  it.each([undefined, 'main'])(
+    'keeps parallel activities separate and rejoins their original group (%s)',
+    (spanId) => {
+      const blocks = [
+        activityCall('a1', 'Checking invoice inputs', spanId),
+        activityReference('a2', 'Checking invoice inputs', spanId),
+        activityCall('b1', 'Checking customer inputs', spanId),
+        activityReference('a3', 'Checking invoice inputs', spanId),
+        activityReference('a4', 'Checking invoice inputs', spanId),
+      ]
+      const groups = parseBlocks(blocks).filter((segment) => segment.type === 'agent_group')
+      expect(groups).toHaveLength(2)
+      expect(
+        groups.map((group) =>
+          group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
+        )
+      ).toEqual([['a1', 'a2', 'a3', 'a4'], ['b1']])
+      const completed = blocks.map(
+        (block): ContentBlock => ({
+          ...block,
+          toolCall: block.toolCall ? { ...block.toolCall, status: 'success' } : undefined,
+        })
+      )
+      const stillRunning = [...completed.slice(0, -1), blocks.at(-1)!]
+      expect(parseBlocks(stillRunning)).toHaveLength(2)
+      const merged = parseBlocks(completed)
+      expect(merged).toHaveLength(1)
+      expect(merged[0]).toMatchObject({
+        id: groups[0].id,
+        completedGroupCount: 2,
+        activity: { completedTitle: 'Checked customer inputs' },
+        items: blocks.map((block) => ({ type: 'tool', data: { id: block.toolCall!.id } })),
+      })
+    }
+  )
+
+  it('collapses completed contiguous batches independently across text and reused ids', () => {
+    const blocks = [
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1', 'Checking customer inputs'),
+      mainText('Now checking the updated inputs.'),
+      activityReference('a2', 'Checking invoice inputs'),
+      activityReference('b2', 'Checking customer inputs'),
+    ].map(
+      (block): ContentBlock => ({
+        ...block,
+        toolCall: block.toolCall ? { ...block.toolCall, status: 'success' } : undefined,
+      })
+    )
+    const segments = parseBlocks(blocks)
+    expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
+    const groups = segments.filter((segment) => segment.type === 'agent_group')
+    expect(groups[0].id).not.toBe(groups[1].id)
+    expect(groups.map((group) => group.completedGroupCount)).toEqual([2, 2])
+    expect(groups.map((group) => group.activity?.completedTitle)).toEqual([
+      'Checked customer inputs',
+      'Checked customer inputs',
+    ])
+    expect(
+      groups.map((group) => group.items.map((item) => item.type === 'tool' && item.data.id))
+    ).toEqual([
+      ['a1', 'b1'],
+      ['a2', 'b2'],
+    ])
+  })
+
+  it('keeps unassociated calls in a concrete fallback group instead of assigning another activity', () => {
+    const groups = parseBlocks([
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1'),
+      activityReference('a2', 'Checking invoice inputs'),
+    ]).filter((segment) => segment.type === 'agent_group')
+    expect(groups).toHaveLength(2)
+    expect(groups[1].activity).toBeUndefined()
+    expect(groups[1].items).toMatchObject([{ type: 'tool', data: { id: 'b1' } }])
+  })
+
+  it('does not merge activities across prose or absorb a subagent into the main activity', () => {
+    const segments = parseBlocks([
+      activityCall('a1', 'Checking invoice inputs'),
+      mainText('The invoice inputs are valid.'),
+      activityReference('a2', 'Checking invoice inputs'),
+      subagentStart('general', 'child', 'main'),
+      {
+        ...activityCall('child-tool', 'Checking customer inputs', 'child'),
+        toolCall: {
+          ...activityCall('child-tool', 'Checking customer inputs').toolCall!,
+          calledBy: 'general',
+        },
+      },
+    ])
+    expect(segments.map((segment) => segment.type)).toEqual([
+      'agent_group',
+      'text',
+      'agent_group',
+      'agent_group',
+    ])
+    expect(
+      segments.filter((segment) => segment.type === 'agent_group').map((group) => group.agentName)
+    ).toEqual(['mothership', 'mothership', 'general'])
+  })
+})
+
 function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
   const args: Record<string, unknown> = {}
   if (!entry.parameters || typeof entry.parameters !== 'object') return args

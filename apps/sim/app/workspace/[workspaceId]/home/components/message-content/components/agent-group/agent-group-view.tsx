@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComponentType, type ReactNode, useState } from 'react'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
@@ -51,6 +52,8 @@ export type AgentGroupItem =
   | { type: 'agent_group'; group: NestedAgentGroup }
 
 export interface AgentGroupProps {
+  activity?: ToolActivity
+  completedGroupCount?: number
   error?: string
   agentName: string
   agentLabel: string
@@ -143,6 +146,8 @@ interface AgentGroupViewProps extends AgentGroupProps {
 export function AgentGroupView({
   agentName,
   agentLabel,
+  activity: groupActivity,
+  completedGroupCount,
   error,
   items,
   isDelegating = false,
@@ -239,6 +244,8 @@ export function AgentGroupView({
 
   const activity = isMainAgent ? (
     <MainAgentActivity
+      activity={groupActivity}
+      completedGroupCount={completedGroupCount}
       items={items}
       ToolCallComponent={ToolCallComponent}
       renderItem={renderItem}
