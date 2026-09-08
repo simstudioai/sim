@@ -264,7 +264,7 @@ export async function executeOciVisionOperation(
         maxResponseBytes: 4096,
         signal: requestSignal,
       })
-      if (response.status !== 202) {
+      if (response.status !== 202 && response.status !== 200) {
         throw new OciVisionOperationError('Unexpected cancellation response', 502)
       }
       return result(response, { imageJobId: input.imageJobId, cancellationRequested: true })

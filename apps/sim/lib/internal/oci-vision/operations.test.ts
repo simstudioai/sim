@@ -267,26 +267,29 @@ describe('OCI Vision operations', () => {
     expect(mocks.request).toHaveBeenCalledTimes(1)
   })
 
-  it('acknowledges a bodyless 202 cancellation without claiming completion', async () => {
-    mocks.request.mockResolvedValue({ status: 202, headers: {}, body: new Uint8Array(0) })
-    const result = await execute({
-      credentialId: 'resolved-credential',
-      operation: 'cancel_image_job',
-      imageJobId: 'job-1',
-      ifMatch: 'etag-1',
-    })
-    expect(result.output).toEqual({
-      imageJobId: 'job-1',
-      cancellationRequested: true,
-      opcRequestId: null,
-    })
-    expect(mocks.request.mock.calls[0][0]).toMatchObject({
-      method: 'POST',
-      body: new Uint8Array(0),
-      headers: { 'if-match': 'etag-1' },
-    })
-    expect(mocks.request.mock.calls[0][0].retry).toBeUndefined()
-  })
+  it.each([200, 202])(
+    'acknowledges a bodyless %i cancellation without claiming completion',
+    async (status) => {
+      mocks.request.mockResolvedValue({ status, headers: {}, body: new Uint8Array(0) })
+      const result = await execute({
+        credentialId: 'resolved-credential',
+        operation: 'cancel_image_job',
+        imageJobId: 'job-1',
+        ifMatch: 'etag-1',
+      })
+      expect(result.output).toEqual({
+        imageJobId: 'job-1',
+        cancellationRequested: true,
+        opcRequestId: null,
+      })
+      expect(mocks.request.mock.calls[0][0]).toMatchObject({
+        method: 'POST',
+        body: new Uint8Array(0),
+        headers: { 'if-match': 'etag-1' },
+      })
+      expect(mocks.request.mock.calls[0][0].retry).toBeUndefined()
+    }
+  )
 
   it('returns the job ETag for guarded cancellation', async () => {
     mocks.request.mockResolvedValueOnce(response(job, 200, { etag: 'job-etag-1' }))
@@ -300,7 +303,7 @@ describe('OCI Vision operations', () => {
   })
 
   it('rejects an undocumented cancellation response status', async () => {
-    mocks.request.mockResolvedValue(response({}, 200))
+    mocks.request.mockResolvedValue(response({}, 204))
     await expect(
       execute({
         credentialId: 'resolved-credential',
