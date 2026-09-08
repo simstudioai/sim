@@ -3,6 +3,7 @@
  */
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +23,7 @@ async function loadRuntime() {
   const [
     { db },
     schema,
-    { eq, inArray },
+    { eq, inArray, sql: statement },
     { oauthProvider },
     { createSimAuthAdapter },
     { withOAuthProviderIssuanceCompensation },
@@ -33,6 +34,7 @@ async function loadRuntime() {
     { hashOAuthToken },
     { runCleanupOAuthTokens, OAUTH_TOKEN_RETENTION_DAYS },
     { isCapabilityWithheldForUser },
+    { acquirePermissionGroupOrgLock },
   ] = await Promise.all([
     import('@sim/db'),
     import('@sim/db/schema'),
@@ -47,6 +49,7 @@ async function loadRuntime() {
     import('@/lib/auth/oauth-access-token'),
     import('@/background/cleanup-oauth-tokens'),
     import('@/lib/permission-groups/user-scope.server'),
+    import('@/lib/permission-groups/locks'),
   ])
   const adapter = createSimAuthAdapter({
     plugins: [
@@ -64,6 +67,7 @@ async function loadRuntime() {
     schema,
     eq,
     inArray,
+    statement,
     adapter,
     sql,
     reconcileOAuthProviderLifecycle,
@@ -76,6 +80,7 @@ async function loadRuntime() {
     runCleanupOAuthTokens,
     OAUTH_TOKEN_RETENTION_DAYS,
     isCapabilityWithheldForUser,
+    acquirePermissionGroupOrgLock,
   }
 }
 
@@ -292,6 +297,112 @@ describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL sch
       expect(after.apps).toHaveLength(0)
     }
   )
+
+  it('serializes refresh against a pending policy restriction without consuming the token', async () => {
+    const { db, schema, eq, sql, statement, acquirePermissionGroupOrgLock } = runtime
+    const groupId = await createDefaultGroup()
+    await grantConsent()
+    const family = await issueFamily()
+    const credentials = { clientId, method: 'none' as const }
+    const writerReady = Promise.withResolvers<number>()
+    const releaseWriter = Promise.withResolvers<void>()
+    const writer = db.transaction(async (tx) => {
+      await acquirePermissionGroupOrgLock(tx, organizationId!)
+      await tx
+        .update(schema.permissionGroup)
+        .set({ config: { disableOAuthAppAccess: true } })
+        .where(eq(schema.permissionGroup.id, groupId))
+      const [connection] = await tx.execute<{ pid: number }>(
+        statement`select pg_backend_pid() as pid`
+      )
+      writerReady.resolve(connection.pid)
+      await releaseWriter.promise
+    })
+    let refresh: ReturnType<typeof runtime.rotateOAuthRefreshToken> | undefined
+
+    try {
+      const writerPid = await Promise.race([
+        writerReady.promise,
+        writer.then(() => {
+          throw new Error('Policy writer finished before the concurrency check')
+        }),
+      ])
+      let refreshSettled = false
+      refresh = runtime.rotateOAuthRefreshToken({ credentials, refreshToken: family.refreshToken })
+      void refresh.then(
+        () => {
+          refreshSettled = true
+        },
+        () => {
+          refreshSettled = true
+        }
+      )
+
+      let waitingForPolicy = false
+      const deadline = Date.now() + 2_000
+      while (!refreshSettled && Date.now() < deadline) {
+        const [waiter] = await sql<{ waiting: boolean }[]>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity
+            WHERE ${writerPid} = ANY(pg_blocking_pids(pid))
+              AND wait_event_type = 'Lock'
+              AND wait_event = 'advisory'
+          ) AS waiting
+        `
+        if (waiter.waiting) {
+          waitingForPolicy = true
+          break
+        }
+        await sleep(1)
+      }
+      expect(waitingForPolicy, 'Refresh must wait for the organization policy writer').toBe(true)
+      expect(refreshSettled).toBe(false)
+      releaseWriter.resolve()
+      await writer
+      await expect(refresh).resolves.toMatchObject({ success: false, error: 'invalid_grant' })
+      expect(
+        await db
+          .select({ generation: schema.oauthTokenFamily.currentGeneration })
+          .from(schema.oauthTokenFamily)
+          .where(eq(schema.oauthTokenFamily.id, family.id))
+      ).toEqual([{ generation: 0 }])
+      expect(
+        await db
+          .select({
+            generation: schema.oauthRefreshToken.generation,
+            revoked: schema.oauthRefreshToken.revoked,
+          })
+          .from(schema.oauthRefreshToken)
+          .where(eq(schema.oauthRefreshToken.familyId, family.id))
+      ).toEqual([{ generation: 0, revoked: null }])
+      expect(
+        await db
+          .select({ id: schema.oauthAccessToken.id })
+          .from(schema.oauthAccessToken)
+          .where(eq(schema.oauthAccessToken.clientId, clientId))
+      ).toHaveLength(1)
+
+      await db.transaction(async (tx) => {
+        await acquirePermissionGroupOrgLock(tx, organizationId!)
+        await tx
+          .update(schema.permissionGroup)
+          .set({ config: {} })
+          .where(eq(schema.permissionGroup.id, groupId))
+      })
+      await expect(
+        runtime.rotateOAuthRefreshToken({ credentials, refreshToken: family.refreshToken })
+      ).resolves.toMatchObject({ success: true })
+      expect(
+        await db
+          .select({ generation: schema.oauthTokenFamily.currentGeneration })
+          .from(schema.oauthTokenFamily)
+          .where(eq(schema.oauthTokenFamily.id, family.id))
+      ).toEqual([{ generation: 1 }])
+    } finally {
+      releaseWriter.resolve()
+      await Promise.allSettled([writer, ...(refresh ? [refresh] : [])])
+    }
+  }, 10_000)
 
   it('atomically converges concurrent consent submissions on one grant', async () => {
     const grants = await Promise.all([grantConsent(), grantConsent()])

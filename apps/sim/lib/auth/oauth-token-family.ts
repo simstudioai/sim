@@ -22,9 +22,15 @@ import {
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_TOKEN_FAMILY_MAX_GENERATION,
 } from '@/lib/auth/oauth-provider'
+import {
+  acquireOrganizationUserMutationLocks,
+  getUserOrganization,
+} from '@/lib/billing/organizations/membership'
 import { env } from '@/lib/core/config/env'
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
-import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
+import { isEntitledOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 
 const logger = createLogger('OAuthTokenFamily')
 
@@ -268,16 +274,28 @@ export async function rotateOAuthRefreshToken(
     return protocolError('invalid_grant', 'Refresh token is invalid.')
   }
 
-  const oauthAccessWithheld = await isCapabilityWithheldForUser(
-    provisionalToken.userId,
-    'oauth_apps.use'
-  )
+  const membership = await getUserOrganization(provisionalToken.userId, database)
+  const organizationId = membership?.organizationId ?? null
+  const permissionRegimeActive =
+    organizationId !== null && (await isOrganizationPermissionRegimeActive(organizationId))
   const nextRefreshBody = generateSecureToken(32)
   const nextAccessBody = generateSecureToken(32)
   const nextRefreshId = generateId()
   const nextAccessId = generateId()
 
   return database.transaction(async (tx) => {
+    await acquireOrganizationUserMutationLocks(tx, {
+      userId: provisionalToken.userId,
+      organizationIds: organizationId ? [organizationId] : [],
+    })
+    const currentMembership = await getUserOrganization(provisionalToken.userId, tx)
+    if ((currentMembership?.organizationId ?? null) !== organizationId) {
+      return protocolError(
+        'invalid_grant',
+        'Organization membership changed. Please sign in again.'
+      )
+    }
+
     const [activeUser] = await tx
       .select({
         id: user.id,
@@ -389,9 +407,12 @@ export async function rotateOAuthRefreshToken(
       return protocolError('invalid_grant', 'Refresh token grant reached its rotation limit.')
     }
 
-    /** permission-group-enforced: oauth_apps.use — refresh cannot renew a withheld account-level grant. */
-    if (oauthAccessWithheld) {
-      return protocolError('invalid_grant', capabilityRefusal('oauth_apps.use'))
+    /** permission-group-enforced: oauth_apps.use — serialize the current policy with admin updates before consuming the token. */
+    if (organizationId && permissionRegimeActive) {
+      await acquirePermissionGroupOrgLock(tx, organizationId, { lockTimeoutAlreadyBounded: true })
+      if (await isEntitledOrganizationCapabilityWithheld(organizationId, 'oauth_apps.use', tx)) {
+        return protocolError('invalid_grant', capabilityRefusal('oauth_apps.use'))
+      }
     }
 
     const scopes = validateScopes(currentToken.scopes, lockedClient.scopes, input.requestedScopes)
