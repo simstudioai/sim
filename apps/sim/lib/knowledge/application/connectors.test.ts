@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { document } from '@sim/db/schema'
+import { document, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   resolveMembersBinding: vi.fn(),
   provision: vi.fn(),
   decryptApiKey: vi.fn(),
+  requireApproval: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -38,7 +39,13 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mocks.recordAudit,
 }))
 
+vi.mock('@/lib/knowledge/search/integration-policy', () => ({
+  requireOrganizationSearchApproval: mocks.requireApproval,
+  searchIntegrationAccessCondition: vi.fn(),
+}))
+
 vi.mock('@sim/platform-authz/workspace', () => ({
+  isOrgAdminRole: (role: string) => ['owner', 'admin'].includes(role),
   permissionSatisfies: (actual: string | null, required: string) => {
     const rank = { read: 1, write: 2, admin: 3 } as const
     return (
@@ -88,6 +95,7 @@ vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mocks.decryptApiKey }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
+  getUserPermissionConfigForOrganization: mocks.getUserPermissionConfig,
 }))
 
 vi.mock('@/connectors/registry.server', () => ({
@@ -119,6 +127,7 @@ vi.mock('@/connectors/registry.server', () => ({
 }))
 
 import {
+  createApprovedSearchSource,
   createKnowledgeConnector,
   deleteKnowledgeConnector,
   listKnowledgeConnectorDocuments,
@@ -1164,5 +1173,89 @@ describe('members-mode connector creation', () => {
     expect(mocks.createConnector).toHaveBeenCalledWith(
       expect.objectContaining({ membersBinding: undefined, accessMode: 'admin' })
     )
+  })
+})
+
+describe('approved organization member source creation', () => {
+  const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+  const input = {
+    knowledgeBaseId: 'org-index',
+    assertedOrganizationId: 'org',
+    connectorType: 'google_drive',
+    sourceConfig: {},
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'member' }])
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    mocks.requireApproval.mockResolvedValue(undefined)
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      organizationId: 'org',
+      knowledgeBaseId: 'org-index',
+      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
+    })
+    mocks.resolveMembersBinding.mockResolvedValue({
+      organizationId: 'org',
+      credentialGroupId: 'group',
+      credentialGroupOptionId: 'option',
+    })
+    mocks.createConnector.mockResolvedValue({
+      success: true,
+      connector: { id: 'connector', connectorType: 'google_drive', accessMode: 'members' },
+    })
+  })
+
+  it('uses the member actor and ignores attempts to supply credentials or broader access', async () => {
+    const maliciousInput = {
+      ...input,
+      credentialId: 'other-person',
+      apiKey: 'injected',
+      accessMode: 'admin',
+    }
+    await createApprovedSearchSource.execute({ principal, input: maliciousInput })
+    expect(mocks.requireApproval).toHaveBeenCalledWith('org', 'google_drive')
+    expect(mocks.resolveMembersBinding).toHaveBeenCalledWith(
+      expect.objectContaining({ actingUserId: 'actor', organizationId: 'org' })
+    )
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'actor',
+        accessMode: 'members',
+        credentialId: undefined,
+        apiKey: undefined,
+      })
+    )
+  })
+
+  it('refuses deactivated integrations before provisioning a credential group', async () => {
+    mocks.requireApproval.mockRejectedValue(new Error('Integration is deactivated'))
+    await expect(createApprovedSearchSource.execute({ principal, input })).rejects.toThrow(
+      'deactivated'
+    )
+    expect(mocks.resolveMembersBinding).not.toHaveBeenCalled()
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+
+  it('refuses custom configuration outside the personal setup fields', async () => {
+    await expect(
+      createApprovedSearchSource.execute({
+        principal,
+        input: { ...input, sourceConfig: { adminEmail: 'other-person@fixture.test' } },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+
+  it('refuses a knowledge base that is not the organization Search index', async () => {
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      organizationId: 'org',
+      knowledgeBaseId: 'org-index',
+      knowledgeBase: { isSearchIndex: false },
+    })
+    await expect(createApprovedSearchSource.execute({ principal, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.createConnector).not.toHaveBeenCalled()
   })
 })

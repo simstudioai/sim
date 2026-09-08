@@ -317,6 +317,7 @@ const searchSourceSummaryFields = {
   accessMode: z.enum(['admin', 'members']),
   availability: z.enum(['available', 'unavailable']),
   enabled: z.boolean(),
+  approved: z.boolean().optional(),
   isSyncing: z.boolean(),
   lastSyncAt: z.string().datetime().nullable(),
   hasSyncError: z.boolean(),

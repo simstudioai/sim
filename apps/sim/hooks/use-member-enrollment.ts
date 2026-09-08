@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 import {
@@ -208,13 +209,17 @@ export function useMemberEnrollment({
    * creates the connector.
    */
   const connectSource = (
-    workspaceId: string,
+    owner: string | ResourceScope,
     connectorType: string,
     sourceConfig?: Record<string, string>
   ) =>
     openEnrollment(({ onSuccess, onError }) => {
       sourceConnection.mutate(
-        { workspaceId, connectorType, sourceConfig },
+        {
+          ...(typeof owner === 'string' ? { workspaceId: owner } : resourceScopeFields(owner)),
+          connectorType,
+          sourceConfig,
+        },
         {
           onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId, connectorType),
           onError: (err) => {
@@ -233,7 +238,7 @@ export function useMemberEnrollment({
    * otherwise create it and enroll in one step.
    */
   const connectSearchSource = (
-    workspaceId: string,
+    owner: string | ResourceScope,
     connector: SearchConnector,
     connection: WorkspaceMemberConnector | undefined
   ) => {
@@ -245,7 +250,7 @@ export function useMemberEnrollment({
       setSetupConnector(connector)
       return
     }
-    connectSource(workspaceId, connector.type)
+    connectSource(owner, connector.type)
   }
 
   const isAwaiting = (connectorId: string) =>

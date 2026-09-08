@@ -1575,6 +1575,12 @@ export const schemaMock = {
     metadata: 'asyncJobs.metadata',
     updatedAt: 'asyncJobs.updatedAt',
   },
+  organizationSearchIntegration: {
+    organizationId: 'organizationSearchIntegration.organizationId',
+    connectorType: 'organizationSearchIntegration.connectorType',
+    approved: 'organizationSearchIntegration.approved',
+    updatedAt: 'organizationSearchIntegration.updatedAt',
+  },
   knowledgeConnector: {
     id: 'knowledgeConnector.id',
     knowledgeBaseId: 'knowledgeConnector.knowledgeBaseId',

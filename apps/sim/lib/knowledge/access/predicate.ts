@@ -7,6 +7,7 @@ import {
 import { type SQL, sql } from 'drizzle-orm'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
+import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
 
 /**
  * The single read-side access predicate: the document's ACL overlaps the
@@ -37,6 +38,7 @@ export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAcc
       OR EXISTS (
         SELECT 1 FROM ${knowledgeConnector}
         WHERE ${knowledgeConnector.id} = ${document.connectorId}
+          AND ${searchIntegrationAccessCondition()}
           AND (
             (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
             OR (${document.acl} <> ARRAY['ws']::text[] AND (

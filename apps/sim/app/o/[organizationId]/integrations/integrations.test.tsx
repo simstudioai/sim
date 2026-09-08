@@ -7,11 +7,22 @@ import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connecto
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
   sources: vi.fn(),
+  integrations: vi.fn(),
   filters: vi.fn(),
   setSource: vi.fn(),
   connect: vi.fn(),
 }))
 
+vi.mock('@/hooks/queries/search-integrations', () => ({
+  useSearchIntegrations: mocks.integrations,
+}))
+vi.mock('@/hooks/use-permission-config', () => ({
+  usePermissionConfig: () => ({
+    integrationAvailability: new Map(),
+    oauthServiceAvailability: new Map([['google-email', true]]),
+    isIntegrationAvailabilityReady: true,
+  }),
+}))
 vi.mock('nuqs', () => ({
   useQueryState: () => [null, mocks.setSource],
   parseAsString: { withOptions: () => ({}) },
@@ -45,6 +56,7 @@ vi.mock('@/hooks/use-member-enrollment', () => ({
   CONNECTABLE_MEMBERSHIPS: new Set(['invited', 'not_enrolled', 'needs_reauth']),
   useMemberEnrollment: () => ({
     connect: mocks.connect,
+    connectSearchSource: mocks.connect,
     isAwaiting: () => false,
     isPending: false,
     error: null,
@@ -97,6 +109,7 @@ describe('organization integrations role and source paths', () => {
       viewer: { isAdmin: false },
       searchAccess: { memberScoped: true, sourceMirrored: true },
     })
+    mocks.integrations.mockReturnValue({ data: [], isPending: false })
     mocks.sources.mockReturnValue({ data: [memberSource, centralSource], isPending: false })
     mocks.filters.mockReturnValue({ tab: null, search: '', setSearch: vi.fn() })
     container = document.createElement('div')
@@ -131,6 +144,31 @@ describe('organization integrations role and source paths', () => {
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'member-source')
   })
 
+  it('offers an approved integration before any source is configured', async () => {
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'gmail', approved: true }],
+      isPending: false,
+    })
+    await render()
+    expect(document.body.textContent).toContain('Approved')
+    expect(buttons('Connect account')).toHaveLength(1)
+    await act(async () => buttons('Connect account')[0].click())
+    expect(mocks.connect).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ type: 'gmail' }),
+      undefined
+    )
+  })
+  it('withholds connection when an integration is deactivated', async () => {
+    mocks.sources.mockReturnValue({
+      data: [{ ...memberSource, approved: false }],
+      isPending: false,
+    })
+    await render()
+    expect(buttons('Connect account')).toHaveLength(0)
+    expect(document.body.textContent).toContain('Deactivated by an organization admin')
+  })
   it('shows an organization admin exactly what a member sees, with no setup or management', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },

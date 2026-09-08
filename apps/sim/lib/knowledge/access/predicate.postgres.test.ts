@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { readFile } from 'node:fs/promises'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEnterpriseSearchMigrationFixture } from '@/lib/knowledge/__integration__/migration-fixture'
@@ -36,6 +37,15 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     connection = client
     await client`INSERT INTO document(id) VALUES ('before-migration')`
     await fixture.migrate()
+    const approvalMigration = await readFile(
+      new URL(
+        '../../../../../packages/db/migrations/0326_organization_search_approvals.sql',
+        import.meta.url
+      ),
+      'utf8'
+    )
+    const [{ current_schema: schemaName }] = await client`SELECT current_schema()`
+    await client.unsafe(approvalMigration.replaceAll('"public".', `"${schemaName}".`))
     expect(await readable(['ws'], 'before-migration')).toBe(true)
     await connection.unsafe("INSERT INTO document(id) VALUES ('old-writer-after-migration')")
     expect(await readable(['ws'], 'old-writer-after-migration')).toBe(true)
@@ -77,6 +87,39 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       [id, acl.join('\n'), JSON.stringify(requirements)]
     )
   }
+
+  it('revokes every source of one integration without changing ACLs or another organization', async () => {
+    await connection.unsafe("INSERT INTO organization(id) VALUES ('approval-org'), ('other-org')")
+    await connection.unsafe(
+      "INSERT INTO knowledge_base(id, organization_id, name, is_search_index) VALUES ('approval-index', 'approval-org', 'Search', true), ('other-index', 'other-org', 'Search', true)"
+    )
+    await connection.unsafe(
+      "UPDATE knowledge_connector SET knowledge_base_id = 'approval-index', connector_type = 'gmail' WHERE id = 'admin'"
+    )
+    await putDocument('approved-content', ['pub'])
+    await connection.unsafe(
+      "INSERT INTO knowledge_connector(id, knowledge_base_id, connector_type, access_mode) VALUES ('other-source', 'other-index', 'gmail', 'admin')"
+    )
+    await putDocument('other-content', ['pub'])
+    await connection.unsafe(
+      "UPDATE document SET connector_id = 'other-source' WHERE id = 'other-content'"
+    )
+    await connection.unsafe(
+      "INSERT INTO embedding(id, document_id, content) VALUES ('approval-chunk', 'approved-content', 'synthetic approval content')"
+    )
+    expect(await readable(['pub'], 'approved-content')).toBe(true)
+    await connection.unsafe(
+      "INSERT INTO organization_search_integration(organization_id, connector_type, approved) VALUES ('approval-org', 'gmail', false)"
+    )
+    expect(await readable(['pub'], 'approved-content')).toBe(false)
+    expect(await readable(['pub'], 'approved-content', true)).toBe(false)
+    expect(await readable(['pub'], 'other-content')).toBe(true)
+    await connection.unsafe(
+      "UPDATE organization_search_integration SET approved = true WHERE organization_id = 'approval-org'"
+    )
+    expect(await readable(['pub'], 'approved-content')).toBe(true)
+    expect(await readable(['pub'], 'approved-content', true)).toBe(true)
+  })
 
   it('requires space, every ancestor, and own restrictions while allowing alternatives within each', async () => {
     const acl = confluencePageAcl({

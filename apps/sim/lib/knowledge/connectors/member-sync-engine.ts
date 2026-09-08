@@ -27,7 +27,7 @@ import {
   CredentialGroupCredentialCursorNotFoundError,
   type CredentialGroupOptionCredentialReference,
   isManagedCredentialGroupBindingLive,
-  loadCredentialGroupCredentialListContext,
+  loadScopedAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
 import type { DbOrTx } from '@/lib/db/types'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -606,7 +606,10 @@ async function reconcileMembership(
   savedCheckpoint: unknown,
   forceRefresh: boolean
 ): Promise<boolean> {
-  const group = await loadCredentialGroupCredentialListContext(binding.credentialGroupId)
+  const group = await loadScopedAccountsCredentialListContext(
+    resourceScopeFromOwner(run),
+    binding.credentialGroupId
+  )
   if (!group) {
     throw new MemberBindingGoneError(
       'The Credential Group this connector synced through was deleted'

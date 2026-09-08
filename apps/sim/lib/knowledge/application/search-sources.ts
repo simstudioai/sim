@@ -10,6 +10,7 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
+import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorMeta } from '@/connectors/registry'
 
@@ -50,7 +51,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
       .orderBy(asc(knowledgeConnector.createdAt), asc(knowledgeConnector.id))
     if (rows.length === 0) return { sources: [] }
 
-    const [availability, memberships, viewers, access] = await Promise.all([
+    const [availability, memberships, viewers, access, approvals] = await Promise.all([
       resolveKnowledgeAccessAvailability(context),
       resolveViewerConnectorMemberships({
         userId: principal.userId,
@@ -64,6 +65,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         .where(eq(user.id, principal.userId))
         .limit(1),
       createKnowledgeAccessProvider(principal, context).get(),
+      context.organizationId ? listOrganizationSearchApprovals(context.organizationId) : null,
     ])
     const documentStates = await db
       .select({
@@ -120,6 +122,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           accessMode: row.accessMode,
           availability: available ? ('available' as const) : ('unavailable' as const),
           enabled,
+          ...(approvals ? { approved: approvals.get(row.connectorType) ?? true } : {}),
           isSyncing:
             available &&
             enabled &&

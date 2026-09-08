@@ -61,7 +61,7 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
     );
     CREATE INDEX doc_connector_id_idx ON document(connector_id);
     CREATE TABLE knowledge_connector (
-      id text PRIMARY KEY, access_mode text DEFAULT 'workspace', status text DEFAULT 'active',
+      id text PRIMARY KEY, knowledge_base_id text, connector_type text, access_mode text DEFAULT 'workspace', status text DEFAULT 'active',
       member_sync_status text DEFAULT 'idle', sync_interval_minutes integer DEFAULT 1440,
       next_sync_at timestamp, next_member_sync_at timestamp, archived_at timestamp, deleted_at timestamp
     );

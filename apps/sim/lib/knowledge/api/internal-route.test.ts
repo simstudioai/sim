@@ -3,17 +3,21 @@
  */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { NextRequest } from 'next/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import {
+  internalKnowledgeAnalytics,
   internalKnowledgeProvenanceUserId,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeConnector,
 } from '@/lib/knowledge/api/internal-route'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
+
+const { capture } = vi.hoisted(() => ({ capture: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: capture }))
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'execution-billing-actor-1',
@@ -165,5 +169,25 @@ describe('toInternalKnowledgeConnector', () => {
     expect(
       toInternalKnowledgeConnector({ ...row, viewerMembership: 'invited' }).viewerMembership
     ).toBe('invited')
+  })
+})
+
+describe('connector sync analytics', () => {
+  it.each([
+    { owner: { workspaceId: 'workspace' }, groups: { workspace: 'workspace' } },
+    { owner: { organizationId: 'organization' }, groups: { organization: 'organization' } },
+  ])('preserves the canonical owner $owner', ({ owner, groups }) => {
+    capture.mockClear()
+    internalKnowledgeAnalytics.connectorSynced({
+      principal: { kind: 'session', userId: 'actor', sessionId: 'session' },
+      input: {},
+      result: { knowledgeBaseId: 'index', connectorType: 'gmail', ...owner },
+    })
+    expect(capture).toHaveBeenCalledWith(
+      'actor',
+      'knowledge_base_connector_synced',
+      expect.objectContaining({ knowledge_base_id: 'index' }),
+      { groups }
+    )
   })
 })

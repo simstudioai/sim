@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   createOrganizationKnowledgeBase: vi.fn(),
   deleteKnowledgeBase: vi.fn(),
   createConnector: vi.fn(),
+  createApprovedSource: vi.fn(),
+  requireApproval: vi.fn(),
   deleteConnector: vi.fn(),
   enroll: vi.fn(),
   getUserPermissionConfig: vi.fn(),
@@ -72,7 +74,12 @@ vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   deleteKnowledgeBaseOperation: { execute: mocks.deleteKnowledgeBase },
 }))
 
+vi.mock('@/lib/knowledge/search/integration-policy', () => ({
+  requireOrganizationSearchApproval: mocks.requireApproval,
+}))
+
 vi.mock('@/lib/knowledge/application/connectors', () => ({
+  createApprovedSearchSource: { execute: mocks.createApprovedSource },
   createKnowledgeConnector: { execute: mocks.createConnector },
   deleteKnowledgeConnector: { execute: mocks.deleteConnector },
 }))
@@ -517,6 +524,42 @@ describe('organization Search setup', () => {
     expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
     expect(mocks.createConnector).not.toHaveBeenCalled()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+  it('lets an approved member create a personal source without impersonating an admin', async () => {
+    asRole('member')
+    queueTableRows(knowledgeBase, [])
+    mocks.createApprovedSource.mockResolvedValue({ connector: { id: 'approved-source' } })
+    await expect(
+      connectSimSearchConnector.execute({
+        principal,
+        input: { ...owner, connectorType: 'google_drive' },
+      })
+    ).resolves.toMatchObject({ knowledgeBaseId: 'org-index', connectorId: 'approved-source' })
+    expect(mocks.requireApproval).toHaveBeenCalledWith('org-1', 'google_drive')
+    expect(mocks.createApprovedSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: {
+          knowledgeBaseId: 'org-index',
+          assertedOrganizationId: 'org-1',
+          connectorType: 'google_drive',
+          sourceConfig: {},
+        },
+      })
+    )
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+  it('refuses unapproved members before provisioning anything', async () => {
+    asRole('member')
+    mocks.requireApproval.mockRejectedValueOnce(new Error('Approval required'))
+    await expect(
+      connectSimSearchConnector.execute({
+        principal,
+        input: { ...owner, connectorType: 'google_drive' },
+      })
+    ).rejects.toThrow('Approval required')
+    expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
   })
   it('refuses organization source setup by a member before provisioning accounts or an index', async () => {
     asRole('member')

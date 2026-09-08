@@ -430,10 +430,11 @@ export const internalKnowledgeAnalytics = {
       knowledgeBaseId: string
       connectorType: string
       workspaceId?: string
+      organizationId?: string
     }
   }): void {
-    if (!result.workspaceId) {
-      throw new Error('Synced connector result is missing its workspace analytics scope')
+    if (!result.workspaceId && !result.organizationId) {
+      throw new Error('Synced connector result is missing its owner analytics scope')
     }
     const userId = internalKnowledgeAnalyticsUserId(principal)
     if (!userId) return
@@ -443,9 +444,14 @@ export const internalKnowledgeAnalytics = {
       {
         knowledge_base_id: result.knowledgeBaseId,
         workspace_id: result.workspaceId,
+        organization_id: result.organizationId,
         connector_type: result.connectorType,
       },
-      { groups: { workspace: result.workspaceId } }
+      {
+        groups: result.workspaceId
+          ? { workspace: result.workspaceId }
+          : { organization: result.organizationId! },
+      }
     )
   },
 } as const
