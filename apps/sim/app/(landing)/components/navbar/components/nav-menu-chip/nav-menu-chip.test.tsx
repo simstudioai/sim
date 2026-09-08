@@ -21,7 +21,9 @@ vi.mock('@sim/emcn', () => ({
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }))
 vi.mock('next/link', () => ({
-  default: (props: ComponentProps<'a'>) => <a {...props} />,
+  default: ({ prefetch, ...props }: ComponentProps<'a'> & { prefetch?: boolean | null }) => (
+    <a {...props} data-prefetch={prefetch === false ? 'disabled' : 'auto'} />
+  ),
 }))
 vi.mock('@/app/(landing)/components/chevron-arrow', () => ({
   ChevronArrow: () => null,
@@ -96,6 +98,26 @@ function expectSelected(href: string, kind: string) {
 }
 
 describe('NavMenuCluster feature selection', () => {
+  it('prefetches destinations only while their menu is open', () => {
+    const overview = element('a[href="/platform"]')
+    const customers = element('#nav-customers-menu a[href="/customers"]')
+    expect(overview.dataset.prefetch).toBe('disabled')
+    expect(customers.dataset.prefetch).toBe('disabled')
+
+    hover(element('#nav-platform-menu-trigger'))
+    expect(overview.dataset.prefetch).toBe('auto')
+    expect(customers.dataset.prefetch).toBe('disabled')
+
+    hover(element('#nav-customers-menu-trigger'))
+    expect(overview.dataset.prefetch).toBe('disabled')
+    expect(customers.dataset.prefetch).toBe('auto')
+
+    act(() => {
+      customers.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(customers.dataset.prefetch).toBe('disabled')
+  })
+
   it('lets Tab enter Platform links, return to its trigger, and continue to Customers', () => {
     const platform = element('#nav-platform-menu-trigger')
     act(() => platform.focus())

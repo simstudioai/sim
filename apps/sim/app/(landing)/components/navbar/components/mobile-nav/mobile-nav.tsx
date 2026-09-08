@@ -130,7 +130,12 @@ export function MobileNav({ stars }: MobileNavProps) {
         <div className='mx-auto flex w-full max-w-[1728px] flex-col gap-1 px-7 pt-2 pb-5'>
           <div className='flex flex-col gap-2 pb-4 sm:hidden'>
             <NavbarAuthPill size='default' onNavigate={() => updateOpen(false)} />
-            <LandingCtaLink href={DEMO_HREF} withArrow onClick={() => updateOpen(false)}>
+            <LandingCtaLink
+              href={DEMO_HREF}
+              prefetch={open ? null : false}
+              withArrow
+              onClick={() => updateOpen(false)}
+            >
               Request a demo
             </LandingCtaLink>
           </div>
@@ -143,6 +148,7 @@ export function MobileNav({ stars }: MobileNavProps) {
               {menu.index && (
                 <Link
                   href={menu.index.href}
+                  prefetch={open ? null : false}
                   onClick={() => updateOpen(false)}
                   className={SHEET_ROW}
                 >
@@ -169,6 +175,7 @@ export function MobileNav({ stars }: MobileNavProps) {
                       <Link
                         key={item.title}
                         href={item.href}
+                        prefetch={open ? null : false}
                         onClick={() => updateOpen(false)}
                         className={SHEET_ROW}
                       >
@@ -182,7 +189,13 @@ export function MobileNav({ stars }: MobileNavProps) {
           ))}
 
           {STANDALONE_LINKS.map(({ label, href }) => (
-            <Link key={label} href={href} onClick={() => updateOpen(false)} className={SHEET_ROW}>
+            <Link
+              key={label}
+              href={href}
+              prefetch={open ? null : false}
+              onClick={() => updateOpen(false)}
+              className={SHEET_ROW}
+            >
               {label}
             </Link>
           ))}

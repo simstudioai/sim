@@ -45,7 +45,7 @@ export default function Demo() {
           <p className='sr-only'>
             Operationalize AI with Sim, the AI agent workspace where teams build, deploy, and manage
             AI agents and workflows. A Sim specialist walks your team through building agents that
-            automate real work across 1,000+ integrations and every major LLM, visually,
+            automate real work across hundreds of integrations and every major LLM, visually,
             conversationally, or with code.
           </p>
 

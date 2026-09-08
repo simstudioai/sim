@@ -42,7 +42,7 @@ export function EnterpriseMembersPreview() {
           <Building aria-hidden='true' className='size-[14px] text-[var(--text-icon)]' />
           <span className='text-[var(--text-primary)] text-base'>Organization</span>
         </div>
-        <div className='mx-auto flex max-h-[392px] max-w-[760px] flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-4 [--text-muted:var(--text-secondary)] max-sm:max-h-[304px] max-sm:gap-6 max-sm:px-4 max-sm:py-5'>
+        <div className='mx-auto flex max-h-[392px] max-w-[760px] flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-4 max-sm:max-h-[304px] max-sm:gap-6 max-sm:px-4 max-sm:py-5'>
           <ChipInput
             aria-label='Search example organization members'
             icon={Search}

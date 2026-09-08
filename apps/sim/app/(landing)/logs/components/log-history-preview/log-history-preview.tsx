@@ -118,7 +118,7 @@ export function LogHistoryPreview() {
             matchTriggerWidth={false}
           />
         </MenuPreviewToolbar>
-        <div className='relative flex min-h-0 flex-1 flex-col [--text-muted:var(--text-secondary)]'>
+        <div className='relative flex min-h-0 flex-1 flex-col'>
           <Resource.Table
             columns={COLUMNS}
             rows={rows}

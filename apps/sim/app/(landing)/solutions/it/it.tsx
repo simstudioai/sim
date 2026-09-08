@@ -37,9 +37,9 @@ const IT_CONFIG: SolutionsPageConfig = {
     eyebrow: 'IT',
     heading: 'Automate ticket triage, access, and monitoring with AI agents in Sim.',
     description:
-      'Sim is the open-source AI workspace where IT teams build AI agents for ticket triage, access, and monitoring. Agents run with governance, access controls, and audit trails across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where IT teams build AI agents for ticket triage, access, and monitoring. Agents run with governance, access controls, and audit trails across hundreds of integrations.',
     summary:
-      'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents for ticket triage, access provisioning, and infrastructure monitoring. Agents run with IT-grade governance and audit trails across 1,000+ integrations and every major LLM.',
+      'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents for ticket triage, access provisioning, and infrastructure monitoring. Agents run with IT-grade governance and audit trails across hundreds of integrations and every major LLM.',
     visual: (
       <PlatformHeroVisual>
         <ItHeroLoop />

@@ -18,6 +18,7 @@ interface NavMenuItemProps {
   item: NavMenuItemData
   /** Highlights the description of the previewed destination while the menu is open. */
   active?: boolean
+  prefetch?: boolean | null
   /** Called when the row is activated, so the parent menu can close. */
   onSelect?: () => void
   /** Called on hover or focus to update the menu's preview region. */
@@ -29,7 +30,13 @@ const ROW_CLASS =
 const DESC_CLASS =
   'mt-2 max-w-[32ch] text-pretty text-[13px] leading-[1.45] transition-colors group-hover/item:text-[var(--text-body)] group-focus-visible/item:text-[var(--text-body)]'
 
-export function NavMenuItem({ item, active = false, onSelect, onActivate }: NavMenuItemProps) {
+export function NavMenuItem({
+  item,
+  active = false,
+  prefetch,
+  onSelect,
+  onActivate,
+}: NavMenuItemProps) {
   const { brand, title, description, href, external } = item
   const content = (
     <span className='flex min-w-0 flex-1 flex-col'>
@@ -81,6 +88,7 @@ export function NavMenuItem({ item, active = false, onSelect, onActivate }: NavM
   return (
     <Link
       href={href}
+      prefetch={prefetch}
       data-active={active || undefined}
       onClick={onSelect}
       onMouseEnter={onActivate}

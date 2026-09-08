@@ -28,10 +28,10 @@ export function SourceLink({ source, children, className }: SourceLinkProps) {
           href={source.url}
           target='_blank'
           rel='noopener noreferrer'
-          aria-label={`${source.label} (opens source)`}
           className={cn('block min-w-0', className)}
         >
           {children}
+          <span className='sr-only'> (source: {source.label}, opens in a new tab)</span>
         </a>
       </Tooltip.Trigger>
       <Tooltip.Content>Source: {source.label}</Tooltip.Content>

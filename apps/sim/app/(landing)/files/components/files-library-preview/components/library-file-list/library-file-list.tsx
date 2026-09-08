@@ -10,7 +10,7 @@ interface LibraryFileListProps {
 export function LibraryFileList({ files, onSelect }: LibraryFileListProps) {
   return (
     <div className='min-h-0 flex-1 overflow-auto'>
-      <table className='w-full min-w-[658px] table-fixed border-collapse whitespace-nowrap text-left text-small tabular-nums'>
+      <table className='w-full min-w-[658px] table-fixed border-collapse whitespace-nowrap text-left text-small'>
         <colgroup>
           <col className='w-[256px]' />
           <col className='w-[78px]' />
@@ -49,7 +49,7 @@ export function LibraryFileList({ files, onSelect }: LibraryFileListProps) {
                     <span className='truncate'>{file.name}</span>
                   </button>
                 </td>
-                <td>{file.size}</td>
+                <td className='tabular-nums'>{file.size}</td>
                 <td>
                   <span className='flex items-center gap-2'>
                     <Icon

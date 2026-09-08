@@ -50,7 +50,7 @@ export default async function Careers({ searchParams }: CareersProps) {
         <p className='sr-only'>
           Careers at Sim, the open-source AI workspace where teams build, deploy, and manage AI
           agents. Sim is hiring engineers, designers, and go-to-market builders to help teams
-          automate real work across 1,000+ integrations and every major LLM — visually,
+          automate real work across hundreds of integrations and every major LLM — visually,
           conversationally, or with code.
         </p>
 

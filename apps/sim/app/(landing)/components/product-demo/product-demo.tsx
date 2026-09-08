@@ -85,7 +85,7 @@ const EDGE_STRIP =
  * it is deliberately even all the way along an edge, and the player overlays
  * copy on two of them. From `lg` each band runs the copy's 13% inset plus 80px
  * down from the top (the title) or up from the bottom (the link), solid at
- * 12px of blur through the copy (its inset plus 40px) and tapering over the
+ * 10px of blur through the copy (its inset plus 40px) and tapering over the
  * last 40px, and a second mask fades it out sideways, so it covers the centre
  * where the title and the link sit and leaves the corners to the shared strip
  * - a card passing a corner is not blurred for no reason. The bands end where
@@ -94,7 +94,7 @@ const EDGE_STRIP =
  */
 const COPY_BAND =
   'inset-x-0 h-[96px] lg:h-[calc(13%+80px)] [mask-image:linear-gradient(to_right,transparent_15%,black_34%,black_66%,transparent_85%)]'
-const COPY_BLUR = 'absolute inset-0 backdrop-blur-[12px]'
+const COPY_BLUR = 'absolute inset-0 backdrop-blur-[10px]'
 const COPY_TOP_MASK = '[mask-image:linear-gradient(to_bottom,black_calc(100%-40px),transparent)]'
 const COPY_BOTTOM_MASK = '[mask-image:linear-gradient(to_top,black_calc(100%-40px),transparent)]'
 

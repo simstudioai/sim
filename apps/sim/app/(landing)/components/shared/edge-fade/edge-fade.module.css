@@ -56,7 +56,7 @@
 }
 
 .layer0 {
-  --edge-fade-blur: 0.5px;
+  --edge-fade-blur: 0.4px;
   --edge-fade-from: 0%;
   --edge-fade-in: 20%;
   --edge-fade-out: 40%;
@@ -64,7 +64,7 @@
 }
 
 .layer1 {
-  --edge-fade-blur: 1.5px;
+  --edge-fade-blur: 1.25px;
   --edge-fade-from: 20%;
   --edge-fade-in: 40%;
   --edge-fade-out: 60%;
@@ -72,7 +72,7 @@
 }
 
 .layer2 {
-  --edge-fade-blur: 3px;
+  --edge-fade-blur: 2.5px;
   --edge-fade-from: 40%;
   --edge-fade-in: 60%;
   --edge-fade-out: 80%;
@@ -80,7 +80,7 @@
 }
 
 .layer3 {
-  --edge-fade-blur: 6px;
+  --edge-fade-blur: 5px;
   --edge-fade-from: 60%;
   --edge-fade-in: 80%;
   --edge-fade-out: 100%;
@@ -88,7 +88,7 @@
 }
 
 .layer4 {
-  --edge-fade-blur: 12px;
+  --edge-fade-blur: 10px;
   --edge-fade-from: 80%;
   --edge-fade-in: 100%;
   --edge-fade-out: 120%;

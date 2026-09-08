@@ -32,9 +32,9 @@ export function IntegrationCard({ integration, IconComponent }: IntegrationItemP
         aria-hidden='true'
       />
       <div className='flex flex-col gap-2'>
-        <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
+        <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
           {name}
-        </h3>
+        </h2>
         <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
           {description}
         </p>
@@ -58,7 +58,6 @@ export const IntegrationRow = memo(function IntegrationRow({
       <Link
         href={`/integrations/${slug}`}
         className={`group/link flex items-center gap-4 px-6 py-4 ${HOVER_BG}`}
-        aria-label={`${name} integration`}
       >
         <IntegrationIcon
           bgColor={bgColor}

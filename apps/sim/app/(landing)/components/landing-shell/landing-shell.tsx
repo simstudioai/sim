@@ -24,7 +24,7 @@ export async function LandingShell({ children }: LandingShellProps) {
   const stars = await getGitHubStars()
 
   return (
-    <div className='relative h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='relative h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)] [--text-muted:var(--text-secondary)]'>
       <SiteStructuredData />
       <a
         href='#main-content'

@@ -25,7 +25,9 @@ interface NavMenuClusterProps {
 
 const PANEL_BASE =
   'pointer-events-none invisible fixed top-[var(--landing-header-height)] right-0 left-0 z-50 translate-y-0.5 opacity-0 transition-[opacity,transform,visibility] duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 motion-reduce:transition-none'
-const PANEL_OPEN = 'pointer-events-auto visible translate-y-0 opacity-100'
+/** Make links focusable immediately on entry; visibility transitions only during exit. */
+const PANEL_OPEN =
+  'pointer-events-auto visible translate-y-0 opacity-100 transition-[opacity,transform]'
 const MENU_ID = 'primary-navigation-mega-menu'
 
 /** Balances the hidden 16px chevron, 2px gap, and asymmetric pill padding at rest. */
@@ -40,7 +42,8 @@ const TRIGGER_CONTENT_TRANSITION =
  */
 const FLOATING_BASE =
   'pointer-events-none invisible absolute top-full left-1/2 z-50 -translate-x-1/2 translate-y-0.5 pt-3 opacity-0 transition-[opacity,transform,visibility] duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 motion-reduce:transition-none'
-const FLOATING_OPEN = 'pointer-events-auto visible translate-y-0 opacity-100'
+const FLOATING_OPEN =
+  'pointer-events-auto visible translate-y-0 opacity-100 transition-[opacity,transform]'
 
 const isFloating = (menu: NavMenu) => menu.layout === 'floating'
 const triggerIdFor = (menu: NavMenu) => `nav-${menu.label.toLowerCase()}-menu-trigger`
@@ -196,7 +199,12 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                     >
                       {menu.sections.flatMap((section) =>
                         section.items.map((item) => (
-                          <NavMenuCard key={item.title} item={item} onSelect={handleSelect} />
+                          <NavMenuCard
+                            key={item.title}
+                            item={item}
+                            prefetch={active ? null : false}
+                            onSelect={handleSelect}
+                          />
                         ))
                       )}
                     </div>
@@ -204,6 +212,7 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                     {menu.index && (
                       <Link
                         href={menu.index.href}
+                        prefetch={active ? null : false}
                         onClick={handleSelect}
                         className='group/link flex items-center justify-between rounded-lg px-2 py-1 text-[var(--text-body)] text-small transition-colors hover:bg-[var(--surface-hover)]'
                       >
@@ -264,6 +273,7 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                         key={item.title}
                         item={item}
                         active={surfaceOpen && activeItem.href === item.href}
+                        prefetch={surfaceOpen ? null : false}
                         onActivate={() => setActiveItem(item)}
                         onSelect={handleSelect}
                       />

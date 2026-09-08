@@ -72,7 +72,7 @@ export function FilesMenuPreview({ layout = 'menu' }: FilesMenuPreviewProps) {
             Sort
           </Chip>
         </MenuPreviewToolbar>
-        <table className='w-full table-fixed border-collapse whitespace-nowrap text-left tabular-nums'>
+        <table className='w-full table-fixed border-collapse whitespace-nowrap text-left'>
           <colgroup>
             <col className='w-[256px]' />
             <col className='w-[78px]' />
@@ -98,7 +98,7 @@ export function FilesMenuPreview({ layout = 'menu' }: FilesMenuPreviewProps) {
                     <span className='truncate'>{name}</span>
                   </span>
                 </td>
-                <td>{size}</td>
+                <td className='tabular-nums'>{size}</td>
                 <td>
                   <span className='flex items-center gap-2'>
                     <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />

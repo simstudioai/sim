@@ -38,7 +38,7 @@ const PRICING_JSON_LD = {
       '@id': `${PAGE_URL}#application`,
       name: 'Sim',
       description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM.',
+        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting hundreds of integrations and every major LLM.',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       url: SITE_URL,

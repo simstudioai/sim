@@ -10,9 +10,9 @@ export function FeaturedProviderCard({ provider }: { provider: CatalogProvider }
     >
       <ProviderIcon provider={provider} className='size-10 rounded-xl' iconClassName='size-5' />
       <div className='flex flex-col gap-2'>
-        <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
+        <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
           {provider.name}
-        </h3>
+        </h2>
         <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
           {provider.description}
         </p>

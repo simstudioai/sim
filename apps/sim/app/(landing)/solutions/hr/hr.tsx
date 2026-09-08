@@ -38,9 +38,9 @@ const HR_CONFIG: SolutionsPageConfig = {
     eyebrow: 'HR',
     heading: 'Automate onboarding, employee questions, and approvals with AI agents in Sim.',
     description:
-      'Sim is the open-source AI workspace where HR teams build AI agents for onboarding, employee questions, and approvals. Agents wire into your HRIS and 1,000+ integrations to keep people operations moving.',
+      'Sim is the open-source AI workspace where HR teams build AI agents for onboarding, employee questions, and approvals. Agents wire into your HRIS and hundreds of integrations to keep people operations moving.',
     summary:
-      'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents for onboarding, employee questions, and approvals. Agents connect your HRIS and 1,000+ integrations so people operations keep moving.',
+      'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents for onboarding, employee questions, and approvals. Agents connect your HRIS and hundreds of integrations so people operations keep moving.',
     visual: (
       <PlatformHeroVisual>
         <HrHeroLoop />

@@ -6,7 +6,7 @@ import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricin
  * names Sim, the AI workspace, AI agents, and every plan tier.
  */
 const GEO_SUMMARY =
-  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Pricing scales across four plans: Free to start, Pro for growing teams, Max for scaling businesses, and Enterprise for large organizations, each connecting 1,000+ integrations and every major LLM.'
+  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Pricing scales across four plans: Free to start, Pro for growing teams, Max for scaling businesses, and Enterprise for large organizations, each connecting hundreds of integrations and every major LLM.'
 
 /** Server-rendered heading slot handed to the {@link PricingPlans} client island. */
 const PRICING_HEADING = (

@@ -17,7 +17,12 @@ vi.mock('@sim/emcn', () => ({
 vi.mock('@sim/emcn/icons', () => ({ Menu: () => null, X: () => null }))
 vi.mock('@/components/icons', () => ({ GithubOutlineIcon: () => null }))
 vi.mock('next/link', () => ({
-  default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} />,
+  default: ({
+    prefetch,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean | null }) => (
+    <a {...props} data-prefetch={prefetch === false ? 'disabled' : 'auto'} />
+  ),
 }))
 vi.mock('@/app/(landing)/components/landing-cta-link', () => ({
   LandingCtaLink: ({ children, href, onClick }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
@@ -77,6 +82,20 @@ function trigger(): HTMLButtonElement {
 }
 
 describe('MobileNav dismissal', () => {
+  it('enables prefetch only while the sheet is open and closes on navigation', () => {
+    const link = host.querySelector<HTMLAnchorElement>('#mobile-nav-sheet a[href="/workflows"]')
+    if (!link) throw new Error('Missing workflow link')
+    expect(link.dataset.prefetch).toBe('disabled')
+
+    act(() => trigger().click())
+    expect(link.dataset.prefetch).toBe('auto')
+    link.addEventListener('click', (event) => event.preventDefault(), { once: true })
+    act(() => link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })))
+    expect(trigger().getAttribute('aria-expanded')).toBe('false')
+    expect(link.dataset.prefetch).toBe('disabled')
+    expect(setMenuOpen).toHaveBeenLastCalledWith('mobile', false)
+  })
+
   it('releases its scroll lock when resizing to desktop and stays closed when returning', () => {
     act(() => trigger().click())
     expect(trigger().getAttribute('aria-expanded')).toBe('true')

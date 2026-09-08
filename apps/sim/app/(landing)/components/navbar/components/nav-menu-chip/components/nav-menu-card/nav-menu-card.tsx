@@ -7,6 +7,7 @@ import type { NavMenuItemData } from '@/app/(landing)/components/navbar/componen
 interface NavMenuCardProps {
   item: NavMenuItemData
   onSelect: () => void
+  prefetch?: boolean | null
 }
 
 /**
@@ -45,12 +46,13 @@ const SCRIM = 'absolute inset-0 bg-black/20'
  * "Customer story" arrow label that rises into the corner on hover or focus.
  * The whole tile is the link.
  */
-export function NavMenuCard({ item, onSelect }: NavMenuCardProps) {
+export function NavMenuCard({ item, onSelect, prefetch }: NavMenuCardProps) {
   const { card } = item
   const tone = TONE[card?.tone ?? 'light']
   return (
     <Link
       href={item.href}
+      prefetch={prefetch}
       onClick={onSelect}
       aria-label={`${item.title} customer story`}
       className={cn(

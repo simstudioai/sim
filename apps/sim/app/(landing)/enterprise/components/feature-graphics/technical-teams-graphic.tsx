@@ -29,7 +29,7 @@ const DIFF_LINES: readonly DiffLine[] = [
 /** Per-marker ink treatments: added strongest, removed and context quiet. */
 const MARKER_TONES: Record<DiffLine['marker'], string> = {
   ' ': 'text-[var(--text-muted)]',
-  '-': 'text-[var(--text-muted)] opacity-70',
+  '-': 'text-[var(--text-muted)]',
   '+': 'text-[var(--text-primary)]',
 }
 

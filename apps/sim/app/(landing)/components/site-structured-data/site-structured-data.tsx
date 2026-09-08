@@ -11,7 +11,7 @@ const SITE_JSON_LD = {
       alternateName: 'Sim Studio',
       legalName: 'Sim, Inc',
       description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
+        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect hundreds of integrations and every major LLM to create agents that automate real work.',
       url: SITE_URL,
       foundingDate: '2025',
       address: {
@@ -60,7 +60,7 @@ const SITE_JSON_LD = {
       url: SITE_URL,
       name: 'Sim, The AI Workspace | Build, Deploy & Manage AI Agents',
       description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM. Join 100,000+ builders.',
+        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect hundreds of integrations and every major LLM. Join 100,000+ builders.',
       publisher: { '@id': `${SITE_URL}#organization` },
       inLanguage: 'en-US',
     },

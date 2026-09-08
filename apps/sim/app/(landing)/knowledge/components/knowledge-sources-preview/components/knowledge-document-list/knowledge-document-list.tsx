@@ -19,7 +19,7 @@ export function KnowledgeDocumentList({
 }: KnowledgeDocumentListProps) {
   return (
     <div className='min-h-0 flex-1 overflow-auto overscroll-contain'>
-      <table className='w-full min-w-[620px] table-fixed border-collapse whitespace-nowrap text-left text-[13px] tabular-nums'>
+      <table className='w-full min-w-[620px] table-fixed border-collapse whitespace-nowrap text-left text-[13px]'>
         <caption className='sr-only'>Select a knowledge document</caption>
         <colgroup>
           <col className='w-[230px]' />
@@ -78,9 +78,9 @@ export function KnowledgeDocumentList({
                     <span className='truncate'>{document.title}</span>
                   </button>
                 </td>
-                <td>{document.size}</td>
-                <td>{document.tokens}</td>
-                <td>{document.chunks.length}</td>
+                <td className='tabular-nums'>{document.size}</td>
+                <td className='tabular-nums'>{document.tokens}</td>
+                <td className='tabular-nums'>{document.chunks.length}</td>
                 <td>{document.updated}</td>
                 <td>
                   <Badge variant='gray-secondary' size='sm'>

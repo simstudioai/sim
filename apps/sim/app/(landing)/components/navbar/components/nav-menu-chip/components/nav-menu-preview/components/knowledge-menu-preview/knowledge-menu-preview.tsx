@@ -81,7 +81,7 @@ export function KnowledgeMenuPreview({ layout = 'menu' }: KnowledgeMenuPreviewPr
             Sort
           </Chip>
         </MenuPreviewToolbar>
-        <table className='w-full table-fixed border-collapse whitespace-nowrap text-left tabular-nums'>
+        <table className='w-full table-fixed border-collapse whitespace-nowrap text-left'>
           <colgroup>
             <col className='w-[222px]' />
             <col className='w-[70px]' />
@@ -109,9 +109,9 @@ export function KnowledgeMenuPreview({ layout = 'menu' }: KnowledgeMenuPreviewPr
                     <span className='truncate'>{name}</span>
                   </span>
                 </td>
-                <td>{size}</td>
-                <td>{tokens}</td>
-                <td>{chunks}</td>
+                <td className='tabular-nums'>{size}</td>
+                <td className='tabular-nums'>{tokens}</td>
+                <td className='tabular-nums'>{chunks}</td>
                 <td>{uploaded}</td>
                 <td>
                   <Badge variant='gray-secondary' size='sm'>
