@@ -33,7 +33,10 @@ function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
 ): asserts principal is KnowledgePrincipalForOperation<O> {
   if (principal.kind !== 'organization_delegated')
     return requireAllowedWorkspacePrincipal(principal, operation)
-  if (operation.minimumRole !== 'read' || !operation.delegatedServices?.includes('copilot')) {
+  if (
+    operation.minimumRole !== 'read' ||
+    !operation.organizationOperation.delegatedServices?.includes(principal.serviceId)
+  ) {
     throw new OrchestrationError(
       'forbidden',
       'Organization delegation cannot perform this operation'

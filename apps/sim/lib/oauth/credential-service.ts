@@ -2,6 +2,7 @@ import { createHmac, createSign } from 'crypto'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { and, desc, eq } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
@@ -297,6 +298,7 @@ export async function getServiceAccountToken(
 }
 
 export interface SlackBotCredentialSecrets {
+  credentialVersion: string
   /** Required only when the bot receives Slack events; action-only bots may omit it. */
   signingSecret?: string
   botToken: string
@@ -349,6 +351,7 @@ export async function getSlackBotCredential(
     return null
   }
   return {
+    credentialVersion: sha256Hex(row.encryptedServiceAccountKey),
     ...(typeof blob.signingSecret === 'string' && blob.signingSecret
       ? { signingSecret: blob.signingSecret }
       : {}),

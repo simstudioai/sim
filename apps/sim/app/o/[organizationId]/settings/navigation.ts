@@ -67,7 +67,8 @@ export function organizationSettingsNavigation(
     (item) =>
       (item.id !== 'connected-accounts' ||
         (availability.connectedAccounts && !availability.search)) &&
-      ((item.id !== 'search-mcp' && item.id !== 'integrations') || availability.search) &&
+      ((item.id !== 'search-mcp' && item.id !== 'search-slack' && item.id !== 'integrations') ||
+        availability.search) &&
       resolveOrganizationSectionAccess({
         section: item.id,
         isTargetOrganizationMember: true,

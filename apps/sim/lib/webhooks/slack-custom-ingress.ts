@@ -87,6 +87,22 @@ export async function verifySlackCustomBotCredentialRequest({
   rawBody,
   requestId,
 }: SlackCustomBotRequestOptions): Promise<NextResponse | null> {
+  const result = await authenticateSlackCustomBotRequest({
+    credentialId,
+    request,
+    rawBody,
+    requestId,
+  })
+  return result instanceof Response ? result : null
+}
+
+/** Captures the exact credential version that authenticated this delivery. */
+export async function authenticateSlackCustomBotRequest({
+  credentialId,
+  request,
+  rawBody,
+  requestId,
+}: SlackCustomBotRequestOptions): Promise<NextResponse | { credentialVersion: string }> {
   const botCredential = await getSlackBotCredential(credentialId)
   if (!botCredential) {
     logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
@@ -97,7 +113,14 @@ export async function verifySlackCustomBotCredentialRequest({
     return new NextResponse(null, { status: 404 })
   }
 
-  return verifySlackRequestSignature(botCredential.signingSecret, request, rawBody, requestId)
+  const error = await verifySlackRequestSignature(
+    botCredential.signingSecret,
+    request,
+    rawBody,
+    requestId
+  )
+  if (error) return error
+  return { credentialVersion: botCredential.credentialVersion }
 }
 
 export async function dispatchSlackCustomBotCredential({

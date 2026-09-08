@@ -43,6 +43,8 @@ function defineKnowledgeOperation<const O extends WorkspaceOperation>(
             'organization_delegated',
           ],
           delegationAudience: 'sim:knowledge',
+          delegatedServices:
+            operation.id === 'knowledge.search' ? ['copilot', 'slack-search'] : ['copilot'],
         } as const)
       : ({ principalKinds: ['session', 'personal_api_key', 'oauth_access_token'] } as const)),
   })
@@ -100,6 +102,33 @@ const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
 } as const
 
 export const knowledgeOperations = {
+  listSlackInstallations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.list',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  configureSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.configure',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  removeSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.remove',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   /**
    * Lists the workspace's knowledge bases, active or archived.
    *

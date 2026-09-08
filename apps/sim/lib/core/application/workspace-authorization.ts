@@ -51,6 +51,7 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'system':
     case 'credential_group_enrollment':
     case 'scim_connection':
+    case 'slack_installation':
       return null
     case 'organization_delegated':
       return principal.subjectUserId

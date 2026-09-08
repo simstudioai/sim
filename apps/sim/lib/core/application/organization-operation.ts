@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
 import {
   assertOperationCapability,
@@ -14,6 +14,7 @@ export interface OrganizationOperation extends ApplicationOperation {
   readonly minimumRole: 'member' | 'admin'
   readonly principalKinds: readonly OrganizationPrincipal['kind'][]
   readonly delegationAudience?: string
+  readonly delegatedServices?: readonly OrganizationDelegatedPrincipal['serviceId'][]
 }
 
 /** Organization authority never borrows a workspace grant or a workspace API key. */
@@ -35,6 +36,13 @@ export function defineOrganizationOperation<const O extends OrganizationOperatio
     )
   }
   assertOperationCapability(operation)
+  if (
+    Boolean(operation.delegationAudience) !== Boolean(operation.delegatedServices?.length) ||
+    new Set(operation.delegatedServices).size !== (operation.delegatedServices?.length ?? 0)
+  ) {
+    throw new Error(`Operation ${operation.id} requires distinct organization delegated services`)
+  }
+  if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
   assertOperationOAuthPolicy(operation)
   Object.freeze(operation.principalKinds)
   return Object.freeze(operation)

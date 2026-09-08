@@ -4870,6 +4870,42 @@ export const credentialGroup = pgTable(
   })
 )
 
+/** An opt-in Search binding. Slack app secrets remain in the connected credential. */
+export const slackSearchInstallation = pgTable(
+  'slack_search_installation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => credential.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    teamId: text('team_id').notNull(),
+    teamName: text('team_name').notNull(),
+    botUserId: text('bot_user_id').notNull(),
+    enterpriseId: text('enterprise_id'),
+    enabled: boolean('enabled').notNull().default(false),
+    credentialVersion: text('credential_version').notNull(),
+    revision: text('revision').notNull(),
+    lastOutcome: text('last_outcome'),
+    lastEventAt: timestamp('last_event_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdx: index('slack_search_installation_organization_idx').on(table.organizationId),
+    credentialUnique: uniqueIndex('slack_search_installation_credential_unique').on(
+      table.credentialId
+    ),
+    appTeamUnique: uniqueIndex('slack_search_installation_app_team_unique').on(
+      table.appId,
+      table.teamId
+    ),
+  })
+)
+
 export const credentialGroupEnrollmentStatusEnum = pgEnum('credential_group_enrollment_status', [
   'invited',
   'delivery_failed',

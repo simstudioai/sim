@@ -7,9 +7,18 @@ import { describe, expect, it } from 'vitest'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 describe('knowledge operation registry', () => {
+  it('limits Slack member delegation to the existing search operation', () => {
+    const allowed = Object.values(knowledgeOperations).filter((operation) =>
+      operation.organizationOperation.delegatedServices?.includes('slack-search')
+    )
+    expect(allowed).toEqual([knowledgeOperations.search])
+  })
   it('defines unique stable semantic operation IDs', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
     expect(ids).toEqual([
+      'knowledge.slack.list',
+      'knowledge.slack.configure',
+      'knowledge.slack.remove',
       'knowledge.list',
       'knowledge.read',
       'knowledge.create',

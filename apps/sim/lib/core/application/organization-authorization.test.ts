@@ -24,6 +24,7 @@ const operation = defineOrganizationOperation({
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
   oauthScope: 'api:read',
   delegationAudience: 'sim:knowledge',
+  delegatedServices: ['copilot'],
   capability: 'knowledge.use',
 })
 const delegated: OrganizationDelegatedPrincipal = {
@@ -57,6 +58,35 @@ beforeEach(() => {
 })
 
 describe('organization operation authorization', () => {
+  it('admits Slack delegation only when the operation explicitly allows that service', async () => {
+    const slack: OrganizationDelegatedPrincipal = {
+      ...delegated,
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      serviceId: 'slack-search',
+      resourceScope: { installationId: 'installation', eventId: 'event' },
+    }
+    await expect(
+      authorizeOrganizationOperation(slack, operation, { organizationId: 'org' })
+    ).rejects.toThrow('delegation')
+    expect(mocks.membership).not.toHaveBeenCalled()
+    const search = defineOrganizationOperation({
+      ...operation,
+      delegatedServices: ['copilot', 'slack-search'],
+    })
+    await expect(
+      authorizeOrganizationOperation(slack, search, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: 'member' })
+    mocks.membership.mockResolvedValue([])
+    await expect(
+      authorizeOrganizationOperation(slack, search, { organizationId: 'org' })
+    ).rejects.toThrow('Organization not found')
+  })
+  it('requires an explicit service policy whenever an organization delegation is allowed', () => {
+    expect(() => defineOrganizationOperation({ ...operation, delegatedServices: [] })).toThrow(
+      'delegated services'
+    )
+  })
   it('requires consent and current membership for OAuth organization reads', async () => {
     await expect(
       authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })

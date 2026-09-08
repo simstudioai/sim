@@ -28,7 +28,7 @@ export async function authorizeOrganizationSettingsSection({
       return false
     return !(await isKnowledgeMemberAccessAvailable({ organizationId }))
   }
-  if (section === 'search-mcp' || section === 'integrations')
+  if (section === 'search-mcp' || section === 'search-slack' || section === 'integrations')
     return isKnowledgeMemberAccessAvailable({ organizationId })
 
   const deployment = getDeploymentShape()
