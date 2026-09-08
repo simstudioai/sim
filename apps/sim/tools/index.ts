@@ -511,11 +511,26 @@ function readExplicitCredentialSelector(params: Record<string, unknown>): string
   return undefined
 }
 
-function normalizeCopilotCredentialParams(params: Record<string, unknown>): void {
-  const credentialId = typeof params.credentialId === 'string' ? params.credentialId.trim() : ''
-  if (credentialId && !params.credential && !params.oauthCredential) {
-    params.credential = credentialId
+function normalizeCopilotCredentialParams(
+  tool: ToolDefinition,
+  params: Record<string, unknown>
+): string | undefined {
+  const aliases = ['oauthCredential', 'credential', 'credentialId']
+  const selector = aliases.find(
+    (name) => tool.params[name] !== undefined && tool.params[name].visibility !== 'hidden'
+  )
+  const selectedKey =
+    selector && params[selector] !== undefined
+      ? selector
+      : aliases.find((name) => params[name] !== undefined)
+  if (!selectedKey) return
+
+  const selected = params[selectedKey]
+  if (typeof selected !== 'string' || selected.trim().length === 0) {
+    throw new Error('Credential selection must be a nonempty string')
   }
+  params[selector ?? 'credential'] = selectedKey === 'credentialId' ? selected.trim() : selected
+  return selector ?? 'credential'
 }
 
 function enforceCopilotCredentialSelection(
@@ -1856,6 +1871,10 @@ async function executeToolImplementation(
       }
     }
 
+    const credentialSelector = tool
+      ? normalizeCopilotCredentialParams(tool, contextParams)
+      : undefined
+
     // Validate the tool and its parameters
     validateRequiredParametersAfterMerge(toolId, tool, contextParams)
 
@@ -1865,7 +1884,6 @@ async function executeToolImplementation(
     }
 
     await normalizeFileParams(tool, contextParams, scope, executionContext)
-    normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveToolEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
 
@@ -1886,8 +1904,8 @@ async function executeToolImplementation(
     }
 
     // If we have a credential parameter, fetch the access token
-    if (contextParams.oauthCredential) {
-      contextParams.credential = contextParams.oauthCredential
+    if (credentialSelector) {
+      contextParams.credential = contextParams[credentialSelector]
     }
     if (operationContext?.requestMode === 'assistant' && tool.personalToken) {
       if (typeof window !== 'undefined' || !operationContext.workspaceId) {

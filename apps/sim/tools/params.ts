@@ -272,6 +272,13 @@ export function createUserToolSchema(
   options: UserToolSchemaOptions = {}
 ): ToolSchema {
   const surface = options.surface ?? 'default'
+  const credentialSelectors = ['oauthCredential', 'credential', 'credentialId']
+  const declaredCredentialSelectors = credentialSelectors.filter(
+    (name) =>
+      toolConfig.params[name] !== undefined && toolConfig.params[name].visibility !== 'hidden'
+  )
+  const useCredentialId =
+    surface === 'copilot' && (toolConfig.oauth?.required || declaredCredentialSelectors.length > 0)
   const hostedApiKeyParam =
     options.hostedKeySupport && toolConfig.hosting && !toolConfig.hosting.enabled
       ? toolConfig.hosting.apiKeyParam
@@ -284,6 +291,7 @@ export function createUserToolSchema(
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     if (!param) continue
+    if (useCredentialId && credentialSelectors.includes(paramId)) continue
     const visibility = param.visibility ?? 'user-or-llm'
     if (visibility === 'hidden') {
       continue
@@ -315,13 +323,18 @@ export function createUserToolSchema(
     }
   }
 
-  if (toolConfig.oauth?.required && surface === 'copilot') {
+  if (useCredentialId) {
     schema.properties.credentialId = {
       type: 'string',
       description:
-        'Credential ID to use for this OAuth tool call. Required for Copilot/Superagent execution. Get valid IDs from environment/credentials.json.',
+        'Credential ID to use for this connected tool call. Get valid IDs from environment/credentials.json.',
     }
-    schema.required.push('credentialId')
+    if (
+      toolConfig.oauth?.required ||
+      declaredCredentialSelectors.some((name) => toolConfig.params[name]?.required)
+    ) {
+      schema.required.push('credentialId')
+    }
   }
 
   return schema

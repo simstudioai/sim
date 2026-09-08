@@ -436,6 +436,49 @@ describe('Tool Parameters Utils', () => {
       expect(copilotSchema.required).toContain('credentialId')
     })
 
+    it.each(['oauthCredential', 'credential', 'credentialId'])(
+      'publishes one Copilot credential field for declared %s selectors',
+      (selector) => {
+        for (const oauth of [undefined, { required: true, provider: 'test-provider' }]) {
+          const tool = {
+            ...mockToolConfig,
+            ...(oauth ? { oauth } : {}),
+            params: {
+              [selector]: { type: 'string', required: true, visibility: 'user-only' as const },
+            },
+          }
+          const schema = createUserToolSchema(tool, { surface: 'copilot' })
+          expect(Object.keys(schema.properties)).toEqual(['credentialId'])
+          expect(schema.required).toEqual(['credentialId'])
+          expect(schema.properties.credentialId.description).not.toContain('{{VAR_NAME}}')
+          const defaultSchema = createUserToolSchema(tool)
+          expect(Object.keys(defaultSchema.properties)).toEqual([selector])
+          expect(defaultSchema.required).toEqual([selector])
+        }
+      }
+    )
+
+    it('keeps optional credential selectors optional and hidden authority unpublished', () => {
+      const schema = createUserToolSchema(
+        {
+          ...mockToolConfig,
+          params: { oauthCredential: { type: 'string', required: false, visibility: 'user-only' } },
+        },
+        { surface: 'copilot' }
+      )
+      expect(Object.keys(schema.properties)).toEqual(['credentialId'])
+      expect(schema.required).toEqual([])
+      const hiddenSchema = createUserToolSchema(
+        {
+          ...mockToolConfig,
+          params: { credentialId: { type: 'string', required: true, visibility: 'hidden' } },
+        },
+        { surface: 'copilot' }
+      )
+      expect(hiddenSchema.properties).toEqual({})
+      expect(hiddenSchema.required).toEqual([])
+    })
+
     it.concurrent('emits file params as reference strings by default', () => {
       const toolWithFileParams = {
         ...mockToolConfig,
