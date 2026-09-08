@@ -100,6 +100,7 @@ export function toCanonicalUser(body: ScimUserWriteParsed): ScimUserAttributes {
 
   const { emails, primary } = normalizeEmails(body.emails, userName)
   const name = formatName(body.name, body.displayName, primary)
+  const displayName = trimmed(body.displayName)
   const enterprise = body[SCIM_ENTERPRISE_USER_SCHEMA]
   const extra = collectExtra(body)
 
@@ -107,7 +108,7 @@ export function toCanonicalUser(body: ScimUserWriteParsed): ScimUserAttributes {
     userName,
     ...(trimmed(body.externalId) ? { externalId: trimmed(body.externalId) } : {}),
     active: body.active ?? true,
-    displayName: trimmed(body.displayName) ?? name.formatted,
+    ...(displayName ? { displayName, displayNameSource: 'provider' as const } : {}),
     name,
     emails,
     ...(isRecord(enterprise) ? { enterprise: normalizeEnterprise(enterprise) } : {}),
@@ -157,6 +158,13 @@ function normalizeEnterprise(value: Record<string, unknown>): EnterpriseAttribut
 /** The primary address of a canonical resource. */
 export function primaryEmail(attributes: ScimUserAttributes): string {
   return (attributes.emails.find((entry) => entry.primary) ?? attributes.emails[0]).value
+}
+
+/** Projects the directory's preferred display name onto the Sim account. */
+export function accountName(attributes: ScimUserAttributes): string {
+  return attributes.displayNameSource === 'provider'
+    ? (attributes.displayName ?? attributes.name.formatted)
+    : attributes.name.formatted
 }
 
 export interface CanonicalScimGroup {

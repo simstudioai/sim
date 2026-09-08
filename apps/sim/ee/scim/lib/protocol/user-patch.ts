@@ -45,12 +45,11 @@ function requireBoolean(value: unknown, attribute: string): boolean {
   return normalized
 }
 
-/** Recomputes `formatted` and `displayName` after a name part changes. */
-function refreshDerivedNames(user: ScimUserAttributes, fallback: string): void {
+/** Recomputes the formatted name without overwriting an explicit display name. */
+function refreshFormattedName(user: ScimUserAttributes, fallback: string): void {
   const joined = [user.name.givenName, user.name.familyName].filter(Boolean).join(' ')
   if (joined) user.name.formatted = joined
   else if (!user.name.formatted) user.name.formatted = fallback
-  if (!user.displayName) user.displayName = user.name.formatted
 }
 
 function setPrimaryEmailValue(user: ScimUserAttributes, value: string): void {
@@ -169,7 +168,13 @@ function applyOperation(
       return
 
     case 'displayname':
-      user.displayName = op === 'remove' ? user.name.formatted : requireString(value, 'displayName')
+      if (op === 'remove') {
+        user.displayName = undefined
+        user.displayNameSource = undefined
+      } else {
+        user.displayName = requireString(value, 'displayName')
+        user.displayNameSource = 'provider'
+      }
       return
 
     case 'name.formatted':
@@ -180,13 +185,13 @@ function applyOperation(
     case 'name.givenname':
       if (op === 'remove') user.name.givenName = undefined
       else user.name.givenName = requireString(value, 'name.givenName')
-      refreshDerivedNames(user, user.userName)
+      refreshFormattedName(user, user.userName)
       return
 
     case 'name.familyname':
       if (op === 'remove') user.name.familyName = undefined
       else user.name.familyName = requireString(value, 'name.familyName')
-      refreshDerivedNames(user, user.userName)
+      refreshFormattedName(user, user.userName)
       return
 
     case 'emails':

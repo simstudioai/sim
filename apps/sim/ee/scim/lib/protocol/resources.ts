@@ -27,7 +27,7 @@ export interface ScimUserResource {
   externalId?: string
   userName: string
   active: boolean
-  displayName: string
+  displayName?: string
   name: { formatted: string; givenName?: string; familyName?: string }
   emails: Array<{ value: string; type?: string; primary: boolean }>
   groups: Array<{ value: string; display: string; $ref: string }>
@@ -113,7 +113,7 @@ export function toUserResource(row: UserResourceRow, baseUrl: string): ScimUserR
     ...(row.externalId ? { externalId: row.externalId } : {}),
     userName: row.userName,
     active: row.active,
-    displayName: stored.displayName,
+    ...(stored.displayName !== undefined ? { displayName: stored.displayName } : {}),
     name: stored.name,
     emails,
     groups: row.groups.map((group) => ({

@@ -6055,7 +6055,9 @@ export interface ScimUserAttributes {
   userName: string
   externalId?: string
   active: boolean
-  displayName: string
+  displayName?: string
+  /** Older records synthesized displayName; unmarked records retain formatted-name account projection. */
+  displayNameSource?: 'provider'
   name: {
     formatted: string
     givenName?: string

@@ -488,21 +488,55 @@ async function run() {
   )
 
   await check(
-    'User PUT replaces a profile and repeated identical writes keep resource versions stable',
+    'User PUT projects display names and repairs account drift without repeated writes',
     async () => {
       const profile = {
         schemas: [USER_SCHEMA],
         userName: bobEmail,
         externalId: 'bob-directory-id',
         active: true,
-        name: { givenName: 'Robert', familyName: 'Example' },
+        name: { formatted: 'Bob Example', givenName: 'Robert', familyName: 'Example' },
         displayName: 'Robert Example',
       }
       const first = (await scim(token, `/Users/${bobId}`, { method: 'PUT', body: profile })).body
+      const [account] = await sql`select u.id, u.name, u.updated_at, u.email_verified
+        from "user" u join scim_user su on su.user_id = u.id where su.id = ${bobId}`
+      assert.equal(account.name, 'Robert Example')
+      assert.equal(record(first.name).formatted, 'Bob Example')
       const second = (await scim(token, `/Users/${bobId}`, { method: 'PUT', body: profile })).body
       assert.equal(record(first.name).givenName, 'Robert')
       assert.equal(record(first.meta).version, record(second.meta).version)
       assert.equal(record(first.meta).lastModified, record(second.meta).lastModified)
+      assert.equal(
+        (await sql`select updated_at from "user" where id = ${account.id}`)[0].updated_at.getTime(),
+        account.updated_at.getTime()
+      )
+
+      await sql`update "user" set name = 'Old account name' where id = ${account.id}`
+      const repaired = (await scim(token, `/Users/${bobId}`, { method: 'PUT', body: profile })).body
+      const [restored] =
+        await sql`select id, name, updated_at, email_verified from "user" where id = ${account.id}`
+      assert.equal(restored.name, 'Robert Example')
+      assert.equal(restored.email_verified, account.email_verified)
+      assert.equal(repaired.id, bobId)
+      const repeated = (await scim(token, `/Users/${bobId}`, { method: 'PUT', body: profile })).body
+      assert.equal(record(repaired.meta).version, record(repeated.meta).version)
+      assert.equal(
+        (await sql`select updated_at from "user" where id = ${account.id}`)[0].updated_at.getTime(),
+        restored.updated_at.getTime()
+      )
+
+      await patch(token, `/Users/${bobId}`, [{ op: 'remove', path: 'displayName' }])
+      const fallback = (
+        await patch(token, `/Users/${bobId}`, [
+          { op: 'replace', path: 'name.givenName', value: 'Bobby' },
+        ])
+      ).body
+      assert(!('displayName' in fallback))
+      assert.equal(
+        (await sql`select name from "user" where id = ${account.id}`)[0].name,
+        'Bobby Example'
+      )
     }
   )
 
@@ -543,6 +577,20 @@ async function run() {
         })
       ).body
       assert.notEqual(record(initial.meta).lastModified, record(replaced.meta).lastModified)
+      assert.equal(
+        (replaced.members as unknown[]).map(record).find((member) => member.value === bobId)
+          ?.display,
+        'Bobby Example'
+      )
+      const listedGroup = resources((await scim(token, '/Groups')).body).find(
+        (group) => group.id === groupId
+      )
+      assert(listedGroup)
+      assert.equal(
+        (listedGroup.members as unknown[]).map(record).find((member) => member.value === bobId)
+          ?.display,
+        'Bobby Example'
+      )
       const stable = (
         await scim(token, `/Groups/${groupId}`, {
           method: 'PUT',

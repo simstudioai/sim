@@ -32,7 +32,7 @@ import {
   resolveProvisionedIdentity,
 } from '@/ee/scim/lib/identity/resolve-user'
 import { reconcileUserProjection } from '@/ee/scim/lib/projection/reconcile-user'
-import { primaryEmail } from '@/ee/scim/lib/protocol/canonical'
+import { accountName, primaryEmail } from '@/ee/scim/lib/protocol/canonical'
 import { ScimError, uniqueness } from '@/ee/scim/lib/protocol/errors'
 import { toUserResource } from '@/ee/scim/lib/protocol/resources'
 import {
@@ -128,7 +128,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
         const created = await auth.api.createUser({
           body: {
             email,
-            name: attributes.name.formatted,
+            name: accountName(attributes),
             data: { emailVerified: false },
           },
         })
@@ -182,7 +182,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           emailChanged = await syncAccountIdentityTx(tx, {
             userId,
             email,
-            name: attributes.name.formatted,
+            name: accountName(attributes),
           })
           if (emailChanged && attributes.active) {
             await revokeUserSessionsTx(tx, { userId, organizationId: context.organizationId })

@@ -59,6 +59,9 @@ timeout.
   filters, account email drift, and filters reflecting manual suspension.
 - Entra-shaped complex name and extension PATCH, case-insensitive core-qualified
   password fields, atomic failure, and partial complex attribute selection.
+- Okta display-name updates with an echoed stale formatted name, actual account
+  name drift repair, stable retries, optional display-name removal, and group
+  member labels falling back to the formatted name.
 - Group membership idempotency and membership-only replacement timestamps.
 - Workspace, organization-role, and permission-group mappings, reconciliation,
   drift repair, withdrawal, and preservation of pre-existing manual workspace access.
@@ -100,6 +103,22 @@ The same CI job runs `lib/auth/sso/application/admit-sso-user.postgres.test.ts`,
 which verifies that SCIM's `disableJit` setting blocks fresh SSO membership,
 preserves existing membership, and permits JIT when disabled. These checks run
 the admission operation and Enterprise entitlement reads through PostgreSQL.
+
+## Live Okta verification
+
+The private **SCIM 2.0 Test App (Header Auth)** has also been exercised through
+the Okta Admin Console against an isolated test organization over HTTPS. The
+walkthrough and redacted screenshots are in the
+[Okta provisioning guide](../../../docs/content/docs/platform/enterprise/scim/okta.mdx).
+The run verified credential testing, user assignment and creation, profile
+updates, deactivation and reactivation of the same account, group push, workspace
+grant and withdrawal, group rename, readdition, repeated push, reconciliation,
+token rotation, and downstream group deletion. Resulting names, memberships,
+and grants were checked in PostgreSQL as well as the admin interfaces.
+
+This used synthetic users and a seeded verified test domain. It did not exercise
+real DNS ownership verification, an end-user SSO login, or a Microsoft Entra
+tenant. It is a provider interoperability check, not OIN certification.
 
 ## Remaining provider verification
 

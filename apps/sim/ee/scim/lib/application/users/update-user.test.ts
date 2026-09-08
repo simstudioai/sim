@@ -82,6 +82,7 @@ function attributes(overrides: Partial<ScimUserAttributes> = {}): ScimUserAttrib
     externalId: 'ext-1',
     active: true,
     displayName: 'Ada Lovelace',
+    displayNameSource: 'provider',
     name: { formatted: 'Ada Lovelace', givenName: 'Ada', familyName: 'Lovelace' },
     emails: [{ value: 'ada@acme.test', type: 'work', primary: true }],
     ...overrides,
@@ -89,7 +90,12 @@ function attributes(overrides: Partial<ScimUserAttributes> = {}): ScimUserAttrib
 }
 
 function stage(
-  record: { attributes?: Partial<ScimUserAttributes>; email?: string; active?: boolean } = {}
+  record: {
+    attributes?: Partial<ScimUserAttributes>
+    email?: string
+    name?: string
+    active?: boolean
+  } = {}
 ) {
   queueTableRows(scimConnection, [
     { id: 'conn-1', organizationId: 'org-1', status: 'active', settings: {} },
@@ -103,6 +109,10 @@ function stage(
     active: record.active ?? stored.active,
     attributes: stored,
     email: record.email ?? 'ada@acme.test',
+    name:
+      record.name ??
+      (stored.displayNameSource === 'provider' ? stored.displayName : undefined) ??
+      stored.name.formatted,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     userSuspendedAt: null,
@@ -145,9 +155,123 @@ describe('user updates', () => {
     const result = await run(replaceScimUser, { scimUserId: 'su-1', attributes: attributes() })
     expect(result.outcome).toBeNull()
     expect(mocks.updateScimUser).not.toHaveBeenCalled()
+    expect(mocks.syncIdentity).not.toHaveBeenCalled()
     expect(mocks.reconcile).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
     expect(result.resource.id).toBe('su-1')
+  })
+
+  it('projects an Okta display-name update despite an echoed stale formatted name', async () => {
+    stage()
+    const next = attributes({
+      displayName: 'Augusta King',
+      name: { formatted: 'Ada Lovelace', givenName: 'Augusta', familyName: 'King' },
+    })
+    await run(replaceScimUser, { scimUserId: 'su-1', attributes: next })
+    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta King' })
+    expect(mocks.updateScimUser).toHaveBeenCalledWith(db, {
+      scimUserId: 'su-1',
+      attributes: next,
+      active: true,
+    })
+    expect(mocks.assertDomainOwned).not.toHaveBeenCalled()
+    expect(mocks.revokeSessions).not.toHaveBeenCalled()
+    expect(mocks.suspend).not.toHaveBeenCalled()
+    expect(mocks.unsuspend).not.toHaveBeenCalled()
+    expect(mocks.invalidate).not.toHaveBeenCalled()
+  })
+
+  it.each(['patch', 'replace'] as const)(
+    'repairs account-name drift on an identical %s only once',
+    async (method) => {
+      const useCase = method === 'patch' ? patchScimUser : replaceScimUser
+      const input =
+        method === 'patch'
+          ? {
+              scimUserId: 'su-1',
+              operations: [{ op: 'replace', path: 'displayName', value: 'Ada Lovelace' }],
+            }
+          : { scimUserId: 'su-1', attributes: attributes() }
+      stage({ name: 'Old account name' })
+      const repaired = await run(useCase, input)
+      expect(repaired.outcome).not.toBeNull()
+      expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Ada Lovelace' })
+      expect(mocks.revokeSessions).not.toHaveBeenCalled()
+      expect(mocks.invalidate).not.toHaveBeenCalled()
+
+      vi.clearAllMocks()
+      stage()
+      const repeated = await run(useCase, input)
+      expect(repeated.outcome).toBeNull()
+      expect(mocks.syncIdentity).not.toHaveBeenCalled()
+      expect(mocks.updateScimUser).not.toHaveBeenCalled()
+      expect(mocks.reconcile).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['add', 'replace'] as const)('projects a display-name-only PATCH %s', async (op) => {
+    stage()
+    await run(patchScimUser, {
+      scimUserId: 'su-1',
+      operations: [{ op, path: 'displayName', value: 'Countess Lovelace' }],
+    })
+    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
+      userId: 'u-1',
+      name: 'Countess Lovelace',
+    })
+  })
+
+  it('updates the account from name parts when no explicit display name exists', async () => {
+    stage({ attributes: { displayName: undefined } })
+    await run(patchScimUser, {
+      scimUserId: 'su-1',
+      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
+    })
+    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta Lovelace' })
+    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayName).toBeUndefined()
+  })
+
+  it('keeps an explicit display name when only a name part changes', async () => {
+    stage()
+    await run(patchScimUser, {
+      scimUserId: 'su-1',
+      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
+    })
+    expect(mocks.syncIdentity).not.toHaveBeenCalled()
+    expect(mocks.updateScimUser.mock.calls[0][1].attributes.name.formatted).toBe('Augusta Lovelace')
+  })
+
+  it('preserves name-part updates for legacy records with synthesized display names', async () => {
+    stage({ attributes: { displayNameSource: undefined } })
+    await run(patchScimUser, {
+      scimUserId: 'su-1',
+      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
+    })
+    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta Lovelace' })
+  })
+
+  it('adopts an explicit display name when a provider replaces a legacy profile', async () => {
+    stage({ attributes: { displayName: 'Countess Lovelace', displayNameSource: undefined } })
+    await run(replaceScimUser, {
+      scimUserId: 'su-1',
+      attributes: attributes({ displayName: 'Countess Lovelace' }),
+    })
+    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
+      userId: 'u-1',
+      name: 'Countess Lovelace',
+    })
+    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayNameSource).toBe('provider')
+  })
+
+  it('restores the formatted fallback when a display name is removed', async () => {
+    stage({ attributes: { displayName: 'Countess Lovelace' } })
+    await run(patchScimUser, {
+      scimUserId: 'su-1',
+      operations: [{ op: 'remove', path: 'displayName' }],
+    })
+    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Ada Lovelace' })
+    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayName).toBeUndefined()
   })
 
   it('deactivates by suspending, never by removing, and keeps the projection', async () => {

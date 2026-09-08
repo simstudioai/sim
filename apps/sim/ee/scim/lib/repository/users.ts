@@ -74,6 +74,7 @@ const USER_SELECTION = {
   createdAt: scimUser.createdAt,
   updatedAt: scimUser.updatedAt,
   email: user.email,
+  name: user.name,
   userSuspendedAt: user.suspendedAt,
 } as const
 
@@ -87,6 +88,7 @@ export interface ScimUserRecord {
   createdAt: Date
   updatedAt: Date
   email: string
+  name: string
   userSuspendedAt: Date | null
 }
 

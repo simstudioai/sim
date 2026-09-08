@@ -123,6 +123,7 @@ function attributes(overrides: Partial<ScimUserAttributes> = {}): ScimUserAttrib
     externalId: 'ext-1',
     active: true,
     displayName: 'Ada Lovelace',
+    displayNameSource: 'provider',
     name: { formatted: 'Ada Lovelace', givenName: 'Ada', familyName: 'Lovelace' },
     emails: [{ value: 'ada@acme.test', type: 'work', primary: true }],
     ...overrides,
@@ -255,6 +256,39 @@ describe('provisionScimUser', () => {
       source: 'scim',
     })
   })
+
+  it.each(['create', 'link'] as const)(
+    'uses the explicit display name when the identity action is %s',
+    async (action) => {
+      stageConnection()
+      if (action === 'link') {
+        mocks.resolveIdentity.mockResolvedValue({
+          action: 'link',
+          userId: 'u-old',
+          via: 'tombstone',
+        })
+      }
+      const stored = attributes({ displayName: 'Countess Lovelace' })
+      stageReadBack(action === 'link' ? 'u-old' : 'u-new', stored, null)
+      await run(stored)
+      if (action === 'create') {
+        expect(mocks.createUser).toHaveBeenCalledWith({
+          body: {
+            email: 'ada@acme.test',
+            name: 'Countess Lovelace',
+            data: { emailVerified: false },
+          },
+        })
+      } else {
+        expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
+          userId: 'u-old',
+          email: 'ada@acme.test',
+          name: 'Countess Lovelace',
+        })
+      }
+      expect(mocks.insertScimUser.mock.calls[0][1].attributes.name.formatted).toBe('Ada Lovelace')
+    }
+  )
 
   it('runs the post-commit effects against the subscription admission validated', async () => {
     stageConnection()

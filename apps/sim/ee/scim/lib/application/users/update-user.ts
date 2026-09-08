@@ -20,7 +20,7 @@ import { scimOperations } from '@/ee/scim/lib/application/operations'
 import { syncAccountIdentityTx } from '@/ee/scim/lib/identity/account-identity'
 import { assertDomainOwned } from '@/ee/scim/lib/identity/resolve-user'
 import { reconcileUserProjection } from '@/ee/scim/lib/projection/reconcile-user'
-import { primaryEmail } from '@/ee/scim/lib/protocol/canonical'
+import { accountName, primaryEmail } from '@/ee/scim/lib/protocol/canonical'
 import { notFound, ScimError } from '@/ee/scim/lib/protocol/errors'
 import { toUserResource } from '@/ee/scim/lib/protocol/resources'
 import { applyUserPatch, userAttributesEqual } from '@/ee/scim/lib/protocol/user-patch'
@@ -55,6 +55,7 @@ async function applyUserUpdate(
   next: ScimUserAttributes
 ): Promise<UpdateOutcome> {
   const nextEmail = primaryEmail(next)
+  const nextName = accountName(next)
   const emailChanged = accountEmailDiverged(current, next)
   const deactivated = current.active && !next.active
   const reactivated = !current.active && next.active
@@ -73,7 +74,7 @@ async function applyUserUpdate(
     await syncAccountIdentityTx(tx, {
       userId: current.userId,
       email: nextEmail,
-      name: next.name.formatted,
+      name: nextName,
     })
 
     /**
@@ -87,8 +88,8 @@ async function applyUserUpdate(
         organizationId: context.organizationId,
       })
     }
-  } else if (next.name.formatted !== current.attributes.name.formatted) {
-    await syncAccountIdentityTx(tx, { userId: current.userId, name: next.name.formatted })
+  } else if (nextName !== current.name) {
+    await syncAccountIdentityTx(tx, { userId: current.userId, name: nextName })
   }
 
   if (deactivated) {
@@ -159,6 +160,10 @@ async function loadUserForUpdate(
  */
 function accountEmailDiverged(current: ScimUserRecord, next: ScimUserAttributes): boolean {
   return normalizeEmail(primaryEmail(next)) !== normalizeEmail(current.email)
+}
+
+function accountIdentityDiverged(current: ScimUserRecord, next: ScimUserAttributes): boolean {
+  return accountEmailDiverged(current, next) || accountName(next) !== current.name
 }
 
 /** Rendered inside the write transaction, so a concurrent delete cannot make a committed update unreadable. */
@@ -245,7 +250,7 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
        * organization produces 2,000 spurious audit rows per sync.
        */
       const outcome =
-        userAttributesEqual(current.attributes, next) && !accountEmailDiverged(current, next)
+        userAttributesEqual(current.attributes, next) && !accountIdentityDiverged(current, next)
           ? null
           : await applyUserUpdate(tx, context, current, next)
       return {
@@ -285,7 +290,7 @@ export const patchScimUser = defineAuthorizedScimUseCase({
        * nothing.
        */
       const outcome =
-        changed || accountEmailDiverged(current, next)
+        changed || accountIdentityDiverged(current, next)
           ? await applyUserUpdate(tx, context, current, next)
           : null
       return {

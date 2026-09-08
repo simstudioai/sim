@@ -66,12 +66,14 @@ Two tokens can be active at a time, so you can rotate without downtime: issue th
 <Tabs items={['Okta', 'Microsoft Entra ID', 'OneLogin', 'JumpCloud']}>
 <Tab value="Okta">
 
+For a step-by-step walkthrough, see [Okta provisioning](/platform/enterprise/scim/okta).
+
 If you use OIDC for sign-in, create a separate provisioning integration: Okta cannot add SCIM to a custom OIDC app. In the Okta Integration Network catalog, add **SCIM 2.0 Test App (Header Auth)** for a private integration. See [Okta's setup guide](https://developer.okta.com/docs/guides/scim-provisioning-integration-connect/main/).
 
 In that app, open **Provisioning → Integration → Configure API Integration**, enable API integration, and enter:
 
-- **SCIM 2.0 Base Url**: `https://<your-sim-domain>/api/scim/v2`
-- **API Token**: your Sim token
+- **Base URL**: `https://<your-sim-domain>/api/scim/v2`
+- **API Token**: `Bearer <your-sim-token>` (include `Bearer` and a space)
 
 Select **Test API Credentials**, then save. Under **Provisioning → To App**, enable Create Users, Update User Attributes, and Deactivate Users. Assign a test user first, then use **Push Groups** for groups you want to map in Sim. Keep assignment groups separate from groups you push, as required by Okta.
 

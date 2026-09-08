@@ -10,8 +10,8 @@ const logger = createLogger('ScimGroupRepository')
 
 /** Reads and writes of the provisioned Group table, always anchored to a connection. */
 
-/** What a member is called in a Group response: the same display name the User resource shows. */
-const memberDisplayName = sql<string>`coalesce(${scimUser.attributes} ->> 'displayName', ${scimUser.userName})`
+/** A group member's preferred display name, falling back to the formatted name or username. */
+const memberDisplayName = sql<string>`coalesce(${scimUser.attributes} ->> 'displayName', ${scimUser.attributes} #>> '{name,formatted}', ${scimUser.userName})`
 
 export interface ScimGroupRecord {
   id: string

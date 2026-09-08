@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import type { ScimUserAttributes } from '@sim/db/schema'
 import { describe, expect, it } from 'vitest'
 import { scimGroupResourceSchema, scimUserResourceSchema } from '@/lib/api/contracts/scim'
 import { SCIM_MAX_PAGE_SIZE } from '@/ee/scim/lib/protocol/constants'
@@ -26,9 +27,10 @@ function userRow() {
       userName: 'ada@acme.test',
       active: true,
       displayName: 'Ada Lovelace',
+      displayNameSource: 'provider',
       name: { formatted: 'Ada Lovelace', givenName: 'Ada', familyName: 'Lovelace' },
       emails: [{ value: 'ada@acme.test', type: 'work', primary: true }],
-    },
+    } satisfies ScimUserAttributes,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-02-01T00:00:00.000Z'),
     email: 'ada@acme.test',
@@ -59,6 +61,14 @@ describe('resolvePage', () => {
 })
 
 describe('toUserResource', () => {
+  it('omits an absent display name so provider read-modify-write does not make a fallback explicit', () => {
+    const row = userRow()
+    const { displayName: _displayName, ...attributes } = row.attributes
+    const resource = toUserResource({ ...row, attributes }, BASE_URL)
+    expect(resource).not.toHaveProperty('displayName')
+    expect(resource.name.formatted).toBe('Ada Lovelace')
+    expect(scimUserResourceSchema.safeParse(resource).success).toBe(true)
+  })
   it('renders the resource a provider expects', () => {
     const resource = toUserResource(userRow(), BASE_URL)
     expect(resource).toMatchObject({
@@ -75,6 +85,7 @@ describe('toUserResource', () => {
     expect(resource.groups).toEqual([
       { value: 'g1', display: 'Engineering', $ref: `${BASE_URL}/Groups/g1` },
     ])
+    expect(resource).not.toHaveProperty('displayNameSource')
   })
 
   it('declares a provider extension it stored and returns its attributes', () => {

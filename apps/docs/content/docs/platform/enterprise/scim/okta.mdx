@@ -1,0 +1,108 @@
+---
+title: Okta provisioning
+description: Connect a private Okta SCIM integration to Sim and verify user and group provisioning
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+Use an Okta SCIM integration to create, update, and deactivate Sim members. This guide covers provisioning; configure [single sign-on](/platform/enterprise/sso) separately for authentication.
+
+## Before you start
+
+- An Enterprise organization in Sim, with an owner or administrator who can manage provisioning.
+- Each user email domain [verified in Sim](/platform/enterprise/verified-domains).
+- An Okta administrator account with access to application provisioning.
+- A Sim deployment reachable by Okta over HTTPS. For self-hosted deployments, use its public URL and apply the [SCIM rollout requirements](/platform/enterprise/scim#deployment-and-upgrades).
+
+Start with a test user and a dedicated group before assigning your organization. Provisioned members use a seat; they receive workspace access only through a mapping or an existing grant.
+
+## Connect Okta to Sim
+
+<Steps>
+
+<Step>
+### Enable provisioning in Sim
+
+Open **Settings → Organization → Single sign-on → Provisioning** and turn on **Enable directory provisioning**. Copy the **Base URL** from **Connection**. Under **Tokens**, choose an expiry and select **Issue token**. Copy the token before closing its dialog; Sim shows it once.
+</Step>
+
+<Step>
+### Add the Okta integration
+
+In the Okta Admin Console, open **Applications and Resources → Applications → Browse App Catalog**. Search for **SCIM 2.0 Test App (Header Auth)** and select **Add Integration**. Give the app a recognizable name, such as **Sim provisioning**.
+
+For a provisioning-only app, hide its application icon from users and turn off automatic sign-in from the landing page. On **Sign-On Options**, select **Secure Web Authentication**, use your Sim HTTPS login URL, and set **Application username format** to **Email**. Complete the app setup. These template settings do not configure Sim SSO.
+
+<Callout type="info">
+  Okta cannot add SCIM to a custom OIDC app. Keep this provisioning app alongside your OIDC sign-in app. For an existing custom SAML or SWA app, use [Okta's custom-app SCIM instructions](https://help.okta.com/en-us/Content/Topics/apps/apps_app_integration_wizard_scim.htm); those connection fields differ from the catalog template below.
+</Callout>
+</Step>
+
+<Step>
+### Configure API integration
+
+In the new Okta app, open **Provisioning → Integration → Configure API Integration** and select **Enable API integration**.
+
+| Field | Value |
+| --- | --- |
+| Base URL | The URL copied from Sim, ending in `/api/scim/v2` |
+| API Token | `Bearer <your-sim-token>` — include `Bearer` and a space before the token |
+
+Select **Test API Credentials** and save after the test succeeds. A successful connection test checks connectivity and authentication; continue with a test assignment to verify provisioning.
+
+The Header Auth template sends this field as the complete `Authorization` header. Entering only the token produces **A bearer token is required**.
+
+![Okta API integration with a successful credential test; the test deployment URL is redacted](/static/enterprise/okta/api-integration.png)
+</Step>
+
+<Step>
+### Enable provisioning actions
+
+Under **Provisioning → To App**, select **Edit**, enable **Create Users**, **Update User Attributes**, and **Deactivate Users**, then save. Leave **Sync Password** disabled: Sim does not synchronize passwords through SCIM.
+
+Use an email address from a verified Sim domain for the application username and primary email. Review the attribute mappings if your Okta usernames differ from users' email addresses.
+
+![Okta provisioning actions with Create Users, Update User Attributes, and Deactivate Users enabled, and Sync Password disabled](/static/enterprise/okta/provisioning-actions.png)
+</Step>
+
+</Steps>
+
+This uses Okta's [private integration template](https://developer.okta.com/docs/guides/scim-provisioning-integration-connect/main/). It does not make the integration a published or certified Okta Integration Network application.
+
+## Verify a user lifecycle
+
+Assign one test user to the app from **Assignments**. In Sim, confirm that the account appears in the organization and that **Provisioning → Activity** shows successful requests. Update the user's **Display name** in Okta and confirm it in Sim. Sim uses the mapped `displayName`, falling back to the structured name when it is omitted.
+
+Unassign the test user and check that Sim marks them as deactivated. Reassign the same user and confirm that the existing member becomes active again. If the user belongs to a pushed group, remove them from that group and confirm the downstream removal **before** unassigning the app; see [Okta's offboarding order](https://help.okta.com/en-us/Content/Topics/users-groups-profiles/app-assignments-group-push.htm).
+
+Okta deactivates users over SCIM; it does not send a SCIM DELETE. Sim suspends access while retaining the user's organization membership, ownership, and seat. See [deactivation behavior](/platform/enterprise/scim#what-it-does) before using unassignment for offboarding.
+
+## Push groups and map access
+
+Use separate groups for app assignment and Group Push. Okta does not support using the same group for both purposes. Assign the users to the app first. Under **Push Groups → Find groups by name**, select the group, leave **Push group memberships immediately** enabled, and save with **Create Group** selected for a new downstream group.
+
+![Okta Group Push selecting an engineering group and creating its downstream group in Sim](/static/enterprise/okta/group-push.png)
+
+Once the group appears under **Single sign-on → Provisioning → Group mappings** in Sim, map it to a workspace, permission group, or the organization admin role. Workspace access requires a workspace mapping. If name matching is enabled, Sim can automatically map matching permission groups.
+
+Use a workspace mapping for the first test. Confirm that the member gains access, then remove them from the pushed group while keeping their app assignment. Confirm that the directory grant is withdrawn. Add them back and verify access is restored without creating another account.
+
+With **Lock managed membership** enabled, manage access for provisioned members through directory groups; manual invitations and grants are blocked. Read [how access is withdrawn](/platform/enterprise/scim#how-access-is-withdrawn) before mapping groups that overlap with existing manual access.
+
+## Rotate the token
+
+Issue a replacement token in Sim while the current token remains active. In Okta, edit **Provisioning → Integration** and replace **API Token** with `Bearer <new-token>`. Test the credentials, save, and confirm a successful provisioning request before revoking the old token in Sim. Sim allows two active tokens so rotation can overlap.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Credential test fails | Include `Bearer ` before the token. Use the complete HTTPS base URL and a current Sim token, and confirm provisioning is enabled and reachable. |
+| User creation fails | Confirm the email domain is verified, a seat is available, and the account does not belong to another Sim organization. |
+| User exists but has no workspace access | Push the directory group and add a Sim workspace mapping. Assignment alone creates organization membership. |
+| Name or membership changes do not arrive | Check the app assignment, provisioning actions, attribute mappings, and Group Push status in Okta. |
+| A pushed group is missing members | Confirm those users are active in Okta and successfully assigned to the app. After activation, repush the group; see [Okta's Group Push troubleshooting](https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-group-push-troubleshoot.htm). |
+| A deactivated member still uses a seat | Deactivation suspends access. Removing organization membership is a separate offboarding action. |
+
+Use **View Logs** in the Okta app and **Provisioning → Activity** in Sim to inspect failures. Requests with an invalid or revoked token appear only in Okta because Sim cannot associate them with a connection.

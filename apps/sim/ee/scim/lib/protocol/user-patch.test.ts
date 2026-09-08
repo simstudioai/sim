@@ -18,6 +18,7 @@ function baseUser(overrides: Partial<ScimUserAttributes> = {}): ScimUserAttribut
     externalId: '00u1',
     active: true,
     displayName: 'Ada Lovelace',
+    displayNameSource: 'provider',
     name: { formatted: 'Ada Lovelace', givenName: 'Ada', familyName: 'Lovelace' },
     emails: [{ value: 'ada@acme.test', type: 'work', primary: true }],
     ...overrides,
@@ -31,6 +32,18 @@ function parseOperations(operations: unknown[]) {
 }
 
 describe('applyUserPatch', () => {
+  it('removes a display name without synthesizing it again on a later name-part patch', () => {
+    const removed = applyUserPatch(baseUser(), [{ op: 'remove', path: 'displayName' }])
+    expect(removed.next.displayName).toBeUndefined()
+    expect(removed.next.displayNameSource).toBeUndefined()
+    const repeated = applyUserPatch(removed.next, [{ op: 'remove', path: 'displayName' }])
+    expect(repeated.changed).toBe(false)
+    const renamed = applyUserPatch(repeated.next, [
+      { op: 'replace', path: 'name.givenName', value: 'Augusta' },
+    ])
+    expect(renamed.next.name.formatted).toBe('Augusta Lovelace')
+    expect(renamed.next.displayName).toBeUndefined()
+  })
   it('deactivates from Okta’s path-less replace', () => {
     const { next, changed } = applyUserPatch(
       baseUser(),
