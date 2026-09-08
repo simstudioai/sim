@@ -30,10 +30,6 @@ export interface UserPatchOutcome {
   changed: boolean
 }
 
-function clone(attributes: ScimUserAttributes): ScimUserAttributes {
-  return structuredClone(attributes)
-}
-
 function requireString(value: unknown, attribute: string): string {
   const unwrapped = unwrapSingleElement(value)
   if (typeof unwrapped !== 'string') throw invalidValue(`${attribute} must be a string`)
@@ -358,7 +354,7 @@ export function applyUserPatch(
   current: ScimUserAttributes,
   operations: readonly ScimPatchOperation[]
 ): UserPatchOutcome {
-  const next = clone(current)
+  const next = structuredClone(current)
 
   for (const operation of operations) {
     if (operation.op === 'remove' && !operation.path) {

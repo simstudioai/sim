@@ -7,7 +7,7 @@ import {
 import { deprovisionScimUser } from '@/ee/scim/lib/application/users/deprovision-user'
 import { getScimUser } from '@/ee/scim/lib/application/users/read-users'
 import { patchScimUser, replaceScimUser } from '@/ee/scim/lib/application/users/update-user'
-import { assertUserSchemas, toCanonicalUser } from '@/ee/scim/lib/protocol/canonical'
+import { toCanonicalUser } from '@/ee/scim/lib/protocol/canonical'
 import { parseAttributeProjection } from '@/ee/scim/lib/protocol/resources'
 import { defineScimRoute } from '@/ee/scim/lib/route'
 
@@ -29,7 +29,6 @@ export const PUT = defineScimRoute({
   operation: replaceScimUser.operation,
   useCase: replaceScimUser,
   mapInput: ({ params, body }) => {
-    assertUserSchemas(body.schemas)
     return { scimUserId: params.id, attributes: toCanonicalUser(body) }
   },
   present: (result) => result.resource,

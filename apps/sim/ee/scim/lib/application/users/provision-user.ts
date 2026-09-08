@@ -87,13 +87,6 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
     const email = primaryEmail(attributes)
 
     /**
-     * Account creation happens before the transaction because it runs through
-     * Better Auth, which owns its own writes and its own hooks — the blocked
-     * email gate, the usage-counter row, and instance-organization placement all
-     * hang off them. Reimplementing that with a direct insert would skip every
-     * one.
-     */
-    /**
      * In instance-organization mode every account is placed in the instance
      * organization at creation, and an account belongs to one organization. A
      * connection for any other organization could never admit anyone.

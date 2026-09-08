@@ -60,8 +60,8 @@ describe('parseUserFilter', () => {
   })
 
   it('does not split on the word and inside a quoted value', () => {
-    expect(parseUserFilter('userName eq "sand@acme.test"')).toEqual([
-      { field: 'userName', value: 'sand@acme.test' },
+    expect(parseGroupFilter('displayName eq "Research and Development"')).toEqual([
+      { field: 'displayName', value: 'Research and Development' },
     ])
   })
 

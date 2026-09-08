@@ -10,7 +10,7 @@ import {
   patchScimGroup,
   replaceScimGroup,
 } from '@/ee/scim/lib/application/groups/manage-groups'
-import { assertGroupSchemas, toCanonicalGroup } from '@/ee/scim/lib/protocol/canonical'
+import { toCanonicalGroup } from '@/ee/scim/lib/protocol/canonical'
 import { parseAttributeProjection } from '@/ee/scim/lib/protocol/resources'
 import { defineScimRoute } from '@/ee/scim/lib/route'
 
@@ -32,7 +32,6 @@ export const PUT = defineScimRoute({
   operation: replaceScimGroup.operation,
   useCase: replaceScimGroup,
   mapInput: ({ params, body }) => {
-    assertGroupSchemas(body.schemas)
     return { groupId: params.id, group: toCanonicalGroup(body) }
   },
   present: (result) => result.resource,

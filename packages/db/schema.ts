@@ -6037,7 +6037,6 @@ export interface ScimConnectionSettings {
   disableJit?: boolean
   /** Map a pushed group to an existing permission group of the same name. Nothing is created. */
   autoMapPermissionGroupsByName?: boolean
-  /** Workspaces every provisioned user receives regardless of group membership. */
 }
 
 /** One email address as the identity provider supplied it. */

@@ -25,6 +25,7 @@ import { resolveOrganizationSeatPolicyTx } from '@/lib/billing/organizations/sea
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
 const logger = createLogger('SsoJitAdmission')
 
@@ -146,7 +147,11 @@ async function runAdmissionTransaction(
       )
       .limit(1)
 
-    if (!provider.jitProvisioningEnabled || directoryOnly) {
+    /** A directory that can no longer sync (plan lapsed, feature off) no longer owns the door either. */
+    const directoryOwnsAdmission =
+      Boolean(directoryOnly) && (await isScimEntitledForOrganization(provider.organizationId))
+
+    if (!provider.jitProvisioningEnabled || directoryOwnsAdmission) {
       const [sameOrganization] = await tx
         .select({ id: member.id })
         .from(member)

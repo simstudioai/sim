@@ -1,3 +1,4 @@
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { SCIM_ERROR_SCHEMA } from '@/ee/scim/lib/protocol/constants'
 
@@ -101,20 +102,11 @@ const PG_LOCK_NOT_AVAILABLE = '55P03'
 /** PostgreSQL's unique-violation code: a concurrent write beat this one to a key. */
 const PG_UNIQUE_VIOLATION = '23505'
 
-function pgErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null) return undefined
-  const direct = (error as { code?: unknown }).code
-  if (typeof direct === 'string') return direct
-  /** postgres-js wraps the driver error under `cause` in some paths. */
-  const cause = (error as { cause?: { code?: unknown } }).cause
-  return typeof cause?.code === 'string' ? cause.code : undefined
-}
-
 /** PostgreSQL's deadlock code: the loser was rolled back and should simply retry. */
 const PG_DEADLOCK_DETECTED = '40P01'
 
 function isLockContention(error: unknown): boolean {
-  const code = pgErrorCode(error)
+  const code = getPostgresErrorCode(error)
   return code === PG_LOCK_NOT_AVAILABLE || code === PG_DEADLOCK_DETECTED
 }
 
@@ -125,7 +117,7 @@ function isLockContention(error: unknown): boolean {
  * unlabelled failure as transient.
  */
 function isUniqueViolation(error: unknown): boolean {
-  return pgErrorCode(error) === PG_UNIQUE_VIOLATION
+  return getPostgresErrorCode(error) === PG_UNIQUE_VIOLATION
 }
 
 /**

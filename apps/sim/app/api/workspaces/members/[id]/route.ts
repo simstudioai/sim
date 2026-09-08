@@ -179,6 +179,8 @@ export const DELETE = withRouteHandler(
             organizationId,
             memberId: orgMembership.id,
             requireNoOrgWorkspaceAccess: true,
+            /** Leaving a workspace must not sign the leaver out of Sim. */
+            spareSessionToken: session.session.token,
           })
 
           if (removal.success && removal.removed) {

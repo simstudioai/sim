@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   enforceIpRateLimit: vi.fn(),
 }))
 
+vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
+
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = mocks.checkRateLimitDirect
@@ -40,7 +42,6 @@ const authenticate = vi.fn()
 const recordRequest = vi.fn()
 const defineScimRoute = createScimRouteBuilder({
   authenticate,
-  baseUrl: () => 'https://sim.test/api/scim/v2',
   recordRequest,
 })
 
@@ -111,7 +112,7 @@ describe('SCIM route builder', () => {
   it('answers in the SCIM media type with the RFC envelope', async () => {
     const response = await listUsers(request('GET', '/api/scim/v2/Users'), undefined)
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toBe(SCIM_MEDIA_TYPE)
+    expect(response.headers.get('content-type')).toBe(`${SCIM_MEDIA_TYPE}; charset=utf-8`)
     expect(recordRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 200, principal }))
   })
 
@@ -161,6 +162,7 @@ describe('SCIM route builder', () => {
       schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
       status: '400',
       scimType: 'invalidSyntax',
+      detail: 'Request body is not valid JSON',
     })
   })
 
@@ -189,7 +191,7 @@ describe('SCIM route builder', () => {
     })
     const response = await listUsers(request('GET', '/api/scim/v2/Users'), undefined)
     expect(response.status).toBe(429)
-    expect(response.headers.get('retry-after')).toBeTruthy()
+    expect(Number(response.headers.get('retry-after'))).toBeGreaterThanOrEqual(1)
     expect(recordRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 429 }))
   })
 })

@@ -162,7 +162,7 @@ export async function revokeWorkspaceAccessTx(
     }
   }
 
-  const deleted = await tx
+  await tx
     .delete(permissions)
     .where(
       and(
@@ -171,7 +171,6 @@ export async function revokeWorkspaceAccessTx(
         eq(permissions.entityId, params.workspaceId)
       )
     )
-    .returning({ id: permissions.id })
 
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)

@@ -23,6 +23,7 @@ function row(overrides: Record<string, unknown> = {}) {
     clientDisabled: false,
     userBanned: false,
     userBanExpires: null,
+    userSuspendedAt: null,
     userExists: 'user-1',
     ...overrides,
   }
@@ -105,6 +106,9 @@ describe('verifyOAuthAccessToken', () => {
     expect(await reason('sim_oat_x')).toBe('user_missing')
 
     queueTableRows(schemaMock.oauthAccessToken, [row({ userBanned: true })])
+    expect(await reason('sim_oat_x')).toBe('user_banned')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ userSuspendedAt: new Date() })])
     expect(await reason('sim_oat_x')).toBe('user_banned')
 
     queueTableRows(schemaMock.oauthAccessToken, [

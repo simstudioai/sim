@@ -11,7 +11,10 @@ import {
   type ScimUseCaseContext,
 } from '@/ee/scim/lib/application/authorized-scim-use-case'
 import { scimOperations } from '@/ee/scim/lib/application/operations'
-import { autoMapPermissionGroupByName } from '@/ee/scim/lib/projection/auto-map'
+import {
+  autoMapPermissionGroupByName,
+  settleMappedPermissionGroupsExplicit,
+} from '@/ee/scim/lib/projection/auto-map'
 import { reconcileUsersProjection } from '@/ee/scim/lib/projection/reconcile-user'
 import type { CanonicalScimGroup } from '@/ee/scim/lib/protocol/canonical'
 import { SCIM_MAX_GROUP_MEMBERS } from '@/ee/scim/lib/protocol/constants'
@@ -74,11 +77,8 @@ async function assertDisplayNameAvailable(
       )
     )
     .limit(1)
-  if (clash) uniquenessThrow(params.displayName)
-}
-
-function uniquenessThrow(displayName: string): never {
-  throw uniqueness(`A group named ${displayName} already exists in this directory`)
+  if (clash)
+    throw uniqueness(`A group named ${params.displayName} already exists in this directory`)
 }
 
 async function assertMemberCount(tx: DbOrTx, groupId: string): Promise<void> {
@@ -197,13 +197,13 @@ export const createScimGroup = defineAuthorizedScimUseCase({
       }
       await assertMemberCount(tx, created.id)
 
-      if (context.connection.settings.autoMapPermissionGroupsByName) {
-        await autoMapPermissionGroupByName(tx, {
-          organizationId: context.organizationId,
-          scimGroupId: created.id,
-          displayName: created.displayName,
-        })
-      }
+      const mapped = context.connection.settings.autoMapPermissionGroupsByName
+        ? await autoMapPermissionGroupByName(tx, {
+            organizationId: context.organizationId,
+            scimGroupId: created.id,
+            displayName: created.displayName,
+          })
+        : 'no-match'
 
       await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
@@ -211,6 +211,12 @@ export const createScimGroup = defineAuthorizedScimUseCase({
         scimUserIds: memberIds,
         settings: context.connection.settings,
       })
+      if (mapped === 'mapped') {
+        await settleMappedPermissionGroupsExplicit(tx, {
+          organizationId: context.organizationId,
+          scimGroupId: created.id,
+        })
+      }
 
       const members = await loadGroupMembers(tx, created.id)
       return {
@@ -265,12 +271,14 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
           externalId: input.group.externalId ?? null,
         })
       }
+      let adopted = false
       if (renamed && context.connection.settings.autoMapPermissionGroupsByName) {
         const mapped = await autoMapPermissionGroupByName(tx, {
           organizationId: context.organizationId,
           scimGroupId: current.id,
           displayName: input.group.displayName,
         })
+        adopted = mapped === 'mapped'
         /** A mapping gained or lost applies to everyone already in the group, not only to those moving today. */
         if (mapped === 'mapped' || mapped === 'unmapped')
           for (const scimUserId of before) touched.add(scimUserId)
@@ -292,6 +300,12 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         scimUserIds: [...touched],
         settings: context.connection.settings,
       })
+      if (adopted) {
+        await settleMappedPermissionGroupsExplicit(tx, {
+          organizationId: context.organizationId,
+          scimGroupId: current.id,
+        })
+      }
 
       const refreshed = await findScimGroupById(tx, context.connection.id, current.id)
       if (!refreshed) throw new ScimError(500, undefined, 'The group could not be read back')
@@ -342,6 +356,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
+      let adopted = false
       const touched = new Set<string>()
       let renamed = false
 
@@ -391,6 +406,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
             scimGroupId: current.id,
             displayName: patch.displayName,
           })
+          adopted = adopted || mapped === 'mapped'
           if (mapped === 'mapped' || mapped === 'unmapped') {
             for (const scimUserId of await loadGroupMemberIds(tx, current.id)) {
               touched.add(scimUserId)
@@ -417,6 +433,12 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
         scimUserIds: [...touched],
         settings: context.connection.settings,
       })
+      if (adopted) {
+        await settleMappedPermissionGroupsExplicit(tx, {
+          organizationId: context.organizationId,
+          scimGroupId: current.id,
+        })
+      }
 
       return {
         groupId: current.id,

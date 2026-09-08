@@ -2,14 +2,17 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   SCIM_ENTERPRISE_USER_SCHEMA,
+  SCIM_GROUP_SCHEMA,
   SCIM_LIST_RESPONSE_SCHEMA,
   SCIM_MAX_GROUP_MEMBERS,
   SCIM_MAX_PATCH_OPERATIONS,
   SCIM_PATCH_OP_SCHEMA,
+  SCIM_USER_SCHEMA,
 } from '@/ee/scim/lib/protocol/constants'
 import {
   canonicalizeAttributeNames,
   normalizeScimBoolean,
+  stripProviderSchemaMarkers,
   unwrapSingleElement,
 } from '@/ee/scim/lib/protocol/normalize'
 
@@ -78,11 +81,29 @@ const USER_WRITE_ATTRIBUTES = [
   SCIM_ENTERPRISE_USER_SCHEMA,
 ] as const
 
+/**
+ * A `schemas` list that declares the resource's core schema. Every extension is
+ * let through: providers declare their own URNs the moment an administrator
+ * adds a custom attribute (Okta `urn:okta:<app>:2.0:user:custom`, Entra
+ * `urn:ietf:params:scim:schemas:extension:<Name>:2.0:User`), and refusing them
+ * would stop the sync at the first write.
+ */
+function scimSchemasDeclaring(core: string) {
+  return z
+    .array(z.string().max(256))
+    .min(1, 'schemas must name at least one URN')
+    .max(10)
+    .refine(
+      (schemas) => stripProviderSchemaMarkers(schemas).includes(core),
+      `schemas must include ${core}`
+    )
+}
+
 export const scimUserWriteSchema = z.preprocess(
   (body) => canonicalizeAttributeNames(body, USER_WRITE_ATTRIBUTES),
   z
     .looseObject({
-      schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
+      schemas: scimSchemasDeclaring(SCIM_USER_SCHEMA),
       userName: z.string().trim().min(1, 'userName must not be empty').max(320),
       externalId: z.string().trim().max(256).optional(),
       active: scimBoolean.optional(),
@@ -93,8 +114,6 @@ export const scimUserWriteSchema = z.preprocess(
     })
     .transform(({ password: _password, ...rest }) => rest)
 )
-/** What a client may send. */
-export type ScimUserWrite = z.input<typeof scimUserWriteSchema>
 /** What the route receives after parsing, which is what the canonicalizer reads. */
 export type ScimUserWriteParsed = z.output<typeof scimUserWriteSchema>
 
@@ -109,13 +128,12 @@ const GROUP_WRITE_ATTRIBUTES = ['schemas', 'displayName', 'externalId', 'members
 export const scimGroupWriteSchema = z.preprocess(
   (body) => canonicalizeAttributeNames(body, GROUP_WRITE_ATTRIBUTES),
   z.looseObject({
-    schemas: z.array(z.string().max(256)).min(1, 'schemas must name at least one URN').max(10),
+    schemas: scimSchemasDeclaring(SCIM_GROUP_SCHEMA),
     displayName: z.string().trim().min(1, 'displayName must not be empty').max(256),
     externalId: z.string().trim().max(256).optional(),
     members: z.array(scimGroupMemberSchema).max(SCIM_MAX_GROUP_MEMBERS).optional(),
   })
 )
-export type ScimGroupWrite = z.input<typeof scimGroupWriteSchema>
 export type ScimGroupWriteParsed = z.output<typeof scimGroupWriteSchema>
 
 /**

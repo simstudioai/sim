@@ -143,9 +143,12 @@ describe('reconcileUserProjection', () => {
         { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'adopted' },
       ],
     })
-    await reconcileUserProjection(db, params)
+    const forgotten = await reconcileUserProjection(db, params)
     expect(mocks.revokeWorkspace).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(scimProjectionGrant)
+    expect(forgotten.removed).toEqual([
+      expect.objectContaining({ targetKind: 'workspace', targetId: 'ws-1' }),
+    ])
 
     vi.clearAllMocks()
     resetDbChainMock()
@@ -156,8 +159,15 @@ describe('reconcileUserProjection', () => {
         { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'adopted' },
       ],
     })
-    await reconcileUserProjection(db, { ...params, settings: { lockManualMembership: true } })
-    expect(mocks.revokeWorkspace).toHaveBeenCalled()
+    const withdrawn = await reconcileUserProjection(db, {
+      ...params,
+      settings: { lockManualMembership: true },
+    })
+    expect(mocks.revokeWorkspace).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({ workspaceId: 'ws-1', userId: 'u-1' })
+    )
+    expect(withdrawn.removed).toHaveLength(1)
   })
 
   it('leaves the provenance row in place when access could not be handed on', async () => {

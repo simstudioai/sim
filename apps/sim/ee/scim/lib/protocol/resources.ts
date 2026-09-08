@@ -94,7 +94,11 @@ export function toUserResource(row: UserResourceRow, baseUrl: string): ScimUserR
   ]
 
   return {
-    schemas: [SCIM_USER_SCHEMA, ...(stored.enterprise ? [SCIM_ENTERPRISE_USER_SCHEMA] : [])],
+    schemas: [
+      SCIM_USER_SCHEMA,
+      ...(stored.enterprise ? [SCIM_ENTERPRISE_USER_SCHEMA] : []),
+      ...Object.keys(stored.extra ?? {}).filter(isSchemaUrn),
+    ],
     ...(stored.extra ?? {}),
     id: row.id,
     ...(row.externalId ? { externalId: row.externalId } : {}),
@@ -187,12 +191,6 @@ export function resolvePage(input: {
 }): ScimPage {
   const rawStart = input.startIndex
   const rawCount = input.count
-  if (rawStart !== undefined && !Number.isInteger(rawStart)) {
-    throw invalidValue('startIndex must be an integer')
-  }
-  if (rawCount !== undefined && !Number.isInteger(rawCount)) {
-    throw invalidValue('count must be an integer')
-  }
 
   const startIndex = Math.max(rawStart ?? 1, 1)
   const count = Math.min(Math.max(rawCount ?? SCIM_MAX_PAGE_SIZE, 0), SCIM_MAX_PAGE_SIZE)
@@ -242,6 +240,11 @@ export function projectionWants(projection: ScimAttributeProjection, attribute: 
 }
 
 /** Attributes every resource keeps regardless of the projection requested. */
+/** An `extra` key that is itself a schema URN carries a provider extension the resource must declare. */
+function isSchemaUrn(key: string): boolean {
+  return key.startsWith('urn:')
+}
+
 const ALWAYS_RETURNED = new Set(['schemas', 'id', 'meta'])
 
 /** Drops attributes the request did not ask for. */

@@ -9,7 +9,10 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockLeafLock } = vi.hoisted(() => ({ mockLeafLock: vi.fn() }))
 vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mockLeafLock }))
 
-import { autoMapPermissionGroupByName } from '@/ee/scim/lib/projection/auto-map'
+import {
+  autoMapPermissionGroupByName,
+  settleMappedPermissionGroupsExplicit,
+} from '@/ee/scim/lib/projection/auto-map'
 
 const params = { organizationId: 'org-1', scimGroupId: 'g-1', displayName: 'Engineering' }
 
@@ -56,16 +59,14 @@ describe('autoMapPermissionGroupByName', () => {
     await expect(autoMapPermissionGroupByName(db, params)).resolves.toBe('no-match')
   })
 
-  it('takes the permission-group lock before switching an inherit group to explicit', async () => {
-    queueTableRows(permissionGroup, [{ id: 'pg-1', membershipMode: 'inherit' }])
+  it('never takes the permission-group leaf lock itself, since user locks follow it', async () => {
+    queueTableRows(permissionGroup, [{ id: 'pg-1' }])
     queueTableRows(scimGroupMapping, [])
     dbChainMockFns.returning.mockResolvedValueOnce([])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'm-1' }])
-    await autoMapPermissionGroupByName(db, params)
-    expect(mockLeafLock).toHaveBeenCalledWith(db, 'org-1', { lockTimeoutAlreadyBounded: true })
-    expect(mockLeafLock.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.update.mock.invocationCallOrder[0]
-    )
+    await expect(autoMapPermissionGroupByName(db, params)).resolves.toBe('mapped')
+    expect(mockLeafLock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('yields to a concurrent identical mapping instead of failing', async () => {
@@ -74,5 +75,28 @@ describe('autoMapPermissionGroupByName', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
     dbChainMockFns.returning.mockResolvedValueOnce([])
     await expect(autoMapPermissionGroupByName(db, params)).resolves.toBe('already-mapped')
+  })
+})
+
+describe('settleMappedPermissionGroupsExplicit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('takes the leaf lock before moving a still-inheriting mapped group to explicit', async () => {
+    queueTableRows(scimGroupMapping, [{ id: 'pg-1' }])
+    await settleMappedPermissionGroupsExplicit(db, { organizationId: 'org-1', scimGroupId: 'g-1' })
+    expect(mockLeafLock).toHaveBeenCalledWith(db, 'org-1', { lockTimeoutAlreadyBounded: true })
+    expect(mockLeafLock.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.update.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does nothing, and takes no lock, when every mapped group is already explicit', async () => {
+    queueTableRows(scimGroupMapping, [])
+    await settleMappedPermissionGroupsExplicit(db, { organizationId: 'org-1', scimGroupId: 'g-1' })
+    expect(mockLeafLock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

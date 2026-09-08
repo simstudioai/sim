@@ -657,10 +657,12 @@ export const auth = betterAuth({
     session: {
       create: {
         before: async (session) => {
-          // Blocked emails/domains and suspended accounts must not establish
-          // sessions, regardless of provider (email/password, OAuth, SSO).
-          // Deliberately outside the try below — a thrown APIError must
-          // propagate, not be swallowed.
+          /**
+           * Blocked emails/domains and suspended accounts must not establish
+           * sessions, whatever the provider (email/password, OAuth, SSO).
+           * Deliberately outside the try below: a thrown APIError must
+           * propagate, not be swallowed.
+           */
           const accessControl = await getAccessControlConfig()
           const [sessionUser] = await db
             .select({ email: schema.user.email, suspendedAt: schema.user.suspendedAt })

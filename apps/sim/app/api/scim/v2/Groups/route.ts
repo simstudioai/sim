@@ -1,6 +1,6 @@
 import { createScimGroupContract, listScimGroupsContract } from '@/lib/api/contracts/scim'
 import { createScimGroup, listScimGroups } from '@/ee/scim/lib/application/groups/manage-groups'
-import { assertGroupSchemas, toCanonicalGroup } from '@/ee/scim/lib/protocol/canonical'
+import { toCanonicalGroup } from '@/ee/scim/lib/protocol/canonical'
 import { parseAttributeProjection, toListResponse } from '@/ee/scim/lib/protocol/resources'
 import { defineScimRoute } from '@/ee/scim/lib/route'
 
@@ -24,7 +24,6 @@ export const POST = defineScimRoute({
   operation: createScimGroup.operation,
   useCase: createScimGroup,
   mapInput: ({ body }) => {
-    assertGroupSchemas(body.schemas)
     return { group: toCanonicalGroup(body) }
   },
   present: (result) => result.resource,

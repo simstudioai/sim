@@ -1,10 +1,13 @@
 import { db } from '@sim/db'
-import { scimConnection } from '@sim/db/schema'
+import { type ScimConnectionSettings, scimConnection } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
-import { reconcileUserProjection } from '@/ee/scim/lib/projection/reconcile-user'
+import {
+  PROJECTION_BATCH_SIZE,
+  reconcileUsersProjectionInBatches,
+} from '@/ee/scim/lib/projection/reconcile-user'
 import { listScimUserIds } from '@/ee/scim/lib/repository/users'
 import { pruneScimRequestLog } from '@/ee/scim/lib/request-log'
 
@@ -38,7 +41,6 @@ const RECONCILE_INTERVAL_MS = 50 * 60 * 1000
  * Users reconciled per transaction. The organization lock is held for the whole
  * batch, so it is kept small enough that a tenant's own writes never wait long.
  */
-const BATCH_SIZE = 25
 
 export interface ScimReconcileReport {
   connectionId: string
@@ -103,7 +105,7 @@ async function findConnectionsDueForReconcile(limit: number): Promise<
   Array<{
     id: string
     organizationId: string
-    settings: (typeof scimConnection.$inferSelect)['settings']
+    settings: ScimConnectionSettings
   }>
 > {
   const dueBefore = new Date(Date.now() - RECONCILE_INTERVAL_MS)
@@ -127,7 +129,7 @@ async function findConnectionsDueForReconcile(limit: number): Promise<
 export async function reconcileConnection(connection: {
   id: string
   organizationId: string
-  settings: (typeof scimConnection.$inferSelect)['settings']
+  settings: ScimConnectionSettings
 }): Promise<ScimReconcileReport | null> {
   /**
    * A lapsed organization's credentials are refused at authentication; its
@@ -147,12 +149,14 @@ export async function reconcileConnection(connection: {
 
   let completed = false
   try {
+    /** Pruned before the pass, so a connection whose pass keeps failing still keeps its log bounded. */
+    await pruneScimRequestLog(connection.id)
     let cursor: string | undefined
     for (;;) {
       const page = await listScimUserIds(db, {
         connectionId: connection.id,
         ...(cursor ? { afterOrderKey: cursor } : {}),
-        limit: BATCH_SIZE,
+        limit: PROJECTION_BATCH_SIZE,
       })
       if (page.length === 0) break
       if (!(await holdsLease(connection.id, runId))) {
@@ -173,26 +177,20 @@ export async function reconcileConnection(connection: {
         .from(scimConnection)
         .where(eq(scimConnection.id, connection.id))
         .limit(1)
-      const settings = fresh?.settings ?? connection.settings
 
-      await db.transaction(async (tx) => {
-        for (const row of page) {
-          const delta = await reconcileUserProjection(tx, {
-            connectionId: connection.id,
-            organizationId: connection.organizationId,
-            scimUserId: row.id,
-            settings,
-          })
-          report.reconciledUsers += 1
-          report.grantsAdded += delta.added.length + delta.raised.length
-          report.grantsRemoved += delta.removed.length
-        }
+      const delta = await reconcileUsersProjectionInBatches({
+        connectionId: connection.id,
+        organizationId: connection.organizationId,
+        scimUserIds: page.map((row) => row.id),
+        settings: fresh?.settings ?? connection.settings,
       })
+      report.reconciledUsers += page.length
+      report.grantsAdded += delta.added.length + delta.raised.length
+      report.grantsRemoved += delta.removed.length
       cursor = page[page.length - 1].orderKey
     }
 
     completed = true
-    await pruneScimRequestLog(connection.id)
     if (report.grantsAdded > 0 || report.grantsRemoved > 0) {
       logger.warn('Directory reconciliation corrected drift', report)
     }

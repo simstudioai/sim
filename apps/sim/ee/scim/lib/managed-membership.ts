@@ -2,7 +2,7 @@ import { scimConnection, scimUser } from '@sim/db/schema'
 import { type AnyColumn, type SQL, sql } from 'drizzle-orm'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import type { DbOrTx } from '@/lib/db/types'
-import { isScimDeploymentEnabled } from '@/ee/scim/lib/entitlement'
+import { isScimDeploymentEnabled, isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
 /**
  * Refusing membership edits that the organization's directory owns.
@@ -53,24 +53,30 @@ export async function assertMembershipNotScimManaged(params: {
   userId: string
   executor: DbOrTx
 }): Promise<void> {
-  /**
-   * A deployment or plan that no longer has directory provisioning must not keep
-   * refusing manual changes on behalf of a directory that can no longer sync.
-   */
   if (!isScimDeploymentEnabled()) return
   const [row] = await params.executor
     .select({ managed: scimManagedUserPredicate(params.organizationId, sql`${params.userId}`) })
     .from(sql`(select 1) as probe`)
   if (!row?.managed) return
+  /**
+   * A plan that no longer has directory provisioning must not keep refusing
+   * manual changes on behalf of a directory that can no longer sync. Read only
+   * once a managed row is found, so the common case costs nothing.
+   */
+  if (!(await isScimEntitledForOrganization(params.organizationId))) return
   throw new ForbiddenOperationError(
     'SCIM_MANAGED_MEMBERSHIP',
     'This member is managed by the organization’s identity provider. Make the change there, or turn off managed-membership locking in the organization’s directory settings.'
   )
 }
 
-/** Refuses an invitation to someone the directory already provisions. */
-export function assertInviteeNotScimManaged(managed: boolean | null | undefined): void {
-  if (!managed) return
+/** Refuses an invitation to someone the directory already provisions, while the directory can still sync. */
+export async function assertInviteeNotScimManaged(params: {
+  organizationId: string
+  managed: boolean | null | undefined
+}): Promise<void> {
+  if (!params.managed) return
+  if (!(await isScimEntitledForOrganization(params.organizationId))) return
   throw new ForbiddenOperationError(
     'SCIM_MANAGED_MEMBERSHIP',
     'This person is provisioned by the organization’s identity provider, so Sim will not grant them access separately. They already have access, or will once the next directory sync runs.'

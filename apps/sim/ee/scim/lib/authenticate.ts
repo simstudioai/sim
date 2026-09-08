@@ -1,11 +1,12 @@
-import { createHash } from 'node:crypto'
-import type { ScimConnectionPrincipal, ScimCredentialScope } from '@sim/auth/principal'
+import type { ScimConnectionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { scimConnection, scimCredential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Base64Url } from '@sim/security/hash'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { parseBearerToken } from '@/lib/auth/oauth-access-token'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 import { ScimError } from '@/ee/scim/lib/protocol/errors'
 
@@ -35,26 +36,15 @@ export function generateScimToken(): { secret: string; hash: string; prefix: str
   const secret = `${SCIM_TOKEN_PREFIX}${generateShortId(40)}`
   return {
     secret,
-    hash: hashScimToken(secret),
+    hash: sha256Base64Url(secret),
     prefix: secret.slice(0, DISPLAY_PREFIX_LENGTH),
   }
-}
-
-function hashScimToken(secret: string): string {
-  return createHash('sha256').update(secret).digest('base64url')
 }
 
 function unauthorized(detail = 'Invalid SCIM credential'): ScimError {
   return new ScimError(401, undefined, detail, {
     'WWW-Authenticate': 'Bearer realm="SCIM"',
   })
-}
-
-function readBearerToken(request: NextRequest): string | null {
-  const header = request.headers.get('authorization')
-  if (!header) return null
-  const match = header.match(/^Bearer\s+(.+)$/i)
-  return match ? match[1].trim() : null
 }
 
 /**
@@ -97,7 +87,7 @@ function touchConnectionLastRequest(connectionId: string, lastRequestAt: Date | 
 export async function authenticateScimRequest(
   request: NextRequest
 ): Promise<ScimConnectionPrincipal> {
-  const token = readBearerToken(request)
+  const token = parseBearerToken(request.headers)
   if (!token) throw unauthorized('A bearer credential is required')
 
   const [row] = await db
@@ -114,7 +104,7 @@ export async function authenticateScimRequest(
     })
     .from(scimCredential)
     .innerJoin(scimConnection, eq(scimConnection.id, scimCredential.connectionId))
-    .where(eq(scimCredential.tokenHash, hashScimToken(token)))
+    .where(eq(scimCredential.tokenHash, sha256Base64Url(token)))
     .limit(1)
 
   if (!row) throw unauthorized()
@@ -139,6 +129,6 @@ export async function authenticateScimRequest(
     organizationId: row.organizationId,
     connectionId: row.connectionId,
     credentialId: row.credentialId,
-    scopes: row.scopes as ScimCredentialScope[],
+    scopes: row.scopes,
   }
 }

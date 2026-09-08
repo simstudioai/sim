@@ -10,14 +10,6 @@ import type { ScimType } from '@/ee/scim/lib/protocol/errors'
 
 const logger = createLogger('ScimRequestLog')
 
-/**
- * Records one provisioning request for the settings activity view.
- *
- * An administrator debugging a connection has nothing else to look at:
- * Microsoft Entra reports a failed cycle without saying what it sent, and Okta
- * surfaces only the status. Fire-and-forget, because a logging failure must not
- * turn a successful provisioning call into an error the directory will retry.
- */
 /** One protocol request as the activity log records it. */
 export interface ScimRequestLogEntry {
   principal: ScimConnectionPrincipal
@@ -30,6 +22,14 @@ export interface ScimRequestLogEntry {
   durationMs: number
 }
 
+/**
+ * Records one provisioning request for the settings activity view.
+ *
+ * An administrator debugging a connection has nothing else to look at:
+ * Microsoft Entra reports a failed cycle without saying what it sent, and Okta
+ * surfaces only the status. Fire-and-forget, because a logging failure must not
+ * turn a successful provisioning call into an error the directory will retry.
+ */
 export function recordScimRequest(entry: ScimRequestLogEntry): void {
   void db
     .insert(scimRequestLog)

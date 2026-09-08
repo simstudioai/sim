@@ -133,9 +133,11 @@ Mapping a permission group to a directory group switches that permission group t
 
 ## How access is withdrawn
 
-Sim records every grant it makes on your behalf. When someone leaves a group, only what the directory granted is taken back — access a workspace administrator granted by hand stays.
+Sim records every grant it makes on your behalf. When someone leaves a group, what the directory granted is taken back.
 
-The one exception is **managed membership locking**, which is on by default. With it on, the directory is the source of truth: Sim refuses invitations, workspace grants, and role changes for provisioned members, because the next sync would revert them anyway. Removals stay possible so an administrator can always act in an emergency. Turn it off if you want to layer manual access on top of directory access.
+**Managed membership locking**, on by default, makes the directory the source of truth for provisioned members: Sim refuses invitations, workspace grants, workspace role changes, and organization role changes for them, because the next sync would revert them anyway. Access a member already held by hand when a mapping started covering it counts as directory access from then on, so it is withdrawn with the mapping. Removals stay possible so an administrator can always act in an emergency.
+
+With locking off, manual access layers on top of directory access: access granted by hand stays when a group is left, and a workspace role raised by hand above what the directory set is left alone.
 
 ## Provisioning and SSO together
 
@@ -156,7 +158,8 @@ Sim also re-applies every group mapping once an hour, so drift cannot persist. Y
 - Resources: `/Users`, `/Groups`, plus `/ServiceProviderConfig`, `/ResourceTypes`, and `/Schemas`
 - Filters: `eq` only, up to ten terms joined with `and`. Users: `id`, `userName`, `externalId`, `emails.value` (also `emails[type eq "work"].value`), `active`. Groups: `id`, `displayName`, `externalId`
 - Limits: 1,500 requests per minute per connection, 1 MB per request, 5,000 members per group
-- `userName` is stored and returned lower-cased; attributes Sim does not model are kept and returned as sent, and a PUT preserves ones it omits
+- `userName` is stored and returned lower-cased; top-level attributes and schema extensions Sim does not model (custom attributes included) are kept and returned as sent, and a PUT preserves ones it omits
+- Group display names are unique within a connection, ignoring case
 - Page size: up to 100 per request
 
 <FAQ items={[

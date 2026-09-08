@@ -100,7 +100,6 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         } else if (key === 'externalid') {
           full.externalId = readExternalId(nested)
         } else if (key === 'members') {
-          /** A path-less `add` contributes members; only a `replace` sets the whole list. */
           if (operation.op === 'add') for (const id of readMemberList(nested)) addMember(id)
           else applyFullMembers(readMemberList(nested))
         } else if (key === 'id' || key === 'schemas' || key.startsWith('meta')) {
@@ -138,7 +137,6 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
         continue
       }
       if (operation.op === 'remove' && operation.value === undefined) {
-        /** A remove with no value clears the membership entirely. */
         applyFullMembers([])
         continue
       }

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,7 +25,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     logger.info('SCIM reconciliation sweep complete', sweep)
     return NextResponse.json({ success: true, ...sweep })
   } catch (error) {
-    logger.error('SCIM reconciliation sweep failed', { error: toError(error).message })
+    logger.error('SCIM reconciliation sweep failed', { error: getErrorMessage(error) })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

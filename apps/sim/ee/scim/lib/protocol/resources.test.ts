@@ -55,16 +55,6 @@ describe('resolvePage', () => {
   it('allows a zero count, which Entra uses to ask only for the total', () => {
     expect(resolvePage({ count: 0 }).count).toBe(0)
   })
-
-  it('refuses a non-integer count', () => {
-    let scimType: string | undefined
-    try {
-      resolvePage({ count: 1.5 })
-    } catch (error) {
-      scimType = (error as ScimError).scimType
-    }
-    expect(scimType).toBe('invalidValue')
-  })
 })
 
 describe('toUserResource', () => {
@@ -84,6 +74,21 @@ describe('toUserResource', () => {
     expect(resource.groups).toEqual([
       { value: 'g1', display: 'Engineering', $ref: `${BASE_URL}/Groups/g1` },
     ])
+  })
+
+  it('declares a provider extension it stored and returns its attributes', () => {
+    const base = userRow()
+    const row = {
+      ...base,
+      attributes: {
+        ...base.attributes,
+        extra: { 'urn:okta:sim:2.0:user:custom': { costCenter: 'R&D' } },
+      },
+    }
+    const resource = toUserResource(row, BASE_URL)
+    expect(resource.schemas).toContain('urn:okta:sim:2.0:user:custom')
+    expect(resource['urn:okta:sim:2.0:user:custom']).toEqual({ costCenter: 'R&D' })
+    expect(scimUserResourceSchema.safeParse(resource).success).toBe(true)
   })
 
   it('reports the Sim account address rather than a stale stored copy', () => {

@@ -3,13 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { scimGroupWriteSchema, scimUserWriteSchema } from '@/lib/api/contracts/scim'
-import {
-  assertGroupSchemas,
-  assertUserSchemas,
-  primaryEmail,
-  toCanonicalGroup,
-  toCanonicalUser,
-} from '@/ee/scim/lib/protocol/canonical'
+import { primaryEmail, toCanonicalGroup, toCanonicalUser } from '@/ee/scim/lib/protocol/canonical'
 import {
   SCIM_ENTERPRISE_USER_SCHEMA,
   SCIM_GROUP_SCHEMA,
@@ -67,6 +61,14 @@ describe('toCanonicalUser', () => {
     expect(user.displayName).toBe('Ada Lovelace')
   })
 
+  it('keeps a provider extension’s attributes under its URN', () => {
+    const user = parseUser({
+      userName: 'ada@acme.test',
+      'urn:okta:sim:2.0:user:custom': { costCenter: 'R&D' },
+    })
+    expect(user.extra).toEqual({ 'urn:okta:sim:2.0:user:custom': { costCenter: 'R&D' } })
+  })
+
   it('keeps attributes Sim does not model so responses round-trip them', () => {
     const user = parseUser({ userName: 'ada@acme.test', nickName: 'Countess' })
     expect(user.extra).toEqual({ nickName: 'Countess' })
@@ -86,17 +88,41 @@ describe('toCanonicalUser', () => {
   })
 })
 
-describe('schema assertions', () => {
+describe('schemas declaration', () => {
   it('accepts the core User schema with the enterprise extension', () => {
-    expect(() => assertUserSchemas([SCIM_USER_SCHEMA, SCIM_ENTERPRISE_USER_SCHEMA])).not.toThrow()
+    expect(
+      scimUserWriteSchema.safeParse({
+        schemas: [SCIM_USER_SCHEMA, SCIM_ENTERPRISE_USER_SCHEMA],
+        userName: 'ada@acme.test',
+      }).success
+    ).toBe(true)
   })
 
-  it('refuses an extension this server does not implement', () => {
-    expect(() => assertUserSchemas([SCIM_USER_SCHEMA, 'urn:example:2.0:Custom'])).toThrow()
+  it('accepts a provider extension, as Okta declares for every custom attribute', () => {
+    expect(
+      scimUserWriteSchema.safeParse({
+        schemas: [SCIM_USER_SCHEMA, 'urn:okta:sim:2.0:user:custom'],
+        userName: 'ada@acme.test',
+      }).success
+    ).toBe(true)
+  })
+
+  it('refuses a User without the core schema', () => {
+    const result = scimUserWriteSchema.safeParse({
+      schemas: ['urn:okta:sim:2.0:user:custom'],
+      userName: 'ada@acme.test',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toBe(`schemas must include ${SCIM_USER_SCHEMA}`)
   })
 
   it('tolerates Microsoft’s legacy Group schema marker', () => {
-    expect(() => assertGroupSchemas([SCIM_GROUP_SCHEMA, ENTRA_LEGACY_GROUP_SCHEMA])).not.toThrow()
+    expect(
+      scimGroupWriteSchema.safeParse({
+        schemas: [SCIM_GROUP_SCHEMA, ENTRA_LEGACY_GROUP_SCHEMA],
+        displayName: 'Engineering',
+      }).success
+    ).toBe(true)
   })
 })
 

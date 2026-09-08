@@ -1,13 +1,9 @@
 import type { ScimUserAttributes, ScimUserEmail } from '@sim/db/schema'
+import { isValidEmailSyntax } from '@sim/utils/string'
 import type { ScimGroupWriteParsed, ScimUserWriteParsed } from '@/lib/api/contracts/scim'
-import {
-  SCIM_ENTERPRISE_USER_SCHEMA,
-  SCIM_GROUP_SCHEMA,
-  SCIM_MAX_GROUP_MEMBERS,
-  SCIM_USER_SCHEMA,
-} from '@/ee/scim/lib/protocol/constants'
+import { SCIM_ENTERPRISE_USER_SCHEMA } from '@/ee/scim/lib/protocol/constants'
 import { invalidValue } from '@/ee/scim/lib/protocol/errors'
-import { isRecord, stripProviderSchemaMarkers } from '@/ee/scim/lib/protocol/normalize'
+import { isRecord } from '@/ee/scim/lib/protocol/normalize'
 
 /** Attributes Sim models itself; everything else is preserved under `extra`. */
 const MODELLED_USER_KEYS = new Set([
@@ -27,10 +23,6 @@ const MODELLED_USER_KEYS = new Set([
 function trimmed(value: string | undefined): string | undefined {
   const next = value?.trim()
   return next ? next : undefined
-}
-
-function looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 /**
@@ -54,7 +46,7 @@ function normalizeEmails(
     .filter((entry) => entry.value.length > 0)
 
   if (supplied.length === 0) {
-    if (!looksLikeEmail(userName)) {
+    if (!isValidEmailSyntax(userName)) {
       throw invalidValue(
         'A primary email address is required: send emails[], or a userName that is an email address'
       )
@@ -104,8 +96,7 @@ function collectExtra(body: ScimUserWriteParsed): Record<string, unknown> | unde
  * rather than to a lossy projection of it.
  */
 export function toCanonicalUser(body: ScimUserWriteParsed): ScimUserAttributes {
-  const userName = body.userName.trim().toLowerCase()
-  if (!userName) throw invalidValue('userName must not be empty')
+  const userName = body.userName.toLowerCase()
 
   const { emails, primary } = normalizeEmails(body.emails, userName)
   const name = formatName(body.name, body.displayName, primary)
@@ -168,35 +159,6 @@ export function primaryEmail(attributes: ScimUserAttributes): string {
   return (attributes.emails.find((entry) => entry.primary) ?? attributes.emails[0]).value
 }
 
-/**
- * Refuses a `schemas` array that names something this server does not implement.
- *
- * A provider that believes an unimplemented extension was accepted will keep
- * sending attributes that are silently dropped, so the mismatch is worth an
- * error at the first write rather than a support case later.
- */
-export function assertUserSchemas(schemas: readonly string[]): void {
-  const declared = stripProviderSchemaMarkers(schemas)
-  for (const schema of declared) {
-    if (schema !== SCIM_USER_SCHEMA && schema !== SCIM_ENTERPRISE_USER_SCHEMA) {
-      throw invalidValue(`Unsupported User schema ${schema}`)
-    }
-  }
-  if (!declared.includes(SCIM_USER_SCHEMA)) {
-    throw invalidValue(`schemas must include ${SCIM_USER_SCHEMA}`)
-  }
-}
-
-export function assertGroupSchemas(schemas: readonly string[]): void {
-  const declared = stripProviderSchemaMarkers(schemas)
-  for (const schema of declared) {
-    if (schema !== SCIM_GROUP_SCHEMA) throw invalidValue(`Unsupported Group schema ${schema}`)
-  }
-  if (!declared.includes(SCIM_GROUP_SCHEMA)) {
-    throw invalidValue(`schemas must include ${SCIM_GROUP_SCHEMA}`)
-  }
-}
-
 export interface CanonicalScimGroup {
   displayName: string
   externalId?: string
@@ -205,20 +167,14 @@ export interface CanonicalScimGroup {
 
 /** Turns an inbound Group resource into a display name and a member id list. */
 export function toCanonicalGroup(body: ScimGroupWriteParsed): CanonicalScimGroup {
-  const displayName = body.displayName.trim()
-  if (!displayName) throw invalidValue('displayName must not be empty')
+  const displayName = body.displayName
 
   const memberIds: string[] = []
   for (const member of body.members ?? []) {
     if (member.type && member.type.toLowerCase() !== 'user') {
       throw invalidValue('Group members must be Users; nested groups are not supported')
     }
-    const value = member.value.trim()
-    if (!value) throw invalidValue('Group member entries require a value')
-    if (!memberIds.includes(value)) memberIds.push(value)
-  }
-  if (memberIds.length > SCIM_MAX_GROUP_MEMBERS) {
-    throw invalidValue(`A Group cannot carry more than ${SCIM_MAX_GROUP_MEMBERS} members`)
+    if (!memberIds.includes(member.value)) memberIds.push(member.value)
   }
 
   return {

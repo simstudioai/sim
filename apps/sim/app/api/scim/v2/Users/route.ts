@@ -1,7 +1,7 @@
 import { createScimUserContract, listScimUsersContract } from '@/lib/api/contracts/scim'
 import { provisionScimUser } from '@/ee/scim/lib/application/users/provision-user'
 import { listScimUsers } from '@/ee/scim/lib/application/users/read-users'
-import { assertUserSchemas, toCanonicalUser } from '@/ee/scim/lib/protocol/canonical'
+import { toCanonicalUser } from '@/ee/scim/lib/protocol/canonical'
 import { parseAttributeProjection, toListResponse } from '@/ee/scim/lib/protocol/resources'
 import { defineScimRoute } from '@/ee/scim/lib/route'
 
@@ -31,7 +31,6 @@ export const POST = defineScimRoute({
   operation: provisionScimUser.operation,
   useCase: provisionScimUser,
   mapInput: ({ body }) => {
-    assertUserSchemas(body.schemas)
     return { attributes: toCanonicalUser(body) }
   },
   present: (result) => result.resource,

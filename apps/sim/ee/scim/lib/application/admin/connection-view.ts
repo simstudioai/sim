@@ -16,7 +16,7 @@ import { activeCredentialCondition } from '@/ee/scim/lib/repository/credentials'
 
 /** Reads shared by the admin use cases: the connection row and its settings view. */
 
-export interface ConnectionRow {
+interface ConnectionRow {
   id: string
   organizationId: string
   status: string

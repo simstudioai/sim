@@ -14,7 +14,7 @@ import { generateSecureToken } from '@sim/security/tokens'
 import { generateId } from '@sim/utils/id'
 import { symmetricDecrypt } from 'better-auth/crypto'
 import { and, eq, isNull } from 'drizzle-orm'
-import { isBanActive } from '@/lib/auth/ban'
+import { isAccountBlocked } from '@/lib/auth/ban'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
 import {
   OAUTH_ACCESS_TOKEN_PREFIX,
@@ -273,12 +273,17 @@ export async function rotateOAuthRefreshToken(
 
   return database.transaction(async (tx) => {
     const [activeUser] = await tx
-      .select({ id: user.id, banned: user.banned, banExpires: user.banExpires })
+      .select({
+        id: user.id,
+        banned: user.banned,
+        banExpires: user.banExpires,
+        suspendedAt: user.suspendedAt,
+      })
       .from(user)
       .where(eq(user.id, provisionalToken.userId))
       .for('share')
       .limit(1)
-    if (!activeUser || isBanActive(activeUser)) {
+    if (!activeUser || isAccountBlocked(activeUser)) {
       return protocolError('invalid_grant', 'Refresh token is invalid.')
     }
 

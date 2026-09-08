@@ -34,7 +34,6 @@ export async function syncAccountIdentityTx(
         ? {
             email: params.email,
             normalizedEmail: normalizeEmail(params.email),
-            /** The new address is unproven until its owner acts on it. */
             emailVerified: false,
           }
         : {}),

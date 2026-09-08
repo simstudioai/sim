@@ -499,7 +499,9 @@ export async function createWorkspaceInvitation({
    * redundant at best and reverted at worst. Read as part of the lookup above so
    * the common case costs no extra query.
    */
-  assertInviteeNotScimManaged(existingUser?.scimManaged)
+  if (organizationId) {
+    await assertInviteeNotScimManaged({ organizationId, managed: existingUser?.scimManaged })
+  }
 
   const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
   let existingOrganizationRole = existingMembership?.role

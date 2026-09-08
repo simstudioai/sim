@@ -17,6 +17,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import {
   addPermissionGroupMemberTx,
+  PermissionGroupAllMembersConflictError,
   PermissionGroupNotFoundError,
   PermissionGroupScopeConflictError,
   removePermissionGroupMemberTx,
@@ -63,7 +64,7 @@ export interface ProjectionDelta {
 const EMPTY_DELTA: ProjectionDelta = { added: [], removed: [], raised: [] }
 
 /** Users per transaction when projecting outside a request's own transaction; the organization lock is held for the batch. */
-const PROJECTION_BATCH_SIZE = 25
+export const PROJECTION_BATCH_SIZE = 25
 
 /**
  * The mapping rows this user reaches through their groups.
@@ -289,7 +290,22 @@ async function withdrawGrant(
          * target column carries no foreign key. Withdrawing from nothing is
          * complete, not a failure.
          */
-        if (!(error instanceof PermissionGroupNotFoundError)) throw error
+        if (error instanceof PermissionGroupNotFoundError) return true
+        /**
+         * An administrator moved the group back to governing everyone, and its
+         * last member cannot leave without emptying it. The grant stays on
+         * record so a later pass, or the administrator, can settle it; a sync
+         * must not fail over a rule the directory cannot see.
+         */
+        if (error instanceof PermissionGroupAllMembersConflictError) {
+          logger.warn('Left a directory-managed permission group membership in place', {
+            groupId: grant.targetId,
+            userId: params.userId,
+            conflict: error.message,
+          })
+          return false
+        }
+        throw error
       }
       return true
   }

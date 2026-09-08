@@ -15,7 +15,13 @@ import {
   SCIM_MEDIA_TYPE,
   SCIM_RATE_LIMIT,
 } from '@/ee/scim/lib/protocol/constants'
-import { ScimError, type ScimType, scimErrorBody, toScimError } from '@/ee/scim/lib/protocol/errors'
+import {
+  ScimError,
+  type ScimErrorBody,
+  type ScimType,
+  scimErrorBody,
+  toScimError,
+} from '@/ee/scim/lib/protocol/errors'
 import type { ScimRequestLogEntry } from '@/ee/scim/lib/request-log'
 
 const logger = createLogger('ScimRoute')
@@ -62,16 +68,19 @@ export type ScimNextRouteHandler = (
 ) => Promise<NextResponse | Response> | NextResponse | Response
 
 /** Dependencies the builder needs, injected so the module stays testable. */
-export interface ScimRouteDependencies {
+interface ScimRouteDependencies {
   authenticate: ScimConnectionAuthenticator
-  baseUrl(): string
   recordRequest(entry: ScimRequestLogEntry): void
 }
 
 function scimResponse(body: unknown, status: number, headers?: Record<string, string>): Response {
   return NextResponse.json(body, {
     status,
-    headers: { 'content-type': SCIM_MEDIA_TYPE, 'cache-control': 'no-store', ...headers },
+    headers: {
+      'content-type': `${SCIM_MEDIA_TYPE}; charset=utf-8`,
+      'cache-control': 'no-store',
+      ...headers,
+    },
   })
 }
 
@@ -135,14 +144,17 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
       )
     }
     const isEmptyResponse = options.contract.response.mode === 'empty'
-    if (!isEmptyResponse && !options.present) {
+    const present = options.present
+    if (!isEmptyResponse && !present) {
       throw new Error(`${options.contract.method} ${options.contract.path} requires a presenter`)
     }
-    const successStatus = (() => {
-      const declared = options.contract.response.status
-      if (declared === undefined) return 200
-      return Array.isArray(declared) ? declared[0] : (declared as number)
-    })()
+    const declaredStatus = options.contract.response.status
+    const successStatus =
+      declaredStatus === undefined
+        ? 200
+        : Array.isArray(declaredStatus)
+          ? declaredStatus[0]
+          : declaredStatus
 
     return withRouteHandler<ScimRouteContext | undefined>(
       async (request, context) => {
@@ -153,7 +165,6 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
         let detail: string | undefined
 
         try {
-          /** A deployment without the feature exposes no provisioning surface at all. */
           if (!isScimDeploymentEnabled()) throw new ScimError(404, undefined, 'Not found')
           if (request.method !== options.contract.method) {
             throw new ScimError(405, undefined, `${request.method} is not supported here`)
@@ -191,11 +202,14 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
             rejectBlankQueryValues: false,
           })
           if (!parsed.success) {
+            const failure = (await parsed.response.json()) as ScimErrorBody
             status = parsed.response.status
-            return scimResponse(await parsed.response.json(), status)
+            scimType = failure.scimType
+            detail = failure.detail
+            return scimResponse(failure, status)
           }
 
-          const baseUrl = dependencies.baseUrl()
+          const baseUrl = scimBaseUrl()
           const input = options.mapInput(parsed.data, { principal, request })
           const result = await options.useCase.execute({ principal, input, request })
 
@@ -207,7 +221,8 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
             })
           }
 
-          const presented = options.present!(result, { baseUrl })
+          if (!present) throw new Error('unreachable: presenter checked at definition')
+          const presented = present(result, { baseUrl })
           const validated =
             options.contract.response.mode === 'json'
               ? options.contract.response.schema.parse(presented)
@@ -286,7 +301,6 @@ export function defineScimDiscoveryRoute(
   return withRouteHandler<ScimRouteContext | undefined>(
     async (request, context) => {
       try {
-        /** A deployment without the feature exposes no provisioning surface, discovery included. */
         if (!isScimDeploymentEnabled()) throw new ScimError(404, undefined, 'Not found')
         if (request.method !== 'GET') {
           throw new ScimError(405, undefined, `${request.method} is not supported here`)

@@ -55,7 +55,7 @@ async function applyUserUpdate(
   next: ScimUserAttributes
 ): Promise<UpdateOutcome> {
   const nextEmail = primaryEmail(next)
-  const emailChanged = normalizeEmail(nextEmail) !== normalizeEmail(current.email)
+  const emailChanged = accountEmailDiverged(current, next)
   const deactivated = current.active && !next.active
   const reactivated = !current.active && next.active
 
@@ -206,7 +206,7 @@ function auditEntries(result: UpdateScimUserResult): ScimAuditEntry[] | undefine
   return entries
 }
 
-async function invalidateIfAccessChanged(result: UpdateScimUserResult, organizationId: string) {
+function invalidateIfAccessChanged(result: UpdateScimUserResult, organizationId: string): void {
   if (!result.outcome) return
   if (result.outcome.emailChanged || result.outcome.deactivated || result.outcome.reactivated) {
     invalidateAfterSessionRevocation({ userId: result.userId, organizationId })
