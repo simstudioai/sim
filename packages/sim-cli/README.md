@@ -49,7 +49,11 @@ it. OAuth still needs the browser to reach the CLI's loopback callback. Over SSH
 or in a container without port forwarding, use
 `sim login --method api-key --no-browser` to approve from another device and
 create a permanent personal API key. `--method api-key` creates a new key;
-the global `--api-key <key>` option supplies an existing one.
+set `SIM_API_KEY` to supply an existing one.
+
+Pairing requires a server that supports `platform` API keys. Upgrade older
+deployments that only issue `copilot` keys before login; they are not compatible
+with the platform CLI. OAuth discovery does not check pairing compatibility.
 
 Check the active profile and verify that its endpoint, credential, and workspace
 work together:

@@ -27,8 +27,11 @@ sim login --method api-key
 server must enable `OAUTH_PROVIDER_ENABLED=true`. Explicit OAuth selection also
 overrides SSH/headless detection; your browser still needs to reach the CLI's
 local callback. `--method api-key` uses pairing-code approval to create a new
-permanent API key. To supply an existing key, use the global `--api-key <key>`
-option or `SIM_API_KEY` instead.
+permanent API key. To supply an existing key, set `SIM_API_KEY` instead.
+
+API-key pairing requires a server that supports `platform` API keys. Upgrade
+older deployments that only issue `copilot` keys before starting login; those
+keys cannot authenticate the platform CLI.
 
 OAuth login opens your browser on Sim's sign-in page, then on a consent page that
 names the Sim CLI and what it will be able to do. Approve, and the browser hands
@@ -100,9 +103,10 @@ approving. That check is what binds the approval to your terminal.
 
 The handoff issues a permanent personal API key rather than a renewing login,
 so revoke it under **Settings → API keys** when you are done with that machine.
-It is also the path for a deployment that predates OAuth sign-in, or one with
-the provider switched off; the CLI detects that and selects API-key login when
-`--method` is omitted. An explicit `--method oauth` fails in that case.
+It also works when OAuth is unavailable or switched off, provided the server
+supports platform API-key pairing. When `--method` is omitted, the CLI checks
+OAuth availability and selects pairing if unavailable; that discovery does not
+verify pairing compatibility. An explicit `--method oauth` fails in that case.
 
 `--read-only` and `--callback-port` belong to OAuth login and have no
 meaning here, so combining either with the handoff stops the login rather than
