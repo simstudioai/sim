@@ -294,7 +294,7 @@ function OutputSelectMenu({
     ),
     items: [
       ...node.outputs.map((output) => ({
-        label: output.path,
+        label: output.streaming ? `${output.path} (live)` : output.path,
         value: getOutputValue(output, valueMode),
       })),
       ...(node.children.length > 0 ? [folderOption(node)] : []),

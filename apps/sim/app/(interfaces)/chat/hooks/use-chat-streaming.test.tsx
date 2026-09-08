@@ -210,6 +210,23 @@ describe('useChatStreaming thinking + abort', () => {
     expect(assistant?.content).toBe('B output\n\nIt is 68°F.')
   })
 
+  it('retracts only the matching custom field stream and preserves sibling invocations', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({ blockId: 'custom', streamId: 'first', chunk: 'Provisional' })
+      await options.onEvent({ blockId: 'custom', streamId: 'second', chunk: 'Other answer' })
+      await options.onEvent({ blockId: 'custom', streamId: 'first', event: 'chunk_reset' })
+      await options.onEvent({ blockId: 'custom', streamId: 'first', chunk: '\n\nFinal answer' })
+      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
+    })
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+    await flushUiBatch()
+    expect(messages.find((message) => message.id === 'msg-assistant-1')?.content).toBe(
+      'Other answer\n\nFinal answer'
+    )
+  })
+
   it('settles thinking chrome when a tool starts', async () => {
     let midStreamThinking: boolean | undefined
     mockReadSSEEvents.mockImplementation(async (_source, options) => {

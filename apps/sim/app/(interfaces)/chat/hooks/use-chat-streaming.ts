@@ -525,7 +525,7 @@ export function useChatStreaming() {
             // Remove the block from the order too: its re-streamed text
             // re-registers at the end, keeping render order = arrival order
             // (the server re-computes the cross-block separator on re-stream).
-            const { blockId } = json
+            const blockId = json.streamId ?? json.blockId
             if (blockTextSegments.has(blockId)) {
               blockTextSegments.delete(blockId)
               const orderIndex = blockTextOrder.indexOf(blockId)
@@ -541,7 +541,8 @@ export function useChatStreaming() {
 
           // Answer text only — never append thinking/tool/unknown chunk frames blindly.
           if (isChatChunkFrame(json)) {
-            const { blockId, chunk: contentChunk } = json
+            const { chunk: contentChunk } = json
+            const blockId = json.streamId ?? json.blockId
 
             // First answer chunk settles thinking chrome (still visible, no longer “live”).
             if (isThinkingStreaming) {

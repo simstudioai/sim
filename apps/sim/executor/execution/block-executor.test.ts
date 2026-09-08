@@ -1303,6 +1303,20 @@ describe('BlockExecutor streaming pump', () => {
     }
   }
 
+  it('fails the block when required stream delivery fails', async () => {
+    const handler = createAgentEventsStreamingHandler({
+      events: [{ type: 'text_delta', text: 'answer', turn: 'final' }],
+    })
+    const { executor, block, state } = createExecutor(handler)
+    const ctx = createContext(state)
+    ctx.onStream = async () => {
+      throw new Error('Stream delivery failed')
+    }
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      'Stream delivery failed'
+    )
+  })
+
   it('projects answer text to onStream and content; sink gets full timeline', async () => {
     const onFullContent = vi.fn()
     const handler = createAgentEventsStreamingHandler({

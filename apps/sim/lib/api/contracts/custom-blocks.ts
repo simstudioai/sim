@@ -35,6 +35,7 @@ const exposedOutputSchema = z.object({
   blockId: z.string().min(1),
   path: z.string().min(1),
   name: z.string().min(1).max(60),
+  streaming: z.boolean().optional(),
 })
 
 /**
@@ -71,7 +72,7 @@ export const customBlockSchema = z.object({
   /** Whether this block's runs are joined into consumers' traces, org-wide. */
   traceChildRuns: z.boolean(),
   inputFields: z.array(inputFieldSchema),
-  /** Curated outputs exposed to consumers; empty = expose the child's whole result. */
+  /** Curated public outputs; legacy empty definitions expose no data fields. */
   exposedOutputs: z.array(exposedOutputSchema),
 })
 

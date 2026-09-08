@@ -671,6 +671,10 @@ export interface StreamingExecution {
   blockId?: string
   /** Internal identity that disambiguates repeated invocations of one child workflow. */
   childWorkflowInstanceId?: string
+  /** Public custom-block field; its stream settles when the enclosing block completes. */
+  outputPath?: string
+  /** Opaque identity for one projected field stream, including repeated source executions. */
+  streamId?: string
   /** Per-run invocation order, unique across loop and parallel executions. */
   executionOrder?: number
   /**

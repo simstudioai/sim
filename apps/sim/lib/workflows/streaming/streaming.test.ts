@@ -102,6 +102,141 @@ describe('createStreamingResponse', () => {
     clearLargeValueCacheForTests()
   })
 
+  it('streams custom fields once per invocation and preserves other selected final outputs', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'custom-stream',
+      streamConfig: { selectedOutputs: ['custom_answer', 'custom_summary'] },
+      executeFn: async ({ onStream, onBlockComplete }) => {
+        for (const instance of ['first', 'second']) {
+          await onStream({
+            blockId: 'custom',
+            outputPath: 'answer',
+            streamId: `${instance}-answer`,
+            childWorkflowInstanceId: instance,
+            streamFormat: 'text',
+            stream: new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(`${instance} answer`))
+                controller.close()
+              },
+            }),
+            execution: { success: true, output: {} },
+          })
+          await onBlockComplete(
+            'custom',
+            { answer: `${instance} answer`, summary: `${instance} summary` },
+            undefined,
+            instance
+          )
+        }
+        /** A later invocation may take a branch which never runs the live source. */
+        await onBlockComplete(
+          'custom',
+          { answer: 'settled answer', summary: 'settled summary' },
+          undefined,
+          'third'
+        )
+        return { success: true, output: {}, logs: [] }
+      },
+    })
+    const events = await collectSSEEvents(stream)
+    const chunks = events.filter((event) => typeof event.chunk === 'string')
+    expect(chunks.map((event) => String(event.chunk).trim())).toEqual([
+      'first answer',
+      'first summary',
+      'second answer',
+      'second summary',
+      'settled answer',
+      'settled summary',
+    ])
+    expect(new Set(chunks.map((event) => event.streamId)).size).toBe(6)
+    expect(events.at(-1)?.event).toBe('final')
+  })
+
+  it.each([
+    { protocol: 'agent-events-v1', live: false },
+    { protocol: 'agent-events-v1, scoped-output-v1', live: true },
+  ])('negotiates scoped custom answer retractions: $live', async ({ protocol, live }) => {
+    const stream = await createStreamingResponse({
+      requestId: 'live-custom-stream',
+      requestHeaders: new Headers({ 'x-sim-stream-protocol': protocol }),
+      streamConfig: { selectedOutputs: ['custom_answer'] },
+      executeFn: async ({ onStream, onBlockComplete }) => {
+        let sink: AgentStreamSink | undefined
+        let finishBytes: (() => void) | undefined
+        const pending = onStream({
+          blockId: 'custom',
+          outputPath: 'answer',
+          streamId: 'public-stream',
+          childWorkflowInstanceId: 'invocation',
+          stream: new ReadableStream({
+            start(controller) {
+              finishBytes = () => {
+                controller.enqueue(new TextEncoder().encode('Final answer'))
+                controller.close()
+              }
+            },
+          }),
+          subscribe: (subscriber) => {
+            sink = subscriber
+            return vi.fn()
+          },
+          execution: { success: true, output: {} },
+        })
+        if (!sink) throw new Error('Subscription was not installed before pumping')
+        await sink.onEvent({ type: 'text_delta', text: 'Checking', turn: 'pending' })
+        await sink.onEvent({ type: 'turn_end', turn: 'intermediate' })
+        await sink.onEvent({ type: 'text_delta', text: 'Final answer', turn: 'final' })
+        if (!finishBytes) throw new Error('Test byte stream was not initialized')
+        finishBytes()
+        await pending
+        await onBlockComplete(
+          'custom',
+          { success: true, answer: 'Final answer' },
+          undefined,
+          'invocation'
+        )
+        return { success: true, output: {} }
+      },
+    })
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => event.event !== 'final')).toEqual(
+      live
+        ? [
+            { blockId: 'custom', streamId: 'public-stream', chunk: 'Checking' },
+            { blockId: 'custom', streamId: 'public-stream', event: 'chunk_reset' },
+            { blockId: 'custom', streamId: 'public-stream', chunk: 'Final answer' },
+          ]
+        : [{ blockId: 'custom', streamId: 'public-stream', chunk: 'Final answer' }]
+    )
+  })
+
+  it('fails when a custom stream supplies an unselected public field', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'unselected-stream',
+      streamConfig: { selectedOutputs: ['custom_answer'] },
+      executeFn: async ({ onStream }) => {
+        await onStream({
+          blockId: 'custom',
+          outputPath: 'private',
+          streamId: 'stream',
+          childWorkflowInstanceId: 'invocation',
+          stream: new ReadableStream({
+            start(controller) {
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: {} },
+        })
+        return { success: true, output: {} }
+      },
+    })
+    const events = await collectSSEEvents(stream)
+    expect(events).toEqual([
+      { event: 'error', error: 'Custom block streamed an unselected output' },
+    ])
+  })
+
   it('forwards raw execution state to terminal logging', async () => {
     const safeComplete = vi.fn().mockResolvedValue(undefined)
     const executionState = {
@@ -945,6 +1080,16 @@ describe('agent stream protocol response headers', () => {
   it('stays inactive for legacy clients and when no headers are supplied', () => {
     expect(agentStreamProtocolResponseHeaders({ requestHeaders: new Headers() })).toEqual({})
     expect(agentStreamProtocolResponseHeaders({})).toEqual({})
+  })
+
+  it('echoes the negotiated capability for field-scoped retractions', () => {
+    expect(
+      agentStreamProtocolResponseHeaders({
+        requestHeaders: new Headers({
+          'x-sim-stream-protocol': 'agent-events-v1, scoped-output-v1',
+        }),
+      })
+    ).toEqual({ 'x-sim-stream-protocol': 'agent-events-v1, scoped-output-v1' })
   })
 })
 

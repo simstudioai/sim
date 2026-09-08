@@ -72,6 +72,14 @@ Pick which of the workflow's outputs consumers can use, and give each one a name
 - **At least one output is required.**
 - Each exposed output needs a unique **name** (max 60 characters) — that's the name consumers reference in their workflows.
 
+For an Agent or Pi block's plain-text `content` output, choose **Live** to publish it as a streaming answer. Outputs default to **Final**, which returns the value when the custom block finishes. Structured response formats and other source output types cannot be marked live.
+
+In the consuming workflow, select that public field in the deployed chat or Slack streaming output picker. Live fields are labeled **(live)**. References stay the same: a block named `Research` with an output named `answer` uses `research.answer`. Consumers do not need to select or access the source workflow's internal blocks.
+
+Live output exposes only the selected answer text. It works independently of **Trace runs in consumer logs**, and does not expose the source's thinking or tool events. Chat can update a provisional answer during tool use; Slack waits until a turn is known to be the final answer because it cannot retract streamed text. Slack marks the response complete when the custom block finishes, and marks it as failed if the block fails after text has arrived. Downstream workflow blocks still receive the completed output value.
+
+Streaming mappings are checked against the latest deployment when saving and executing. If you remove a live source or give it a structured response format, update the custom block's output configuration before consumers run it again.
+
 <Image src="/static/enterprise/custom-blocks-form.png" alt="Create block form filled in: Workspace and Workflow selectors, an uploaded icon, Name and Description fields, an expanded input with a placeholder, and two selected outputs each given a name" width={900} height={570} />
 
 ### 6. Choose whether runs are traced
