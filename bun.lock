@@ -788,9 +788,6 @@
     "sharp",
     "isolated-vm",
   ],
-  "patchedDependencies": {
-    "drizzle-kit@0.31.10": "patches/drizzle-kit@0.31.10.patch",
-  },
   "overrides": {
     "@hono/node-server": "1.19.15",
     "@next/env": "16.3.1",
