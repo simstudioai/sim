@@ -30,10 +30,8 @@ export interface DeprovisionScimUserResult {
 /**
  * Removes a user from the organization at the directory's instruction.
  *
- * Okta never sends this — it deactivates instead — but Microsoft Entra does, 30
- * days after a hard delete, and OneLogin and JumpCloud can be configured to. The
- * Sim account itself survives: the person may hold access in another
- * organization later, and their audit history must remain attributable.
+ * The Sim account survives because the person may join another organization
+ * later and their audit history must remain attributable.
  *
  * Removal is the same primitive the settings UI uses. It ends the membership,
  * revokes sessions and personal keys, reassigns what the member owned, and

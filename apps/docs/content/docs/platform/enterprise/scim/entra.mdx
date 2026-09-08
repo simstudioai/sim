@@ -82,10 +82,10 @@ Change the test user's display name in Entra and provision them again. Confirm t
 
 Remove the test user's app assignment, then run on-demand provisioning for that user again. Confirm that Sim deactivates the existing member. Reassign the user and provision again to verify reactivation of the same account. Assignment changes can take a few minutes to become available to provisioning.
 
-Sim deactivation suspends access while retaining organization membership, ownership, and the seat. See [deactivation behavior](/platform/enterprise/scim#what-it-does) before using unassignment for offboarding.
+Sim deactivation suspends access while retaining organization membership, ownership, and the seat. For users still managed by the provisioning job, soft deletion deactivates the Sim member and permanent deletion sends a SCIM `DELETE` that removes organization membership. Entra normally permanently deletes users 30 days after soft deletion, or sooner if an administrator purges them. After app unassignment, Entra stops managing the user and does not send a later directory deletion. See [Microsoft's deprovisioning lifecycle](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works#deprovisioning) and [Sim's deactivation behavior](/platform/enterprise/scim#what-it-does).
 
 <Callout type="info">
-  Disabled or deleted Entra users cannot be selected for on-demand provisioning. Use the scheduled provisioning cycle to verify those cases. See [Microsoft's on-demand limitations](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/provision-on-demand).
+  Disabled or deleted Entra users cannot be selected for on-demand provisioning. [Start automatic provisioning](#start-automatic-provisioning) and complete the initial cycle before testing those changes through a scheduled cycle. See [Microsoft's on-demand limitations](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/provision-on-demand).
 </Callout>
 
 ## Provision groups and map access
@@ -104,6 +104,8 @@ After the test succeeds, return to the provisioning **Overview** and select **St
 
 Keep the scope limited to assigned users and groups as you add more members. Use **Provision on demand** for a small test; use the regular cycle to verify directory account disablement and deletion.
 
+During a scheduled lifecycle test, leave the job running after changing the test user. **Restart provisioning** clears the change watermark and begins a new initial cycle; changing mappings or scoping filters also resets it. Wait for the incremental cycle and inspect that user's provisioning log before making further changes.
+
 ## Rotate the token
 
 Issue a replacement token in Sim while the current token remains active. In Entra, open the provisioning configuration's **Connectivity** page, replace **Secret token**, select **Test connection**, and save. Confirm a successful provisioning request before revoking the old token in Sim. Sim allows two active tokens so rotation can overlap.
@@ -116,6 +118,7 @@ Issue a replacement token in Sim while the current token remains active. In Entr
 | User is out of scope | Assign the user to this enterprise application and check the provisioning scope and scoping filters. Allow time for assignment changes to propagate. |
 | User creation fails | Verify the email domain in Sim, available seats, and whether the account belongs to another Sim organization. Review the mapped UPN and work email. |
 | Repeat provisioning reports **Skipped** | Inspect the reason. **RedundantExport** means the source and target already match. |
+| Directory disablement or deletion has not reached Sim | Check the user's scheduled provisioning log, the `IsSoftDeleted` mapping to `active`, enabled **Update** actions, and accidental deletion protection. Confirm **Skip out of scope deletions** is disabled. A successful connection test alone does not verify a lifecycle change. |
 | Group assignment is unavailable | Check your Entra license. The Free plan supports individual user assignment but requires an upgrade for group assignment and provisioning. |
 | Member has no workspace access | Provision the directory group and add a workspace mapping in Sim. User provisioning creates organization membership. |
 | Disabled member still uses a seat | Sim suspends access on deactivation. Removing organization membership is a separate offboarding action. |
