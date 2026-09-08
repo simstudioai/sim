@@ -49,7 +49,6 @@ const BASE_CONTEXT: ToolExecutionContext = {
   userId: 'user-1',
   workflowId: '',
   workspaceId: 'ws-1',
-  sandboxProfile: 'mothership',
 }
 
 describe('executeFunctionExecute session plumbing', () => {
@@ -158,6 +157,26 @@ describe.each([
     registerHandler(toolId, handler)
   })
   afterEach(clearHandlers)
+
+  it('owns the Mothership profile for direct callback and checkpoint dispatch', async () => {
+    const params = {
+      code: "return { template: '{{API_KEY}}' }",
+      language: 'javascript',
+      sandboxProfile: 'model-supplied',
+      internalSandboxProfile: 'model-supplied',
+    }
+    const result = await executeTool(toolId, params, {
+      ...BASE_CONTEXT,
+      copilotToolExecution: true,
+      userPermission: 'write',
+    })
+    expect(result.success).toBe(true)
+    const [, input, options] = mockExecuteTool.mock.calls[0]
+    expect(input.code).toBe(params.code)
+    expect(input).not.toHaveProperty('sandboxProfile')
+    expect(input).not.toHaveProperty('internalSandboxProfile')
+    expect(options.internalSandboxProfile).toBe('mothership')
+  })
 
   it.each([
     { timeout: undefined, expected: 60_000 },
