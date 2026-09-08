@@ -48,12 +48,12 @@ export function CoreFeatureCard({
       <Link
         href={href}
         rel={href.startsWith('https://') ? 'noopener noreferrer' : undefined}
-        className='group block outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--border-1)] focus-visible:outline-offset-4'
+        className='group block outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--border)] focus-visible:outline-offset-4'
       >
         <div
           aria-hidden='true'
           className={cn(
-            'relative aspect-[5/6] overflow-hidden border border-[var(--border)] transition-colors duration-300 group-hover:border-[var(--border-1)] motion-reduce:transition-none',
+            'relative aspect-[5/6] overflow-hidden border border-[var(--border)] transition-colors duration-300 group-hover:border-[var(--border)] motion-reduce:transition-none',
             LANDING_STAGE_RADIUS,
             SCROLL_THROUGH,
             TONE_CLASSES[tone]

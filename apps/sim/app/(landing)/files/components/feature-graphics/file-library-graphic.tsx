@@ -36,7 +36,7 @@ function LibraryFolder({ name, count, className }: LibraryFolderProps) {
         <path
           d='M1 18C1 12.5 5.5 8 11 8H54C58 8 60 9 63 12L71 20H149C154.5 20 159 24.5 159 30V139C159 144.5 154.5 149 149 149H11C5.5 149 1 144.5 1 139Z'
           fill='var(--surface-6)'
-          stroke='var(--border-1)'
+          stroke='var(--border)'
           vectorEffect='non-scaling-stroke'
         />
       </svg>
@@ -49,7 +49,7 @@ function LibraryFolder({ name, count, className }: LibraryFolderProps) {
         <path
           d='M1 66C1 60.5 5.5 56 11 56H149C154.5 56 159 60.5 159 66V139C159 144.5 154.5 149 149 149H11C5.5 149 1 144.5 1 139Z'
           fill='var(--surface-3)'
-          stroke='var(--border-1)'
+          stroke='var(--border)'
           vectorEffect='non-scaling-stroke'
         />
       </svg>
@@ -70,7 +70,7 @@ function LibraryDocumentCard({ document, className }: LibraryDocumentCardProps) 
   return (
     <div
       className={cn(
-        'flex aspect-[9/11] w-full min-w-0 flex-col gap-3 rounded-lg border border-[var(--border-1)] bg-[var(--bg)] p-3 shadow-xs',
+        'flex aspect-[9/11] w-full min-w-0 flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 shadow-xs',
         className
       )}
     >

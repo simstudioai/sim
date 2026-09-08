@@ -38,7 +38,7 @@ export function HeroPlatformStage() {
         role='region'
         aria-label='Interactive Sim product preview'
         className={cn(
-          'relative aspect-[1280/735] overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] shadow-xs transition-[border-color,box-shadow] duration-300 ease-out has-[[data-preview-entering]]:border-transparent has-[[data-preview-entering]]:shadow-none motion-reduce:transition-none max-sm:aspect-[4/3] max-sm:min-h-[264px] max-xl:min-h-[480px]',
+          'relative aspect-[1280/735] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-xs transition-[border-color,box-shadow] duration-300 ease-out has-[[data-preview-entering]]:border-transparent has-[[data-preview-entering]]:shadow-none motion-reduce:transition-none max-sm:aspect-[4/3] max-sm:min-h-[264px] max-xl:min-h-[480px]',
           HOME_INSET
         )}
       >

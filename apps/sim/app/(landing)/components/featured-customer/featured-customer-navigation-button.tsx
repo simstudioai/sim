@@ -95,7 +95,7 @@ export function FeaturedCustomerNavigationButton({
               className={cn(
                 'fill-none transition-colors duration-150',
                 disabled
-                  ? 'stroke-[var(--border-1)]'
+                  ? 'stroke-[var(--border)]'
                   : 'stroke-[var(--text-subtle)] group-hover-hover:stroke-[var(--text-secondary)]'
               )}
             />

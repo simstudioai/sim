@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { EnterpriseMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/enterprise-menu-preview'
 import { FilesMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/files-menu-preview'
@@ -31,7 +31,7 @@ interface ProductHeroPreviewProps {
 export function ProductHeroPreview({ product }: ProductHeroPreviewProps) {
   const Preview = PREVIEWS[product]
   const [workflowReady, setWorkflowReady] = useState(false)
-  const handleWorkflowReady = useCallback(() => setWorkflowReady(true), [])
+  const handleWorkflowReady = () => setWorkflowReady(true)
   const ready = product !== 'workflows' || workflowReady
 
   return (

@@ -23,7 +23,7 @@ const TONE = {
   },
   light: {
     ground:
-      'border-[var(--border-1)] bg-[var(--surface-6)] text-[var(--text-primary)] hover:border-[var(--text-subtle)]',
+      'border-[var(--border)] bg-[var(--surface-6)] text-[var(--text-primary)] hover:border-[var(--text-subtle)]',
     mark: 'dark:brightness-0 dark:invert',
   },
 } as const

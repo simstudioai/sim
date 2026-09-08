@@ -30,7 +30,7 @@ interface ProductGraphicProps extends PreviewGraphicProps {
 }
 
 const PREVIEW_ROW =
-  'flex items-center gap-3 rounded-md border border-[var(--border-1)] bg-[var(--bg)] px-3 py-2.5'
+  'flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5'
 
 function TeamGraphic({ details }: PreviewGraphicProps) {
   return (
@@ -51,11 +51,11 @@ function TeamGraphic({ details }: PreviewGraphicProps) {
 function ResourceGraphic({ details }: PreviewGraphicProps) {
   return (
     <div className='flex h-full flex-col p-4'>
-      <div className='mb-3 flex items-center gap-2 rounded-md border border-[var(--border-1)] bg-[var(--bg)] px-3 py-2.5'>
+      <div className='mb-3 flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5'>
         <BookOpen className='size-[14px] text-[var(--text-icon)]' />
         <span className='text-[12px] text-[var(--text-body)]'>Browse resources</span>
       </div>
-      <div className='flex flex-1 flex-col justify-center divide-y divide-[var(--border-1)] rounded-lg border border-[var(--border-1)] bg-[var(--bg)] px-3'>
+      <div className='flex flex-1 flex-col justify-center divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3'>
         {details.map((detail) => (
           <div key={detail} className='flex flex-1 items-center justify-between'>
             <span className='text-[12px] text-[var(--text-body)]'>{detail}</span>

@@ -254,7 +254,7 @@ export function HeroChatLoop({
         data-preview-outline='frame'
         data-preview-composer=''
         className={cn(
-          'mx-auto w-[calc(100%-48px)] max-w-chat rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+          'mx-auto w-[calc(100%-48px)] max-w-chat rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
           showWelcome
             ? 'absolute inset-x-0 transition-[bottom,transform] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none max-sm:w-[calc(100%-24px)]'
             : 'mb-4 shrink-0',
@@ -266,7 +266,7 @@ export function HeroChatLoop({
       >
         {showWelcome && <HeroChatWelcome visible={welcome} onSelect={updateComposer} />}
         {attachedFileName && (
-          <div className='mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-2)] py-1 pr-1 pl-2 text-[var(--text-body)] text-xs'>
+          <div className='mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] py-1 pr-1 pl-2 text-[var(--text-body)] text-xs'>
             <Paperclip className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='truncate'>{attachedFileName}</span>
             <Button

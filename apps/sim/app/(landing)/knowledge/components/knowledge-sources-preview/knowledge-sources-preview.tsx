@@ -122,7 +122,7 @@ export function KnowledgeSourcesPreview() {
             const Icon = source.icon
             return (
               <div key={source.id} className='flex items-center gap-2.5 rounded-lg px-2 py-2'>
-                <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)]'>
+                <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)]'>
                   <Icon className='size-5' />
                 </div>
                 <div className='flex min-w-0 flex-1 flex-col gap-0.5'>

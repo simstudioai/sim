@@ -22,7 +22,8 @@ export function GitHubChip({ stars }: GitHubChipProps) {
       target='_blank'
       rel='noopener noreferrer'
       leftIcon={GithubOutlineIcon}
-      className='rounded-full px-3'
+      shape='round'
+      className='px-3'
       aria-label={`GitHub repository, ${stars} stars`}
     >
       {stars}

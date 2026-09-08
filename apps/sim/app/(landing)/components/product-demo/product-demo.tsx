@@ -136,7 +136,7 @@ export function ProductDemo() {
           <ProductDemoBeatProvider>
             <div
               className={cn(
-                'relative mx-auto flex w-full flex-col overflow-hidden border border-[var(--border-1)]',
+                'relative mx-auto flex w-full flex-col overflow-hidden border border-[var(--border)]',
                 PAPER,
                 LANDING_STAGE_RADIUS,
                 FRAME_PLAYER

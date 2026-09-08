@@ -183,7 +183,7 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                 >
                   <div
                     className={cn(
-                      'flex w-[620px] flex-col gap-3 rounded-2xl border border-[var(--border-1)] p-3 shadow-xs',
+                      'flex w-[620px] flex-col gap-3 rounded-2xl border border-[var(--border)] p-3 shadow-xs',
                       NAVBAR_GLASS_SURFACE
                     )}
                   >
@@ -231,7 +231,7 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
           }
         }}
       >
-        <div className={cn('border-[var(--border-1)] border-y', NAVBAR_GLASS_SURFACE)}>
+        <div className={cn('border-[var(--border)] border-y', NAVBAR_GLASS_SURFACE)}>
           <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
             <div
               className={cn(

@@ -44,7 +44,7 @@ const EDGE_DRAW_CLASSES = [styles.edgeDraw0, styles.edgeDraw1, styles.edgeDraw2]
  * center, and two output blocks fanned below — joined by 1px curved SVG
  * edges with vertical tangents landing on small port dots (the access
  * tile's junction vocabulary). Every block is a white card in the audit
- * tile's exact chrome (`--white` fill, 1px `--border-1` hairline,
+ * tile's exact chrome (`--white` fill, 1px `--border` hairline,
  * `rounded-lg`, `shadow-xs`) so the canvas reads as the workspace's own
  * block language; the agent is the tile's strongest element, pairing its
  * name with a solid `Agent` ChipTag.
@@ -94,7 +94,7 @@ export function WorkflowCanvasGraphic() {
 
           <div
             className={cn(
-              '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs dark:bg-[var(--surface-4)]',
+              '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs dark:bg-[var(--surface-4)]',
               LAYOUT.trigger.topClass,
               LAYOUT.trigger.leftClass
             )}
@@ -107,7 +107,7 @@ export function WorkflowCanvasGraphic() {
 
           <div
             className={cn(
-              '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]',
+              '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]',
               LAYOUT.agent.topClass,
               LAYOUT.agent.leftClass
             )}
@@ -128,7 +128,7 @@ export function WorkflowCanvasGraphic() {
             <div
               key={block.label}
               className={cn(
-                '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs dark:bg-[var(--surface-4)]',
+                '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs dark:bg-[var(--surface-4)]',
                 LAYOUT.outputTopClass,
                 block.leftClass
               )}

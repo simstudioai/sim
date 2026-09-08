@@ -400,7 +400,7 @@ function ComposerPass({ width, scale, onSend, onReplyHold }: ComposerPassProps) 
             <feComposite in='body' in2='inner' operator='out' result='rim' />
             <feFlood style={{ floodColor: 'var(--chat-surface)' }} result='white' />
             <feComposite in='white' in2='body' operator='in' result='fill' />
-            <feFlood style={{ floodColor: 'var(--border-1)' }} result='ink' />
+            <feFlood style={{ floodColor: 'var(--border)' }} result='ink' />
             <feComposite in='ink' in2='rim' operator='in' result='outline' />
             <feMerge>
               <feMergeNode in='fill' />
@@ -447,7 +447,7 @@ function ComposerPass({ width, scale, onSend, onReplyHold }: ComposerPassProps) 
                 'mx-auto flex flex-col overflow-hidden border',
                 gooLive
                   ? 'border-transparent bg-transparent'
-                  : 'border-[var(--border-1)] bg-[var(--chat-surface)]'
+                  : 'border-[var(--border)] bg-[var(--chat-surface)]'
               )}
               style={{ borderRadius: BOX_RADIUS }}
             >

@@ -43,7 +43,7 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2, styles.row3, st
 
 /**
  * The Tables grid told inside a product window framed on all sides, wearing
- * the light tiles' card chrome - `--white` fill, 1px `--border-1` hairline,
+ * the light tiles' card chrome - `--white` fill, 1px `--border` hairline,
  * `shadow-xs` - so the grid reads as the workspace's own editor. Its `h-12`
  * title bar pairs the `Table` icon (in a hairline `size-6` icon box, the
  * lifecycle header's treatment) with the `Leads` table name over a hairline
@@ -64,24 +64,24 @@ export function TableGridGraphic() {
       <div
         aria-hidden='true'
         className={cn(
-          'absolute inset-[10px] overflow-hidden border border-[var(--border-1)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
+          'absolute inset-[10px] overflow-hidden border border-[var(--border)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
           LANDING_STAGE_WINDOW_RADIUS
         )}
       >
-        <div className='flex h-12 items-center gap-2 border-[var(--border-1)] border-b px-4'>
-          <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>
+        <div className='flex h-12 items-center gap-2 border-[var(--border)] border-b px-4'>
+          <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border)]'>
             <Table className='size-[14px] text-[var(--text-icon)]' />
           </span>
           <span className='text-[var(--text-primary)] text-base'>Leads</span>
         </div>
 
-        <div className='flex border-[var(--border-1)] border-b'>
+        <div className='flex border-[var(--border)] border-b'>
           {COLUMNS.map((column) => {
             const Icon = column.type === 'boolean' ? TypeBoolean : TypeText
             return (
               <div
                 key={column.label}
-                className='flex min-w-0 flex-1 items-center gap-1.5 border-[var(--border-1)] border-r px-2.5 py-2 last:border-r-0'
+                className='flex min-w-0 flex-1 items-center gap-1.5 border-[var(--border)] border-r px-2.5 py-2 last:border-r-0'
               >
                 <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
                 <span className='truncate text-[var(--text-primary)] text-caption'>
@@ -95,7 +95,7 @@ export function TableGridGraphic() {
         {ROWS.map((row, index) => (
           <div
             key={row.cells[0]}
-            className={cn('flex border-[var(--border-1)] border-b', ROW_STEP_CLASSES[index])}
+            className={cn('flex border-[var(--border)] border-b', ROW_STEP_CLASSES[index])}
           >
             {COLUMNS.map((column, columnIndex) => {
               const value = row.cells[columnIndex]
@@ -103,7 +103,7 @@ export function TableGridGraphic() {
                 <div
                   key={column.label}
                   className={cn(
-                    'min-w-0 flex-1 truncate border-[var(--border-1)] border-r px-2.5 py-2 text-caption last:border-r-0',
+                    'min-w-0 flex-1 truncate border-[var(--border)] border-r px-2.5 py-2 text-caption last:border-r-0',
                     columnIndex === 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'
                   )}
                 >
@@ -115,11 +115,11 @@ export function TableGridGraphic() {
         ))}
 
         {Array.from({ length: EMPTY_ROW_COUNT }, (_, index) => (
-          <div key={`empty-${index}`} className='flex border-[var(--border-1)] border-b'>
+          <div key={`empty-${index}`} className='flex border-[var(--border)] border-b'>
             {COLUMNS.map((column) => (
               <div
                 key={column.label}
-                className='h-9 min-w-0 flex-1 border-[var(--border-1)] border-r last:border-r-0'
+                className='h-9 min-w-0 flex-1 border-[var(--border)] border-r last:border-r-0'
               />
             ))}
           </div>

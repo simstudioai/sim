@@ -35,8 +35,8 @@ export function FeaturePlatformPanel({
       className={cn(
         'absolute overflow-hidden bg-[var(--surface-2)] shadow-xs dark:bg-[var(--surface-4)]',
         framed
-          ? cn('inset-0 border border-[var(--border-1)]', LANDING_STAGE_WINDOW_RADIUS)
-          : 'right-0 bottom-0 left-0 rounded-tl-xl border-[var(--border-1)] border-t border-l',
+          ? cn('inset-0 border border-[var(--border)]', LANDING_STAGE_WINDOW_RADIUS)
+          : 'right-0 bottom-0 left-0 rounded-tl-xl border-[var(--border)] border-t border-l',
         className
       )}
     >

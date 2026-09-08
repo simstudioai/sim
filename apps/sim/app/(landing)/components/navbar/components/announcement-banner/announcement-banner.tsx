@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
@@ -16,7 +17,11 @@ export function AnnouncementBanner() {
       className='h-[1.95rem] bg-[oklch(0.439_0_0)] text-[#F8F8F8] dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)]'
     >
       <div
-        className={`flex h-full items-center justify-center gap-3 text-caption leading-5 ${LANDING_CONTENT_WIDTH} ${LANDING_GUTTER}`}
+        className={cn(
+          'flex h-full items-center justify-center gap-3 text-caption leading-5',
+          LANDING_CONTENT_WIDTH,
+          LANDING_GUTTER
+        )}
       >
         <span className='truncate'>{LATEST_UPDATE.title}</span>
         <Link

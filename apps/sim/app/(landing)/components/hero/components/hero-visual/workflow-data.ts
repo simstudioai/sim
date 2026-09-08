@@ -126,14 +126,6 @@ export function horizontalHandleAnchors(block: BlockDef, branchIndex?: number) {
 export const WORKFLOW_FOCUS_SCALE = 1.25
 
 /**
- * Handle vertical offset from a block's top edge in the legacy mock card
- * (`WorkflowBlock`), which the Build showcase still draws. Production cards put
- * their handles at the card's vertical centre - see
- * {@link horizontalHandleAnchors}.
- */
-export const HANDLE_Y_OFFSET = 20
-
-/**
  * GitHub → Agent → Jira, the workflow Sim builds from the demo prompt. A gentle
  * staircase: GitHub and Jira ride high, the Agent dips between them, so the
  * two edges read as a clean down-then-up flow. Every block carries the fields

@@ -47,9 +47,9 @@ const CARD_STEPS = [
 function ConnectorCard({ source, index }: ConnectorCardProps) {
   return (
     <div className={cn('relative h-full min-w-0', CARD_STEPS[index])}>
-      <div className='-bottom-1.5 absolute inset-x-3 top-3 rounded-[10px] border border-[var(--border-1)] bg-[var(--surface-3)] opacity-50' />
-      <div className='-bottom-[3px] absolute inset-x-1.5 top-1.5 rounded-[10px] border border-[var(--border-1)] bg-[var(--surface-2)]' />
-      <div className='relative flex h-full flex-col justify-between rounded-[10px] border border-[var(--border-1)] bg-[var(--white)] p-[3cqw] shadow-xs dark:bg-[var(--surface-4)]'>
+      <div className='-bottom-1.5 absolute inset-x-3 top-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface-3)] opacity-50' />
+      <div className='-bottom-[3px] absolute inset-x-1.5 top-1.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)]' />
+      <div className='relative flex h-full flex-col justify-between rounded-[10px] border border-[var(--border)] bg-[var(--white)] p-[3cqw] shadow-xs dark:bg-[var(--surface-4)]'>
         <div className='flex shrink-0 items-center justify-between'>
           <source.icon className='size-[clamp(18px,6cqw,24px)] shrink-0' />
           <span className='flex items-center gap-1 text-[11px] text-[var(--text-muted)] leading-4'>

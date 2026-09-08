@@ -310,7 +310,7 @@ export function HeroPlatformLoop() {
           {stageOpen && (
             <div className='relative z-20 w-0 flex-none max-lg:hidden'>
               <div
-                className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize touch-none hover-hover:[&>div]:bg-[var(--border-1)]'
+                className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize touch-none hover-hover:[&>div]:bg-[var(--border)]'
                 onPointerDown={handleStageResizePointerDown}
                 role='separator'
                 aria-orientation='vertical'
@@ -319,7 +319,7 @@ export function HeroPlatformLoop() {
                 <div
                   className={cn(
                     '-translate-x-1/2 pointer-events-none absolute inset-y-0 left-1/2 w-px bg-transparent transition-colors duration-100 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
-                    isResizingStage && 'bg-[var(--border-1)]'
+                    isResizingStage && 'bg-[var(--border)]'
                   )}
                 />
               </div>

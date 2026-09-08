@@ -62,7 +62,7 @@ export function Navbar({ stars }: NavbarProps) {
         <div className='absolute inset-x-0 hidden items-center justify-center gap-1 xl:flex'>
           <NavMenuCluster menus={NAV_MENUS} />
           <div className='relative z-10 flex items-center gap-1'>
-            <ChipLink href='/pricing' itemProp='url' className='rounded-full px-3'>
+            <ChipLink href='/pricing' itemProp='url' shape='round' className='px-3'>
               Pricing
             </ChipLink>
             {stars !== undefined && <GitHubChip stars={stars} />}

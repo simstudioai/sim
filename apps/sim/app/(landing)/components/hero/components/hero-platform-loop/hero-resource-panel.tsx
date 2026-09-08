@@ -94,9 +94,7 @@ function HeroTableResource() {
               <span
                 className={cn(
                   'size-1.5 rounded-full',
-                  row.status === 'Qualified'
-                    ? 'bg-[var(--brand-primary)]'
-                    : 'bg-[var(--text-muted)]'
+                  row.status === 'Qualified' ? 'bg-[var(--brand-accent)]' : 'bg-[var(--text-muted)]'
                 )}
               />
               {row.status}

@@ -20,7 +20,7 @@ export function NavbarAuthPill({ size = 'compact', className, onNavigate }: Navb
       role='group'
       aria-label='Account actions'
       className={cn(
-        'inline-flex shrink-0 items-stretch rounded-full border border-[var(--border-1)]',
+        'inline-flex shrink-0 items-stretch rounded-full border border-[var(--border)]',
         compact ? 'h-[26px] text-[13px]' : 'h-9 text-[14px]',
         className
       )}
@@ -35,7 +35,7 @@ export function NavbarAuthPill({ size = 'compact', className, onNavigate }: Navb
       </Link>
       <span
         aria-hidden='true'
-        className={cn('w-px shrink-0 self-center bg-[var(--border-1)]', compact ? 'h-3' : 'h-3.5')}
+        className={cn('w-px shrink-0 self-center bg-[var(--border)]', compact ? 'h-3' : 'h-3.5')}
       />
       <Link
         href={SIGNUP_HREF}

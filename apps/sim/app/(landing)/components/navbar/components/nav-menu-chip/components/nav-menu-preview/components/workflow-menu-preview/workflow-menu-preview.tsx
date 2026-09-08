@@ -77,7 +77,7 @@ export function WorkflowMenuPreview({ layout = 'menu', onReady }: WorkflowMenuPr
           })}
           <path
             d={`M${CONTINUATION.x} ${CONTINUATION.y}H${layout === 'hero' ? 1000 : 980}`}
-            stroke='var(--border-1)'
+            stroke='var(--border)'
             strokeWidth={1.5}
           />
         </svg>

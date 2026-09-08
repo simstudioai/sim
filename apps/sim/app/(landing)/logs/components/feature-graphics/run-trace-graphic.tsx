@@ -61,7 +61,7 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2, styles.row3, st
 
 /**
  * The window's palette: the homepage rail's card, wearing the same chrome the
- * sibling product graphics use (`--white` fill, 1px `--border-1` hairline,
+ * sibling product graphics use (`--white` fill, 1px `--border` hairline,
  * `shadow-xs`) so the trace reads as the workspace's own run view, with a
  * two-step parent/child ramp so nested spans stay quieter than the blocks
  * they hang under.
@@ -98,12 +98,12 @@ export function RunTraceGraphic() {
       <div
         aria-hidden='true'
         className={cn(
-          'absolute inset-[10px] flex flex-col overflow-hidden border border-[var(--border-1)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
+          'absolute inset-[10px] flex flex-col overflow-hidden border border-[var(--border)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
           LANDING_STAGE_WINDOW_RADIUS
         )}
       >
-        <div className='flex h-12 shrink-0 items-center gap-2 border-[var(--border-1)] border-b px-4'>
-          <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>
+        <div className='flex h-12 shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'>
+          <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border)]'>
             <Library className='size-[14px] text-[var(--text-icon)]' />
           </span>
           <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-base'>

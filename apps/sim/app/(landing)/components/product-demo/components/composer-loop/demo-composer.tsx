@@ -52,7 +52,7 @@ export function DemoComposer({ prompt, isSending, isInitialView }: DemoComposerP
   return (
     <div
       className={cn(
-        'relative w-full rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        'relative w-full rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-xs'
       )}
     >
