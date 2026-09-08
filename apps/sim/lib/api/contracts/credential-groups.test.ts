@@ -118,7 +118,7 @@ describe('credential group contracts', () => {
     expect(result.success).toBe(false)
   })
 
-  it('requires a custom bot for Slack option updates', () => {
+  it('allows Slack options without a workspace bot for organization personal authorization', () => {
     const missingApp = updateCredentialGroupBodySchema.safeParse({
       options: [
         {
@@ -139,7 +139,7 @@ describe('credential group contracts', () => {
       ],
     })
 
-    expect(missingApp.success).toBe(false)
+    expect(missingApp.success).toBe(true)
     expect(withApp.success).toBe(true)
   })
 

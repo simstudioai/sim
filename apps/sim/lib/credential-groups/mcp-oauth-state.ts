@@ -2,6 +2,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
 
 const MCP_OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
 const MCP_OAUTH_ATTEMPT_VERSION = 3 as const
@@ -155,6 +156,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   if (raw === null) return null
   if (typeof raw !== 'string') throw new Error('Credential Group MCP OAuth state is malformed')
   const parsed: unknown = JSON.parse(raw)
+  assertCredentialGroupOAuthAttemptVersion(parsed, MCP_OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential Group MCP OAuth state is malformed')
   await requireRedis().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
   if (Date.now() - parsed.createdAt > MCP_OAUTH_ATTEMPT_TTL_MS) return null

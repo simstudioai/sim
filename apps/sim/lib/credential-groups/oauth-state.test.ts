@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
 const { mockRedis, values } = vi.hoisted(() => {
   const values = new Map<string, string>()
@@ -307,11 +308,15 @@ describe('organization enrollment OAuth state', () => {
     ).rejects.toThrow('exactly one')
     expect(mockRedis.set).not.toHaveBeenCalled()
   })
-  it('does not interpret old workspace-only state as organization authority', async () => {
+  it.each([3, 4])('requires a new authorization for pre-binding v%s state', async (version) => {
     const { state } = await createCredentialGroupOAuthAttempt(input)
     const [key, raw] = [...values.entries()][0]!
-    values.set(key, JSON.stringify({ ...JSON.parse(raw), version: 3 }))
-    await expect(consumeCredentialGroupOAuthAttempt(state)).rejects.toThrow('malformed')
+    const stored = { ...JSON.parse(raw), version }
+    stored.userId = undefined
+    values.set(key, JSON.stringify(stored))
+    await expect(consumeCredentialGroupOAuthAttempt(state)).rejects.toBeInstanceOf(
+      CredentialGroupOAuthStateVersionError
+    )
     await expect(consumeCredentialGroupOAuthAttempt(state)).resolves.toBeNull()
   })
 })

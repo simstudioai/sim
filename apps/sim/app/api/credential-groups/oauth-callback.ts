@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/credential-groups'
 import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import {
   CredentialGroupInvitationUnavailableError,
@@ -38,6 +39,12 @@ export async function handleCredentialGroupOAuthCallback({
   try {
     attempt = await consumeCredentialGroupOAuthAttempt(state)
   } catch (error) {
+    if (error instanceof CredentialGroupOAuthStateVersionError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      )
+    }
     logger.error('Failed to consume credential group OAuth state', {
       error: getErrorMessage(error),
     })

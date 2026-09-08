@@ -15,6 +15,7 @@ import {
   consumeCredentialGroupMcpOAuthAttempt,
   isCredentialGroupMcpOAuthState,
 } from '@/lib/credential-groups/mcp-oauth-state'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import {
   assertSafeOauthServerUrl,
@@ -84,7 +85,15 @@ async function completeManagedMcpCallback(params: {
   code?: string
   error?: string
 }): Promise<NextResponse> {
-  const attempt = await consumeCredentialGroupMcpOAuthAttempt(params.state)
+  let attempt
+  try {
+    attempt = await consumeCredentialGroupMcpOAuthAttempt(params.state)
+  } catch (error) {
+    if (error instanceof CredentialGroupOAuthStateVersionError) {
+      return htmlClose(error.message, false, 'invalid_state', undefined, params.state)
+    }
+    throw error
+  }
   if (!attempt) {
     return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
   }

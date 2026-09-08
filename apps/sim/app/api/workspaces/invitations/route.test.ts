@@ -119,7 +119,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueTableRows(schemaMock.user, [{ id: 'user-1', name: 'Owner User', email: 'owner@test.com' }])
     mockGetSession.mockResolvedValue({
+      session: { id: 'session-1' },
       user: { id: 'user-1', email: 'owner@test.com', name: 'Owner User' },
     })
     mockGetWorkspaceWithOwner.mockResolvedValue({
@@ -171,6 +173,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.user, [{ id: 'user-1', name: 'Owner User', email: 'owner@test.com' }])
   })
 
   it('blocks invites for personal workspaces with an upgrade prompt', async () => {

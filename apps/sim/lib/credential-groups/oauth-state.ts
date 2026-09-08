@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
 import {
   type CredentialGroupProvider,
   isCredentialGroupProvider,
@@ -194,6 +195,7 @@ export async function consumeCredentialGroupOAuthAttempt(
   if (typeof raw !== 'string') throw new Error('Credential group OAuth state is malformed')
 
   const parsed: unknown = JSON.parse(raw)
+  assertCredentialGroupOAuthAttemptVersion(parsed, OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential group OAuth state is malformed')
   if (Date.now() - parsed.createdAt > OAUTH_ATTEMPT_TTL_MS) return null
 
