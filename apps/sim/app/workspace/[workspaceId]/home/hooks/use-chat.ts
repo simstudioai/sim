@@ -3316,6 +3316,7 @@ export function useChat(
               const predecessor = queuedSendHandoff?.supersededStreamId
               if (!predecessor) throw new Error('The previous response could not be identified.')
               const stopped = await requestJson(copilotChatAbortContract, {
+                keepalive: true,
                 signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
                 headers: {},
                 body: {
@@ -4130,6 +4131,7 @@ export function useChat(
           const postAbortRequest = async (chatId?: string): Promise<boolean> => {
             if (!sid) return true
             const payload = await requestJson(copilotChatAbortContract, {
+              keepalive: true,
               signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
               headers: {
                 ...(stopTraceparentSnapshot ? { traceparent: stopTraceparentSnapshot } : {}),
@@ -4539,6 +4541,23 @@ export function useChat(
       void enqueueQueueDispatchRef.current({ type: 'send_head' })
     }
   }, [])
+
+  /** A recovered send already in history belongs to its accepted turn, even after Stop. */
+  useEffect(() => {
+    if (!chatHistory || chatHistory.id !== chatKeyRef.current) return
+    const acceptedMessageIds = new Set(
+      chatHistory.messages.filter((message) => message.role === 'user').map((message) => message.id)
+    )
+    if (chatHistory.activeStreamId) acceptedMessageIds.add(chatHistory.activeStreamId)
+    for (const queued of messageQueue) {
+      if (queuedMessageDispatchIdsRef.current.has(queued.id)) continue
+      const requestId = queued.queuedSendHandoff?.userMessageId ?? queued.resumeUserMessageId
+      if (!requestId || !acceptedMessageIds.has(requestId)) continue
+      clearQueuedSendHandoffState(queued.id)
+      clearQueuedSendHandoffClaim(queued.id)
+      useMothershipQueueStore.getState().remove(chatHistory.id, queued.id)
+    }
+  }, [chatHistory, messageQueue])
 
   // Resume draining when a non-empty queue rehydrates with no active stream
   // (e.g. nav-back). Wait for chat history to confirm no `activeStreamId` to

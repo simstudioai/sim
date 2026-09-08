@@ -5,16 +5,22 @@ import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendCopilotChatMessages, mockPublishStatusChanged, mockGetAccessibleChat } =
-  vi.hoisted(() => ({
-    mockGetAccessibleChat: vi.fn(),
-    mockAppendCopilotChatMessages: vi.fn(),
-    mockPublishStatusChanged: vi.fn(),
-  }))
+const {
+  mockAppendCopilotChatMessages,
+  mockPublishStatusChanged,
+  mockGetAccessibleChat,
+  mockReadEvents,
+} = vi.hoisted(() => ({
+  mockGetAccessibleChat: vi.fn(),
+  mockAppendCopilotChatMessages: vi.fn(),
+  mockPublishStatusChanged: vi.fn(),
+  mockReadEvents: vi.fn(),
+}))
 
 vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
+vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
 vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
@@ -60,6 +66,7 @@ describe('copilot chat stop route', () => {
       session: { id: 'session-1' },
     })
     mockGetAccessibleChat.mockResolvedValue({ id: 'chat-1', workspaceId: 'ws-1', userId: 'user-1' })
+    mockReadEvents.mockResolvedValue([])
   })
 
   it('does not persist stopped content after organization access is removed', async () => {
@@ -151,6 +158,7 @@ describe('copilot chat stop route', () => {
       createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
     )
 
+    expect(mockReadEvents).toHaveBeenCalledWith('stream-1', '0')
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
 
