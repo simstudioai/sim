@@ -334,6 +334,78 @@ const LAMBDA_TOOL_IDS = [
   'lambda_update_function_url_config',
 ] as const
 
+const OCI_DEVOPS_TOOL_IDS = [
+  'oci_devops_approve_deployment',
+  'oci_devops_cancel_build_run',
+  'oci_devops_cancel_deployment',
+  'oci_devops_create_build_pipeline',
+  'oci_devops_create_build_pipeline_stage',
+  'oci_devops_create_build_run',
+  'oci_devops_create_connection',
+  'oci_devops_create_deploy_artifact',
+  'oci_devops_create_deploy_environment',
+  'oci_devops_create_deploy_pipeline',
+  'oci_devops_create_deploy_stage',
+  'oci_devops_create_deployment',
+  'oci_devops_create_project',
+  'oci_devops_create_repository',
+  'oci_devops_create_trigger',
+  'oci_devops_delete_build_pipeline',
+  'oci_devops_delete_build_pipeline_stage',
+  'oci_devops_delete_connection',
+  'oci_devops_delete_deploy_artifact',
+  'oci_devops_delete_deploy_environment',
+  'oci_devops_delete_deploy_pipeline',
+  'oci_devops_delete_deploy_stage',
+  'oci_devops_delete_project',
+  'oci_devops_delete_repository',
+  'oci_devops_delete_trigger',
+  'oci_devops_get_build_pipeline',
+  'oci_devops_get_build_pipeline_stage',
+  'oci_devops_get_build_run',
+  'oci_devops_get_commit',
+  'oci_devops_get_connection',
+  'oci_devops_get_deploy_artifact',
+  'oci_devops_get_deploy_environment',
+  'oci_devops_get_deploy_pipeline',
+  'oci_devops_get_deploy_stage',
+  'oci_devops_get_deployment',
+  'oci_devops_get_project',
+  'oci_devops_get_repository',
+  'oci_devops_get_trigger',
+  'oci_devops_get_work_request',
+  'oci_devops_list_build_pipeline_stages',
+  'oci_devops_list_build_pipelines',
+  'oci_devops_list_build_runs',
+  'oci_devops_list_commits',
+  'oci_devops_list_connections',
+  'oci_devops_list_deploy_artifacts',
+  'oci_devops_list_deploy_environments',
+  'oci_devops_list_deploy_pipelines',
+  'oci_devops_list_deploy_stages',
+  'oci_devops_list_deployments',
+  'oci_devops_list_paths',
+  'oci_devops_list_projects',
+  'oci_devops_list_refs',
+  'oci_devops_list_repositories',
+  'oci_devops_list_triggers',
+  'oci_devops_list_work_request_errors',
+  'oci_devops_list_work_requests',
+  'oci_devops_update_build_pipeline',
+  'oci_devops_update_build_pipeline_stage',
+  'oci_devops_update_build_run',
+  'oci_devops_update_connection',
+  'oci_devops_update_deploy_artifact',
+  'oci_devops_update_deploy_environment',
+  'oci_devops_update_deploy_pipeline',
+  'oci_devops_update_deploy_stage',
+  'oci_devops_update_deployment',
+  'oci_devops_update_project',
+  'oci_devops_update_repository',
+  'oci_devops_update_trigger',
+  'oci_devops_validate_connection',
+] as const
+
 const CODEPIPELINE_TOOL_IDS = [
   'codepipeline_disable_stage_transition',
   'codepipeline_enable_stage_transition',
@@ -1427,6 +1499,9 @@ registerFamily(handlerLoaders, CLOUDFORMATION_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, LAMBDA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/lambda/execute-tool')).executeLambdaTool
+})
+registerFamily(handlerLoaders, OCI_DEVOPS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-devops/execute-tool')).executeOciDevopsTool
 })
 registerFamily(handlerLoaders, CODEPIPELINE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/codepipeline/execute-tool')).executeCodepipelineTool
