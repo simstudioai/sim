@@ -2502,7 +2502,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute Workflow",
-        "description": "Execute the deployment; `run.source: \"manual\"` uses draft state. Manual runs require a personal key or OAuth write access; workspace keys, anonymous callers, and async are rejected. Start at a runnable trigger, or resume from `sourceRunId` using the same-workflow snapshot. Public deployments allow anonymous sync or streaming; async requires credentials. Sync timeouts return `200` with failed status and `TIMEOUT`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.\n\nOAuth scope: `api:write`.",
+        "description": "Execute a deployment or use `run.source: \"manual\"` for draft state. Manual runs require personal or OAuth write access and reject workspace keys, anonymous callers, and async. Start at a trigger or resume from same-workflow `sourceRunId`. Public deployments allow anonymous sync or streaming. Request `application/x-ndjson` for 15-second heartbeats and final resource. Timeouts return `200` with failed status and `TIMEOUT`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2566,7 +2566,7 @@
         },
         "responses": {
           "200": {
-            "description": "A synchronous run result or Server-Sent Event stream.",
+            "description": "A synchronous run result, heartbeat-delimited NDJSON result stream, or Server-Sent Event stream.",
             "headers": {
               "X-Run-Id": {
                 "$ref": "#/components/headers/X-Run-Id"
@@ -2585,6 +2585,11 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExecuteWorkflowSyncResponse"
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
                 }
               },
               "text/event-stream": {

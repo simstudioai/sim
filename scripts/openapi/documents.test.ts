@@ -325,7 +325,11 @@ describe('generated OpenAPI documents', () => {
     ])
     expect(execute.tags).toEqual(['Workflows'])
     expect(execute.security).toEqual([{ apiKey: [] }, { oauthBearer: [] }, {}])
-    expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
+    expect(Object.keys(executeOkContent).sort()).toEqual([
+      'application/json',
+      'application/x-ndjson',
+      'text/event-stream',
+    ])
     expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
 
     const resume = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}/resume', 'post')

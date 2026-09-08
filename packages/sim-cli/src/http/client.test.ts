@@ -321,6 +321,20 @@ describe('non-JSON responses', () => {
 })
 
 describe('a request that never answers', () => {
+  it('reports the nested Undici reason behind fetch failed', async () => {
+    const socketError = Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed', { cause: socketError }))
+    )
+
+    await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+      message:
+        'Could not reach https://sim.example: fetch failed: other side closed (UND_ERR_SOCKET)',
+      status: 0,
+    })
+  })
+
   it('bounds a request by default, above every timeout the server itself applies', async () => {
     // A synchronous workflow run is allowed 3000s on a paid plan, so a tighter
     // default would abort real work and report it as a transport failure. What

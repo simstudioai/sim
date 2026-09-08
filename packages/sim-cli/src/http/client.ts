@@ -188,6 +188,31 @@ function truncate(value: string, max: number): string {
 }
 
 /**
+ * Keeps the useful nested reason from Node/Undici transport failures without
+ * serializing request options, headers, socket objects, or credentials.
+ */
+function transportErrorMessage(error: unknown): string {
+  const messages: string[] = []
+  const seen = new Set<object>()
+  let current: unknown = error
+
+  while (current && typeof current === 'object' && messages.length < 4 && !seen.has(current)) {
+    seen.add(current)
+    const candidate = current as { message?: unknown; code?: unknown; cause?: unknown }
+    const message =
+      typeof candidate.message === 'string'
+        ? truncate(candidate.message.replace(/\s+/g, ' ').trim(), 300)
+        : ''
+    const code = typeof candidate.code === 'string' ? candidate.code : ''
+    const detail = `${message}${code && !message.includes(code) ? ` (${code})` : ''}`
+    if (detail && messages.at(-1) !== detail) messages.push(detail)
+    current = candidate.cause
+  }
+
+  return messages.join(': ') || 'Unknown network error'
+}
+
+/**
  * Whether this is the refusal a workspace-scoped key gets from an operation only
  * a personal key may perform, under either code that expresses it.
  *
@@ -600,7 +625,7 @@ export class SimClient {
         )
       }
       throw new SimApiError(
-        `Could not reach ${this.profile.endpoint}: ${(cause as Error).message}`,
+        `Could not reach ${this.profile.endpoint}: ${transportErrorMessage(cause)}`,
         0
       )
     }

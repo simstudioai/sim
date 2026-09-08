@@ -1119,7 +1119,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
-      description: `Execute the deployment; \`run.source: "manual"\` uses draft state. Manual runs require a personal key or OAuth write access; workspace keys, anonymous callers, and async are rejected. Start at a runnable trigger, or resume from \`sourceRunId\` using the same-workflow snapshot. Public deployments allow anonymous sync or streaming; async requires credentials. Sync timeouts return \`200\` with failed status and \`TIMEOUT\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
+      description: `Execute a deployment or use \`run.source: "manual"\` for draft state. Manual runs require personal or OAuth write access and reject workspace keys, anonymous callers, and async. Start at a trigger or resume from same-workflow \`sourceRunId\`. Public deployments allow anonymous sync or streaming. Request \`application/x-ndjson\` for 15-second heartbeats and final resource. Timeouts return \`200\` with failed status and \`TIMEOUT\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1137,9 +1137,10 @@ const declaredRoutes = [
       success: {
         byStatus: {
           200: {
-            description: 'A synchronous run result or Server-Sent Event stream.',
+            description:
+              'A synchronous run result, heartbeat-delimited NDJSON result stream, or Server-Sent Event stream.',
             headers: ['X-Run-Id', ...RATE_LIMIT_HEADERS],
-            additionalContentTypes: ['text/event-stream'],
+            additionalContentTypes: ['application/x-ndjson', 'text/event-stream'],
           },
           202: {
             description: 'The asynchronous run was queued.',
