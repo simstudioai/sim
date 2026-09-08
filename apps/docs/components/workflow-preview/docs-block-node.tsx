@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComponentType, memo, useContext } from 'react'
+import { cn } from '@sim/emcn'
 import {
   type CanvasSentenceSegment,
   CanvasSentenceView,
@@ -13,6 +14,7 @@ import { normalizeBlockType, resolveIcon } from '@/components/workflow-preview/b
 import { PreviewSelectionContext } from '@/components/workflow-preview/preview-selection-context'
 import {
   BLOCK_STAGGER,
+  DIMMED_PREVIEW_CLASS,
   EASE_OUT,
   type PreviewTool,
 } from '@/components/workflow-preview/workflow-data'
@@ -38,6 +40,7 @@ export interface DocsBlockData extends Record<string, unknown> {
   index?: number
   animate?: boolean
   isHighlighted?: boolean
+  isDimmed?: boolean
 }
 
 export type DocsBlockNodeType = Node<DocsBlockData, 'previewBlock'>
@@ -66,6 +69,7 @@ export const DocsBlockNode = memo(function DocsBlockNode({
     index = 0,
     animate = false,
     isHighlighted = false,
+    isDimmed = false,
   } = data
 
   /** The View gates router handle topology on `type === 'router_v2'`. */
@@ -133,7 +137,7 @@ export const DocsBlockNode = memo(function DocsBlockNode({
 
   return (
     <m.div
-      className='relative transition-opacity duration-300'
+      className={cn('relative transition-opacity duration-300', isDimmed && DIMMED_PREVIEW_CLASS)}
       initial={animate ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.45, delay, ease: EASE_OUT }}

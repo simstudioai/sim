@@ -106,3 +106,40 @@ describe('authored canvas presentation', () => {
     }
   })
 })
+
+describe('authored diagram focus', () => {
+  it('keeps every node visible when no step is emphasized', () => {
+    const { nodes } = toReactFlowElements(workflow)
+    expect(nodes.every((node) => !node.data.isDimmed)).toBe(true)
+  })
+
+  it('de-emphasizes surrounding cards and containers for a highlighted step', () => {
+    const { nodes } = toReactFlowElements(workflow, false, { highlightBlock: 'agent' })
+    expect(nodes.filter((node) => node.data.isDimmed).map((node) => node.id)).toEqual([
+      'start',
+      'loop',
+      'parallel',
+    ])
+    expect(nodes.find((node) => node.id === 'agent')?.data.isHighlighted).toBe(true)
+  })
+
+  it('keeps both the authored focus and inspected block at full emphasis', () => {
+    const { nodes } = toReactFlowElements(workflow, false, {
+      highlightBlock: 'agent',
+      selectedBlock: 'loop',
+    })
+    expect(nodes.filter((node) => !node.data.isDimmed).map((node) => node.id)).toEqual([
+      'loop',
+      'agent',
+    ])
+  })
+
+  it('de-emphasizes nodes when the illustration focuses on an edge', () => {
+    const { nodes, edges } = toReactFlowElements(workflow, false, {
+      highlightEdge: 'loop-agent',
+    })
+    expect(nodes.every((node) => node.data.isDimmed)).toBe(true)
+    expect(edges.find((edge) => edge.id === 'loop-agent')?.style?.opacity).toBe(1)
+    expect(edges.find((edge) => edge.id === 'start-loop')?.style?.opacity).toBeLessThan(1)
+  })
+})

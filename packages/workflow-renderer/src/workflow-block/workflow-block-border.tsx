@@ -1717,6 +1717,7 @@ export function WorkflowBlockBorder({
   return (
     <svg
       ref={svgRef}
+      data-workflow-block-border=''
       viewBox={`${-BORDER_PADDING_PX} ${-BORDER_PADDING_PX} ${size.width + BORDER_PADDING_PX * 2} ${size.height + BORDER_PADDING_PX * 2}`}
       preserveAspectRatio='none'
       className='pointer-events-none absolute z-0 overflow-visible'

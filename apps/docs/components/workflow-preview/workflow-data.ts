@@ -82,6 +82,10 @@ const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--brand-secondary)', strokeWidth: 2.
 /** Edges leaving a block's error port render red, matching the editor. */
 const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 2 } as const
 
+/** De-emphasizes diagram context without reducing the contrast of its text. */
+export const DIMMED_PREVIEW_CLASS =
+  '[&_[data-workflow-block-border]]:opacity-35 [&_[data-workflow-type-accent]]:grayscale [&_[data-subflow-type-tag]]:grayscale'
+
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {
   highlightBlock?: string
@@ -165,6 +169,7 @@ export function toReactFlowElements(
         index,
         animate,
         isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
+        isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
       }
       return {
         ...commonNode,
@@ -191,6 +196,7 @@ export function toReactFlowElements(
       index,
       animate,
       isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
+      isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
     }
     return {
       ...commonNode,
