@@ -274,11 +274,12 @@ describe('canonical search knowledge-base policy', () => {
       })
     ).rejects.toThrow('Only workspace admins')
     await expect(
+      /** @ts-expect-error Exercise a caller bypassing the HTTP contract. */
       updateKnowledgeBase(ids.knowledgeBaseId, { workspaceId: null }, 'fixture-detach', {
         assertedWorkspaceId: ids.workspaceId,
         actorUserId: ids.bobId,
       })
-    ).rejects.toThrow('The search index must stay in its workspace')
+    ).rejects.toThrow('Workspace ID is required')
     await expectIndexActive()
   })
 

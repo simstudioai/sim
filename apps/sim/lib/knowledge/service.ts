@@ -112,13 +112,6 @@ type KnowledgeBaseStorageMove =
       destinationContext: StorageBillingContext
     }
   | {
-      kind: 'workspace-to-personal'
-      sourceContext: StorageBillingContext
-      sourceWorkspaceId: string
-      ownerSubscription: HighestPrioritySubscription | null
-      ownerUserId: string
-    }
-  | {
       kind: 'personal-to-workspace'
       sourceWorkspaceId: null
       destinationContext: StorageBillingContext
@@ -548,13 +541,17 @@ export async function updateKnowledgeBase(
   updates: {
     name?: string
     description?: string
-    workspaceId?: string | null
+    workspaceId?: string
     folderId?: string | null
     chunkingConfig?: ChunkingConfig
   },
   requestId: string,
   options?: { actorUserId?: string; assertedWorkspaceId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
+  if (updates.workspaceId !== undefined && !updates.workspaceId) {
+    throw new OrchestrationError('validation', 'Workspace ID is required')
+  }
+
   const now = new Date()
   const updateData: Partial<typeof knowledgeBase.$inferInsert> = {
     updatedAt: now,
@@ -597,7 +594,7 @@ export async function updateKnowledgeBase(
    * below already reads the current row, and re-roots from there.
    */
   if (updates.folderId !== undefined) {
-    let effectiveWorkspaceId = updates.workspaceId
+    let effectiveWorkspaceId: string | null | undefined = updates.workspaceId
     if (effectiveWorkspaceId === undefined) {
       const [snapshot] = await db
         .select({ workspaceId: knowledgeBase.workspaceId })
@@ -649,7 +646,7 @@ export async function updateKnowledgeBase(
       throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     }
     const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
-    const destinationWorkspaceId = updates.workspaceId ?? null
+    const destinationWorkspaceId = updates.workspaceId
 
     /**
      * Folders never cross workspaces, so a workspace move would leave the row pointing at a
@@ -678,19 +675,6 @@ export async function updateKnowledgeBase(
         sourceWorkspaceId,
         sourceContext,
         destinationContext,
-      }
-    } else if (sourceWorkspaceId && !destinationWorkspaceId) {
-      const [sourceContext, ownerSubscription] = await Promise.all([
-        resolveStorageBillingContext(sourceWorkspaceId),
-        getHighestPrioritySubscription(kbSnapshot.userId),
-        ensureUserStatsExists(kbSnapshot.userId),
-      ])
-      storageMove = {
-        kind: 'workspace-to-personal',
-        sourceWorkspaceId,
-        sourceContext,
-        ownerUserId: kbSnapshot.userId,
-        ownerSubscription,
       }
     } else if (!sourceWorkspaceId && destinationWorkspaceId) {
       const [destinationContext, ownerSubscription] = await Promise.all([
@@ -762,25 +746,17 @@ export async function updateKnowledgeBase(
       }
 
       if (updates.workspaceId !== undefined) {
-        const actorUserId = options?.actorUserId as string
         const currentWorkspaceId = currentKb.workspaceId ?? null
-        const targetWorkspaceId = updates.workspaceId ?? null
+        const targetWorkspaceId = updates.workspaceId
 
-        if (targetWorkspaceId !== currentWorkspaceId) {
-          if (!targetWorkspaceId) {
-            if (actorUserId !== currentKb.userId) {
-              throw new KnowledgeBasePermissionError(
-                'Only the knowledge base owner can remove it from a workspace'
-              )
-            }
-          } else if (
-            targetWorkspacePermission !== 'write' &&
-            targetWorkspacePermission !== 'admin'
-          ) {
-            throw new KnowledgeBasePermissionError(
-              'User does not have permission on the target workspace'
-            )
-          }
+        if (
+          targetWorkspaceId !== currentWorkspaceId &&
+          targetWorkspacePermission !== 'write' &&
+          targetWorkspacePermission !== 'admin'
+        ) {
+          throw new KnowledgeBasePermissionError(
+            'User does not have permission on the target workspace'
+          )
         }
       }
 
@@ -839,17 +815,6 @@ export async function updateKnowledgeBase(
             ],
             legacyDeltas: [],
           })
-        } else if (storageMove.kind === 'workspace-to-personal') {
-          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
-            workspaceDeltas: [{ context: storageMove.sourceContext, deltaBytes: -billableBytes }],
-            legacyDeltas: [
-              {
-                userId: storageMove.ownerUserId,
-                subscription: storageMove.ownerSubscription,
-                deltaBytes: billableBytes,
-              },
-            ],
-          })
         } else {
           transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
             workspaceDeltas: [
@@ -889,7 +854,7 @@ export async function updateKnowledgeBase(
       // move. A null current workspace owns no bindings, so nothing is moved.
       if (updates.workspaceId !== undefined) {
         const currentWorkspaceId = currentKb.workspaceId ?? null
-        const targetWorkspaceId = updates.workspaceId ?? null
+        const targetWorkspaceId = updates.workspaceId
 
         if (currentWorkspaceId && targetWorkspaceId !== currentWorkspaceId) {
           await tx

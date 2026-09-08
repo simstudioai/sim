@@ -200,7 +200,7 @@ export interface ReadInternalKnowledgeBaseInput {
 export interface UpdateInternalKnowledgeBaseInput extends ReadInternalKnowledgeBaseInput {
   name?: string
   description?: string
-  workspaceId?: string | null
+  workspaceId?: string
   folderId?: string | null
   chunkingConfig?: ChunkingConfig
 }
@@ -777,20 +777,15 @@ export const updateInternalKnowledgeBase = {
     const knowledgeBase = await loadInternalActiveKnowledgeBase(input.knowledgeBaseId)
     await authorizeInternalKnowledgeBase(principal, knowledgeBase, knowledgeOperations.update)
 
+    if (input.workspaceId !== undefined && !input.workspaceId) {
+      throw new OrchestrationError('validation', 'Workspace ID is required')
+    }
+
     if (input.workspaceId !== undefined && input.workspaceId !== knowledgeBase.workspaceId) {
-      if (input.workspaceId === null) {
-        if (knowledgeBase.userId !== principal.userId) {
-          throw new OrchestrationError(
-            'forbidden',
-            'Only the knowledge base owner can remove it from a workspace'
-          )
-        }
-      } else {
-        const destination = await resolveKnowledgeWorkspaceContext({
-          workspaceId: input.workspaceId,
-        })
-        await authorizeWorkspaceOperation(principal, knowledgeOperations.update, destination)
-      }
+      const destination = await resolveKnowledgeWorkspaceContext({
+        workspaceId: input.workspaceId,
+      })
+      await authorizeWorkspaceOperation(principal, knowledgeOperations.update, destination)
     }
 
     const outcome = await performUpdateKnowledgeBase({

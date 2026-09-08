@@ -44,6 +44,7 @@ import {
   searchWorkspaceKnowledgeContract,
   type TagDefinitionData,
   type TagUsageData,
+  type UpdateKnowledgeBaseBody,
   type UpdateKnowledgeDocumentResponseData,
   updateKnowledgeBaseContract,
   updateKnowledgeChunkContract,
@@ -671,13 +672,7 @@ export function useCreateKnowledgeBase() {
 
 interface UpdateKnowledgeBaseParams {
   knowledgeBaseId: string
-  updates: {
-    name?: string
-    description?: string
-    workspaceId?: string | null
-    /** Moves the knowledge base between folders; `null` moves it to the workspace root. */
-    folderId?: string | null
-  }
+  updates: UpdateKnowledgeBaseBody
 }
 
 async function updateKnowledgeBase({

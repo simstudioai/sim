@@ -128,7 +128,7 @@ export interface PerformUpdateKnowledgeBaseParams extends KnowledgeOperationCont
     name?: string
     description?: string
     /** Moves the knowledge base between workspaces; omitted leaves it in place. */
-    workspaceId?: string | null
+    workspaceId?: string
     folderId?: string | null
     chunkingConfig?: ChunkingConfig
   }

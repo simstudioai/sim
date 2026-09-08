@@ -6,10 +6,33 @@ import {
   chunkingStrategyOptionsSchema,
   createKnowledgeBaseBodySchema,
   knowledgeBaseDataSchema,
+  updateKnowledgeBaseBodySchema,
 } from '@/lib/api/contracts/knowledge/base'
 import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 
 const separators = (count: number) => Array.from({ length: count }, (_, i) => `@@sep${i}@@`)
+
+describe('knowledge base workspace ownership', () => {
+  it.each([undefined, null, ''])('rejects creation with workspaceId %s', (workspaceId) => {
+    expect(createKnowledgeBaseBodySchema.safeParse({ name: 'Docs', workspaceId }).success).toBe(
+      false
+    )
+  })
+
+  it.each([null, ''])('rejects detaching with workspaceId %s', (workspaceId) => {
+    expect(updateKnowledgeBaseBodySchema.safeParse({ workspaceId }).success).toBe(false)
+  })
+
+  it('allows a workspace move and moving a KB to the folder root', () => {
+    expect(
+      updateKnowledgeBaseBodySchema.parse({ workspaceId: 'workspace-2', folderId: null })
+    ).toEqual({ workspaceId: 'workspace-2', folderId: null })
+  })
+
+  it('leaves workspace ownership untouched when omitted from an update', () => {
+    expect(updateKnowledgeBaseBodySchema.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' })
+  })
+})
 
 describe('chunkingStrategyOptionsSchema.separators', () => {
   it('accepts a separator list at the bound', () => {

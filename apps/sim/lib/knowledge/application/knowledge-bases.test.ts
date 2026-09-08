@@ -517,6 +517,51 @@ describe('knowledge base application use cases', () => {
     )
   })
 
+  it.each([null, ''])('rejects detaching a KB even for its owner: %s', async (workspaceId) => {
+    await expect(
+      updateInternalKnowledgeBase.execute({
+        principal: { kind: 'session', userId: knowledgeBase.userId, sessionId: 'session-1' },
+        /** @ts-expect-error Exercise a runtime caller bypassing the HTTP contract. */
+        input: { knowledgeBaseId: knowledgeBase.id, workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Workspace ID is required' })
+    expect(mocks.performUpdate).not.toHaveBeenCalled()
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('allows a legacy KB owner to move it into an authorized workspace', async () => {
+    mocks.getRecord.mockResolvedValueOnce({ ...knowledgeBase, workspaceId: null })
+
+    await updateInternalKnowledgeBase.execute({
+      principal: { kind: 'session', userId: knowledgeBase.userId, sessionId: 'session-1' },
+      input: { knowledgeBaseId: knowledgeBase.id, workspaceId: 'workspace-1' },
+    })
+
+    expect(mocks.resolveWorkspace).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
+    expect(mocks.performUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: null,
+        updates: expect.objectContaining({ workspaceId: 'workspace-1' }),
+      })
+    )
+  })
+
+  it('allows metadata edits on a legacy KB without detaching another KB', async () => {
+    mocks.getRecord.mockResolvedValueOnce({ ...knowledgeBase, workspaceId: null })
+
+    await updateInternalKnowledgeBase.execute({
+      principal: { kind: 'session', userId: knowledgeBase.userId, sessionId: 'session-1' },
+      input: { knowledgeBaseId: knowledgeBase.id, name: 'Renamed' },
+    })
+
+    expect(mocks.performUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: expect.objectContaining({ workspaceId: undefined }) })
+    )
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+  })
+
   it('rejects a destination workspace before an internal move mutation', async () => {
     mocks.resolveWorkspace.mockResolvedValueOnce({ ...context, workspaceId: 'workspace-2' })
     mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce(null)

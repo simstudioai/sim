@@ -313,25 +313,25 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 
-  it('rejects clearing workspaceId to null when actor is not the KB owner', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'owner' }])
+  it.each(['owner', 'other-user'])(
+    'rejects detaching a KB for %s before any writes',
+    async (actorUserId) => {
+      await expect(
+        /** @ts-expect-error Exercise runtime callers that bypass the HTTP contract. */
+        updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId })
+      ).rejects.toMatchObject({ code: 'validation', message: 'Workspace ID is required' })
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockApplyStorageUsageDeltasInTx).not.toHaveBeenCalled()
+      expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    }
+  )
 
+  it('rejects an empty destination before any writes', async () => {
     await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'attacker' })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Only the knowledge base owner can remove it from a workspace',
-    })
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
-  it('allows the KB owner to clear workspaceId to null (gate passes; target permission not checked)', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'owner' }])
-
-    await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    ).resolves.toBeDefined()
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
+      updateKnowledgeBase('kb-1', { workspaceId: '' }, 'req-1', { actorUserId: 'owner' })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Workspace ID is required' })
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('rejects transfer when actor has no permission on target workspace', async () => {
@@ -464,30 +464,6 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
     })
   })
 
-  it('moves billable bytes from a workspace payer to the owner personal counter', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'owner' }])
-      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'owner' }])
-      .mockResolvedValueOnce([{ bytes: 321 }])
-      .mockResolvedValueOnce([])
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    )
-
-    expect(mockEnsureUserStatsExists).toHaveBeenCalledWith('owner')
-    expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
-      workspaceDeltas: [
-        {
-          context: expect.objectContaining({ workspaceId: 'ws-current' }),
-          deltaBytes: -321,
-        },
-      ],
-      legacyDeltas: [{ userId: 'owner', subscription: null, deltaBytes: 321 }],
-    })
-    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
-  })
-
   it('moves billable bytes from the owner personal counter to a workspace payer', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ workspaceId: null, userId: 'owner' }])
@@ -516,17 +492,6 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
       expect.objectContaining({ workspaceId: 'ws-target' }),
       421
     )
-  })
-
-  it('clears file ownership bindings when the KB is removed from its workspace', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'owner' }])
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    )
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ workspaceId: null })
   })
 
   it('does not re-point bindings when promoting a personal (null-workspace) KB into a workspace', async () => {

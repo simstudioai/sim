@@ -148,7 +148,7 @@ export const createKnowledgeBaseBodySchema = z.object({
       `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
     )
     .optional(),
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  workspaceId: workspaceIdSchema,
   /**
    * Folder the knowledge base is created in, from the `knowledge_base` folder tree.
    * `null` (or omitted) creates it at the workspace root.
@@ -170,8 +170,10 @@ export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
      * explicit `null` moves it back to the workspace root.
      */
     folderId: z.string().min(1, 'Folder ID cannot be empty').nullable().optional(),
-    workspaceId: z.string().nullable().optional(),
+    workspaceId: workspaceIdSchema.optional(),
   })
+
+export type UpdateKnowledgeBaseBody = z.input<typeof updateKnowledgeBaseBodySchema>
 
 const knowledgeChunkingConfigSchema = z
   .object({
