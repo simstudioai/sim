@@ -24,7 +24,7 @@ const STAGE_MARGIN = 20
 /**
  * The interactive stage mounts React Flow and the production renderers. It is
  * loaded on demand so the staged loops (and every page that renders them) never
- * ship that graph, and the homepage only fetches it once the stage opens.
+ * ship that graph; the homepage fetches it with the lazily mounted hero loop.
  */
 const ProductionWorkflowStage = dynamic(
   () =>

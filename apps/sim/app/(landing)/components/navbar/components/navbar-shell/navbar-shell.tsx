@@ -125,16 +125,27 @@ export function NavbarShell({ children }: NavbarShellProps) {
     const scrollPort = sentinelRef.current?.parentElement
     if (!scrollPort) return
 
+    const root = document.documentElement
     const previousOverflowY = scrollPort.style.overflowY
     const previousPaddingRight = scrollPort.style.paddingRight
+    const previousRootOverscrollY = root.style.overscrollBehaviorY
     const scrollbarWidth = scrollPort.offsetWidth - scrollPort.clientWidth
 
     scrollPort.style.overflowY = 'hidden'
     if (scrollbarWidth > 0) scrollPort.style.paddingRight = `${scrollbarWidth}px`
+    /**
+     * A hidden-overflow port is no longer a scroll target, so wheel gestures
+     * over the open menu chain to the viewport and rubber-band the document
+     * past the top, carrying the sticky bar away from the fixed panel. The
+     * root's overscroll setting is what the viewport consults, so pin it for
+     * the lock's lifetime.
+     */
+    root.style.overscrollBehaviorY = 'none'
 
     return () => {
       scrollPort.style.overflowY = previousOverflowY
       scrollPort.style.paddingRight = previousPaddingRight
+      root.style.overscrollBehaviorY = previousRootOverscrollY
     }
   }, [menuOpen])
 

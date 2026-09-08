@@ -170,6 +170,7 @@ describe('NavbarShell menu positioning and scroll containment', () => {
     expect(host.style.overflowY).toBe('hidden')
     expect(host.style.paddingRight).toBe('20px')
     expect(host.scrollTop).toBe(320)
+    expect(document.documentElement.style.overscrollBehaviorY).toBe('none')
     expect(document.body.style.overflowY).toBe(bodyOverflow)
     expect(document.body.style.paddingRight).toBe(bodyPadding)
 
@@ -178,6 +179,7 @@ describe('NavbarShell menu positioning and scroll containment', () => {
     expect(host.style.overflowY).toBe('scroll')
     expect(host.style.paddingRight).toBe('12px')
     expect(host.scrollTop).toBe(320)
+    expect(document.documentElement.style.overscrollBehaviorY).toBe('')
   })
 
   it('keeps the scroll port locked until desktop and mobile menus have both closed', () => {

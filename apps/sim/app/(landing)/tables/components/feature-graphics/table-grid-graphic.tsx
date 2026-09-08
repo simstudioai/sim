@@ -45,8 +45,8 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2, styles.row3, st
  * The Tables grid told inside a product window framed on all sides, wearing
  * the light tiles' card chrome - `--white` fill, 1px `--border` hairline,
  * `shadow-xs` - so the grid reads as the workspace's own editor. Its `h-12`
- * title bar pairs the `Table` icon (in a hairline `size-6` icon box, the
- * lifecycle header's treatment) with the `Leads` table name over a hairline
+ * title bar pairs the `Table` icon (in a hairline `size-6` icon box) with
+ * the `Leads` table name over a hairline
  * rule, and the grid below is the landing Tables preview's exact cell
  * vocabulary: typed column headers (`TypeText`/`TypeBoolean` icons),
  * hairline-ruled cells, the boolean column rendered as quiet check marks and

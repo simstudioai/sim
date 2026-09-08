@@ -433,7 +433,7 @@ function CanvasZoomControls() {
   const buttonClassName = 'size-[28px] rounded-sm p-0'
 
   return (
-    <div className='absolute bottom-3 left-3 z-30 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1 shadow-sm'>
+    <div className='absolute bottom-3 left-3 z-30 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
@@ -534,6 +534,8 @@ function ProductionWorkflowCanvas({
       id: block.id,
       type: 'workflowBlock',
       position: existing?.position ?? { x: block.x, y: block.y },
+      initialWidth: BLOCK_WIDTH,
+      initialHeight: blockHeight(block),
       selected: selectedId === block.id,
       dragHandle: '.workflow-drag-handle',
       draggable: true,

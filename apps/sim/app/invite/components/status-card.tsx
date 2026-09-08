@@ -78,7 +78,7 @@ export function InviteStatusCard({
               fullWidth
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
-              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
             >
               {action.loading ? (
                 <span className='flex items-center gap-2'>

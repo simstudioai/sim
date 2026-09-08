@@ -14,7 +14,8 @@ export function drawPlatformPreview(
   animations: Animation[]
 ) {
   const bounds = root.getBoundingClientRect()
-  overlay.setAttribute('viewBox', `0 0 ${bounds.width} ${bounds.height}`)
+  /** The overlay bleeds one pixel past the root so it can trace the region's border box. */
+  overlay.setAttribute('viewBox', `-1 -1 ${bounds.width + 2} ${bounds.height + 2}`)
   overlay.replaceChildren()
 
   const animate = (element: Element, frames: Keyframe[], options: KeyframeAnimationOptions) => {
@@ -33,7 +34,7 @@ export function drawPlatformPreview(
   overlay.appendChild(outline)
 
   const drawOutline = (
-    rect: DOMRect,
+    rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
     edge: string,
     radius: number,
     delay: number,
@@ -67,7 +68,22 @@ export function drawPlatformPreview(
     })
   }
 
-  drawOutline(bounds, 'frame', 8, 0, 1_200)
+  /**
+   * The root sits inside the region's 1px border, so the frame is drawn one
+   * pixel out to land on that border rather than a hairline inside it.
+   */
+  drawOutline(
+    {
+      left: bounds.left - 1,
+      top: bounds.top - 1,
+      width: bounds.width + 2,
+      height: bounds.height + 2,
+    },
+    'frame',
+    8,
+    0,
+    1_200
+  )
   content.querySelectorAll<HTMLElement>('[data-preview-outline]').forEach((element) => {
     if (element.closest('[data-preview-collapsed]')) return
     const composer = element.hasAttribute('data-preview-composer')

@@ -1,4 +1,4 @@
-import { chipVariants } from '@sim/emcn'
+import { chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
 
 export function ResumeExecutionUnavailable() {
   return (
@@ -9,7 +9,7 @@ export function ResumeExecutionUnavailable() {
           This execution could not be located or has already completed.
         </p>
         <a href='/' className={chipVariants({ variant: 'border' })}>
-          Return Home
+          <span className={cn(chipContentLabelClass, 'flex-1')}>Return Home</span>
         </a>
       </div>
     </div>

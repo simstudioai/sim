@@ -25,6 +25,7 @@ export async function clearUserData(options: ClearUserDataOptions = {}): Promise
     const keysToKeep = [
       'next-favicon',
       'sim-theme',
+      'sim-landing-theme',
       ...(options.preserveRecentImpersonations ? [RECENT_IMPERSONATIONS_STORAGE_KEY] : []),
     ]
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))

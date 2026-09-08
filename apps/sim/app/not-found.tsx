@@ -1,4 +1,4 @@
-import { chipVariants } from '@sim/emcn'
+import { chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { StatusPageContent } from '@/components/status-page'
 import { LogoShell } from '@/app/(landing)/components'
@@ -16,7 +16,7 @@ export default function NotFound() {
         description="The page you're looking for doesn't exist or has been moved."
       >
         <a href='/' className={chipVariants({ variant: 'primary' })}>
-          Return home
+          <span className={cn(chipContentLabelClass, 'flex-1 text-current')}>Return home</span>
         </a>
       </StatusPageContent>
     </LogoShell>

@@ -22,7 +22,7 @@ interface LandingCtaLinkProps extends Omit<ChipLinkProps, 'variant'> {
 }
 
 const CTA_SIZE = {
-  compact: 'h-[26px] px-2 text-[13px] [--cta-arrow-icon-size:10px]',
+  compact: 'h-[26px] px-3 text-[13px] [--cta-arrow-icon-size:10px]',
   default: 'h-9 px-4 text-[14px] [--cta-arrow-icon-size:12px]',
   display: 'h-10 px-4 text-[14px] [--cta-arrow-icon-size:14px]',
 } as const satisfies Record<LandingCtaSize, string>
@@ -72,7 +72,7 @@ export function LandingCtaLink({
         'justify-center rounded-full text-center duration-150 [&>span]:[font-size:inherit]',
         'focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-4',
         CTA_SIZE[size],
-        withArrow && ['group/link', size === 'compact' ? 'gap-1.5 pl-3' : 'gap-2'],
+        withArrow && ['group/link', size === 'compact' ? 'gap-1.5 pr-2' : 'gap-2'],
         className
       )}
     />

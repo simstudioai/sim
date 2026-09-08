@@ -14,8 +14,10 @@ import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallb
 import { DEMO_HREF } from '@/app/(landing)/constants'
 
 /**
- * Navigation below `xl`. Log in and Start building remain visible on phones;
- * tablets also show the demo CTA. The sheet repeats the actions at the top,
+ * Navigation below `xl`. Tablets keep Log in, Start building, and the demo CTA
+ * in the bar; phones show only the wordmark and the menu button, since the
+ * actions no longer fit beside the wordmark at narrow widths. The sheet
+ * carries the actions at the top,
  * followed by product links, and closes on navigation or Escape.
  * The navbar shell locks the page scroll and coordinates its frosted surface.
  */
@@ -61,7 +63,7 @@ export function MobileNav({ stars }: MobileNavProps) {
 
   return (
     <div className='ml-auto flex items-center gap-2 xl:hidden'>
-      <NavbarAuthPill />
+      <NavbarAuthPill className='max-sm:hidden' />
       <LandingCtaLink href={DEMO_HREF} size='compact' withArrow className='max-sm:hidden'>
         Request a demo
       </LandingCtaLink>

@@ -1,5 +1,5 @@
 import { Table as TableIcon } from '@sim/emcn/icons'
-import { AgentIcon, ConditionalIcon, MailIcon, StartIcon } from '@/components/icons'
+import { AgentIcon, ConditionalIcon, HumanInTheLoopIcon, StartIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
@@ -116,12 +116,12 @@ export const ENTERPRISE_STAGE_BLOCKS: BlockDef[] = [
     name: 'Finance review',
     type: 'human_in_the_loop',
     typeLabel: 'Human',
-    icon: MailIcon,
+    icon: HumanInTheLoopIcon,
     bgColor: 'var(--text-body)',
     isTerminal: true,
     rows: [
-      { title: 'To', value: '-' },
-      { title: 'Subject', value: '-' },
+      { title: 'Display Data', value: '-' },
+      { title: 'Resume Form', value: '-' },
     ],
     x: 0,
     y: 560,

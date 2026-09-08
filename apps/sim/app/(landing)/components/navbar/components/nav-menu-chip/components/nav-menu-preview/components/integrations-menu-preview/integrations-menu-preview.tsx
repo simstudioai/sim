@@ -38,10 +38,10 @@ export function IntegrationsMenuPreview() {
           {INTEGRATIONS.map(({ name, icon: Icon }) => (
             <div
               key={name}
-              className='flex h-[114px] min-w-0 flex-col justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4'
+              className='flex h-[72px] min-w-0 items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-4'
             >
-              <Icon className='size-7' />
-              <div className='text-[var(--text-primary)] text-base'>{name}</div>
+              <Icon className='size-7 shrink-0' />
+              <div className='truncate text-[var(--text-primary)] text-base'>{name}</div>
             </div>
           ))}
         </div>

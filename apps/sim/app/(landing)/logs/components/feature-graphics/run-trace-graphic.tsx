@@ -89,7 +89,7 @@ const PALETTE = {
  * tree's depth ramp), a waterfall bar offset by when the span started
  * and sized by how long it ran, and a right-aligned mono duration. The
  * rows stamp in top to bottom once (from `run-trace-graphic.module.css`,
- * the agent-code tile's one-shot settle); under `prefers-reduced-motion`
+ * a one-shot settle); under `prefers-reduced-motion`
  * the trace renders fully settled.
  */
 export function RunTraceGraphic() {

@@ -1,6 +1,6 @@
 /**
  * The RunTraceGraphic's motion: the trace rows stamp in top to bottom
- * one after another — the agent-code tile's one-shot settle, never
+ * one after another — a one-shot settle, never
  * re-played. Under prefers-reduced-motion the rows render fully settled.
  */
 

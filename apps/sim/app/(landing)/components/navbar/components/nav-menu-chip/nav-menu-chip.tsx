@@ -154,7 +154,7 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                 }}
                 className={cn(
                   chipVariants({ active }),
-                  'gap-0.5 rounded-full pr-3 pl-4 transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]'
+                  'gap-0.5 rounded-full pr-3 pl-4 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]'
                 )}
               >
                 <span

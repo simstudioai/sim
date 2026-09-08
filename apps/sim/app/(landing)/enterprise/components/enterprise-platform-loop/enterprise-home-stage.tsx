@@ -52,7 +52,7 @@ interface ComposerProps {
  */
 function Composer({ children, active }: ComposerProps) {
   return (
-    <div className='w-full rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 shadow-[0_1px_2px_0_rgba(18,18,18,0.05)]'>
+    <div className='w-full rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 shadow-[0_1px_2px_0_rgba(18,18,18,0.05)]'>
       <p className='min-h-[24px] px-1.5 pt-1 text-[15px] text-[var(--text-primary)] leading-[24px]'>
         {children}
       </p>
@@ -183,7 +183,7 @@ export function EnterpriseHomeStage({
                   <span
                     key={action}
                     className={cn(
-                      'flex items-center gap-2 border-[var(--border-1)] px-2 py-2',
+                      'flex items-center gap-2 border-[var(--border)] px-2 py-2',
                       i > 0 && 'border-t'
                     )}
                   >

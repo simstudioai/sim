@@ -34,7 +34,7 @@ export function HeroPlatformIntro({ children, onComplete }: HeroPlatformIntroPro
         <svg
           ref={overlayRef}
           aria-hidden='true'
-          className='pointer-events-none absolute inset-0 size-full text-[var(--text-icon)] motion-reduce:hidden'
+          className='-inset-px pointer-events-none absolute size-[calc(100%+2px)] text-[var(--text-icon)] motion-reduce:hidden'
         />
       )}
     </div>

@@ -345,9 +345,6 @@ export function HeroChatLoop({
             </Tooltip.Root>
           </div>
           <div className='flex items-center gap-1.5'>
-            {welcome && (
-              <span className='mr-2 text-[14px] text-[var(--text-body)] max-sm:hidden'>Build</span>
-            )}
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <span>

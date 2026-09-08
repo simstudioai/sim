@@ -46,6 +46,8 @@ const TAIL = 200
 /** Goo blur while liquid (through the cycle) and while crisp (the wordmark). */
 const GOO_HI = 5
 const GOO_LO = 0.55
+/** Post-threshold blur, about half a device pixel at the mark's largest size. */
+const EDGE_SMOOTHING = 0.16
 /**
  * Shapes that restart from compact when they appear and play exactly one pulse
  * of this many ms (just under a loop, so the dots reach the edge without
@@ -543,6 +545,11 @@ export function FooterWordmarkLoop({ className }: FooterWordmarkLoopProps) {
               values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -19'
               result='goo'
             />
+            {/* The threshold discards the rasterizer's edge coverage, so at the
+                resting blur the wordmark's edge fell inside a device pixel and
+                stair-stepped at the largest size. A sub-pixel blur after it
+                restores ordinary anti-aliasing without touching the melt. */}
+            <feGaussianBlur in='goo' stdDeviation={EDGE_SMOOTHING} />
           </filter>
           <radialGradient id={inkId} cx='0.5' cy='0.5' r='0.5'>
             <stop style={INK_STOP_INNER} />

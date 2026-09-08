@@ -63,6 +63,7 @@ describe('clearUserData', () => {
   it('clears identity data while preserving device preferences', async () => {
     localStorage.setItem('next-favicon', 'favicon')
     localStorage.setItem('sim-theme', 'dark')
+    localStorage.setItem('sim-landing-theme', 'dark')
     localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, '["user-a"]')
     localStorage.setItem('private-cache', 'remove-me')
     sessionStorage.setItem('mothership-queue', 'private-queued-message')
@@ -73,6 +74,7 @@ describe('clearUserData', () => {
     expect(inMemoryResetSucceeded).toBe(true)
     expect(localStorage.getItem('next-favicon')).toBe('favicon')
     expect(localStorage.getItem('sim-theme')).toBe('dark')
+    expect(localStorage.getItem('sim-landing-theme')).toBe('dark')
     expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBeNull()
     expect(localStorage.getItem('private-cache')).toBeNull()
     expect(sessionStorage.getItem('mothership-queue')).toBeNull()
