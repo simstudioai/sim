@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
+  resolveServiceAccountServiceForIntegration,
 } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 
@@ -136,6 +137,34 @@ describe('resolveOAuthServiceForSlug', () => {
 })
 
 describe('resolveServiceAccountIntegration', () => {
+  it.each(['netsuite', 'snowflake', 'harmonic'])(
+    'resolves %s without offering OAuth',
+    (serviceId) => {
+      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
+      expect(integration).toBeDefined()
+      expect(integration.authType).toBe('api-key')
+      expect(resolveOAuthServiceForSlug(integration.slug)).toBeNull()
+      expect(
+        resolveServiceAccountServiceForIntegration(integration)?.serviceAccountProviderId
+      ).toBe(`${serviceId}-service-account`)
+      expect(resolveServiceAccountIntegration(serviceId)?.slug).toBe(integration.slug)
+    }
+  )
+
+  it('only offers the OAuth fallback when the canonical service supports stored accounts', () => {
+    const jira = INTEGRATIONS.find((entry) => entry.slug === 'jira')!
+    const x = INTEGRATIONS.find((entry) => entry.type === 'x')!
+    expect(resolveServiceAccountServiceForIntegration(jira)?.serviceAccountProviderId).toBe(
+      'atlassian-service-account'
+    )
+    expect(resolveServiceAccountServiceForIntegration(x)).toBeNull()
+    expect(
+      resolveServiceAccountServiceForIntegration({
+        ...x,
+        serviceAccountServiceId: 'unknown-service',
+      })
+    ).toBeNull()
+  })
   it.concurrent('keeps a named service instead of collapsing to the family default', () => {
     // Every Google integration issues the same google-service-account
     // credential, so a fuzzy matcher can silently answer Drive for all of

@@ -9,6 +9,7 @@ import {
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
   extractInheritedBlockCategory,
+  extractIntegrationCredentialServices,
   extractToolInfo,
   extractUserSettableParamIds,
   generateIconMappings,
@@ -16,6 +17,43 @@ import {
   parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
+
+describe('integration credential relationships', () => {
+  const serviceAccountServiceIds = new Set(['netsuite', 'snowflake', 'harmonic', 'jira'])
+  it.each(['netsuite', 'snowflake', 'harmonic'])(
+    'projects %s stored credentials without changing its auth marker',
+    (serviceId) => {
+      const source = fs.readFileSync(
+        path.join(__dirname, `../apps/sim/blocks/blocks/${serviceId}.ts`),
+        'utf8'
+      )
+      expect(extractIntegrationCredentialServices(source, serviceAccountServiceIds)).toEqual({
+        serviceAccountServiceId: serviceId,
+      })
+    }
+  )
+
+  it('preserves the OAuth relationship and ignores unrelated selector services', () => {
+    expect(
+      extractIntegrationCredentialServices(
+        `{ authMode: AuthMode.OAuth, subBlocks: [{ type: 'oauth-input', serviceId: 'jira' }] }`,
+        serviceAccountServiceIds
+      )
+    ).toEqual({ oauthServiceId: 'jira' })
+    expect(
+      extractIntegrationCredentialServices(
+        `{ authMode: AuthMode.ApiKey, subBlocks: [{ type: 'selector-input', serviceId: 'netsuite' }] }`,
+        serviceAccountServiceIds
+      )
+    ).toEqual({})
+    expect(
+      extractIntegrationCredentialServices(
+        `{ authMode: AuthMode.ApiKey, subBlocks: [{ type: 'oauth-input', serviceId: 'x' }] }`,
+        serviceAccountServiceIds
+      )
+    ).toEqual({})
+  })
+})
 
 describe('documentation editor icon metadata', () => {
   it('keeps core icons and inherited categories out of the integration catalog', async () => {

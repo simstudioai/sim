@@ -411,6 +411,7 @@ interface IntegrationEntry {
   triggerCount: number
   authType: 'oauth' | 'api-key' | 'none'
   oauthServiceId?: string
+  serviceAccountServiceId?: string
   category: BlockCategory
   integrationType: IntegrationType
   tags?: string[]
@@ -1681,6 +1682,20 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
   return /serviceId\s*:\s*['"]([^'"]+)['"]/.exec(subBlockContent)?.[1]
 }
 
+/** Keeps stored service-account ownership independent of the catalog's OAuth marker. */
+export function extractIntegrationCredentialServices(
+  blockContent: string,
+  serviceAccountServiceIds: ReadonlySet<string>
+): {
+  oauthServiceId?: string
+  serviceAccountServiceId?: string
+} {
+  const serviceId = extractOAuthServiceId(blockContent)
+  if (!serviceId) return {}
+  if (extractAuthType(blockContent) === 'oauth') return { oauthServiceId: serviceId }
+  return serviceAccountServiceIds.has(serviceId) ? { serviceAccountServiceId: serviceId } : {}
+}
+
 /**
  * Extract the list of trigger IDs from the block's `triggers.available` array.
  * Handles blocks that declare `triggers: { enabled: true, available: [...] }`.
@@ -1852,6 +1867,12 @@ ${mappingEntries}
  * Applies the same visibility filters as the docs generation pipeline.
  */
 async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Promise<void> {
+  const { getAllOAuthServices } = await import('../apps/sim/lib/oauth/utils')
+  const serviceAccountServiceIds = new Set(
+    getAllOAuthServices()
+      .filter((service) => service.serviceAccountProviderId)
+      .map((service) => service.serviceId)
+  )
   try {
     if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
       fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
@@ -1963,7 +1984,11 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
           .replace(/^-|-$/g, '')
 
         const authType = extractAuthType(fileContent)
-        const oauthServiceId = authType === 'oauth' ? extractOAuthServiceId(fileContent) : undefined
+        const credentialServices = extractIntegrationCredentialServices(
+          fileContent,
+          serviceAccountServiceIds
+        )
+        const { oauthServiceId } = credentialServices
         // OAuth integrations resolve their connect UI through the service id
         // (see `resolveOAuthServiceForIntegration`), so fail loudly rather than
         // shipping a catalog entry that silently falls back to the API-key path.
@@ -1988,7 +2013,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
           triggers,
           triggerCount: triggers.length,
           authType,
-          ...(oauthServiceId ? { oauthServiceId } : {}),
+          ...credentialServices,
           category: 'tools',
           integrationType,
           ...(config.tags ? { tags: config.tags } : {}),

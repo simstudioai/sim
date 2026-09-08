@@ -8,6 +8,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
  */
 import { BLOCK_REGISTRY } from '../apps/sim/blocks/registry-maps'
 import { AuthMode, type BlockConfig } from '../apps/sim/blocks/types'
+import { getServiceConfigByServiceId } from '../apps/sim/lib/oauth/utils'
 import integrationsJson from '../packages/deployment-config/src/integrations.json'
 import { DOCS_ORIGIN, DOCS_OUTPUT_PATH, defaultIntegrationDocsUrl } from './generate-docs'
 
@@ -21,6 +22,7 @@ interface CatalogEntry {
   integrationType: string
   authType: CatalogAuthType
   oauthServiceId?: string
+  serviceAccountServiceId?: string
 }
 
 function resolveAuthType(block: BlockConfig): CatalogAuthType {
@@ -55,7 +57,14 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
     throw new Error(`Integration block "${block.type}" is missing integrationType`)
   }
   const authType = resolveAuthType(block)
-  const oauthServiceId = authType === 'oauth' ? resolveOAuthServiceId(block) : undefined
+  const credentialServiceId = resolveOAuthServiceId(block)
+  const oauthServiceId = authType === 'oauth' ? credentialServiceId : undefined
+  const serviceAccountServiceId =
+    authType !== 'oauth' &&
+    credentialServiceId &&
+    getServiceConfigByServiceId(credentialServiceId)?.serviceAccountProviderId
+      ? credentialServiceId
+      : undefined
   if (authType === 'oauth' && !oauthServiceId) {
     throw new Error(`OAuth integration block "${block.type}" is missing an OAuth service ID`)
   }
@@ -70,6 +79,7 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
     integrationType: block.integrationType,
     authType,
     ...(oauthServiceId ? { oauthServiceId } : {}),
+    ...(serviceAccountServiceId ? { serviceAccountServiceId } : {}),
   }
 }
 
@@ -158,6 +168,7 @@ function verifyIntegrationCatalog(): void {
       'integrationType',
       'authType',
       'oauthServiceId',
+      'serviceAccountServiceId',
     ] as const) {
       if (generated[field] !== entry[field]) {
         issues.push(`"${type}" has stale ${field}`)

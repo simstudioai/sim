@@ -41,6 +41,24 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
+  it.each(['netsuite', 'snowflake', 'harmonic'])(
+    'makes %s stored credentials available without configuring an OAuth client',
+    (serviceId) => {
+      expect(availabilityFor(serviceId)).toMatchObject({
+        state: 'ready',
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
+        missingFields: [],
+      })
+      expect(getIntegrationTypesForOAuthServiceId(serviceId)).toEqual([serviceId])
+      expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set([serviceId]))).toBe(true)
+      expect(isOAuthServiceAllowedByIntegrationTypes(serviceId, new Set(['jira']))).toBe(false)
+      expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[serviceId]?.providerId).toBe(
+        `${serviceId}-service-account`
+      )
+      expect(CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS).not.toContain(serviceId)
+    }
+  )
   it('does not infer GitHub repository OAuth readiness from its API-key workflow block', () => {
     expect(availabilityFor('github_v2')).toMatchObject({ state: 'ready', oauthAvailable: false })
     expect(
@@ -187,24 +205,26 @@ describe('integration availability', () => {
   })
 
   it('keeps service-account metadata in parity with canonical OAuth services', () => {
-    const oauthServiceIds = [
+    const credentialServiceIds = [
       ...new Set(
-        integrations.flatMap((integration) =>
-          integration.authType === 'oauth' && integration.oauthServiceId
-            ? [integration.oauthServiceId]
-            : []
-        )
+        integrations.flatMap((integration) => {
+          const serviceId = integration.serviceAccountServiceId ?? integration.oauthServiceId
+          return serviceId ? [serviceId] : []
+        })
       ),
     ]
     const expectedServiceAccountIds: Record<string, string> = {}
     const expectedCredentialConfiguredServiceIds: string[] = []
 
-    for (const oauthServiceId of oauthServiceIds) {
+    for (const oauthServiceId of credentialServiceIds) {
       const canonical = getServiceConfigByServiceId(oauthServiceId)
       if (!canonical) throw new Error(`Missing canonical OAuth service ${oauthServiceId}`)
       const projected = SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[oauthServiceId]
       expect(projected?.providerId, oauthServiceId).toBe(canonical.serviceAccountProviderId)
-      if (canonical.clientConfiguration) {
+      if (
+        canonical.clientConfiguration &&
+        integrations.some((integration) => integration.oauthServiceId === oauthServiceId)
+      ) {
         expectedCredentialConfiguredServiceIds.push(oauthServiceId)
       }
       if (canonical.serviceAccountProviderId) {

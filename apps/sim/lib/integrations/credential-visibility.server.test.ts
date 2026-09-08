@@ -56,6 +56,45 @@ function availability(
 }
 
 describe('integration credential visibility', () => {
+  it.each(['netsuite', 'snowflake', 'harmonic'])(
+    'applies allowlists and block visibility to %s stored credentials',
+    (serviceId) => {
+      const providerId = `${serviceId}-service-account`
+      const service: OAuthServiceMetadata = {
+        serviceId,
+        providerId,
+        serviceAccountProviderId: providerId,
+        name: serviceId,
+        description: serviceId,
+        baseProvider: serviceId,
+        authType: 'service_account',
+      }
+      getIntegrationAvailabilityMock.mockReturnValue([
+        availability(serviceId, 'ready', { oauthAvailable: false, serviceAccountAvailable: true }),
+      ])
+      const visible = (allowed: string[], hidden = false) =>
+        createIntegrationCredentialVisibility({
+          allowedIntegrationTypes: new Set(allowed),
+          blockVisibility: hidden
+            ? { revealed: new Set(), disabled: new Set([serviceId]), previewTagged: new Set() }
+            : null,
+          oauthServices: [service],
+        })
+      expect(
+        visible([serviceId]).isCredentialVisible({ providerId, type: 'service_account' })
+      ).toBe(true)
+      expect(visible(['jira']).isCredentialVisible({ providerId, type: 'service_account' })).toBe(
+        false
+      )
+      expect(
+        visible([serviceId], true).isCredentialVisible({ providerId, type: 'service_account' })
+      ).toBe(false)
+      getBlockMock.mockReturnValue({ type: serviceId, preview: true })
+      expect(
+        visible([serviceId]).isCredentialVisible({ providerId, type: 'service_account' })
+      ).toBe(false)
+    }
+  )
   beforeEach(() => {
     vi.clearAllMocks()
     getBlockMock.mockImplementation((type: string) => ({ type }))

@@ -12,6 +12,7 @@ import {
   type Integration,
   resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
+  resolveServiceAccountServiceForIntegration,
 } from '@/lib/integrations'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -69,6 +70,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
+  const serviceAccountService = resolveServiceAccountServiceForIntegration(integration)
   const { integrationAvailability, isLoading: permissionConfigLoading } = usePermissionConfig()
   const { chatEnabled } = useDeploymentShape()
   const availability = integrationAvailability.get(integration.type.toLowerCase())
@@ -94,19 +96,20 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const connectedCredentials = useMemo(() => {
     if (integration.type === 'gitlab')
       return credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab')
-    if (!oauthService) return []
+    const credentialService = oauthService ?? serviceAccountService
+    if (!credentialService) return []
     return credentials.filter(
       (c) =>
         (c.type === 'oauth' || c.type === 'service_account') &&
         c.providerId &&
-        credentialProviderMatchesService(c.providerId, oauthService)
+        credentialProviderMatchesService(c.providerId, credentialService)
     )
-  }, [credentials, oauthService, integration.type])
+  }, [credentials, oauthService, serviceAccountService, integration.type])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const serviceAccountTarget = useServiceAccountConnectTarget({
-    serviceAccountProviderId: oauthService?.serviceAccountProviderId,
-    serviceName: oauthService?.serviceName,
-    serviceIcon: oauthService?.serviceIcon,
+    serviceAccountProviderId: serviceAccountService?.serviceAccountProviderId,
+    serviceName: serviceAccountService?.serviceName,
+    serviceIcon: serviceAccountService?.serviceIcon,
   })
   const serviceAccountDeploymentAvailable =
     availability?.state === 'ready' || availability?.state === 'limited'
@@ -147,28 +150,29 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     setConnectMode,
   ])
 
-  const connectOptions = oauthService
-    ? [
-        ...(oauthAvailable
-          ? [
-              {
-                value: CONNECT_MODE.oauth,
-                label: 'Connect with OAuth',
-                icon: oauthService.serviceIcon,
-              },
-            ]
-          : []),
-        ...(hasServiceAccount
-          ? [
-              {
-                value: CONNECT_MODE.serviceAccount,
-                label: serviceAccountConnectLabel,
-                icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
-              },
-            ]
-          : []),
-      ]
-    : []
+  const connectOptions =
+    oauthService || serviceAccountService
+      ? [
+          ...(oauthAvailable && oauthService
+            ? [
+                {
+                  value: CONNECT_MODE.oauth,
+                  label: 'Connect with OAuth',
+                  icon: oauthService.serviceIcon,
+                },
+              ]
+            : []),
+          ...(hasServiceAccount
+            ? [
+                {
+                  value: CONNECT_MODE.serviceAccount,
+                  label: serviceAccountConnectLabel,
+                  icon: serviceAccountTarget?.serviceIcon ?? serviceAccountService?.serviceIcon,
+                },
+              ]
+            : []),
+        ]
+      : []
 
   const handleSelectConnectOption = (value: string) => {
     if (value === CONNECT_MODE.oauth) setOAuthOpen(true)
@@ -191,7 +195,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             <Chip variant='primary' leftIcon={Plus} onClick={() => setPersonalTokenOpen(true)}>
               Add personal token
             </Chip>
-          ) : oauthService ? (
+          ) : oauthService || serviceAccountService ? (
             connectOptions.length > 1 ? (
               <ChipDropdown
                 variant='primary'
