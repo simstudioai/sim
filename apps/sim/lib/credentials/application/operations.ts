@@ -1,7 +1,7 @@
 import type { ApplicationOperation, OperationDeclarableCapability } from '@/lib/core/application'
 import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
-import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
+import { CAPABILITY_RULES } from '@/ee/access-control/lib/capabilities'
 
 export type CredentialRole = 'member' | 'admin'
 

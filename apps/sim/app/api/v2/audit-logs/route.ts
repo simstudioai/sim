@@ -11,10 +11,10 @@ import {
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { listAuditLogs } from '@/lib/audit-logs/application/list-audit-logs'
-import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import { formatV2AuditLogEntry } from '@/app/api/v2/audit-logs/format'
 import { encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
+import { listAuditLogs } from '@/ee/audit-logs/lib/application/list-audit-logs'
+import { auditLogOperations } from '@/ee/audit-logs/lib/application/operations'
 
 /**
  * Every param that changes which audit entries, in which order, this list

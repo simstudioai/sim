@@ -83,8 +83,8 @@ const ROOT = resolve(SCRIPT_DIR, '..')
  * (and `walk`) at the same time as moving one, not afterwards.
  */
 const SCAN_ROOTS = ['apps/sim/lib', 'apps/sim/app', 'apps/sim/ee', 'apps/sim/executor']
-const CAPABILITIES_FILE = 'apps/sim/lib/permission-groups/capabilities.ts'
-const FIELDS_FILE = 'apps/sim/lib/permission-groups/fields.ts'
+const CAPABILITIES_FILE = 'apps/sim/ee/access-control/lib/capabilities.ts'
+const FIELDS_FILE = 'apps/sim/ee/access-control/lib/fields.ts'
 const ENFORCED_ANNOTATION = 'permission-group-enforced:'
 const EXEMPT_ANNOTATION = 'permission-group-exempt:'
 const MAX_ANNOTATION_LOOKBACK = 3

@@ -17,10 +17,10 @@ import {
   credentialProviderMatchesService,
   getAllOAuthServices,
 } from '@/lib/oauth'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
+import { intersectIntegrationAllowlists } from '@/ee/access-control/lib/integration-allowlist'
 
 interface GetCredentialsParams {
   workflowId?: string

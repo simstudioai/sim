@@ -3,8 +3,8 @@
 import type { ComponentType } from 'react'
 import { ChipInput, ChipSelect, ChipTextarea, SecretInput, Switch } from '@sim/emcn'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
-import type { DestinationType } from '@/lib/data-drains/types'
 import { SettingRow } from '@/ee/components/setting-row'
+import type { DestinationType } from '@/ee/data-drains/lib/types'
 
 type DestinationBranch = Pick<
   CreateDataDrainBody,

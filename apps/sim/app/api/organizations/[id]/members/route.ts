@@ -15,7 +15,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   capabilityRefusal,
   isOrganizationCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('OrganizationMembersAPI')
 

@@ -20,7 +20,6 @@ import { eq, sql } from 'drizzle-orm'
 import { adminV1UpdateOrganizationSessionPolicyContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
-import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { isBillingEnabled, isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -33,6 +32,10 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
+import {
+  eagerClampOrgSessions,
+  invalidateSessionPolicyCache,
+} from '@/ee/session-policy/lib/session-policy'
 
 const logger = createLogger('AdminOrganizationSessionPolicyAPI')
 

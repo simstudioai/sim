@@ -28,7 +28,7 @@ const { mockGetTableById, mockGetUserEntityPermissions, mockAddTableColumn, mock
     mockListTableViews: vi.fn(),
   }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/table', () => ({
   addTableColumn: mockAddTableColumn,
@@ -48,9 +48,9 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 vi.mock('@/lib/workspaces/utils', () => ({ getWorkspaceOrganizationId: vi.fn() }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/table/[tableId]/columns/route'
 import { GET } from '@/app/api/table/[tableId]/views/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const USER_ID = 'user-1'
 const TABLE_ID = '22222222-2222-4222-8222-222222222222'

@@ -47,7 +47,7 @@ vi.mock('@/lib/core/config/block-visibility', () => ({
   getBlockVisibility: mocks.getBlockVisibility,
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   listCustomBlocksWithInputsForWorkspace: mocks.listCustomBlocks,
 }))
 

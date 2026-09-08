@@ -33,10 +33,10 @@ import {
 } from '@/lib/credentials/queries'
 import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
-import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { assertWorkspaceCapability } from '@/ee/access-control/lib/capability-assertions'
 
 export class CredentialProviderOperationError extends OrchestrationError {
   constructor(

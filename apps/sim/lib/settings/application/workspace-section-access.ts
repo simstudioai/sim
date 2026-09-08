@@ -14,9 +14,9 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
-import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
+import { isCustomBlocksEligibleForOrganization } from '@/ee/custom-blocks/lib/operations'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 
 export type WorkspaceSettingsSectionAccess =

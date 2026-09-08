@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
-import { isCustomBlocksEligible } from '@/lib/workflows/custom-blocks/operations'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import { isCustomBlocksEligible } from '@/ee/custom-blocks/lib/operations'
 
 const logger = createLogger('CopilotEntitlements')
 

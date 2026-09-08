@@ -107,7 +107,7 @@ export const organizationDataRetentionResponseSchema = z.object({
 
 /**
  * Session-policy bounds — the single source for the contract validation, the
- * server-side clamp (`@/lib/auth/session-policy`), and the settings UI.
+ * server-side clamp (`@/ee/session-policy/lib/session-policy`), and the settings UI.
  * `MIN_IDLE_TIMEOUT_HOURS` is twice the session cookie-cache window (24h):
  * cached reads never record activity, so a continuously active user only
  * refreshes their session when the cookie cache expires. A floor of one

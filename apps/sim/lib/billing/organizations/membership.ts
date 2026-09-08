@@ -25,7 +25,6 @@ import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { invalidateMembershipCache } from '@/lib/auth/security-policy'
-import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   assertNoUnresolvedEnterpriseIssuance,
@@ -52,6 +51,7 @@ import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
 } from '@/lib/workspaces/utils'
+import { applySessionPolicyToNewMember } from '@/ee/session-policy/lib/session-policy'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'

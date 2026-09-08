@@ -9,7 +9,6 @@ import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/applic
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {
@@ -55,6 +54,7 @@ import {
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 

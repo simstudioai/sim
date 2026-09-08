@@ -1,9 +1,9 @@
 import type { Principal } from '@sim/auth/principal'
 import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { withheldExecutionData, withheldSpendData } from '@/lib/logs/fetch-log-detail'
-import { refuseCapability } from '@/lib/permission-groups/capabilities'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { refuseCapability } from '@/ee/access-control/lib/capabilities'
+import { capabilityDeniedBy } from '@/ee/access-control/lib/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 
 /**
  * What a viewer's permission group withholds from a log response.

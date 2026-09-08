@@ -30,7 +30,7 @@ const {
   mockGetPersonalEnvKeyRawAccess: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceById: mockGetWorkspaceById,
@@ -44,8 +44,8 @@ vi.mock('@/lib/credentials/environment', () => ({
   deleteWorkspaceEnvCredentials: vi.fn(),
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { DELETE, GET, PUT } from '@/app/api/workspaces/[id]/environment/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = 'ws-1'

@@ -29,7 +29,6 @@ import {
   recordUsage,
   stableEventKey,
 } from '@/lib/billing/core/usage-log'
-import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -69,6 +68,7 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
+import { resolveEffectivePiiRedaction } from '@/ee/data-retention/lib/retention'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')

@@ -52,4 +52,4 @@ export {
   type PrincipalForOperation,
   type WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
-export { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+export { PermissionGroupCapabilityError } from '@/ee/access-control/lib/capability-error'

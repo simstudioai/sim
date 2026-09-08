@@ -9,7 +9,7 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
@@ -36,7 +36,7 @@ const mocks = vi.hoisted(() => ({
   isCapabilityWithheldForUser: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/user-scope.server', () => ({
+vi.mock('@/ee/access-control/lib/user-scope.server', () => ({
   isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
 }))
 
@@ -91,7 +91,7 @@ vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
 import { getBillingStatus } from '@/lib/billing/application/get-billing-status'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
 import { PersonalApiKeysDisabledError } from '@/lib/core/application'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const workspaceContext = {
   workspaceId: 'workspace-1',

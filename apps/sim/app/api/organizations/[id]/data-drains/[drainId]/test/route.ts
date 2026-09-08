@@ -5,9 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { testDataDrainContract } from '@/lib/api/contracts/data-drains'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeDrainAccess, loadDrain } from '@/lib/data-drains/access'
-import { getDestination } from '@/lib/data-drains/destinations/registry'
-import { decryptCredentials } from '@/lib/data-drains/encryption'
+import { authorizeDrainAccess, loadDrain } from '@/ee/data-drains/lib/access'
+import { getDestination } from '@/ee/data-drains/lib/destinations/registry'
+import { decryptCredentials } from '@/ee/data-drains/lib/encryption'
 
 const logger = createLogger('DataDrainTestAPI')
 

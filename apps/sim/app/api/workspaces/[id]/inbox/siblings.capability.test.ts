@@ -29,15 +29,15 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   DELETE as DELETE_SENDER,
   GET as GET_SENDERS,
   POST as POST_SENDER,
 } from '@/app/api/workspaces/[id]/inbox/senders/route'
 import { GET as GET_TASKS } from '@/app/api/workspaces/[id]/inbox/tasks/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const context = { params: Promise.resolve({ id: 'workspace-1' }) }
 const REFUSAL = "The inbox is not available under your organization's permission group"

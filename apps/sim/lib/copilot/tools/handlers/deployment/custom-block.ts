@@ -13,6 +13,9 @@ import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
   CustomBlockValidationError,
   type CustomBlockWithInputs,
@@ -22,10 +25,7 @@ import {
   isCustomBlocksEligibleForOrganization,
   publishCustomBlock,
   updateCustomBlock,
-} from '@/lib/workflows/custom-blocks/operations'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/custom-blocks/lib/operations'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployCustomBlockParams } from '../param-types'
 

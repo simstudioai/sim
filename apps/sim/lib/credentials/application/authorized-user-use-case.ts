@@ -5,8 +5,8 @@ import type { OperationUseCase } from '@/lib/core/application'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialUserOperation } from '@/lib/credentials/application/operations'
-import { refuseCapability } from '@/lib/permission-groups/capabilities'
-import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { refuseCapability } from '@/ee/access-control/lib/capabilities'
+import { isOrganizationCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
 
 export interface CredentialUserAuditEntry {
   workspaceId: string | null

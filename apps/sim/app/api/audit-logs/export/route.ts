@@ -3,17 +3,17 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { exportAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import {
-  buildFilterConditions,
-  buildOrgScopeCondition,
-  getOrgWorkspaceIds,
-  queryAuditLogs,
-} from '@/lib/audit-logs/query'
 import { getSession } from '@/lib/auth'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import {
+  buildFilterConditions,
+  buildOrgScopeCondition,
+  getOrgWorkspaceIds,
+  queryAuditLogs,
+} from '@/ee/audit-logs/lib/query'
 
 const logger = createLogger('AuditLogsExportAPI')
 

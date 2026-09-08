@@ -4,7 +4,7 @@
  *
  * The map answers one question — "which block type is an allowlist decision
  * about this id really made against?" — and it has to be answerable from
- * `lib/permission-groups/`, which `scripts/check-application-graph.ts` forbids
+ * `ee/access-control/lib/`, which `scripts/check-application-graph.ts` forbids
  * from importing `blocks/`: the authorization funnel would pull every block
  * definition into every surface that authorizes anything. Before this file the
  * answer was reachable only through `getBlock`, so the env allowlist was
@@ -26,7 +26,7 @@ import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/permission-groups/block-successors.generated.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/ee/access-control/lib/block-successors.generated.ts')
 const CHECK_MODE = process.argv.includes('--check')
 
 interface SunsetBlock {
@@ -112,7 +112,7 @@ function render(successors: ReadonlyMap<string, string>): string {
  *
  * Maps a retired block type to the *terminal* type an access-control decision
  * about it is made against — \`sunset.replacedBy\`, followed transitively. It
- * exists as a generated projection because \`lib/permission-groups/\` may not
+ * exists as a generated projection because \`ee/access-control/lib/\` may not
  * import \`blocks/\`; see \`scripts/generate-block-successors.ts\`.
  */
 export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {

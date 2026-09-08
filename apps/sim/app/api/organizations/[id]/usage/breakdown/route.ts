@@ -4,9 +4,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { getOrganizationUsageBreakdown } from '@/lib/billing/application/organization-usage/get-organization-usage-breakdown'
-import { organizationUsageOperations } from '@/lib/billing/application/organization-usage/operations'
 import { organizationUsageErrorPolicy } from '@/app/api/organizations/[id]/usage/error-policy'
+import { getOrganizationUsageBreakdown } from '@/ee/organization-usage/lib/get-organization-usage-breakdown'
+import { organizationUsageOperations } from '@/ee/organization-usage/lib/operations'
 
 export const dynamic = 'force-dynamic'
 

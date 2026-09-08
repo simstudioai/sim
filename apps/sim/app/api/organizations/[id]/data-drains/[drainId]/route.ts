@@ -12,10 +12,10 @@ import {
 } from '@/lib/api/contracts/data-drains'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeDrainAccess, loadDrain } from '@/lib/data-drains/access'
-import { getDestination } from '@/lib/data-drains/destinations/registry'
-import { encryptCredentials } from '@/lib/data-drains/encryption'
-import { serializeDrain } from '@/lib/data-drains/serializers'
+import { authorizeDrainAccess, loadDrain } from '@/ee/data-drains/lib/access'
+import { getDestination } from '@/ee/data-drains/lib/destinations/registry'
+import { encryptCredentials } from '@/ee/data-drains/lib/encryption'
+import { serializeDrain } from '@/ee/data-drains/lib/serializers'
 
 const logger = createLogger('DataDrainAPI')
 

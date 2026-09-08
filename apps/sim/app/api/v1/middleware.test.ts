@@ -55,7 +55,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
@@ -66,7 +66,6 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   authenticateRequest,
   checkRateLimit,
@@ -75,6 +74,7 @@ import {
   requireWorkspaceRequestActor,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 /** Mirrors `createBucketConfig`: capacity is the per-minute rate x burst multiplier. */
 const TEAM_BUCKET = { maxTokens: 400, refillRate: 200, refillIntervalMs: 60_000 }

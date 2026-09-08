@@ -47,7 +47,6 @@ import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-to
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { usesCredentialConfiguredOAuthClient } from '@/lib/oauth/utils'
-import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -127,6 +126,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow-constants'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
+import { OPERATION_SUBBLOCK_ID } from '@/ee/access-control/lib/operation-access'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'

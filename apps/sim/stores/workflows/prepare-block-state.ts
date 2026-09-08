@@ -9,12 +9,12 @@
  * workspace route for a function only the canvas drop handler calls.
  */
 
-import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
+import type { SeedValueGate } from '@/ee/access-control/lib/operation-access'
 import type { BlockState, Position, SubBlockState } from '@/stores/workflows/workflow/types'
 
 export interface PrepareBlockStateOptions {

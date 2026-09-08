@@ -120,7 +120,7 @@ vi.mock('@/background/workflow-execution', () => ({
   executeWorkflowJob: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   getCustomBlockRowsForWorkspace: vi.fn().mockResolvedValue([]),
 }))
 

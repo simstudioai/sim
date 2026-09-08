@@ -65,7 +65,7 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
   isImageFileType: (type: string) => type.startsWith('image/'),
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => {
+vi.mock('@/ee/custom-blocks/lib/operations', () => {
   class CustomBlockValidationError extends Error {}
   return {
     CustomBlockValidationError,

@@ -16,12 +16,12 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { sandboxOperations } from '@/lib/sandboxes/application/operations'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 describe('sandbox operation registry', () => {
   it('lets any member, and a workspace key, read what the workspace built', () => {

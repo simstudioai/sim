@@ -1,7 +1,7 @@
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import { isHiddenUnder } from '@/blocks/visibility/context'
+import type { IsToolAllowed } from '@/ee/access-control/lib/operation-access'
 import { tools as toolRegistry } from '@/tools/registry'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'

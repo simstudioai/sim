@@ -27,7 +27,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: () => true,
   resolveEffectiveWorkspacePermission: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/table', () => ({ getTableById: mocks.getTable }))
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveContext,
@@ -43,12 +43,12 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   generatePresignedDownloadUrl: vi.fn(),
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableExportUseCase,
   createTableExportUseCase,
   readTableExportUseCase,
 } from '@/lib/table/application/exports'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const now = new Date('2026-08-01T00:00:00.000Z')
 const table: TableDefinition = {

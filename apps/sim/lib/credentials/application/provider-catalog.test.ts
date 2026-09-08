@@ -20,7 +20,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedIntegrationsFromEnv: mocks.getAllowedIntegrationsFromEnv,
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
@@ -29,7 +29,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
  * this stub keeps the intersection semantics without the map, because the ids
  * used here are fixtures rather than real block types.
  */
-vi.mock('@/lib/permission-groups/integration-allowlist', () => {
+vi.mock('@/ee/access-control/lib/integration-allowlist', () => {
   const intersect = (
     permissionGroup: readonly string[] | null,
     deployment: readonly string[] | null

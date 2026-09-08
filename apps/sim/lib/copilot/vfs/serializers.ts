@@ -14,13 +14,13 @@ import {
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
-import { type IsToolAllowed, OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
+import { type IsToolAllowed, OPERATION_SUBBLOCK_ID } from '@/ee/access-control/lib/operation-access'
 import {
   DYNAMIC_MODEL_PROVIDERS,
   PROVIDER_DEFINITIONS,

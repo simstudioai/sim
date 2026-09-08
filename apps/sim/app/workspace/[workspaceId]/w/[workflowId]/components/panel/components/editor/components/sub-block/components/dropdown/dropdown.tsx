@@ -2,10 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import {
-  NO_DENIED_OPERATIONS,
-  OPERATION_SUBBLOCK_ID,
-} from '@/lib/permission-groups/operation-access'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -17,6 +13,10 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import {
+  NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
+} from '@/ee/access-control/lib/operation-access'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useOperationAccess } from '@/hooks/use-operation-access'

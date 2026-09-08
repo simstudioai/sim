@@ -11,7 +11,6 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { createWorkspace } from '@/lib/workspaces/create'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
@@ -20,6 +19,7 @@ import {
   WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 const logger = createLogger('Workspaces')
 

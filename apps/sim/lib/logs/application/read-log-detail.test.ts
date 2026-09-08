@@ -28,7 +28,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (held: string | null, required: string) =>

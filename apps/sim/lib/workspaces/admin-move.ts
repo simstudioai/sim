@@ -41,7 +41,6 @@ import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
-import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
 import {
   type CrossOrgForkEdge,
   cleanupSourceOrganizationArtifactsTx,
@@ -62,6 +61,7 @@ import {
   partitionInvitationGrantsForWorkspaceMove,
 } from '@/lib/workspaces/invitation-migration-plan'
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import { deleteCustomBlock } from '@/ee/custom-blocks/lib/operations'
 
 const logger = createLogger('AdminWorkspaceMove')
 

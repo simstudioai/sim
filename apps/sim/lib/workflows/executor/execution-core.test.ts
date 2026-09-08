@@ -81,7 +81,7 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   getCustomBlockRowsForWorkspace: vi.fn().mockResolvedValue([]),
 }))
 

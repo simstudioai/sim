@@ -1,12 +1,12 @@
 import { Repeat, Split } from '@sim/emcn/icons'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { isOperationAllowed } from '@/lib/permission-groups/operation-access'
 import { toSearchToken } from '@/lib/search/tokens'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { isOperationAllowed } from '@/ee/access-control/lib/operation-access'
 import type {
   SearchBlockItem,
   SearchData,

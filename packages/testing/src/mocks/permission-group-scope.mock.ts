@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable mock functions for `@/lib/permission-groups/config-scope.server`.
+ * Controllable mock functions for `@/ee/access-control/lib/config-scope.server`.
  *
  * `mockResolvePermissionGroupConfig` is the one seam every capability gate reads
  * — `assertWorkspaceCapability`, `isWorkspaceCapabilityWithheld`, and the
@@ -17,7 +17,7 @@ import { vi } from 'vitest'
  * ```ts
  * import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
  *
- * vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+ * vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
  *
  * permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
  *   ...DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -30,16 +30,16 @@ export const permissionGroupScopeMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/permission-groups/config-scope.server`.
+ * Static mock module for `@/ee/access-control/lib/config-scope.server`.
  *
  * Only the resolver lives there. `withPermissionGroupScope` — which
  * `withRouteHandler` calls to wrap every route handler — lives in the
- * import-free `@/lib/permission-groups/request-scope.server`, so mocking this
+ * import-free `@/ee/access-control/lib/request-scope.server`, so mocking this
  * module leaves the real scope wrapper in place and there is nothing to stub.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+ * vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
  * ```
  */
 export const permissionGroupScopeMock = {

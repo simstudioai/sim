@@ -142,18 +142,6 @@ import {
   listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
-import {
-  intersectIntegrationAllowlists,
-  toAccessControlAllowlist,
-} from '@/lib/permission-groups/integration-allowlist'
-import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
-import {
-  listOrganizationWorkspaceRefs,
-  listPermissionGroupRoster,
-} from '@/lib/permission-groups/queries'
 import { listTables } from '@/lib/table/service'
 import {
   listTableViewsByWorkspace,
@@ -168,10 +156,6 @@ import type {
   WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
-import {
-  type CustomBlockWithInputs,
-  listCustomBlocksWithInputsForWorkspace,
-} from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { collectWorkflowFieldIssues, lintEditedWorkflowState } from '@/lib/workflows/editing/lint'
@@ -205,7 +189,23 @@ import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
+import { getActivePermissionGroupRestrictions } from '@/ee/access-control/lib/features'
+import {
+  intersectIntegrationAllowlists,
+  toAccessControlAllowlist,
+} from '@/ee/access-control/lib/integration-allowlist'
+import type { IsToolAllowed } from '@/ee/access-control/lib/operation-access'
+import {
+  listOrganizationWorkspaceRefs,
+  listPermissionGroupRoster,
+} from '@/ee/access-control/lib/queries'
 import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
+import {
+  type CustomBlockWithInputs,
+  listCustomBlocksWithInputsForWorkspace,
+} from '@/ee/custom-blocks/lib/operations'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'

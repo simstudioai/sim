@@ -10,13 +10,13 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { authorizeManage } from '@/app/api/custom-blocks/[id]/authorize-manage'
 import {
   CustomBlockValidationError,
   deleteCustomBlock,
   getCustomBlockUsageCounts,
   updateCustomBlock,
-} from '@/lib/workflows/custom-blocks/operations'
-import { authorizeManage } from '@/app/api/custom-blocks/[id]/authorize-manage'
+} from '@/ee/custom-blocks/lib/operations'
 
 const logger = createLogger('CustomBlockAPI')
 

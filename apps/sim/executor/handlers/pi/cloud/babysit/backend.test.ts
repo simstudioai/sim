@@ -31,7 +31,7 @@ const {
 vi.mock('@/lib/execution/remote-sandbox', () => ({
   withPiSandbox: mockWithPiSandbox,
 }))
-vi.mock('@/lib/data-drains/destinations/utils', () => ({
+vi.mock('@/ee/data-drains/lib/destinations/utils', () => ({
   sleepUntilAborted: mockSleepUntilAborted,
 }))
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', async (importOriginal) => {

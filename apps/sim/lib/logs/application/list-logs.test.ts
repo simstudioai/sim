@@ -28,10 +28,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 import { listLogsUseCase } from '@/lib/logs/application/list-logs'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { PermissionGroupCapabilityError } from '@/ee/access-control/lib/capability-error'
 
 const WORKSPACE_ID = 'workspace-1'
 const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }

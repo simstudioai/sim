@@ -17,22 +17,22 @@ import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { getBlock } from '@/blocks/registry'
+import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
-} from '@/lib/permission-groups/integration-allowlist'
+} from '@/ee/access-control/lib/integration-allowlist'
 import {
   collectDeniedOperationIds,
   createToolAccessGate,
   type IsToolAllowed,
   OPERATION_SUBBLOCK_ID,
   type OperationGateBlock,
-} from '@/lib/permission-groups/operation-access'
-import { getBlock } from '@/blocks/registry'
-import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
-import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
+} from '@/ee/access-control/lib/operation-access'
 
 /**
  * The block shape this tool reports, projected by the shared catalog projection

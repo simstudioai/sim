@@ -24,7 +24,6 @@ import {
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
-import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
@@ -33,6 +32,7 @@ import {
   getUsersWithPermissions,
   type WorkspaceAccess,
 } from '@/lib/workspaces/permissions/utils'
+import { listCustomBlockSummariesForWorkspace } from '@/ee/custom-blocks/lib/operations'
 
 const logger = createLogger('WorkspaceContext')
 

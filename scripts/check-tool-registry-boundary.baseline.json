@@ -722,8 +722,8 @@
         "apps/sim/blocks/registry.ts": 511,
         "apps/sim/blocks/registry-maps.ts": 509,
         "apps/sim/blocks/blocks/credential-group.ts": 114,
-        "apps/sim/lib/permission-groups/config-scope.server.ts": 91,
-        "apps/sim/lib/permission-groups/resolve.server.ts": 89,
+        "apps/sim/ee/access-control/lib/config-scope.server.ts": 91,
+        "apps/sim/ee/access-control/lib/resolve.server.ts": 89,
         "apps/sim/stores/workflows/registry/store.ts": 88
       }
     }

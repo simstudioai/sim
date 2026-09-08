@@ -15,12 +15,12 @@ import {
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { createMcpErrorResponse } from '@/lib/mcp/utils'
-import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import type { StaticPermissionGroupCapability } from '@/ee/access-control/lib/capabilities'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('McpAuthMiddleware')
 const MAX_MCP_MANAGEMENT_BODY_BYTES = 10 * 1024 * 1024

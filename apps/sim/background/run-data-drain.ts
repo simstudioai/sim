@@ -1,6 +1,6 @@
 import { task } from '@trigger.dev/sdk'
-import { runDrain } from '@/lib/data-drains/service'
-import type { RunTrigger } from '@/lib/data-drains/types'
+import { runDrain } from '@/ee/data-drains/lib/service'
+import type { RunTrigger } from '@/ee/data-drains/lib/types'
 
 interface RunDataDrainPayload {
   drainId: string

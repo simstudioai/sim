@@ -114,7 +114,7 @@ vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 

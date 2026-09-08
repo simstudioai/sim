@@ -70,12 +70,12 @@ vi.mock('@/app/api/table/utils', async () => {
   }
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/import-csv/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 type Part =
   | { name: string; value: string }

@@ -6,9 +6,9 @@ import { getSession } from '@/lib/auth'
 import { createApproval } from '@/lib/cli-auth/approval-store'
 import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
-import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { capabilityRefusal } from '@/ee/access-control/lib/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/ee/access-control/lib/user-scope.server'
 
 const logger = createLogger('CliAuthApproveAPI')
 

@@ -30,14 +30,6 @@ import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
-import {
-  isFeatureInertForGroup,
-  ORGANIZATION_SCOPED_FEATURE_NOTE,
-  PLATFORM_CATEGORY_ORDER,
-  PLATFORM_FEATURES,
-} from '@/lib/permission-groups/features'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   groupSearchParam,
@@ -70,6 +62,14 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import { isAccessControlAllowlistRow } from '@/ee/access-control/lib/block-access'
+import {
+  isFeatureInertForGroup,
+  ORGANIZATION_SCOPED_FEATURE_NOTE,
+  PLATFORM_CATEGORY_ORDER,
+  PLATFORM_FEATURES,
+} from '@/ee/access-control/lib/features'
+import type { PermissionGroupConfig } from '@/ee/access-control/lib/fields'
 import {
   allowlistRowsFromStored,
   toggleAllowlistRow,

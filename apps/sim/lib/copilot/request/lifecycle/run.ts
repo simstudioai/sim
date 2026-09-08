@@ -64,8 +64,8 @@ import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copil
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

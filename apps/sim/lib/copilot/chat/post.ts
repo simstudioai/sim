@@ -66,8 +66,6 @@ import {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
@@ -75,6 +73,8 @@ import {
   isWorkspaceAccessDeniedError,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600

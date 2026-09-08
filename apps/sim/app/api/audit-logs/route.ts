@@ -5,9 +5,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { listAuditLogs } from '@/lib/audit-logs/application/list-audit-logs'
-import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import { listAuditLogs } from '@/ee/audit-logs/lib/application/list-audit-logs'
+import { auditLogOperations } from '@/ee/audit-logs/lib/application/operations'
 
 export const dynamic = 'force-dynamic'
 

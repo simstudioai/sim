@@ -13,8 +13,6 @@ import {
   resolveLogFieldProjection,
 } from '@/lib/logs/log-projection'
 import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
 import {
   capabilityGovernedUserId,
@@ -23,6 +21,8 @@ import {
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
+import { PermissionGroupCapabilityError } from '@/ee/access-control/lib/capability-error'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 const logger = createLogger('V1LogsAPI')
 

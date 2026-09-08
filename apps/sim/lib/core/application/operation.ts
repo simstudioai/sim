@@ -3,7 +3,7 @@ import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types
 import {
   CAPABILITY_RULES,
   type StaticPermissionGroupCapability,
-} from '@/lib/permission-groups/capabilities'
+} from '@/ee/access-control/lib/capabilities'
 
 /**
  * A capability that governs the PRINCIPAL rather than any one operation.

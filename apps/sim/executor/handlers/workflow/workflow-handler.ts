@@ -14,13 +14,6 @@ import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
-  admitCustomBlockChildExecution,
-  buildCustomBlockCorrelation,
-  createChildCancellationSignal,
-  trackChildRun,
-} from '@/lib/workflows/custom-blocks/child-execution'
-import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
-import {
   resolveStartBlockRunIdentity,
   type StartBlockRunIdentity,
 } from '@/lib/workflows/executor/start-run-identity'
@@ -32,6 +25,13 @@ import {
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
+import {
+  admitCustomBlockChildExecution,
+  buildCustomBlockCorrelation,
+  createChildCancellationSignal,
+  trackChildRun,
+} from '@/ee/custom-blocks/lib/child-execution'
+import { getCustomBlockAuthority } from '@/ee/custom-blocks/lib/operations'
 import { Executor } from '@/executor'
 import {
   BlockType,

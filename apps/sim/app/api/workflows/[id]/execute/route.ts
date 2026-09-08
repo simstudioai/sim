@@ -103,7 +103,6 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
@@ -154,6 +153,7 @@ import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
 } from '@/ee/access-control/utils/permission-check'
+import { getCustomBlockRowsForWorkspace } from '@/ee/custom-blocks/lib/operations'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   BlockCompletionCallbackData,

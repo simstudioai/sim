@@ -41,7 +41,7 @@ const {
   mockMaterialize: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
@@ -80,10 +80,10 @@ vi.mock('@/app/api/v1/logs/meta', async () => {
   }
 })
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as getLogDetail } from '@/app/api/v1/logs/[id]/route'
 import { GET as getExecution } from '@/app/api/v1/logs/executions/[executionId]/route'
 import { GET as listLogs } from '@/app/api/v1/logs/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'

@@ -19,7 +19,7 @@ const { mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => (
   mockRecordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/session-policy', () => ({
+vi.mock('@/ee/session-policy/lib/session-policy', () => ({
   eagerClampOrgSessions: mockEagerClamp,
   invalidateSessionPolicyCache: vi.fn(),
 }))

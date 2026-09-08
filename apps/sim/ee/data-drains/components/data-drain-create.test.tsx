@@ -4,7 +4,7 @@
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DESTINATION_TYPES } from '@/lib/data-drains/types'
+import { DESTINATION_TYPES } from '@/ee/data-drains/lib/types'
 
 const { mockToastError, mockToastSuccess, mockUseCreateDataDrain, mockGuardBack } = vi.hoisted(
   () => ({

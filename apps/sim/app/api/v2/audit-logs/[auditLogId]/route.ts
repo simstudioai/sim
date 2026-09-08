@@ -5,9 +5,9 @@ import {
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { getAuditLog } from '@/lib/audit-logs/application/get-audit-log'
-import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import { formatV2AuditLogEntry } from '@/app/api/v2/audit-logs/format'
+import { getAuditLog } from '@/ee/audit-logs/lib/application/get-audit-log'
+import { auditLogOperations } from '@/ee/audit-logs/lib/application/operations'
 
 export const revalidate = 0
 

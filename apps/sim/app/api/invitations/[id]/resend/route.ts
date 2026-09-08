@@ -18,9 +18,9 @@ import {
   prepareInvitationResend,
   sendInvitationEmail,
 } from '@/lib/invitations/send'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,

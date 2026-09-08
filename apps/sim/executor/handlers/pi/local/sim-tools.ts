@@ -14,8 +14,8 @@ import {
   readWorkflowInputFieldsForTool,
   readWorkflowMetadataForTool,
 } from '@/lib/internal/workflows/read-tool-enrichment'
-import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getAllBlocks } from '@/blocks/registry'
+import { resolveCustomBlockToolBinding } from '@/ee/custom-blocks/lib/operations'
 import type { ToolInput } from '@/executor/handlers/agent/types'
 import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backend'
 import type { ExecutionContext } from '@/executor/types'

@@ -44,7 +44,7 @@ vi.mock('@/lib/credentials/orchestration', () => ({
   createCredentialRecord: mocks.createRecord,
   isProviderOutageCode: () => false,
 }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/credentials/oauth', () => ({ syncWorkspaceOAuthCredentialsForUser: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ checkWorkspaceAccess: vi.fn() }))
@@ -56,7 +56,7 @@ import {
   updateWorkspaceCredentialUseCase,
 } from '@/lib/credentials/application/credential-crud'
 import { credentialOperations } from '@/lib/credentials/application/operations'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const WORKSPACE_ID = 'workspace-1'
 const OTHER_WORKSPACE_ID = 'workspace-2'

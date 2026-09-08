@@ -73,7 +73,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
   refreshAccessTokenIfNeeded: mocks.refreshToken,
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
@@ -94,8 +94,8 @@ import {
   updateKnowledgeConnector,
   updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
-import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { capabilityRefusal } from '@/ee/access-control/lib/capability-assertions'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const crossWorkspaceContext = {
   workspaceId: 'workspace-b',

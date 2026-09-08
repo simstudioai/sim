@@ -29,7 +29,7 @@ const {
   mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
   /** The use case passes the organization the authorized context already loaded. */
   resolveVerifiedUserAccessControlContext: async (userId: string, workspaceId: string) => ({
@@ -70,8 +70,8 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
 const delegatedPrincipal = {

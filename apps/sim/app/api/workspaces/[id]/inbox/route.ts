@@ -10,9 +10,9 @@ import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 const logger = createLogger('InboxConfigAPI')
 

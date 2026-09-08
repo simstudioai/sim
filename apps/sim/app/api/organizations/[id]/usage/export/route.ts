@@ -5,16 +5,16 @@ import { exportOrganizationUsageContract } from '@/lib/api/contracts/organizatio
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
-  exportOrganizationUsageEvents,
-  type OrganizationUsageExportRow,
-} from '@/lib/billing/application/organization-usage/export-organization-usage-events'
-import {
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
 } from '@/lib/billing/core/usage-analytics'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  exportOrganizationUsageEvents,
+  type OrganizationUsageExportRow,
+} from '@/ee/organization-usage/lib/export-organization-usage-events'
 
 const logger = createLogger('OrganizationUsageExportAPI')
 

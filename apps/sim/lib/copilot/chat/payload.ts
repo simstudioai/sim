@@ -161,7 +161,7 @@ export async function buildIntegrationToolSchemas(
   let permissionConfig: IntegrationGateConfig | null = null
   if (workspaceId) {
     const { resolvePermissionGroupConfig } = await import(
-      '@/lib/permission-groups/config-scope.server'
+      '@/ee/access-control/lib/config-scope.server'
     )
     permissionConfig = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
   }

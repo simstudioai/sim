@@ -30,7 +30,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
     actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@sim/audit', () => ({
   AuditAction: {
     SANDBOX_CREATED: 'sandbox.created',
@@ -65,7 +65,6 @@ import {
   WorkspaceApiKeyAuthorizationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { SANDBOX_DELEGATION_AUDIENCE } from '@/lib/sandboxes/application/authorization'
 import { SandboxBuildBudgetExceededError } from '@/lib/sandboxes/application/build-budget'
 import {
@@ -75,6 +74,7 @@ import {
   listWorkspaceSandboxesUseCase,
   updateWorkspaceSandboxUseCase,
 } from '@/lib/sandboxes/application/use-cases'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const workspace = {
   workspaceId: 'workspace-1',

@@ -28,7 +28,7 @@ vi.mock('@sim/db', () => ({
   eq: mockEq,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('jose', () => ({
   decodeJwt: mockDecodeJwt,

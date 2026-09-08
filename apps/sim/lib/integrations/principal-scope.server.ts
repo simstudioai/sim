@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
+import { intersectAccessControlAllowlists } from '@/ee/access-control/lib/integration-allowlist'
 
 /**
  * The workspace integration gate, shared by every catalog that projects

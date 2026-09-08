@@ -11,14 +11,6 @@ import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  CAPABILITY_RULES,
-  type StaticPermissionGroupCapability,
-} from '@/lib/permission-groups/capabilities'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   getWorkspaceBilledAccountUserId,
@@ -26,6 +18,14 @@ import {
 } from '@/lib/workspaces/utils'
 import type { TableAccessPrincipal } from '@/app/api/table/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
+import {
+  CAPABILITY_RULES,
+  type StaticPermissionGroupCapability,
+} from '@/ee/access-control/lib/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()

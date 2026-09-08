@@ -36,7 +36,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
   resolveWorkspaceAccess: mocks.resolveWorkspaceAccess,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/logs/public-queries', () => ({
   getPublicWorkflowLog: mocks.getPublicWorkflowLog,
@@ -73,8 +73,8 @@ vi.mock('@/blocks/registry', () => ({
   getBlockByToolName: vi.fn(() => undefined),
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/v1/logs/executions/[executionId]/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const rateLimit = {
   allowed: true,

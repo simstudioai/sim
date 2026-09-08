@@ -6,8 +6,6 @@ import { ArrowLeft, Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
-import type { CADENCE_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
-import { DESTINATION_TYPES } from '@/lib/data-drains/types'
 import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
@@ -26,6 +24,8 @@ import {
   DESTINATION_OPTIONS,
   SOURCE_OPTIONS,
 } from '@/ee/data-drains/labels'
+import type { CADENCE_TYPES, SOURCE_TYPES } from '@/ee/data-drains/lib/types'
+import { DESTINATION_TYPES } from '@/ee/data-drains/lib/types'
 
 const logger = createLogger('DataDrainCreate')
 

@@ -36,8 +36,8 @@ vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
-import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { PermissionGroupCapabilityError } from '@/ee/access-control/lib/capability-error'
+import { withPermissionGroupScope } from '@/ee/access-control/lib/request-scope.server'
 import {
   assertPermissionsAllowed,
   CustomToolsNotAllowedError,

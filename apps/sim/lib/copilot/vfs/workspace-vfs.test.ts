@@ -38,7 +38,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
   readWorkspaceFileContent: { execute: readWorkspaceFileContentExecute },
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   isCustomBlocksEligible,
   listCustomBlocksWithInputsForWorkspace,
 }))

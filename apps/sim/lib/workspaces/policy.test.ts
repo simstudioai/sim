@@ -34,14 +34,14 @@ const {
   mockIsOrganizationPermissionRegimeActive: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mockGetUserPermissionConfigForOrganization,
   getUserPermissionConfig: mockGetUserPermissionConfig,
   getEntitledOrganizationPermissionConfig: mockGetEntitledOrganizationPermissionConfig,
   isOrganizationPermissionRegimeActive: mockIsOrganizationPermissionRegimeActive,
 }))
 
-vi.mock('@/lib/permission-groups/locks', () => ({
+vi.mock('@/ee/access-control/lib/locks', () => ({
   acquirePermissionGroupOrgLock: mockAcquirePermissionGroupOrgLock,
 }))
 

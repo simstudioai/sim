@@ -73,7 +73,7 @@ vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
 }))
 vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   isCustomBlocksEligibleForOrganization: mocks.isCustomBlocksEligibleForOrganization,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({

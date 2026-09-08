@@ -27,7 +27,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   isOrgAdminRole: (role: string | null | undefined) => role === 'owner' || role === 'admin',
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
   getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
   resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
@@ -37,8 +37,8 @@ vi.mock('@/lib/billing/core/organization', () => ({
   getOrganizationMemberUsageSnapshot: mockGetUsageSnapshot,
 }))
 
-import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/members/route'
+import { capabilityRefusal } from '@/ee/access-control/lib/capability-assertions'
 
 const mockGetSession = authMockFns.mockGetSession
 

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
+import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import {
   getCustomBlockManageContext,
   isCustomBlocksDeploymentEnabled,
-} from '@/lib/workflows/custom-blocks/operations'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/custom-blocks/lib/operations'
 
 export type ManageContext = NonNullable<Awaited<ReturnType<typeof getCustomBlockManageContext>>>
 

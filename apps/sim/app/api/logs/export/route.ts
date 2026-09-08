@@ -13,12 +13,12 @@ import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { logQuerySelectsCost } from '@/lib/logs/log-projection'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   capabilityDeniedBy,
   capabilityRefusal,
-} from '@/lib/permission-groups/capability-assertions'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/access-control/lib/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 
 const logger = createLogger('LogsExportAPI')
 const LOG_EXPORT_PAGE_SIZE = 100

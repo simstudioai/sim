@@ -11,8 +11,8 @@ import {
 } from '@/lib/credentials/application/provider-catalog'
 import { getWorkspaceCredential } from '@/lib/credentials/queries'
 import { credentialProviderMatchesService } from '@/lib/oauth/utils'
-import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { assertWorkspaceCapability } from '@/ee/access-control/lib/capability-assertions'
 
 export interface ResolvedCredentialConnectionTarget {
   provider: OAuthCredentialProviderCatalogEntry

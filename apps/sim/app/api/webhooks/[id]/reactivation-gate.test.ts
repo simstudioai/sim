@@ -17,13 +17,13 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({ cleanupExternalWebhook: vi.fn() }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { PATCH } from '@/app/api/webhooks/[id]/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const ACTOR_ID = 'actor-1'
 

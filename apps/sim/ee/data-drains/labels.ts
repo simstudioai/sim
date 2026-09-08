@@ -1,4 +1,4 @@
-import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
+import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/ee/data-drains/lib/types'
 
 export const SOURCE_LABELS: Record<(typeof SOURCE_TYPES)[number], string> = {
   workflow_logs: 'Workflow logs',

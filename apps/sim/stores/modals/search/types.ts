@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
-import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import type { BlockConfig } from '@/blocks/types'
+import type { IsToolAllowed } from '@/ee/access-control/lib/operation-access'
 
 /**
  * Represents a block item in the search results.

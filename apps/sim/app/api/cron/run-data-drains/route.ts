@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { dispatchDueDrains } from '@/lib/data-drains/dispatcher'
+import { dispatchDueDrains } from '@/ee/data-drains/lib/dispatcher'
 
 const logger = createLogger('CronRunDataDrains')
 

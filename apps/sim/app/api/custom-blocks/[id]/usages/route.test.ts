@@ -17,7 +17,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => mockOperations)
+vi.mock('@/ee/custom-blocks/lib/operations', () => mockOperations)
 
 import { GET } from '@/app/api/custom-blocks/[id]/usages/route'
 

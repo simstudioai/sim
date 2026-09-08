@@ -17,10 +17,6 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
@@ -32,6 +28,10 @@ import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('WebhooksAPI')
 

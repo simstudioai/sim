@@ -10,14 +10,14 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   CustomBlockValidationError,
   type CustomBlockWithInputs,
   isCustomBlocksEligibleForOrganization,
   listCustomBlocksWithInputs,
   publishCustomBlock,
-} from '@/lib/workflows/custom-blocks/operations'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/custom-blocks/lib/operations'
 
 const logger = createLogger('CustomBlocksAPI')
 

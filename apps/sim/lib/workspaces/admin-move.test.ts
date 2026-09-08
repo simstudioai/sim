@@ -161,7 +161,7 @@ vi.mock('@/lib/invitations/send', () => ({
   sendInvitationEmail,
 }))
 vi.mock('@/lib/table/billing', () => ({ invalidateWorkspaceTableLimitsCache }))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({ deleteCustomBlock }))
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({ deleteCustomBlock }))
 vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
   cleanupSourceOrganizationArtifactsTx,
   collectWorkspaceCredentialSummary,

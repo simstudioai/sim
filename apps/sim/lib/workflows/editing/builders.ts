@@ -8,15 +8,6 @@ import {
 } from '@sim/workflow-types/workflow'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
-import {
-  createToolAccessGate,
-  isOperationAllowed,
-  MODEL_SUBBLOCK_ID,
-  OPERATION_SUBBLOCK_ID,
-} from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
@@ -28,6 +19,15 @@ import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { overlayVisibility } from '@/blocks/visibility/context'
+import { capabilityDeniedBy } from '@/ee/access-control/lib/capability-assertions'
+import type { PermissionGroupConfig } from '@/ee/access-control/lib/fields'
+import { createModelAccessGate } from '@/ee/access-control/lib/model-access'
+import {
+  createToolAccessGate,
+  isOperationAllowed,
+  MODEL_SUBBLOCK_ID,
+  OPERATION_SUBBLOCK_ID,
+} from '@/ee/access-control/lib/operation-access'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'

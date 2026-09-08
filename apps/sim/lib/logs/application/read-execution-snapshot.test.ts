@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@sim/db', () => ({ db: { select: mocks.select } }))
 
@@ -57,7 +57,7 @@ vi.mock('@/lib/logs/execution/hydrate-child-traces', () => ({
 }))
 
 import { readExecutionSnapshotUseCase } from '@/lib/logs/application/read-execution-snapshot'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const WORKSPACE_ID = 'workspace-1'
 

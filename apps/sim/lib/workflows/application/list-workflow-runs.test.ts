@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
@@ -48,8 +48,8 @@ vi.mock('@/lib/workflows/executor/execution-queries', () => ({
 
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'

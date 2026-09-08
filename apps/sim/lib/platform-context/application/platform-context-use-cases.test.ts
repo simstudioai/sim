@@ -34,13 +34,13 @@ vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mocks.getWorkspaceHostContextForViewer,
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   resolveVerifiedUserAccessControlContext: mocks.resolveVerifiedUserAccessControlContext,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { readAccountBilling } from '@/lib/platform-context/application/read-account-billing'
 import { readEnterpriseContext } from '@/lib/platform-context/application/read-enterprise-context'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const workspace = {
   workspaceId: 'workspace-1',

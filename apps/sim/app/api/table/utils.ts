@@ -10,12 +10,6 @@ import {
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
-import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -25,6 +19,12 @@ import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
 import type { TableLockKind } from '@/lib/table/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
+import type { StaticPermissionGroupCapability } from '@/ee/access-control/lib/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 /**
  * Gate for the internal predicate-grammar table query route (`tables-v2-api`

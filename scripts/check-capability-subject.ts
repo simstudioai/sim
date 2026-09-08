@@ -60,7 +60,7 @@
  *   route reads the whole log and blanks fields. `resolveLogFieldProjection` is
  *   on the sink list instead, which is the stronger check of the two: B asks
  *   only whether a module was imported, C asks what subject its sink was given.
- *   A capability decider added under `lib/permission-groups/` belongs on B; one
+ *   A capability decider added under `ee/access-control/lib/` belongs on B; one
  *   whose call site is legitimately a route belongs on C.
  * - The sink list is enumerated, not derived. A new helper that takes a user id
  *   and resolves a capability is invisible until it is added to
@@ -94,10 +94,10 @@ const GOVERNED = 'capabilityGovernedUserId'
  * these has stepped around the middleware and is deciding for itself.
  */
 const CAPABILITY_MODULES = [
-  '@/lib/permission-groups/capability-assertions',
-  '@/lib/permission-groups/capabilities',
-  '@/lib/permission-groups/resolve.server',
-  '@/lib/permission-groups/config-scope.server',
+  '@/ee/access-control/lib/capability-assertions',
+  '@/ee/access-control/lib/capabilities',
+  '@/ee/access-control/lib/resolve.server',
+  '@/ee/access-control/lib/config-scope.server',
   /**
    * The user-global resolver, which answers a capability for a caller who names
    * no workspace by falling back to the organization's default group. It takes
@@ -105,7 +105,7 @@ const CAPABILITY_MODULES = [
    * be one property access away from the key creator with nothing in between —
    * and being absent from this list is precisely how it would stay green.
    */
-  '@/lib/permission-groups/user-scope.server',
+  '@/ee/access-control/lib/user-scope.server',
 ]
 
 /**

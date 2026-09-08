@@ -25,10 +25,6 @@ import {
   getMcpToolIssue as validateMcpTool,
 } from '@/lib/mcp/tool-validation'
 import type { McpToolSchema } from '@/lib/mcp/types'
-import {
-  NO_DENIED_OPERATIONS,
-  OPERATION_SUBBLOCK_ID,
-} from '@/lib/permission-groups/operation-access'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -59,6 +55,10 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
+import {
+  NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
+} from '@/ee/access-control/lib/operation-access'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'

@@ -1,4 +1,3 @@
-import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { resolveFieldNoun } from '@/lib/workflows/blocks/canvas-sentence-noun'
 import { resolveTriggerSentence } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import type {
@@ -7,6 +6,7 @@ import type {
   CanvasSentenceClause,
   SubBlockConfig,
 } from '@/blocks/types'
+import { OPERATION_SUBBLOCK_ID } from '@/ee/access-control/lib/operation-access'
 
 /**
  * Resolves a block's declarative card summary into rendered segments.

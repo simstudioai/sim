@@ -85,7 +85,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: mocks.sandboxAccess,
 }))
 vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: mocks.blockVisibility }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mocks.permissionConfig,
   /**
    * The use case passes the organization it already loaded, so the resolver

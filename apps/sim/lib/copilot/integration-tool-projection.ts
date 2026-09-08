@@ -6,20 +6,20 @@ import {
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
+import type { PermissionGroupConfig } from '@/ee/access-control/lib/fields'
 import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
-} from '@/lib/permission-groups/integration-allowlist'
+} from '@/ee/access-control/lib/integration-allowlist'
 import {
   collectDeniedOperationIds,
   createToolAccessGate,
   getOperationOptionIds,
   type IsToolAllowed,
   NO_DENIED_OPERATIONS,
-} from '@/lib/permission-groups/operation-access'
-import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
+} from '@/ee/access-control/lib/operation-access'
 
 /** The slice of a permission group the integration gate reads. */
 export type IntegrationGateConfig = Pick<

@@ -29,10 +29,10 @@ vi.mock('@/lib/logs/stats-queries', () => ({
   readLogStatsSegments: mocks.readLogStatsSegments,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
-import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/stats/route'
+import { capabilityRefusal } from '@/ee/access-control/lib/capabilities'
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 

@@ -3,14 +3,14 @@ import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { getAllBlocks } from '@/blocks/registry'
+import { overlayVisibility } from '@/blocks/visibility/context'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
-} from '@/lib/permission-groups/integration-allowlist'
-import { getAllBlocks } from '@/blocks/registry'
-import { overlayVisibility } from '@/blocks/visibility/context'
+} from '@/ee/access-control/lib/integration-allowlist'
 
 export const GetTriggerBlocksInput = z.object({})
 export const GetTriggerBlocksResult = z.object({

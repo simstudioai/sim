@@ -10,10 +10,13 @@ import { updateOrganizationSessionPolicyContract } from '@/lib/api/contracts/org
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
-import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { isBillingEnabled, isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  eagerClampOrgSessions,
+  invalidateSessionPolicyCache,
+} from '@/ee/session-policy/lib/session-policy'
 
 const logger = createLogger('SessionPolicyAPI')
 

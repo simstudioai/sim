@@ -29,7 +29,7 @@ import {
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('CopilotToolPermissionAPI')
 

@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 import { applyOperationsToWorkflowState } from './engine'
 
 vi.mock('@/blocks/registry', () => {

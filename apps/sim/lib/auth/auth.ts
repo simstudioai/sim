@@ -38,10 +38,7 @@ import {
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
-import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
-import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -132,7 +129,10 @@ import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
+import { clampExpiryForSession } from '@/ee/session-policy/lib/session-policy'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
+import { admitSsoUser } from '@/ee/sso/lib/application/admit-sso-user'
+import { resolveSsoCallbackProviderId } from '@/ee/sso/lib/callback-provider'
 
 const logger = createLogger('Auth')
 

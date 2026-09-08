@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
-vi.mock('@/lib/audit-logs/application/list-audit-logs', () => ({
+vi.mock('@/ee/audit-logs/lib/application/list-audit-logs', () => ({
   listAuditLogs: { operation: { id: 'audit_logs.list' }, execute: mocks.execute },
 }))
 

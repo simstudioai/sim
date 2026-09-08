@@ -1,7 +1,7 @@
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { projectIntegrationToolsForViewer } from '@/lib/copilot/integration-tool-projection'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 import { stripVersionSuffix } from '@/tools/utils'
 
 export async function executeListIntegrationTools(

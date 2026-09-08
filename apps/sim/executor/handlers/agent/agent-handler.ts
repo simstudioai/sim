@@ -40,7 +40,6 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
-import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
@@ -50,6 +49,7 @@ import {
   validateBlockType,
   validateModelProvider,
 } from '@/ee/access-control/utils/permission-check'
+import { resolveCustomBlockToolBinding } from '@/ee/custom-blocks/lib/operations'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import {

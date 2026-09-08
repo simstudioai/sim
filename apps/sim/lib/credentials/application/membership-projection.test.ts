@@ -25,13 +25,13 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
   getUserOrganization: mockGetUserOrganization,
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: vi.fn(),
   getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
   resolveVerifiedUserAccessControlContext: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/credentials/members', () => ({
   leaveCredentialMembership: mockLeave,
@@ -41,8 +41,8 @@ vi.mock('@/lib/credentials/members', () => ({
   upsertCredentialMember: vi.fn(),
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { DELETE, GET } from '@/app/api/credentials/memberships/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const USER_ID = 'user-1'
 const GOVERNED_WORKSPACE = 'workspace-governed'

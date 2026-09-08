@@ -7,7 +7,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const { mockResolveBinding } = vi.hoisted(() => ({ mockResolveBinding: vi.fn() }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   resolveCustomBlockToolBinding: mockResolveBinding,
 }))
 

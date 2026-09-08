@@ -16,11 +16,11 @@ import {
   getServiceAccountProviderForProviderId,
   providerIdsForService,
 } from '@/lib/oauth/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/access-control/lib/capability-assertions'
 
 export const dynamic = 'force-dynamic'
 

@@ -19,11 +19,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/audit-logs/application/list-audit-logs', () => ({
+vi.mock('@/ee/audit-logs/lib/application/list-audit-logs', () => ({
   listAuditLogs: { operation: { id: 'audit_logs.list' }, execute: mocks.list },
 }))
 
-vi.mock('@/lib/audit-logs/application/get-audit-log', () => ({
+vi.mock('@/ee/audit-logs/lib/application/get-audit-log', () => ({
   getAuditLog: { operation: { id: 'audit_logs.read_detail' }, execute: mocks.get },
 }))
 

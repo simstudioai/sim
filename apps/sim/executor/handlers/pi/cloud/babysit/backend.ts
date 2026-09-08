@@ -7,12 +7,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import { type PiSandboxRunner, withPiSandbox } from '@/lib/execution/remote-sandbox'
 import {
   resolvePiRunLifetimeMs,
   resolvePiSandboxLifetimeMs,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { sleepUntilAborted } from '@/ee/data-drains/lib/destinations/utils'
 import {
   assertBabysitPinned,
   type BabysitCheck,

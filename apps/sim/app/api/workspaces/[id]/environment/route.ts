@@ -26,14 +26,14 @@ import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUserEntityPermissions,
   getWorkspaceById,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
 

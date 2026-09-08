@@ -6,7 +6,6 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { parseFolderPath } from '@/lib/folders/paths'
-import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   buildWorkspaceFileFolderPathMap,
   listWorkspaceFileFolders,
@@ -25,6 +24,7 @@ import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-file
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
+import { assertWorkspaceCapability } from '@/ee/access-control/lib/capability-assertions'
 
 export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 const MAX_REQUESTED_FILE_IDS = 1_000

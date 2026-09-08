@@ -9,9 +9,9 @@ import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
-import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { capabilityRefusal } from '@/ee/access-control/lib/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/ee/access-control/lib/user-scope.server'
 
 const logger = createLogger('ApiKeysAPI')
 

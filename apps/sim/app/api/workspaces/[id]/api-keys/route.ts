@@ -16,12 +16,12 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('WorkspaceApiKeysAPI')
 

@@ -5,9 +5,9 @@ import { parseRequest } from '@/lib/api/server'
 import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { listWorkspaceExportJobs } from '@/lib/table/jobs/service'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('TableJobsAPI')
 

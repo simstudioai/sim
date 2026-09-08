@@ -45,7 +45,7 @@ const {
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
 vi.mock('@/lib/copilot/block-visibility', () => ({ getBlockVisibilityForCopilot }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({ getUserPermissionConfig }))
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({ getUserPermissionConfig }))
 vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
 }))

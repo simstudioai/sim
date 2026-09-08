@@ -1,10 +1,10 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 import {
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
-} from '@/lib/permission-groups/integration-allowlist'
+} from '@/ee/access-control/lib/integration-allowlist'
 import { BlockType } from '@/executor/constants'
 
 /**

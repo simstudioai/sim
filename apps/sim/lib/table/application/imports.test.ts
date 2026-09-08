@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   getUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
@@ -76,7 +76,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.getWorkspaceFile,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableImportUseCase,
   completeTableImportUseCase,
@@ -84,6 +83,7 @@ import {
   createTableImportUseCase,
   readTableImportUseCase,
 } from '@/lib/table/application/imports'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const createdAt = new Date('2026-08-01T00:00:00.000Z')
 const record = {

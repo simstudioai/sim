@@ -168,7 +168,7 @@ vi.mock('@/lib/copilot/resources/persistence', () => ({
   persistChatResources,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: {
@@ -177,7 +177,7 @@ vi.mock('@/lib/copilot/chat-status', () => ({
 }))
 
 import { chatOperations } from '@/lib/copilot/application/operations'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 import { handleUnifiedChatPost } from './post'
 
 describe('handleUnifiedChatPost', () => {

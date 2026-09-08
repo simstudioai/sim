@@ -46,7 +46,7 @@ describe('runtimeSpecifiers', () => {
 
 describe('resolveSpecifier', () => {
   it('resolves an @/ specifier against apps/sim', () => {
-    expect(resolveSpecifier('@/lib/permission-groups/capabilities', __filename)).toMatch(
+    expect(resolveSpecifier('@/ee/access-control/lib/capabilities', __filename)).toMatch(
       /apps\/sim\/lib\/permission-groups\/capabilities\.ts$/
     )
   })
@@ -80,14 +80,14 @@ describe('the guarded roots', () => {
      * still pass if `findViolations` silently stopped finding anything.
      */
     const violations = findViolations({
-      root: 'lib/permission-groups/model-access.ts',
+      root: 'ee/access-control/lib/model-access.ts',
       forbidden: FORBIDDEN_PREFIXES,
     })
     expect(violations).toHaveLength(1)
     expect(violations[0].forbidden).toBe('providers/utils.ts')
     expect(violations[0].reason).toBe(FORBIDDEN_PREFIXES['providers/'])
     expect(violations[0].path).toEqual([
-      'lib/permission-groups/model-access.ts',
+      'ee/access-control/lib/model-access.ts',
       'providers/utils.ts',
     ])
   })

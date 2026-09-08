@@ -23,7 +23,6 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { adminV1UpdateOrganizationDataRetentionContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -34,6 +33,7 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
+import { getForeignWorkspaceTargetsReason } from '@/ee/data-retention/lib/retention'
 
 const logger = createLogger('AdminOrganizationDataRetentionAPI')
 

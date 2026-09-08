@@ -14,21 +14,21 @@ import {
   isDeploymentGatedIntegrationType,
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import {
-  DEFAULT_PERMISSION_GROUP_CONFIG,
-  type PermissionGroupConfig,
-} from '@/lib/permission-groups/fields'
-import {
-  intersectAccessControlAllowlists,
-  resolveAccessControlBlockType,
-} from '@/lib/permission-groups/integration-allowlist'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
-import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import {
+  DEFAULT_PERMISSION_GROUP_CONFIG,
+  type PermissionGroupConfig,
+} from '@/ee/access-control/lib/fields'
+import {
+  intersectAccessControlAllowlists,
+  resolveAccessControlBlockType,
+} from '@/ee/access-control/lib/integration-allowlist'
+import { createModelAccessGate } from '@/ee/access-control/lib/model-access'
+import { createToolAccessGate } from '@/ee/access-control/lib/operation-access'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig

@@ -6,9 +6,9 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {

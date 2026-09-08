@@ -101,7 +101,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
   encryptSecret: encryptionMockFns.mockEncryptSecret,
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/child-execution', () => ({
+vi.mock('@/ee/custom-blocks/lib/child-execution', () => ({
   admitCustomBlockChildExecution: mockAdmitCustomBlockChildExecution,
   trackChildRun: mockTrackChildRun,
   buildCustomBlockCorrelation: (params: Record<string, any>) =>
@@ -129,7 +129,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+vi.mock('@/ee/custom-blocks/lib/operations', () => ({
   getCustomBlockAuthority: mockGetCustomBlockAuthority,
 }))
 

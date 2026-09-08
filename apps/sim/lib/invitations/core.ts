@@ -18,7 +18,6 @@ import { isOrgAdminRole, PERMISSION_RANK, type PermissionType } from '@sim/platf
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, inArray, lte, sql } from 'drizzle-orm'
-import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -46,6 +45,7 @@ import {
 } from '@/lib/workspaces/organization-workspaces'
 import { getWorkspaceWithOwner, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getInvitePlanCategoryForUser } from '@/lib/workspaces/policy'
+import { applySessionPolicyToNewMember } from '@/ee/session-policy/lib/session-policy'
 
 const logger = createLogger('InvitationCore')
 

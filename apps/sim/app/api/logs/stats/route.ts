@@ -12,9 +12,9 @@ import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { logQuerySelectsCost } from '@/lib/logs/log-projection'
 import { buildDashboardStats, resolveLogStatsWindow } from '@/lib/logs/stats'
 import { readLogStatsBounds, readLogStatsSegments } from '@/lib/logs/stats-queries'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 const logger = createLogger('LogsStatsAPI')
 

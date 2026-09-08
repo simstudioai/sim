@@ -52,7 +52,7 @@ const {
   mockPerformFullDeploy: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
@@ -113,12 +113,12 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as getFiles } from '@/app/api/v1/files/route'
 import { GET as getKnowledge } from '@/app/api/v1/knowledge/route'
 import { GET as getLogs } from '@/app/api/v1/logs/route'
 import { GET as getTables } from '@/app/api/v1/tables/route'
 import { POST as deployWorkflow } from '@/app/api/v1/workflows/[id]/deploy/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'

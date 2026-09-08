@@ -21,7 +21,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { PermissionGroupCapabilityError } from '@/ee/access-control/lib/capability-error'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),

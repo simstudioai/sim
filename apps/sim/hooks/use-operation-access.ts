@@ -10,7 +10,7 @@ import {
   type OperationGateBlock,
   pickDefaultOperation,
   type SeedValueGate,
-} from '@/lib/permission-groups/operation-access'
+} from '@/ee/access-control/lib/operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 export interface OperationAccess {

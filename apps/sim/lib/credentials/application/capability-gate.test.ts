@@ -33,7 +33,7 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
   getUserOrganization: mockGetUserOrganization,
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: vi.fn(),
   getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
   resolveVerifiedUserAccessControlContext: vi.fn(),
@@ -51,11 +51,11 @@ vi.mock('@/lib/credentials/oauth-accounts', () => ({
   OAuthProviderRevocationError: class OAuthProviderRevocationError extends Error {},
 }))
 
-import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as listConnectedAccounts } from '@/app/api/auth/accounts/route'
 import { GET as listConnections } from '@/app/api/auth/oauth/connections/route'
 import { POST as disconnect } from '@/app/api/auth/oauth/disconnect/route'
+import { capabilityRefusal } from '@/ee/access-control/lib/capability-assertions'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const USER_ID = 'user-1'
 const ORGANIZATION_ID = 'org-1'

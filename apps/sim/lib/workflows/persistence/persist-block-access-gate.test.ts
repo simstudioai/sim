@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   lock: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@sim/workflow-persistence/save', () => ({
   saveWorkflowToNormalizedTables: mocks.saveRaw,
 }))

@@ -18,8 +18,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertWorkspaceCapability,
   capabilityDeniedBy,
-} from '@/lib/permission-groups/capability-assertions'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+} from '@/ee/access-control/lib/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 
 /**
  * The person whose permission group governs `principal`, or `null` when no

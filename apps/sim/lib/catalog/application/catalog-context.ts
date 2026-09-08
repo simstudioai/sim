@@ -3,9 +3,6 @@ import { type BlockVisibilityState, getBlockVisibility } from '@/lib/core/config
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { allowedIntegrationTypes, principalUserId } from '@/lib/integrations/principal-scope.server'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
-import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
@@ -14,6 +11,9 @@ import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import { resolveAccessControlBlockType } from '@/ee/access-control/lib/integration-allowlist'
+import { listCustomBlocksWithInputsForWorkspace } from '@/ee/custom-blocks/lib/operations'
 
 /**
  * The per-caller, per-workspace state every catalog read is filtered through.

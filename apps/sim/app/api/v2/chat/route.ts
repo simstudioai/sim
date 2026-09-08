@@ -45,16 +45,16 @@ import {
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
-import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
+import { CAPABILITY_RULES } from '@/ee/access-control/lib/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/ee/access-control/lib/capability-assertions'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 3600

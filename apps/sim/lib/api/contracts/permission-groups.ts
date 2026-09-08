@@ -4,7 +4,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   permissionGroupConfigSchema,
   permissionGroupReadShape,
-} from '@/lib/permission-groups/fields'
+} from '@/ee/access-control/lib/fields'
 
 /**
  * The wire shape of a resolved config: every key present, in registry order.

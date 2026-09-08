@@ -14,7 +14,7 @@ describe('assertion B — a v1 route may not decide a capability for itself', ()
   it('reports a route that imports the user-global resolver directly', () => {
     const { findings } = auditSource(
       ROUTE,
-      "import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'\n"
+      "import { isCapabilityWithheldForUser } from '@/ee/access-control/lib/user-scope.server'\n"
     )
 
     expect(findings).toHaveLength(1)
@@ -22,11 +22,11 @@ describe('assertion B — a v1 route may not decide a capability for itself', ()
   })
 
   it.each([
-    '@/lib/permission-groups/capability-assertions',
-    '@/lib/permission-groups/capabilities',
-    '@/lib/permission-groups/resolve.server',
-    '@/lib/permission-groups/config-scope.server',
-    '@/lib/permission-groups/user-scope.server',
+    '@/ee/access-control/lib/capability-assertions',
+    '@/ee/access-control/lib/capabilities',
+    '@/ee/access-control/lib/resolve.server',
+    '@/ee/access-control/lib/config-scope.server',
+    '@/ee/access-control/lib/user-scope.server',
   ])('reports a route that imports %s', (module) => {
     const { findings } = auditSource(ROUTE, `import { thing } from '${module}'\n`)
 
@@ -36,7 +36,7 @@ describe('assertion B — a v1 route may not decide a capability for itself', ()
   it('allows the middleware itself, which is where the decision belongs', () => {
     const { findings } = auditSource(
       MIDDLEWARE,
-      "import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'\n"
+      "import { isCapabilityWithheldForUser } from '@/ee/access-control/lib/user-scope.server'\n"
     )
 
     expect(findings).toEqual([])
@@ -78,7 +78,7 @@ describe('assertion C — the two renames that made it a no-op', () => {
     const { findings, sinks } = auditSource(
       MIDDLEWARE,
       [
-        "import { assertWorkspaceCapability as assertCap } from '@/lib/permission-groups/capability-assertions'",
+        "import { assertWorkspaceCapability as assertCap } from '@/ee/access-control/lib/capability-assertions'",
         "await assertCap(rateLimit.userId, workspaceId, 'tables.use')",
       ].join('\n')
     )

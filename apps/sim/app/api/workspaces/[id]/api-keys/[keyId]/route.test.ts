@@ -13,7 +13,7 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 const { mockGetUserEntityPermissions } = vi.hoisted(() => ({
   mockGetUserEntityPermissions: vi.fn(),
@@ -31,9 +31,9 @@ vi.mock('@sim/audit', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { DELETE, PUT } from '@/app/api/workspaces/[id]/api-keys/[keyId]/route'
+import { capabilityRefusal } from '@/ee/access-control/lib/capabilities'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const mockGetSession = authMockFns.mockGetSession
 

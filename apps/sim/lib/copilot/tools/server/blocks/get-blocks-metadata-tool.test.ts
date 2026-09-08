@@ -9,7 +9,7 @@ const { mockGetUserPermissionConfig, mockIsIntegrationDeploymentAvailable } = vi
   mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 

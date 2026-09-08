@@ -11,7 +11,7 @@ const { mockCheckAccess, mockQueryRows, mockGetUserPermissionConfig } = vi.hoist
   mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
@@ -28,8 +28,8 @@ vi.mock('@/lib/table/rows/service', () => ({
   queryRows: mockQueryRows,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/table/[tableId]/export/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 /** Table with an id-native column whose stable id (`col_email`) differs from its display name. */
 

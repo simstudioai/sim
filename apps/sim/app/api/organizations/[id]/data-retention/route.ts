@@ -13,10 +13,10 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { coercePiiLanguage } from '@/lib/guardrails/pii-entities'
+import { getForeignWorkspaceTargetsReason } from '@/ee/data-retention/lib/retention'
 
 const logger = createLogger('DataRetentionAPI')
 

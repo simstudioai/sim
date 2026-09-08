@@ -5,29 +5,29 @@ import {
   isInvitationsDisabled,
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
 import {
   CAPABILITY_RULES,
   refuseCapability,
   type StaticCapabilityRule,
-} from '@/lib/permission-groups/capabilities'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+} from '@/ee/access-control/lib/capabilities'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
+import type { PermissionGroupConfig } from '@/ee/access-control/lib/fields'
 import {
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
-} from '@/lib/permission-groups/integration-allowlist'
-import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
+} from '@/ee/access-control/lib/integration-allowlist'
+import { createToolAccessGate } from '@/ee/access-control/lib/operation-access'
 import {
   getUserPermissionConfig,
   getUserPermissionConfigForOrganization,
   mergeEnvAllowlist,
-} from '@/lib/permission-groups/resolve.server'
+} from '@/ee/access-control/lib/resolve.server'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
 /**
- * The permission-group resolution layer lives in `@/lib/permission-groups`
+ * The permission-group resolution layer lives in `@/ee/access-control/lib`
  * because ~24 domain `operations.ts` modules reach it through the authorization
  * funnel, and none of them may pull in this module's provider, block-registry
  * and billing imports. Re-exported here so the surfaces that already read the
@@ -40,7 +40,7 @@ export {
   resolveVerifiedUserAccessControlContext,
   resolveWorkspaceGroup,
   type UserAccessControlContext,
-} from '@/lib/permission-groups/resolve.server'
+} from '@/ee/access-control/lib/resolve.server'
 
 const logger = createLogger('PermissionCheck')
 

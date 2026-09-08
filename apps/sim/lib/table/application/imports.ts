@@ -9,7 +9,6 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
-import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   type TableAuthorizationContext,
   tableDelegationPolicy,
@@ -45,6 +44,7 @@ import {
   createUploadPartUrls,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
+import { assertWorkspaceCapability } from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('TableImportApplication')
 

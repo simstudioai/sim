@@ -8,7 +8,7 @@ import { runDataDrainContract } from '@/lib/api/contracts/data-drains'
 import { parseRequest } from '@/lib/api/server'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeDrainAccess, loadDrain } from '@/lib/data-drains/access'
+import { authorizeDrainAccess, loadDrain } from '@/ee/data-drains/lib/access'
 
 const logger = createLogger('DataDrainRunAPI')
 

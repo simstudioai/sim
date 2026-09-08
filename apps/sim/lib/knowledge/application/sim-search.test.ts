@@ -67,7 +67,7 @@ vi.mock('@/lib/knowledge/application/connector-access', () => ({
   startKnowledgeConnectorMemberEnrollment: { execute: mocks.enroll },
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
@@ -102,7 +102,7 @@ vi.mock('@/connectors/registry', () => ({
 }))
 
 import { connectSimSearchConnector } from '@/lib/knowledge/application/sim-search'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const workspaceContext = {
   workspaceId: 'workspace-1',

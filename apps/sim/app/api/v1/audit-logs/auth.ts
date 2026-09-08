@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import {
   type EnterpriseAuditContext,
   resolveEnterpriseAuditAccess,
-} from '@/lib/audit-logs/authorization'
+} from '@/ee/audit-logs/lib/authorization'
 
 type AuthResult =
   | { success: true; context: EnterpriseAuditContext }

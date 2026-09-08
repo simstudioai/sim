@@ -4,8 +4,8 @@ import { getCustomBlockUsageCountsContract } from '@/lib/api/contracts/custom-bl
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCustomBlockUsageCounts } from '@/lib/workflows/custom-blocks/operations'
 import { authorizeManage } from '@/app/api/custom-blocks/[id]/authorize-manage'
+import { getCustomBlockUsageCounts } from '@/ee/custom-blocks/lib/operations'
 
 type RouteContext = { params: Promise<{ id: string }> }
 

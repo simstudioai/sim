@@ -24,7 +24,6 @@ import { createLogger } from '@sim/logger'
 import { and, count, desc } from 'drizzle-orm'
 import { v1AdminListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
-import { buildFilterConditions } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
@@ -33,6 +32,7 @@ import {
   listResponse,
 } from '@/app/api/v1/admin/responses'
 import { type AdminAuditLog, createPaginationMeta, toAdminAuditLog } from '@/app/api/v1/admin/types'
+import { buildFilterConditions } from '@/ee/audit-logs/lib/query'
 
 const logger = createLogger('AdminAuditLogsAPI')
 

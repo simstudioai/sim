@@ -16,8 +16,8 @@ import {
   removeCredentialMember,
   upsertCredentialMember,
 } from '@/lib/credentials/members'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
 
 interface CredentialMemberResourceInput {
   credentialId: string

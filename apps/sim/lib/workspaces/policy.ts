@@ -15,15 +15,15 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import {
-  capabilityRefusal,
-  isEntitledOrganizationCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
-import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
-import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
 } from '@/lib/workspaces/policy-constants'
+import {
+  capabilityRefusal,
+  isEntitledOrganizationCapabilityWithheld,
+} from '@/ee/access-control/lib/capability-assertions'
+import { acquirePermissionGroupOrgLock } from '@/ee/access-control/lib/locks'
+import { isOrganizationPermissionRegimeActive } from '@/ee/access-control/lib/resolve.server'
 
 const logger = createLogger('WorkspacePolicy')
 
@@ -191,7 +191,7 @@ export async function resolveGoverningPermissionGroupOrganization(params: {
  *
  * LOCK ORDER: `organization-mutation:<org>` → `user-billing-identity:<user>` →
  * `<user>:<org>` → `permission_group:<org>` (a leaf lock — see
- * `lib/permission-groups/locks.ts`). The permission-group lock is taken LAST,
+ * `ee/access-control/lib/locks.ts`). The permission-group lock is taken LAST,
  * and only AFTER live membership has been confirmed, so a caller who turns out
  * not to belong to the organization never serializes against its admins.
  *

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
-import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
+import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/ee/data-drains/lib/types'
 
 /** AWS S3 bucket: 3-63 chars, lowercase alnum + . / -, see s3.ts for full rules. */
 const S3_BUCKET_NAME_RE = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/

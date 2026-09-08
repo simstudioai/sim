@@ -16,11 +16,11 @@ import {
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/workspace-context'
+import { isCapabilityWithheldForUser } from '@/ee/access-control/lib/user-scope.server'
 
 export type BillingReadScope =
   | { kind: 'account'; userId: string }

@@ -37,10 +37,10 @@ vi.mock('@/lib/auth/hybrid', async () => {
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mocks.permissions,
 }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 import { withMcpAuth } from '@/lib/mcp/middleware'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 

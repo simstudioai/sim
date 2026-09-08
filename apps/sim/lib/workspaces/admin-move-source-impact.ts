@@ -26,7 +26,7 @@ import { isSubscriptionBackedEntitlement } from '@/lib/billing/core/subscription
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
-import { getCustomBlockUsageCounts } from '@/lib/workflows/custom-blocks/operations'
+import { getCustomBlockUsageCounts } from '@/ee/custom-blocks/lib/operations'
 
 /**
  * Everything the source organization loses when a workspace leaves it, plus the

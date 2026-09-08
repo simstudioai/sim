@@ -10,12 +10,6 @@ import { updatePermissionGroupContract } from '@/lib/api/contracts/permission-gr
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { PERMISSION_GROUP_CONSTRAINTS } from '@/lib/permission-groups/constraints'
-import {
-  type PermissionGroupConfig,
-  parsePermissionGroupConfig,
-} from '@/lib/permission-groups/fields'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import {
   type AllMembersConflict,
   authorizeOrgAccessControl,
@@ -28,6 +22,12 @@ import {
   loadGroupInOrganization,
   type ScopeConflict,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
+import { PERMISSION_GROUP_CONSTRAINTS } from '@/ee/access-control/lib/constraints'
+import {
+  type PermissionGroupConfig,
+  parsePermissionGroupConfig,
+} from '@/ee/access-control/lib/fields'
+import { acquirePermissionGroupOrgLock } from '@/ee/access-control/lib/locks'
 
 const logger = createLogger('OrganizationPermissionGroup')
 

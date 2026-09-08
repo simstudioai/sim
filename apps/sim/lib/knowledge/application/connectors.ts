@@ -66,9 +66,9 @@ import type {
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
-import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getConnectorMeta } from '@/connectors/registry'
+import { CAPABILITY_RULES, refuseCapability } from '@/ee/access-control/lib/capabilities'
+import { resolvePermissionGroupConfig } from '@/ee/access-control/lib/config-scope.server'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string

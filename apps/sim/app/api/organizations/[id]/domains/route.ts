@@ -14,10 +14,10 @@ import {
 } from '@/lib/api/contracts/organization'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { generateVerificationToken, toDomainResponse } from '@/lib/auth/sso/domain-verification'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { generateVerificationToken, toDomainResponse } from '@/ee/sso/lib/domain-verification'
 
 const logger = createLogger('OrgDomainsAPI')
 

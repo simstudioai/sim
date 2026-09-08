@@ -4,7 +4,7 @@
  * light.
  *
  * `@/lib/core/application` is imported by ~every domain `operations.ts`, and
- * `lib/permission-groups/capabilities.ts` sits below it, so anything either one
+ * `ee/access-control/lib/capabilities.ts` sits below it, so anything either one
  * reaches at runtime is loaded by every surface that authorizes anything —
  * routes, jobs, the realtime prune graph and every use-case unit test. The
  * provider registry, the block/tool registries, the executor and the
@@ -34,14 +34,14 @@
  * FIVE entry points, listed in {@link GUARDED_ROOTS}: `lib/core/application`,
  * three permission-group modules (`capabilities`, `capability-assertions`,
  * `config-scope.server`) and the route wrapper. It is NOT "all of
- * `lib/permission-groups/`", and the difference is not a rounding error:
+ * `ee/access-control/lib/`", and the difference is not a rounding error:
  *
- *  - `lib/permission-groups/model-access.ts` imports `providers/utils.ts`
+ *  - `ee/access-control/lib/model-access.ts` imports `providers/utils.ts`
  *    directly, on purpose — deciding which models a group allows is the one
  *    permission-group question that genuinely needs the provider registry. It is
  *    unguardable by construction, and the graph test uses it as its proof that
  *    the walker can still fail.
- *  - `lib/permission-groups/user-scope.server.ts` — the user-global resolver —
+ *  - `ee/access-control/lib/user-scope.server.ts` — the user-global resolver —
  *    reaches the workflow graph today, through
  *    `lib/billing/organizations/membership.ts` -> `lib/billing/core/usage.ts` ->
  *    `components/emails`. Guarding it is therefore not free: it would go red on
@@ -98,13 +98,13 @@ export const FORBIDDEN_PREFIXES: Record<string, string> = {
  * domain, so it has no business loading those graphs.
  *
  * These sit on top of FORBIDDEN_PREFIXES for this root only. They are NOT
- * app-wide bans — `lib/permission-groups/resolve.server.ts` legitimately reads
+ * app-wide bans — `ee/access-control/lib/resolve.server.ts` legitimately reads
  * the subscription to decide whether an organization is on an enterprise plan,
  * which is why `lib/billing/` stays allowed for the funnel roots below.
  */
 const ROUTE_WRAPPER_FORBIDDEN_PREFIXES: Record<string, string> = {
   'lib/billing/': 'the billing graph — the route wrapper makes no plan or subscription decision',
-  'lib/permission-groups/resolve.server':
+  'ee/access-control/lib/resolve.server':
     'the permission-group resolver — the wrapper only opens the memo scope; the resolver ' +
     'belongs to the gate call sites, and it is what dragged billing in',
   'lib/auth': 'the auth graph — the wrapper wraps handlers that authenticate, it does not',
@@ -124,9 +124,9 @@ export interface GuardedRoot {
  */
 export const GUARDED_ROOTS: readonly GuardedRoot[] = [
   { root: 'lib/core/application/index.ts', forbidden: FORBIDDEN_PREFIXES },
-  { root: 'lib/permission-groups/capabilities.ts', forbidden: FORBIDDEN_PREFIXES },
-  { root: 'lib/permission-groups/capability-assertions.ts', forbidden: FORBIDDEN_PREFIXES },
-  { root: 'lib/permission-groups/config-scope.server.ts', forbidden: FORBIDDEN_PREFIXES },
+  { root: 'ee/access-control/lib/capabilities.ts', forbidden: FORBIDDEN_PREFIXES },
+  { root: 'ee/access-control/lib/capability-assertions.ts', forbidden: FORBIDDEN_PREFIXES },
+  { root: 'ee/access-control/lib/config-scope.server.ts', forbidden: FORBIDDEN_PREFIXES },
   {
     root: 'lib/core/utils/with-route-handler.ts',
     forbidden: { ...FORBIDDEN_PREFIXES, ...ROUTE_WRAPPER_FORBIDDEN_PREFIXES },

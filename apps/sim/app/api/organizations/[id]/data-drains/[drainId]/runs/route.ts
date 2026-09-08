@@ -5,8 +5,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { listDataDrainRunsContract } from '@/lib/api/contracts/data-drains'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeDrainAccess, loadDrain } from '@/lib/data-drains/access'
-import { serializeDrainRun } from '@/lib/data-drains/serializers'
+import { authorizeDrainAccess, loadDrain } from '@/ee/data-drains/lib/access'
+import { serializeDrainRun } from '@/ee/data-drains/lib/serializers'
 
 const DEFAULT_LIMIT = 25
 

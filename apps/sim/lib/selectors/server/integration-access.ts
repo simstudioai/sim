@@ -2,12 +2,12 @@ import type { Principal } from '@sim/auth/principal'
 import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import { createLogger } from '@sim/logger'
 import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import type {
   SelectorCredentialPolicy,
   ServerSelectorAttachment,
 } from '@/lib/selectors/server/types'
+import { isBlockTypeAccessControlExempt } from '@/ee/access-control/lib/block-access'
+import { resolveAccessControlBlockType } from '@/ee/access-control/lib/integration-allowlist'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('SelectorIntegrationAccess')

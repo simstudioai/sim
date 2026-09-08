@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   performCreateTableFromCsv: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/table/jobs/service', () => ({
   listWorkspaceExportJobs: mocks.listWorkspaceExportJobs,
 }))
@@ -58,9 +58,9 @@ vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST as importCsv } from '@/app/api/table/import-csv/route'
 import { GET as listJobs } from '@/app/api/table/jobs/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 const TABLE_ID = '22222222-2222-4222-8222-222222222222'

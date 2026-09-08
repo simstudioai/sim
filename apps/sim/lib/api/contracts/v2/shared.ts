@@ -134,7 +134,7 @@ import {
  * whose page boundary is not expressible as one, mints its own — a bare
  * `encodeCursor({ version })` on `GET /workflows/{workflowId}/versions` and
  * `encodeCursor({ email })` on the workspace member list, the audit-log and run-log
- * codecs in `lib/audit-logs/query.ts` and `lib/logs/list-logs.ts`, the table-row
+ * codecs in `ee/audit-logs/lib/query.ts` and `lib/logs/list-logs.ts`, the table-row
  * codec in `lib/table/rows/cursor.ts`, and a usage-event id passed straight
  * through by `GET /billing/logs`. Those tokens stay opaque and untouched, but the
  * three whose sequence a caller can re-filter are wrapped in

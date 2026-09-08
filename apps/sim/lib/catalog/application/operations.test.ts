@@ -15,12 +15,12 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 /**
  * Operation metadata is executable policy, not documentation: it decides which

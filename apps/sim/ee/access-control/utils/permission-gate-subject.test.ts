@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   getUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
   getUserPermissionConfigForOrganization: vi.fn(),
   mergeEnvAllowlist: (config: unknown) => config,

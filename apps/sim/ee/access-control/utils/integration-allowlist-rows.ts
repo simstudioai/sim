@@ -1,4 +1,4 @@
-import { toAccessControlAllowlist } from '@/lib/permission-groups/integration-allowlist'
+import { toAccessControlAllowlist } from '@/ee/access-control/lib/integration-allowlist'
 
 /**
  * The stored `allowedIntegrations` re-expressed as editor rows: successor-

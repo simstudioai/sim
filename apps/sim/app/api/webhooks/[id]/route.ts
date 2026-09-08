@@ -19,12 +19,12 @@ import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('WebhookAPI')
 

@@ -62,9 +62,9 @@ import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/us
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
+import { listCustomBlocksWithInputsForWorkspace } from '@/ee/custom-blocks/lib/operations'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 

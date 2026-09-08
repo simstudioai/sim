@@ -13,7 +13,6 @@ import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblock
 import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import {
   getExecutionDeadlineAt,
   getTimeoutErrorMessage,
@@ -27,8 +26,6 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { waitForChildRuns } from '@/lib/workflows/custom-blocks/child-execution'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { resolveStartBlockRunIdentity } from '@/lib/workflows/executor/start-run-identity'
 import {
   loadDeployedWorkflowState,
@@ -38,6 +35,12 @@ import {
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
+import { waitForChildRuns } from '@/ee/custom-blocks/lib/child-execution'
+import { getCustomBlockRowsForWorkspace } from '@/ee/custom-blocks/lib/operations'
+import {
+  type EffectivePiiRedaction,
+  resolveEffectivePiiRedaction,
+} from '@/ee/data-retention/lib/retention'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {

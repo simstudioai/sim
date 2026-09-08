@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/webhooks/env-resolver', () => ({
@@ -46,8 +46,8 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
   findConflictingWebhookPathOwner: mocks.findConflictingWebhookPathOwner,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/webhooks/route'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 describe('POST /api/webhooks polling configuration', () => {
   beforeEach(() => {

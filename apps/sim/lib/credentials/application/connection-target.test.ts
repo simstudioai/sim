@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   assertWorkspaceCapability: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/capability-assertions', () => ({
+vi.mock('@/ee/access-control/lib/capability-assertions', () => ({
   assertWorkspaceCapability: mocks.assertWorkspaceCapability,
 }))
 

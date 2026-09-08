@@ -8,7 +8,6 @@ import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
-import { type RetentionHoursKey, resolveEffectiveRetentionHours } from '@/lib/billing/retention'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
@@ -16,6 +15,10 @@ import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isBillingEnabled, isDataRetentionEnabled } from '@/lib/core/config/env-flags'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import {
+  type RetentionHoursKey,
+  resolveEffectiveRetentionHours,
+} from '@/ee/data-retention/lib/retention'
 
 const logger = createLogger('RetentionDispatcher')
 

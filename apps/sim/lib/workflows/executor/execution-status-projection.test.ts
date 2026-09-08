@@ -29,7 +29,7 @@ const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() 
   mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/ee/access-control/lib/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
@@ -43,8 +43,8 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
   getAutomaticResumeWaitingMetadata: vi.fn().mockReturnValue(null),
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/ee/access-control/lib/fields'
 
 const BLOCK_ID = 'block-1'
 

@@ -24,7 +24,7 @@ import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/
 import {
   capabilityRefusal,
   isOrganizationCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+} from '@/ee/access-control/lib/capability-assertions'
 
 const logger = createLogger('OrganizationRosterAPI')
 

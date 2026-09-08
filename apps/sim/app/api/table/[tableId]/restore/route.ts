@@ -4,12 +4,12 @@ import { tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getTableById } from '@/lib/table'
 import { performRestoreTable } from '@/lib/table/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { orchestrationOutcomeErrorResponse } from '@/app/api/table/utils'
+import { isWorkspaceCapabilityWithheld } from '@/ee/access-control/lib/capability-assertions'
+import { capabilityRefusalResponse } from '@/ee/access-control/lib/capability-response'
 
 const logger = createLogger('RestoreTableAPI')
 

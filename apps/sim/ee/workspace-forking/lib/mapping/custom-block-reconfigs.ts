@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
-import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { resolveCustomBlockToolBinding } from '@/ee/custom-blocks/lib/operations'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import {
   customBlockInputStorageKey,

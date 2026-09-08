@@ -25,7 +25,7 @@ const {
   mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
+vi.mock('@/ee/access-control/lib/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
@@ -46,8 +46,8 @@ vi.mock('@/lib/core/utils/concurrency', () => ({
   mapWithConcurrency: mockMapWithConcurrency,
 }))
 
-import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/export/route'
+import { capabilityRefusal } from '@/ee/access-control/lib/capabilities'
 
 const mockGetSession = authMockFns.mockGetSession
 const STARTED_AT = new Date('2026-08-23T12:00:00.000Z')
