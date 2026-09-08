@@ -1,4 +1,4 @@
-import { Terminal as TerminalTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { Terminal as TerminalTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /** A permission decision or terminal handoff must stay reachable while an agent is waiting. */

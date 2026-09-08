@@ -27,13 +27,15 @@ import {
   WebScrape,
   WebSearch,
 } from '@/lib/mothership/generated/tool-catalog-v1'
+import {
+  resolveNamedCliToolDisplayTitle,
+  resolveResourceDisplayName,
+  type ToolResourceContext,
+} from '@/lib/mothership/tools/client/resource-display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/mothership/tools/tool-display'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -109,47 +111,25 @@ function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function resolveWorkflowNameForDisplay(workflowId: unknown): string | undefined {
-  const id = stringParam(workflowId)
-  if (!id) return undefined
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-  if (!workspaceId) return undefined
-  return getWorkflowById(workspaceId, id)?.name
+function resolveWorkflowNameForDisplay(
+  workflowId: unknown,
+  context: ToolResourceContext
+): string | undefined {
+  return resolveResourceDisplayName('workflow', workflowId, context)
 }
 
-function resolveTargetWorkflowName(args: Record<string, unknown> | undefined): string | undefined {
+function resolveTargetWorkflowName(
+  args: Record<string, unknown> | undefined,
+  context: ToolResourceContext
+): string | undefined {
   const explicitName = stringParam(args?.workflowName) ?? stringParam(args?.name)
   if (explicitName) return explicitName
-
   const registry = useWorkflowRegistry.getState()
-  return resolveWorkflowNameForDisplay(args?.workflowId ?? registry.hydration.workflowId)
-}
-
-/**
- * Table name for a nested `args.tableId`. Tables reach the client through
- * React Query rather than a Zustand store, so the cached workspace list is
- * the synchronous source a title can read; an uncached id simply stays
- * unnamed rather than blocking the row.
- */
-function resolveTableNameForDisplay(tableId: unknown): string | undefined {
-  const id = stringParam(tableId)
-  if (!id) return undefined
-  const cache = getQueryClient().getQueryCache()
-  for (const query of cache.findAll({ queryKey: tableKeys.lists() })) {
-    const data = query.state.data
-    const tables = Array.isArray(data)
-      ? data
-      : isRecordLike(data) && Array.isArray((data as { tables?: unknown }).tables)
-        ? ((data as { tables: unknown[] }).tables as unknown[])
-        : []
-    for (const table of tables) {
-      if (!isRecordLike(table)) continue
-      if (stringParam(table.id) !== id) continue
-      const name = stringParam(table.name)
-      if (name) return name
-    }
-  }
-  return undefined
+  const currentWorkflowId =
+    registry.hydration.workspaceId === context.workspaceId
+      ? registry.hydration.workflowId
+      : undefined
+  return resolveWorkflowNameForDisplay(args?.workflowId ?? currentWorkflowId, context)
 }
 
 function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
@@ -249,17 +229,23 @@ const WORKFLOW_SCOPED_TOOL_IDS = new Set<string>([
   'set_global_workflow_variables',
 ])
 
-export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+export function resolveToolDisplayTitle(
+  name: string,
+  args?: Record<string, unknown>,
+  context: ToolResourceContext = {
+    workspaceId: useWorkflowRegistry.getState().hydration.workspaceId ?? undefined,
+  }
+): string {
   // Cases that enrich the title with live workspace/block names from the client
   // stores. Everything else is resolved by the shared name+args resolver, which
   // is the single source of truth for tool-call titles.
   if (name === RunWorkflow.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId, context)
     return workflowName ? `Running ${workflowName}` : 'Running workflow'
   }
 
   if (name === RunFromBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId, context)
     const blockName = resolveBlockNameForDisplay(args?.startBlockId)
     if (workflowName && blockName) return `Running ${workflowName} from ${blockName}`
     if (workflowName) return `Running ${workflowName}`
@@ -268,7 +254,7 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   }
 
   if (name === RunWorkflowUntilBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId, context)
     const blockName = resolveBlockNameForDisplay(args?.stopAfterBlockId)
     if (workflowName && blockName) return `Running ${workflowName} until ${blockName}`
     if (workflowName) return `Running ${workflowName}`
@@ -277,13 +263,13 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   }
 
   if (name === EditWorkflow.id) {
-    const workflowName = resolveTargetWorkflowName(args)
+    const workflowName = resolveTargetWorkflowName(args, context)
     return workflowName ? `Editing ${workflowName}` : 'Editing workflow'
   }
 
   if (name === QueryLogs.id) {
     const workflowName =
-      resolveWorkflowNameForDisplay(args?.workflowId) ?? stringParam(args?.workflowName)
+      resolveWorkflowNameForDisplay(args?.workflowId, context) ?? stringParam(args?.workflowName)
     if (workflowName) return `Querying logs for ${workflowName}`
   }
 
@@ -297,7 +283,8 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   if (TABLE_SCOPED_TOOL_IDS.has(name)) {
     const nested = isRecordLike(args?.args) ? (args?.args as Record<string, unknown>) : undefined
     const tableName =
-      stringParam(args?.tableName) ?? resolveTableNameForDisplay(nested?.tableId ?? args?.tableId)
+      stringParam(args?.tableName) ??
+      resolveResourceDisplayName('table', nested?.tableId ?? args?.tableId, context)
     if (nested || tableName) {
       return getToolDisplayTitle(name, {
         ...args,
@@ -308,7 +295,7 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   }
 
   if (WORKFLOW_SCOPED_TOOL_IDS.has(name) && !stringParam(args?.workflowName)) {
-    const workflowName = resolveTargetWorkflowName(args)
+    const workflowName = resolveTargetWorkflowName(args, context)
     // Block-scoped tools carry a blockId for the same reason; resolve it too,
     // so a row says which block ran rather than an opaque id (or nothing).
     const blockName = stringParam(args?.blockName) ?? resolveBlockNameForDisplay(args?.blockId)
@@ -320,54 +307,10 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
     if (workflowName || blockName) return getToolDisplayTitle(name, enriched)
   }
 
-  // CLI rows: name the resource. The command's first positional is the id;
-  // recover it by inverting the worker's name derivation (path tokens joined
-  // with '_'), then resolve through the live stores. "Editing workflow"
-  // becomes "Editing Onboarding"; "Updating table row" becomes "Updating
-  // Leads row". Only a successful name lookup changes anything.
-  if (name.startsWith('cli_workflow') || name.startsWith('cli_tables')) {
-    const positional = cliFirstPositional(name, args)
-    if (positional) {
-      const base = getToolDisplayTitle(name, args)
-      const resourceName = name.startsWith('cli_tables')
-        ? resolveTableNameForDisplay(positional)
-        : resolveWorkflowNameForDisplay(positional)
-      if (resourceName) {
-        const noun = name.startsWith('cli_tables') ? /\btable\b/ : /\bworkflow\b/
-        if (noun.test(base)) return base.replace(noun, resourceName)
-        return `${base}: ${resourceName}`
-      }
-    }
-  }
+  const resourceTitle = resolveNamedCliToolDisplayTitle(name, args, context)
+  if (resourceTitle) return resourceTitle
 
   return getToolDisplayTitle(name, args)
-}
-
-/**
- * The first positional argument after a CLI command path — the resource id.
- * Inverts the worker's `cli_<path tokens joined by _>` naming to find where the
- * command path ends in argv, mirroring its flag handling exactly.
- */
-function cliFirstPositional(name: string, args?: Record<string, unknown>): string | undefined {
-  const argv = Array.isArray(args?.args) ? (args.args as unknown[]) : undefined
-  if (!argv) return undefined
-  const tokens: string[] = []
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i]
-    if (typeof token !== 'string') break
-    if (token === '--output') {
-      i++
-      continue
-    }
-    if (token.startsWith('-')) break
-    tokens.push(token)
-  }
-  let joined = 'cli'
-  for (let i = 0; i < tokens.length; i++) {
-    joined += `_${(tokens[i] ?? '').replace(/-/g, '_')}`
-    if (joined === name) return tokens[i + 1]
-  }
-  return undefined
 }
 
 function decodeStreamingString(value: string): string {

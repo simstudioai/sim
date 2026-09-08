@@ -197,12 +197,18 @@ describe('AgentGroup inline main activity', () => {
 
   it('preserves manual expansion when more main-agent tools arrive', () => {
     const items = [tool('success'), tool('executing')]
-    const render = (nextItems: AgentGroupItem[]) => act(() => {
-      root.render(createElement(AgentGroup, {
-        agentName: 'mothership', agentLabel: 'Sim', items: nextItems,
-        isStreaming: true, isLaneOpen: true,
-      }))
-    })
+    const render = (nextItems: AgentGroupItem[]) =>
+      act(() => {
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items: nextItems,
+            isStreaming: true,
+            isLaneOpen: true,
+          })
+        )
+      })
     render(items)
     const header = () => container.querySelector<HTMLElement>('[role="button"][aria-expanded]')
     expect(header()?.getAttribute('aria-expanded')).toBe('false')
@@ -213,6 +219,53 @@ describe('AgentGroup inline main activity', () => {
     act(() => header()?.click())
     render([...items, tool('executing')])
     expect(header()?.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it.each([
+    ['success', 'Checked search requirements'],
+    ['error', 'Failed checking search requirements'],
+    ['cancelled', 'Stopped checking search requirements'],
+  ] as const)('uses an honest grouped activity label after %s', (status, expected) => {
+    const item = tool(status)
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: {
+            id: 'search',
+            title: 'Checking search requirements',
+            completedTitle: 'Checked search requirements',
+          },
+          items: [item],
+          isStreaming: true,
+          isLaneOpen: true,
+        })
+      )
+    )
+    expect(container.textContent).toBe(expected)
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+  })
+
+  it('keeps the concrete running call distinct from grouped activity intent', () => {
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: {
+            id: 'search',
+            title: 'Checking requirements',
+            completedTitle: 'Checked requirements',
+          },
+          items: [tool('executing')],
+          isStreaming: true,
+          isLaneOpen: true,
+        })
+      )
+    )
+    expect(container.textContent).toBe('Searching')
+    expect(container.textContent).not.toContain('Checking requirements')
   })
 
   it('paces the active status in place and expands the full completed history', () => {
