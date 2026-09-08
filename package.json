@@ -118,8 +118,9 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.3.1",
-    "@next/env": "16.3.1",
+    "next": "16.3.3",
+    "@next/env": "16.3.3",
+    "@xmldom/xmldom": "0.8.15",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
@@ -132,8 +133,8 @@
     "deepmerge-ts": "8.0.0",
     "dompurify": "3.4.13",
     "engine.io": "6.6.8",
-    "fast-uri": "3.1.5",
-    "hono": "4.12.34",
+    "fast-uri": "3.1.6",
+    "hono": "4.13.5",
     "ip-address": "10.5.0",
     "postcss": "8.5.26",
     "protobufjs": "7.6.5",
@@ -142,10 +143,10 @@
     "ws": "8.21.3"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "16.3.1",
-    "@next/swc-darwin-x64": "16.3.1",
-    "@next/swc-linux-arm64-gnu": "16.3.1",
-    "@next/swc-linux-x64-gnu": "16.3.1"
+    "@next/swc-darwin-arm64": "16.3.3",
+    "@next/swc-darwin-x64": "16.3.3",
+    "@next/swc-linux-arm64-gnu": "16.3.3",
+    "@next/swc-linux-x64-gnu": "16.3.3"
   },
   "devDependencies": {
     "@babel/parser": "7.29.2",
@@ -169,7 +170,7 @@
     "react": "19.2.4",
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "turbo": "2.9.14",
     "unified": "11.0.5",
     "unist-util-visit": "5.1.0",
