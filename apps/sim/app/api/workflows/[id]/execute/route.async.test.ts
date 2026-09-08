@@ -682,74 +682,81 @@ describe('workflow execute async route', () => {
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
-  it('binds a Copilot workflow tool only to its server log and waits before terminal SSE', async () => {
-    let releasePostExecution: (() => void) | undefined
-    loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          releasePostExecution = resolve
-        })
-    )
-
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-    const bodyPromise = response.text()
-
-    await vi.waitFor(() => {
-      expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalledTimes(1)
-    })
-    let streamCompleted = false
-    void bodyPromise.then(() => {
-      streamCompleted = true
-    })
-    await Promise.resolve()
-
-    expect(response.status).toBe(200)
-    expect(streamCompleted).toBe(false)
-    expect(mockSettleClientWorkflowToolExecution).not.toHaveBeenCalled()
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
-      'copilot-tool-1',
-      'execution-123',
-      'client'
-    )
-    expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
-    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
-      executionId: 'execution-123',
-      requestId: 'req-12345678',
-      source: 'workflow',
-      workflowId: 'workflow-1',
-      triggerType: 'copilot',
-      copilotToolCallId: 'copilot-tool-1',
-    })
-    const executionArgs = mockExecuteWorkflowCore.mock.calls[0][0]
-    expect(executionArgs).not.toHaveProperty('copilotToolCallId')
-    expect(executionArgs.snapshot.metadata).not.toHaveProperty('copilotToolCallId')
-
-    releasePostExecution?.()
-    const body = await bodyPromise
-    expect(body).toContain('execution:completed')
-    await vi.waitFor(() =>
-      expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
-        'copilot-tool-1',
-        expect.any(String)
+  it.each([true, false])(
+    'binds a Copilot tool and waits for logs before terminal SSE (draft=%s)',
+    async (useDraftState) => {
+      let releasePostExecution: (() => void) | undefined
+      loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releasePostExecution = resolve
+          })
       )
-    )
-  })
 
-  it('settles failed Copilot execution after the route finishes error handling', async () => {
-    mockExecuteWorkflowCore.mockRejectedValueOnce(new Error('Execution rejected'))
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-    expect(await response.text()).toContain('execution:error')
-    await vi.waitFor(() =>
-      expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+      const response = await POST(createBoundCopilotExecutionRequest({ useDraftState }), {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
+      const bodyPromise = response.text()
+
+      await vi.waitFor(() => {
+        expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalledTimes(1)
+      })
+      let streamCompleted = false
+      void bodyPromise.then(() => {
+        streamCompleted = true
+      })
+      await Promise.resolve()
+
+      expect(response.status).toBe(200)
+      expect(streamCompleted).toBe(false)
+      expect(mockSettleClientWorkflowToolExecution).not.toHaveBeenCalled()
+      expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
         'copilot-tool-1',
-        expect.any(String)
+        'execution-123',
+        'client'
       )
-    )
-  })
+      expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
+      expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
+        executionId: 'execution-123',
+        requestId: 'req-12345678',
+        source: 'workflow',
+        workflowId: 'workflow-1',
+        triggerType: 'copilot',
+        copilotToolCallId: 'copilot-tool-1',
+      })
+      const executionArgs = mockExecuteWorkflowCore.mock.calls[0][0]
+      expect(executionArgs.snapshot.metadata.useDraftState).toBe(useDraftState)
+      expect(executionArgs).not.toHaveProperty('copilotToolCallId')
+      expect(executionArgs.snapshot.metadata).not.toHaveProperty('copilotToolCallId')
+
+      releasePostExecution?.()
+      const body = await bodyPromise
+      expect(body).toContain('execution:completed')
+      await vi.waitFor(() =>
+        expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+          'copilot-tool-1',
+          expect.any(String)
+        )
+      )
+    }
+  )
+
+  it.each([true, false])(
+    'settles failed Copilot execution after error handling (draft=%s)',
+    async (useDraftState) => {
+      mockExecuteWorkflowCore.mockRejectedValueOnce(new Error('Execution rejected'))
+      const response = await POST(createBoundCopilotExecutionRequest({ useDraftState }), {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
+      expect(await response.text()).toContain('execution:error')
+      await vi.waitFor(() =>
+        expect(mockSettleClientWorkflowToolExecution).toHaveBeenCalledExactlyOnceWith(
+          'copilot-tool-1',
+          expect.any(String)
+        )
+      )
+    }
+  )
 
   it('settles a detached Copilot stream only after its cancelled execution and cleanup end', async () => {
     let releaseCleanup: (() => void) | undefined

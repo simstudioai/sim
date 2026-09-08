@@ -1669,8 +1669,9 @@ async function handleExecutePost(
       }
     }
 
-    if (shouldUseDraftState) {
-      reqLogger.info('Using SSE console log streaming (manual execution)')
+    /** Bound Copilot clients consume execution events for both draft and deployed state. */
+    if (shouldUseDraftState || copilotToolCallId) {
+      reqLogger.info('Using SSE console log streaming')
     } else {
       reqLogger.info('Using streaming API response')
 
