@@ -19,6 +19,10 @@ export const workspaceCredentialKeys = {
   details: () => [...workspaceCredentialKeys.all, 'detail'] as const,
   detail: (credentialId?: string) =>
     [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
+  detailForWorkspace: (credentialId?: string, workspaceId?: string) =>
+    workspaceId
+      ? ([...workspaceCredentialKeys.detail(credentialId), 'workspace', workspaceId] as const)
+      : workspaceCredentialKeys.detail(credentialId),
   members: (credentialId?: string) =>
     [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
   /**

@@ -26,6 +26,7 @@ import {
 } from '@/lib/api/contracts/organization-credentials'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
+import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
@@ -60,13 +61,18 @@ export function useWorkspaceCredentials(params: {
   })
 }
 
-export function useWorkspaceCredential(credentialId?: string, enabled = true) {
+export function useWorkspaceCredential(
+  credentialId?: string,
+  enabled = true,
+  workspaceId?: string
+) {
   return useQuery<WorkspaceCredential | null>({
-    queryKey: workspaceCredentialKeys.detail(credentialId),
+    queryKey: workspaceCredentialKeys.detailForWorkspace(credentialId, workspaceId),
     queryFn: async ({ signal }) => {
       if (!credentialId) return null
       const data = await requestJson(getWorkspaceCredentialContract, {
         params: { id: credentialId },
+        query: { workspaceId },
         signal,
       })
       return data.credential ?? null
@@ -103,6 +109,7 @@ export function useCreateWorkspaceCredential() {
     },
     onSettled: () =>
       Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
         queryClient.invalidateQueries({
           queryKey: workspaceCredentialKeys.lists(),
         }),
@@ -114,7 +121,7 @@ export function useCreateWorkspaceCredential() {
   })
 }
 
-export function useUpdateWorkspaceCredential() {
+export function useUpdateWorkspaceCredential(workspaceId?: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -130,6 +137,7 @@ export function useUpdateWorkspaceCredential() {
       return requestJson(updateWorkspaceCredentialContract, {
         params: { id: credentialId },
         body,
+        query: { workspaceId },
       })
     },
     onMutate: async (variables) => {
@@ -142,7 +150,7 @@ export function useUpdateWorkspaceCredential() {
         queryKey: workspaceCredentialKeys.lists(),
       })
       const previousDetail = queryClient.getQueryData<WorkspaceCredential | null>(
-        workspaceCredentialKeys.detail(variables.credentialId)
+        workspaceCredentialKeys.detailForWorkspace(variables.credentialId, workspaceId)
       )
 
       /** Applies the in-flight edit to one cached credential. */
@@ -163,7 +171,7 @@ export function useUpdateWorkspaceCredential() {
        * Discard to restore the pre-save value over the committed one.
        */
       queryClient.setQueryData<WorkspaceCredential | null>(
-        workspaceCredentialKeys.detail(variables.credentialId),
+        workspaceCredentialKeys.detailForWorkspace(variables.credentialId, workspaceId),
         (old) => (old ? withEdit(old) : old)
       )
 
@@ -185,13 +193,14 @@ export function useUpdateWorkspaceCredential() {
       }
       if (context?.previousDetail !== undefined) {
         queryClient.setQueryData(
-          workspaceCredentialKeys.detail(variables.credentialId),
+          workspaceCredentialKeys.detailForWorkspace(variables.credentialId, workspaceId),
           context.previousDetail
         )
       }
     },
     onSettled: (_data, _error, variables) =>
       Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
         queryClient.invalidateQueries({
           queryKey: workspaceCredentialKeys.detail(variables.credentialId),
         }),
@@ -206,15 +215,19 @@ export function useUpdateWorkspaceCredential() {
   })
 }
 
-export function useDeleteWorkspaceCredential() {
+export function useDeleteWorkspaceCredential(workspaceId?: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (credentialId: string) => {
-      return requestJson(deleteWorkspaceCredentialContract, { params: { id: credentialId } })
+      return requestJson(deleteWorkspaceCredentialContract, {
+        params: { id: credentialId },
+        query: { workspaceId },
+      })
     },
     onSettled: (_data, _error, credentialId) =>
       Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) }),
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY }),

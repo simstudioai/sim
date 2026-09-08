@@ -3,12 +3,19 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  member,
   user,
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
@@ -57,7 +64,13 @@ export async function getPersonalTokenCredentials(
     .innerJoin(workspace, eq(workspace.id, workspaceId))
     .where(
       and(
-        eq(credential.workspaceId, workspaceId),
+        or(
+          eq(credential.workspaceId, workspaceId),
+          and(
+            eq(credential.organizationId, workspace.organizationId),
+            isNull(credential.workspaceId)
+          )
+        ),
         eq(credential.type, 'personal_token'),
         credentialId === undefined ? undefined : eq(credential.id, credentialId),
         eq(credential.createdBy, userId),
@@ -93,6 +106,10 @@ function liveEnrollmentConditions(workspaceId: string, userId: string) {
     eq(credentialGroup.status, 'active'),
     eq(user.id, userId),
     eq(user.emailVerified, true),
+    or(
+      isNull(credentialGroup.organizationId),
+      sql`exists (select 1 from ${member} where ${member.organizationId} = ${credentialGroup.organizationId} and ${member.userId} = ${userId})`
+    ),
     inArray(credentialGroupEnrollment.status, ['invited', 'in_progress', 'completed']),
     isNull(credentialGroupEnrollment.revokedAt),
   ]
@@ -100,10 +117,11 @@ function liveEnrollmentConditions(workspaceId: string, userId: string) {
 
 /** Rechecks the canonical group and the verified person behind a bound token before every use. */
 export async function requirePersonalTokenEnrollment(
-  input: { workspaceId: string; userId: string; enrollmentId: string | null },
+  input: ResourceOwner & { userId: string; enrollmentId: string | null },
   executor: DbOrTx = db,
   lock = false
 ): Promise<void> {
+  const scope = resourceScopeFromOwner(input)
   if (!input.enrollmentId)
     throw new OrchestrationError(
       'forbidden',
@@ -119,15 +137,30 @@ export async function requirePersonalTokenEnrollment(
     .from(credentialGroupEnrollment)
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
     .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
-    .innerJoin(workspace, eq(workspace.id, input.workspaceId))
+    .leftJoin(
+      workspace,
+      scope.kind === 'workspace' ? eq(workspace.id, scope.workspaceId) : sql`false`
+    )
     .where(
       and(
         eq(credentialGroupEnrollment.id, input.enrollmentId),
-        ...liveEnrollmentConditions(input.workspaceId, input.userId)
+        ...(scope.kind === 'workspace'
+          ? liveEnrollmentConditions(scope.workspaceId, input.userId)
+          : [
+              resourceScopeCondition(credentialGroup, scope),
+              eq(credentialGroup.status, 'active'),
+              eq(user.id, input.userId),
+              eq(user.emailVerified, true),
+              inArray(credentialGroupEnrollment.status, ['invited', 'in_progress', 'completed']),
+              isNull(credentialGroupEnrollment.revokedAt),
+              sql`exists (select 1 from ${member} where ${member.organizationId} = ${scope.organizationId} and ${member.userId} = ${input.userId})`,
+            ])
       )
     )
     .limit(1)
-  const [binding] = await (lock ? query.for('share') : query)
+  const [binding] = await (lock
+    ? query.for('share', { of: [credentialGroupEnrollment, credentialGroup, user] })
+    : query)
   if (!binding)
     throw new OrchestrationError(
       'forbidden',
@@ -143,7 +176,6 @@ export async function requirePersonalTokenEnrollment(
 }
 
 export interface CreatePersonalTokenParams {
-  workspaceId: string
   userId: string
   accounts: { organizationId: string; credentialGroupId: string }
   providerId?: string
@@ -161,7 +193,7 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
   const encryptedPersonalToken = await encryptPersonalToken({
     providerId: verified.providerId,
     ownerUserId: input.userId,
-    workspaceId: input.workspaceId,
+    organizationId: input.accounts.organizationId,
     subjectId: verified.subjectId,
     instanceUrl: verified.instanceUrl,
     accessToken: input.apiToken,
@@ -173,7 +205,8 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
   })
   const values = {
     type: 'personal_token' as const,
-    workspaceId: input.workspaceId,
+    organizationId: input.accounts.organizationId,
+    workspaceId: null,
     createdBy: input.userId,
     credentialGroupEnrollmentId: enrollment.id,
     providerId: verified.providerId,
@@ -189,7 +222,11 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
   }
   return db.transaction(async (tx) => {
     await requirePersonalTokenEnrollment(
-      { workspaceId: input.workspaceId, userId: input.userId, enrollmentId: enrollment.id },
+      {
+        organizationId: input.accounts.organizationId,
+        userId: input.userId,
+        enrollmentId: enrollment.id,
+      },
       tx,
       true
     )
@@ -207,7 +244,7 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
       .values({ id: generateId(), ...values })
       .onConflictDoNothing({
         target: [
-          credential.workspaceId,
+          credential.organizationId,
           credential.createdBy,
           credential.providerId,
           credential.providerTenantId,
@@ -238,7 +275,8 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
       })
       .where(
         and(
-          eq(credential.workspaceId, input.workspaceId),
+          eq(credential.organizationId, input.accounts.organizationId),
+          isNull(credential.workspaceId),
           eq(credential.type, 'personal_token'),
           eq(credential.createdBy, input.userId),
           eq(credential.providerId, 'gitlab'),
@@ -269,7 +307,6 @@ export interface UpdatePersonalTokenParams {
 export async function updatePersonalTokenCredential(input: UpdatePersonalTokenParams) {
   const current = input.credential
   if (
-    !current.workspaceId ||
     !current.createdBy ||
     !current.providerTenantId ||
     !current.providerSubjectId ||
@@ -277,13 +314,13 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
   )
     throw new Error('Personal token identity is incomplete')
   const {
-    workspaceId,
     createdBy: ownerUserId,
     providerTenantId: instanceUrl,
     providerSubjectId: subjectId,
   } = current
+  const scope = resourceScopeFromOwner(current)
   const enrollmentBinding = {
-    workspaceId: current.workspaceId,
+    ...resourceScopeFields(scope),
     userId: ownerUserId,
     enrollmentId: current.credentialGroupEnrollmentId,
   }
@@ -319,7 +356,7 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
     updates.encryptedPersonalToken = await encryptPersonalToken({
       providerId: 'gitlab',
       ownerUserId: current.createdBy,
-      workspaceId: current.workspaceId,
+      ...resourceScopeFields(scope),
       subjectId: current.providerSubjectId,
       instanceUrl: current.providerTenantId,
       accessToken: input.apiToken,
@@ -340,7 +377,7 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
           eq(credential.id, current.id),
           eq(credential.type, 'personal_token'),
           eq(credential.createdBy, ownerUserId),
-          eq(credential.workspaceId, workspaceId),
+          resourceScopeCondition(credential, scope),
           eq(credential.providerTenantId, instanceUrl),
           eq(credential.providerSubjectId, subjectId)
         )

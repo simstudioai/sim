@@ -239,7 +239,9 @@ describe('credential service-account application operations', () => {
       input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
     })
 
-    expect(mocks.getActor).toHaveBeenCalledWith(credential.id, principal.userId)
+    expect(mocks.getActor).toHaveBeenCalledWith(credential.id, principal.userId, {
+      workspaceId: WORKSPACE_ID,
+    })
     expect(mocks.deleteRecord).not.toHaveBeenCalled()
   })
 

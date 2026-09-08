@@ -36,7 +36,7 @@ export function toWorkspaceCredential(
   row: CredentialRow | VisibleWorkspaceCredential,
   access?: CredentialActorContext
 ): WorkspaceCredential {
-  if (!row.workspaceId)
+  if (!row.workspaceId && !(row.type === 'personal_token' && row.organizationId))
     throw new Error('Workspace credential presentation requires workspace ownership')
   const type = requireOrdinaryCredentialType(row.type)
   if (!row.createdBy) throw new Error(`Credential ${row.id} has no creator`)
@@ -47,6 +47,7 @@ export function toWorkspaceCredential(
   return {
     id: row.id,
     workspaceId: row.workspaceId,
+    ...(row.organizationId ? { organizationId: row.organizationId } : {}),
     type,
     displayName: row.displayName,
     description: row.description,

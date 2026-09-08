@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ATLASSIAN_PRODUCTS,
@@ -36,7 +36,8 @@ export const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
 export const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
 export const workspaceCredentialSchema = z.object({
   id: z.string(),
-  workspaceId: z.string(),
+  workspaceId: z.string().nullable(),
+  organizationId: organizationIdSchema.optional(),
   type: workspaceCredentialTypeSchema,
   displayName: z.string(),
   description: z.string().nullable(),
@@ -466,6 +467,7 @@ export const getWorkspaceCredentialContract = defineRouteContract({
   method: 'GET',
   path: '/api/credentials/[id]',
   params: credentialIdParamsSchema,
+  query: z.object({ workspaceId: workspaceIdSchema.optional() }),
   response: {
     mode: 'json',
     schema: z.object({
@@ -528,6 +530,7 @@ export const updateWorkspaceCredentialContract = defineRouteContract({
   method: 'PUT',
   path: '/api/credentials/[id]',
   params: credentialIdParamsSchema,
+  query: z.object({ workspaceId: workspaceIdSchema.optional() }),
   body: updateCredentialByIdBodySchema,
   response: {
     mode: 'json',
@@ -541,6 +544,7 @@ export const deleteWorkspaceCredentialContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/credentials/[id]',
   params: credentialIdParamsSchema,
+  query: z.object({ workspaceId: workspaceIdSchema.optional() }),
   response: {
     mode: 'json',
     schema: z.object({

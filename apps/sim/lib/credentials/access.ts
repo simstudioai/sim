@@ -195,7 +195,7 @@ export function canUseCredential(access: CredentialActorContext): boolean {
 export async function getCredentialActorContext(
   credentialId: string,
   userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess }
+  options?: { workspaceAccess?: WorkspaceAccess; workspaceId?: string }
 ): Promise<CredentialActorContext> {
   const [credentialRow] = await db
     .select()
@@ -203,7 +203,12 @@ export async function getCredentialActorContext(
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!credentialRow?.workspaceId) {
+  const organizationToken =
+    credentialRow?.type === 'personal_token' &&
+    credentialRow.organizationId &&
+    !credentialRow.workspaceId
+  const workspaceId = organizationToken ? options?.workspaceId : credentialRow?.workspaceId
+  if (!credentialRow || !workspaceId) {
     return {
       credential: null,
       member: null,
@@ -214,17 +219,31 @@ export async function getCredentialActorContext(
   }
 
   const workspaceAccess = await resolveWorkspaceAccess(
-    credentialRow.workspaceId,
+    workspaceId,
     userId,
     options?.workspaceAccess
   )
   if (credentialRow.type === 'personal_token') {
+    let hasAccess = workspaceAccess.hasAccess
+    if (organizationToken) {
+      const [membership] = await db
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(eq(member.organizationId, credentialRow.organizationId!), eq(member.userId, userId))
+        )
+        .limit(1)
+      hasAccess =
+        hasAccess &&
+        Boolean(membership) &&
+        workspaceAccess.workspace?.organizationId === credentialRow.organizationId
+    }
     return {
-      credential: credentialRow.createdBy === userId ? credentialRow : null,
+      credential: credentialRow.createdBy === userId && hasAccess ? credentialRow : null,
       member: null,
-      hasWorkspaceAccess: workspaceAccess.hasAccess,
-      canWriteWorkspace: workspaceAccess.canWrite,
-      isAdmin: credentialRow.createdBy === userId && workspaceAccess.hasAccess,
+      hasWorkspaceAccess: hasAccess,
+      canWriteWorkspace: hasAccess && workspaceAccess.canWrite,
+      isAdmin: credentialRow.createdBy === userId && hasAccess,
     }
   }
   const [memberRow] = await db

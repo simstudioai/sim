@@ -93,6 +93,23 @@ describe('GitLab personal token verification', () => {
     await expect(verifyGitLabPersonalToken('secret')).rejects.toThrow('GitLab rejected this token')
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
   })
+  it('binds organization tokens independently of the execution workspace', async () => {
+    mocks.encrypt.mockResolvedValue({ encrypted: 'ciphertext' })
+    const { workspaceId: _workspaceId, ...identity } = envelope
+    const organizationEnvelope = { ...identity, organizationId: 'organization' }
+    await encryptPersonalToken(organizationEnvelope)
+    expect(JSON.parse(mocks.encrypt.mock.calls[0][0])).toEqual(organizationEnvelope)
+    mocks.decrypt.mockResolvedValue({ decrypted: JSON.stringify(organizationEnvelope) })
+    const { accessToken, ...expected } = organizationEnvelope
+    await expect(decryptPersonalToken('ciphertext', expected)).resolves.toBe(accessToken)
+    await expect(
+      decryptPersonalToken('ciphertext', { ...expected, organizationId: 'another-org' })
+    ).rejects.toThrow('binding')
+    await expect(
+      decryptPersonalToken('ciphertext', { ...expected, workspaceId: 'workspace' })
+    ).rejects.toThrow()
+  })
+
   it('encrypts the token together with immutable user and instance bindings', async () => {
     mocks.encrypt.mockResolvedValue({ encrypted: 'ciphertext' })
     expect(await encryptPersonalToken(envelope)).toBe('ciphertext')

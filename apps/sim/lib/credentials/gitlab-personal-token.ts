@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeFromOwner, sameResourceScope } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
@@ -21,14 +22,19 @@ const gitLabTokenSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable(),
 })
-const tokenEnvelopeSchema = z.object({
-  providerId: z.literal('gitlab'),
-  ownerUserId: z.string().min(1),
-  workspaceId: z.string().min(1),
-  subjectId: z.string().min(1),
-  instanceUrl: z.string().url(),
-  accessToken: z.string().min(1).max(4096),
-})
+const tokenEnvelopeSchema = z
+  .object({
+    providerId: z.literal('gitlab'),
+    ownerUserId: z.string().min(1),
+    workspaceId: z.string().min(1).optional(),
+    organizationId: z.string().min(1).optional(),
+    subjectId: z.string().min(1),
+    instanceUrl: z.string().url(),
+    accessToken: z.string().min(1).max(4096),
+  })
+  .refine((value) => Boolean(value.workspaceId) !== Boolean(value.organizationId), {
+    message: 'Personal token requires exactly one organization or workspace owner',
+  })
 export type PersonalTokenEnvelope = z.output<typeof tokenEnvelopeSchema>
 
 /** Verifies identity and scopes only at the exact HTTPS instance chosen by the person. */
@@ -93,13 +99,10 @@ export async function decryptPersonalToken(
 ): Promise<string> {
   const { decrypted } = await decryptSecret(encrypted)
   const parsed = tokenEnvelopeSchema.parse(JSON.parse(decrypted))
-  for (const key of [
-    'providerId',
-    'ownerUserId',
-    'workspaceId',
-    'subjectId',
-    'instanceUrl',
-  ] as const) {
+  if (!sameResourceScope(resourceScopeFromOwner(parsed), resourceScopeFromOwner(expected))) {
+    throw new Error('Stored personal token binding is invalid')
+  }
+  for (const key of ['providerId', 'ownerUserId', 'subjectId', 'instanceUrl'] as const) {
     if (parsed[key] !== expected[key]) throw new Error('Stored personal token binding is invalid')
   }
   return parsed.accessToken

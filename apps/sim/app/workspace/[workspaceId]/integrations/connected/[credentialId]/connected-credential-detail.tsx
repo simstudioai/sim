@@ -82,7 +82,7 @@ export function ConnectedCredentialDetail({
   const { data: oauthConnections = [] } = useOAuthConnections()
   const connectOAuthService = useConnectOAuthService()
   const createDraft = useCreateCredentialDraft()
-  const deleteCredential = useDeleteWorkspaceCredential()
+  const deleteCredential = useDeleteWorkspaceCredential(workspaceId)
 
   const credential = useMemo<WorkspaceCredential | null>(
     () => credentials.find((c) => c.id === credentialId) ?? null,
@@ -107,7 +107,12 @@ export function ConnectedCredentialDetail({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [reconnectOpen, setReconnectOpen] = useState(false)
 
-  const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
+  const form = useCredentialDetailForm({
+    credential,
+    isAdmin,
+    backHref: integrationsHref,
+    workspaceId,
+  })
 
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),

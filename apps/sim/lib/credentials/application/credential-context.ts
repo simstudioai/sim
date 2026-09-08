@@ -22,9 +22,29 @@ export async function resolveCredentialApplicationContext(
     ? await getWorkspaceCredential({
         workspaceId: assertedWorkspace.workspaceId,
         credentialId: input.credentialId,
+        ...(assertedWorkspace.workspaceOrganizationId
+          ? { organizationId: assertedWorkspace.workspaceOrganizationId }
+          : {}),
       })
     : await getCredentialById(input.credentialId)
-  if (!credential?.workspaceId) throw new OrchestrationError('not_found', 'Credential not found')
+  if (!credential) throw new OrchestrationError('not_found', 'Credential not found')
+  if (credential.organizationId) {
+    if (
+      credential.type !== 'personal_token' ||
+      credential.workspaceId ||
+      !assertedWorkspace ||
+      credential.organizationId !== assertedWorkspace.workspaceOrganizationId
+    ) {
+      throw new OrchestrationError('not_found', 'Credential not found')
+    }
+    return { ...assertedWorkspace, credential }
+  }
+  if (
+    !credential.workspaceId ||
+    (assertedWorkspace && credential.workspaceId !== assertedWorkspace.workspaceId)
+  ) {
+    throw new OrchestrationError('not_found', 'Credential not found')
+  }
   const workspace =
     assertedWorkspace ?? (await loadActiveWorkspaceApplicationContext(credential.workspaceId))
   if (!workspace) throw new OrchestrationError('not_found', 'Credential not found')

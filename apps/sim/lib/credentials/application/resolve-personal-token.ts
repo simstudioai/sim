@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
@@ -41,14 +42,14 @@ export const resolvePersonalToken = defineAuthorizedCredentialUseCase({
       )
     }
     await requirePersonalTokenEnrollment({
-      workspaceId: context.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(current)),
       userId,
       enrollmentId: current.credentialGroupEnrollmentId,
     })
     const accessToken = await decryptPersonalToken(current.encryptedPersonalToken, {
       providerId: 'gitlab',
       ownerUserId: userId,
-      workspaceId: context.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(current)),
       subjectId: current.providerSubjectId,
       instanceUrl: current.providerTenantId,
     })

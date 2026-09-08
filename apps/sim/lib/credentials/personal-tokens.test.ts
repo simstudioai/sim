@@ -33,7 +33,6 @@ import {
 import type { CredentialRow } from '@/lib/credentials/queries'
 
 const input = {
-  workspaceId: 'workspace',
   userId: 'owner',
   accounts: { organizationId: 'organization', credentialGroupId: 'group' },
   providerId: 'gitlab',
@@ -50,7 +49,8 @@ const verified = {
 }
 const current = {
   id: 'token',
-  workspaceId: 'workspace',
+  workspaceId: null,
+  organizationId: 'organization',
   createdBy: 'owner',
   type: 'personal_token',
   providerId: 'gitlab',
@@ -69,15 +69,10 @@ function binding(organizationId: string | null = 'organization') {
   ])
 }
 function expectLiveBinding() {
-  expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.workspaceId, 'workspace')
   expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.status, 'active')
   expect(eq).toHaveBeenCalledWith(schemaMock.user.id, 'owner')
   expect(eq).toHaveBeenCalledWith(schemaMock.user.emailVerified, true)
   expect(eq).toHaveBeenCalledWith(schemaMock.user.id, schemaMock.credentialGroupEnrollment.userId)
-  expect(eq).toHaveBeenCalledWith(
-    schemaMock.credentialGroup.organizationId,
-    schemaMock.workspace.organizationId
-  )
   expect(inArray).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.status, [
     'invited',
     'in_progress',
@@ -114,11 +109,12 @@ describe('personal GitLab tokens in Connected accounts', () => {
       credentialGroupId: 'group',
     })
     expect(mocks.lock).toHaveBeenCalledWith(expect.anything(), 'enrollment')
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('share', expect.anything())
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialGroupEnrollmentId: 'enrollment',
-        workspaceId: 'workspace',
+        workspaceId: null,
+        organizationId: 'organization',
         createdBy: 'owner',
         providerSubjectId: '42',
         providerTenantId: verified.instanceUrl,
@@ -139,7 +135,7 @@ describe('personal GitLab tokens in Connected accounts', () => {
     expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith(
       expect.objectContaining({
         target: [
-          schemaMock.credential.workspaceId,
+          schemaMock.credential.organizationId,
           schemaMock.credential.createdBy,
           schemaMock.credential.providerId,
           schemaMock.credential.providerTenantId,
@@ -247,7 +243,7 @@ describe('personal GitLab tokens in Connected accounts', () => {
     expect(mocks.encrypt).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerUserId: 'owner',
-        workspaceId: 'workspace',
+        organizationId: 'organization',
         subjectId: '42',
         instanceUrl: verified.instanceUrl,
       })
@@ -258,7 +254,7 @@ describe('personal GitLab tokens in Connected accounts', () => {
     expect(update).not.toHaveProperty('providerSubjectId')
     expect(update).not.toHaveProperty('providerTenantId')
     expect(update).not.toHaveProperty('credentialGroupEnrollmentId')
-    expect(eq).toHaveBeenCalledWith(schemaMock.credential.workspaceId, 'workspace')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credential.organizationId, 'organization')
     expect(eq).toHaveBeenCalledWith(schemaMock.credential.providerSubjectId, '42')
     expectLiveBinding()
   })

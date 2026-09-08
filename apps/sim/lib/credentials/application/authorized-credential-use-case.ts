@@ -90,11 +90,18 @@ export function defineAuthorizedCredentialUseCase<
     async authorizeResource({ principal, context }) {
       const actor = await getCredentialActorContext(
         context.credential.id,
-        requireCredentialExecutionUserId(principal)
+        requireCredentialExecutionUserId(principal),
+        { workspaceId: context.workspaceId }
       )
       if (
         !actor.credential ||
-        actor.credential.workspaceId !== context.workspaceId ||
+        !(
+          actor.credential.workspaceId === context.workspaceId ||
+          (actor.credential.type === 'personal_token' &&
+            !actor.credential.workspaceId &&
+            actor.credential.organizationId === context.workspaceOrganizationId &&
+            Boolean(context.workspaceOrganizationId))
+        ) ||
         !actor.hasWorkspaceAccess
       ) {
         throw new OrchestrationError('not_found', 'Credential not found')

@@ -4606,6 +4606,7 @@ export interface ManagedMcpToolSnapshot {
   inputSchema: Record<string, unknown>
 }
 
+/** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */
 export const credential = pgTable(
   'credential',
   {

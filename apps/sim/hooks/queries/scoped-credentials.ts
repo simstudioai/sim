@@ -105,7 +105,11 @@ export function useUpdateScopedCredential() {
           params: { id: credentialId },
           body: { ...body, organizationId: body.organizationId },
         })
-      return requestJson(updateWorkspaceCredentialContract, { params: { id: credentialId }, body })
+      return requestJson(updateWorkspaceCredentialContract, {
+        params: { id: credentialId },
+        body,
+        query: { workspaceId: 'workspaceId' in input ? input.workspaceId : undefined },
+      })
     },
     onSuccess: reconcile,
   })

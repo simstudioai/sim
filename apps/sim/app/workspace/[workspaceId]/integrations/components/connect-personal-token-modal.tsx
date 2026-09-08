@@ -44,7 +44,7 @@ function PersonalTokenForm({
   const [host, setHost] = useState(instanceUrl ? new URL(instanceUrl).host : 'gitlab.com')
   const [token, setToken] = useState('')
   const create = useCreateWorkspaceCredential()
-  const update = useUpdateWorkspaceCredential()
+  const update = useUpdateWorkspaceCredential(workspaceId)
   const pending = create.isPending || update.isPending
   const error = (credentialId ? update.error : create.error)?.message
   function submit() {
@@ -88,7 +88,7 @@ function PersonalTokenForm({
           type='custom'
           title='Personal access token'
           required
-          hint='Use a token with the api scope. Only you can use this connection.'
+          hint='Use a token with the api scope. This connection is private to you and available across your organization.'
         >
           <SecretInput
             value={token}
