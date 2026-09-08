@@ -16,31 +16,17 @@ import type { SolutionsPillCta as SolutionsPillCtaConfig } from '@/app/(landing)
  * navbar's `NavMenuCluster` does. The props it receives ({@link SolutionsPillCtaConfig})
  * are plain serializable data, so the surrounding layout stays Server Components.
  *
- * Link safety: an external href (absolute `http(s)://`) renders with
- * `rel='noopener noreferrer'` and `target='_blank'`; an internal href routes
- * through the Next `<Link>` that `ChipLink` is built on - so every link is
- * crawlable and safe with no per-page ceremony.
+ * Link safety (external `rel`/`target`, internal Next `<Link>`) is owned by
+ * `LandingCtaLink`, so every link is crawlable and safe with no per-page ceremony.
  */
 
 interface SolutionsPillCtaProps {
   cta: SolutionsPillCtaConfig
 }
 
-/** Returns true for absolute external URLs (http/https), which need rel/target hardening. */
-function isExternalHref(href: string): boolean {
-  return /^https?:\/\//.test(href)
-}
-
 export function SolutionsPillCta({ cta }: SolutionsPillCtaProps) {
-  const external = isExternalHref(cta.href)
-
   return (
-    <LandingCtaLink
-      size='compact'
-      href={cta.href}
-      rightIcon={ArrowRight}
-      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-    >
+    <LandingCtaLink size='compact' href={cta.href} rightIcon={ArrowRight}>
       {cta.label}
     </LandingCtaLink>
   )

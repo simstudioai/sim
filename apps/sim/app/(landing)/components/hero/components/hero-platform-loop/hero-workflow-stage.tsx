@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
-import { ProductionWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/production-workflow-stage'
+import dynamic from 'next/dynamic'
 import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import {
   handleAnchors,
@@ -20,6 +20,19 @@ import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/respons
 
 /** Breathing room between the canvas bounds and the card edges, in card px. */
 const STAGE_MARGIN = 20
+
+/**
+ * The interactive stage mounts React Flow and the production renderers. It is
+ * loaded on demand so the staged loops (and every page that renders them) never
+ * ship that graph, and the homepage only fetches it once the stage opens.
+ */
+const ProductionWorkflowStage = dynamic(
+  () =>
+    import(
+      '@/app/(landing)/components/hero/components/hero-platform-loop/production-workflow-stage'
+    ).then((mod) => mod.ProductionWorkflowStage),
+  { ssr: false }
+)
 
 interface HeroWorkflowStageProps {
   /** How many of the stage's blocks (in build order) are on canvas. */

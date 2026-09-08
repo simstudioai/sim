@@ -1,1 +1,1 @@
-export { LandingCtaLink } from './landing-cta-link'
+export { LandingCtaLink, type LandingCtaSection } from './landing-cta-link'

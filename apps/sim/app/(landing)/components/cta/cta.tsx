@@ -41,7 +41,7 @@ export function Cta() {
           ))}
         </h2>
         <div className='max-sm:w-full'>
-          <HeroCta size='display' secondaryLabel='Start building' />
+          <HeroCta size='display' secondaryLabel='Start building' trackingSection='footer_cta' />
         </div>
       </div>
 

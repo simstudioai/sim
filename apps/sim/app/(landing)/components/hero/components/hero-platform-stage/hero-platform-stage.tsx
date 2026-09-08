@@ -1,6 +1,6 @@
 import { cn } from '@sim/emcn'
 import Image from 'next/image'
-import { HeroPlatformLoop } from '@/app/(landing)/components/hero/components/hero-platform-loop'
+import { HeroPlatformLoopMount } from '@/app/(landing)/components/hero/components/hero-platform-loop'
 import { HOME_INSET, LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 
 /**
@@ -26,6 +26,8 @@ export function HeroPlatformStage() {
           src='/landing/hero-painted-4k.webp'
           alt=''
           fill
+          priority
+          fetchPriority='high'
           quality={90}
           sizes='(max-width: 1727px) 100vw, 1648px'
           className='object-cover grayscale dark:brightness-[0.28]'
@@ -40,7 +42,7 @@ export function HeroPlatformStage() {
           HOME_INSET
         )}
       >
-        <HeroPlatformLoop />
+        <HeroPlatformLoopMount />
       </div>
     </div>
   )

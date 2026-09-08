@@ -1,6 +1,13 @@
 import { cn } from '@sim/emcn'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
+import {
+  INVERSE_LOADER_INK_CLASS,
+  INVERSE_LOADER_INK_STYLE,
+} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
+import styles from '@/app/(landing)/enterprise/components/feature-graphics/operations-teams-graphic.module.css'
+
 /**
  * Fixed pixel canvas the switchboard is drawn on, centered inside the
  * shell. Kept to 280px wide (chips reaching only x 32–250) so every chip
@@ -10,13 +17,6 @@ import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallb
  * bottom-bleed compensation) so the staggered top pills never clip while
  * the wires keep long vertical runs.
  */
-import {
-  INVERSE_LOADER_INK_CLASS,
-  INVERSE_LOADER_INK_STYLE,
-} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
-import styles from '@/app/(landing)/enterprise/components/feature-graphics/operations-teams-graphic.module.css'
-
 const CANVAS = { WIDTH: 280, HEIGHT: 248 } as const
 
 interface Port {

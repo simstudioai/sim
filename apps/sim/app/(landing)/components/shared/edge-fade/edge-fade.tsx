@@ -73,11 +73,10 @@ const DEPTH = {
 } as const
 
 /**
- * The grounds a scene can dissolve into, named the way `SectionBand` names its
- * tones. `canvas` is the page's own ground; `paper` is the `#F8F8F8` band
- * Andrew set for the product-demo stage - the one literal in that map, so the
- * one literal here, paired with the same `--surface-2` the band takes on the
- * dark ground. `surface` matches the `--surface-3` ground of compact nav previews.
+ * The grounds a scene can dissolve into. `canvas` is the page's own ground;
+ * `paper` is the `#F8F8F8` band of the product-demo stage - the one literal
+ * here, paired with the same `--surface-2` the stage takes on the dark
+ * ground. `surface` matches the `--surface-3` ground of compact nav previews.
  */
 const GROUND = {
   surface: 'from-[var(--surface-3)]',

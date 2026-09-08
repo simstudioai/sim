@@ -22,11 +22,6 @@ const ACTION_ICONS = {
 const INITIAL_PLACEHOLDER = 'Ask Sim to respond to my emails...'
 const CONVERSATION_PLACEHOLDER = 'Send message to Sim'
 
-/** The landing's standing caret - the product textarea's own, drawn. */
-const Caret = () => (
-  <span className='mx-px inline-block h-[16px] w-px translate-y-[2px] animate-caret-blink bg-[var(--text-primary)]' />
-)
-
 interface DemoComposerProps {
   /** The prompt as typed so far; empty rests on the placeholder. */
   prompt: string
@@ -34,22 +29,6 @@ interface DemoComposerProps {
   isSending: boolean
   /** Resting placeholder before the first message; the conversation one after. */
   isInitialView: boolean
-  /**
-   * Draws the product's full resting chrome: the initial view's 56px field,
-   * the real editor's 14px prompt scale, and the `Build` control.
-   *
-   * Off by default. The product-demo stage measures the composer's resting
-   * height and springs the chat box off it, its scaled preview has no room for
-   * a text control, and its prompt has to match the 15px bubble it turns into
-   * on send.
-   */
-  fullChrome?: boolean
-  /**
-   * Marks the prompt as being typed live, so the product's blinking caret
-   * trails it - or leads the placeholder while the field is empty, the way a
-   * focused composer rests. A prompt that simply appears has no caret.
-   */
-  caret?: boolean
 }
 
 /**
@@ -66,13 +45,7 @@ interface DemoComposerProps {
  * themselves on hover exactly as they do in the app without putting five inert
  * buttons in the page's tab order. Callers own `aria-hidden`.
  */
-export function DemoComposer({
-  prompt,
-  isSending,
-  isInitialView,
-  fullChrome = false,
-  caret = false,
-}: DemoComposerProps) {
+export function DemoComposer({ prompt, isSending, isInitialView }: DemoComposerProps) {
   const written = prompt.length > 0
   const armed = isSending || written
 
@@ -83,13 +56,7 @@ export function DemoComposer({
         isInitialView && 'shadow-xs'
       )}
     >
-      <p
-        className={cn(
-          'm-0 min-h-[24px] whitespace-pre-wrap break-words px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em] [overflow-wrap:anywhere]',
-          fullChrome && 'min-h-[56px] text-[14px]'
-        )}
-      >
-        {caret && !written ? <Caret /> : null}
+      <p className='m-0 min-h-[24px] whitespace-pre-wrap break-words px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em] [overflow-wrap:anywhere]'>
         {written ? (
           <span className='text-[var(--text-primary)]'>{prompt}</span>
         ) : (
@@ -97,7 +64,6 @@ export function DemoComposer({
             {isInitialView ? INITIAL_PLACEHOLDER : CONVERSATION_PLACEHOLDER}
           </span>
         )}
-        {caret && written ? <Caret /> : null}
       </p>
 
       <div className='flex items-center justify-between'>
@@ -120,11 +86,6 @@ export function DemoComposer({
           })}
         </div>
         <div className='flex items-center gap-1.5'>
-          {fullChrome ? (
-            <span className='px-2 font-body text-[14px] text-[var(--text-body)] tracking-[-0.015em]'>
-              Build
-            </span>
-          ) : null}
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <span className='flex size-[28px] items-center justify-center rounded-full'>

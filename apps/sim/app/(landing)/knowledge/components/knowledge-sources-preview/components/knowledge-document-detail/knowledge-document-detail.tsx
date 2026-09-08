@@ -19,7 +19,8 @@ export function KnowledgeDocumentDetail({
   onBack,
 }: KnowledgeDocumentDetailProps) {
   const chunkBackButtonRef = useRef<HTMLButtonElement>(null)
-  const chunkButtonsRef = useRef(new Map<number, HTMLButtonElement>())
+  const chunkButtonsRef = useRef<Map<number, HTMLButtonElement> | null>(null)
+  const chunkButtons = (chunkButtonsRef.current ??= new Map())
   const openedChunkIndexRef = useRef<number | null>(null)
   const [query, setQuery] = useState('')
   const [chunkIndex, setChunkIndex] = useState<number | null>(null)
@@ -30,7 +31,7 @@ export function KnowledgeDocumentDetail({
   useEffect(() => {
     if (chunkOpen) chunkBackButtonRef.current?.focus({ preventScroll: true })
     else if (openedChunkIndexRef.current !== null) {
-      chunkButtonsRef.current.get(openedChunkIndexRef.current)?.focus({ preventScroll: true })
+      chunkButtons.get(openedChunkIndexRef.current)?.focus({ preventScroll: true })
     }
   }, [chunkOpen])
 
@@ -130,8 +131,8 @@ export function KnowledgeDocumentDetail({
                       <td className='pl-4'>
                         <button
                           ref={(node) => {
-                            if (node) chunkButtonsRef.current.set(index, node)
-                            else chunkButtonsRef.current.delete(index)
+                            if (node) chunkButtons.set(index, node)
+                            else chunkButtons.delete(index)
                           }}
                           type='button'
                           onClick={() => {

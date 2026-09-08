@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
@@ -74,7 +74,6 @@ export function useVerification({
   isProduction,
   isEmailVerificationEnabled,
 }: UseVerificationParams): UseVerificationReturn {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const [otp, setOtp] = useState('')
@@ -214,15 +213,12 @@ export function useVerification({
         logger.warn('Failed to refetch session during verification skip:', error)
       }
 
-      if (destination) {
-        window.location.href = destination
-      } else {
-        router.push('/workspace')
-      }
+      /** A document navigation, like signup's, so the workspace shell initializes its own theme store. */
+      window.location.href = destination ?? '/workspace'
     }
 
     handleRedirect()
-  }, [isEmailVerificationEnabled, router, searchParams])
+  }, [isEmailVerificationEnabled, searchParams])
 
   return {
     otp,

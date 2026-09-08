@@ -13,7 +13,10 @@ import {
   HeroResourcePanel,
 } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-resource-panel'
 import { PREVIEW_BUILD_TIMING } from '@/app/(landing)/components/hero/components/hero-platform-loop/preview-build-timing'
-import { DEFAULT_USER_MESSAGE } from '@/app/(landing)/components/hero/components/hero-platform-loop/preview-chat-content'
+import {
+  DEFAULT_REPLY_MESSAGE,
+  DEFAULT_USER_MESSAGE,
+} from '@/app/(landing)/components/hero/components/hero-platform-loop/preview-chat-content'
 import { STAGE_BLOCKS } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import {
@@ -22,9 +25,6 @@ import {
 } from '@/app/(landing)/components/shared/sidebar-preview-content'
 import { useDragResize } from '@/hooks/use-drag-resize'
 
-/** The seeded exchange mirrors the product tour while keeping demo data local. */
-const DEFAULT_REPLY_MESSAGE =
-  'Built <workspace_resource>{"type":"workflow","id":"lead-enrichment","title":"Lead enrichment"}</workspace_resource> — it enriches each signup, scores company fit, posts qualified leads to Slack, and saves the full record to Tables.\n\nThe workflow is ready to test with a sample lead.'
 const REPLY_AT =
   PREVIEW_BUILD_TIMING.blockStartAt +
   STAGE_BLOCKS.length * PREVIEW_BUILD_TIMING.blockStepMs +

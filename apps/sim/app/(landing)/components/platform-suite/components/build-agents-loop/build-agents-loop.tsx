@@ -8,6 +8,10 @@ import {
 } from '@/app/(landing)/components/hero/components/hero-chat-loop'
 import { HeroResourcePanel } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-resource-panel'
 import { PREVIEW_BUILD_TIMING } from '@/app/(landing)/components/hero/components/hero-platform-loop/preview-build-timing'
+import {
+  DEFAULT_REPLY_MESSAGE,
+  DEFAULT_USER_MESSAGE,
+} from '@/app/(landing)/components/hero/components/hero-platform-loop/preview-chat-content'
 import { STAGE_BLOCKS } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
@@ -16,11 +20,6 @@ import {
   PREVIEW_SIDEBAR_WORKFLOWS,
 } from '@/app/(landing)/components/shared/sidebar-preview-content'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
-
-/** The hero's seeded exchange, so the card and the hero tell one story. */
-const USER_MESSAGE = 'When a new lead signs up, enrich it with company data and post it to #sales.'
-const REPLY_MESSAGE =
-  'Built <workspace_resource>{"type":"workflow","id":"lead-enrichment","title":"Lead enrichment"}</workspace_resource> — it enriches each signup, scores company fit, posts qualified leads to Slack, and saves the full record to Tables.\n\nThe workflow is ready to test with a sample lead.'
 
 /** The cycle, in ms from its start. */
 const REPLY_AT =
@@ -97,8 +96,8 @@ export function BuildAgentsLoop() {
           <HeroChatLoop
             phase={phase}
             fading={fading}
-            userMessage={USER_MESSAGE}
-            replyMessage={REPLY_MESSAGE}
+            userMessage={DEFAULT_USER_MESSAGE}
+            replyMessage={DEFAULT_REPLY_MESSAGE}
             composerValue=''
             isSending={phase !== 'reply'}
             onComposerValueChange={noop}

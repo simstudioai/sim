@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
-import Link from 'next/link'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
@@ -11,7 +10,9 @@ import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/compone
  * light mode regardless of visitor theme). It is the shared base for every
  * surface that wants minimal chrome: the global 404, and the `(interfaces)`
  * group (which adds a support footer). The `(auth)` group uses its own
- * `AuthShell` with the same look.
+ * `AuthShell` with the same look. The home link is a document navigation, like
+ * `AuthShell`'s, so the marketing surface initializes its own theme store
+ * instead of inheriting this shell's forced-light document.
  *
  * Children decide their own layout: pass `center` for a single centered column
  * (404 message, simple gates); omit it for full-width content (the live chat
@@ -32,11 +33,11 @@ export function LogoShell({ children, center = false, footer }: LogoShellProps) 
       <DesktopTitleBarLane />
       <header>
         <nav className={cn('flex items-center py-4', LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
-          <Link href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
+          <a href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
             <LogoMark>
               <SimWordmark />
             </LogoMark>
-          </Link>
+          </a>
         </nav>
       </header>
       <main

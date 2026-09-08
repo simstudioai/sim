@@ -51,8 +51,8 @@ function useHydrated(): boolean {
 /**
  * Footer light/dark switch: a hairline pill holding a sun and a moon, with the
  * current theme's segment filled. Picking a segment writes the visitor's
- * choice through next-themes (`sim-theme`), the same store the workspace
- * reads, so the theme carries from the marketing site into the app.
+ * choice through next-themes into the marketing surface's own store
+ * (`sim-landing-theme`), separate from the workspace's account-synced theme.
  *
  * Native radios provide a single tab stop and arrow-key selection. Checked
  * state waits for hydration because the server cannot read the stored theme;

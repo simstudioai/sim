@@ -453,8 +453,8 @@ function ComposerPass({ width, scale, onSend, onReplyHold }: ComposerPassProps) 
             >
               <div
                 ref={chatContentRef}
-                className='flex flex-col gap-4 p-4'
-                style={{ width, boxSizing: 'border-box' }}
+                className='box-border flex flex-col gap-4 p-4'
+                style={{ width }}
               >
                 {messages.map((text) => (
                   <div key={text} className='flex justify-end'>

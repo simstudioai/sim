@@ -2,6 +2,10 @@
 export const DEFAULT_USER_MESSAGE =
   'When a new lead signs up, enrich it with company data and post it to #sales.'
 
+/** The seeded reply, so the hero and the platform card tell one story. */
+export const DEFAULT_REPLY_MESSAGE =
+  'Built <workspace_resource>{"type":"workflow","id":"lead-enrichment","title":"Lead enrichment"}</workspace_resource> — it enriches each signup, scores company fit, posts qualified leads to Slack, and saves the full record to Tables.\n\nThe workflow is ready to test with a sample lead.'
+
 export const PREVIEW_SUGGESTIONS = [
   { title: 'Enrich new leads', prompt: DEFAULT_USER_MESSAGE },
   {

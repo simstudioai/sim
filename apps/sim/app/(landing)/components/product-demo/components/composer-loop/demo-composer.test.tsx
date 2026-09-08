@@ -47,34 +47,8 @@ describe('DemoComposer', () => {
     expect(typed).not.toContain('text-[var(--text-muted)]')
   })
 
-  it('leads the empty field with the caret and trails the typed prompt with it', () => {
-    const resting = renderToStaticMarkup(
-      <DemoComposer prompt='' isSending={false} isInitialView caret />
-    )
-    const typed = renderToStaticMarkup(
-      <DemoComposer prompt='Enrich every new lead' isSending={false} isInitialView caret />
-    )
-
-    expect(resting.indexOf('animate-caret-blink')).toBeLessThan(resting.indexOf('Ask Sim to'))
-    expect(typed.indexOf('animate-caret-blink')).toBeGreaterThan(typed.indexOf('Enrich every'))
-  })
-
-  it('draws the product resting chrome only under fullChrome', () => {
-    const compact = renderToStaticMarkup(<DemoComposer prompt='' isSending={false} isInitialView />)
-    const full = renderToStaticMarkup(
-      <DemoComposer prompt='' isSending={false} isInitialView fullChrome />
-    )
-
-    expect(compact).not.toContain('min-h-[56px]')
-    expect(compact).not.toContain('Build')
-    expect(full).toContain('min-h-[56px]')
-    expect(full).toContain('Build')
-  })
-
   it('keeps every control out of the tab order', () => {
-    const html = renderToStaticMarkup(
-      <DemoComposer prompt='' isSending={false} isInitialView fullChrome />
-    )
+    const html = renderToStaticMarkup(<DemoComposer prompt='' isSending={false} isInitialView />)
 
     expect(html).not.toContain('<button')
     expect(html).not.toContain('tabindex')

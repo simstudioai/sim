@@ -31,7 +31,8 @@ const FILTERS = [
 /** Production Resource.Table with the same log columns and native run-details sidebar. */
 export function LogHistoryPreview() {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const rowButtonsRef = useRef(new Map<string, HTMLButtonElement>())
+  const rowButtonsRef = useRef<Map<string, HTMLButtonElement> | null>(null)
+  const rowButtons = (rowButtonsRef.current ??= new Map())
   const detailsId = useId()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('All')
@@ -49,7 +50,7 @@ export function LogHistoryPreview() {
 
   function closeDetails() {
     setSelectedId(null)
-    if (selectedId) rowButtonsRef.current.get(selectedId)?.focus({ preventScroll: true })
+    if (selectedId) rowButtons.get(selectedId)?.focus({ preventScroll: true })
   }
 
   const rows = visibleRuns.map((run) => ({
@@ -59,8 +60,8 @@ export function LogHistoryPreview() {
         content: (
           <button
             ref={(node) => {
-              if (node) rowButtonsRef.current.set(run.id, node)
-              else rowButtonsRef.current.delete(run.id)
+              if (node) rowButtons.set(run.id, node)
+              else rowButtons.delete(run.id)
             }}
             type='button'
             aria-controls={selectedRun?.id === run.id ? detailsId : undefined}

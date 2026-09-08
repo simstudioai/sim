@@ -2,6 +2,13 @@ import { ChipTag, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn
 import { CircleCheck, Lock } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
+import {
+  INVERSE_LOADER_INK_CLASS,
+  INVERSE_LOADER_INK_STYLE,
+} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
+import styles from '@/app/(landing)/enterprise/components/feature-graphics/deploy-graphic.module.css'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
+
 /**
  * The moment of a one-click deploy, told top to bottom: the agent being
  * shipped, the Deploy button, and a
@@ -49,13 +56,6 @@ import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallb
  * Support-agent deploy byte-identical. Geometry, motion, and inks never
  * change with the copy.
  */
-import {
-  INVERSE_LOADER_INK_CLASS,
-  INVERSE_LOADER_INK_STYLE,
-} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
-import styles from '@/app/(landing)/enterprise/components/feature-graphics/deploy-graphic.module.css'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
-
 interface DeployGraphicProps {
   /** Agent pill label. */
   agentName?: string

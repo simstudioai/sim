@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { chipVariants } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { StatusPageContent } from '@/components/status-page'
 import { LogoShell } from '@/app/(landing)/components'
@@ -15,9 +15,9 @@ export default function NotFound() {
         title='Page not found'
         description="The page you're looking for doesn't exist or has been moved."
       >
-        <ChipLink variant='primary' href='/'>
+        <a href='/' className={chipVariants({ variant: 'primary' })}>
           Return home
-        </ChipLink>
+        </a>
       </StatusPageContent>
     </LogoShell>
   )

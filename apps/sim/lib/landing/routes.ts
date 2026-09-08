@@ -10,11 +10,11 @@
  *   header inherited across client-side navigations, so an unlisted landing page
  *   stays cross-origin isolated when it soft-navigates into `/demo`, where the
  *   Cal.com booker then loads uncredentialed and hangs forever.
- * - `ThemeProvider` defaults these paths to the light theme (the landing
- *   family's design baseline) instead of the app's `system` default, while
- *   still honouring a theme the visitor has chosen from the landing footer's
- *   toggle. Leave one out and a first-time visitor on a dark OS lands on a
- *   dark marketing page.
+ * - `ThemeProvider` gives these paths their own theme store, defaulting to
+ *   light (the landing family's design baseline) and written only by the
+ *   landing footer's toggle, instead of the app's account-synced `system`
+ *   default. Leave one out and a visitor on a dark OS lands on a dark
+ *   marketing page.
  *
  * Imported by `next.config.ts` before the `@/` alias resolves, so this module
  * must stay dependency-free.

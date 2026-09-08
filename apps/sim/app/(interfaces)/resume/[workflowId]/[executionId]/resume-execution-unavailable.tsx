@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { chipVariants } from '@sim/emcn'
 
 export function ResumeExecutionUnavailable() {
   return (
@@ -8,9 +8,9 @@ export function ResumeExecutionUnavailable() {
         <p className='mb-6 text-[var(--text-secondary)] text-sm'>
           This execution could not be located or has already completed.
         </p>
-        <ChipLink variant='border' href='/'>
+        <a href='/' className={chipVariants({ variant: 'border' })}>
           Return Home
-        </ChipLink>
+        </a>
       </div>
     </div>
   )

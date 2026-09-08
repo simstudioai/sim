@@ -52,7 +52,7 @@ import { SIGNUP_HREF } from '@/app/(landing)/constants'
  * to the caption through {@link ProductDemoBeatProvider}.
  */
 
-/** The paper ground, the one literal on this page (see `SectionBand`). */
+/** The paper ground, the one literal on this page, paired with its dark value. */
 const PAPER = 'bg-[#F8F8F8] dark:bg-[var(--surface-2)]'
 
 /**

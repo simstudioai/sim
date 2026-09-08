@@ -45,12 +45,36 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-
-    if (active && !reducedMotion) {
-      /** Autoplay may be blocked; the poster remains the fallback. */
-      void video.play().catch(() => {})
-    } else {
+    if (!active || reducedMotion) {
       video.pause()
+      return
+    }
+
+    /**
+     * The film streams only while the slide is on screen in a visible tab:
+     * `play()` defeats `preload='metadata'`, so calling it at mount would pull
+     * the whole file for a section well below the fold. Autoplay may still be
+     * blocked, in which case the poster remains the fallback.
+     */
+    const canObserve = typeof IntersectionObserver !== 'undefined'
+    let inView = !canObserve
+    const sync = () => {
+      if (inView && !document.hidden) void video.play().catch(() => {})
+      else video.pause()
+    }
+    const observer = canObserve
+      ? new IntersectionObserver(([entry]) => {
+          inView = entry.isIntersecting
+          sync()
+        })
+      : null
+    if (observer) observer.observe(video)
+    else sync()
+    document.addEventListener('visibilitychange', sync)
+
+    return () => {
+      observer?.disconnect()
+      document.removeEventListener('visibilitychange', sync)
     }
   }, [active, reducedMotion])
 
@@ -80,7 +104,6 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
             muted
             playsInline
             preload='metadata'
-            poster={story.media.poster}
             src={story.media.src}
             tabIndex={-1}
             className='pointer-events-none absolute inset-0 size-full object-cover motion-reduce:hidden'
