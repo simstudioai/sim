@@ -588,7 +588,6 @@ export async function requestChatTitle(params: {
     chatId,
     message,
     model,
-    provider,
     userId,
     workspaceId,
     organizationId,
@@ -646,10 +645,6 @@ export async function requestChatTitle(params: {
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',
       operation: 'generate_chat_title',
-      attributes: {
-        [TraceAttr.GenAiRequestModel]: model,
-        ...(provider ? { [TraceAttr.GenAiSystem]: provider } : {}),
-      },
     })
 
     const payload = await response.json().catch(() => ({}))
