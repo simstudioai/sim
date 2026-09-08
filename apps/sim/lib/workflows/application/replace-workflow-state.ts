@@ -20,6 +20,7 @@ import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
+import { validateValueForSubBlockType } from '@/lib/workflows/editing/validation'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
   assertWorkflowGraphIdsUnclaimed,
@@ -27,6 +28,7 @@ import {
   replaceWorkflowNormalizedState,
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('ReplaceWorkflowState')
 
@@ -123,8 +125,35 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
     }
     const sanitized = validation.sanitizedState ?? candidate
 
+    /** Use registry control types, never the caller's subblock type, just as operation edits do. */
+    const blocks = structuredClone(sanitized.blocks) as Record<string, BlockState>
+    for (const [blockId, block] of Object.entries(blocks)) {
+      const config = getBlock(block.type)
+      if (!config) continue
+      const fields = new Map(config.subBlocks.map((field) => [field.id, field]))
+      for (const [fieldId, stored] of Object.entries(block.subBlocks ?? {})) {
+        const field = fields.get(fieldId)
+        if (!field) continue
+        const result = validateValueForSubBlockType(
+          field,
+          stored.value,
+          field.id,
+          block.type,
+          blockId
+        )
+        if (!result.valid) {
+          throw new OrchestrationError(
+            'validation',
+            `Block ${block.name || blockId}: ${result.error?.error ?? `Invalid field ${field.id}`}`
+          )
+        }
+        stored.value = result.value
+        stored.type = field.type
+      }
+    }
+
     const graph = {
-      blocks: sanitized.blocks as Record<string, BlockState>,
+      blocks,
       edges: sanitized.edges as WorkflowState['edges'],
     }
 
