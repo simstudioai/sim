@@ -261,6 +261,8 @@ describe('handleUnifiedChatPost', () => {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
+          effort: 'xhigh',
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
           workflowId: 'wf-1',
           workspaceId: 'ws-1',
         }),
@@ -273,6 +275,8 @@ describe('handleUnifiedChatPost', () => {
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Hello',
+        effort: 'xhigh',
+        modelSelection: { model: 'gpt-6-astra', fastMode: true },
         userId: 'user-1',
         workflowId: 'wf-1',
         workspaceId: 'ws-1',
@@ -330,6 +334,8 @@ describe('handleUnifiedChatPost', () => {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
+          effort: 'xhigh',
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
           workspaceId: 'ws-1',
           createNewChat: true,
         }),
@@ -340,6 +346,8 @@ describe('handleUnifiedChatPost', () => {
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Hello',
+        effort: 'xhigh',
+        modelSelection: { model: 'gpt-6-astra', fastMode: true },
         userId: 'user-1',
         workspaceId: 'ws-1',
       }),
@@ -1181,14 +1189,14 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    getSession.mockResolvedValue({ user: { id: 'user-1' } })
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     atomicallyClaimChatSend.mockResolvedValue({
       claimed: true,
       normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
       storageMethod: 'database',
       claimToken: 'claim-1',
     })
-    storeChatSendResult.mockResolvedValue(true)
+    admitTurn.mockResolvedValue({ id: 'run-1', status: 'active' })
     releaseChatSendClaim.mockResolvedValue(undefined)
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
@@ -1206,7 +1214,6 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
       conflicts: [],
       decryptionFailures: [],
     })
-    generateWorkspaceSnapshot.mockResolvedValue({ markdown: '', snapshot: { workflows: [] } })
     processContextsServer.mockResolvedValue([])
     resolveActiveResourceContext.mockResolvedValue(null)
     buildCopilotRequestPayload.mockImplementation(async (params: Record<string, unknown>) => params)

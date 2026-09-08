@@ -13,10 +13,12 @@ import {
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { chatOperations } from '@/lib/mothership/application/operations'
-import { withAskModeContext } from '@/lib/mothership/chat/ask-mode'
+import type { AtomicClaimResult } from '@/lib/core/idempotency'
+import { chatSendIdempotency } from '@/lib/core/idempotency'
 import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { chatOperations } from '@/lib/mothership/application/operations'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { withAskModeContext } from '@/lib/mothership/chat/ask-mode'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
@@ -36,7 +38,12 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
-import { type ChatRequest, PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import {
+  type ChatRequest,
+  type ModelSelection,
+  ModelSelectionSchema,
+  PROTOCOL_VERSION,
+} from '@/lib/mothership/generated/protocol'
 import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -57,8 +64,6 @@ import {
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
-import type { AtomicClaimResult } from '@/lib/core/idempotency'
-import { chatSendIdempotency } from '@/lib/core/idempotency'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -253,6 +258,7 @@ const ChatMessageSchema = z.object({
   userTimezone: z.string().optional(),
   /** Per-turn model effort dial; forwarded verbatim to the worker. */
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+  modelSelection: ModelSelectionSchema.optional(),
   /**
    * Contract ChatRequest.clientCapabilities: what this caller can execute client-side.
    * PRESENT = explicit declaration (empty array → no client pickup, dispatch runs
@@ -323,6 +329,7 @@ type UnifiedChatBranch =
         userPermission?: string
         userTimezone?: string
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        modelSelection?: ModelSelection
         workflowId: string
         workflowName?: string
         workspaceId: string
@@ -364,6 +371,7 @@ type UnifiedChatBranch =
         userPermission?: string
         userTimezone?: string
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        modelSelection?: ModelSelection
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -629,6 +637,7 @@ async function resolveBranch(params: {
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
             effort: payloadParams.effort,
+            modelSelection: payloadParams.modelSelection,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
@@ -689,6 +698,7 @@ async function resolveBranch(params: {
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
           effort: payloadParams.effort,
+          modelSelection: payloadParams.modelSelection,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
@@ -1082,6 +1092,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
                 effort: body.effort,
+                modelSelection: body.modelSelection,
                 workflowId: branch.workflowId,
                 workflowName: branch.workflowName,
                 workspaceId: branch.workspaceId,
@@ -1107,6 +1118,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
                 effort: body.effort,
+                modelSelection: body.modelSelection,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
