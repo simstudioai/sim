@@ -208,7 +208,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
   }
 
   if (USE_GCS_STORAGE) {
-    const { uploadToGcs } = await import('@/lib/uploads/providers/gcs/client')
+    const { uploadToGcs } = await import('@/lib/uploads/providers/gcs/client.server')
     const uploadResult = await uploadToGcs(
       file,
       keyToUse,
@@ -379,7 +379,7 @@ async function createGcsBackend(
     uploadGcsPart,
     completeGcsMultipartUpload,
     abortGcsMultipartUpload,
-  } = await import('@/lib/uploads/providers/gcs/client')
+  } = await import('@/lib/uploads/providers/gcs/client.server')
   const { uploadId, key: uploadKey } = await initiateGcsMultipartUpload({
     fileName: key,
     contentType,
@@ -553,7 +553,7 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
 
     if (USE_GCS_STORAGE) {
-      const { downloadFromGcs } = await import('@/lib/uploads/providers/gcs/client')
+      const { downloadFromGcs } = await import('@/lib/uploads/providers/gcs/client.server')
       const gcsConfig = createGcsConfig(config)
       return downloadFromGcs(key, gcsConfig, maxBytes, signal)
     }
@@ -611,7 +611,7 @@ export async function downloadFileStream(options: {
   }
 
   if (USE_GCS_STORAGE) {
-    const { downloadFromGcsStream } = await import('@/lib/uploads/providers/gcs/client')
+    const { downloadFromGcsStream } = await import('@/lib/uploads/providers/gcs/client.server')
     return downloadFromGcsStream(key, createGcsConfig(config))
   }
 
@@ -641,7 +641,7 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
 
     if (USE_GCS_STORAGE) {
-      const { deleteFromGcs } = await import('@/lib/uploads/providers/gcs/client')
+      const { deleteFromGcs } = await import('@/lib/uploads/providers/gcs/client.server')
       return deleteFromGcs(key, createGcsConfig(config))
     }
   }
@@ -721,7 +721,7 @@ export async function headObject(
   }
 
   if (USE_GCS_STORAGE) {
-    const { headGcsObject } = await import('@/lib/uploads/providers/gcs/client')
+    const { headGcsObject } = await import('@/lib/uploads/providers/gcs/client.server')
     return headGcsObject(key, createGcsConfig(config))
   }
 
@@ -759,7 +759,7 @@ export async function generatePresignedDownloadUrl(
   }
 
   if (USE_GCS_STORAGE) {
-    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/gcs/client')
+    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/gcs/client.server')
     return getPresignedUrlWithConfig(key, createGcsConfig(config), expirationSeconds)
   }
 

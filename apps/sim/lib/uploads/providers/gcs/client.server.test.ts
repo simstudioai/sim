@@ -74,16 +74,17 @@ import {
   deleteFromGcs,
   deleteGcsObjectVersion,
   downloadFromGcs,
+  getGcsClient,
   getGcsMultipartPartUrls,
   getGcsPresignedUploadUrl,
   getPresignedUrlWithConfig,
   headGcsObject,
   initiateGcsMultipartUpload,
   listGcsMultipartParts,
+  resetGcsClientForTesting,
   uploadGcsPart,
   uploadToGcs,
-} from '@/lib/uploads/providers/gcs/client'
-import { getGcsClient, resetGcsClientForTesting } from '@/lib/uploads/providers/gcs/connection'
+} from '@/lib/uploads/providers/gcs/client.server'
 
 const mockFetch = vi.fn()
 
