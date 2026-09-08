@@ -39,6 +39,7 @@ import {
 } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
+import type { ExecuteWorkflowOptions } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
   type ExecutionEvent,
@@ -418,7 +419,7 @@ interface StartResumeExecutionArgs {
   userId: string
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete?: ExecuteWorkflowOptions['onBlockComplete']
   abortSignal?: AbortSignal
 }
 
@@ -1071,7 +1072,7 @@ export class PauseResumeManager {
     userId: string
     sendEvent?: (event: ExecutionEvent) => void
     onStream?: (streamingExec: StreamingExecution) => Promise<void>
-    onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+    onBlockComplete?: ExecuteWorkflowOptions['onBlockComplete']
     abortSignal?: AbortSignal
   }): Promise<ExecutionResult> {
     const {
@@ -1727,7 +1728,12 @@ export class PauseResumeManager {
         } as ExecutionEvent)
 
         if (externalOnBlockComplete) {
-          await externalOnBlockComplete(blockId, callbackData.output)
+          await externalOnBlockComplete(
+            blockId,
+            callbackData.output,
+            callbackData.outputBlockId,
+            callbackData.childWorkflowInstanceId
+          )
         }
       },
       onChildWorkflowInstanceReady: async (

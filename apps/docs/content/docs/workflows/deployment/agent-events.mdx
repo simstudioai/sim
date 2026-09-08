@@ -29,6 +29,14 @@ Agent events are governed by two things that do not depend on each other.
 X-Sim-Stream-Protocol: agent-events-v1
 ```
 
+To receive provisional custom-block answers, also declare `scoped-output-v1`:
+
+```http
+X-Sim-Stream-Protocol: agent-events-v1, scoped-output-v1
+```
+
+With this capability, key answer chunks and `chunk_reset` frames by `streamId` when present, otherwise by `blockId`. Each custom-block field stream has its own opaque ID, so resetting one answer preserves other fields and invocations. Clients that omit this capability receive settled custom-block text without custom-block retractions. The deployed chat client negotiates both capabilities automatically.
+
 It does two things. It switches answer text to live token-by-token `chunk` frames that `chunk_reset` can retract, and it is **required** for any `thinking` or `tool` frame — a client that never declared a version has no contract for their shape, so it keeps the text-only stream it already understands.
 
 Omitting the header is always valid and always safe: you get settled final-turn text and no agent-event frames, which is what every pre-existing integration receives. The response echoes the header back when the protocol was negotiated.

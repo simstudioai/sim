@@ -4249,12 +4249,13 @@ export const customBlock = pgTable(
      */
     inputs: json('inputs').$type<Array<{ id: string; placeholder?: string; required?: boolean }>>(),
     /**
-     * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
-     * maps a child-workflow block output (blockId + dot-path) to a friendly output
-     * name on the block. Empty/absent → expose the child's whole `result`. Internal
-     * plumbing (child workflow id, trace spans) is never exposed.
+     * Publisher-curated mappings from child outputs to public fields.
+     * Empty legacy definitions expose no child data and fail at invocation.
      */
-    outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
+    outputs:
+      json('outputs').$type<
+        Array<{ blockId: string; path: string; name: string; streaming?: boolean }>
+      >(),
     enabled: boolean('enabled').notNull().default(true),
     /**
      * The publisher's org-wide decision on whether this block's runs are joined into

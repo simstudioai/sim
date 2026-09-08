@@ -114,6 +114,7 @@ class SlackInvocationStream {
   private fullAnswer = ''
   private thinking = ''
   private emittedAnswer = false
+  private settled = false
   private chain: Promise<void> = Promise.resolve()
 
   constructor(
@@ -239,27 +240,54 @@ class SlackInvocationStream {
     return this.enqueue(() => this.appendAnswer(text))
   }
 
-  complete(): Promise<void> {
-    return this.enqueue(async () => {
-      await this.flushThinking()
-      await this.flushAnswer(true)
-      if (!this.emittedAnswer && this.fullAnswer) {
+  flush(): Promise<void> {
+    return this.enqueue(() => this.flushAnswer(true))
+  }
+
+  complete(status: 'complete' | 'error' = 'complete'): Promise<void> {
+    const settle = async (deliveryFailed = false) => {
+      if (this.settled) return
+      const aborted = this.signal?.aborted === true
+      if ((aborted || deliveryFailed) && (!this.channel || !this.ts)) return
+      if (!aborted && !deliveryFailed) {
+        await this.flushThinking()
+        await this.flushAnswer(true)
+      }
+      if (!aborted && !deliveryFailed && !this.emittedAnswer && this.fullAnswer) {
         const projected = await this.projectFinalText(this.fullAnswer)
         if (projected) {
           await this.append(splitMarkdown(projected))
           this.emittedAnswer = true
         }
       }
-      await this.append([
-        {
-          type: 'task_update',
-          id: this.taskId,
-          title: this.title,
-          status: 'complete',
-        },
-      ])
-      await stopSlackAgentStream(this.token, this.channel!, this.ts!, 'processing', this.signal)
-    })
+      if (!aborted) await this.ensureStarted()
+      const signal = aborted ? undefined : this.signal
+      await appendSlackAgentStream(
+        this.token,
+        this.channel!,
+        this.ts!,
+        [
+          {
+            type: 'task_update',
+            id: this.taskId,
+            title: this.title,
+            status,
+          },
+        ],
+        signal
+      )
+      await stopSlackAgentStream(this.token, this.channel!, this.ts!, 'processing', signal)
+      this.settled = true
+    }
+    /** Close an opened message even when its last write failed; the controller retains that error. */
+    this.chain = this.chain.then(
+      () => settle(),
+      (error: unknown) => {
+        if (status !== 'error') throw error
+        return settle(true)
+      }
+    )
+    return this.chain
   }
 
   sendSettledOutput(text: string): Promise<void> {
@@ -287,6 +315,10 @@ export class SlackExecutionStreamController {
   private readonly target: SlackReplyTarget
   private readonly token: string
   private readonly invocations = new Map<string, SlackInvocationStream>()
+  private readonly projectedInvocations = new Map<
+    string,
+    { parentKey: string; path: string; invocation: SlackInvocationStream }
+  >()
 
   private constructor(
     private readonly options: SlackExecutionStreamControllerOptions,
@@ -389,11 +421,22 @@ export class SlackExecutionStreamController {
       if (this.selectedForBlock(stream.blockId).length === 0) {
         throw new Error(`Slack streaming received an unselected block: ${stream.blockId}`)
       }
-      const key = this.invocationKey(
+      const parentKey = this.invocationKey(
         stream.blockId,
         stream.executionOrder,
         stream.childWorkflowInstanceId
       )
+      if (stream.outputPath !== undefined) {
+        if (!stream.streamId || !stream.childWorkflowInstanceId) {
+          throw new Error('Custom block stream is missing its public invocation identity')
+        }
+        if (
+          !this.selectedForBlock(stream.blockId).some((output) => output.path === stream.outputPath)
+        ) {
+          throw new Error('Custom block streamed an unselected Slack output')
+        }
+      }
+      const key = stream.outputPath !== undefined ? stream.streamId! : parentKey
       if (this.invocations.has(key)) {
         throw new Error(`Duplicate Slack stream invocation: ${key}`)
       }
@@ -401,16 +444,21 @@ export class SlackExecutionStreamController {
         this.token,
         this.target,
         this.options.config,
-        this.taskId(stream.executionOrder, stream.childWorkflowInstanceId),
+        this.taskId(stream.executionOrder, stream.streamId ?? stream.childWorkflowInstanceId),
         this.options.config.taskTitle,
         (text) => this.projectLiveText(text, stream.displayResolvedSecretTraceProvenance),
         (text) => this.projectFinalText(text, stream.displayResolvedSecretTraceProvenance),
         this.options.abortSignal
       )
       this.invocations.set(key, invocation)
+      if (stream.outputPath !== undefined) {
+        this.projectedInvocations.set(key, { parentKey, path: stream.outputPath, invocation })
+      }
 
-      const answerFromEventSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
-      const unsubscribe = stream.subscribe?.({
+      /** Slack cannot retract an intermediate tool turn, so public fields use final-turn bytes. */
+      const subscribe = stream.outputPath === undefined ? stream.subscribe : undefined
+      const answerFromEventSink = Boolean(subscribe) && !stream.clientStreamTransformed
+      const unsubscribe = subscribe?.({
         onEvent: async (event) => {
           if (!answerFromEventSink && event.type === 'text_delta') return
           await invocation.onEvent(event)
@@ -430,9 +478,14 @@ export class SlackExecutionStreamController {
           const remainder = decoder.decode()
           if (remainder) await invocation.appendProjectedBytes(remainder)
         }
-        await invocation.complete()
+        if (stream.outputPath !== undefined) {
+          await invocation.flush()
+        } else {
+          await invocation.complete()
+        }
       } finally {
         unsubscribe?.()
+        reader.releaseLock()
       }
     } catch (error) {
       throw this.recordFailure(error)
@@ -451,12 +504,23 @@ export class SlackExecutionStreamController {
       )
       if (this.invocations.has(key)) return
 
+      const streamedPaths = new Set<string>()
+      for (const [streamId, projected] of this.projectedInvocations) {
+        if (projected.parentKey !== key) continue
+        streamedPaths.add(projected.path)
+        const failed = data.output.success === false || typeof data.output.error === 'string'
+        await projected.invocation.complete(failed ? 'error' : 'complete')
+        this.projectedInvocations.delete(streamId)
+        this.invocations.set(key, projected.invocation)
+      }
+
       const display = await this.options.loggingSession.projectDisplayContent(
         { output: data.output },
         data.displayResolvedSecretTraceProvenance
       )
       if (!Object.hasOwn(display, 'output')) return
       const values = selected.flatMap((selection) => {
+        if (streamedPaths.has(selection.path)) return []
         const value = pluckByPath(display.output, selection.path)
         return value === undefined ? [] : [{ path: selection.path, value }]
       })
@@ -483,6 +547,18 @@ export class SlackExecutionStreamController {
   }
 
   async finalize(result: ExecutionResult): Promise<void> {
+    for (const [streamId, projected] of this.projectedInvocations) {
+      try {
+        await projected.invocation.complete('error')
+        if (result.success && result.status !== 'cancelled' && result.status !== 'paused') {
+          throw new Error('Custom block stream ended without its block completion')
+        }
+      } catch (error) {
+        this.recordFailure(error)
+      } finally {
+        this.projectedInvocations.delete(streamId)
+      }
+    }
     const status =
       result.status === 'cancelled' || (result.success && result.status !== 'paused')
         ? 'active'

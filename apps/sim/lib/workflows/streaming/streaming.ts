@@ -37,6 +37,8 @@ import {
   type ChatStreamThinkingFrame,
   type ChatStreamToolFrame,
   clientAcceptsAgentStreamProtocol,
+  clientAcceptsScopedOutputStreams,
+  SCOPED_OUTPUT_STREAM_PROTOCOL_V1,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -81,7 +83,12 @@ interface StreamingConfig {
 
 export type StreamingExecutorFn = (callbacks: {
   onStream: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete: (blockId: string, output: unknown, outputBlockId?: string) => Promise<void>
+  onBlockComplete: (
+    blockId: string,
+    output: unknown,
+    outputBlockId?: string,
+    childWorkflowInstanceId?: string
+  ) => Promise<void>
   abortSignal: AbortSignal
 }) => Promise<ExecutionResult>
 
@@ -119,7 +126,11 @@ export function agentStreamProtocolResponseHeaders(options: {
   if (!clientAcceptsAgentStreamProtocol(options.requestHeaders)) {
     return {}
   }
-  return { [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }
+  return {
+    [AGENT_STREAM_PROTOCOL_HEADER]: clientAcceptsScopedOutputStreams(options.requestHeaders)
+      ? `${AGENT_STREAM_PROTOCOL_V1}, ${SCOPED_OUTPUT_STREAM_PROTOCOL_V1}`
+      : AGENT_STREAM_PROTOCOL_V1,
+  }
 }
 
 interface StreamingState {
@@ -505,6 +516,8 @@ export async function createStreamingResponse(
    */
   const clientAcceptsProtocol =
     Boolean(options.requestHeaders) && clientAcceptsAgentStreamProtocol(options.requestHeaders!)
+  const acceptsScopedOutputs =
+    Boolean(options.requestHeaders) && clientAcceptsScopedOutputStreams(options.requestHeaders!)
   /**
    * Frames additionally require the negotiated protocol: a client that never
    * declared a version has no contract for their shape, so it keeps the text
@@ -542,11 +555,16 @@ export async function createStreamingResponse(
         streamedSelectedOutputKeys: new Set(),
       }
       let thinkingCharsEmitted = 0
+      const projectedOutputInvocations = new Map<string, Set<string>>()
 
       const sendChunk = (
         blockId: string,
         content: string,
-        options: { selectedOutputKey?: string; selectedOutputBytes?: number } = {}
+        options: {
+          selectedOutputKey?: string
+          selectedOutputBytes?: number
+          streamId?: string
+        } = {}
       ) => {
         const separator = state.processedOutputs.size > 0 ? '\n\n' : ''
         const chunk = separator + content
@@ -558,9 +576,13 @@ export async function createStreamingResponse(
           state.selectedOutputBytes = nextSelectedOutputBytes
           state.streamedSelectedOutputKeys.add(options.selectedOutputKey)
         }
-        const frame: ChatStreamChunkFrame = { blockId, chunk }
+        const frame: ChatStreamChunkFrame = {
+          blockId,
+          chunk,
+          ...(options.streamId ? { streamId: options.streamId } : {}),
+        }
         controller.enqueue(encodeSSE(frame))
-        state.processedOutputs.add(blockId)
+        state.processedOutputs.add(options.streamId ?? blockId)
       }
 
       const sendThinking = (blockId: string, text: string) => {
@@ -606,6 +628,21 @@ export async function createStreamingResponse(
           logger.warn(`[${requestId}] Streaming execution missing blockId`)
           return
         }
+        const { outputPath, streamId, childWorkflowInstanceId } = streamingExec
+        if (outputPath !== undefined) {
+          if (!streamId || !childWorkflowInstanceId) {
+            throw new Error('Custom block stream is missing its public invocation identity')
+          }
+          const selected = getSelectedOutputDescriptors(streamConfig.selectedOutputs ?? []).some(
+            (descriptor) => descriptor.blockId === blockId && descriptor.path === outputPath
+          )
+          if (!selected) throw new Error('Custom block streamed an unselected output')
+          const invocationKey = `${blockId}\0${childWorkflowInstanceId}`
+          const paths = projectedOutputInvocations.get(invocationKey) ?? new Set<string>()
+          paths.add(outputPath)
+          projectedOutputInvocations.set(invocationKey, paths)
+          state.streamedSelectedOutputKeys.add(`${blockId}\0${outputPath}`)
+        }
 
         /**
          * Negotiated clients get answer text live from the sink (pending deltas
@@ -621,6 +658,7 @@ export async function createStreamingResponse(
          */
         const sinkAnswerText =
           clientAcceptsProtocol &&
+          (outputPath === undefined || acceptsScopedOutputs) &&
           Boolean(streamingExec.subscribe) &&
           streamingExec.clientStreamTransformed !== true
 
@@ -631,10 +669,14 @@ export async function createStreamingResponse(
           if (!text) return
           if (!emittedSinceReset) {
             // sendChunk adds the cross-block separator + output bookkeeping.
-            sendChunk(blockId, text)
+            sendChunk(blockId, text, { streamId })
             emittedSinceReset = true
           } else {
-            const frame: ChatStreamChunkFrame = { blockId, chunk: text }
+            const frame: ChatStreamChunkFrame = {
+              blockId,
+              chunk: text,
+              ...(streamId ? { streamId } : {}),
+            }
             controller.enqueue(encodeSSE(frame))
           }
         }
@@ -655,11 +697,15 @@ export async function createStreamingResponse(
                 }
               } else if (sinkAnswerText && event.type === 'turn_end') {
                 if (event.turn === 'intermediate' && emittedSinceReset) {
-                  const frame: ChatStreamChunkResetFrame = { blockId, event: 'chunk_reset' }
+                  const frame: ChatStreamChunkResetFrame = {
+                    blockId,
+                    event: 'chunk_reset',
+                    ...(streamId ? { streamId } : {}),
+                  }
                   controller.enqueue(encodeSSE(frame))
                   // Re-arm separator bookkeeping so re-streamed text starts clean.
                   emittedSinceReset = false
-                  state.processedOutputs.delete(blockId)
+                  state.processedOutputs.delete(streamId ?? blockId)
                 }
               }
             },
@@ -673,21 +719,24 @@ export async function createStreamingResponse(
           while (true) {
             const { done, value } = await reader.read()
             if (done) {
-              state.streamCompletionTimes.set(blockId, Date.now())
+              if (outputPath === undefined) state.streamCompletionTimes.set(blockId, Date.now())
+              const remainder = decoder.decode()
+              if (remainder && !sinkAnswerText) emitAnswerChunk(remainder)
               break
             }
 
             const textChunk = decoder.decode(value, { stream: true })
-            if (!state.streamedChunks.has(blockId)) {
-              state.streamedChunks.set(blockId, [])
+            if (outputPath === undefined) {
+              if (!state.streamedChunks.has(blockId)) state.streamedChunks.set(blockId, [])
+              state.streamedChunks.get(blockId)!.push(textChunk)
             }
-            state.streamedChunks.get(blockId)!.push(textChunk)
 
             if (!sinkAnswerText) {
               emitAnswerChunk(textChunk)
             }
           }
         } catch (error) {
+          if (outputPath !== undefined) throw error
           logger.error(
             `[${requestId}] Error reading stream for block ${blockId}`,
             projectResolvedSecretDiagnosticError(error, undefined)
@@ -700,6 +749,7 @@ export async function createStreamingResponse(
           controller.enqueue(encodeSSE(frame))
         } finally {
           unsubscribe?.()
+          reader.releaseLock()
         }
       }
 
@@ -709,10 +759,14 @@ export async function createStreamingResponse(
       const onBlockCompleteCallback = async (
         blockId: string,
         output: unknown,
-        outputBlockId?: string
+        outputBlockId?: string,
+        childWorkflowInstanceId?: string
       ) => {
         const selectedOutputBlockId = outputBlockId ?? blockId
         state.completedBlockIds.add(selectedOutputBlockId)
+        const invocationKey = `${selectedOutputBlockId}\0${childWorkflowInstanceId}`
+        const streamedPaths = projectedOutputInvocations.get(invocationKey)
+        projectedOutputInvocations.delete(invocationKey)
 
         if (!streamConfig.selectedOutputs?.length) {
           return
@@ -739,6 +793,7 @@ export async function createStreamingResponse(
           : output
 
         for (const descriptor of matchingOutputs) {
+          if (streamedPaths?.has(descriptor.path)) continue
           if (state.selectedOutputError) {
             break
           }
@@ -799,6 +854,9 @@ export async function createStreamingResponse(
               sendChunk(selectedOutputBlockId, formattedOutput, {
                 selectedOutputKey: descriptor.key,
                 selectedOutputBytes,
+                ...(childWorkflowInstanceId
+                  ? { streamId: `${childWorkflowInstanceId}:${descriptor.path}` }
+                  : {}),
               })
             }
           } catch (error) {

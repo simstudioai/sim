@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
+  SCOPED_OUTPUT_STREAM_PROTOCOL_V1,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import {
@@ -236,7 +237,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
-          [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1,
+          [AGENT_STREAM_PROTOCOL_HEADER]: `${AGENT_STREAM_PROTOCOL_V1}, ${SCOPED_OUTPUT_STREAM_PROTOCOL_V1}`,
         },
         body: JSON.stringify(payload),
         credentials: 'same-origin',

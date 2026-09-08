@@ -18,6 +18,7 @@ export interface WorkflowOutputOption {
   groupKey: string
   groupLabel: string
   path: string
+  streaming?: boolean
   menuPath: WorkflowOutputMenuSegment[]
 }
 
@@ -117,6 +118,7 @@ export function buildWorkflowOutputOptions({
         groupKey: menuBlockId,
         groupLabel,
         path: output.path,
+        ...(output.streaming ? { streaming: true } : {}),
         menuPath: [
           ...invocationPath,
           {

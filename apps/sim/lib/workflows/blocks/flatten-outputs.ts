@@ -31,6 +31,7 @@ export interface FlattenedBlockOutput {
   /** Type from the block's output schema (e.g. `string`, `number`, `json`).
    *  Used by the table column-sidebar to pick the right column type. */
   leafType?: string
+  streaming?: boolean
 }
 
 /**
@@ -113,6 +114,7 @@ export function flattenWorkflowOutputs(
           blockType: block.type,
           path: fullPath,
           leafType: declaredType,
+          ...(isRecordLike(outputObj) && outputObj.streaming === true ? { streaming: true } : {}),
         })
         return
       }

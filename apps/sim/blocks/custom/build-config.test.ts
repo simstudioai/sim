@@ -111,6 +111,22 @@ describe('buildCustomBlockConfig', () => {
     expect(config.outputs.childTraceSpans).toBeUndefined()
   })
 
+  it('advertises a live public field as text for deployment output pickers', () => {
+    const config = buildCustomBlockConfig(
+      {
+        ...row,
+        exposedOutputs: [{ blockId: 'agent', path: 'content', name: 'answer', streaming: true }],
+      },
+      [],
+      { icon }
+    )
+    expect(config.outputs.answer).toEqual({
+      type: 'string',
+      description: 'Streaming text output',
+      streaming: true,
+    })
+  })
+
   it('exposes only curated outputs as named fields', () => {
     const config = buildCustomBlockConfig(
       { ...row, exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'email' }] },

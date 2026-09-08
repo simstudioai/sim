@@ -37,6 +37,8 @@ export interface CustomBlockOutput {
   blockId: string
   path: string
   name: string
+  /** Expose the source's answer text while this invocation is running. */
+  streaming?: boolean
 }
 
 /**
@@ -63,7 +65,7 @@ export interface CustomBlockRow {
   workflowId: string
   /** Source workflow's home workspace name, to disambiguate same-named env copies. */
   workspaceName?: string | null
-  /** Curated exposed outputs; empty/absent exposes the child's whole `result`. */
+  /** Curated public outputs; legacy empty definitions expose no data fields. */
   exposedOutputs?: CustomBlockOutput[]
 }
 
@@ -237,9 +239,8 @@ export function buildCustomBlockConfig(
 }
 
 /**
- * The block's declared outputs. Internal plumbing (child workflow id/name, trace
- * spans) is never exposed. With curated `exposedOutputs`, each becomes its own
- * named output; otherwise the whole child `result` is exposed.
+ * Public outputs contain status fields and publisher-curated data only.
+ * Legacy definitions without curated outputs expose no child data and fail at invocation.
  */
 function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['outputs'] {
   const outputs: BlockConfig['outputs'] = {
@@ -248,12 +249,12 @@ function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['ou
     errorType: { type: 'string', description: 'Machine-readable failure class' },
     errorRef: { type: 'string', description: 'Opaque reference to the failed run' },
   }
-  // No whole-`result` fallback: curation is required at publish, so every
-  // consumer-visible field is one the publisher chose. A legacy row with no
-  // curated outputs advertises no data fields and fails loudly at invocation
-  // rather than silently reverting to exposing the child's raw terminal state.
   for (const out of exposed ?? []) {
-    outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
+    outputs[out.name] = {
+      type: out.streaming ? 'string' : 'json',
+      description: out.streaming ? 'Streaming text output' : `Output: ${out.path}`,
+      ...(out.streaming ? { streaming: true } : {}),
+    }
   }
   return outputs
 }

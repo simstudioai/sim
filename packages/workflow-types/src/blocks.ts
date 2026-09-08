@@ -81,6 +81,8 @@ export type OutputFieldDefinition =
       description?: string
       condition?: OutputCondition
       hiddenFromDisplay?: boolean
+      /** This public field can supply live answer text to deployment output consumers. */
+      streaming?: boolean
     }
 
 export function isHiddenFromDisplay(def: unknown): boolean {

@@ -26,6 +26,10 @@ import {
 } from '@/lib/workflows/executor/start-run-identity'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
+  assertCustomBlockStreamingOutputs,
+  selectCustomBlockStreamingOutputs,
+} from '@/lib/workflows/streaming/custom-block-output'
+import {
   scopeOutputBlockId,
   selectChildOutputSelectors,
 } from '@/lib/workflows/streaming/output-selector'
@@ -507,9 +511,25 @@ export class WorkflowBlockHandler implements BlockHandler {
           `Selected stream output exceeds the maximum child workflow depth of ${DEFAULTS.MAX_SSE_CHILD_DEPTH}`
         )
       }
-      const childSelectedOutputs = isCustomBlock ? [] : childOutputSelection.selectedOutputs
+      if (isCustomBlock) {
+        assertCustomBlockStreamingOutputs(exposedOutputs, childWorkflow.rawBlocks || {})
+      }
+      const publicOutputSelection = selectCustomBlockStreamingOutputs(
+        effectiveBlockId,
+        exposedOutputs,
+        ctx.selectedOutputs
+      )
+      if (!withinSseChildDepth && publicOutputSelection.selectedOutputs.length > 0) {
+        throw new BoundarySafeError({
+          errorType: 'depth_limit',
+          message: 'Selected streaming output exceeds the maximum child workflow depth',
+        })
+      }
+      const childSelectedOutputs = isCustomBlock
+        ? publicOutputSelection.selectedOutputs
+        : childOutputSelection.selectedOutputs
       const shouldStreamChild =
-        shouldPropagateCallbacks && Boolean(ctx.stream) && childSelectedOutputs.length > 0
+        withinSseChildDepth && Boolean(ctx.stream) && childSelectedOutputs.length > 0
 
       if (!withinSseChildDepth && !isCustomBlock) {
         logger.info('Dropping SSE callbacks beyond max child depth', {
@@ -825,26 +845,107 @@ export class WorkflowBlockHandler implements BlockHandler {
           }
         }
       }
-      if (shouldPropagateCallbacks) {
-        if (shouldStreamChild) {
-          childCallbacks.onStream = async (streamingExecution) => {
-            if (!streamingExecution.blockId) {
-              throw new Error('Child workflow stream is missing its block ID')
-            }
-            if (!ctx.onStream) {
-              throw new Error('Child workflow stream has no parent stream callback')
-            }
-            const selectedBlockRef =
-              childOutputSelection.selectedBlockRefs.get(streamingExecution.blockId) ??
-              streamingExecution.blockId
-            await ctx.onStream({
-              ...streamingExecution,
-              blockId: scopeOutputBlockId(workflowId, selectedBlockRef),
-              childWorkflowInstanceId: streamingExecution.childWorkflowInstanceId ?? instanceId,
-            })
+      if (shouldStreamChild) {
+        childCallbacks.onStream = async (streamingExecution) => {
+          if (!streamingExecution.blockId) {
+            throw new Error('Child workflow stream is missing its block ID')
           }
+          if (!ctx.onStream) {
+            throw new Error('Child workflow stream has no parent stream callback')
+          }
+          if (isCustomBlock) {
+            const output = publicOutputSelection.outputsByBlockId.get(streamingExecution.blockId)
+            if (!output) throw new Error('Custom block received an unselected source stream')
+            if (streamingExecution.streamFormat !== 'text') {
+              throw new Error('Custom block output requires a projected text stream')
+            }
+            const reader = streamingExecution.stream.getReader()
+            let sourceSettled = false
+            const publicStream = new ReadableStream<Uint8Array>({
+              async pull(controller) {
+                try {
+                  const { done, value } = await reader.read()
+                  if (done) {
+                    sourceSettled = true
+                    reader.releaseLock()
+                    controller.close()
+                  } else {
+                    controller.enqueue(value)
+                  }
+                } catch {
+                  sourceSettled = true
+                  reader.releaseLock()
+                  controller.error(new Error('Custom block output stream failed'))
+                }
+              },
+              async cancel(reason) {
+                try {
+                  await reader.cancel(reason)
+                } finally {
+                  reader.releaseLock()
+                }
+              },
+            })
+            const provenance = streamingExecution.displayResolvedSecretTraceProvenance
+            /** Only answer text and turn retractions cross; tool/thinking events stay private. */
+            await ctx
+              .onStream({
+                blockId: effectiveBlockId,
+                outputPath: output.name,
+                streamId: generateId(),
+                childWorkflowInstanceId: instanceId,
+                executionOrder: nodeMetadata?.executionOrder,
+                stream: publicStream,
+                streamFormat: 'text',
+                subscribe: streamingExecution.subscribe
+                  ? (sink) =>
+                      streamingExecution.subscribe!({
+                        onEvent: (event) => {
+                          if (event.type === 'text_delta') {
+                            return sink.onEvent({
+                              type: 'text_delta',
+                              text: event.text,
+                              turn: event.turn,
+                            })
+                          }
+                          if (event.type === 'turn_end') {
+                            return sink.onEvent({ type: 'turn_end', turn: event.turn })
+                          }
+                        },
+                      })
+                  : undefined,
+                displayResolvedSecretTraceProvenance: provenance
+                  ? {
+                      version: 1,
+                      complete: provenance.complete,
+                      entries: provenance.entries.map(({ encryptedValue }) => ({ encryptedValue })),
+                    }
+                  : undefined,
+                execution: { success: true, output: {} },
+              })
+              .catch(async (error: unknown) => {
+                if (!sourceSettled) {
+                  await reader.cancel()
+                  reader.releaseLock()
+                }
+                throw error
+              })
+            return
+          }
+          const selectedBlockRef =
+            childOutputSelection.selectedBlockRefs.get(streamingExecution.blockId) ??
+            streamingExecution.blockId
+          await ctx.onStream({
+            ...streamingExecution,
+            blockId: scopeOutputBlockId(workflowId, selectedBlockRef),
+            childWorkflowInstanceId: streamingExecution.childWorkflowInstanceId ?? instanceId,
+          })
         }
+      }
+      if (shouldPropagateCallbacks) {
         childCallbacks.onChildWorkflowInstanceReady = ctx.onChildWorkflowInstanceReady
+      }
+      if (shouldPropagateCallbacks || shouldStreamChild) {
         childCallbacks.childWorkflowContext = {
           parentBlockId: instanceId,
           workflowName: childWorkflowName,
@@ -992,11 +1093,10 @@ export class WorkflowBlockHandler implements BlockHandler {
         return {
           ...exposedOutput,
           ...buildChildTraceHandle(childExecutionId, traceChildRuns),
-          // Both are only set while the child is streaming to an identified consumer. The
-          // instance id is how the terminal correlates the child's live rows back to this
-          // invocation; the spans let it reconcile a row whose completion event was lost.
-          // The block executor lifts them onto the block log and strips them from state.
-          ...(shouldPropagateCallbacks ? { _childWorkflowInstanceId: instanceId } : {}),
+          /** Correlate public streams and authorized child traces with this invocation. */
+          ...(shouldPropagateCallbacks || shouldStreamChild
+            ? { _childWorkflowInstanceId: instanceId }
+            : {}),
           ...(childTraceSpans.length > 0 ? { childTraceSpans } : {}),
         }
       }

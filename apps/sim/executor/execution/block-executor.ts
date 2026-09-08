@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
@@ -1177,15 +1178,19 @@ export class BlockExecutor {
       (block.config as Record<string, any> | undefined)?.responseFormat
 
     const streamFormat = streamingExec.streamFormat ?? 'text'
+    const streamDeliveryController = new AbortController()
     const pump = createAgentStreamPump({
       source: streamingExec.stream,
       streamFormat,
       // No live consumer → sink-mode so we never buffer into an unread text stream.
       sinkMode: !forwardToClient,
-      abortSignal: ctx.abortSignal,
+      abortSignal: ctx.abortSignal
+        ? AbortSignal.any([ctx.abortSignal, streamDeliveryController.signal])
+        : streamDeliveryController.signal,
     })
 
     let onStreamPromise: Promise<void> | undefined
+    let streamDeliveryError: Error | undefined
     let processedClientStream: ReadableStream<Uint8Array> | undefined
 
     if (forwardToClient && ctx.onStream && pump.textStream) {
@@ -1218,6 +1223,8 @@ export class BlockExecutor {
             ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(resolvedInputs),
         })
         .catch(async (error) => {
+          streamDeliveryError = toError(error)
+          streamDeliveryController.abort(streamDeliveryError)
           this.execLogger.error('Error in onStream callback', {
             blockId,
             ...projectStreamDiagnosticError(error),
@@ -1243,6 +1250,7 @@ export class BlockExecutor {
     if (onStreamPromise) {
       await onStreamPromise
     }
+    if (streamDeliveryError) throw streamDeliveryError
 
     // Timeout still fails the block, but keep any drained answer text so logs
     // match what was already projected to the client before the deadline.
