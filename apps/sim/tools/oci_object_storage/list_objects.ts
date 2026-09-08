@@ -58,7 +58,17 @@ export const ociObjectStorageListObjectsTool: InternalToolConfig<
       description: 'Opaque token returned by the previous truncated page',
     },
   },
-  operation: { input: createOciObjectStorageOperationInput },
+  operation: {
+    input: (params) =>
+      createOciObjectStorageOperationInput(params, [
+        'bucketName',
+        'prefix',
+        'delimiter',
+        'maxKeys',
+        'startAfter',
+        'continuationToken',
+      ]),
+  },
   outputs: {
     bucket: { type: 'string', description: 'Bucket that was listed' },
     objects: {

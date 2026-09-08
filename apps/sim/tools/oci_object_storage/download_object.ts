@@ -33,7 +33,9 @@ export const ociObjectStorageDownloadObjectTool: InternalToolConfig<
       description: 'Object key to download',
     },
   },
-  operation: { input: createOciObjectStorageOperationInput },
+  operation: {
+    input: (params) => createOciObjectStorageOperationInput(params, ['bucketName', 'objectKey']),
+  },
   outputs: {
     file: { type: 'file', description: 'Downloaded file stored in execution files' },
     bucket: { type: 'string', description: 'Source bucket name' },

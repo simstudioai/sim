@@ -33,7 +33,9 @@ export const ociObjectStorageHeadObjectTool: InternalToolConfig<
       description: 'Object key to inspect',
     },
   },
-  operation: { input: createOciObjectStorageOperationInput },
+  operation: {
+    input: (params) => createOciObjectStorageOperationInput(params, ['bucketName', 'objectKey']),
+  },
   outputs: {
     bucket: { type: 'string', description: 'Bucket name' },
     key: { type: 'string', description: 'Object key' },

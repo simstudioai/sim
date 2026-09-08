@@ -78,20 +78,29 @@ describe('OCI Object Storage download file output', () => {
 
   it('passes only the executor-authorized credential reference to provider code', () => {
     expect(
-      createOciObjectStorageOperationInput({
-        oauthCredential: 'caller-visible-reference',
-        accessToken: 'authorized-credential-reference',
-        bucketName: 'documents',
-      })
+      createOciObjectStorageOperationInput(
+        {
+          oauthCredential: 'caller-visible-reference',
+          accessToken: 'authorized-credential-reference',
+          credentialId: 'forged-reference',
+          workspaceId: 'untrusted',
+          operation: 'oci_object_storage_list_buckets',
+          bucketName: 'documents',
+        },
+        ['bucketName']
+      )
     ).toEqual({
       credentialId: 'authorized-credential-reference',
       bucketName: 'documents',
     })
     expect(
-      createOciObjectStorageOperationInput({
-        oauthCredential: 'caller-visible-reference',
-        bucketName: 'documents',
-      })
+      createOciObjectStorageOperationInput(
+        {
+          oauthCredential: 'caller-visible-reference',
+          bucketName: 'documents',
+        },
+        ['bucketName']
+      )
     ).toEqual({ credentialId: '', bucketName: 'documents' })
   })
 })

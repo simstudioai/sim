@@ -33,7 +33,9 @@ export const ociObjectStorageDeleteObjectTool: InternalToolConfig<
       description: 'Object key to delete',
     },
   },
-  operation: { input: createOciObjectStorageOperationInput },
+  operation: {
+    input: (params) => createOciObjectStorageOperationInput(params, ['bucketName', 'objectKey']),
+  },
   outputs: {
     deleted: { type: 'boolean', description: 'Whether Oracle accepted the deletion' },
     bucket: { type: 'string', description: 'Bucket name' },

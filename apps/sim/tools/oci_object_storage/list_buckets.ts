@@ -19,7 +19,7 @@ export const ociObjectStorageListBucketsTool: InternalToolConfig<
   version: '1.0.0',
   oauth: ociObjectStorageOAuth,
   params: ociObjectStorageAuthParamFields,
-  operation: { input: createOciObjectStorageOperationInput },
+  operation: { input: (params) => createOciObjectStorageOperationInput(params, []) },
   outputs: {
     buckets: {
       type: 'array',

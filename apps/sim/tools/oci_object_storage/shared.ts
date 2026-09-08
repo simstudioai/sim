@@ -16,14 +16,17 @@ export const ociObjectStorageAuthParamFields = {
 } satisfies ToolConfig['params']
 
 export function createOciObjectStorageOperationInput<T extends { oauthCredential: string }>(
-  params: T
-): Omit<T, 'oauthCredential' | 'accessToken' | '_context'> & { credentialId: string } {
-  const { oauthCredential, accessToken, _context, ...input } = params as T & {
+  params: T,
+  fields: readonly (keyof T)[]
+) {
+  const { accessToken } = params as T & {
     accessToken?: string
-    _context?: unknown
   }
-  void oauthCredential
-  return { ...input, credentialId: accessToken ?? '' }
+  const input: Record<string, unknown> = { credentialId: accessToken ?? '' }
+  for (const field of fields) {
+    if (params[field] !== undefined) input[String(field)] = params[field]
+  }
+  return input
 }
 
 export const ociObjectStorageOAuth = {

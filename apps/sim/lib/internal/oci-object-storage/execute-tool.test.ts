@@ -29,6 +29,13 @@ vi.mock('@/lib/internal/oci-object-storage/operations', () => ({
 }))
 
 import { executeOciObjectStorageTool } from '@/lib/internal/oci-object-storage/execute-tool'
+import { OciObjectStorageBlock } from '@/blocks/blocks/oci_object_storage'
+import { ociObjectStorageDeleteObjectTool } from '@/tools/oci_object_storage/delete_object'
+import { ociObjectStorageDownloadObjectTool } from '@/tools/oci_object_storage/download_object'
+import { ociObjectStorageHeadObjectTool } from '@/tools/oci_object_storage/head_object'
+import { ociObjectStorageListBucketsTool } from '@/tools/oci_object_storage/list_buckets'
+import { ociObjectStorageListObjectsTool } from '@/tools/oci_object_storage/list_objects'
+import { ociObjectStorageUploadObjectTool } from '@/tools/oci_object_storage/upload_object'
 
 function request(toolId: string, input: Record<string, unknown>) {
   return {
@@ -41,6 +48,61 @@ function request(toolId: string, input: Record<string, unknown>) {
 
 describe('OCI Object Storage tool execution boundary', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it.each([
+    [ociObjectStorageListBucketsTool, mocks.listBuckets],
+    [ociObjectStorageListObjectsTool, mocks.listObjects],
+    [ociObjectStorageUploadObjectTool, mocks.uploadObject],
+    [ociObjectStorageDownloadObjectTool, mocks.downloadObject],
+    [ociObjectStorageHeadObjectTool, mocks.headObject],
+    [ociObjectStorageDeleteObjectTool, mocks.deleteObject],
+  ] as const)('projects native workflow inputs for $0.id', async (tool, execute) => {
+    execute.mockResolvedValue({ success: true, output: {} })
+    for (const blank of [null, '', undefined]) {
+      const raw = {
+        operation: tool.id,
+        oauthCredential: 'caller-reference',
+        accessToken: 'authorized-reference',
+        credentialId: 'forged-reference',
+        workspaceId: 'untrusted',
+        workflowId: 'untrusted',
+        _context: { executionId: 'execution' },
+        bucketName: 'documents',
+        objectKey: 'empty.txt',
+        uploadObjectKey: 'stale.txt',
+        content: '',
+        file: null,
+        contentType: blank,
+        prefix: blank,
+        delimiter: blank,
+        maxKeys: blank,
+        startAfter: blank,
+        continuationToken: blank,
+      }
+      const params = { ...raw, ...OciObjectStorageBlock.tools.config!.params!(raw) }
+      const response = await executeOciObjectStorageTool(
+        request(tool.id, tool.operation.input(params))
+      )
+      expect(response.status).toBe(200)
+      const input = execute.mock.lastCall?.[0]
+      expect(input.credentialId).toBe('authorized-reference')
+      for (const key of ['operation', 'workspaceId', 'workflowId', '_context', 'uploadObjectKey']) {
+        expect(input).not.toHaveProperty(key)
+      }
+      if (tool.id === 'oci_object_storage_list_buckets') {
+        expect(input).toEqual({ credentialId: 'authorized-reference' })
+      }
+      if (tool.id === 'oci_object_storage_list_objects') {
+        expect(input.maxKeys).toBe(100)
+        expect(input).not.toHaveProperty('continuationToken')
+        expect(input).not.toHaveProperty('objectKey')
+      }
+      if (tool.id === 'oci_object_storage_upload_object') {
+        expect(input.content).toBe('')
+        expect(input).not.toHaveProperty('prefix')
+      }
+    }
+  })
 
   it.each([
     [403, 403, 'invalid or lacks permission'],

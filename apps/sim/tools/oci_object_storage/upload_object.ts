@@ -51,7 +51,16 @@ export const ociObjectStorageUploadObjectTool: InternalToolConfig<
       description: 'Object Content-Type; inferred from the file when omitted',
     },
   },
-  operation: { input: createOciObjectStorageOperationInput },
+  operation: {
+    input: (params) =>
+      createOciObjectStorageOperationInput(params, [
+        'bucketName',
+        'objectKey',
+        'file',
+        'content',
+        'contentType',
+      ]),
+  },
   outputs: {
     bucket: { type: 'string', description: 'Destination bucket name' },
     key: { type: 'string', description: 'Uploaded object key' },
