@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { Editor, getSchema } from '@tiptap/core'
-import Collaboration from '@tiptap/extension-collaboration'
 import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
-import { afterEach, describe, expect, it } from 'vitest'
+import { NodeSelection } from '@tiptap/pm/state'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
 import {
@@ -11,7 +11,9 @@ import {
   beginAgentStream,
   endAgentStream,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown'
+import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
 import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 import {
   beginImageUploads,
@@ -51,7 +53,7 @@ function peer(seed: Y.Doc) {
     extensions: [
       ...createMarkdownContentExtensions({}, { disableHistory: true }),
       ImageUploadPlaceholders,
-      Collaboration.configure({ document: doc }),
+      FileCollaboration.configure({ document: doc }),
     ],
     editorProps: { handleScrollToSelection: () => true },
   })
@@ -319,6 +321,47 @@ describe('heading images', () => {
     expect(reopened.editor.getJSON()).toEqual(a.editor.getJSON())
     expect(imagePositions(reopened.editor)).toHaveLength(1)
   })
+
+  it.each(['# ', ''])(
+    'preserves a block-to-inline move, peer text, and undo through collaboration: %s',
+    (prefix) => {
+      const seed = markdownToYDoc(
+        `${prefix}Before after\n\n[<img src="/logo.png" alt="Logo" width="287">](/target "Destination")\n\nPeer text`
+      )
+      const a = peer(seed)
+      const b = peer(seed)
+      seed.destroy()
+      const originalAttrs = a.editor.state.doc.nodeAt(imagePositions(a.editor)[0])?.attrs
+      a.editor.commands.setNodeSelection(imagePositions(a.editor)[0])
+      vi.spyOn(a.editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      expect(
+        moveDraggedImageNode(a.editor.view, new MouseEvent('drop') as DragEvent, {
+          images: [],
+          html: '<img src="/logo.png">',
+        })
+      ).toBe(true)
+      expect(a.editor.state.doc.nodeAt(8)?.type.name).toBe('inlineImage')
+      expect(a.editor.state.doc.nodeAt(8)?.attrs).toEqual(originalAttrs)
+      b.editor.commands.insertContentAt(b.editor.state.doc.content.size - 1, ' preserved')
+      Y.applyUpdate(a.doc, Y.encodeStateAsUpdate(b.doc))
+      Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc))
+      expect(a.editor.getJSON()).toEqual(b.editor.getJSON())
+      expect(imagePositions(b.editor)).toHaveLength(1)
+      expect(a.editor.commands.undo()).toBe(true)
+      if (a.editor.state.selection instanceof NodeSelection) {
+        expect(NodeSelection.isSelectable(a.editor.state.selection.node)).toBe(true)
+      }
+      expect(a.editor.state.doc.textContent).toContain('Peer text preserved')
+      expect(a.editor.state.doc.nodeAt(imagePositions(a.editor)[0])?.type.name).toBe('image')
+      expect(a.editor.commands.redo()).toBe(true)
+      Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc))
+      expect(a.editor.getJSON()).toEqual(b.editor.getJSON())
+      const reopened = peer(b.doc)
+      expect(reopened.editor.getJSON()).toEqual(a.editor.getJSON())
+      expect(reopened.editor.state.doc.nodeAt(8)?.attrs).toEqual(originalAttrs)
+      expect(isRoundTripSafe(yDocToFileMarkdown(b.doc))).toBe(true)
+    }
+  )
 
   it('inserts uploaded images into the heading without splitting its text', () => {
     const seed = markdownToYDoc('# Before after')

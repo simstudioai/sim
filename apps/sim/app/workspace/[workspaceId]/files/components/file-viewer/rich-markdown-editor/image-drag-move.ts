@@ -53,10 +53,15 @@ export function moveDraggedImageNode(
   const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
   if (!coords) return true
 
+  const $drop = view.state.doc.resolve(coords.pos)
+  const { image, inlineImage } = view.state.schema.nodes
+  const type = $drop.parent.canReplaceWith($drop.index(), $drop.index(), inlineImage)
+    ? inlineImage
+    : image
   const node =
-    selection.node.isInline && !view.state.doc.resolve(coords.pos).parent.inlineContent
-      ? view.state.schema.nodes.image.create(selection.node.attrs, null, selection.node.marks)
-      : selection.node
+    selection.node.type === type
+      ? selection.node
+      : type.create(selection.node.attrs, null, selection.node.marks)
   const tr = view.state.tr
   const insertPos = dropPoint(view.state.doc, coords.pos, new Slice(Fragment.from(node), 0, 0))
   if (insertPos === null) return true

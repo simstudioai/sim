@@ -20,6 +20,7 @@ const schema = new Schema({
     doc: { content: 'block+' },
     paragraph: { group: 'block', content: 'inline*' },
     heading: { group: 'block', content: 'inline*' },
+    codeBlock: { group: 'block', content: 'text*', code: true },
     image: { group: 'block', attrs: { src: {} }, draggable: true },
     inlineImage: { group: 'inline', inline: true, attrs: { src: {} }, draggable: true },
     text: { group: 'inline' },
@@ -46,7 +47,7 @@ function selectedImageView(): { view: EditorView; dispatched: { state: () => Edi
     get state() {
       return state
     },
-    posAtCoords: () => ({ pos: 1, inside: 0 }),
+    posAtCoords: () => ({ pos: 0, inside: -1 }),
     dispatch: vi.fn((tr) => {
       state = state.apply(tr)
     }),
@@ -68,6 +69,41 @@ function imageCount(doc: PMNode): number {
 }
 
 describe('moveDraggedImageNode', () => {
+  it.each([
+    ['inside a heading', 3, 'inlineImage'],
+    ['inside a paragraph after the source', 12, 'inlineImage'],
+    ['between blocks', 9, 'image'],
+    ['inside a text-only code block', 18, 'image'],
+  ] as const)('moves a block image to %s', (_label, dropPos, expectedType) => {
+    const doc = schema.node('doc', null, [
+      schema.node('heading', null, [schema.text('Before')]),
+      schema.node('image', { src: SRC }),
+      schema.node('paragraph', null, [schema.text('After')]),
+      schema.node('codeBlock', null, [schema.text('Code')]),
+    ])
+    let state = EditorState.create({ doc, selection: NodeSelection.create(doc, 8) })
+    const view = {
+      get state() {
+        return state
+      },
+      posAtCoords: () => ({ pos: dropPos }),
+      dispatch: (tr) => {
+        state = state.apply(tr)
+      },
+    } as unknown as EditorView
+
+    expect(moveDraggedImageNode(view, dropEvent(), { images: [], html: imageHtml(SRC) })).toBe(true)
+    expect(() => state.doc.check()).not.toThrow()
+    expect(imageCount(state.doc)).toBe(1)
+    expect(state.doc.textContent).toBe(doc.textContent)
+    expect(state.selection).toBeInstanceOf(NodeSelection)
+    expect((state.selection as NodeSelection).node.type.name).toBe(expectedType)
+    expect((state.selection as NodeSelection).node.attrs.src).toBe(SRC)
+    if (expectedType === 'inlineImage') {
+      expect(state.selection.from).toBe(dropPos > 8 ? dropPos - 1 : dropPos)
+    }
+  })
+
   it.each([
     ['document start', 0, 'image'],
     ['between blocks', 10, 'image'],

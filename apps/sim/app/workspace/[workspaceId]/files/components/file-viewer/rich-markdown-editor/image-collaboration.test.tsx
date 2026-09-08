@@ -1,12 +1,14 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
-import Collaboration from '@tiptap/extension-collaboration'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { Editor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { yUndoPluginKey } from '@tiptap/y-tiptap'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { BlockMover } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-mover'
+import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
 import {
   ResizableImage,
   ResizableInlineImage,
@@ -33,7 +35,7 @@ beforeEach(async () => {
         BlockMover,
         ResizableImage,
         ResizableInlineImage,
-        Collaboration.configure({ document }),
+        FileCollaboration.configure({ document }),
       ],
       editorProps: { handleScrollToSelection: () => true },
     })
@@ -154,6 +156,61 @@ async function setNestedImages(depth: number): Promise<void> {
 }
 
 describe('image resizing during real peer Yjs updates', () => {
+  it.each(['heading', 'paragraph'])(
+    'renders and scrolls a valid selection when undoing a move into a %s',
+    async (target) => {
+      local.setOptions({ editorProps: { handleScrollToSelection: () => false } })
+      yUndoPluginKey.getState(local.state).undoManager.clear()
+      const dropPosition = target === 'heading' ? 8 : imagePosition(local) + 5
+      vi.spyOn(local.view, 'posAtCoords').mockReturnValue({ pos: dropPosition, inside: 0 })
+      await act(async () => {
+        local.view.focus()
+        expect(
+          moveDraggedImageNode(local.view, new MouseEvent('drop') as DragEvent, {
+            images: [],
+            html: '<img src="https://sim.ai/image.png">',
+          })
+        ).toBe(true)
+      })
+      expect(local.state.selection).toBeInstanceOf(NodeSelection)
+      expect(host.querySelector(`${target === 'heading' ? 'h2' : 'p'} img`)).not.toBeNull()
+      peer.commands.insertContentAt(peer.state.doc.content.size - 1, ' preserved')
+      await receivePeerUpdate()
+      await act(async () => {
+        expect(local.commands.undo()).toBe(true)
+      })
+      expect(local.state.doc.nodeAt(imagePosition(local))?.type.name).toBe('image')
+      if (local.state.selection instanceof NodeSelection) {
+        expect(NodeSelection.isSelectable(local.state.selection.node)).toBe(true)
+      }
+      expect(local.state.doc.textContent).toContain('After image preserved')
+      await act(async () => {
+        expect(local.commands.redo()).toBe(true)
+        Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
+      })
+      expect(local.getJSON()).toEqual(peer.getJSON())
+      expect(host.querySelector(`${target === 'heading' ? 'h2' : 'p'} img`)).not.toBeNull()
+    }
+  )
+
+  it('normalizes an invalid node selection without changing the document or Yjs history', async () => {
+    const original = local.getJSON()
+    const onUpdate = vi.fn()
+    localDoc.on('update', onUpdate)
+    yUndoPluginKey.getState(local.state).undoManager.clear()
+    await act(async () => {
+      local.view.dispatch(local.state.tr.setSelection(NodeSelection.create(local.state.doc, 3)))
+    })
+    expect(local.state.selection).toBeInstanceOf(TextSelection)
+    expect(local.state.selection.from).toBe(3)
+    expect(local.getJSON()).toEqual(original)
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(local.can().undo()).toBe(false)
+    await act(async () => local.commands.setNodeSelection(imagePosition(local)))
+    expect(local.state.selection).toBeInstanceOf(NodeSelection)
+    expect(local.state.selection.from).toBe(imagePosition(local))
+  })
+
   it.each(['image', 'inlineImage'])(
     'copies a linked %s with exactly one link wrapper',
     async (type) => {
