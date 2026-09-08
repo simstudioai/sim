@@ -39,7 +39,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
@@ -356,7 +356,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty `traceSpans` array does not prove none were recorded. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty `traceSpans` array does not prove none were recorded. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.read_detail",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
@@ -428,7 +428,7 @@
       "get": {
         "operationId": "getLogStats",
         "summary": "Get Log Statistics",
-        "description": "Get run counts, success and error counts, and latency by workspace or workflow. Default bounds span recorded runs, or the last 24 hours when empty. Buckets may extend past the end. Folder filters include descendants; `workflowsTruncated` affects series, not totals. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get run counts, success and error counts, and latency by workspace or workflow. Default bounds span recorded runs, or the last 24 hours when empty. Buckets may extend past the end. Folder filters include descendants; `workflowsTruncated` affects series, not totals. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.read_stats",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],

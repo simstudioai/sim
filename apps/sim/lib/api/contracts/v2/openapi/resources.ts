@@ -737,7 +737,7 @@ const declaredRoutes = [
       operationId: 'updateMcpServer',
       summary: 'Update MCP Server',
       description:
-        "Update an MCP server's supplied fields, retaining omissions unless the field specifies otherwise. Authentication changes revoke the stored OAuth grant and reset connection metadata. Run List MCP Server Tools to reconnect.",
+        "Update an MCP server's supplied fields. Omitted fields remain unchanged unless the field specifies otherwise. Authentication changes revoke the stored OAuth grant and reset connection metadata. Use List MCP Server Tools to reconnect.",
       errors: RESOURCE_ERRORS,
       success: { description: 'The updated MCP server.' },
     }),
@@ -837,7 +837,7 @@ const declaredRoutes = [
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
-        'List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.',
+        'List workspace and built-in skills with cursor pagination. Built-in skills are read-only. The list omits skill bodies; use Get Skill to read content.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Skills available in the workspace.' },
     }),
@@ -931,7 +931,7 @@ const declaredRoutes = [
       applicationOperation: skillOperations.update,
       operationId: 'updateSkill',
       summary: 'Update Skill',
-      description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update a workspace skill. Omitted fields remain unchanged. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated skill.' },
     }),
@@ -1195,7 +1195,7 @@ const declaredRoutes = [
       operationId: 'updateCustomTool',
       summary: 'Update Custom Tool',
       description:
-        'Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.',
+        'Update a custom tool. Omitted fields remain unchanged; titles must remain unique within the workspace.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated custom tool.' },
     }),

@@ -1801,16 +1801,16 @@ export const v2RunColumnBodySchema = runColumnBodyBaseSchema
 export type V2RunColumnBody = z.input<typeof v2RunColumnBodySchema>
 
 /**
- * A started run. `dispatchId` identifies the `table_run_dispatches` row the
- * dispatcher walks; it is `null` in deployments without a background runner,
- * where cells execute inline and no dispatch row is created.
+ * A table run request. A null dispatch ID does not guarantee successful cell execution.
  */
 export const v2RunColumnDataSchema = z
   .object({
     dispatchId: z
       .string()
       .nullable()
-      .describe('Background dispatch identifier, or null when execution is inline.'),
+      .describe(
+        'Run dispatch ID, or null when no dispatch is available to poll. Use row reads with `includeRunState` to check cell outcomes.'
+      ),
   })
   .meta({
     id: 'V2RunColumnData',
@@ -2601,9 +2601,8 @@ export const v2TableDispatchParamsSchema = tableIdParamsSchema.extend({
 export type V2TableDispatchParams = z.output<typeof v2TableDispatchParamsSchema>
 
 /**
- * Polls one dispatch to completion — the resource `POST /tables/{tableId}/dispatches`'s
- * `dispatchId` names. A `null` `dispatchId` there means the run settled inline
- * and there is nothing to poll.
+ * Reads a dispatch by its returned ID. Creation can return a null ID when no
+ * dispatch is available to poll.
  */
 export const v2GetTableDispatchContract = defineRouteContract({
   method: 'GET',

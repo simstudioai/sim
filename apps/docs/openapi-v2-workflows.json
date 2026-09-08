@@ -948,7 +948,7 @@
       "patch": {
         "operationId": "updateWorkflowV2",
         "summary": "Update Workflow",
-        "description": "Rename, describe, or move a workflow to a canonical folder path. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Update a workflow's name, description, or folder path. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2666,7 +2666,7 @@
       "get": {
         "operationId": "listWorkflowRunsV2",
         "summary": "List Workflow Runs",
-        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.\n\nOAuth scope: `api:read`.",
+        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.runs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -2816,7 +2816,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get Workflow Run",
-        "description": "Get current run state with optional final and block outputs. With `includeOutput`, `files` includes download paths; `includeFileBase64` reads object storage to inline bytes and returns `413` with the download path when one file or the total exceeds 16 MiB. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
+        "description": "Get current run state with optional final and block outputs. With `includeOutput`, `files` includes download paths; `includeFileBase64` inlines file bytes and returns `413` with the download path when one file or the total exceeds 16 MiB. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -2945,7 +2945,7 @@
       "get": {
         "operationId": "downloadWorkflowRunFileV2",
         "summary": "Download Workflow Run File",
-        "description": "Download one run-produced file by id. Downloads record an audit event. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "description": "Download one run-produced file by ID. Downloads record an audit event. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.download_run_file",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -3266,7 +3266,7 @@
       "get": {
         "operationId": "listWorkflowsFolders",
         "summary": "List Workflow Folders",
-        "description": "List canonical workflow folders in a workspace. Returns the complete set in one page; `nextCursor` is always null. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List workflow folders in a workspace. Returns the complete set in one page; `nextCursor` is always null. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -3381,7 +3381,7 @@
       "post": {
         "operationId": "createWorkflowsFolder",
         "summary": "Create Workflow Folder",
-        "description": "Create a canonical workflow folder in a workspace. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Create a workflow folder in a workspace. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -3456,7 +3456,7 @@
       "patch": {
         "operationId": "relocateWorkflowsFolder",
         "summary": "Rename or Move Workflow Folder",
-        "description": "Rename or move a workflow folder and its descendants to a canonical path. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Rename or move a workflow folder and update all descendant paths. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.folders.relocate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -3531,7 +3531,7 @@
       "delete": {
         "operationId": "deleteWorkflowsFolder",
         "summary": "Delete Workflow Folder",
-        "description": "Delete a workflow folder, optionally including its descendants and workflows.\n\nOAuth scope: `api:write`.",
+        "description": "Archive an empty workflow folder, or set `recursive=true` to archive its subfolders and workflows. Use Restore Workflow to recover workflows.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -9505,7 +9505,7 @@
             "type": "boolean"
           },
           "selectedOutputs": {
-            "description": "Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use the run resource’s `selectedOutputs` to narrow an existing run.",
+            "description": "Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use `selectedOutputs` with Get Workflow Run to narrow an existing run.",
             "maxItems": 100,
             "type": "array",
             "items": {

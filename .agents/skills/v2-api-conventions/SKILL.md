@@ -155,6 +155,8 @@ Use the [API description conventions](../../../apps/sim/lib/api/contracts/v2/ope
 
 Keep archive versus permanent-delete behavior, replacement versus partial-update semantics, partial success, retry safety, redaction, and asynchronous completion explicit. Verify these claims against the implementation. Describe observable behavior without exposing storage formats, locking mechanisms, internal identifiers, deployment architecture, or implementation history unless that detail changes how the caller must use the API.
 
+Reuse wording across resource families when behavior matches: “Omitted fields remain unchanged,” “Archive,” and “permanently delete.” Prefer “during the request” or “asynchronously” to “settled inline.” Preserve real semantic differences; do not standardize them away.
+
 Put field-specific rules in the source schema and reuse shared authentication and pagination wording. Shared schema descriptions also feed CLI help, so refer to related operation names rather than HTTP paths. Regenerate OpenAPI, CLI metadata, and CLI docs after changing their source descriptions; never hand-edit generated output.
 
 ## Rule 6 — a transient failure says when to come back

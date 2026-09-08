@@ -612,7 +612,7 @@
       "patch": {
         "operationId": "updateMcpServer",
         "summary": "Update MCP Server",
-        "description": "Update an MCP server's supplied fields, retaining omissions unless the field specifies otherwise. Authentication changes revoke the stored OAuth grant and reset connection metadata. Run List MCP Server Tools to reconnect.\n\nOAuth scope: `api:write`.",
+        "description": "Update an MCP server's supplied fields. Omitted fields remain unchanged unless the field specifies otherwise. Authentication changes revoke the stored OAuth grant and reset connection metadata. Use List MCP Server Tools to reconnect.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "mcp_servers.update",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
@@ -865,7 +865,7 @@
       "get": {
         "operationId": "listSkills",
         "summary": "List Skills",
-        "description": "List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.\n\nOAuth scope: `api:read`.",
+        "description": "List workspace and built-in skills with cursor pagination. Built-in skills are read-only. The list omits skill bodies; use Get Skill to read content.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "skills.list",
         "x-oauth-scope": "api:read",
         "tags": ["Skills"],
@@ -1142,7 +1142,7 @@
       "patch": {
         "operationId": "updateSkill",
         "summary": "Update Skill",
-        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Update a workspace skill. Omitted fields remain unchanged. Built-in skills are read-only. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "skills.update",
         "x-oauth-scope": "api:write",
         "tags": ["Skills"],
@@ -1902,7 +1902,7 @@
       "patch": {
         "operationId": "updateCustomTool",
         "summary": "Update Custom Tool",
-        "description": "Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.\n\nOAuth scope: `api:write`.",
+        "description": "Update a custom tool. Omitted fields remain unchanged; titles must remain unique within the workspace.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "custom_tools.update",
         "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],

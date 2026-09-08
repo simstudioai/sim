@@ -43,7 +43,7 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted ones. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List active workspace files with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find files available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
@@ -449,7 +449,7 @@
       "delete": {
         "operationId": "abortFileUpload",
         "summary": "Abort File Upload",
-        "description": "Abort an active upload session and release provider-side multipart state.\n\nOAuth scope: `api:write`.",
+        "description": "Abort an incomplete upload session and discard its uploaded data. Completed uploads cannot be aborted.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.upload.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -1407,7 +1407,7 @@
       "get": {
         "operationId": "getFile",
         "summary": "Get File Metadata",
-        "description": "Get file metadata together with the nullable current public-share state.\n\nOAuth scope: `api:read`.",
+        "description": "Get file metadata and its public-share configuration. The `share` field is null when the file has never been shared.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.read_metadata",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
@@ -1754,7 +1754,7 @@
       "post": {
         "operationId": "moveFileItems",
         "summary": "Move Files",
-        "description": "Move up to 1,000 files to a canonical folder path or the workspace root.\n\nOAuth scope: `api:write`.",
+        "description": "Move up to 1,000 files to a folder path or the workspace root.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.move",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -2169,7 +2169,7 @@
       "get": {
         "operationId": "searchFileContent",
         "summary": "Search File Content",
-        "description": "Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and the coverage reported by `complete` and `indexStatus`. Because indexing is asynchronous, a missing term is unknown rather than absent when `complete` is false. `truncated` means additional matches exist beyond `maxResults`.\n\nOAuth scope: `api:read`.",
+        "description": "Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and reported coverage. Missing matches are inconclusive if `complete` is false or `indexStatus.skippedFiles` or `indexStatus.partialFiles` is nonzero. `truncated` means additional matches exist beyond `maxResults`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.search_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
@@ -2542,7 +2542,7 @@
       "post": {
         "operationId": "createFilesFolder",
         "summary": "Create Folder",
-        "description": "Create a canonical folder path in a workspace.\n\nOAuth scope: `api:write`.",
+        "description": "Create a folder at the supplied workspace path.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -2614,7 +2614,7 @@
       "patch": {
         "operationId": "relocateFilesFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a folder and atomically rewrite descendant canonical paths.\n\nOAuth scope: `api:write`.",
+        "description": "Rename or move a folder and atomically update all descendant paths.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -2686,7 +2686,7 @@
       "delete": {
         "operationId": "deleteFilesFolder",
         "summary": "Delete Folder",
-        "description": "Delete a folder, optionally including every nested file and folder.\n\nOAuth scope: `api:write`.",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its files and subfolders. Use Restore Folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -4204,7 +4204,7 @@
         ],
         "additionalProperties": false,
         "title": "File metadata",
-        "description": "Workspace file metadata enriched with nullable public-share state."
+        "description": "Workspace file metadata and current public-share configuration."
       },
       "V2FileMetadataResponse": {
         "type": "object",

@@ -190,7 +190,7 @@
       "post": {
         "operationId": "createKnowledgeBase",
         "summary": "Create Knowledge Base",
-        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a `404`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` returns `404`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -343,7 +343,7 @@
       "patch": {
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
-        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Update a knowledge base's name, description, chunking configuration, or folder placement. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -506,7 +506,7 @@
       "get": {
         "operationId": "listKnowledgeConnectors",
         "summary": "List Knowledge Connectors",
-        "description": "List external sources connected to a knowledge base with opaque cursor pagination. Stored API keys and encrypted secret material are never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "List external sources connected to a knowledge base with cursor pagination. Stored API keys are never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.connectors.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -631,7 +631,7 @@
       "post": {
         "operationId": "createKnowledgeConnector",
         "summary": "Create Knowledge Connector",
-        "description": "Validate and connect an external source, then queue its initial synchronization. The apiKey field is write-only and is never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Validate and connect an external source, then queue its initial synchronization. The `apiKey` field is never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.connectors.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -718,7 +718,7 @@
       "get": {
         "operationId": "getKnowledgeConnector",
         "summary": "Get Knowledge Connector",
-        "description": "Get one connector and its ten most recent synchronization attempts. Stored API keys and encrypted secret material are never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Get one connector and its ten most recent synchronization attempts. Stored API keys are never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.connectors.read",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -1391,7 +1391,7 @@
       "get": {
         "operationId": "listKnowledgeTags",
         "summary": "List Tags",
-        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "description": "List the knowledge base's tag definitions with display names, write slots, and field types. Filters and document reads use display names; document writes use slots. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.tags.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -2160,7 +2160,7 @@
       "delete": {
         "operationId": "abortKnowledgeDocumentUpload",
         "summary": "Abort Document Upload",
-        "description": "Abort an incomplete upload and discard provider-side multipart state.\n\nOAuth scope: `api:write`.",
+        "description": "Abort an incomplete upload session and discard its uploaded data. Completed uploads cannot be aborted.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.upload.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -2489,7 +2489,7 @@
       "get": {
         "operationId": "getKnowledgeDocument",
         "summary": "Get Document",
-        "description": "Get document detail, processing state, and connector provenance.\n\nOAuth scope: `api:read`.",
+        "description": "Get document metadata, processing status, and source connector details.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.documents.read",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -2576,7 +2576,7 @@
       "patch": {
         "operationId": "updateKnowledgeDocument",
         "summary": "Update Document",
-        "description": "Rename a document, change search availability, update tag slots, or requeue processing. Omitted fields remain unchanged; indexing state is read-only. Use List Tags to resolve names to slots and Get Document for connector provenance, which this response omits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Rename a document, change search availability, update tag slots, or requeue processing. Omitted fields remain unchanged; indexing state is read-only. Use List Tags to resolve names to slots and Get Document for source connector details, which this response omits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -3017,7 +3017,7 @@
       "delete": {
         "operationId": "deleteKnowledgeFolder",
         "summary": "Delete Folder",
-        "description": "Delete a folder, optionally including nested folders and knowledge bases.\n\nOAuth scope: `api:write`.",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its subfolders and knowledge bases. Use Restore Knowledge Base to recover knowledge bases.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],

@@ -424,7 +424,7 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  'Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.'
+  'Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

@@ -21,6 +21,7 @@ Write enough context to choose and use an operation correctly. Concision means r
 - Describe actual patch semantics. Do not claim JSON Merge Patch compliance or atomicity merely because an operation uses `PATCH` or saves a batch.
 - Keep destructive scope, cleared fields, partial commits, duplicate-execution risks, and polling instructions explicit. Never promise retry safety or completeness without implementation evidence.
 - Name related operations consistently. Shared schema descriptions also appear in CLI help, so use operation names rather than HTTP method/path instructions there.
+- Use the same wording for the same behavior across resource families: “Omitted fields remain unchanged,” “Archive,” and “permanently delete.” Describe completion as “during the request” or “asynchronously” instead of “settled inline.” Keep distinctions where behavior differs.
 - Remove implementation rationale, migration history, rhetorical warnings, and claims such as “far above any real inventory.” Keep practical limits and how to handle them.
 - Describe user-visible outcomes instead of storage formats, locking, redaction internals, or deployment architecture. For an open-ended status, say to handle unknown values; the caller does not need to know how statuses are stored. Keep implementation details only when they change correct usage.
 - Avoid generic filter inventories and repeated schema details. Preserve exceptions such as bounded pages, null cursors with truncated results, and counts read independently of result pages.

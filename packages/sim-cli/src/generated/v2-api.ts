@@ -11390,7 +11390,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use the run resource’s `selectedOutputs` to narrow an existing run.',
+          'Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use `selectedOutputs` with Get Workflow Run to narrow an existing run.',
       },
       includeThinking: {
         kind: 'boolean',

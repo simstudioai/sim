@@ -159,7 +159,7 @@ export const v2FileMetadataSchema = v2FileSchema
   .meta({
     id: 'V2FileMetadata',
     title: 'File metadata',
-    description: 'Workspace file metadata enriched with nullable public-share state.',
+    description: 'Workspace file metadata and current public-share configuration.',
   })
 
 export type V2FileMetadata = z.output<typeof v2FileMetadataSchema>
