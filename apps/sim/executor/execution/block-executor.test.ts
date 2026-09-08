@@ -1317,6 +1317,44 @@ describe('BlockExecutor streaming pump', () => {
     )
   })
 
+  it('cancels an ongoing provider stream when required stream delivery fails', async () => {
+    const cancel = vi.fn()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text_delta', text: 'answer', turn: 'final' })
+          },
+          cancel,
+        }),
+        streamFormat: 'agent-events-v1',
+        execution: { success: true, output: { content: '' }, logs: [] },
+      }),
+    }
+    const { executor, block, state } = createExecutor(handler)
+    const ctx = createContext(state)
+    const workflowController = new AbortController()
+    ctx.abortSignal = workflowController.signal
+    const deliveryError = new Error('Stream delivery failed')
+    ctx.onStream = async ({ stream }) => {
+      const reader = stream.getReader()
+      try {
+        const { value } = await reader.read()
+        expect(new TextDecoder().decode(value)).toBe('answer')
+        throw deliveryError
+      } finally {
+        reader.releaseLock()
+      }
+    }
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      'Stream delivery failed'
+    )
+    expect(cancel).toHaveBeenCalledExactlyOnceWith(deliveryError)
+    expect(workflowController.signal.aborted).toBe(false)
+  })
+
   it('projects answer text to onStream and content; sink gets full timeline', async () => {
     const onFullContent = vi.fn()
     const handler = createAgentEventsStreamingHandler({

@@ -1178,12 +1178,15 @@ export class BlockExecutor {
       (block.config as Record<string, any> | undefined)?.responseFormat
 
     const streamFormat = streamingExec.streamFormat ?? 'text'
+    const streamDeliveryController = new AbortController()
     const pump = createAgentStreamPump({
       source: streamingExec.stream,
       streamFormat,
       // No live consumer → sink-mode so we never buffer into an unread text stream.
       sinkMode: !forwardToClient,
-      abortSignal: ctx.abortSignal,
+      abortSignal: ctx.abortSignal
+        ? AbortSignal.any([ctx.abortSignal, streamDeliveryController.signal])
+        : streamDeliveryController.signal,
     })
 
     let onStreamPromise: Promise<void> | undefined
@@ -1221,6 +1224,7 @@ export class BlockExecutor {
         })
         .catch(async (error) => {
           streamDeliveryError = toError(error)
+          streamDeliveryController.abort(streamDeliveryError)
           this.execLogger.error('Error in onStream callback', {
             blockId,
             ...projectStreamDiagnosticError(error),
