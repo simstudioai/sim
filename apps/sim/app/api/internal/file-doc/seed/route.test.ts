@@ -19,7 +19,7 @@ vi.mock('@/lib/collab-doc/seed', () => ({
   buildFileDocSeed: mockBuildFileDocSeed,
 }))
 
-import { POST } from './route'
+import { POST } from '@/app/api/internal/file-doc/seed/route'
 
 function seedRequest(body: unknown) {
   return createMockRequest('POST', body, { 'x-api-key': 'internal' })
@@ -31,9 +31,7 @@ describe('POST /api/internal/file-doc/seed', () => {
     mockCheckInternalApiKey.mockReturnValue({ success: true })
   })
 
-  // Regression guard for the auth-helper choice: the realtime relay authenticates with
-  // `x-api-key: INTERNAL_API_SECRET`, so this route MUST gate on `checkInternalApiKey`. Wiring the
-  // Bearer-JWT-only `checkInternalAuth` (which forbids `x-api-key`) 401s every real seed fetch.
+  /** The relay authenticates with the shared internal API key, not a Bearer JWT. */
   it('401s when the internal api key is rejected, without building a seed', async () => {
     mockCheckInternalApiKey.mockReturnValue({ success: false })
     const res = await POST(seedRequest({ workspaceId: 'ws-1', fileId: 'file-1' }))
@@ -43,10 +41,11 @@ describe('POST /api/internal/file-doc/seed', () => {
 
   it('returns the seed as base64 for an authorized request', async () => {
     mockBuildFileDocSeed.mockResolvedValue({ update: new Uint8Array([1, 2, 3, 4]) })
-    const res = await POST(seedRequest({ workspaceId: 'ws-1', fileId: 'file-1' }))
+    const request = seedRequest({ workspaceId: 'ws-1', fileId: 'file-1' })
+    const res = await POST(request)
     expect(res.status).toBe(200)
     expect((await res.json()).update).toBe(Buffer.from([1, 2, 3, 4]).toString('base64'))
-    expect(mockBuildFileDocSeed).toHaveBeenCalledWith('ws-1', 'file-1')
+    expect(mockBuildFileDocSeed).toHaveBeenCalledWith('ws-1', 'file-1', request.signal)
   })
 
   it('returns update:null for a genuinely absent file', async () => {

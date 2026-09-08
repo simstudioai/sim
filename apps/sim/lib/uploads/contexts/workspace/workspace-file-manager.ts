@@ -44,6 +44,11 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import {
+  CollabDocStateConflictError,
+  type PreparedCollabDocState,
+  saveCollabDocStateInTx,
+} from '@/lib/collab-doc/collab-state'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
@@ -55,8 +60,13 @@ import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
-import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
+import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  enqueueWorkspaceFileLiveDocReconciliation,
+  processWorkspaceFileLiveDocReconciliationNow,
+} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   initializeWorkspaceFileSecretProvenanceInTx,
@@ -87,7 +97,6 @@ import {
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
-import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
 import {
   assertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
@@ -1766,12 +1775,14 @@ export async function updateWorkspaceFileContent(
     syncLiveDoc?: boolean
     /**
      * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
-     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * if the file's `contentUpdatedAt` still equals this value — no content write intervened; otherwise it
      * throws {@link ContentVersionConflictError} without clobbering. Checked against the
      * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
      * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
      */
     expectedUpdatedAt?: Date
+    /** Commit with the markdown projection; requires the expected content version. */
+    collabDocState?: PreparedCollabDocState
     /**
      * Derived edits must explicitly preserve; trusted whole replacements must explicitly replace.
      * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
@@ -1779,6 +1790,9 @@ export async function updateWorkspaceFileContent(
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
 ): Promise<WorkspaceFileRecord> {
+  if (options?.collabDocState && !options.expectedUpdatedAt) {
+    throw new Error('Collaborative state updates require an expected content version')
+  }
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
@@ -1816,6 +1830,7 @@ export async function updateWorkspaceFileContent(
       oldKey: string
       sizeDiff: number
       updatedUsage: number | undefined
+      liveDocEventId: string | undefined
     }
     try {
       finalized = await db.transaction(async (tx) => {
@@ -1848,6 +1863,10 @@ export async function updateWorkspaceFileContent(
           currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
         ) {
           throw new ContentVersionConflictError(fileId)
+        }
+
+        if (options?.collabDocState) {
+          await saveCollabDocStateInTx(tx, fileId, options.collabDocState)
         }
 
         const sizeDiff = content.length - getWorkspaceFileSize(currentFile)
@@ -1926,11 +1945,23 @@ export async function updateWorkspaceFileContent(
           )
         }
 
+        const liveDocEventId =
+          options?.syncLiveDoc !== false &&
+          (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
+            isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
+            ? await enqueueWorkspaceFileLiveDocReconciliation(tx, {
+                workspaceId,
+                fileId,
+                version: updatedFile.contentUpdatedAt.getTime(),
+              })
+            : undefined
+
         return {
           file: updatedFile,
           oldKey: currentFile.key,
           sizeDiff,
           updatedUsage,
+          liveDocEventId,
         }
       })
     } catch (finalizationError) {
@@ -1949,22 +1980,25 @@ export async function updateWorkspaceFileContent(
       await cleanupWorkspaceStorageObject(finalized.oldKey, 'version replacement')
     }
 
-    // Stream this write into any open collaborative editor as a CRDT merge, so a copilot/tool edit
-    // shows up live instead of the file silently changing underneath the reader. Gated to markdown (the
-    // only format the collaborative editor renders) and best-effort (a no-op when nobody has the file
-    // open; never throws). This is the single chokepoint every external writer shares — the relay's own
-    // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
-    if (
-      options?.syncLiveDoc !== false &&
-      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
-    ) {
-      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
-      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
-      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
-      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
-      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'), {
-        version: finalized.file.contentUpdatedAt.getTime(),
-      })
+    if (finalized.liveDocEventId) {
+      try {
+        const result = await processWorkspaceFileLiveDocReconciliationNow(finalized.liveDocEventId)
+        if (result !== 'completed') {
+          logger.warn('Live document reconciliation deferred to outbox retry', {
+            workspaceId,
+            fileId,
+            eventId: finalized.liveDocEventId,
+            result,
+          })
+        }
+      } catch (error) {
+        logger.warn('Live document reconciliation deferred after inline processing error', {
+          workspaceId,
+          fileId,
+          eventId: finalized.liveDocEventId,
+          error: getErrorMessage(error),
+        })
+      }
     }
 
     const pathPrefix = getServePathPrefix()
@@ -1993,7 +2027,12 @@ export async function updateWorkspaceFileContent(
     // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
     // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
     // by the inner finalization catch before it propagated here.
-    if (error instanceof ContentVersionConflictError) throw error
+    if (
+      error instanceof ContentVersionConflictError ||
+      error instanceof CollabDocStateConflictError
+    ) {
+      throw error
+    }
     // Same reasoning for an already-classified failure: a missing file and a blown storage quota are
     // caller-fixable outcomes that every surface maps to 404/413 by class. Re-wrapping them in a bare
     // Error stripped that classification and turned both into a 500.

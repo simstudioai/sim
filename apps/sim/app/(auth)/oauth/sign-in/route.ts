@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { isOAuthProviderEnabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { isRegistrationDisabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -39,7 +40,7 @@ function consumeInteractivePrompt(params: URLSearchParams): boolean {
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   /** Avoid sending a newly signed-in user to a disabled provider's JSON 404. */
-  if (!isOAuthProviderEnabled) {
+  if (!(await isOAuthProviderEnabled())) {
     return NextResponse.redirect(new URL('/', getBaseUrl()), 302)
   }
 

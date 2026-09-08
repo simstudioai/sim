@@ -7,6 +7,13 @@ import { prosemirrorJSONToYDoc, yDocToProsemirrorJSON } from '@tiptap/y-tiptap'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
+import {
+  applyMarkdownToYDoc,
+  markdownToYDoc,
+  yDocToFileMarkdown,
+  yDocToMarkdown,
+} from '@/lib/collab-doc/converter'
+import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
@@ -19,14 +26,6 @@ import {
   parseMarkdownToDoc,
   serializeMarkdownBody,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import {
-  applyMarkdownToYDoc,
-  canonicalizeYDoc,
-  markdownToYDoc,
-  yDocToFileMarkdown,
-  yDocToMarkdown,
-} from './converter'
-import { COLLAB_DOC_FIELD } from './field'
 
 /** Representative markdown covering the custom-fidelity constructs (tables, code, lists, marks). */
 const SAMPLES = [
@@ -40,6 +39,7 @@ const SAMPLES = [
   'A footnote reference[^1].\n\n[^1]: the footnote body.',
   'Before.\n\n<div class="raw">untouched raw html</div>\n\nAfter.',
   '- [ ] todo\n- [x] done',
+  '[<img src="https://e.com/i.png" alt="" width="320" height="180">](https://e.com)',
 ]
 
 beforeAll(() => {
@@ -62,17 +62,7 @@ describe('collab-doc converter', () => {
     expect(yDocToMarkdown(markdownToYDoc(''))).toBe(serializeMarkdownBody(''))
   })
 
-  /**
-   * The Files editor paints a read-only placeholder built from the file's markdown, then swaps in the
-   * live collaborative doc once the CRDT syncs. Anything the CRDT holds that the markdown projection
-   * cannot round-trip shows up as the document reflowing its spacing a beat after the file appears.
-   *
-   * The case that matters is a state no markdown parse produced: the user presses Enter on an empty
-   * line, which puts a real empty paragraph in the CRDT. Projecting that to markdown and re-parsing it
-   * has to give the same blocks back — otherwise the blank line is both invisible on first paint and
-   * deleted for good once the room goes cold.
-   */
-  describe('placeholder ⇄ live CRDT parity', () => {
+  describe('Markdown-derived seed and placeholder parity', () => {
     const shapeOf = (blocks: JSONContent[] | undefined) =>
       (blocks ?? [])
         .map((n) => (n.type === 'paragraph' && !n.content?.length ? '∅' : n.type))
@@ -107,66 +97,6 @@ describe('collab-doc converter', () => {
       live.destroy()
     })
 
-    /**
-     * Every CRDT state below is one markdown genuinely cannot describe, so the round-trip is NOT the
-     * identity on it — a run past the parse bound, trailing empties the serializer collapses, an empty
-     * paragraph in a document that must parse whole. Each one used to reach a room verbatim and reflow
-     * the doc a beat after it painted. `canonicalizeYDoc` is the single pass that resolves all of them,
-     * so assert the invariant it establishes rather than enumerating what markdown can hold.
-     */
-    it.each([
-      [
-        'a run past the per-gap bound',
-        () => typedInto('a\n\nb', (f) => f.insert(1, paragraphs(30))),
-      ],
-      ['trailing empties', () => typedInto('a\n\nb', (f) => f.insert(f.length, paragraphs(3)))],
-      ['leading empties', () => typedInto('a\n\nb', (f) => f.insert(0, paragraphs(2)))],
-      ['between two lists', () => typedInto('- a\n\n- b', (f) => f.insert(1, paragraphs(1)))],
-      ['between two quotes', () => typedInto('> a\n\n> b', (f) => f.insert(1, paragraphs(1)))],
-      [
-        'inside a raw-HTML document',
-        () => typedInto('# H\n\nbody\n\n<div>x</div>', (f) => f.insert(1, paragraphs(1))),
-      ],
-      [
-        'inside a reference-definition document',
-        () =>
-          typedInto('# H\n\nsee [y][r]\n\n[r]: https://e.com', (f) => f.insert(1, paragraphs(1))),
-      ],
-    ])('canonicalizing restores parity: %s', (_label, build) => {
-      const live = build()
-      canonicalizeYDoc(live)
-      const { crdt, placeholder } = parity(live)
-      expect(placeholder).toBe(crdt)
-      // Idempotent: a canonical doc is already its own markdown projection, so a second pass is a no-op.
-      expect(canonicalizeYDoc(live)).toBe(false)
-      live.destroy()
-    })
-
-    /**
-     * The point of canonical is that the CRDT and the durable bytes describe the same document, so the
-     * invariant is stated against the bytes that get WRITTEN — `yDocToFileMarkdown`, post-process and
-     * all. Converging on the bare serializer output instead would leave that pass's fidelity fixes
-     * (empty list markers, escaped callout markers) outside the fixed point.
-     */
-    it.each([
-      ['a callout the serializer escapes', '# T\n\n> [!NOTE]\n> body\n\ntail'],
-      ['a list with an empty item', '# T\n\n- parent\n  - \n- after'],
-      ['trailing blank run', '# T\n\nbody\n\n\n\n'],
-      ['ends on a list', '# T\n\nintro\n\n- a\n- b'],
-    ])('a canonical doc projects to exactly the file body: %s', (_label, md) => {
-      const live = markdownToYDoc(md)
-      canonicalizeYDoc(live)
-
-      const body = splitFrontmatter(yDocToFileMarkdown(live)).body
-      // Re-reading the written bytes must rebuild the very doc the CRDT holds.
-      expect(shapeOf(editorNormalForm(body).content)).toBe(
-        shapeOf(yDocToProsemirrorJSON(live, COLLAB_DOC_FIELD).content)
-      )
-      // And a second pass has nothing left to do.
-      expect(canonicalizeYDoc(live)).toBe(false)
-      live.destroy()
-    })
-
     it('holds for every representative document', () => {
       for (const md of [
         ...SAMPLES,
@@ -182,35 +112,6 @@ describe('collab-doc converter', () => {
         expect(placeholder, `diverged for ${JSON.stringify(md)}`).toBe(crdt)
         live.destroy()
       }
-    })
-
-    /**
-     * `canonicalizeYDoc`'s return value gates whether both callers re-encode, so it has to be true
-     * whenever the doc actually moved. Deciding that from the markdown projection could not work: the
-     * repair is the trailing paragraph, which serializes to a blank line the post-process collapses, so
-     * every doc ending on a list/heading/table/rule was repaired and still reported unchanged — and the
-     * cached snapshot kept the unrepaired bytes, reopening the stacking-empties path.
-     */
-    it.each([
-      ['ends with a list', '# T\n\nbody\n\n- a\n- b'],
-      ['ends with a heading', '# T\n\nbody\n\n## Tail'],
-      ['ends with a table', '# T\n\n| a | b |\n| --- | --- |\n| 1 | 2 |'],
-      ['ends with a rule', '# T\n\nbody\n\n---'],
-    ])('reports the repair it actually made: %s', (_label, md) => {
-      // A doc built from the RAW parse — what a snapshot cached before this normalization looks like.
-      const doc = prosemirrorJSONToYDoc(
-        markdownSchemaForTest(),
-        parseMarkdownToDoc(md),
-        COLLAB_DOC_FIELD
-      )
-      const before = shapeOf(yDocToProsemirrorJSON(doc, COLLAB_DOC_FIELD).content)
-
-      const reported = canonicalizeYDoc(doc)
-
-      const after = shapeOf(yDocToProsemirrorJSON(doc, COLLAB_DOC_FIELD).content)
-      expect(after).toBe(`${before},∅`)
-      expect(reported).toBe(true)
-      doc.destroy()
     })
 
     /**
@@ -249,6 +150,104 @@ describe('collab-doc converter', () => {
 
       editor.destroy()
       awareness.destroy()
+      doc.destroy()
+    })
+  })
+
+  describe('equivalent external bodies preserve native Yjs history', () => {
+    it.each([
+      ['trailing newlines', 'base', 'base\n\n'],
+      ['alternate emphasis syntax', '**base**', '__base__'],
+      ['alternate bullet marker', '- first\n- second', '* first\n* second'],
+      ['CRLF line endings', 'first\n\nsecond', 'first\r\n\r\nsecond'],
+    ])('retains a delayed edit into an empty tail with %s', (_label, body, equivalentBody) => {
+      const server = markdownToYDoc(body)
+      const tail = new Y.XmlElement('paragraph')
+      tail.insert(0, [new Y.XmlText()])
+      const fragment = server.getXmlFragment(COLLAB_DOC_FIELD)
+      fragment.push([tail])
+      const remote = new Y.Doc()
+      const before = Y.encodeStateAsUpdate(server)
+      Y.applyUpdate(remote, before)
+
+      applyMarkdownToYDoc(server, equivalentBody)
+
+      expect(Y.encodeStateAsUpdate(server)).toEqual(before)
+      expect(fragment.get(fragment.length - 1)).toBe(tail)
+      const remoteFragment = remote.getXmlFragment(COLLAB_DOC_FIELD)
+      const remoteTail = remoteFragment.get(remoteFragment.length - 1) as Y.XmlElement
+      const remoteText = remoteTail.get(0) as Y.XmlText
+      remoteText.insert(0, 'late offline text')
+      Y.applyUpdate(server, Y.encodeStateAsUpdate(remote))
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(server))
+
+      expect(yDocToFileMarkdown(server)).toContain('late offline text')
+      expect(yDocToFileMarkdown(remote)).toBe(yDocToFileMarkdown(server))
+      remote.destroy()
+      server.destroy()
+    })
+
+    it('updates frontmatter without deleting a delayed body edit target', () => {
+      const server = markdownToYDoc('base')
+      const tail = new Y.XmlElement('paragraph')
+      tail.insert(0, [new Y.XmlText()])
+      server.getXmlFragment(COLLAB_DOC_FIELD).push([tail])
+      const remote = new Y.Doc()
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(server))
+      const { frontmatter, body } = splitFrontmatter('---\ntitle: changed\n---\n\nbase')
+
+      applyMarkdownToYDoc(server, body)
+      server.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.frontmatterKey, frontmatter)
+      const remoteTail = remote.getXmlFragment(COLLAB_DOC_FIELD).get(1) as Y.XmlElement
+      const remoteText = remoteTail.get(0) as Y.XmlText
+      remoteText.insert(0, 'late offline text')
+      Y.applyUpdate(server, Y.encodeStateAsUpdate(remote))
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(server))
+
+      expect(yDocToFileMarkdown(server)).toContain('title: changed')
+      expect(yDocToFileMarkdown(server)).toContain('late offline text')
+      expect(yDocToFileMarkdown(remote)).toBe(yDocToFileMarkdown(server))
+      remote.destroy()
+      server.destroy()
+    })
+
+    it('does not generate repeated repair identities for a legacy heading snapshot', () => {
+      const doc = prosemirrorJSONToYDoc(
+        markdownSchemaForTest(),
+        parseMarkdownToDoc('# Heading'),
+        COLLAB_DOC_FIELD
+      )
+      const before = Y.encodeStateAsUpdate(doc)
+
+      for (let attempt = 0; attempt < 12; attempt++) {
+        applyMarkdownToYDoc(doc, '# Heading')
+      }
+
+      expect(doc.getXmlFragment(COLLAB_DOC_FIELD).length).toBe(1)
+      expect(Y.encodeStateAsUpdate(doc)).toEqual(before)
+      doc.destroy()
+    })
+
+    it.each([
+      ['plain text', 'base', 'changed'],
+      ['adding a paragraph', 'base', 'base\n\nnew paragraph'],
+      ['deleting a paragraph', 'base\n\nremoved', 'base'],
+      ['inline formatting', 'base', '**base**'],
+      ['link destination', '[base](https://a.test)', '[base](https://b.test)'],
+      ['list depth', '- first\n- second', '- first\n  - second'],
+      ['task state', '- [ ] task', '- [x] task'],
+      ['code whitespace', '```\na\n\nb\n```', '```\na\nb\n```'],
+      ['code language', '```js\nx\n```', '```ts\nx\n```'],
+      ['image source', '![alt](https://a.test/a.png)', '![alt](https://a.test/b.png)'],
+      ['clearing the body', 'base', ''],
+    ])('still applies actual changes to %s', (_label, beforeBody, afterBody) => {
+      const doc = markdownToYDoc(beforeBody)
+      const before = yDocToMarkdown(doc)
+
+      applyMarkdownToYDoc(doc, afterBody)
+
+      expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody(afterBody))
+      expect(yDocToMarkdown(doc)).not.toBe(before)
       doc.destroy()
     })
   })

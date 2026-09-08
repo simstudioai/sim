@@ -25,8 +25,8 @@ export const EMPTY_FIND_RESULT: FindResult = { matches: [], truncated: false }
 /**
  * Stands in for one position of a non-text inline node (an image, a mention chip) so a match can
  * never span one — searching `ab` must not join the `a` before an image to the `b` after it. U+FFFF
- * is a permanent Unicode non-character, so no query can contain it and match the placeholder itself,
- * and it is not whitespace, so the shared scan's whitespace folding leaves it alone.
+ * is not whitespace, so the shared scan's whitespace folding leaves it alone. Segment checks exclude
+ * atoms even when a query contains this character, without excluding genuine U+FFFF text.
  */
 const ATOM_PLACEHOLDER = '￿'
 
@@ -34,6 +34,7 @@ const ATOM_PLACEHOLDER = '￿'
 interface TextSegment {
   textStart: number
   docStart: number
+  isText: boolean
 }
 
 /**
@@ -74,7 +75,7 @@ export function findMatches(
     if (soleText === null) {
       const built: TextSegment[] = []
       node.forEach((child, offset) => {
-        built.push({ textStart: text.length, docStart: pos + 1 + offset })
+        built.push({ textStart: text.length, docStart: pos + 1 + offset, isText: child.isText })
         text += child.isText && child.text ? child.text : ATOM_PLACEHOLDER.repeat(child.nodeSize)
       })
       segments = built
@@ -83,6 +84,21 @@ export function findMatches(
     let segmentIndex = 0
     forEachSearchOccurrence(text, query, (start, end) => {
       if (truncated) return
+      if (segments) {
+        while (
+          segmentIndex + 1 < segments.length &&
+          segments[segmentIndex + 1].textStart <= start
+        ) {
+          segmentIndex++
+        }
+        for (
+          let index = segmentIndex;
+          index < segments.length && segments[index].textStart < end;
+          index++
+        ) {
+          if (!segments[index].isText) return
+        }
+      }
       if (matches.length >= limit) {
         truncated = true
         return
@@ -90,10 +106,6 @@ export function findMatches(
       if (!segments) {
         matches.push({ from: pos + 1 + start, to: pos + 1 + end })
         return
-      }
-      // Segments are ordered and occurrences arrive left to right, so the cursor only moves forward.
-      while (segmentIndex + 1 < segments.length && segments[segmentIndex + 1].textStart <= start) {
-        segmentIndex++
       }
       const segment = segments[segmentIndex]
       const from = segment.docStart + (start - segment.textStart)

@@ -568,17 +568,15 @@ async function runHandler(
   const handler = handlers[event.eventType]
 
   if (!handler) {
-    logger.error('No handler registered for outbox event type', {
+    const reason = `No handler registered for event type '${event.eventType}'`
+    logger.warn('No handler registered for outbox event type; scheduling a bounded retry', {
       eventId: event.id,
       eventType: event.eventType,
     })
-    await updateIfLeaseHeld(event, {
-      status: 'dead_letter',
-      lastError: `No handler registered for event type '${event.eventType}'`,
-      processedAt: new Date(),
-      lockedAt: null,
+    return scheduleDeferred(event, {
+      outcome: 'deferred',
+      reason,
     })
-    return 'dead_letter'
   }
 
   try {

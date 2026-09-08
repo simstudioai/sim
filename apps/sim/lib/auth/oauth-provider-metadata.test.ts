@@ -1,12 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getOAuthServerConfig: vi.fn(),
+  isOAuthProviderEnabled: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/oauth-provider-feature', () => ({
+  isOAuthProviderEnabled: mocks.isOAuthProviderEnabled,
 }))
 
 vi.mock('@/lib/auth/auth', () => ({
@@ -40,7 +44,7 @@ async function callRoute(
 describe('OAuth provider metadata', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setEnvFlags({ isOAuthProviderEnabled: true })
+    mocks.isOAuthProviderEnabled.mockResolvedValue(true)
     mocks.getOAuthServerConfig.mockResolvedValue({
       issuer: 'https://sim.test/api/auth',
       authorization_endpoint: 'https://sim.test/api/auth/oauth2/authorize',
@@ -53,8 +57,6 @@ describe('OAuth provider metadata', () => {
       scopes_supported: ['offline_access', 'api:read', 'api:write'],
     })
   })
-
-  afterAll(resetEnvFlagsMock)
 
   it.each(routes)('serves equivalent metadata from the %s alias', async (_name, route, path) => {
     const response = await callRoute(route, path)
@@ -84,13 +86,31 @@ describe('OAuth provider metadata', () => {
   it.each(routes)(
     'returns 404 from the %s alias when the provider is disabled',
     async (_name, route, path) => {
-      setEnvFlags({ isOAuthProviderEnabled: false })
+      mocks.isOAuthProviderEnabled.mockResolvedValue(false)
 
       const response = await callRoute(route, path)
 
       expect(response.status).toBe(404)
       expect(response.headers.get('access-control-allow-origin')).toBe('*')
+      expect(response.headers.get('cache-control')).toBe('no-store')
       expect(mocks.getOAuthServerConfig).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(routes)(
+    'rechecks the runtime flag for each request to the %s alias',
+    async (_name, route, path) => {
+      mocks.isOAuthProviderEnabled
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
+
+      expect((await callRoute(route, path)).status).toBe(200)
+      expect((await callRoute(route, path)).status).toBe(404)
+      expect((await callRoute(route, path)).status).toBe(200)
+      expect(mocks.isOAuthProviderEnabled).toHaveBeenCalledTimes(3)
+      expect(mocks.isOAuthProviderEnabled).toHaveBeenCalledWith()
+      expect(mocks.getOAuthServerConfig).toHaveBeenCalledTimes(2)
     }
   )
 })

@@ -25,6 +25,10 @@ vi.mock(
     LinkHoverCard: () => null,
   })
 )
+vi.mock(
+  '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu',
+  () => ({ ImageBubbleMenu: () => null })
+)
 
 let root: Root
 let container: HTMLDivElement

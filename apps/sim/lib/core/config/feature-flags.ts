@@ -46,6 +46,12 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'oauth-provider': {
+    description:
+      'Enable OAuth authorization, discovery, and API bearer tokens. Global on/off only; ' +
+      'enable after all app instances support the OAuth token-family lifecycle.',
+    fallback: 'OAUTH_PROVIDER_ENABLED',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
