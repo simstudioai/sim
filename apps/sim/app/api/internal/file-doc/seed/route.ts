@@ -25,7 +25,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { workspaceId, fileId } = parsed.data.body
 
   try {
-    const seed = await buildFileDocSeed(workspaceId, fileId)
+    const seed = await buildFileDocSeed(workspaceId, fileId, request.signal)
     return NextResponse.json({
       update: seed ? Buffer.from(seed.update).toString('base64') : null,
       version: seed ? seed.version : null,

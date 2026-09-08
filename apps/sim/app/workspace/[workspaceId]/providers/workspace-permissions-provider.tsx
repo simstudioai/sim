@@ -120,6 +120,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const urlWorkflowId = params?.workflowId as string | undefined
+  const isFileViewer = Boolean(params?.fileId)
   const queryClient = useQueryClient()
 
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
@@ -131,13 +132,14 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     delayMs: RECONNECTING_TOAST_DELAY_MS,
     minVisibleMs: RECONNECTING_TOAST_MIN_VISIBLE_MS,
   })
-  const realtimeStatusMessage = isOfflineMode
-    ? null
-    : showReconnecting
-      ? 'Reconnecting...'
-      : isRetryingWorkflowJoin
-        ? 'Joining workflow...'
-        : null
+  const realtimeStatusMessage =
+    isOfflineMode || isFileViewer
+      ? null
+      : showReconnecting
+        ? 'Reconnecting...'
+        : isRetryingWorkflowJoin
+          ? 'Joining workflow...'
+          : null
 
   usePersistentErrorToast(realtimeStatusMessage)
   // Offline mode only recovers via workspace switch or refresh; the join block

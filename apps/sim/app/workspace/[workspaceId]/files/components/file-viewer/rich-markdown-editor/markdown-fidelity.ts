@@ -5,7 +5,8 @@
  */
 
 const BOM = '\uFEFF'
-const FRONTMATTER_REGEX = /^---\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n)*/
+const FRONTMATTER_REGEX = /^---\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?=\r?\n|$)(?:\r?\n)*/
+const FRONTMATTER_KEY_REGEX = /^(?:[A-Za-z0-9_-]+|'(?:[^']|'')*'|"(?:[^"\\]|\\.)*")[ \t]*:/
 const ESCAPED_CALLOUT_REGEX = /^(\s*>(?:\s*>)*\s*)\\\[!([A-Za-z]+)\\\]/gm
 
 /**
@@ -56,20 +57,24 @@ export function splitFrontmatter(markdown: string): SplitMarkdown {
 }
 
 /**
- * A leading `---…---` block is YAML frontmatter unless its first content line is markdown rather than
- * a `key:` — so a doc that opens with a `---` thematic break (e.g. a changelog whose next `---` closes
- * the regex) stays in the editor body instead of being held out-of-band and hidden. An empty block
- * (`---\n---`) is still treated as (empty) frontmatter.
+ * Recognize mapping-style metadata without parsing or rewriting its values. Comments can precede
+ * a plain or quoted key; comment-only blocks remain visible because they may be Markdown headings
+ * between thematic breaks. A genuinely empty block is still treated as frontmatter.
  */
 function isYamlFrontmatterBlock(block: string): boolean {
   const interior = block.replace(/^---[ \t]*\r?\n/, '')
+  let hasComment = false
   for (const rawLine of interior.split('\n')) {
     const line = rawLine.trim()
     if (line === '') continue
-    if (line.startsWith('---')) return true
-    return /^[A-Za-z0-9_-]+[ \t]*:/.test(line)
+    if (line === '---') return !hasComment
+    if (line.startsWith('#')) {
+      hasComment = true
+      continue
+    }
+    return FRONTMATTER_KEY_REGEX.test(line)
   }
-  return true
+  return !hasComment
 }
 
 export function applyFrontmatter(frontmatter: string, body: string): string {

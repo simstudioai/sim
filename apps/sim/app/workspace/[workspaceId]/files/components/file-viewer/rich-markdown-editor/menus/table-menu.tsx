@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, Rows3, Trash } from '@sim/emcn/icons'
-import { PluginKey } from '@tiptap/pm/state'
+import { NodeSelection, PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -18,8 +18,14 @@ interface TableBubbleMenuProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
-const shouldShowTableMenu = ({ editor }: { editor: Editor }) =>
-  editor.isEditable && editor.isActive('table')
+const shouldShowTableMenu = ({ editor }: { editor: Editor }) => {
+  const { selection } = editor.state
+  return (
+    editor.isEditable &&
+    editor.isActive('table') &&
+    !(selection instanceof NodeSelection && selection.node.type.name === 'image')
+  )
+}
 
 /**
  * Floating toolbar shown whenever the selection is inside a table: row/column insert-before/after,
@@ -41,7 +47,7 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
   const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
   const canFocus = useCallback(
     () =>
-      editor.isActive('table') &&
+      shouldShowTableMenu({ editor }) &&
       editor.state.doc
         .textBetween(editor.state.selection.from, editor.state.selection.to, ' ')
         .trim().length === 0,

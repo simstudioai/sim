@@ -6,6 +6,7 @@ import { createSocketIOServer, shutdownSocketIOAdapter } from '@/config/socket'
 import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
 import { setupAllHandlers } from '@/handlers'
+import { waitForConnectionCleanup } from '@/handlers/connection'
 import { flushAllFileDocRooms } from '@/handlers/file-doc'
 import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
@@ -121,6 +122,11 @@ async function main() {
     shuttingDown = true
     logger.info('Shutting down Socket.IO server...')
 
+    const shutdownTimer = setTimeout(() => {
+      logger.error('Forced shutdown after timeout')
+      process.exit(1)
+    }, SHUTDOWN_TIMEOUT_MS)
+
     accessRevalidation.stop()
 
     // Flush open collaborative docs to durable markdown BEFORE tearing down Redis/the store — the
@@ -130,6 +136,15 @@ async function main() {
       logger.info('Flushed open collaborative documents')
     } catch (error) {
       logger.error('Error flushing collaborative documents on shutdown:', error)
+    }
+
+    /** Transport closure permits reconnection; a namespace DISCONNECT intentionally does not. */
+    try {
+      await io.close()
+      await waitForConnectionCleanup()
+      await flushAllFileDocRooms()
+    } catch (error) {
+      logger.error('Error draining socket connections on shutdown:', error)
     }
 
     try {
@@ -151,24 +166,9 @@ async function main() {
       logger.error('Error during FileDocStore shutdown:', error)
     }
 
-    // Close local client connections so `httpServer.close()` can complete its callback and exit
-    // gracefully — otherwise open websockets keep it hanging until the forced-exit timer below.
-    // Local-only: a rolling deploy must not disconnect clients pinned to other pods.
-    try {
-      io.local.disconnectSockets(true)
-    } catch (error) {
-      logger.error('Error disconnecting sockets on shutdown:', error)
-    }
-
-    httpServer.close(() => {
-      logger.info('Socket.IO server closed')
-      process.exit(0)
-    })
-
-    setTimeout(() => {
-      logger.error('Forced shutdown after timeout')
-      process.exit(1)
-    }, SHUTDOWN_TIMEOUT_MS)
+    clearTimeout(shutdownTimer)
+    logger.info('Socket.IO server closed')
+    process.exit(0)
   }
 
   process.on('SIGINT', shutdown)
