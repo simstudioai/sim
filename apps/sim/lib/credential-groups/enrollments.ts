@@ -16,6 +16,7 @@ import { normalizeEmail, truncate } from '@sim/utils/string'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
+import { searchFilter } from '@/lib/api/list-query'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -58,6 +59,7 @@ export type CredentialGroupEnrollmentStatus = EnrollmentRow['status']
 
 export interface ListCredentialGroupEnrollmentFilters {
   email?: string
+  search?: string
   statuses?: CredentialGroupEnrollmentStatus[]
 }
 
@@ -681,6 +683,10 @@ export async function listCredentialGroupEnrollments(
       `Credential group enrollment limit must be between 1 and ${MAX_ENROLLMENT_PAGE_SIZE}`
     )
   }
+  const search = filters.search?.trim() || undefined
+  if (search && search.length > 320) {
+    throw new CredentialGroupEnrollmentError('People search must be at most 320 characters', 400)
+  }
   const [group] = await db
     .select({ options: credentialGroup.options })
     .from(credentialGroup)
@@ -715,6 +721,7 @@ export async function listCredentialGroupEnrollments(
         eq(credentialGroup.id, groupId),
         resourceScopeCondition(credentialGroup, scope),
         filters.email ? eq(credentialGroupEnrollment.email, filters.email) : undefined,
+        searchFilter(credentialGroupEnrollment.email, search),
         filters.statuses?.length
           ? inArray(credentialGroupEnrollment.status, filters.statuses)
           : undefined,

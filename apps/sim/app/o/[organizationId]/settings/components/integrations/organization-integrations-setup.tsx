@@ -2,19 +2,20 @@
 
 import { useMemo, useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalError, Switch } from '@sim/emcn'
+import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
 import { SearchSourceRow } from '@/app/workspace/[workspaceId]/search/components/search-source-row'
 import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
-import {
-  managedSourceParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
+import { searchSetupParam } from '@/app/workspace/[workspaceId]/search/search-params'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -23,11 +24,13 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { searchSourceKeys, useSearchSources } from '@/hooks/queries/kb/connectors'
 import {
   useSearchIntegrations,
   useUpdateSearchIntegration,
 } from '@/hooks/queries/search-integrations'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -46,7 +49,9 @@ interface PendingApproval {
 export function OrganizationIntegrationsSetup() {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const sources = useSearchSources(scope)
+  const [search, setSearch] = useSettingsSearch()
+  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const sources = useSearchSources(scope, { search: sourceSearch })
   const integrations = useSearchIntegrations(organization.id)
   const updateApproval = useUpdateSearchIntegration()
   const {
@@ -61,10 +66,7 @@ export function OrganizationIntegrationsSetup() {
     searchSetupParam.key,
     searchSetupParam.parser.withOptions({ history: 'replace' })
   )
-  const [, setManagedSource] = useQueryState(
-    managedSourceParam.key,
-    managedSourceParam.parser.withOptions({ history: 'replace' })
-  )
+  const router = useRouter()
   const membershipQueryKeys = useMemo(
     () => [searchSourceKeys.list({ kind: 'organization', organizationId: organization.id })],
     [organization.id]
@@ -91,6 +93,13 @@ export function OrganizationIntegrationsSetup() {
         ? integrations
         : null
 
+  const visibleProviders = SEARCH_SOURCE_TYPES.filter(
+    ([type, meta]) =>
+      !sourceSearch ||
+      meta.name.toLowerCase().includes(sourceSearch.toLowerCase()) ||
+      sources.data?.some((source) => source.connectorType === type)
+  )
+
   const confirmApproval = () => {
     if (!pendingApproval) return
     updateApproval.mutate(
@@ -114,7 +123,13 @@ export function OrganizationIntegrationsSetup() {
   }
 
   return (
-    <>
+    <SettingsPanel
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: 'Search providers and sources...',
+      }}
+    >
       <div className={RESOURCE_LIST_STACK}>
         {failedQuery ? (
           <SettingsQueryErrorState
@@ -133,7 +148,7 @@ export function OrganizationIntegrationsSetup() {
             variant='inline'
           />
         ) : (
-          SEARCH_SOURCE_TYPES.map(([type, meta]) => {
+          visibleProviders.map(([type, meta]) => {
             const configured = sources.data?.filter((source) => source.connectorType === type) ?? []
             const { admin: central, members } = getConnectorAccessAvailability(
               meta,
@@ -155,13 +170,7 @@ export function OrganizationIntegrationsSetup() {
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
                   title={meta.name}
                   description={
-                    loading
-                      ? 'Loading approval…'
-                      : approved
-                        ? available
-                          ? 'Approved for Sim Search'
-                          : 'Approved · Connection setup is unavailable'
-                        : 'Not approved for Sim Search'
+                    !loading && !available ? 'Connection setup is unavailable' : undefined
                   }
                   trailing={
                     <div className='flex items-center gap-2'>
@@ -201,14 +210,27 @@ export function OrganizationIntegrationsSetup() {
                     waiting={enrollment.isAwaiting(source.connectorId)}
                     isPending={enrollment.isPending}
                     onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-                    onManage={() => void setManagedSource(source.connectorId, { history: 'push' })}
+                    onManage={() =>
+                      router.push(
+                        organizationRoutes(organization.id).searchSource(source.connectorId)
+                      )
+                    }
                   />
                 ))}
               </div>
             )
           })
         )}
-        {!failedQuery && !integrationAvailabilityError && <SearchSourcePagination {...sources} />}
+        {!failedQuery && !integrationAvailabilityError && (
+          <>
+            {!sources.isPending && !sources.hasNextPage && visibleProviders.length === 0 && (
+              <SettingsEmptyState variant='inline'>
+                No providers or sources match your search
+              </SettingsEmptyState>
+            )}
+            <SearchSourcePagination {...sources} />
+          </>
+        )}
         {enrollment.error && (
           <p className='text-[var(--text-error)] text-caption'>{enrollment.error}</p>
         )}
@@ -254,6 +276,6 @@ export function OrganizationIntegrationsSetup() {
       >
         {updateApproval.error && <ChipModalError>{updateApproval.error.message}</ChipModalError>}
       </ChipConfirmModal>
-    </>
+    </SettingsPanel>
   )
 }

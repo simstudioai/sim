@@ -29,6 +29,8 @@ vi.mock('@/hooks/queries/selectors', () => ({
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field'
 
 interface ComboboxCallbacks {
+  options: { value: string; label: string; hidden?: boolean }[]
+  disabled: boolean
   onChange?: (value: string) => void
   onMultiSelectChange?: (value: string[]) => void
 }
@@ -84,3 +86,44 @@ it.each([true, false])(
     }
   }
 )
+
+it('uses saved labels only for selected values and prefers live provider names', async () => {
+  const field: ConnectorConfigField & { selectorKey: 'google.drive' } = {
+    id: 'folder',
+    title: 'Folders',
+    type: 'selector',
+    selectorKey: 'google.drive',
+    multi: true,
+  }
+  const root = createRoot(document.createElement('div'))
+  try {
+    await act(async () =>
+      root.render(
+        <ConnectorSelectorField
+          field={field}
+          value={['folder-a', 'folder-saved']}
+          onChange={mocks.change}
+          credentialId={null}
+          sourceConfig={{}}
+          configFields={[field]}
+          canonicalModes={{}}
+          selectedLabels={[
+            { id: 'folder-a', label: 'Old provider name' },
+            { id: 'folder-saved', label: 'Project notes' },
+            { id: 'folder-other', label: 'Unselected saved folder' },
+          ]}
+        />
+      )
+    )
+    const props = mocks.combobox.mock.lastCall![0]
+    expect(props.disabled).toBe(true)
+    expect(props.options).toEqual([
+      { value: 'folder-a', label: 'Engineering' },
+      { value: 'folder-saved', label: 'Project notes', hidden: true },
+      { value: 'folder-b', label: 'Company docs' },
+    ])
+  } finally {
+    await act(async () => root.unmount())
+    vi.clearAllMocks()
+  }
+})

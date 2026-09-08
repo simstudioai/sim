@@ -2,12 +2,12 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   requestJson: vi.fn(),
-  useInfiniteQuery: vi.fn(),
-  useQuery: vi.fn(),
+  useInfiniteQuery: vi.fn().mockReturnValue({ data: undefined, dataUpdatedAt: 0 }),
+  useQuery: vi.fn().mockReturnValue({ data: undefined, dataUpdatedAt: 0 }),
   useMutation: vi.fn(),
   cancelQueries: vi.fn(),
   getQueryData: vi.fn(),
@@ -41,7 +41,10 @@ import {
   listKnowledgeConnectorDocumentsContract,
   listSearchSourcesContract,
 } from '@/lib/api/contracts/knowledge'
-import { readSearchIndexContract } from '@/lib/api/contracts/knowledge/connectors'
+import {
+  type ConnectorDetailData,
+  readSearchIndexContract,
+} from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import {
   CONNECTOR_SYNC_POLL_INTERVAL_MS,
@@ -55,6 +58,7 @@ import {
   useSearchIndex,
   useSearchSources,
   useTriggerSync,
+  useUpdateConnector,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 
@@ -207,6 +211,7 @@ describe('useTriggerSync optimistic state', () => {
   function capturedMutationOptions() {
     return mocks.useMutation.mock.calls.at(-1)?.[0] as {
       onMutate: (vars: { knowledgeBaseId: string; connectorId: string }) => Promise<unknown>
+      onSuccess: (data: undefined, vars: { knowledgeBaseId: string; connectorId: string }) => void
       onError: (
         error: unknown,
         vars: { knowledgeBaseId: string; connectorId: string },
@@ -225,6 +230,18 @@ describe('useTriggerSync optimistic state', () => {
     /** `all`, not `lists`: the detail query polls the same status and must not land after the settle. */
     expect(mocks.cancelQueries).toHaveBeenCalledWith({ queryKey: connectorKeys.all(KB_ID) })
     expect(lastListStatusUpdater()(existing)?.[0].status).toBe('pending')
+  })
+
+  it('refreshes only the triggered source progress after success', () => {
+    useTriggerSync()
+    capturedMutationOptions().onSuccess(undefined, {
+      knowledgeBaseId: KB_ID,
+      connectorId: 'connector-1',
+    })
+
+    expect(mocks.invalidateQueries.mock.calls).toEqual([
+      [{ queryKey: connectorKeys.progresses(KB_ID, 'connector-1') }],
+    ])
   })
 
   it('restores the previous status when the request fails', async () => {
@@ -366,12 +383,137 @@ describe('useTriggerSync optimistic state', () => {
   })
 })
 
+describe('direct source detail mutation state', () => {
+  const variables = { knowledgeBaseId: KB_ID, connectorId: 'connector-1' }
+  const detailKey = JSON.stringify(connectorKeys.detail(KB_ID, variables.connectorId))
+  const listKey = JSON.stringify(connectorKeys.lists(KB_ID))
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getQueryData.mockReset()
+  })
+
+  afterEach(() => {
+    mocks.getQueryData.mockReset()
+  })
+
+  function seedDetail(overrides: Partial<ConnectorData> = {}, list?: ConnectorData[]) {
+    const detail: ConnectorDetailData = {
+      ...makeConnector({ memberSyncStatus: 'idle', ...overrides }),
+      syncLogs: [],
+      memberSyncLogs: [],
+      members: { active: 2, suspended: 0, stale: 0 },
+    }
+    mocks.getQueryData.mockImplementation((key) => {
+      if (JSON.stringify(key) === detailKey) return detail
+      if (JSON.stringify(key) === listKey) return list
+      return undefined
+    })
+    return detail
+  }
+
+  function capturedMutation() {
+    return mocks.useMutation.mock.calls.at(-1)?.[0] as {
+      onMutate: (
+        input: typeof variables & { updates?: { status: 'active' | 'paused' } }
+      ) => Promise<unknown>
+      onError: (error: Error, input: typeof variables, previous: unknown) => void
+    }
+  }
+
+  function detailUpdater() {
+    return mocks.setQueryData.mock.calls
+      .filter(([key]) => JSON.stringify(key) === detailKey)
+      .at(-1)?.[1] as (detail: ConnectorDetailData | undefined) => ConnectorDetailData | undefined
+  }
+
+  it.each(['admin', 'members'] as const)(
+    'queues and rolls back %s sync with only the exact detail cached',
+    async (accessMode) => {
+      const detail = seedDetail({ accessMode })
+      useTriggerSync()
+      const mutation = capturedMutation()
+      const previous = await mutation.onMutate(variables)
+      const queued = detailUpdater()(detail)
+
+      expect(previous).toEqual(
+        accessMode === 'members' ? { memberSyncStatus: 'idle' } : { status: 'active' }
+      )
+      expect(queued).toEqual({
+        ...detail,
+        ...(accessMode === 'members' ? { memberSyncStatus: 'pending' } : { status: 'pending' }),
+      })
+      expect(lastListStatusUpdater()(undefined)).toBeUndefined()
+      useConnectorDetail(KB_ID, variables.connectorId)
+      expect(
+        capturedQueryOptions<ConnectorData>().refetchInterval({ state: { data: queued } })
+      ).toBe(CONNECTOR_SYNC_POLL_INTERVAL_MS)
+
+      mocks.setQueryData.mockClear()
+      mutation.onError(new Error('Sync refused'), variables, previous)
+      expect(detailUpdater()(queued)).toEqual(detail)
+      if (accessMode === 'members') {
+        expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+          queryKey: memberConnectorKeys.lists(),
+        })
+      }
+    }
+  )
+
+  it.each([
+    { before: 'active', requested: 'paused' },
+    { before: 'paused', requested: 'active' },
+  ] as const)('rolls back a rejected $requested change without a list cache', async (status) => {
+    const detail = seedDetail({ status: status.before })
+    useUpdateConnector()
+    const mutation = capturedMutation()
+    const previous = await mutation.onMutate({
+      ...variables,
+      updates: { status: status.requested },
+    })
+    const optimistic = detailUpdater()(detail)
+    expect(optimistic?.status).toBe(status.requested)
+    expect(previous).toBe(status.before)
+
+    mocks.setQueryData.mockClear()
+    mutation.onError(new Error('Status change refused'), variables, previous)
+    expect(detailUpdater()(optimistic)).toEqual(detail)
+    expect(lastListStatusUpdater()(undefined)).toBeUndefined()
+  })
+
+  it.each([{ id: 'other-connector' }, { knowledgeBaseId: 'other-kb' }])(
+    'does not use a mismatched detail to choose the sync engine: %j',
+    async (identity) => {
+      seedDetail({ accessMode: 'members', ...identity })
+      useTriggerSync()
+      expect(await capturedMutation().onMutate(variables)).toBeUndefined()
+      expect(mocks.setQueryData).not.toHaveBeenCalled()
+      expect(mocks.setQueriesData).not.toHaveBeenCalledWith(
+        { queryKey: memberConnectorKeys.lists() },
+        expect.any(Function)
+      )
+    }
+  )
+
+  it.each([{ id: 'other-connector' }, { knowledgeBaseId: 'other-kb' }])(
+    'preserves mismatched detail data when queuing a matching list row: %j',
+    async (identity) => {
+      const detail = seedDetail(identity, [makeConnector({ accessMode: 'admin' })])
+      useTriggerSync()
+      await capturedMutation().onMutate(variables)
+      expect(detailUpdater()(detail)).toBe(detail)
+      expect(lastListStatusUpdater()([makeConnector()])?.[0].status).toBe('pending')
+    }
+  )
+})
+
 interface ConnectorDocumentsPage {
   documents: Array<{ id: string }>
   counts: { active: number; excluded: number }
 }
 
 interface ConnectorDocumentsQueryOptions {
+  queryKey: readonly unknown[]
   initialPageParam: number
   queryFn: (context: { signal: AbortSignal; pageParam: number }) => Promise<unknown>
   getNextPageParam: (
@@ -409,6 +551,8 @@ describe('useConnectorDocuments', () => {
       query: {
         includeExcluded: true,
         failedOnly: false,
+        filter: undefined,
+        search: undefined,
         limit: MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
         offset: 200,
       },
@@ -417,6 +561,38 @@ describe('useConnectorDocuments', () => {
     expect(options.initialPageParam).toBe(0)
     expect(options.getNextPageParam(firstPage, [firstPage])).toBe(2)
     expect(options.getNextPageParam(finalPage, [firstPage, finalPage])).toBeUndefined()
+  })
+
+  it('searches every requested page with the chosen filter and a distinct cache key', async () => {
+    useConnectorDocuments('knowledge-1', 'connector-1', {
+      filter: 'excluded',
+      search: '  Roadmap  ',
+      includeExcluded: true,
+      failedOnly: true,
+    })
+    const options = mocks.useInfiniteQuery.mock.calls[0]?.[0] as ConnectorDocumentsQueryOptions
+    const signal = new AbortController().signal
+    mocks.requestJson.mockResolvedValue({ data: { documents: [] } })
+    await options.queryFn({ signal, pageParam: 200 })
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(listKnowledgeConnectorDocumentsContract, {
+      params: { id: 'knowledge-1', connectorId: 'connector-1' },
+      query: {
+        filter: 'excluded',
+        search: 'Roadmap',
+        includeExcluded: undefined,
+        failedOnly: undefined,
+        limit: MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+        offset: 200,
+      },
+      signal,
+    })
+
+    useConnectorDocuments('knowledge-1', 'connector-1', { filter: 'active', search: 'Roadmap' })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].queryKey).not.toEqual(options.queryKey)
+    useConnectorDocuments('knowledge-1', 'connector-1', { filter: 'excluded', search: 'Roadmap' })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].queryKey).toEqual(options.queryKey)
+    useConnectorDocuments('knowledge-1', 'connector-1', { filter: 'excluded', search: 'Budget' })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].queryKey).not.toEqual(options.queryKey)
   })
 
   it('does not page toward excluded documents when they were not requested', () => {
@@ -448,10 +624,6 @@ describe('connector document rolling compatibility', () => {
 })
 
 describe('useSearchSources', () => {
-  beforeEach(() => {
-    mocks.useQuery.mockReturnValue({ data: undefined, dataUpdatedAt: 0 })
-    mocks.useInfiniteQuery.mockReturnValue({ data: undefined, dataUpdatedAt: 0 })
-  })
   it('isolates organization sources and resolves their index without listing workspace knowledge bases', async () => {
     const scope = { kind: 'organization' as const, organizationId: 'scope-1' }
     const signal = new AbortController().signal

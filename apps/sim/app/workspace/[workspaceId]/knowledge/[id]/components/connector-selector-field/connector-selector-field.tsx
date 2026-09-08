@@ -31,6 +31,7 @@ interface ConnectorSelectorFieldProps {
   sourceConfig: ConfigFieldMap
   configFields: ConnectorConfigField[]
   canonicalModes: Record<string, 'basic' | 'advanced'>
+  selectedLabels?: SourceSelectionLabel[]
   disabled?: boolean
 }
 
@@ -43,6 +44,7 @@ export function ConnectorSelectorField({
   sourceConfig,
   configFields,
   canonicalModes,
+  selectedLabels,
   disabled,
 }: ConnectorSelectorFieldProps) {
   const params = useParams<{ workspaceId?: string; organizationId?: string }>()
@@ -152,8 +154,13 @@ export function ConnectorSelectorField({
       seen.add(option.id)
       extras.push({ label: option.label, value: option.id })
     }
+    for (const option of selectedLabels ?? []) {
+      if (seen.has(option.id) || !selectedIds.includes(option.id)) continue
+      seen.add(option.id)
+      extras.push({ label: option.label, value: option.id, hidden: true })
+    }
     return extras.length > 0 ? [...extras, ...base] : base
-  }, [options, selectedOptions, searchedOption])
+  }, [options, selectedOptions, searchedOption, selectedLabels, selectedIds])
 
   const handleChange = (nextValue: ConfigFieldValue) => {
     const ids = new Set(Array.isArray(nextValue) ? nextValue : nextValue ? [nextValue] : [])

@@ -104,7 +104,7 @@ export const listOrganizationAccountPeople = defineOrganizationAccountsUseCase({
     input,
     context,
   }: OrganizationExecution<
-    OrganizationInput & { limit: number; cursor?: string; email?: string }
+    OrganizationInput & { limit: number; cursor?: string; email?: string; search?: string }
   >) {
     const { scope, group } = await requireGroup(context.organizationId)
     return listCredentialGroupEnrollments(
@@ -112,7 +112,7 @@ export const listOrganizationAccountPeople = defineOrganizationAccountsUseCase({
       group.credentialGroupId,
       input.limit,
       input.cursor,
-      { email: input.email }
+      { email: input.email, search: input.search }
     )
   },
 })

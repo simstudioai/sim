@@ -5,29 +5,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  people: vi.fn(),
   resend: vi.fn(),
   revoke: vi.fn(),
   disconnect: vi.fn(),
   reset: vi.fn(),
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccountPeople: () => ({
-    data: {
-      pages: [
-        {
-          enrollments: [
-            {
-              id: 'enrollment-1',
-              email: 'person@example.com',
-              status: 'active',
-              connections: [{ provider: 'gmail', status: 'active', count: 2 }],
-              mcpConnections: [],
-            },
-          ],
-        },
-      ],
-    },
-  }),
+  useOrganizationAccountPeople: mocks.people,
   usePersonalOrganizationAccounts: () => ({
     data: {
       pages: [
@@ -58,6 +43,7 @@ vi.mock('@/ee/credential-groups/components/organization-account-invite-modal', (
   OrganizationAccountInviteModal: () => null,
 }))
 
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
 import { PersonalOrganizationAccounts } from '@/ee/credential-groups/components/personal-organization-accounts'
 
@@ -66,6 +52,23 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  mocks.people.mockReturnValue({
+    data: {
+      pages: [
+        {
+          enrollments: [
+            {
+              id: 'enrollment-1',
+              email: 'person@example.com',
+              status: 'active',
+              connections: [{ provider: 'gmail', status: 'active', count: 2 }],
+              mcpConnections: [],
+            },
+          ],
+        },
+      ],
+    },
+  })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -106,7 +109,11 @@ it('keeps the compact People rows and resends from the actions menu', async () =
   await act(async () =>
     root.render(
       <NuqsTestingAdapter hasMemory>
-        <OrganizationAccountPeople organizationId='organization-1' />
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationAccountPeople organizationId='organization-1' />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
       </NuqsTestingAdapter>
     )
   )
@@ -142,7 +149,13 @@ describe.each(cases)(
   ({ label, component, mutation, target, input }) => {
     it('requires confirmation, allows cancellation, and never submits from an unfocused Enter', async () => {
       await act(async () =>
-        root.render(<NuqsTestingAdapter hasMemory>{component}</NuqsTestingAdapter>)
+        root.render(
+          <NuqsTestingAdapter hasMemory>
+            <SettingsHeaderProvider>
+              <SettingsHeaderShell>{component}</SettingsHeaderShell>
+            </SettingsHeaderProvider>
+          </NuqsTestingAdapter>
+        )
       )
       await openConfirmation(label)
       let dialog = document.querySelector('[role="dialog"]')
@@ -166,3 +179,69 @@ describe.each(cases)(
     })
   }
 )
+
+it('restores the existing People URL search and requests server-filtered results', async () => {
+  mocks.people.mockReturnValue({ data: { pages: [{ enrollments: [] }] }, hasNextPage: false })
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter hasMemory searchParams='?credential-group-people=late-page'>
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationAccountPeople organizationId='organization-1' />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      </NuqsTestingAdapter>
+    )
+  )
+  expect(mocks.people).toHaveBeenLastCalledWith('organization-1', 'late-page')
+  expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('late-page')
+  expect(container.textContent).toContain('No people match your search')
+  expect(container.textContent).not.toContain('loaded people')
+})
+
+it('keeps header search available after a people request fails', async () => {
+  mocks.people.mockReturnValue({ error: new Error('People unavailable'), refetch: vi.fn() })
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter hasMemory>
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationAccountPeople organizationId='organization-1' />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      </NuqsTestingAdapter>
+    )
+  )
+  expect(container.querySelector('input[placeholder="Search people..."]')).not.toBeDisabled()
+  expect(container.textContent).toContain('People unavailable')
+})
+
+it('retains loaded people and retries only the failed next page', async () => {
+  const fetchNextPage = vi.fn()
+  const refetch = vi.fn()
+  mocks.people.mockReturnValue({
+    ...mocks.people(),
+    error: new Error('Next page unavailable'),
+    isFetchNextPageError: true,
+    hasNextPage: true,
+    fetchNextPage,
+    refetch,
+  })
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter hasMemory>
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationAccountPeople organizationId='organization-1' />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      </NuqsTestingAdapter>
+    )
+  )
+  expect(container.textContent).toContain('person@example.com')
+  expect(container.textContent).toContain('Next page unavailable')
+  expect(container.textContent).not.toContain('Load more')
+  await act(async () => button(container, 'Try again').click())
+  expect(fetchNextPage).toHaveBeenCalledOnce()
+  expect(refetch).not.toHaveBeenCalled()
+})

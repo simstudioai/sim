@@ -107,10 +107,18 @@ describe('connector document recovery', () => {
   })
   it('requests failed documents from the server and hides healthy placeholder rows', () => {
     render()
-    act(() => button('Failed (1)').click())
+    act(() =>
+      document
+        .querySelector('[aria-label="Document status"]')
+        ?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    )
+    const failed = [...document.querySelectorAll('[role="menuitem"]')].find((item) =>
+      item.textContent?.includes('Failed (1)')
+    ) as HTMLElement
+    act(() => failed.click())
     expect(mocks.query).toHaveBeenLastCalledWith('kb', 'connector', {
-      includeExcluded: true,
-      failedOnly: true,
+      filter: 'failed',
+      search: undefined,
     })
     expect(document.body.textContent).toContain('Handbook.txt')
     expect(document.body.textContent).not.toContain('Guide.txt')
@@ -145,6 +153,23 @@ describe('connector document recovery', () => {
     act(() => button('Load more documents').click())
     expect(mocks.fetchNextPage).toHaveBeenCalledOnce()
   })
+  it('keeps loaded documents visible when loading the next page fails', () => {
+    render()
+    const query = mocks.query.mock.results.at(-1)?.value
+    mocks.query.mockReturnValue({
+      ...query,
+      isError: true,
+      isFetchNextPageError: true,
+      error: new Error('Next page failed'),
+    })
+    rerender()
+    expect(document.body.textContent).toContain('Guide.txt')
+    expect(document.body.textContent).toContain('Next page failed')
+    act(() => button('Try again').click())
+    expect(mocks.fetchNextPage).toHaveBeenCalledOnce()
+    expect(mocks.refetch).not.toHaveBeenCalled()
+  })
+
   it('renders an actionable loading failure rather than claiming no documents exist', () => {
     mocks.query.mockReturnValue({
       isError: true,

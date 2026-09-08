@@ -18,6 +18,7 @@ import {
   inviteOrganizationAccountPeopleContract,
   listOrganizationAccountPeopleContract,
   listPersonalOrganizationAccountsContract,
+  type OrganizationAccountPeopleQuery,
   type RemoveOrganizationAccountMcpProviderParams,
   reconnectPersonalOrganizationAccountContract,
   removeOrganizationAccountMcpProviderContract,
@@ -40,6 +41,8 @@ export const organizationAccountsKeys = {
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
   access: (id?: string) => [...organizationAccountsKeys.detail(id), 'access'] as const,
   people: (id?: string) => [...organizationAccountsKeys.detail(id), 'people'] as const,
+  peopleList: (id: string, search?: string) =>
+    [...organizationAccountsKeys.people(id), { search: search ?? '' }] as const,
   databricks: (id?: string) => [...organizationAccountsKeys.detail(id), 'databricks'] as const,
   details: () => [...organizationAccountsKeys.all, 'detail'] as const,
   detail: (organizationId?: string) =>
@@ -188,15 +191,19 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
       ]),
   })
 }
-export function useOrganizationAccountPeople(organizationId: string) {
+export function useOrganizationAccountPeople(
+  organizationId: string,
+  search?: OrganizationAccountPeopleQuery['search']
+) {
+  const normalizedSearch = search?.trim() || undefined
   return useInfiniteQuery({
-    queryKey: organizationAccountsKeys.people(organizationId),
+    queryKey: organizationAccountsKeys.peopleList(organizationId, normalizedSearch),
     staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
       requestJson(listOrganizationAccountPeopleContract, {
         params: { id: organizationId },
-        query: { limit: 50, cursor: pageParam },
+        query: { limit: 50, cursor: pageParam, search: normalizedSearch },
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,

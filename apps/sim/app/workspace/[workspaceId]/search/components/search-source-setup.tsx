@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Chip,
   ChipInput,
@@ -12,6 +12,7 @@ import {
 } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -20,6 +21,7 @@ import {
   resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
@@ -95,13 +97,28 @@ export function SearchSourceSetup({
     managedSourceParam.parser.withOptions({ history: 'replace' })
   )
   const [search, setSearch] = useState('')
+  const router = useRouter()
   const prepare = usePrepareSearchSource()
+  const redirectManagement =
+    scope.kind === 'organization' && canAdmin && managedSource !== null && selectedType === null
+  const organizationId = scope.kind === 'organization' ? scope.organizationId : undefined
+  useEffect(() => {
+    if (!redirectManagement || !organizationId || managedSource === null) return
+    const routes = organizationRoutes(organizationId)
+    if (!managedSource || CONNECTOR_META_REGISTRY[managedSource]) {
+      void setManagedSource(null, { history: 'replace', scroll: false })
+    } else {
+      router.replace(routes.searchSource(managedSource))
+    }
+  }, [redirectManagement, organizationId, managedSource, router, setManagedSource])
   const open = selectedType !== null || managedSource !== null
-  const index = useSearchIndex(scope, { enabled: canAdmin && open })
+  const index = useSearchIndex(scope, { enabled: canAdmin && open && !redirectManagement })
   const knowledgeBaseId = index.data?.knowledgeBaseId ?? undefined
-  const connectors = useConnectorList(canAdmin && managedSource ? knowledgeBaseId : undefined)
+  const connectors = useConnectorList(
+    canAdmin && managedSource && !redirectManagement ? knowledgeBaseId : undefined
+  )
 
-  if (!canAdmin || !open) return null
+  if (!canAdmin || !open || redirectManagement) return null
 
   const close = () => {
     if (prepare.isPending) return

@@ -185,4 +185,34 @@ describe('buildKnowledgeBaseOAuthReturnUrl', () => {
       '/workspace/workspace-1/knowledge/kb-1?addConnector=google_drive'
     )
   })
+
+  it('returns to an existing organization source without opening another source form', () => {
+    expect(
+      buildKnowledgeBaseOAuthReturnUrl(
+        { kind: 'organization', organizationId: 'org-1' },
+        'kb-1',
+        'google_drive',
+        'connector-1'
+      )
+    ).toBe('/o/org-1/settings/integrations/sources/connector-1?view=settings')
+  })
+
+  it('keeps connector identifiers within the source route path segment', () => {
+    expect(
+      buildKnowledgeBaseOAuthReturnUrl(
+        { kind: 'organization', organizationId: 'org-1' },
+        'kb-1',
+        undefined,
+        'connector/other?view=documents'
+      )
+    ).toBe(
+      '/o/org-1/settings/integrations/sources/connector%2Fother%3Fview%3Ddocuments?view=settings'
+    )
+  })
+
+  it('preserves workspace knowledge-base returns when an existing connector is supplied', () => {
+    expect(buildKnowledgeBaseOAuthReturnUrl('workspace-1', 'kb-1', undefined, 'connector-1')).toBe(
+      '/workspace/workspace-1/knowledge/kb-1'
+    )
+  })
 })

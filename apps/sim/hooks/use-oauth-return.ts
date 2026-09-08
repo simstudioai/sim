@@ -25,6 +25,7 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
@@ -149,6 +150,7 @@ interface OAuthCredentialUpdate {
   credentialId?: string
   knowledgeBaseId?: string
   connectorType?: string
+  connectorId?: string
   requestedAt?: number
 }
 
@@ -172,6 +174,7 @@ function dispatchCredentialUpdate(
     detail.credentialId = result.credentialId
     detail.knowledgeBaseId = ctx.knowledgeBaseId
     detail.connectorType = ctx.connectorType
+    detail.connectorId = ctx.connectorId
     detail.requestedAt = ctx.requestedAt
   }
   window.dispatchEvent(
@@ -313,7 +316,8 @@ export function useOAuthReturnRouter() {
           buildKnowledgeBaseOAuthReturnUrl(
             resourceScopeFromOwner(ctx),
             ctx.knowledgeBaseId,
-            ctx.connectorType
+            ctx.connectorType,
+            ctx.connectorId
           )
         )
       }
@@ -346,7 +350,8 @@ export function useOAuthReturnRouter() {
         buildKnowledgeBaseOAuthReturnUrl(
           resourceScopeFromOwner(ctx),
           ctx.knowledgeBaseId,
-          ctx.connectorType
+          ctx.connectorType,
+          ctx.connectorId
         )
       )
       return
@@ -357,10 +362,14 @@ export function useOAuthReturnRouter() {
 export function buildKnowledgeBaseOAuthReturnUrl(
   owner: string | ResourceScope,
   knowledgeBaseId: string,
-  connectorType?: string
+  connectorType?: string,
+  connectorId?: string
 ): string {
   const scope =
     typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+  if (scope.kind === 'organization' && connectorId) {
+    return `${organizationRoutes(scope.organizationId).searchSource(connectorId)}?view=settings`
+  }
   const kbUrl =
     scope.kind === 'organization'
       ? organizationSearchSetupPath(scope.organizationId)
@@ -404,7 +413,8 @@ export function useOAuthReturnForKBConnectors(
   knowledgeBaseId: string | undefined,
   onConnected?: (credentialId: string) => void,
   connectorType?: string,
-  explicitScope?: ResourceScope
+  explicitScope?: ResourceScope,
+  connectorId?: string
 ) {
   const params = useParams()
   const workspaceId = explicitScope
@@ -426,6 +436,7 @@ export function useOAuthReturnForKBConnectors(
         !detail?.credentialId ||
         detail.knowledgeBaseId !== knowledgeBaseId ||
         detail.connectorType !== connectorType ||
+        (connectorId && detail.connectorId !== connectorId) ||
         detail.workspaceId !== workspaceId ||
         detail.organizationId !== organizationId ||
         detail.requestedAt === undefined ||
@@ -445,6 +456,7 @@ export function useOAuthReturnForKBConnectors(
         ctx.knowledgeBaseId === knowledgeBaseId &&
         ctx.workspaceId === workspaceId &&
         ctx.organizationId === organizationId &&
+        (!connectorId || ctx.connectorId === connectorId) &&
         (!connectorType || ctx.connectorType === connectorType)
       ) {
         consumeOAuthReturnContext()
@@ -466,7 +478,7 @@ export function useOAuthReturnForKBConnectors(
     return () => {
       window.removeEventListener(OAUTH_CREDENTIAL_UPDATED_EVENT, handleCredentialUpdate)
     }
-  }, [knowledgeBaseId, onConnected, connectorType, workspaceId, organizationId])
+  }, [knowledgeBaseId, onConnected, connectorType, workspaceId, organizationId, connectorId])
 }
 
 /**

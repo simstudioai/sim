@@ -96,7 +96,6 @@ export function OrganizationAccountInviteModal({
           onChange={handleEmailsChange}
           validate={validateEmail}
           placeholder='Enter emails'
-          hint='Each person receives a link to connect their accounts. They sign in to Sim with the verified invitation email and do not need organization membership.'
           disabled={invite.isPending}
         />
         <ChipModalError>

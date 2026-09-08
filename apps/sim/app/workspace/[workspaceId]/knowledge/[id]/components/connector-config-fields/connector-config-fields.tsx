@@ -5,7 +5,7 @@ import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { SelectorKey } from '@/lib/selectors/manifest'
-import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
+import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
@@ -21,6 +21,7 @@ export interface ConnectorConfigFieldsProps {
   connectorConfig: ConnectorMeta
   /** Current values keyed by field ID. */
   sourceConfig: ConfigFieldMap
+  selectionLabels?: SourceSelectionLabels
   /** OAuth credential backing selector fields, when available. */
   credentialId: string | null
   /** Canonical-pair groups keyed by `canonicalParamId`. */
@@ -52,6 +53,7 @@ export function ConnectorConfigFields({
   accessMode = 'workspace',
   connectorConfig,
   sourceConfig,
+  selectionLabels,
   credentialId,
   canonicalGroups,
   canonicalModes,
@@ -137,6 +139,7 @@ export function ConnectorConfigFields({
                 onChange={(value, selectedOptions) =>
                   onFieldChange(field.id, value, selectedOptions)
                 }
+                selectedLabels={selectionLabels?.[field.canonicalParamId ?? field.id]}
                 credentialId={credentialId}
                 sourceConfig={sourceConfig}
                 configFields={connectorConfig.configFields}

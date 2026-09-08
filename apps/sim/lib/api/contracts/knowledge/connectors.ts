@@ -15,6 +15,7 @@ import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
   MAX_SEARCH_SOURCE_PROGRESS_ITEMS,
   MAX_SEARCH_SOURCE_PROVIDER_TYPES,
   SEARCH_SOURCE_PAGE_SIZE,
@@ -63,7 +64,13 @@ export const deleteConnectorQuerySchema = z.object({
   deleteDocuments: booleanQueryFlagSchema.optional().default(false),
 })
 
+export const connectorDocumentFilterSchema = z.enum(['active', 'excluded', 'failed'])
+export type ConnectorDocumentFilter = z.output<typeof connectorDocumentFilterSchema>
+
 export const connectorDocumentsQuerySchema = z.object({
+  /** When present, selects the document set instead of the legacy inclusion flags. */
+  filter: connectorDocumentFilterSchema.optional(),
+  search: z.string().trim().max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH).optional(),
   failedOnly: booleanQueryFlagSchema.optional().default(false),
   includeExcluded: booleanQueryFlagSchema.optional(),
   limit: z.coerce
@@ -75,6 +82,7 @@ export const connectorDocumentsQuerySchema = z.object({
     .default(DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE),
   offset: z.coerce.number().int().min(0).optional().default(0),
 })
+export type ConnectorDocumentsQuery = z.output<typeof connectorDocumentsQuerySchema>
 
 export const connectorDocumentsPatchBodySchema = z.object({
   operation: z.enum(['restore', 'exclude']),

@@ -1,11 +1,15 @@
 /** @vitest-environment jsdom */
-import { act } from 'react'
+import { act, type ButtonHTMLAttributes } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('@/app/(auth)/components', async () => ({
-  AuthSubmitButton: (await import('@/app/(auth)/components/auth-submit-button')).AuthSubmitButton,
+vi.mock('@/app/(auth)/components', () => ({
+  AuthSubmitButton: ({ children, onClick, disabled }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type='button' onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
 }))
 
 import { InviteStatusCard } from '@/app/invite/components/status-card'

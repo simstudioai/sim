@@ -332,14 +332,18 @@ describe('migrated internal Knowledge routes', () => {
 
     const filteredListResponse = await listConnectorDocuments(
       new NextRequest(
-        'http://localhost/api/knowledge/knowledge-1/connectors/connector-1/documents?includeExcluded=false'
+        'http://localhost/api/knowledge/knowledge-1/connectors/connector-1/documents?includeExcluded=false&filter=excluded&search=%20Roadmap%20'
       ),
       { params: Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' }) }
     )
     expect(filteredListResponse.status).toBe(200)
     expect(mocks.listConnectorDocuments).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        input: expect.objectContaining({ includeExcluded: false }),
+        input: expect.objectContaining({
+          includeExcluded: false,
+          filter: 'excluded',
+          search: 'Roadmap',
+        }),
       })
     )
 

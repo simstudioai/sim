@@ -115,7 +115,7 @@ Search runs background syncs on an hourly schedule. Large sources, provider limi
 
 A completed sync means the source was checked; some documents may still be indexing. The source row shows how many documents you can search and whether indexing failed for any documents you can access.
 
-As an admin, open **Manage → Settings → Documents → Failed** to inspect those files. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; use the **Excluded** tab and **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+As an admin, open **Manage → Documents** and select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. **Settings** contains the source configuration and **Sync history** shows recent runs. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
 
 Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
 

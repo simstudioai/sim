@@ -133,6 +133,7 @@ type ConnectOAuthModalConnectProps = ConnectOAuthModalBaseProps & {
         origin: 'kb-connectors'
         knowledgeBaseId: string
         connectorType?: string
+        connectorId?: string
       }
     | { origin: 'integrations' }
   )
@@ -153,6 +154,10 @@ interface ConnectOAuthModalReauthorizeProps extends ConnectOAuthModalBaseProps {
     credentialId: string
     displayName: string
   }
+  returnContext?: Pick<
+    Extract<OAuthReturnContext, { origin: 'kb-connectors' }>,
+    'origin' | 'knowledgeBaseId' | 'connectorType' | 'connectorId'
+  >
   onConnect?: () => Promise<void> | void
 }
 
@@ -384,12 +389,13 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
         let returnContext: OAuthReturnContext
         if (props.origin === 'kb-connectors') {
-          connectorType = props.connectorType
+          connectorType = props.connectorId ? undefined : props.connectorType
           returnContext = {
             ...baseContext,
             origin: 'kb-connectors',
             knowledgeBaseId: props.knowledgeBaseId,
             connectorType: props.connectorType,
+            connectorId: props.connectorId,
           }
         } else if (props.origin === 'workflow') {
           returnContext = {
@@ -424,7 +430,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             (credential) => credential.type === 'oauth' && credential.providerId === providerId
           )
           writeOAuthReturnContext({
-            origin: 'integrations',
+            ...(props.returnContext ?? { origin: 'integrations' as const }),
             displayName: props.reconnectTarget.displayName,
             providerId,
             preCount: providerCredentials.length,

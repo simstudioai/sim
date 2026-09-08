@@ -13,6 +13,7 @@ import {
 } from '@sim/db/schema'
 import { truncate } from '@sim/utils/string'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
@@ -68,6 +69,7 @@ import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
 } from '@/lib/knowledge/constants'
 import {
   type ResolvedMembersBinding,
@@ -87,6 +89,7 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
+import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
@@ -158,6 +161,8 @@ export interface SyncKnowledgeConnectorInput extends KnowledgeConnectorApplicati
 }
 
 export interface ListKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
+  filter?: ConnectorDocumentFilter
+  search?: string
   failedOnly?: boolean
   includeExcluded?: boolean
   limit?: number
@@ -1132,18 +1137,30 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         'Connector document offset must be a non-negative integer'
       )
     }
+    const search = input.search?.trim()
+    if (search && search.length > MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH) {
+      throw new OrchestrationError(
+        'validation',
+        `Connector document search must be at most ${MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH} characters`
+      )
+    }
+    const filter =
+      input.filter ?? (input.failedOnly ? 'failed' : input.includeExcluded ? undefined : 'active')
     const baseConditions = [
       eq(document.connectorId, context.connectorId),
       isNull(document.archivedAt),
       isNull(document.deletedAt),
       knowledgeAccessCondition(await context.access.get()),
+      search
+        ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
+        : undefined,
     ] as const
     const [[activeCount], excludedCountRows, [failedCount]] = await Promise.all([
       db
         .select({ value: count() })
         .from(document)
         .where(and(...baseConditions, eq(document.userExcluded, false))),
-      input.includeExcluded
+      input.filter || input.includeExcluded
         ? db
             .select({ value: count() })
             .from(document)
@@ -1167,8 +1184,8 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
       .where(
         and(
           ...baseConditions,
-          input.includeExcluded && !input.failedOnly ? undefined : eq(document.userExcluded, false),
-          input.failedOnly ? eq(document.processingStatus, 'failed') : undefined
+          filter ? eq(document.userExcluded, filter === 'excluded') : undefined,
+          filter === 'failed' ? eq(document.processingStatus, 'failed') : undefined
         )
       )
       .orderBy(asc(document.userExcluded), asc(document.filename), asc(document.id))

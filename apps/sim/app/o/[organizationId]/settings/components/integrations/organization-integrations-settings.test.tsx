@@ -27,6 +27,7 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
   useRevokeOrganizationAccountEnrollment: () => ({}),
 }))
 
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationIntegrationsSettings } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
 
 describe('organization integration invitations', () => {
@@ -67,7 +68,11 @@ describe('organization integration invitations', () => {
     await act(async () =>
       root.render(
         <NuqsTestingAdapter hasMemory searchParams={searchParams}>
-          <OrganizationIntegrationsSettings />
+          <SettingsHeaderProvider>
+            <SettingsHeaderShell>
+              <OrganizationIntegrationsSettings />
+            </SettingsHeaderShell>
+          </SettingsHeaderProvider>
         </NuqsTestingAdapter>
       )
     )
@@ -90,8 +95,8 @@ describe('organization integration invitations', () => {
     await click('People')
     expect(container.textContent).not.toContain('Provider setup')
     expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a')
-    expect(container.querySelector('[aria-label="Search people"]')).not.toBeNull()
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '')
+    expect(container.querySelector('input[placeholder="Search people..."]')).not.toBeNull()
     expect(mocks.invite).not.toHaveBeenCalled()
 
     await click('Request connections')
@@ -114,7 +119,7 @@ describe('organization integration invitations', () => {
     await render('?tab=people')
     expect(container.textContent).toContain('Request connections')
     expect(container.textContent).not.toContain('Provider setup')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a')
+    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '')
   })
 
   it('sends an org without a credential group back to provider setup before invitations', async () => {

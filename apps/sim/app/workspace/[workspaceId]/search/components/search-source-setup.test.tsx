@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
+  replace: vi.fn(),
   availabilityReady: true,
   availabilityLoading: false,
   availabilityError: null as Error | null,
@@ -101,6 +102,7 @@ vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-status', 
   },
 }))
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mocks.replace }),
   useParams: () => ({ workspaceId: 'workspace-1' }),
   usePathname: () => '/workspace/workspace-1/search',
 }))
@@ -353,6 +355,29 @@ function setup() {
 }
 
 describe('Search source setup with real connector dialogs', () => {
+  it.each([
+    ['source-one', '/o/org-1/settings/integrations/sources/source-one'],
+    ['confluence', '/o/org-1/settings/integrations'],
+    ['', '/o/org-1/settings/integrations'],
+  ])(
+    'redirects legacy organization management for %s without loading the connector list',
+    async (source, destination) => {
+      await render(
+        <SearchSourceSetup
+          scope={{ kind: 'organization', organizationId: 'org-1' }}
+          canAdmin
+          memberAccessAvailable
+          mirroredAccessAvailable
+        />,
+        `?manage-source=${source}`
+      )
+      if (source === 'source-one') expect(mocks.replace).toHaveBeenCalledWith(destination)
+      else expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    }
+  )
+
   it.each([false, true])(
     'does not fetch admin data while closed for canAdmin=%s',
     async (canAdmin) => {

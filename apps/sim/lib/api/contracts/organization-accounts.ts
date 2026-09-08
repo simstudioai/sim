@@ -149,6 +149,7 @@ export const listOrganizationAccountPeopleContract = defineRouteContract({
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.string().min(1).max(512).optional(),
     email: z.string().trim().max(320).optional(),
+    search: z.string().trim().max(320).optional(),
   }),
   response: {
     mode: 'json',

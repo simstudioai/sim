@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipInput, ChipModalError, toast } from '@sim/emcn'
-import { Plus, Search } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   credentialGroupPeopleSearchParam,
   credentialGroupPeopleSearchUrlKeys,
@@ -27,13 +28,13 @@ import {
   useResendOrganizationAccountInvitation,
   useRevokeOrganizationAccountEnrollment,
 } from '@/hooks/queries/organization-accounts'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 interface OrganizationAccountPeopleProps {
   organizationId: string
 }
 export function OrganizationAccountPeople({ organizationId }: OrganizationAccountPeopleProps) {
-  const people = useOrganizationAccountPeople(organizationId)
   const resend = useResendOrganizationAccountInvitation()
   const revoke = useRevokeOrganizationAccountEnrollment()
   const [peopleSearch, setPeopleSearchParam] = useQueryState(credentialGroupPeopleSearchParam.key, {
@@ -41,80 +42,61 @@ export function OrganizationAccountPeople({ organizationId }: OrganizationAccoun
     ...credentialGroupPeopleSearchUrlKeys,
   })
   const setPeopleSearch = useDebouncedSearchSetter(setPeopleSearchParam)
+  const search = useDebounce(peopleSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const people = useOrganizationAccountPeople(organizationId, search)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revokingPerson, setRevokingPerson] = useState<{ id: string; email: string } | null>(null)
   const error = resend.error ?? revoke.error
   const pending = resend.isPending || revoke.isPending
   const enrollments = people.data?.pages.flatMap((page) => page.enrollments) ?? []
-  const filter = peopleSearch.trim().toLowerCase()
-  const visibleEnrollments = filter
-    ? enrollments.filter((person) => person.email.toLowerCase().includes(filter))
-    : enrollments
-  const loadedTotal = `${enrollments.length}${people.hasNextPage ? '+' : ''}`
-  const searchLabel = people.hasNextPage ? 'Search loaded people' : 'Search people'
-  const peopleLabel = filter
-    ? `People (${visibleEnrollments.length} of ${loadedTotal})`
-    : `People (${loadedTotal})`
-  if (people.error)
-    return (
-      <SettingsQueryErrorState
-        error={people.error}
-        fallback='Could not load people'
-        isRetrying={people.isFetching}
-        onRetry={() => void people.refetch()}
-      />
-    )
+  const peopleLabel = `People (${enrollments.length}${people.hasNextPage ? '+' : ''})`
   return (
-    <SettingsPanel>
-      <ChipInput
-        icon={Search}
-        aria-label={searchLabel}
-        placeholder={`${searchLabel}...`}
-        value={peopleSearch}
-        onChange={(event) => setPeopleSearch(event.target.value)}
-        disabled={people.isPending}
-        autoComplete='off'
-        className='w-full'
-      />
+    <SettingsPanel
+      search={{ value: peopleSearch, onChange: setPeopleSearch, placeholder: 'Search people...' }}
+      actions={[
+        {
+          text: 'Request connections',
+          icon: Plus,
+          disabled: pending,
+          onSelect: () => setInviteOpen(true),
+        },
+      ]}
+    >
+      {people.error && !people.isFetchNextPageError && (
+        <SettingsQueryErrorState
+          error={people.error}
+          fallback='Could not load people'
+          isRetrying={people.isFetching}
+          onRetry={() => void people.refetch()}
+          variant='inline'
+        />
+      )}
       {error && (
         <p role='alert' className='text-[var(--text-error)] text-caption'>
           {error.message}
         </p>
       )}
-      {!people.isPending && (
+      {!people.isPending && (!people.error || people.isFetchNextPageError) && (
         <SettingsSection
           label={peopleLabel}
           action={
-            <div className='flex items-center gap-2'>
-              {people.hasNextPage && (
-                <Chip
-                  disabled={people.isFetchingNextPage}
-                  onClick={() => void people.fetchNextPage()}
-                >
-                  {people.isFetchingNextPage ? 'Loading...' : 'Load more'}
-                </Chip>
-              )}
+            people.hasNextPage && !people.isFetchNextPageError ? (
               <Chip
-                leftAdornment={<Plus className='size-[14px]' />}
-                disabled={pending}
-                onClick={() => setInviteOpen(true)}
+                disabled={people.isFetchingNextPage}
+                onClick={() => void people.fetchNextPage()}
               >
-                Request connections
+                {people.isFetchingNextPage ? 'Loading...' : 'Load more'}
               </Chip>
-            </div>
+            ) : undefined
           }
         >
-          {visibleEnrollments.length === 0 ? (
+          {enrollments.length === 0 ? (
             <SettingsEmptyState variant='inline'>
-              {filter
-                ? people.hasNextPage
-                  ? 'No loaded people match your search. Load more to search additional people.'
-                  : 'No people match your search'
-                : 'No people invited yet'}
+              {search ? 'No people match your search' : 'No people invited yet'}
             </SettingsEmptyState>
           ) : (
             <div className={RESOURCE_LIST_STACK}>
-              {visibleEnrollments.map((person) => (
+              {enrollments.map((person) => (
                 <SettingsResourceRow
                   key={person.id}
                   icon={<MemberAvatar name={person.email} image={null} />}
@@ -156,6 +138,15 @@ export function OrganizationAccountPeople({ organizationId }: OrganizationAccoun
             </div>
           )}
         </SettingsSection>
+      )}
+      {people.isFetchNextPageError && (
+        <SettingsQueryErrorState
+          error={people.error}
+          fallback='Could not load more people'
+          isRetrying={people.isFetchingNextPage}
+          onRetry={() => void people.fetchNextPage()}
+          variant='inline'
+        />
       )}
       {inviteOpen && (
         <OrganizationAccountInviteModal

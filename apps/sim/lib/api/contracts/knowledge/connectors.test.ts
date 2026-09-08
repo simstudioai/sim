@@ -3,14 +3,48 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  connectorDocumentsQuerySchema,
   createConnectorBodySchema,
   updateConnectorAccessBodySchema,
 } from '@/lib/api/contracts/knowledge/connectors'
+import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH } from '@/lib/knowledge/constants'
 
 const base = {
   connectorType: 'google_drive',
   sourceConfig: { folderId: ['f-1'] },
 }
+
+describe('connector document list contracts', () => {
+  it('accepts each document set and trims filename search without interpreting wildcards', () => {
+    for (const filter of ['active', 'excluded', 'failed']) {
+      expect(
+        connectorDocumentsQuerySchema.parse({ filter, search: '  50%_report  ' })
+      ).toMatchObject({
+        filter,
+        search: '50%_report',
+      })
+    }
+  })
+
+  it('preserves legacy flags when no document filter is supplied', () => {
+    expect(
+      connectorDocumentsQuerySchema.parse({ includeExcluded: 'true', failedOnly: 'false' })
+    ).toMatchObject({
+      includeExcluded: true,
+      failedOnly: false,
+      offset: 0,
+    })
+  })
+
+  it('rejects unknown filters and oversized searches before execution', () => {
+    expect(connectorDocumentsQuerySchema.safeParse({ filter: 'all' }).success).toBe(false)
+    expect(
+      connectorDocumentsQuerySchema.safeParse({
+        search: 'a'.repeat(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH + 1),
+      }).success
+    ).toBe(false)
+  })
+})
 
 describe('connector access binding contracts', () => {
   it('defaults a create to workspace mode with a credential', () => {

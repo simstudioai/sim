@@ -24,6 +24,8 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     connectorId: params.connectorId,
+    filter: query.filter,
+    search: query.search,
     includeExcluded: query.includeExcluded,
     failedOnly: query.failedOnly,
     limit: query.limit,

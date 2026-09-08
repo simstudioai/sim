@@ -236,15 +236,8 @@ export function SlackMemberSetup({
       ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
       : `/workspace/${scope.workspaceId}/settings/credential-groups`
   return (
-    <div className='flex flex-col items-start gap-2'>
-      <p className='text-[var(--text-muted)] text-caption leading-snug'>
-        Set up your Slack app to continue.
-      </p>
-      <div className='flex flex-wrap items-center gap-2'>
-        <ChipLink href={href} onClick={onNavigate}>
-          Set up Slack
-        </ChipLink>
-      </div>
-    </div>
+    <ChipLink href={href} onClick={onNavigate}>
+      Set up Slack
+    </ChipLink>
   )
 }

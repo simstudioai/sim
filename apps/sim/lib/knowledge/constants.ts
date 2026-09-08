@@ -19,6 +19,7 @@ export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS = 100
 /** Default and maximum bounded connector-document list page sizes. */
 export const DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 100
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 200
+export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH = 200
 
 /** Maximum source IDs in one viewer-authorized progress request. */
 export const MAX_SEARCH_SOURCE_PROGRESS_ITEMS = 100
