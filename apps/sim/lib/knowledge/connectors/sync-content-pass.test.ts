@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   deleteFile: vi.fn(),
   deleteMetadata: vi.fn(),
-  enqueueCleanup: vi.fn(),
+  enqueueCleanup: vi.fn(async () => {
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    return ['cleanup-guard']
+  }),
   dispatch: vi.fn(),
   onPage: vi.fn(),
 }))
@@ -38,6 +41,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   }),
 }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: mocks.enqueueCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))

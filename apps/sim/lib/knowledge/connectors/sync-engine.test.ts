@@ -43,7 +43,10 @@ vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile }
 const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi.hoisted(() => ({
   mockDeleteFile: vi.fn(),
   mockDeleteFileMetadata: vi.fn(),
-  mockEnqueueStorageCleanup: vi.fn(),
+  mockEnqueueStorageCleanup: vi.fn(async () => {
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    return ['cleanup-guard']
+  }),
 }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
@@ -59,6 +62,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   }),
 }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: mockEnqueueStorageCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))

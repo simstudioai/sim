@@ -14,7 +14,10 @@ import {
 } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import { uploadConnectorArtifact } from '@/lib/knowledge/connectors/connector-upload'
+import {
+  claimConnectorUploadForAttachment,
+  uploadConnectorArtifact,
+} from '@/lib/knowledge/connectors/connector-upload'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
@@ -546,6 +549,7 @@ export async function addDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
   await db.transaction(async (tx) => {
+    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
@@ -648,6 +652,7 @@ export async function updateDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
   await db.transaction(async (tx) => {
+    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ insert: vi.fn(), enqueue: vi.fn(), upload: vi.
 vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mocks.upload } }))
 vi.mock('@/lib/uploads/server/metadata', () => ({ insertImmutableFileMetadata: mocks.insert }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
   enqueueKnowledgeStorageCleanup: mocks.enqueue,
 }))
@@ -31,7 +32,7 @@ describe('connector upload reservation', () => {
       id: options.id,
       contentUpdatedAt: new Date(0),
     }))
-    mocks.enqueue.mockResolvedValue(undefined)
+    mocks.enqueue.mockResolvedValue(['cleanup-guard'])
     mocks.upload.mockResolvedValue({ key: input.key, path: `/api/files/serve/${input.key}` })
   })
   afterEach(() => vi.useRealTimers())
@@ -52,6 +53,7 @@ describe('connector upload reservation', () => {
     })
     expect(mocks.enqueue.mock.calls[0][3]).toMatchObject({ uploadId: options.createOnlyUploadId })
     expect(uploaded.metadataId).toBe(mocks.insert.mock.calls[0][0].id)
+    expect(uploaded.cleanupEventId).toBe('cleanup-guard')
   })
 
   it('does not write bytes if durable cleanup cannot be enqueued', async () => {

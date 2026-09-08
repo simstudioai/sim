@@ -96,7 +96,7 @@ describe('durable knowledge storage cleanup', () => {
   })
 
   it('propagates persistence failures before the parent transaction can commit', async () => {
-    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(new Error('Database unavailable'))
+    dbChainMockFns.returning.mockRejectedValueOnce(new Error('Database unavailable'))
     await expect(
       enqueueKnowledgeStorageCleanup(
         db,

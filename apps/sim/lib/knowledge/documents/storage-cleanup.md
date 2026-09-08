@@ -8,6 +8,8 @@ Each releasing mutation receives a fresh cleanup event ID. A previous event may 
 
 Upload guards also bind the provider upload ID. A crash before the write releases the unused metadata reservation; a crash after the write deletes the matching unreferenced object and reservation. A create-only conflict cannot delete an older object with a different upload ID. Metadata is not registered a second time after the write, so a late worker cannot restore a reservation already removed by cleanup.
 
+Attachment locks its pending cleanup event before waiting for the KB or connector locks. The outbox worker skips that locked event even if its grace period expires during attachment. Commit makes the document reference visible before releasing the guard; rollback releases the guard so orphan cleanup can proceed. The existing KB, connector, and metadata lock order stays intact.
+
 Enqueue reads and inserts at most 100 objects per batch. Each event deletes one object, has a 15-second storage deadline, uses a five-second lock timeout, and has 48 bounded outbox attempts. Exhausted jobs remain visible as dead letters with their identity and final error for operator recovery.
 
 Comparing a `Date` against a `date_trunc(...)` SQL expression must explicitly encode the timestamp parameter. The shared metadata function binds an ISO timestamp with a PostgreSQL timestamp cast. Real PostgreSQL tests reproduce the driver encoding failure and prove deletion of a timestamp with microsecond precision.

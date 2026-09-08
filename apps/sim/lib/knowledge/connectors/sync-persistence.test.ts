@@ -20,7 +20,11 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   }),
 }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  enqueueKnowledgeStorageCleanup: vi.fn(),
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
+  enqueueKnowledgeStorageCleanup: vi.fn(async () => {
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    return ['cleanup-guard']
+  }),
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))

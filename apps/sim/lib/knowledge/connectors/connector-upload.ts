@@ -1,11 +1,14 @@
 import { db } from '@sim/db'
+import { outboxEvent } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { DbTransaction } from '@/lib/db/types'
 import type { KnowledgeBaseOwner } from '@/lib/knowledge/connectors/sync-persistence'
 import {
   enqueueKnowledgeStorageCleanup,
   isKnowledgeBaseOwnedStorageKey,
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
 import { StorageService } from '@/lib/uploads'
 import { insertImmutableFileMetadata } from '@/lib/uploads/server/metadata'
@@ -31,7 +34,7 @@ export async function uploadConnectorArtifact(input: {
   }
   const metadataId = generateId()
   const uploadId = generateId()
-  const binding = await db.transaction(async (tx) => {
+  const { binding, cleanupEventId } = await db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
     await tx.execute(sql`SET LOCAL statement_timeout = '15s'`)
     const reserved = await insertImmutableFileMetadata(
@@ -49,7 +52,7 @@ export async function uploadConnectorArtifact(input: {
       tx
     )
     if (reserved.id !== metadataId) throw new Error('Connector upload storage key is already bound')
-    await enqueueKnowledgeStorageCleanup(
+    const [cleanupEventId] = await enqueueKnowledgeStorageCleanup(
       tx,
       [{ id: documentId, fileUrl: `/api/files/serve/${encodeURIComponent(key)}`, ...owner }],
       documentId,
@@ -59,7 +62,8 @@ export async function uploadConnectorArtifact(input: {
         uploadId,
       }
     )
-    return reserved
+    if (!cleanupEventId) throw new Error('Connector upload cleanup guard was not created')
+    return { binding: reserved, cleanupEventId }
   })
 
   const controller = new AbortController()
@@ -87,8 +91,28 @@ export async function uploadConnectorArtifact(input: {
     })
     controller.signal.throwIfAborted()
     if (file.key !== key) throw new Error('Connector upload changed its reserved storage key')
-    return { ...file, metadataId, contentUpdatedAt: binding.contentUpdatedAt }
+    return { ...file, metadataId, contentUpdatedAt: binding.contentUpdatedAt, cleanupEventId }
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** Holds the upload's pending cleanup guard before taking KB/connector locks, until attachment commits or rolls back. */
+export async function claimConnectorUploadForAttachment(
+  tx: DbTransaction,
+  cleanupEventId: string
+): Promise<void> {
+  const [guard] = await tx
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.id, cleanupEventId),
+        eq(outboxEvent.eventType, KNOWLEDGE_STORAGE_CLEANUP_EVENT),
+        eq(outboxEvent.status, 'pending')
+      )
+    )
+    .for('update')
+    .limit(1)
+  if (!guard) throw new Error('Connector upload expired before it could be attached')
 }

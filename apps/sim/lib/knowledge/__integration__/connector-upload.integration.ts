@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db } from '@sim/db'
 import {
+  document,
   knowledgeBase,
   organization,
   outboxEvent,
@@ -29,9 +30,12 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { uploadConnectorArtifact } from '@/lib/knowledge/connectors/connector-upload'
+import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
+import { addDocument, updateDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import * as cleanup from '@/lib/knowledge/documents/storage-cleanup'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
+import type { ExternalDocument } from '@/connectors/types'
 
 describe('connector upload crash recovery', () => {
   const ids = createKnowledgeAclFixtureIds()
@@ -139,6 +143,134 @@ describe('connector upload crash recovery', () => {
     await runCleanup(fixture.documentId)
     expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toEqual([])
   })
+
+  it.each(['add', 'update'] as const)(
+    'protects an uploaded artifact while %s waits for the knowledge-base lock',
+    async (operation) => {
+      const documentId = generateId()
+      const source: ExternalDocument = {
+        externalId: generateId(),
+        title: 'Contended source',
+        content: 'Synthetic updated source content',
+        mimeType: 'text/plain',
+        contentHash: 'updated-content',
+      }
+      if (operation === 'update') {
+        await db.insert(document).values({
+          id: documentId,
+          knowledgeBaseId: ids.knowledgeBaseId,
+          connectorId: ids.connectorId,
+          externalId: source.externalId,
+          filename: source.title,
+          fileUrl: 'data:text/plain,Previous%20content',
+          fileSize: 16,
+          mimeType: 'text/plain',
+          processingStatus: 'completed',
+        })
+      }
+
+      let releaseKb: (() => void) | undefined
+      let announceKbLock: ((pid: number) => void) | undefined
+      const kbReleased = new Promise<void>((resolve) => {
+        releaseKb = resolve
+      })
+      const kbLocked = new Promise<number>((resolve) => {
+        announceKbLock = resolve
+      })
+      const blocker = db.transaction(async (tx) => {
+        const [row] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        await tx.execute(
+          sql`SELECT id FROM knowledge_base WHERE id = ${ids.knowledgeBaseId} FOR UPDATE`
+        )
+        announceKbLock?.(row.pid)
+        await kbReleased
+      })
+      const blockerPid = await kbLocked
+
+      let releaseUpload: (() => void) | undefined
+      let announceUpload:
+        | ((file: Awaited<ReturnType<typeof storage.uploadFile>>) => void)
+        | undefined
+      const uploadReleased = new Promise<void>((resolve) => {
+        releaseUpload = resolve
+      })
+      const uploaded = new Promise<Awaited<ReturnType<typeof storage.uploadFile>>>((resolve) => {
+        announceUpload = resolve
+      })
+      const originalUpload = storage.uploadFile
+      const upload = vi.spyOn(storage, 'uploadFile').mockImplementation(async (options) => {
+        const file = await originalUpload(options)
+        announceUpload?.(file)
+        await uploadReleased
+        return file
+      })
+      const args = [
+        ids.knowledgeBaseId,
+        ids.connectorId,
+        'confluence',
+        source,
+        { workspaceId: ids.workspaceId, userId: ids.aliceId },
+        undefined,
+        'workspace',
+        { stillHeld: () => stillHoldsSyncLock(ids.connectorId, ids.lockId) },
+      ] as const
+      const attachment =
+        operation === 'add' ? addDocument(...args) : updateDocument(documentId, ...args)
+      const settled = attachment.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      try {
+        const file = await uploaded
+        const [event] = await db
+          .select()
+          .from(outboxEvent)
+          .where(
+            sql`${outboxEvent.eventType} = ${cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT} AND ${outboxEvent.payload}->>'key' = ${file.key}`
+          )
+          .limit(1)
+        events.push(event.id)
+        await db
+          .update(outboxEvent)
+          .set({ availableAt: new Date(0) })
+          .where(eq(outboxEvent.id, event.id))
+        releaseUpload?.()
+        await expect
+          .poll(
+            async () => {
+              const waiting = await db.execute(
+                sql`SELECT 1 FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid)) LIMIT 1`
+              )
+              return waiting.length > 0
+            },
+            { interval: 1, timeout: 5000 }
+          )
+          .toBe(true)
+
+        const handlers = {
+          [cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
+        }
+        expect(await processOutboxEventById(event.id, handlers)).toBe('pending')
+        expect(await readFile(path.join(fixtureStorage.root, file.key), 'utf8')).toBe(
+          source.content
+        )
+        releaseKb?.()
+        await blocker
+        const result = await settled
+        expect(result).toHaveProperty('value')
+        expect(await processOutboxEventById(event.id, handlers)).toBe('completed')
+        expect(await getFileMetadataByKeys([file.key], 'knowledge-base')).toHaveLength(1)
+        expect(await readFile(path.join(fixtureStorage.root, file.key), 'utf8')).toBe(
+          source.content
+        )
+      } finally {
+        releaseUpload?.()
+        releaseKb?.()
+        await Promise.allSettled([blocker, settled])
+        upload.mockRestore()
+      }
+    }
+  )
 
   it('preserves an older unbound object when a create-only upload encounters a key collision', async () => {
     const fixture = input()

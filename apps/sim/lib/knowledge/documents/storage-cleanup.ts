@@ -88,7 +88,8 @@ export async function enqueueKnowledgeStorageCleanup(
   documents: readonly KnowledgeStorageCleanupDocument[],
   requestId: string,
   options?: { availableAt?: Date; reason?: 'uncommitted-upload'; uploadId?: string }
-): Promise<void> {
+): Promise<string[]> {
+  const eventIds: string[] = []
   for (let offset = 0; offset < documents.length; offset += ENQUEUE_BATCH_SIZE) {
     const entries = documents.slice(offset, offset + ENQUEUE_BATCH_SIZE).flatMap((doc) => {
       const key = getKnowledgeBaseStorageKey(doc.fileUrl)
@@ -132,8 +133,16 @@ export async function enqueueKnowledgeStorageCleanup(
         ...(options?.availableAt ? { availableAt: options.availableAt } : {}),
       })
     }
-    if (rows.length) await executor.insert(outboxEvent).values(rows).onConflictDoNothing()
+    if (rows.length) {
+      const inserted = await executor
+        .insert(outboxEvent)
+        .values(rows)
+        .onConflictDoNothing()
+        .returning({ id: outboxEvent.id })
+      eventIds.push(...inserted.map((row) => row.id))
+    }
   }
+  return eventIds
 }
 
 function isMissingObject(error: unknown): boolean {
