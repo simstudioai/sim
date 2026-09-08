@@ -152,14 +152,20 @@ describe('OCI Logging provider operations', () => {
       'list_saved_searches',
       { compartmentId: 'compartment' },
       '/20200531/logSavedSearches',
-      { items: [{ id: 'saved', compartmentId: 'compartment', name: 'Saved' }] },
+      { items: [{ id: 'saved', compartmentId: 'compartment', name: 'Saved', description: null }] },
       'savedSearches',
     ],
     [
       'get_saved_search',
       { logSavedSearchId: 'saved' },
       '/20200531/logSavedSearches/saved',
-      { id: 'saved', compartmentId: 'compartment', name: 'Saved', query: search.searchQuery },
+      {
+        id: 'saved',
+        compartmentId: 'compartment',
+        name: 'Saved',
+        query: search.searchQuery,
+        description: null,
+      },
       'savedSearch',
     ],
     [

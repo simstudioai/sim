@@ -205,7 +205,10 @@ export const savedSearchSummarySchema = z.object({
   compartmentId: id,
   name,
   query: z.string().optional(),
-  description: z.string().optional(),
+  description: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
   lifecycleState: lifecycle.optional(),
   ...resourceFields,
 })
