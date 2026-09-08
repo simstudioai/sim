@@ -80,10 +80,6 @@ vi.mock(
   () => ({ TableBubbleMenu: () => null })
 )
 vi.mock(
-  '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu',
-  () => ({ ImageBubbleMenu: () => null })
-)
-vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card',
   () => ({ LinkHoverCard: () => null })
 )
@@ -336,51 +332,59 @@ describe('loaded rich editor lifecycle', () => {
     expect(downloadSourceRef.current?.getContent()).toBe('smaller accepted source')
   })
 
-  it('exports the displayed streaming frame and holds both body and metadata during a rewrite', async () => {
-    const frames = new Map<number, FrameRequestCallback>()
-    let nextFrameId = 0
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      const id = ++nextFrameId
-      frames.set(id, callback)
-      return id
-    })
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id))
-    const tick = async () => {
-      const pending = [...frames.values()]
-      frames.clear()
-      await act(async () => {
-        for (const callback of pending) callback(0)
+  it.each(['plain text', 'heading image'] as const)(
+    'exports streamed %s and holds body and metadata during a rewrite',
+    async (contentType) => {
+      const frames = new Map<number, FrameRequestCallback>()
+      let nextFrameId = 0
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        const id = ++nextFrameId
+        frames.set(id, callback)
+        return id
       })
-    }
-    const downloadSourceRef = { current: null as FileDownloadSource | null }
-    const initial = '---\ntitle: Original\n---\n\nOriginal body'
-    await render(initial, initial, true, { downloadSourceRef })
-    const replacement = '---\ntitle: Replacement\n---\n\nReplacement body'
-    await render(replacement, initial, true, { downloadSourceRef, isStreaming: true })
-    await tick()
-    expect(getEditor().getText()).toBe('Original body')
-    expect(downloadSourceRef.current?.getContent()).toBe(initial)
-    await render(replacement, replacement, true, { downloadSourceRef })
-    expect(getEditor().getText()).toBe('Replacement body')
-    expect(downloadSourceRef.current?.getContent()).toBe(replacement)
-    const appended = `${replacement} and more`
-    await render(appended, replacement, true, {
-      downloadSourceRef,
-      isStreaming: true,
-      streamIsIncremental: true,
-    })
-    expect(downloadSourceRef.current?.getContent()).toBe(replacement)
-    await tick()
-    expect(downloadSourceRef.current?.getContent()).toBe(appended)
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id))
+      const tick = async () => {
+        const pending = [...frames.values()]
+        frames.clear()
+        await act(async () => {
+          for (const callback of pending) callback(0)
+        })
+      }
+      const downloadSourceRef = { current: null as FileDownloadSource | null }
+      const prefix = contentType === 'heading image' ? '# ' : ''
+      const suffix = contentType === 'heading image' ? ' ![Logo](/logo.png)' : ''
+      const initial = `---\ntitle: Original\n---\n\n${prefix}Original body${suffix}`
+      await render(initial, initial, true, { downloadSourceRef })
+      const replacement = `---\ntitle: Replacement\n---\n\n${prefix}Replacement body${suffix}`
+      await render(replacement, initial, true, { downloadSourceRef, isStreaming: true })
+      await tick()
+      expect(getEditor().getText().trim()).toBe('Original body')
+      expect(downloadSourceRef.current?.getContent()).toBe(initial)
+      await render(replacement, replacement, true, { downloadSourceRef })
+      expect(getEditor().getText().trim()).toBe('Replacement body')
+      if (contentType === 'heading image') {
+        expect(getEditor().view.dom.querySelector('h1 img')?.getAttribute('src')).toBe('/logo.png')
+      }
+      expect(downloadSourceRef.current?.getContent()).toBe(replacement)
+      const appended = `${replacement} and more`
+      await render(appended, replacement, true, {
+        downloadSourceRef,
+        isStreaming: true,
+        streamIsIncremental: true,
+      })
+      expect(downloadSourceRef.current?.getContent()).toBe(replacement)
+      await tick()
+      expect(downloadSourceRef.current?.getContent()).toBe(appended)
 
-    await act(async () => root.render(null))
-    await render(initial, initial, true, { downloadSourceRef, isStreaming: true })
-    expect(downloadSourceRef.current?.getContent()).toBeNull()
-    await render(replacement, initial, true, { downloadSourceRef, isStreaming: true })
-    await tick()
-    expect(getEditor().getText()).toBe('Replacement body')
-    expect(downloadSourceRef.current?.getContent()).toBe(replacement)
-  })
+      await act(async () => root.render(null))
+      await render(initial, initial, true, { downloadSourceRef, isStreaming: true })
+      expect(downloadSourceRef.current?.getContent()).toBeNull()
+      await render(replacement, initial, true, { downloadSourceRef, isStreaming: true })
+      await tick()
+      expect(getEditor().getText().trim()).toBe('Replacement body')
+      expect(downloadSourceRef.current?.getContent()).toBe(replacement)
+    }
+  )
 
   it.each(['connecting', 'timeout', 'fatal'] as const)(
     'copies selection context from the visible %s preview and switches to the live editor on sync',
@@ -815,12 +819,47 @@ describe('loaded rich editor lifecycle', () => {
     expect(getEditor().isEditable).toBe(false)
   })
 
+  it.each(['', '## '])(
+    'selects a %s image without an image menu or content changes',
+    async (prefix) => {
+      const content = `${prefix}[![Logo](/image.png)](https://example.com)\n\nBody`
+      await render(content)
+      const editor = getEditor()
+      const before = editor.getJSON()
+      let imagePosition = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'image' || node.type.name === 'inlineImage') imagePosition = pos
+      })
+      expect(imagePosition).toBeGreaterThan(-1)
+      await act(async () => editor.commands.setNodeSelection(imagePosition))
+      expect(container.querySelector('[aria-label="Image editing"]')).toBeNull()
+      expect(editor.getJSON()).toEqual(before)
+      expect(editor.state.doc.nodeAt(imagePosition)?.attrs).toMatchObject({
+        alt: 'Logo',
+        href: 'https://example.com',
+      })
+    }
+  )
+
+  it('edits heading images without source fallback', async () => {
+    const content = '# Before ![Image](/image.png) after'
+    const downloadSourceRef = { current: null as FileDownloadSource | null }
+    await render(content, content, true, { downloadSourceRef })
+    expect(getEditor().isEditable).toBe(true)
+    expect(container.textContent).not.toContain('Edit source')
+    expect(getEditor().view.dom.querySelector('h1 img')?.getAttribute('src')).toBe('/image.png')
+    await act(async () => getEditor().commands.insertContentAt(1, 'Edited '))
+    expect(downloadSourceRef.current?.getContent()).toBe(
+      '# Edited Before ![Image](/image.png) after\n'
+    )
+    expect(onChange).toHaveBeenCalled()
+  })
+
   it.each([
     '[unused]: https://example.com',
     '1. [![foo][image]](/dest)\n\n[image]: /url',
     '- [ ] [foo][link]\n\n[link]: /dest',
     '| header |\n| --- |\n| <img src="/image"> |',
-    '# Before ![Image](/image.png) after',
     '| Header |\n| --- |\n| Before ![Image](/image.png) after |',
     '| Before ![Image](/image.png) after |\n| --- |\n| Cell |',
   ])('offers source editing without mutating unsupported content: %s', async (content) => {

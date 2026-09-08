@@ -3,6 +3,7 @@ import { act } from 'react'
 import { Tooltip } from '@sim/emcn'
 import { Editor } from '@tiptap/core'
 import { type EditorState, Plugin, type Transaction } from '@tiptap/pm/state'
+import { CellSelection } from '@tiptap/pm/tables'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
@@ -127,6 +128,34 @@ function changeUrl(input: HTMLInputElement, value: string): void {
 }
 
 describe('real editor BubbleMenu keyboard integration', () => {
+  it('hides the table toolbar for an image selection and restores it for a cell selection', async () => {
+    await act(async () => {
+      editor.commands.setContent(
+        '<table><tbody><tr><th><p>Header</p></th></tr><tr><td><img src="/cell.png"></td></tr></tbody></table>'
+      )
+      let imagePosition = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'image') imagePosition = pos
+      })
+      expect(imagePosition).toBeGreaterThan(-1)
+      editor.commands.setNodeSelection(imagePosition)
+      editor.view.focus()
+    })
+    await frame()
+    expect(viewport.querySelector('[aria-label="Table editing"]')).toBeNull()
+    expect(viewport.querySelector('[aria-label="Text formatting"]')).toBeNull()
+    expect(key(editor.view.dom, 'F10', { altKey: true }).defaultPrevented).toBe(false)
+    await act(async () => {
+      const cell = editor.state.selection.$from.before(3)
+      editor.view.dispatch(
+        editor.state.tr.setSelection(CellSelection.create(editor.state.doc, cell))
+      )
+      editor.view.focus()
+    })
+    await frame()
+    expect(viewport.querySelector('[aria-label="Table editing"]')).not.toBeNull()
+  })
+
   it('enters the formatting toolbar and returns with Escape without losing the selected text', async () => {
     select('format')
     const selection = editor.state.selection.toJSON()

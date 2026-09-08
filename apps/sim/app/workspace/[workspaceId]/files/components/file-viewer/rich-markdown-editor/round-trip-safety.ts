@@ -91,8 +91,8 @@ function imageSources(token: Token): string[] {
  * adjacent equal link marks can merge losslessly. Task references are conservatively source-only:
  * their parser resolves definitions before a task but loses definitions appearing after it, so
  * rearranging otherwise valid Markdown can silently remove a destination.
- * Images parsed inside headings or table-cell paragraphs violate their inline-only content and are
- * discarded on Yjs hydration. Frontmatter is stored separately, not interpreted as Markdown.
+ * Table images remain source-only until their parsing and editing paths preserve them consistently.
+ * Frontmatter is stored separately, not interpreted as Markdown.
  */
 function inspectMarkdownFidelity(content: string) {
   const targets = new Map<string, number>()
@@ -114,7 +114,7 @@ function inspectMarkdownFidelity(content: string) {
     if (token.type === 'html') preservedQuotes += inspectHtmlImages(token.raw).quotedEntities
     if (token.type === 'code' || token.type === 'codespan')
       preservedQuotes += token.raw.match(/&quot;/g)?.length ?? 0
-    if (token.type === 'heading' || token.type === 'table') {
+    if (token.type === 'table') {
       fidelityLexer.walkTokens([token], (child) => {
         if (child.type === 'image' || (child.type === 'html' && /^<img(?=[\s/>])/i.test(child.raw)))
           hasUnsupportedImageContext = true

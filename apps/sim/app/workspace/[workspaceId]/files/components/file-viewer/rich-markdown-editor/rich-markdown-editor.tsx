@@ -46,6 +46,7 @@ import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/fi
 import { useMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
 import { findHeadingPos } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import { imageTypeAt } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 import {
   extractImageFiles,
   findHostedImageAttrs,
@@ -68,7 +69,6 @@ import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/componen
 import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
 import { useEditorMentions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention'
 import { EditorBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu'
-import { ImageBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu'
 import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card'
 import { TableBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/table-menu'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
@@ -647,7 +647,13 @@ export function LoadedRichMarkdownEditor({
     const matchedAttrs = findHostedImageAttrs(editor.state.doc, imgSrcs, source.resolveImageSrc)
     if (!matchedAttrs) return false
     try {
-      return editor.chain().insertContentAt(range, { type: 'image', attrs: matchedAttrs }).run()
+      return editor
+        .chain()
+        .insertContentAt(range, {
+          type: imageTypeAt(editor.state.doc, range.from),
+          attrs: matchedAttrs,
+        })
+        .run()
     } catch {
       return false
     }
@@ -1463,7 +1469,6 @@ export function LoadedRichMarkdownEditor({
           />
         )}
         {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
-        {editor && <ImageBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
         {editor && <LinkHoverCard editor={editor} />}
         <input
           ref={imageInputRef}

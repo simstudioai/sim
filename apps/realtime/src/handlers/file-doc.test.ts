@@ -5,6 +5,7 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_LIMITS,
   FILE_DOC_MESSAGE_TYPE,
+  FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
@@ -103,7 +104,14 @@ function createSocket(id: string, overrides?: Record<string, unknown>) {
     userImage: 'avatar.png',
     disconnected: false,
     on: vi.fn((event: string, handler: Handler) => {
-      handlers[event] = handler
+      handlers[event] =
+        event === FILE_DOC_EVENTS.JOIN
+          ? (payload) =>
+              handler({
+                schemaVersion: FILE_DOC_SCHEMA_VERSION,
+                ...(payload as Record<string, unknown>),
+              })
+          : handler
     }),
     emit: vi.fn(),
     join: vi.fn(),
@@ -281,22 +289,25 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockAuthorizeRoom).not.toHaveBeenCalled()
   })
 
-  it('rejects an incompatible collaborative-document schema before authorizing', async () => {
-    const { io } = createIo()
-    const { socket, handlers } = setup('socket-schema', io)
+  it.each([undefined, 1, 99])(
+    'rejects incompatible schema %s before authorizing',
+    async (schemaVersion) => {
+      const { io } = createIo()
+      const { socket, handlers } = setup('socket-schema', io)
 
-    await handlers[FILE_DOC_EVENTS.JOIN]({
-      fileId: 'file-1',
-      clientId: 1,
-      schemaVersion: 99,
-    })
+      await handlers[FILE_DOC_EVENTS.JOIN]({
+        fileId: 'file-1',
+        clientId: 1,
+        schemaVersion,
+      })
 
-    expect(socket.emit).toHaveBeenCalledWith(
-      FILE_DOC_EVENTS.JOIN_ERROR,
-      expect.objectContaining({ code: 'SCHEMA_VERSION_MISMATCH', retryable: false })
-    )
-    expect(mockAuthorizeRoom).not.toHaveBeenCalled()
-  })
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_ERROR,
+        expect.objectContaining({ code: 'SCHEMA_VERSION_MISMATCH', retryable: false })
+      )
+      expect(mockAuthorizeRoom).not.toHaveBeenCalled()
+    }
+  )
 
   it('acknowledges user updates only after applying them to the joined document', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-1'))

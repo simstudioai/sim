@@ -13,7 +13,7 @@
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const EDITOR_CSS_PATH = path.join(__dirname, 'rich-markdown-editor.css')
 
@@ -33,9 +33,10 @@ const CHROME_MARKERS = [
 ] as const
 
 let selectors: string[] = []
+let style: HTMLStyleElement
 
 beforeAll(() => {
-  const style = document.createElement('style')
+  style = document.createElement('style')
   style.textContent = readFileSync(EDITOR_CSS_PATH, 'utf-8')
   document.head.appendChild(style)
   if (!style.sheet) throw new Error('rich-markdown-editor.css did not parse')
@@ -43,6 +44,8 @@ beforeAll(() => {
     .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
     .map((rule) => rule.selectorText)
 })
+
+afterAll(() => style.remove())
 
 describe('rich markdown chrome scoping', () => {
   it.each(CHROME_MARKERS)('scopes every %s rule to the shared node class', (marker) => {
@@ -53,4 +56,30 @@ describe('rich markdown chrome scoping', () => {
       expect(selector).not.toContain('.rich-markdown-prose')
     }
   })
+
+  it.each(['div', 'span'].flatMap((tag) => [false, true].map((linked) => ({ tag, linked }))))(
+    'keeps the $tag image selection ring inside the image (linked: $linked)',
+    ({ tag, linked }) => {
+      const root = document.createElement('div')
+      root.className = 'rich-markdown-nodes'
+      const wrapper = document.createElement(tag)
+      wrapper.className = 'ProseMirror-selectednode'
+      const image = document.createElement('img')
+      if (linked) {
+        const link = document.createElement('a')
+        link.append(image)
+        wrapper.append(link)
+      } else wrapper.append(image)
+      root.append(wrapper)
+      document.body.append(root)
+      try {
+        expect(getComputedStyle(image).outlineOffset).toBe('-2px')
+        expect(getComputedStyle(wrapper).outline).toBe('none')
+        wrapper.classList.remove('ProseMirror-selectednode')
+        expect(getComputedStyle(image).outlineOffset).toBe('')
+      } finally {
+        root.remove()
+      }
+    }
+  )
 })

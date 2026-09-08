@@ -13,13 +13,16 @@ import { EditorState, NodeSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import { describe, expect, it, vi } from 'vitest'
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
-    paragraph: { group: 'block', content: 'text*' },
+    paragraph: { group: 'block', content: 'inline*' },
+    heading: { group: 'block', content: 'inline*' },
     image: { group: 'block', attrs: { src: {} }, draggable: true },
-    text: {},
+    inlineImage: { group: 'inline', inline: true, attrs: { src: {} }, draggable: true },
+    text: { group: 'inline' },
   },
 })
 
@@ -59,12 +62,47 @@ function dropEvent(): DragEvent {
 function imageCount(doc: PMNode): number {
   let count = 0
   doc.descendants((node) => {
-    if (node.type.name === 'image') count += 1
+    if (isImageNode(node)) count += 1
   })
   return count
 }
 
 describe('moveDraggedImageNode', () => {
+  it.each([
+    ['document start', 0, 'image'],
+    ['between blocks', 10, 'image'],
+    ['document end', 17, 'image'],
+    ['inside a heading', 2, 'inlineImage'],
+    ['inside a paragraph', 12, 'inlineImage'],
+  ] as const)('keeps the moved image selected at %s', (_label, dropPos, expectedType) => {
+    const doc = schema.node('doc', null, [
+      schema.node('heading', null, [
+        schema.text('Before'),
+        schema.node('inlineImage', { src: SRC }),
+        schema.text('!'),
+      ]),
+      schema.node('paragraph', null, [schema.text('After')]),
+    ])
+    let state = EditorState.create({ doc, selection: NodeSelection.create(doc, 7) })
+    const view = {
+      get state() {
+        return state
+      },
+      posAtCoords: () => ({ pos: dropPos }),
+      dispatch: (tr) => {
+        state = state.apply(tr)
+      },
+    } as unknown as EditorView
+
+    expect(moveDraggedImageNode(view, dropEvent(), { images: [], html: imageHtml(SRC) })).toBe(true)
+    expect(() => state.doc.check()).not.toThrow()
+    expect(imageCount(state.doc)).toBe(1)
+    expect(state.doc.textContent).toBe(doc.textContent)
+    expect(state.selection).toBeInstanceOf(NodeSelection)
+    expect((state.selection as NodeSelection).node.type.name).toBe(expectedType)
+    expect((state.selection as NodeSelection).node.attrs.src).toBe(SRC)
+  })
+
   it('moves the dragged image instead of leaving it to be re-uploaded', () => {
     const { view, dispatched } = selectedImageView()
     const event = dropEvent()
@@ -72,7 +110,6 @@ describe('moveDraggedImageNode', () => {
     expect(moveDraggedImageNode(view, event, { images: [], html: imageHtml(SRC) })).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(imageCount(dispatched.state().doc)).toBe(1)
-    /* Moved ahead of the paragraph it started after. */
     expect(dispatched.state().doc.firstChild?.type.name).toBe('image')
   })
 

@@ -2,7 +2,8 @@ import { Fragment, Slice } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { dropPoint } from '@tiptap/pm/transform'
 import type { EditorView } from '@tiptap/pm/view'
-import { htmlReferencesSrc } from './image-paste'
+import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
+import { htmlReferencesSrc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 
 interface MoveDraggedImageOptions {
   /** Image files on the drop, from `extractImageFiles`. */
@@ -42,7 +43,7 @@ export function moveDraggedImageNode(
 ): boolean {
   const { selection } = view.state
   if (images.length > 1) return false
-  if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') return false
+  if (!(selection instanceof NodeSelection) || !isImageNode(selection.node)) return false
 
   const src = selection.node.attrs.src
   const rendered = typeof src === 'string' ? (resolveSrc?.(src) ?? src) : undefined
@@ -52,7 +53,10 @@ export function moveDraggedImageNode(
   const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
   if (!coords) return true
 
-  const node = selection.node
+  const node =
+    selection.node.isInline && !view.state.doc.resolve(coords.pos).parent.inlineContent
+      ? view.state.schema.nodes.image.create(selection.node.attrs, null, selection.node.marks)
+      : selection.node
   const tr = view.state.tr
   const insertPos = dropPoint(view.state.doc, coords.pos, new Slice(Fragment.from(node), 0, 0))
   if (insertPos === null) return true

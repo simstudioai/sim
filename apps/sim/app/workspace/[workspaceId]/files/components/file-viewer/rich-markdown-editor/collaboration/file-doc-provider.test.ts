@@ -92,6 +92,7 @@ function acceptJoin(
   acknowledgedUpdates = true
 ) {
   fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+    schemaVersion: FILE_DOC_SCHEMA_VERSION,
     fileId: 'file-1',
     clientId,
     docId,
@@ -147,6 +148,22 @@ describe('FileDocProvider', () => {
     expect(messages.length).toBeGreaterThan(0)
     expect(messages[0][0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
   })
+
+  it.each([undefined, 1, FILE_DOC_SCHEMA_VERSION + 1])(
+    'rejects incompatible server schema %s before exchanging document state',
+    (schemaVersion) => {
+      const { provider, doc, emit, fire } = createProvider(true)
+      emit.mockClear()
+      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+        fileId: 'file-1',
+        clientId: doc.clientID,
+        schemaVersion,
+      })
+      expect(provider.joinError).toMatchObject({ code: 'SCHEMA_VERSION_MISMATCH' })
+      expect(provider.synced).toBe(false)
+      expect(emittedMessages(emit)).toHaveLength(0)
+    }
+  )
 
   it('ignores inbound sync until the current join is accepted', () => {
     const { provider, doc, fire } = createProvider(true)
@@ -1472,6 +1489,7 @@ describe('FileDocProvider', () => {
     )
     expect(firstProvider.joinError).toMatchObject({ code: 'DOCUMENT_REPLACED' })
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
       fileId: 'file-2',
       clientId: secondDoc.clientID,
       acknowledgedUpdates: true,
@@ -1991,10 +2009,12 @@ describe('FileDocProvider', () => {
       new awarenessProtocol.Awareness(docB)
     )
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
       fileId: 'shared-file',
       clientId: docA.clientID,
     })
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
       fileId: 'shared-file',
       clientId: docB.clientID,
     })
@@ -2151,6 +2171,7 @@ describe('FileDocProvider', () => {
     (invalidatedDocId) => {
       const { provider, doc, fire } = createProvider(true)
       fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+        schemaVersion: FILE_DOC_SCHEMA_VERSION,
         fileId: 'file-1',
         clientId: doc.clientID,
         docId: 'new-document',
@@ -2170,6 +2191,7 @@ describe('FileDocProvider', () => {
   it('keeps matching-generation invalidation terminal even when its version equals JOIN', () => {
     const { provider, doc, fire } = createProvider(true)
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
       fileId: 'file-1',
       clientId: doc.clientID,
       docId: 'current-document',
@@ -2188,6 +2210,7 @@ describe('FileDocProvider', () => {
   it('does not let a newer tombstone notification spare an older joined document', () => {
     const { provider, doc, fire } = createProvider(true)
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
       fileId: 'file-1',
       clientId: doc.clientID,
       docId: 'current-document',

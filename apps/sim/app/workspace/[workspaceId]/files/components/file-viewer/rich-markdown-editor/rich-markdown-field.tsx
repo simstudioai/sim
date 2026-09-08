@@ -11,7 +11,6 @@ import {
   finishImageUpload,
   removeImageUpload,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
-import { ImageBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu'
 import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { moveDraggedImageNode } from './image-drag-move'
@@ -412,9 +411,6 @@ function LoadedRichMarkdownField({
         />
       )}
       {editor && <LinkHoverCard editor={editor} />}
-      {editor && (
-        <ImageBubbleMenu editor={editor} scrollContainerRef={isBare ? BODY_PORTAL : containerRef} />
-      )}
       {uploadImage && (
         <input
           ref={imageInputRef}

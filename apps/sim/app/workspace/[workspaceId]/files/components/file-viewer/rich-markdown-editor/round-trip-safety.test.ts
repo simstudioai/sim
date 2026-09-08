@@ -157,12 +157,17 @@ describe('isRoundTripSafe', () => {
     'Before ![Image](/image.png) after\n===',
     '> # Before ![Image](/image.png) after',
     '- # Before ![Image](/image.png) after',
+  ])('keeps images within headings editable: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(true)
+  })
+
+  it.each([
     '| Header |\n| --- |\n| Before ![Image](/image.png) after |',
     '| Before ![Image](/image.png) after |\n| --- |\n| Cell |',
     '| Header |\n| --- |\n| [![Image](/image.png)](/destination) |',
     '| Header |\n| --- |\n| ![Image][image] |\n\n[image]: /image.png',
     '| Header |\n| --- |\n| Before <img src="/image.png" width="320"> after |',
-  ])('preserves unsupported heading or table images in source mode: %s', (source) => {
+  ])('preserves unsupported table images in source mode: %s', (source) => {
     expect(isRoundTripSafe(source)).toBe(false)
     expect(normalizeMarkdownContent(source)).toBe(source)
   })

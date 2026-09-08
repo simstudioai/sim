@@ -1,4 +1,5 @@
 import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
+import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 /**
  * Extract image `File` objects from a paste/drop payload. Reads `files` first, then falls back to
@@ -187,7 +188,7 @@ export function findHostedImageAttrs(
   let found: Record<string, unknown> | null = null
   doc.descendants((node) => {
     if (found) return false
-    if (node.type.name === 'image') {
+    if (isImageNode(node)) {
       const resolved = resolveImageSrc(node.attrs.src as string | undefined)
       const resolvedPath = resolved ? toSameOriginPath(resolved, origin) : null
       if (resolvedPath && targets.has(resolvedPath)) {

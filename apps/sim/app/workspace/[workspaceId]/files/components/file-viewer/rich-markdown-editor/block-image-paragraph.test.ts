@@ -36,6 +36,22 @@ const cleanups: Array<() => void> = []
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()))
 
 describe('block images within Markdown paragraphs', () => {
+  it('retains a whitespace-only code span beside an image', () => {
+    const paragraph: JSONContent = {
+      type: 'paragraph',
+      content: [
+        { type: 'image', attrs: { src: '/image.png' } },
+        { type: 'text', text: '   ', marks: [{ type: 'code' }] },
+      ],
+    }
+    expect(splitBlockImageParagraph(paragraph)).toEqual([
+      {
+        ...paragraph,
+        content: [{ type: 'inlineImage', attrs: { src: '/image.png' } }, paragraph.content![1]],
+      },
+    ])
+  })
+
   it('does not mutate parsed nodes or trim meaningful code-span whitespace', () => {
     const paragraph: JSONContent = {
       type: 'paragraph',
@@ -50,22 +66,37 @@ describe('block images within Markdown paragraphs', () => {
     const original = structuredClone(paragraph)
     const blocks = splitBlockImageParagraph(paragraph)
     expect(paragraph).toEqual(original)
-    expect(blocks[0].content).toEqual([{ type: 'text', text: 'Before', marks: [{ type: 'bold' }] }])
-    expect(blocks[1]).toBe(paragraph.content?.[1])
-    expect(blocks[2].content).toEqual([{ type: 'text', text: ' code ', marks: [{ type: 'code' }] }])
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].content).toEqual(
+      paragraph.content?.map((child) =>
+        child.type === 'image' ? { ...child, type: 'inlineImage' } : child
+      )
+    )
   })
 
   it('preserves source order, text marks, and linked image dimensions and titles', () => {
     const markdown =
       '**Before** [<img src="https://example.test/sized.png" alt="Sized preview" width="320" height="180" title="Image title">](https://example.test/target "Link title") *after* ![Second](https://example.test/second.png) ` done `'
-    const doc = schema.nodeFromJSON(parseMarkdownToDoc(markdown))
+    const root = schema.nodeFromJSON(parseMarkdownToDoc(markdown))
+    expect(root.childCount).toBe(1)
+    const doc = root.child(0)
     expect(() => doc.check()).not.toThrow()
     expect(
       Array.from({ length: doc.childCount }, (_, index) => doc.child(index).type.name)
-    ).toEqual(['paragraph', 'image', 'paragraph', 'image', 'paragraph'])
+    ).toEqual([
+      'text',
+      'text',
+      'inlineImage',
+      'text',
+      'text',
+      'text',
+      'inlineImage',
+      'text',
+      'text',
+    ])
     expect(doc.child(0).textContent).toBe('Before')
-    expect(doc.child(0).firstChild?.marks.map((mark) => mark.type.name)).toEqual(['bold'])
-    expect(doc.child(1).attrs).toMatchObject({
+    expect(doc.child(0).marks.map((mark) => mark.type.name)).toEqual(['bold'])
+    expect(doc.child(2).attrs).toMatchObject({
       src: 'https://example.test/sized.png',
       alt: 'Sized preview',
       width: '320',
@@ -74,23 +105,25 @@ describe('block images within Markdown paragraphs', () => {
       href: 'https://example.test/target',
       hrefTitle: 'Link title',
     })
-    expect(doc.child(2).textContent).toBe('after')
-    expect(doc.child(2).firstChild?.marks.map((mark) => mark.type.name)).toEqual(['italic'])
-    expect(doc.child(3).attrs.src).toBe('https://example.test/second.png')
-    expect(doc.child(4).textContent).toBe('done')
-    expect(doc.child(4).firstChild?.marks.map((mark) => mark.type.name)).toEqual(['code'])
+    expect(doc.child(4).textContent).toBe('after')
+    expect(doc.child(4).marks.map((mark) => mark.type.name)).toEqual(['italic'])
+    expect(doc.child(6).attrs.src).toBe('https://example.test/second.png')
+    expect(doc.child(8).textContent).toBe('done')
+    expect(doc.child(8).marks.map((mark) => mark.type.name)).toEqual(['code'])
     const serialized = serializeMarkdownBody(markdown)
-    expect(schema.nodeFromJSON(parseMarkdownToDoc(serialized)).toJSON()).toEqual(doc.toJSON())
+    expect(schema.nodeFromJSON(parseMarkdownToDoc(serialized)).toJSON()).toEqual(root.toJSON())
     expect(serializeMarkdownBody(serialized)).toBe(serialized)
   })
 
-  it.each(CASES)('keeps %s schema-valid and stable through save and reopen', (_label, markdown) => {
+  it.each(CASES)('keeps %s schema-valid and stable through save and reopen', (label, markdown) => {
     const parsed = schema.nodeFromJSON(parseMarkdownToDoc(markdown))
     expect(() => parsed.check()).not.toThrow()
     const serialized = serializeMarkdownBody(markdown)
     const reparsed = schema.nodeFromJSON(parseMarkdownToDoc(serialized))
     expect(() => reparsed.check()).not.toThrow()
-    expect(reparsed.toJSON()).toEqual(parsed.toJSON())
+    if (label !== 'marks spanning an image') expect(reparsed.toJSON()).toEqual(parsed.toJSON())
+    else expect(serialized).toBe(`**Before** ${IMAGE} **after**`)
+    expect(reparsed.textContent).toBe(parsed.textContent)
     expect(serializeMarkdownBody(serialized)).toBe(serialized)
     expect(isRoundTripSafe(markdown)).toBe(true)
   })

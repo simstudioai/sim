@@ -3,6 +3,7 @@ import { type Editor, Extension, type Range } from '@tiptap/core'
 import type { Slice } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { imageTypeAt } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 interface PendingImageUpload extends Range {
   id: string
@@ -170,7 +171,7 @@ export function finishImageUpload(editor: Editor, id: string, src: string, alt: 
     .chain()
     .insertContentAt(
       { from: upload.from, to: upload.to },
-      { type: 'image', attrs: { src, alt } },
+      { type: imageTypeAt(editor.state.doc, upload.from), attrs: { src, alt } },
       { updateSelection: false }
     )
     .command(({ tr }) => {

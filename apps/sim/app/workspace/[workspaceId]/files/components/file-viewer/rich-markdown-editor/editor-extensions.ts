@@ -16,7 +16,10 @@ import {
 import { LinkEmbed } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/embed/link-embed'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { RichMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
-import { ResizableImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import {
+  ResizableImage,
+  ResizableInlineImage,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
 import { RichMarkdownKeymap } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap'
 import { MarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
@@ -70,6 +73,7 @@ export function createMarkdownEditorExtensions({
       {
         codeBlock: CodeBlockWithLanguage,
         image: ResizableImage,
+        inlineImage: ResizableInlineImage,
         mention: MentionChip,
         rawHtmlBlock: RawHtmlBlockWithView,
         footnoteDef: FootnoteDefWithView,

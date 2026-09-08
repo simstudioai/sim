@@ -1,4 +1,11 @@
-import { Extension, type Extensions, type JSONContent, type Node } from '@tiptap/core'
+import {
+  Extension,
+  type Extensions,
+  type JSONContent,
+  type MarkdownParseHelpers,
+  type MarkdownToken,
+  type Node,
+} from '@tiptap/core'
 import { Code } from '@tiptap/extension-code'
 import { Document } from '@tiptap/extension-document'
 import { HardBreak } from '@tiptap/extension-hard-break'
@@ -11,7 +18,10 @@ import { splitBlockImageParagraph } from '@/app/workspace/[workspaceId]/files/co
 import { JoiningBulletList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/bullet-list'
 import { MarkdownCodeBlock } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block-schema'
 import { Highlight } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/highlight'
-import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
+import {
+  MarkdownImage,
+  MarkdownInlineImage,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
 import { MarkdownLinkInputRule } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/link-input-rule'
 import { joinListInputRules } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-input-rules'
 import { MarkdownListItem } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-item'
@@ -49,12 +59,26 @@ const MarkdownHardBreak = HardBreak.extend({ renderMarkdown: () => '<br>' })
 
 const TABLE_BLOCK_PREFIX_NODES = new Set(['heading', 'blockquote', 'horizontalRule'])
 
+function parseHeadingMarkdown(token: MarkdownToken, helpers: MarkdownParseHelpers) {
+  return helpers.createNode(
+    'heading',
+    { level: token.depth || 1 },
+    helpers
+      .parseInline(token.tokens || [])
+      .map((child) => (child.type === 'image' ? { ...child, type: 'inlineImage' } : child))
+  )
+}
+
 /** Input rules must respect the same table capabilities as toolbar and keyboard commands. */
 const TableAwareStarterKit = StarterKit.extend({
   addExtensions() {
-    return (this.parent?.() ?? []).map((extension) =>
-      extension.type === 'node' && TABLE_BLOCK_PREFIX_NODES.has(extension.name)
-        ? extension.extend({
+    return (this.parent?.() ?? []).map((extension) => {
+      const markdownExtension =
+        extension.name === 'heading'
+          ? extension.extend({ parseMarkdown: parseHeadingMarkdown })
+          : extension
+      return extension.type === 'node' && TABLE_BLOCK_PREFIX_NODES.has(extension.name)
+        ? markdownExtension.extend({
             addCommands() {
               const parent = this.parent?.()
               if (this.name !== 'horizontalRule') return parent ?? {}
@@ -69,8 +93,8 @@ const TableAwareStarterKit = StarterKit.extend({
               return excludeTableBlockInputRules(this.parent?.() ?? [])
             },
           })
-        : extension
-    )
+        : markdownExtension
+    })
   },
 })
 
@@ -176,6 +200,7 @@ const BlockSafeParagraph = Paragraph.extend({
 export interface ContentNodeViews {
   codeBlock?: Node
   image?: Node
+  inlineImage?: Node
   mention?: Node
   rawHtmlBlock?: Node
   footnoteDef?: Node
@@ -233,6 +258,7 @@ export function createMarkdownContentExtensions(
     Highlight,
     codeBlock,
     (nodeViews.image ?? MarkdownImage).configure({ allowBase64: true }),
+    (nodeViews.inlineImage ?? MarkdownInlineImage).configure({ allowBase64: true }),
     nodeViews.mention ?? MarkdownMention,
     TaskList,
     TaskItem.extend({
