@@ -26,6 +26,7 @@ import {
   CircleAlert,
   Database,
   DatabaseX,
+  Download,
   Loader,
   Pencil,
   Plus,
@@ -118,6 +119,7 @@ import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import { isConnectorSyncingOrPending, useConnectorList } from '@/hooks/queries/kb/connectors'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
+  downloadKnowledgeBaseExport,
   useBulkDocumentOperation,
   useDeleteDocument,
   useDeleteKnowledgeBase,
@@ -1009,6 +1011,11 @@ export function KnowledgeBase({
 
   const headerActions: ResourceAction[] = useMemo(
     () => [
+      {
+        text: 'Export',
+        icon: Download,
+        onSelect: () => downloadKnowledgeBaseExport(id),
+      },
       ...(userPermissions.canEdit || userPermissions.isLoading
         ? [
             {
@@ -1028,6 +1035,7 @@ export function KnowledgeBase({
       },
     ],
     [
+      id,
       userPermissions.canEdit,
       userPermissions.isLoading,
       setShowAddConnectorModal,

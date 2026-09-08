@@ -3655,6 +3655,19 @@ export type ExecuteWorkflowResponse =
       data: ExecuteWorkflowResponseRef2
     }
 
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/export` */
+export type ExportKnowledgeBaseParams = {
+  knowledgeBaseId: string
+}
+
+export type ExportKnowledgeBaseQuery = {
+  workspaceId: string
+  vectors?: boolean
+}
+
+/** Non-JSON response (`binary`). */
+export type ExportKnowledgeBaseResponse = never
+
 /** `GET /api/v2/workflows/[workflowId]/export` */
 export type ExportWorkflowParams = {
   workflowId: string
@@ -11426,6 +11439,26 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      },
+    },
+  },
+  exportKnowledgeBase: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/export',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'binary',
+    summary: 'Export Knowledge Base',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      vectors: {
+        kind: 'boolean',
+        describe:
+          'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.',
       },
     },
   },

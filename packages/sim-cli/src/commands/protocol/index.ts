@@ -3,6 +3,7 @@ import { attachChat } from './chat'
 import { attachFileGet } from './files-get'
 import { attachFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
+import { attachKnowledgeExport } from './knowledge-export'
 import { attachLogsFollow } from './logs-follow'
 import { attachResourceDirectoryCommands } from './resource-directory'
 import { attachTableImport } from './tables-import'
@@ -31,6 +32,7 @@ export function attachProtocolCommands(program: Command): void {
 
   const knowledge = group(program, 'knowledge')
   attachKnowledgeDocumentUpload(group(knowledge, 'documents'))
+  attachKnowledgeExport(knowledge)
   attachResourceDirectoryCommands(knowledge, {
     kind: 'knowledge',
     resources: 'listKnowledgeBases',

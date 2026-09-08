@@ -165,6 +165,7 @@ const fixtures: readonly CoercionFixture[] = [
       disableToolAutoApproval: true,
       hideSandboxesTab: true,
       disableOAuthAppAccess: true,
+      disableKnowledgeBaseExport: true,
     },
     expected: {
       allowedIntegrations: ['slack_v2'],
@@ -208,6 +209,7 @@ const fixtures: readonly CoercionFixture[] = [
       disableToolAutoApproval: true,
       hideSandboxesTab: true,
       disableOAuthAppAccess: true,
+      disableKnowledgeBaseExport: true,
     },
   },
 ]

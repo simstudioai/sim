@@ -502,6 +502,105 @@
         }
       }
     },
+    "/api/v2/knowledge/{knowledgeBaseId}/export": {
+      "get": {
+        "operationId": "exportKnowledgeBase",
+        "summary": "Export Knowledge Base",
+        "description": "Stream a knowledge base as a bundle archive: its configuration, tag definitions, each workspace-visible document's file and chunk text, and optionally chunk vectors. Access-control lists, connector links, and credentials never leave. More than 2000 documents returns `413`. Exports record an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.export",
+        "x-oauth-scope": "api:read",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "vectors",
+            "in": "query",
+            "required": false,
+            "description": "Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.",
+            "schema": {
+              "description": "Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The knowledge base as a zip archive.",
+            "headers": {
+              "Content-Type": {
+                "$ref": "#/components/headers/Content-Type"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/Content-Disposition"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/knowledge/{knowledgeBaseId}/connectors": {
       "get": {
         "operationId": "listKnowledgeConnectors",
@@ -4339,6 +4438,31 @@
       }
     },
     "headers": {
+      "Content-Type": {
+        "description": "MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.",
+        "schema": {
+          "type": "string",
+          "title": "Content type",
+          "description": "MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable."
+        }
+      },
+      "Content-Disposition": {
+        "description": "Attachment disposition containing sanitized and RFC 5987 encoded filenames.",
+        "schema": {
+          "type": "string",
+          "title": "Content disposition",
+          "description": "Attachment disposition containing sanitized and RFC 5987 encoded filenames."
+        }
+      },
+      "Content-Length": {
+        "description": "File size in bytes.",
+        "schema": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)$",
+          "title": "Content length",
+          "description": "File size in bytes."
+        }
+      },
       "X-RateLimit-Limit": {
         "description": "Maximum requests allowed in the current window.",
         "schema": {

@@ -12,6 +12,7 @@ import {
   v2DeleteKnowledgeConnectorContract,
   v2DeleteKnowledgeDocumentContract,
   v2DeleteKnowledgeFolderContract,
+  v2ExportKnowledgeBaseContract,
   v2GetKnowledgeBaseContract,
   v2GetKnowledgeConnectorContract,
   v2GetKnowledgeDocumentContract,
@@ -39,11 +40,14 @@ import {
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
+  HEAD_OMITS_PAYLOAD_HEADERS,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   V2_AUTH_SECURITY,
   V2_AUTH_SECURITY_SCHEMES,
+  V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -58,6 +62,7 @@ import {
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { MAX_KNOWLEDGE_BUNDLE_DOCUMENTS } from '@/lib/knowledge/constants'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const KNOWLEDGE_BASE_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
@@ -195,6 +200,35 @@ const declaredRoutes = [
         'V2KnowledgeBaseResponse',
         'Knowledge base response',
         'A single knowledge base.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ExportKnowledgeBaseContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.export,
+      operationId: 'exportKnowledgeBase',
+      summary: 'Export Knowledge Base',
+      description: `Stream a knowledge base as a bundle archive: its configuration, tag definitions, each workspace-visible document's file and chunk text, and optionally chunk vectors. Access-control lists, connector links, and credentials never leave. More than ${MAX_KNOWLEDGE_BUNDLE_DOCUMENTS} documents returns \`413\`. Exports record an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: {
+        description: 'The knowledge base as a zip archive.',
+        headers: ['Content-Type', 'Content-Disposition'],
+        contentTypes: ['application/zip'],
+      },
+    }),
+    {
+      params: documentedSchema(
+        v2ExportKnowledgeBaseContract.params,
+        'ExportKnowledgeBaseParams',
+        'Export knowledge base path parameters',
+        'Knowledge base selected for export.'
+      ),
+      query: documentedSchema(
+        v2ExportKnowledgeBaseContract.query,
+        'ExportKnowledgeBaseQuery',
+        'Export knowledge base query',
+        'Workspace scope and whether chunk vectors are included.'
       ),
     }
   ),
@@ -1241,7 +1275,7 @@ export const knowledgeOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_AUTH_SECURITY,
   securitySchemes: V2_AUTH_SECURITY_SCHEMES,
-  headers: V2_COMMON_HEADERS,
+  headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({
     Conflict: { message: 'Upload has already been completed' },
