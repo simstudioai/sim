@@ -56,6 +56,11 @@ vi.mock('@/lib/workflows/deployment-status', () => ({
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import { REFERENCES_UNCHECKED_NOTE } from '@/lib/workflows/editing/lint-report'
+import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
+import { ExaBlock } from '@/blocks/blocks/exa'
+import { getBlock } from '@/blocks/registry'
+
+const defaultGetBlock = vi.mocked(getBlock).getMockImplementation()
 
 const BLOCK = {
   id: 'block-1',
@@ -87,6 +92,9 @@ const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [
 describe('replaceWorkflowState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getBlock).mockImplementation((type) =>
+      type === 'exa' ? ExaBlock : defaultGetBlock?.(type)
+    )
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
@@ -431,6 +439,66 @@ describe('replaceWorkflowState', () => {
           input: { ...input, dryRun: true },
         })
       ).rejects.toThrow()
+    })
+  })
+
+  describe('registry input validation', () => {
+    for (const dryRun of [true, false]) {
+      it.each(['type', 'category', 'text', 'highlights', 'summary'])(
+        `rejects the same dynamic %s value as operations apply (dryRun=${dryRun})`,
+        async (field) => {
+          const value = `<start.${field}>`
+          const { errors } = validateInputsForBlock('exa', { [field]: value }, BLOCK.id)
+          expect(errors).toHaveLength(1)
+          await expect(
+            replaceWorkflowState.execute({
+              principal: sessionPrincipal,
+              input: {
+                ...input,
+                dryRun,
+                blocks: {
+                  [BLOCK.id]: {
+                    ...BLOCK,
+                    type: 'exa',
+                    advancedMode: true,
+                    subBlocks: { [field]: { id: field, type: 'short-input', value } },
+                  },
+                },
+              },
+            })
+          ).rejects.toThrow(errors[0].error)
+          expect(mocks.replace).not.toHaveBeenCalled()
+          expect(mocks.notify).not.toHaveBeenCalled()
+          expect(mocks.recordAudit).not.toHaveBeenCalled()
+        }
+      )
+    }
+
+    it('accepts literal choices alongside text references without enabling advanced mode', async () => {
+      const block = {
+        ...BLOCK,
+        type: 'exa',
+        advancedMode: false,
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown' as const, value: 'exa_search' },
+          type: { id: 'type', type: 'dropdown' as const, value: 'auto' },
+          query: { id: 'query', type: 'long-input' as const, value: '<start.query>' },
+          text: { id: 'text', type: 'switch' as const, value: true },
+          highlights: { id: 'highlights', type: 'switch' as const, value: false },
+          summary: { id: 'summary', type: 'switch' as const, value: null },
+        },
+      }
+      await expect(
+        replaceWorkflowState.execute({
+          principal: sessionPrincipal,
+          input: { ...input, blocks: { [BLOCK.id]: block } },
+        })
+      ).resolves.toMatchObject({ dryRun: false })
+      expect(mocks.replace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: { blocks: { [BLOCK.id]: block }, edges: [], variables: undefined },
+        })
+      )
     })
   })
 
