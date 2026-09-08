@@ -343,37 +343,41 @@ describe('OCI Streaming request and response semantics', () => {
     }
   )
 
-  it('defaults group reads to manual commits and recognizes UpdateGroup empty success', async () => {
-    const h = harness()
-    h.request
-      .mockResolvedValueOnce(response(JSON.stringify(stream)))
-      .mockResolvedValueOnce(response('{"value":"group-cursor"}'))
-    await h.execute({
-      operation: 'create_group_cursor',
-      streamId: 'stream-1',
-      groupName: 'workers',
-      type: 'LATEST',
-    })
-    expect(JSON.parse(new TextDecoder().decode(h.request.mock.calls[1][0].body))).toMatchObject({
-      commitOnGet: false,
-    })
-    h.request
-      .mockResolvedValueOnce(response(JSON.stringify(stream)))
-      .mockResolvedValueOnce(response(''))
-    const result = await h.execute({
-      operation: 'update_group',
-      streamId: 'stream-1',
-      groupName: 'a/b',
-      type: 'TRIM_HORIZON',
-    })
-    expect(result.output).toEqual({
-      status: 200,
-      requestId: 'oracle-request',
-      etag: null,
-      workRequestId: null,
-    })
-    expect(h.request.mock.calls[3][0].encodedPath).toBe('/20180418/streams/stream-1/groups/a%2Fb')
-  })
+  it.each([200, 204])(
+    'defaults group reads to manual commits and recognizes UpdateGroup empty %i success',
+    async (status) => {
+      const h = harness()
+      h.request
+        .mockResolvedValueOnce(response(JSON.stringify(stream)))
+        .mockResolvedValueOnce(response('{"value":"group-cursor"}'))
+      await h.execute({
+        operation: 'create_group_cursor',
+        streamId: 'stream-1',
+        groupName: 'workers',
+        type: 'LATEST',
+      })
+      expect(JSON.parse(new TextDecoder().decode(h.request.mock.calls[1][0].body))).toMatchObject({
+        commitOnGet: false,
+      })
+      h.request
+        .mockResolvedValueOnce(response(JSON.stringify(stream)))
+        .mockResolvedValueOnce(response('', {}, status))
+      const result = await h.execute({
+        operation: 'update_group',
+        streamId: 'stream-1',
+        groupName: 'a/b',
+        type: 'TRIM_HORIZON',
+      })
+      expect(result.output).toEqual({
+        status,
+        requestId: 'oracle-request',
+        etag: null,
+        workRequestId: null,
+      })
+      expect(h.request.mock.calls[3][0].encodedPath).toBe('/20180418/streams/stream-1/groups/a%2Fb')
+      expect(h.request.mock.calls[3][0].retry).toBeUndefined()
+    }
+  )
 
   it.each([
     { operation: 'create_cursor', partition: '0', type: 'AT_OFFSET' },

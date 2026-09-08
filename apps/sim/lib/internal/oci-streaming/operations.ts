@@ -385,7 +385,10 @@ function projectResponse(
     input.operation.startsWith('delete_') ||
     input.operation.startsWith('change_')
   const expectedStatus = empty && input.operation !== 'update_group' ? 204 : 200
-  if (response.status !== expectedStatus)
+  if (
+    response.status !== expectedStatus &&
+    !(input.operation === 'update_group' && response.status === 204)
+  )
     throw new Error('OCI Streaming returned an unexpected success status')
   if (empty) {
     if (response.body.byteLength !== 0)
