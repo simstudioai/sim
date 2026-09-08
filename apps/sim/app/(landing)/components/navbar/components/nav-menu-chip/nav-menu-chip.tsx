@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { ChipChevronDown, chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
-import Link from 'next/link'
 import { flushSync } from 'react-dom'
-import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import {
   HOME_INSET,
   LANDING_CONTENT_WIDTH,
@@ -21,6 +19,7 @@ import { useNavbarMenu } from '@/app/(landing)/components/navbar/hooks/use-navba
 interface NavMenuClusterProps {
   /** Non-empty group of mega-menus that share one stable panel. */
   menus: readonly [NavMenu, ...NavMenu[]]
+  modelsPreview: ReactNode
 }
 
 const PANEL_BASE =
@@ -61,7 +60,7 @@ const floatingPanelIdFor = (menu: NavMenu) => `nav-${menu.label.toLowerCase()}-m
  * panel under its trigger instead of the shared surface, which keeps the
  * last surface menu so it can fade out with its content intact.
  */
-export function NavMenuCluster({ menus }: NavMenuClusterProps) {
+export function NavMenuCluster({ menus, modelsPreview }: NavMenuClusterProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const { open, updateOpen } = useNavbarMenu('desktop')
   const [activeMenu, setActiveMenu] = useState<NavMenu>(menus[0])
@@ -209,17 +208,6 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                       )}
                     </div>
                     {menu.marquee === 'customers' && <NavMenuLogoMarquee />}
-                    {menu.index && (
-                      <Link
-                        href={menu.index.href}
-                        prefetch={active ? null : false}
-                        onClick={handleSelect}
-                        className='group/link flex items-center justify-between rounded-lg px-2 py-1 text-[var(--text-body)] text-small transition-colors hover:bg-[var(--surface-hover)]'
-                      >
-                        {menu.index.label}
-                        <ChevronArrow />
-                      </Link>
-                    )}
                   </div>
                 </div>
               )}
@@ -282,7 +270,7 @@ export function NavMenuCluster({ menus }: NavMenuClusterProps) {
                 ))}
               </div>
 
-              <NavMenuPreview item={activeItem} />
+              <NavMenuPreview item={activeItem} modelsPreview={modelsPreview} />
             </div>
           </div>
         </div>

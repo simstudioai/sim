@@ -1,16 +1,23 @@
+import 'server-only'
+
 import { BrainCircuit, Search } from '@sim/emcn/icons'
-import { AnthropicIcon, GeminiIcon, OpenAIIcon } from '@/components/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import {
   MenuPreviewHeader,
   MenuPreviewToolbar,
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
+import { MODEL_CATALOG_PROVIDERS } from '@/app/(landing)/models/utils'
 
-const MODELS = [
-  { name: 'GPT-6 Astra', provider: 'OpenAI', icon: OpenAIIcon },
-  { name: 'Claude Sonnet 5', provider: 'Anthropic', icon: AnthropicIcon },
-  { name: 'Gemini 3.6 Flash', provider: 'Google', icon: GeminiIcon },
-] as const
+const FEATURED_MODELS = MODEL_CATALOG_PROVIDERS.flatMap((provider) =>
+  provider.models
+    .filter((model) => model.featured)
+    .map((model) => ({
+      id: model.id,
+      name: model.displayName,
+      provider: provider.name,
+      icon: provider.icon ?? BrainCircuit,
+    }))
+)
 
 /** A quiet model directory extending past the preview's right and bottom edges. */
 export function ModelsMenuPreview() {
@@ -25,8 +32,8 @@ export function ModelsMenuPreview() {
           </span>
         </MenuPreviewToolbar>
         <div className='divide-y divide-[var(--border)]'>
-          {MODELS.map(({ name, provider, icon: Icon }) => (
-            <div key={name} className='flex h-[76px] items-center gap-3 px-4'>
+          {FEATURED_MODELS.map(({ id, name, provider, icon: Icon }) => (
+            <div key={id} className='flex h-[76px] items-center gap-3 px-4'>
               <Icon className='size-7 shrink-0 text-[var(--text-primary)]' />
               <div>
                 <p className='text-[var(--text-primary)] text-base'>{name}</p>

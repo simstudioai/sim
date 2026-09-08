@@ -145,16 +145,6 @@ export function MobileNav({ stars }: MobileNavProps) {
               <span className='px-3 pt-2.5 pb-1 text-[13px] text-[var(--text-muted)]'>
                 {menu.label}
               </span>
-              {menu.index && (
-                <Link
-                  href={menu.index.href}
-                  prefetch={open ? null : false}
-                  onClick={() => updateOpen(false)}
-                  className={SHEET_ROW}
-                >
-                  {menu.index.label}
-                </Link>
-              )}
               {menu.sections.map((section) => (
                 <div key={section.label} className='flex flex-col'>
                   {section.items.map((item) => {

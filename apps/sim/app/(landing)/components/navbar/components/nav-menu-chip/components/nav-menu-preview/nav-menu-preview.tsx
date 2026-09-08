@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ArrowRight, BookOpen } from '@sim/emcn/icons'
 import { BlogMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/blog-menu-preview'
 import { ChangelogMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/changelog-menu-preview'
@@ -8,7 +9,6 @@ import { IntegrationsMenuPreview } from '@/app/(landing)/components/navbar/compo
 import { KnowledgeMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/knowledge-menu-preview'
 import { LibraryMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/library-menu-preview'
 import { LogsMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/logs-menu-preview'
-import { ModelsMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/models-menu-preview'
 import { OverviewMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/overview-menu-preview'
 import { TablesMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/tables-menu-preview'
 import { WorkflowMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/workflow-menu-preview'
@@ -19,6 +19,7 @@ import type {
 
 interface NavMenuPreviewProps {
   item: NavMenuItemData
+  modelsPreview: ReactNode
 }
 
 interface PreviewGraphicProps {
@@ -26,7 +27,7 @@ interface PreviewGraphicProps {
 }
 
 interface ProductGraphicProps extends PreviewGraphicProps {
-  kind: NavMenuPreviewKind
+  kind: Exclude<NavMenuPreviewKind, 'models'>
 }
 
 const PREVIEW_ROW =
@@ -79,8 +80,6 @@ function PreviewGraphic({ kind, details }: ProductGraphicProps) {
       return <IntegrationsMenuPreview />
     case 'library':
       return <LibraryMenuPreview />
-    case 'models':
-      return <ModelsMenuPreview />
     case 'overview':
       return <OverviewMenuPreview />
     case 'workflows':
@@ -102,13 +101,17 @@ function PreviewGraphic({ kind, details }: ProductGraphicProps) {
   }
 }
 
-export function NavMenuPreview({ item }: NavMenuPreviewProps) {
+export function NavMenuPreview({ item, modelsPreview }: NavMenuPreviewProps) {
   return (
     <div
       data-nav-menu-preview
       className='relative min-h-[340px] w-full self-stretch overflow-hidden rounded-[10px] bg-[var(--surface-3)]'
     >
-      <PreviewGraphic kind={item.preview.kind} details={item.preview.details} />
+      {item.preview.kind === 'models' ? (
+        modelsPreview
+      ) : (
+        <PreviewGraphic kind={item.preview.kind} details={item.preview.details} />
+      )}
     </div>
   )
 }

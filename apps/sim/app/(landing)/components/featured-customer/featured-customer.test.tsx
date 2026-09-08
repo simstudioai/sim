@@ -85,10 +85,17 @@ describe('FeaturedCustomer', () => {
     expect(rivian.querySelector('video')?.getAttribute('src')).toBe(
       '/landing/customer-stories/rivian-r2-loop.mp4'
     )
-    expect(expRealty.querySelector('video')).toBeNull()
+    const expVideo = expRealty.querySelector('video') as HTMLVideoElement
+    expect(expVideo.getAttribute('src')).toBe('/landing/customer-stories/exp-house-loop.mp4')
+    expect(expVideo.getAttribute('preload')).toBe('none')
+    expect(expVideo.muted).toBe(true)
+    expect(vi.mocked(video.play).mock.contexts).not.toContain(expVideo)
     expect(
       [...expRealty.querySelectorAll('img')].map((image) => image.getAttribute('src'))
-    ).toEqual(['/landing/logos/exp-realty.svg'])
+    ).toEqual([
+      '/landing/customer-stories/exp-house-monochrome-poster.jpg',
+      '/landing/logos/exp-realty.svg',
+    ])
 
     const controls = nextButton.parentElement as HTMLElement
     expect(controls.className).toContain('justify-end')
@@ -122,6 +129,7 @@ describe('FeaturedCustomer', () => {
     expect(rivian.querySelector('article')?.getAttribute('aria-hidden')).toBe('true')
     expect(rivian.className).toContain('-translate-x-[calc(100%_+_1.5rem)]')
     expect(expRealty.getAttribute('aria-current')).toBe('true')
+    expect(vi.mocked(video.play).mock.contexts).toContain(expVideo)
     expect(expRealty.querySelector('article')?.getAttribute('aria-hidden')).toBe('false')
     expect(expRealty.className).toContain('translate-x-0')
     expect(expRealty.className).toContain('opacity-100')
@@ -140,10 +148,15 @@ describe('FeaturedCustomer', () => {
     expect(expRealty.querySelector('img[alt="eXp Realty"]')).not.toBeNull()
     expect(host.querySelector('video')).toBe(video)
     expect(video.currentTime).toBe(12)
-    expect(video.pause).toHaveBeenCalledOnce()
+    expect(
+      vi.mocked(video.pause).mock.contexts.filter((context) => context === video)
+    ).toHaveLength(1)
     expect(
       [...expRealty.querySelectorAll('img')].map((image) => image.getAttribute('src'))
-    ).toEqual(['/landing/logos/exp-realty.svg'])
+    ).toEqual([
+      '/landing/customer-stories/exp-house-monochrome-poster.jpg',
+      '/landing/logos/exp-realty.svg',
+    ])
     expect(
       [...host.querySelectorAll('[data-testid="customer-tooltip"]')].map((node) => node.textContent)
     ).toEqual(['View Rivian customer story'])
@@ -156,7 +169,9 @@ describe('FeaturedCustomer', () => {
     expect(expRealty.getAttribute('aria-current')).toBeNull()
     expect(rivian.querySelector('video')).toBe(video)
     expect(video.currentTime).toBe(12)
-    expect(video.play).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(video.play).mock.contexts.filter((context) => context === video)).toHaveLength(
+      2
+    )
 
     act(() => {
       root.unmount()
@@ -173,7 +188,9 @@ describe('FeaturedCustomer', () => {
     act(() => root.render(<FeaturedCustomer />))
     const video = host.querySelector('video') as HTMLVideoElement
     expect(video.play).not.toHaveBeenCalled()
-    expect(video.pause).toHaveBeenCalledOnce()
+    expect(
+      vi.mocked(video.pause).mock.contexts.filter((context) => context === video)
+    ).toHaveLength(1)
 
     motionPreference.reduced = false
     act(() => root.render(<FeaturedCustomer />))
@@ -181,7 +198,9 @@ describe('FeaturedCustomer', () => {
 
     motionPreference.reduced = true
     act(() => root.render(<FeaturedCustomer />))
-    expect(video.pause).toHaveBeenCalledTimes(2)
+    expect(
+      vi.mocked(video.pause).mock.contexts.filter((context) => context === video)
+    ).toHaveLength(2)
 
     act(() => root.unmount())
   })

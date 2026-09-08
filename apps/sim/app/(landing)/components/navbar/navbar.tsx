@@ -13,6 +13,7 @@ import {
   NavMenuCluster,
   SimWordmark,
 } from '@/app/(landing)/components/navbar/components'
+import { ModelsMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/models-menu-preview'
 import { DEMO_HREF } from '@/app/(landing)/constants'
 
 /**
@@ -60,7 +61,7 @@ export function Navbar({ stars }: NavbarProps) {
         </Link>
 
         <div className='absolute inset-x-0 hidden items-center justify-center gap-1 xl:flex'>
-          <NavMenuCluster menus={NAV_MENUS} />
+          <NavMenuCluster menus={NAV_MENUS} modelsPreview={<ModelsMenuPreview />} />
           <div className='relative z-10 flex items-center gap-1'>
             <ChipLink href='/pricing' itemProp='url' shape='round' className='px-3'>
               Pricing

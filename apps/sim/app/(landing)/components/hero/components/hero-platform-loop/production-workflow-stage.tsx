@@ -14,6 +14,7 @@ import { Circle, Minus, Plus, Square, Unlock } from '@sim/emcn/icons'
 import {
   CanvasSentenceView,
   InlineChip,
+  useCanvasColorMode,
   WorkflowBlockView,
   WorkflowEdgeView,
 } from '@sim/workflow-renderer'
@@ -482,6 +483,7 @@ function ProductionWorkflowCanvas({
   scripted,
   viewportInset,
 }: ProductionWorkflowStageProps) {
+  const colorMode = useCanvasColorMode()
   const { getNode, getViewport, setCenter, setViewport } = useReactFlow()
   const containerRef = useRef<HTMLDivElement>(null)
   const focusFrameRef = useRef(0)
@@ -738,6 +740,7 @@ function ProductionWorkflowCanvas({
       )}
     >
       <ReactFlow
+        colorMode={colorMode}
         onInit={handleInit}
         nodes={nodes}
         edges={flowEdges}

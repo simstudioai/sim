@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useState } from 'react'
+import type { ComponentType } from 'react'
 import {
   Button,
   cn,
@@ -21,6 +21,8 @@ import {
   Workflow,
 } from '@sim/emcn/icons'
 import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
+import type { LeadRecord } from '@/app/(landing)/tables/components/tables-records-preview/data'
+import { TablesRecordsTable } from '@/app/(landing)/tables/components/tables-records-preview/tables-records-table'
 import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -41,11 +43,11 @@ const HERO_RESOURCES: readonly HeroResourceDefinition[] = [
   { id: 'brief', title: 'lead-enrichment-brief.md', icon: FileText },
 ] as const
 
-const TABLE_ROWS = [
-  { id: 'northstar', lead: 'Maya Chen', company: 'Northstar', score: '94', status: 'Qualified' },
-  { id: 'arcadia', lead: 'Jon Bell', company: 'Arcadia', score: '88', status: 'Qualified' },
-  { id: 'hearth', lead: 'Priya Shah', company: 'Hearth', score: '79', status: 'Review' },
-  { id: 'lattice', lead: 'Noah Kim', company: 'Lattice', score: '72', status: 'Review' },
+const TABLE_ROWS: readonly LeadRecord[] = [
+  { id: 'northstar', contact: 'Maya Chen', company: 'Northstar', score: 94, status: 'Qualified' },
+  { id: 'arcadia', contact: 'Jon Bell', company: 'Arcadia', score: 88, status: 'Qualified' },
+  { id: 'hearth', contact: 'Priya Shah', company: 'Hearth', score: 79, status: 'Review' },
+  { id: 'lattice', contact: 'Noah Kim', company: 'Lattice', score: 72, status: 'Review' },
 ] as const
 
 interface HeroResourcePanelProps {
@@ -58,52 +60,6 @@ interface HeroResourcePanelProps {
   onCloseResource: (id: HeroResourceId) => void
   onOpenResource: (id: HeroResourceId) => void
   onRunWorkflow: () => void
-}
-
-function HeroTableResource() {
-  const [selectedId, setSelectedId] = useState<string | null>('northstar')
-
-  return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex h-10 shrink-0 items-center border-[var(--border)] border-b px-4'>
-        <span className='text-[var(--text-body)] text-sm'>Qualified leads</span>
-        <span className='ml-auto text-[var(--text-muted)] text-caption'>4 rows</span>
-      </div>
-      <div className='grid grid-cols-[1.25fr_1fr_72px_96px] border-[var(--border)] border-b bg-[var(--surface-1)] px-4 py-2 text-[var(--text-muted)] text-caption'>
-        <span>Lead</span>
-        <span>Company</span>
-        <span>Score</span>
-        <span>Status</span>
-      </div>
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        {TABLE_ROWS.map((row) => (
-          <button
-            key={row.id}
-            type='button'
-            aria-pressed={selectedId === row.id}
-            onClick={() => setSelectedId(row.id)}
-            className={cn(
-              'grid w-full grid-cols-[1.25fr_1fr_72px_96px] items-center border-[var(--border)] border-b px-4 py-3 text-left text-sm transition-colors hover-hover:bg-[var(--surface-hover)]',
-              selectedId === row.id && 'bg-[var(--surface-active)]'
-            )}
-          >
-            <span className='truncate text-[var(--text-body)]'>{row.lead}</span>
-            <span className='truncate text-[var(--text-secondary)]'>{row.company}</span>
-            <span className='text-[var(--text-body)] tabular-nums'>{row.score}</span>
-            <span className='flex items-center gap-1.5 text-[var(--text-secondary)]'>
-              <span
-                className={cn(
-                  'size-1.5 rounded-full',
-                  row.status === 'Qualified' ? 'bg-[var(--brand-accent)]' : 'bg-[var(--text-muted)]'
-                )}
-              />
-              {row.status}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function HeroFileResource() {
@@ -237,7 +193,7 @@ export function HeroResourcePanel({
         {activeId === 'workflow' ? (
           <HeroWorkflowStage key={workflowKey} builtCount={builtCount} interactive />
         ) : activeId === 'table' ? (
-          <HeroTableResource />
+          <TablesRecordsTable initialRows={TABLE_ROWS} />
         ) : activeId === 'brief' ? (
           <HeroFileResource />
         ) : (

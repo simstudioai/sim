@@ -35,7 +35,12 @@ const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
     id: 'exp-realty',
     company: 'eXp Realty',
     caption: 'Bring teams, shared knowledge, and AI agents into one workspace with Sim.',
-    media: { kind: 'brand' },
+    media: {
+      kind: 'video',
+      poster: '/landing/customer-stories/exp-house-monochrome-poster.jpg',
+      src: '/landing/customer-stories/exp-house-loop.mp4',
+      alt: 'An eXp Realty sign and the exterior of a modern home',
+    },
     logo: { src: '/landing/logos/exp-realty.svg', alt: 'eXp Realty', aspect: 1.84, height: 32 },
   },
 ]

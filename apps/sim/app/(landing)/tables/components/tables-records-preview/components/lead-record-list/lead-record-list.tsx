@@ -21,8 +21,13 @@ const COLUMNS = [
 export function LeadRecordList({ rows, selectedId, onSelect, showContact }: LeadRecordListProps) {
   const columns = showContact ? COLUMNS : COLUMNS.slice(0, 3)
   return (
-    <div className='h-[354px] overflow-auto'>
-      <table className='w-full min-w-[600px] table-fixed border-collapse text-left text-small'>
+    <div className='min-h-0 flex-1 overflow-auto'>
+      <table
+        className={cn(
+          'w-full table-fixed border-collapse text-left text-small',
+          showContact ? 'min-w-[618px]' : 'min-w-[434px]'
+        )}
+      >
         <colgroup>
           <col className='w-10' />
           <col className='w-[174px]' />

@@ -52,7 +52,7 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
 
     /**
      * The film streams only while the slide is on screen in a visible tab:
-     * `play()` defeats `preload='metadata'`, so calling it at mount would pull
+     * `play()` defeats `preload='none'`, so calling it at mount would pull
      * the whole file for a section well below the fold. Autoplay may still be
      * blocked, in which case the poster remains the fallback.
      */
@@ -82,8 +82,8 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
     <article
       aria-hidden={!active}
       className={cn(
-        'relative isolate size-full overflow-hidden',
-        isFilm ? 'bg-[var(--text-primary)]' : 'bg-[var(--surface-4)]',
+        'relative isolate size-full overflow-hidden [clip-path:border-box]',
+        isFilm ? 'bg-black' : 'bg-[var(--surface-4)]',
         LANDING_STAGE_RADIUS
       )}
     >
@@ -103,7 +103,7 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
             loop
             muted
             playsInline
-            preload='metadata'
+            preload='none'
             src={story.media.src}
             tabIndex={-1}
             className='pointer-events-none absolute inset-0 size-full object-cover motion-reduce:hidden'

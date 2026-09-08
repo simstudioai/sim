@@ -37,7 +37,13 @@ vi.mock('@/app/(landing)/components/navbar/components/navbar-shell', () => ({
 }))
 vi.mock(
   '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-card',
-  () => ({ NavMenuCard: () => null })
+  () => ({
+    NavMenuCard: ({ item, prefetch }: { item: NavMenuItemData; prefetch?: boolean | null }) => (
+      <a href={item.href} data-prefetch={prefetch === false ? 'disabled' : 'auto'}>
+        {item.title}
+      </a>
+    ),
+  })
 )
 vi.mock(
   '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-logo-marquee',
@@ -67,7 +73,7 @@ beforeEach(() => {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  act(() => root.render(<NavMenuCluster menus={NAV_MENUS} />))
+  act(() => root.render(<NavMenuCluster menus={NAV_MENUS} modelsPreview={<div>Models</div>} />))
 })
 
 afterEach(() => {
@@ -100,7 +106,7 @@ function expectSelected(href: string, kind: string) {
 describe('NavMenuCluster feature selection', () => {
   it('prefetches destinations only while their menu is open', () => {
     const overview = element('a[href="/platform"]')
-    const customers = element('#nav-customers-menu a[href="/customers"]')
+    const customers = element('#nav-customers-menu a[href="/customers/rivian"]')
     expect(overview.dataset.prefetch).toBe('disabled')
     expect(customers.dataset.prefetch).toBe('disabled')
 

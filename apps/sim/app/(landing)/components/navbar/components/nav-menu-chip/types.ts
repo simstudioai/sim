@@ -85,8 +85,6 @@ export interface NavMenuSection {
 export interface NavMenu {
   /** Trigger label and accessible name of the panel. */
   label: string
-  /** Index destination shown alongside a menu's featured links. */
-  index?: { label: string; href: string }
   /** Small label above the menu heading. */
   eyebrow: string
   /** Menu-level positioning statement. */
