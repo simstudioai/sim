@@ -188,6 +188,21 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oci_secrets.vaults': providerSelector(['region', 'compartmentId'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    sourceFields: { compartmentId: ['vaultCompartmentId'] },
+    listMode: 'paginated',
+  }),
+  'oci_secrets.secrets': providerSelector(['region', 'compartmentId', 'vaultId'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    sourceFields: { compartmentId: ['secretCompartmentId'] },
+    listMode: 'paginated',
+  }),
+  'oci_secrets.keys': providerSelector(['region', 'compartmentId', 'vaultId', 'protectionMode'], {
+    readiness: { all: ['oauthCredential', 'compartmentId', 'vaultId'] },
+    sourceFields: { compartmentId: ['keyCompartmentId'] },
+    listMode: 'paginated',
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },

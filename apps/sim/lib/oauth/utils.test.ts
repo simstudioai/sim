@@ -90,10 +90,10 @@ describe('getAllOAuthServices', () => {
 
   it.concurrent('should not include duplicate services', () => {
     const services = getAllOAuthServices()
-    const providerIds = services.map((s) => s.providerId)
-    const uniqueProviderIds = new Set(providerIds)
+    const serviceIds = services.map((service) => service.serviceId)
+    const uniqueServiceIds = new Set(serviceIds)
 
-    expect(providerIds.length).toBe(uniqueProviderIds.size)
+    expect(serviceIds.length).toBe(uniqueServiceIds.size)
   })
 
   it.concurrent('should return services that match the OAuthServiceMetadata interface', () => {
@@ -121,6 +121,14 @@ describe('getAllOAuthServices', () => {
       serviceId: 'gmail',
       authType: 'oauth',
     })
+    expect(getServiceConfigByServiceId('oci_secrets')).toMatchObject({
+      providerId: 'oci',
+      authType: 'service_account',
+      serviceAccountProviderId: 'oci-api-key-service-account',
+    })
+    expect(
+      services.filter((service) => service.providerId === 'oci').map((service) => service.serviceId)
+    ).toEqual(['oci', 'oci_secrets'])
     expect(getServiceConfigByServiceId('oci')).toMatchObject({
       authType: 'service_account',
       serviceAccountProviderId: 'oci-api-key-service-account',

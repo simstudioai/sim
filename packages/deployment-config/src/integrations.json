@@ -16180,6 +16180,121 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_secrets",
+      "slug": "oci-secrets",
+      "name": "OCI Secrets",
+      "description": "Manage OCI secrets, versions and rotation",
+      "longDescription": "Manage Oracle Cloud Infrastructure secrets with a stored OCI API signing-key service account. Read metadata or deliberately retrieve secret content, manage versions and stages, create and update secrets, configure generation and cross-region replication, schedule or cancel deletion, and monitor rotation work requests. Discover existing vaults and encryption keys without granting this block key-management or cryptographic mutation capabilities. Oracle IAM separately controls secret metadata, secret versions, secret bundles, vaults and keys. Manual OCID inputs avoid discovery permissions; configure the compartment inputs in basic mode to use the pickers. Pending deletion blocks content retrieval, and permanent deletion cannot be reversed. Rotation and creation may still be in progress after acceptance.",
+      "bgColor": "#C74634",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_secrets",
+      "operations": [
+        {
+          "name": "List Secrets",
+          "description": "List secret metadata in a compartment without retrieving secret contents."
+        },
+        {
+          "name": "Get Secret",
+          "description": "Get secret metadata, rules, rotation and replication configuration without retrieving content."
+        },
+        {
+          "name": "Create Secret",
+          "description": "Create a secret with supplied base64 content or automatic generation. Requires secret creation, vault use and encryption key permissions."
+        },
+        {
+          "name": "Update Secret",
+          "description": "Update secret configuration, create a content version or promote an existing version. Content, promotion and rule changes must be separate requests."
+        },
+        {
+          "name": "List Secret Versions",
+          "description": "List secret version metadata through the Secret Management API."
+        },
+        {
+          "name": "Get Secret Version",
+          "description": "Get metadata for a numbered secret version without retrieving its contents."
+        },
+        {
+          "name": "Schedule Secret Deletion",
+          "description": "Schedule secret deletion after the recovery period. A pending deletion prevents secret retrieval; cancel before permanent deletion to recover it."
+        },
+        {
+          "name": "Cancel Secret Deletion",
+          "description": "Cancel a scheduled secret deletion before permanent deletion."
+        },
+        {
+          "name": "Schedule Secret Version Deletion",
+          "description": "Schedule deletion of a deprecated secret version. Oracle enforces version eligibility and the recovery period."
+        },
+        {
+          "name": "Cancel Secret Version Deletion",
+          "description": "Cancel scheduled deletion of a secret version without promoting it."
+        },
+        {
+          "name": "Rotate Secret",
+          "description": "Start asynchronous rotation using the configured target system and return the work request ID for monitoring."
+        },
+        {
+          "name": "Cancel Secret Rotation",
+          "description": "Request cancellation of secret rotation."
+        },
+        {
+          "name": "Change Secret Compartment",
+          "description": "Move a secret to another compartment with permissions in the source and destination compartments."
+        },
+        {
+          "name": "Get Secret Bundle",
+          "description": "Retrieve secret content and version metadata by secret OCID using secret-bundle read permission."
+        },
+        {
+          "name": "Get Secret Bundle by Name",
+          "description": "Retrieve secret content by its name and vault OCID using secret-bundle read permission."
+        },
+        {
+          "name": "List Secret Bundle Versions",
+          "description": "List retrievable secret bundle version metadata through the Secret Retrieval API."
+        },
+        {
+          "name": "List Vaults",
+          "description": "Discover vaults in a compartment using vault inspect permission."
+        },
+        {
+          "name": "Get Vault",
+          "description": "Read vault metadata and service endpoints using vault read permission."
+        },
+        {
+          "name": "List Keys",
+          "description": "Discover keys through the selected vault management endpoint. Requires vault read and key inspect permissions."
+        },
+        {
+          "name": "Get Key",
+          "description": "Read key metadata through its vault management endpoint. Requires vault read and key read permissions."
+        },
+        {
+          "name": "List Work Requests",
+          "description": "List work requests associated with a secret. Work requests are retained by Oracle for 12 hours."
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Read the status and progress of a secret work request."
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List diagnostic errors for a secret work request."
+        },
+        {
+          "name": "List Work Request Logs",
+          "description": "List activity log entries for a secret work request."
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["cloud", "secrets-management"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
