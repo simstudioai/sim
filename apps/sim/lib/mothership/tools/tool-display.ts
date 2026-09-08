@@ -816,6 +816,12 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
+    case 'cli_workflows_operations_apply':
+    case 'cli_workflows_state_replace':
+      if (stringArrayArg(args, 'args').includes('--dry-run')) {
+        return 'Validating workflow changes'
+      }
+      return CLI_TOOL_TITLES[name] ?? humanizeToolName(name)
     case 'deploy_as_api':
       return deploymentTitle(args, 'API')
     case 'deploy_as_chat':

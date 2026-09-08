@@ -71,6 +71,27 @@ describe('humanizeToolName', () => {
 })
 
 describe('getToolDisplayTitle natural-language coverage', () => {
+  it.each(['cli_workflows_operations_apply', 'cli_workflows_state_replace'])(
+    'distinguishes validation from mutation for %s',
+    (name) => {
+      const command =
+        name === 'cli_workflows_operations_apply' ? ['operations', 'apply'] : ['state', 'replace']
+      const args = ['--output', 'json', 'workflows', ...command, 'workflow-id']
+      const title = getToolDisplayTitle(name, { args: [...args, '--dry-run'] })
+      expect(title).toBe('Validating workflow changes')
+      expect(getToolStatusDisplayTitle(title, 'success', name)).toBe('Validated workflow changes')
+      expect(getToolStatusDisplayTitle(title, 'error', name)).toBe(
+        'Failed validating workflow changes'
+      )
+      expect(getToolDisplayTitle(name, { args })).toBe(
+        name === 'cli_workflows_operations_apply' ? 'Editing workflow' : 'Rewriting workflow'
+      )
+      expect(
+        getToolDisplayTitle(name, { args: [...args, '--operations', '["--dry-run"]'] })
+      ).not.toBe('Validating workflow changes')
+    }
+  )
+
   it('gives gerund titles to tools that previously fell through to humanize', () => {
     expect(getToolDisplayTitle('deploy_as_api')).toBe('Deploying as API')
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')
