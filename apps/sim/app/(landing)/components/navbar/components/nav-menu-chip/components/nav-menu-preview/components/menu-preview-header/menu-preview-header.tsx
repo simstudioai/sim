@@ -12,7 +12,7 @@ interface MenuPreviewToolbarProps {
   children: ReactNode
 }
 
-/** Tables sets the shared title sizing and the visible crop's content width. */
+/** Preview frames can constrain header actions to their visible crop. */
 export function MenuPreviewHeader({
   icon: Icon,
   title,
@@ -27,7 +27,7 @@ export function MenuPreviewHeader({
         size === 'table' ? 'box-content h-10' : 'h-11'
       )}
     >
-      <div className='flex size-full max-w-[576px] items-center gap-2 px-4'>
+      <div className='flex size-full max-w-[var(--preview-content-width,100%)] items-center gap-2 px-4'>
         {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
         <div className='flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap text-[var(--text-primary)] text-base'>
           {title}
@@ -46,7 +46,7 @@ export function MenuPreviewHeader({
 export function MenuPreviewToolbar({ children }: MenuPreviewToolbarProps) {
   return (
     <div data-menu-preview-toolbar className='h-[38px] border-[var(--border)] border-b'>
-      <div className='flex size-full max-w-[576px] items-center gap-1 px-2 text-small'>
+      <div className='flex size-full max-w-[var(--preview-content-width,100%)] items-center gap-1 px-2 text-small'>
         {children}
       </div>
     </div>

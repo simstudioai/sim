@@ -30,10 +30,6 @@ export function ProductCodeExample({ example }: ProductCodeExampleProps) {
           <p className='mt-5 max-w-[42ch] text-[var(--text-body)] text-lg leading-relaxed max-sm:text-md'>
             {example.description}
           </p>
-          <p className='mt-4 max-w-[48ch] text-[var(--text-secondary)] text-sm leading-6'>
-            Sign in with <code>sim login</code> and select your workspace. Replace the ID variables
-            with IDs from your workspace.
-          </p>
           <div className='mt-7'>
             <LandingCtaLink href='https://docs.sim.ai/cli' variant='outline' withArrow>
               Explore the CLI

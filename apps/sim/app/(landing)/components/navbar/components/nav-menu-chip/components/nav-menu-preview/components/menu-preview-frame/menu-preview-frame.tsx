@@ -27,7 +27,7 @@ export function MenuPreviewFrame({
       data-menu-preview={kind}
       className={cn(
         'pointer-events-none absolute inset-0 isolate select-none overflow-hidden [container-type:inline-size]',
-        isHero ? 'bg-[var(--bg)]' : 'bg-[var(--surface-3)]'
+        isHero ? 'bg-[var(--bg)]' : 'bg-[var(--surface-3)] [--preview-content-width:576px]'
       )}
     >
       <div
