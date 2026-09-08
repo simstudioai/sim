@@ -37,11 +37,11 @@ describe('resolveAppEntryPath', () => {
     expect(mockSearchAvailable).toHaveBeenCalledWith({ organizationId: 'org-2' })
   })
 
-  it('lands on organization workspaces when Search is disabled', async () => {
+  it('opens full workspace settings when Search is disabled', async () => {
     mockResolveOrganizationLanding.mockResolvedValue('org-2')
     mockSearchAvailable.mockResolvedValue(false)
     await expect(resolveAppEntryPath({ user: { id: 'viewer' } })).resolves.toBe(
-      '/o/org-2/settings/general'
+      '/workspace?redirect=settings'
     )
   })
 

@@ -1,10 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { Checkbox, Chip, ChipInput, toast } from '@sim/emcn'
+import { Chip, toast } from '@sim/emcn'
+import { Workspaces } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
-import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { CredentialGroupAddResourceModal } from '@/ee/credential-groups/components/credential-group-add-resource-modal'
 import {
   useOrganizationAccountWorkspaceAccess,
   useUpdateOrganizationAccountWorkspaceAccess,
@@ -13,6 +26,7 @@ import {
 interface OrganizationAccountWorkspaceAccessProps {
   organizationId: string
 }
+
 export function OrganizationAccountWorkspaceAccess({
   organizationId,
 }: OrganizationAccountWorkspaceAccessProps) {
@@ -26,89 +40,128 @@ export function OrganizationAccountWorkspaceAccess({
         onRetry={() => void access.refetch()}
       />
     )
-  if (!access.data)
-    return <p className='text-[var(--text-muted)] text-caption'>Loading workspace access…</p>
+  if (!access.data) return null
   return (
     <WorkspaceAccessForm
-      key={access.data.revision}
+      key={organizationId}
       organizationId={organizationId}
       access={access.data}
     />
   )
 }
+
 interface WorkspaceAccessFormProps extends OrganizationAccountWorkspaceAccessProps {
   access: WorkspaceAccess
 }
+
 function WorkspaceAccessForm({ organizationId, access }: WorkspaceAccessFormProps) {
-  const [selected, setSelected] = useState(() => {
-    const available = new Set(access.workspaces.map((workspace) => workspace.id))
-    return new Set(access.workspaceIds.filter((id) => available.has(id)))
-  })
-  const [search, setSearch] = useState('')
   const update = useUpdateOrganizationAccountWorkspaceAccess()
-  const changed =
-    selected.size !== access.workspaceIds.length ||
-    access.workspaceIds.some((id) => !selected.has(id))
-  const workspaces = access.workspaces.filter((workspace) =>
-    workspace.name.toLowerCase().includes(search.trim().toLowerCase())
-  )
+  const [showAddWorkspace, setShowAddWorkspace] = useState(false)
+
+  const selectedIds = access.workspaceIds
+  const selected = new Set(selectedIds)
+  const workspacesById = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
+  if (selected.size !== selectedIds.length)
+    throw new Error('Workspace access contains duplicate workspaces')
+  for (const id of selectedIds) {
+    if (!workspacesById.has(id))
+      throw new Error(`Workspace access references unavailable workspace ${id}`)
+  }
+  const allowedWorkspaces = access.workspaces.filter((workspace) => selected.has(workspace.id))
+  const availableWorkspaces = access.workspaces.filter((workspace) => !selected.has(workspace.id))
+
+  const updateAccess = async (workspaceIds: string[]) => {
+    try {
+      await update.mutateAsync({
+        organizationId,
+        revision: access.revision,
+        workspaceIds,
+      })
+      setShowAddWorkspace(false)
+      toast.success('Workspace access updated')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not update workspace access'))
+    }
+  }
+
   return (
-    <div className='flex flex-col gap-4'>
-      <p className='text-[var(--text-muted)] text-small'>
-        Every authorized manual and deployed workflow in an allowed workspace can use every active
-        account in this organization. Chat continues to use each person’s own connections.
-      </p>
-      <ChipInput
-        placeholder='Search workspaces'
-        aria-label='Search workspaces'
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-      <div className='flex flex-col gap-1'>
-        {workspaces.map((workspace) => (
-          <SettingsResourceRow
-            key={workspace.id}
-            title={workspace.name}
-            trailing={
-              <Checkbox
-                aria-label={`Allow ${workspace.name}`}
-                checked={selected.has(workspace.id)}
+    <SettingsPanel>
+      <SettingsSection
+        label='Workspace access'
+        action={
+          <Chip
+            onClick={() => {
+              update.reset()
+              setShowAddWorkspace(true)
+            }}
+            disabled={
+              update.isPending ||
+              availableWorkspaces.length === 0 ||
+              selectedIds.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
+            }
+          >
+            Add workspaces
+          </Chip>
+        }
+      >
+        {update.error && (
+          <p role='alert' className='mb-3 px-0.5 text-[var(--text-error)] text-caption'>
+            {update.error.message}
+          </p>
+        )}
+        {allowedWorkspaces.length === 0 ? (
+          <SettingsEmptyState variant='inline'>No workspaces have access</SettingsEmptyState>
+        ) : (
+          <div className={RESOURCE_LIST_STACK}>
+            {allowedWorkspaces.map((workspace) => (
+              <SettingsResourceRow
+                key={workspace.id}
+                icon={<Workspaces className='text-[var(--text-icon)]' aria-hidden />}
+                iconFilled
+                title={workspace.name}
+                description='Authorized workflows can use every connected account in this organization'
                 disabled={update.isPending}
-                onCheckedChange={(checked) =>
-                  setSelected((current) => {
-                    const next = new Set(current)
-                    if (checked === true) next.add(workspace.id)
-                    else next.delete(workspace.id)
-                    return next
-                  })
+                trailing={
+                  update.isPending ? undefined : (
+                    <RowActionsMenu
+                      label={`${workspace.name} actions`}
+                      actions={[
+                        {
+                          label: 'Remove',
+                          destructive: true,
+                          onSelect: () =>
+                            void updateAccess(selectedIds.filter((id) => id !== workspace.id)),
+                        },
+                      ]}
+                    />
+                  )
                 }
               />
+            ))}
+          </div>
+        )}
+      </SettingsSection>
+      {showAddWorkspace && (
+        <CredentialGroupAddResourceModal
+          resourceType='workspace'
+          resources={availableWorkspaces}
+          disabled={update.isPending}
+          error={update.error?.message}
+          onAdd={(ids) => {
+            for (const id of ids) {
+              if (!workspacesById.has(id)) throw new Error(`Workspace ${id} is unavailable`)
+              if (selected.has(id)) throw new Error(`Workspace ${id} already has access`)
             }
-          />
-        ))}
-      </div>
-      {workspaces.length === 0 && (
-        <p className='text-[var(--text-muted)] text-caption'>No matching workspaces.</p>
+            if (selectedIds.length + ids.length > ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT) {
+              throw new Error(
+                `Workspace access cannot exceed ${ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT} workspaces`
+              )
+            }
+            void updateAccess([...selectedIds, ...ids])
+          }}
+          onClose={() => setShowAddWorkspace(false)}
+        />
       )}
-      {update.error && (
-        <p role='alert' className='text-[var(--text-error)] text-caption'>
-          {update.error.message}
-        </p>
-      )}
-      <div>
-        <Chip
-          variant='primary'
-          disabled={!changed || update.isPending}
-          onClick={() =>
-            update.mutate(
-              { organizationId, revision: access.revision, workspaceIds: [...selected] },
-              { onSuccess: () => toast.success('Workspace access updated') }
-            )
-          }
-        >
-          Save access
-        </Chip>
-      </div>
-    </div>
+    </SettingsPanel>
   )
 }

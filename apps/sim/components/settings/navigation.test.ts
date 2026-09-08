@@ -62,7 +62,6 @@ const SELF_HOSTED_WORKSPACE_SECTIONS = WORKSPACE_SETTINGS_ITEMS.map(({ id }) => 
 )
 
 const ALL_ENTITLEMENTS = {
-  credentialGroups: true,
   customBlocks: true,
   forks: true,
   inbox: true,
@@ -106,7 +105,6 @@ describe('settings navigation boundaries', () => {
       'organization',
       'usage',
       'secrets',
-      'credential-groups',
       'custom-tools',
       'mcp',
       'apikeys',
@@ -139,7 +137,6 @@ describe('settings navigation boundaries', () => {
       'secrets',
       'byok',
       'sandboxes',
-      'credential-groups',
       'custom-tools',
       'mcp',
       'workflow-mcp-servers',
@@ -337,7 +334,6 @@ describe('settings navigation boundaries', () => {
       secrets: 'secrets',
       byok: 'byok',
       sandboxes: 'sandboxes',
-      'credential-groups': 'credential-groups',
       'custom-tools': 'custom-tools',
       mcp: 'mcp',
       'workflow-mcp-servers': 'workflow-mcp-servers',
@@ -497,7 +493,6 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'sandboxes',
-        'credential-groups',
         'custom-tools',
         'mcp',
         'workflow-mcp-servers',
@@ -515,7 +510,6 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'sandboxes',
-        'credential-groups',
         'custom-tools',
         'mcp',
         'workflow-mcp-servers',
@@ -564,7 +558,6 @@ describe('settings navigation boundaries', () => {
 
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
-      'credential-groups',
       'workflow-mcp-servers',
       'recently-deleted',
       'forks',

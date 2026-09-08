@@ -23,8 +23,11 @@ export async function authorizeOrganizationSettingsSection({
 }: AuthorizeOrganizationSettingsSectionInput): Promise<boolean> {
   if (!(await canOpenOrganizationSettingsSection(organizationId, userId, section))) return false
 
-  if (section === 'connected-accounts')
-    return isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId })
+  if (section === 'connected-accounts') {
+    if (!(await isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId })))
+      return false
+    return !(await isKnowledgeMemberAccessAvailable({ organizationId }))
+  }
   if (section === 'search-mcp' || section === 'integrations')
     return isKnowledgeMemberAccessAvailable({ organizationId })
 

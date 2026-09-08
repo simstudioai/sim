@@ -5,15 +5,8 @@ import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import { McpIcon } from '@/components/icons'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import type {
-  CredentialGroupEnrollment,
-  CredentialGroupEnrollmentConnection,
-  CredentialGroupEnrollmentMcpConnection,
-} from '@/lib/api/contracts/credential-groups'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
-import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
+import type { CredentialGroupEnrollment } from '@/lib/api/contracts/credential-groups'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
@@ -41,6 +34,7 @@ import {
   useCredentialGroupAccessEditor,
 } from '@/ee/credential-groups/components/credential-group-access'
 import { CredentialGroupDetails } from '@/ee/credential-groups/components/credential-group-details'
+import { EnrollmentConnections } from '@/ee/credential-groups/components/credential-group-enrollment-connections'
 import { CredentialGroupInviteModal } from '@/ee/credential-groups/components/credential-group-invite-modal'
 import {
   useCredentialGroupDetail,
@@ -63,49 +57,6 @@ const CREDENTIAL_GROUP_TABS = [
   { value: 'people', label: 'People' },
   { value: 'access', label: 'Workflow access' },
 ] as const
-
-interface EnrollmentConnectionsProps {
-  connections: CredentialGroupEnrollmentConnection[]
-  mcpConnections: CredentialGroupEnrollmentMcpConnection[]
-}
-
-interface CredentialProviderIconProps {
-  provider: CredentialGroupEnrollmentConnection['provider']
-}
-
-function CredentialProviderIcon({ provider }: CredentialProviderIconProps) {
-  if (provider === 'gitlab') {
-    const display = resolveCredentialDisplay({
-      type: 'personal_token',
-      providerId: provider,
-      displayName: provider,
-    })
-    const Icon = display.icon
-    return Icon ? <Icon className='size-[14px]' aria-label={display.detailTitle} /> : null
-  }
-  const ProviderIcon = getCredentialGroupProviderService(provider).icon
-  return <ProviderIcon className='size-[14px]' aria-hidden />
-}
-
-function EnrollmentConnections({ connections, mcpConnections }: EnrollmentConnectionsProps) {
-  const connected = connections.filter((connection) => connection.status === 'active')
-  const connectedMcp = mcpConnections.filter((connection) => connection.status === 'active')
-  const count =
-    connected.reduce((total, connection) => total + connection.count, 0) + connectedMcp.length
-  const providers = [...new Set(connected.map((connection) => connection.provider))]
-
-  return (
-    <span className='flex items-center gap-1.5'>
-      {providers.map((provider) => {
-        return <CredentialProviderIcon key={provider} provider={provider} />
-      })}
-      {connectedMcp.length > 0 ? <McpIcon className='size-[14px]' aria-hidden /> : null}
-      <span>
-        {count} {count === 1 ? 'account' : 'accounts'} connected
-      </span>
-    </span>
-  )
-}
 
 export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupDetailProps) {
   const detail = useCredentialGroupDetail(workspaceId, groupId)

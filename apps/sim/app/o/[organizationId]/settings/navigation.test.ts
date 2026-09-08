@@ -31,9 +31,9 @@ describe('organization settings navigation', () => {
     ).toEqual(['members', 'search-mcp'])
   })
 
-  it('offers every org settings section to an entitled organization administrator', () => {
+  it('uses Integrations instead of Connected accounts when Search is available', () => {
     expect(organizationSettingsNavigation(true, enterprise, available)).toEqual(
-      ORGANIZATION_SETTINGS_ITEMS
+      ORGANIZATION_SETTINGS_ITEMS.filter(({ id }) => id !== 'connected-accounts')
     )
   })
 
@@ -137,6 +137,14 @@ describe('organization settings navigation', () => {
     }).map(({ id }) => id)
     expect(sections).toContain('connected-accounts')
     expect(sections).not.toContain('search-mcp')
+    expect(sections).not.toContain('integrations')
+  })
+  it('keeps both setup pages hidden from non-admins when Search is disabled', () => {
+    const sections = organizationSettingsNavigation(false, enterprise, {
+      connectedAccounts: true,
+      search: false,
+    }).map(({ id }) => id)
+    expect(sections).not.toContain('connected-accounts')
     expect(sections).not.toContain('integrations')
   })
 })

@@ -47,9 +47,9 @@ describe('organization Search page gates', () => {
     ['Search', () => OrganizationSearchPage({ params })],
     ['chat', () => OrganizationChatPage({ params })],
     ['organization entry', () => OrganizationPage({ params })],
-  ] as const)('redirects %s to General settings when Search is disabled', async (_name, open) => {
+  ] as const)('redirects %s to workspace settings when Search is disabled', async (_name, open) => {
     mocks.context.mockResolvedValue({ searchAccess: { memberScoped: false, sourceMirrored: true } })
-    await expect(open()).rejects.toThrow('redirect:/o/org-1/settings/general')
+    await expect(open()).rejects.toThrow('redirect:/workspace?redirect=settings')
     expect(mocks.context).toHaveBeenCalledWith('org-1', 'viewer')
     expect(mocks.chat).not.toHaveBeenCalled()
   })

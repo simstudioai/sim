@@ -1,19 +1,13 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
 import { toast } from '@sim/emcn'
-import { useQueryState } from 'nuqs'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
 import type {
   OrganizationAccountsSettings,
   OrganizationDatabricksSetup,
 } from '@/lib/api/contracts/organization-accounts'
-import {
-  managedSourceParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 
 const mocks = vi.hoisted(() => ({
   add: vi.fn(),
@@ -23,11 +17,8 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   reset: vi.fn(),
-  indexing: vi.fn(),
-  sources: [] as SearchSourceSummary[],
+  slack: vi.fn<(props: unknown) => null>(() => null),
   addError: null as Error | null,
-  sourcesError: null as Error | null,
-  sourceSetup: vi.fn(),
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   useUpdateOrganizationAccounts: () => ({
@@ -51,40 +42,7 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationDatabricksSetup: mocks.setup,
 }))
 vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
-  SlackManagedUsersModal: () => null,
-}))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useSearchSources: () => ({
-    data: mocks.sources,
-    isPending: false,
-    error: mocks.sourcesError,
-    isError: Boolean(mocks.sourcesError),
-  }),
-}))
-vi.mock('@/hooks/queries/organization-account-indexing', () => ({
-  useUpdateOrganizationAccountIndexing: () => ({ mutate: mocks.indexing, isPending: false }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
-  SearchSourceSetup: function SourceSetup(props: unknown) {
-    mocks.sourceSetup(props)
-    const [type, setType] = useQueryState(searchSetupParam.key, searchSetupParam.parser)
-    const [source, setSource] = useQueryState(managedSourceParam.key, managedSourceParam.parser)
-    if (type === null && source === null) return null
-    return (
-      <div role='dialog' aria-label='Source setup'>
-        {type ?? source}
-        <button
-          type='button'
-          onClick={() => {
-            void setType(null)
-            void setSource(null)
-          }}
-        >
-          Close source setup
-        </button>
-      </div>
-    )
-  },
+  SlackManagedUsersModal: mocks.slack,
 }))
 
 import { OrganizationAccountProviders } from '@/ee/credential-groups/components/organization-account-providers'
@@ -125,22 +83,6 @@ const gmail: NonNullable<OrganizationAccountsSettings['credentialGroup']>['optio
   status: 'active',
   configurationStatus: 'ready',
 }
-const source: SearchSourceSummary = {
-  knowledgeBaseId: 'kb-1',
-  connectorId: 'source-1',
-  connectorType: 'gmail',
-  sourceDescription: 'Inbox',
-  accessMode: 'members',
-  availability: 'available',
-  enabled: true,
-  isSyncing: false,
-  lastSyncAt: null,
-  hasSyncError: false,
-  viewerDocumentCount: 0,
-  viewerEmailVerified: true,
-  connectionRequired: true,
-  viewerMembership: 'connected',
-}
 
 describe('organization provider configuration UI', () => {
   let root: Root
@@ -156,9 +98,7 @@ describe('organization provider configuration UI', () => {
     mocks.addAsync.mockResolvedValue({ mcpServer: { ...provider, enabled: true } })
     mocks.add.mockImplementation((_input, { onSuccess }) => onSuccess())
     mocks.update.mockImplementation((_input, { onSuccess }) => onSuccess())
-    mocks.sources = []
     mocks.addError = null
-    mocks.sourcesError = null
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -183,7 +123,6 @@ describe('organization provider configuration UI', () => {
             organizationId='org-1'
             group={{ ...group, mcpServers, options }}
             availableProviders={['gmail', 'google-drive']}
-            indexingAvailable
           />
         </NuqsTestingAdapter>
       )
@@ -212,7 +151,8 @@ describe('organization provider configuration UI', () => {
   it('shows only added providers and searches the remaining catalog', async () => {
     await render([], [gmail])
     expect(container.textContent).toContain('Gmail')
-    expect(container.textContent).toContain('Indexing off')
+    expect(container.textContent).not.toContain('Indexing')
+    expect(container.textContent).not.toContain('Configure')
     expect(container.textContent).not.toMatch(/Ready|Setup required/)
     expect(container.textContent).not.toContain('Fireflies')
     expect(container.querySelector('[role="radio"]')).toBeNull()
@@ -247,7 +187,7 @@ describe('organization provider configuration UI', () => {
     expect(container.textContent).not.toMatch(/Ready|Setup required/)
   })
 
-  it('opens the same indexing configuration after adding Gmail and when editing later', async () => {
+  it('adds Gmail directly without opening indexing configuration', async () => {
     await render([])
     await clickButton('Add provider')
     await clickButton('Add Gmail')
@@ -260,51 +200,32 @@ describe('organization provider configuration UI', () => {
       expect.any(Object)
     )
     await render([], [gmail])
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Configure Gmail')
-    expect(document.querySelector('[aria-checked="true"]')?.textContent).toBe('Off')
-    expect(mocks.indexing).not.toHaveBeenCalled()
-    await clickButton('Done')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
-    await clickButton('Configure')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Configure Gmail')
+    expect(container.textContent).not.toContain('Configure')
+    expect(container.textContent).not.toContain('Indexing')
   })
 
-  it('opens member source setup from indexing and returns to provider configuration on cancel', async () => {
-    await render([], [gmail])
-    await clickButton('Configure')
-    await clickButton('On')
-    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('gmail')
-    expect(mocks.sourceSetup).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        scope: { kind: 'organization', organizationId: 'org-1' },
-        membersOnly: true,
-      })
+  it('opens Slack app configuration directly with the existing scopes', async () => {
+    await render(
+      [],
+      [
+        {
+          ...gmail,
+          id: 'slack-option',
+          provider: 'slack',
+          label: 'Slack',
+          requiredScopes: ['search:read'],
+        },
+      ]
     )
-    expect(mocks.indexing).not.toHaveBeenCalled()
-    await clickButton('Close source setup')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Configure Gmail')
-    expect(document.querySelector('[aria-checked="true"]')?.textContent).toBe('Off')
-  })
-
-  it('edits only the selected member source and keeps unrelated sources out of provider settings', async () => {
-    mocks.sources = [
-      source,
-      {
-        ...source,
-        connectorId: 'admin-source',
-        accessMode: 'admin',
-        sourceDescription: 'Central mail',
-      },
-    ]
-    await render([], [gmail])
-    expect(container.textContent).toContain('Indexing on')
+    expect(mocks.slack).not.toHaveBeenCalled()
     await clickButton('Configure')
-    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain('Central mail')
-    await clickButton('Source settings')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('source-1')
-    await clickButton('Close source setup')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Configure Gmail')
+    expect(mocks.slack.mock.lastCall?.[0]).toMatchObject({
+      open: true,
+      organizationId: 'org-1',
+      credentialGroupId: 'group-1',
+      initialRequiredScopes: ['search:read'],
+    })
   })
 
   it('surfaces an add failure in the catalog and does not open configuration', async () => {
@@ -318,19 +239,6 @@ describe('organization provider configuration UI', () => {
       'Could not add Fireflies'
     )
     expect(mocks.setup).not.toHaveBeenCalled()
-  })
-
-  it('shows indexing load failures without allowing a toggle against unknown source state', async () => {
-    mocks.sourcesError = new Error('Could not load indexing settings')
-    await render([], [gmail])
-    expect(container.textContent).toContain('Indexing status unavailable')
-    await clickButton('Configure')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-      'Could not load indexing settings'
-    )
-    await clickButton('On')
-    expect(mocks.indexing).not.toHaveBeenCalled()
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Configure Gmail')
   })
 
   it('removes a provider through the row menu using organization scope', async () => {

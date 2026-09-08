@@ -15,9 +15,11 @@ Connected accounts must be enabled for your organization. Sim Cloud also require
 
 For self-hosted deployments using environment-based feature flags, set `CREDENTIAL_GROUPS=true`. Availability is organization-scoped; personal workspaces cannot use an organization pool.
 
+The setup instructions below describe **Settings → Connected accounts**, shown when Knowledge Member Access is disabled. When `KNOWLEDGE_MEMBER_ACCESS=true` and connected accounts is available, organization settings shows the Search **Integrations** page instead. Only the selected page is available, including through direct links. Switching pages does not remove existing connections or workspace access.
+
 ## Set up connected accounts
 
-Open **Settings → Organization → Connected accounts**. You can also open **Connected accounts** from organization settings. Select **Set up connected accounts** if this is your first time.
+Open your organization’s **Settings → Connected accounts**. Select **Set up connected accounts** if this is your first time.
 
 The page has three tabs:
 
@@ -42,11 +44,13 @@ For Databricks, **Add** validates and saves the configuration before the provide
 
 When editing Databricks, leaving the client secret blank preserves the saved secret. Changing the MCP URL or OAuth client requires people to reconnect.
 
-Adding a provider makes account connections available. Indexable providers also show **Indexing on/off**, with the switch inside **Configure**. Indexing is a separate, optional Search capability; workflows can use connected accounts with indexing off. Managed MCP providers currently support live tool calls only and have no indexing switch.
+Adding a provider makes account connections available without enabling indexing. Search source setup is managed on **Settings → Integrations** when Search is enabled. Connected accounts has no indexing controls or status indicators. Managed MCP providers currently support live tool calls only.
 
 ### 2. Invite people
 
-1. Open **People** and select **Invite people**.
+For Search-enabled organizations, open **Settings → Integrations → People**. Otherwise, use **Settings → Connected accounts → People**. Set up a provider for personal account connections before inviting people; approving a Search integration alone is not enough.
+
+1. Select **Request connections**.
 2. Enter their email addresses and select **Send requests**.
 3. Each person opens the invitation, signs in to Sim with the verified invitation email, and authorizes the providers they want to connect.
 4. They select **Submit** to finish the connection form.
@@ -61,11 +65,11 @@ On first use, the invitation email must match the signed-in user's verified Sim 
 
 OAuth account providers also verify that the provider email matches the invitation email. Managed MCP connections are associated with the verified Sim user who completes authorization; they do not independently verify the MCP provider's account email. Keep using the invitation email when looking up those connections.
 
-In **People**, use **Resend** or **Copy new link** when someone needs another invitation link. **Revoke** stops the organization from using that person's contributions. The person cannot undo an administrator's revocation by reconnecting on their own.
+In **People**, open a person's actions menu and select **Resend** when they need another invitation. **Revoke** stops the organization from using that person's contributions. The person cannot undo an administrator's revocation by reconnecting on their own.
 
 ### 3. Allow workspaces
 
-Open **Workspace access**, select the workspaces that should use the pool, and select **Save access**. Only workspaces in this organization can be allowed.
+Open **Workspace access** and select **Add workspaces** to choose one or more workspaces. The list shows workspaces that have access; use a row's **Remove** action to withdraw it. Adding or removing a workspace applies immediately. Only workspaces in this organization can be allowed.
 
 <Callout>
 An allowed workspace gives every authorized manual and deployed workflow in that workspace access to **every active account in the pool**. This includes scheduled, webhook, and public deployments that pass their normal workflow authorization. There is no separate workflow allowlist or restriction to the running user's own contributions.

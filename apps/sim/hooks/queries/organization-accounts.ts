@@ -7,7 +7,6 @@ import {
   addOrganizationAccountMcpProviderContract,
   type ConfigureOrganizationMcpBody,
   configureOrganizationMcpContract,
-  createOrganizationAccountInvitationLinkContract,
   disconnectPersonalOrganizationAccountContract,
   type EnsureOrganizationAccountsBody,
   ensureOrganizationAccountsContract,
@@ -255,18 +254,6 @@ export function useRevokeOrganizationAccountEnrollment() {
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
       ]),
-  })
-}
-export function useCreateOrganizationAccountInvitationLink() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ organizationId, email }: { organizationId: string; email: string }) =>
-      requestJson(createOrganizationAccountInvitationLinkContract, {
-        params: { id: organizationId },
-        body: { email },
-      }),
-    onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
   })
 }
 export function useAddOrganizationAccountMcpProvider() {

@@ -186,21 +186,6 @@ export const revokeOrganizationAccountEnrollmentContract = defineRouteContract({
     schema: z.object({ credentialGroupEnrollment: credentialGroupEnrollmentSchema }),
   },
 })
-export const createOrganizationAccountInvitationLinkContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/organizations/[id]/connected-accounts/invitation-link',
-  params: organizationAccountsParamsSchema,
-  body: z
-    .object({ email: z.string().trim().max(320).email('A valid invitation email is required') })
-    .strict(),
-  response: {
-    mode: 'json',
-    schema: z.object({
-      enrollment: credentialGroupEnrollmentSchema,
-      invitationLink: z.string().url(),
-    }),
-  },
-})
 export const addOrganizationAccountMcpProviderContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/mcp-providers',

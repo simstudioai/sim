@@ -67,7 +67,6 @@ export type OrganizationSettingsSection =
 export type WorkspaceSettingsSection =
   | 'teammates'
   | 'secrets'
-  | 'credential-groups'
   | 'byok'
   | 'sandboxes'
   | 'custom-tools'
@@ -101,7 +100,6 @@ export type UnifiedSettingsSection =
   | 'browser'
   | 'terminal'
   | 'secrets'
-  | 'credential-groups'
   | 'access-control'
   | 'custom-blocks'
   | 'audit-logs'
@@ -532,17 +530,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   {
     label: 'Connected accounts',
     icon: GridOffset,
-    unified: {
-      id: 'credential-groups',
-      description: 'Manage organization connected accounts and workspace access.',
-      group: 'organization',
-      order: 2,
-      requiresEnterprise: true,
-      allowNonOrgAdmin: true,
-      selfHostedOverride: 'always',
-    },
     planes: {
-      workspace: { id: 'credential-groups', group: 'workspace', order: 4 },
       account: {
         id: 'connected-accounts',
         group: 'account',
@@ -1093,7 +1081,6 @@ export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsS
 }
 
 export interface WorkspaceSettingsEntitlements {
-  credentialGroups: boolean
   customBlocks: boolean
   forks: boolean
   inbox: boolean
@@ -1162,7 +1149,6 @@ export interface ResolvedWorkspaceNavigationItem
 const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, PermissionType> = {
   teammates: 'admin',
   secrets: 'write',
-  'credential-groups': 'admin',
   byok: 'admin',
   sandboxes: 'admin',
   'custom-tools': 'write',
@@ -1201,9 +1187,6 @@ export function resolveWorkspaceNavigation({
     const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
     if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
-    if (item.id === 'credential-groups' && !entitlements.credentialGroups) {
-      return []
-    }
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
 
     const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]

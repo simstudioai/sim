@@ -76,7 +76,6 @@ export function OrganizationConnectedAccounts({
           organizationId={organizationId}
           group={group}
           availableProviders={accounts.data.availableProviders}
-          indexingAvailable={accounts.data.indexingAvailable}
         />
       )}
       {tab === 'people' && <OrganizationAccountPeople organizationId={organizationId} />}

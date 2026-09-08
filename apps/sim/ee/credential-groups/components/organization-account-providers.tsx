@@ -12,23 +12,16 @@ import {
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useQueryState } from 'nuqs'
 import type {
   OrganizationAccountsSettings,
   UpdateOrganizationAccountsBody,
 } from '@/lib/api/contracts/organization-accounts'
-import { getCredentialGroupIndexingConnector } from '@/lib/credential-groups/indexing'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   type CredentialGroupProvider,
   getCredentialGroupProviderService,
 } from '@/lib/credential-groups/providers'
-import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
-import {
-  managedSourceParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
@@ -41,9 +34,7 @@ import {
   OrganizationAccountProviderCatalog,
   type OrganizationAccountProviderChoice,
 } from '@/ee/credential-groups/components/organization-account-provider-catalog'
-import { OrganizationAccountProviderModal } from '@/ee/credential-groups/components/organization-account-provider-modal'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
-import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import {
   useAddOrganizationAccountMcpProvider,
   useRemoveOrganizationAccountMcpProvider,
@@ -54,30 +45,17 @@ interface OrganizationAccountProvidersProps {
   organizationId: string
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>
   availableProviders: CredentialGroupProvider[]
-  indexingAvailable: boolean
 }
 
 export function OrganizationAccountProviders({
   organizationId,
   group,
   availableProviders,
-  indexingAvailable,
 }: OrganizationAccountProvidersProps) {
   const [catalogOpen, setCatalogOpen] = useState(false)
-  const [selectedProvider, setSelectedProvider] = useState<CredentialGroupProvider | null>(null)
   const [removing, setRemoving] = useState<OrganizationAccountProviderChoice | null>(null)
   const [slackOpen, setSlackOpen] = useState(false)
   const [databricksOpen, setDatabricksOpen] = useState(false)
-  const [indexingProvider, setIndexingProvider] = useQueryState(
-    searchSetupParam.key,
-    searchSetupParam.parser
-  )
-  const [managedSource, setManagedSource] = useQueryState(
-    managedSourceParam.key,
-    managedSourceParam.parser
-  )
-  const scope = { kind: 'organization' as const, organizationId }
-  const sources = useSearchSources(scope)
   const update = useUpdateOrganizationAccounts()
   const addMcp = useAddOrganizationAccountMcpProvider()
   const removeMcp = useRemoveOrganizationAccountMcpProvider()
@@ -90,14 +68,6 @@ export function OrganizationAccountProviders({
         : { ...common, provider: option.provider }
     }
   )
-  const providerSources = (provider: CredentialGroupProvider) => {
-    const connector = getCredentialGroupIndexingConnector(provider)
-    return (
-      sources.data?.filter(
-        (source) => source.connectorType === connector?.type && source.accessMode === 'members'
-      ) ?? []
-    )
-  }
   const addProvider = (choice: OrganizationAccountProviderChoice) => {
     if (choice.kind === 'mcp') {
       if (choice.connectorId === 'databricks') {
@@ -119,7 +89,6 @@ export function OrganizationAccountProviders({
     const { provider } = choice
     if (provider === 'slack') {
       setCatalogOpen(false)
-      setSelectedProvider(provider)
       setSlackOpen(true)
       return
     }
@@ -133,7 +102,6 @@ export function OrganizationAccountProviders({
       {
         onSuccess: () => {
           setCatalogOpen(false)
-          if (getCredentialGroupIndexingConnector(provider)) setSelectedProvider(provider)
           toast.success(`${service.name} added`)
         },
       }
@@ -161,24 +129,11 @@ export function OrganizationAccountProviders({
   const rows = [
     ...group.options.map((option) => {
       const service = getCredentialGroupProviderService(option.provider)
-      const indexable = Boolean(getCredentialGroupIndexingConnector(option.provider))
       return {
         id: option.id,
         name: service.name,
         icon: service.icon,
-        indexing: indexable
-          ? sources.isError
-            ? 'Indexing status unavailable'
-            : sources.isPending
-              ? 'Loading indexing status…'
-              : providerSources(option.provider).some((source) => source.enabled)
-                ? 'Indexing on'
-                : 'Indexing off'
-          : undefined,
-        configure:
-          indexable || option.provider === 'slack'
-            ? () => setSelectedProvider(option.provider)
-            : undefined,
+        configure: option.provider === 'slack' ? () => setSlackOpen(true) : undefined,
         choice: { kind: 'oauth', provider: option.provider } as const,
       }
     }),
@@ -188,13 +143,11 @@ export function OrganizationAccountProviders({
         id: server.id,
         name: MANAGED_MCP_CONNECTORS[server.managedConnectorId].name,
         icon: getManagedMcpConnectorIcon(server.managedConnectorId),
-        indexing: undefined,
         configure:
           server.managedConnectorId === 'databricks' ? () => setDatabricksOpen(true) : undefined,
         choice: { kind: 'mcp', connectorId: server.managedConnectorId } as const,
       })),
   ].sort((left, right) => left.name.localeCompare(right.name))
-  const selectedOption = group.options.find((option) => option.provider === selectedProvider)
   const error = update.error ?? addMcp.error ?? removeMcp.error
   const removingName = removing
     ? removing.kind === 'oauth'
@@ -222,12 +175,11 @@ export function OrganizationAccountProviders({
         }
       >
         <div className={RESOURCE_LIST_STACK}>
-          {rows.map(({ id, name, icon: Icon, indexing, configure, choice }) => (
+          {rows.map(({ id, name, icon: Icon, configure, choice }) => (
             <SettingsResourceRow
               key={id}
               icon={<Icon aria-hidden />}
               title={name}
-              description={indexing}
               trailing={
                 <div className='flex items-center gap-2'>
                   {configure && (
@@ -272,28 +224,6 @@ export function OrganizationAccountProviders({
           onAdd={addProvider}
         />
       )}
-      {selectedOption && !slackOpen && indexingProvider === null && managedSource === null && (
-        <OrganizationAccountProviderModal
-          organizationId={organizationId}
-          option={selectedOption}
-          sources={providerSources(selectedOption.provider)}
-          sourcesPending={sources.isPending}
-          sourcesError={sources.error ? getErrorMessage(sources.error) : undefined}
-          indexingAvailable={indexingAvailable}
-          onClose={() => setSelectedProvider(null)}
-          onSetupSlack={() => setSlackOpen(true)}
-          onSetupIndexing={(type) => void setIndexingProvider(searchSetupParam.parser.parse(type))}
-          onEditSource={(id) => void setManagedSource(id)}
-        />
-      )}
-      <SearchSourceSetup
-        key={`indexing:${organizationId}`}
-        scope={scope}
-        canAdmin
-        memberAccessAvailable={indexingAvailable}
-        mirroredAccessAvailable={false}
-        membersOnly
-      />
       {databricksOpen && (
         <DatabricksMcpConnectorModal
           key={organizationId}

@@ -189,14 +189,6 @@ export function SettingsSidebar({
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
         return false
       }
-      if (
-        item.id === 'credential-groups' &&
-        (!hostContext.hostOrganizationId ||
-          !hostContext.features?.credentialGroups ||
-          (!canAdminWorkspace && !isOrgAdminOrOwner))
-      ) {
-        return false
-      }
       if (item.id === 'custom-blocks' && !hostContext.hostOrganizationId) {
         return false
       }

@@ -8,7 +8,7 @@ import {
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   ORGANIZATION_SETTINGS_OUTBOUND_LINKS,
@@ -49,7 +49,7 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
       })}
       outboundLinks={searchAccess.memberScoped ? ORGANIZATION_SETTINGS_OUTBOUND_LINKS : []}
       hrefForSection={(section) => routes.settingsSection(section)}
-      backHref={searchAccess.memberScoped ? routes.home : routes.settingsSection('general')}
+      backHref={searchAccess.memberScoped ? routes.home : WORKSPACE_SETTINGS_PATH}
     />
   )
 }

@@ -1,6 +1,10 @@
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
+import {
+  organizationRoutes,
+  WORKSPACE_SETTINGS_PATH,
+  WORKSPACES_PATH,
+} from '@/lib/navigation/paths'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 
 interface EntrySession {
@@ -8,7 +12,7 @@ interface EntrySession {
 }
 
 /**
- * Routes organization members to Home when Search is enabled and General settings otherwise.
+ * Routes organization members to Home when Search is enabled and workspace settings otherwise.
  * Viewers without an organization land on the workspace picker.
  */
 export async function resolveAppEntryPath(session: EntrySession): Promise<string> {
@@ -20,5 +24,5 @@ export async function resolveAppEntryPath(session: EntrySession): Promise<string
   const routes = organizationRoutes(organizationId)
   return (await isKnowledgeMemberAccessAvailable({ organizationId }))
     ? routes.home
-    : routes.settingsSection('general')
+    : WORKSPACE_SETTINGS_PATH
 }

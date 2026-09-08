@@ -5,7 +5,6 @@ import { defineOrganizationAccountsUseCase } from '@/lib/credential-groups/appli
 import { validateCredentialGroupInvitationEmails } from '@/lib/credential-groups/application/validation'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import {
-  createCredentialGroupInvitationLink,
   inviteCredentialGroupEnrollments,
   listCredentialGroupEnrollments,
   loadCredentialGroupInviterIdentity,
@@ -36,12 +35,6 @@ export const organizationAccountManagementOperations = {
   }),
   resend: defineOrganizationOperation({
     id: 'organization_accounts.people.resend',
-    minimumRole: 'admin',
-    principalKinds: ['session'],
-    capability: 'integrations.manage',
-  }),
-  invitationLink: defineOrganizationOperation({
-    id: 'organization_accounts.people.invitation_link',
     minimumRole: 'admin',
     principalKinds: ['session'],
     capability: 'integrations.manage',
@@ -166,26 +159,6 @@ export const resendOrganizationAccountInvitation = defineOrganizationAccountsUse
       credentialGroupEnrollment: enrollment,
       credentialGroupId: group.credentialGroupId,
       description: 'Resent a connected account invitation',
-    }
-  },
-  projectAudit: groupAudit,
-})
-
-export const createOrganizationAccountInvitationLink = defineOrganizationAccountsUseCase({
-  operation: organizationAccountManagementOperations.invitationLink,
-  async execute({ input, context }: OrganizationExecution<OrganizationInput & { email: string }>) {
-    const [email] = validateCredentialGroupInvitationEmails([input.email])
-    const { scope, group } = await requireGroup(context.organizationId)
-    const result = await createCredentialGroupInvitationLink(
-      scope,
-      group.credentialGroupId,
-      context.userId,
-      email
-    )
-    return {
-      ...result,
-      credentialGroupId: group.credentialGroupId,
-      description: 'Created a connected account invitation link',
     }
   },
   projectAudit: groupAudit,

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 
@@ -19,8 +19,7 @@ export default async function OrganizationHomePage({
   if (!session?.user?.id) notFound()
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
-  if (!context.searchAccess.memberScoped)
-    redirect(organizationRoutes(organizationId).settingsSection('general'))
+  if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
 
   return <OrganizationHome userName={session.user.name} />
 }
