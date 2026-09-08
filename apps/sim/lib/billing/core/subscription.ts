@@ -37,6 +37,7 @@ import {
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SubscriptionCore')
 
@@ -167,15 +168,16 @@ export async function syncSubscriptionPlan(
  */
 interface GetOrganizationSubscriptionUsableOptions {
   onError?: 'return-null' | 'throw'
+  executor?: DbOrTx
 }
 
 export async function getOrganizationSubscriptionUsable(
   organizationId: string,
   options: GetOrganizationSubscriptionUsableOptions = {}
 ) {
-  const { onError = 'return-null' } = options
+  const { onError = 'return-null', executor = db } = options
   try {
-    const [orgSub] = await db
+    const [orgSub] = await executor
       .select()
       .from(subscription)
       .where(
@@ -467,7 +469,8 @@ export type EnterprisePlanErrorPolicy = 'return-false' | 'throw'
 
 async function resolveOrganizationEnterprisePlan(
   organizationId: string,
-  onError: EnterprisePlanErrorPolicy = 'return-false'
+  onError: EnterprisePlanErrorPolicy = 'return-false',
+  executor: DbOrTx = db
 ): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
@@ -478,7 +481,7 @@ async function resolveOrganizationEnterprisePlan(
       return true
     }
 
-    if (await isOrganizationBillingBlocked(organizationId)) {
+    if (await isOrganizationBillingBlocked(organizationId, executor)) {
       return false
     }
 
@@ -488,10 +491,10 @@ async function resolveOrganizationEnterprisePlan(
      * `false` — the catch below never sees it. A caller that asked to throw
      * needs that failure propagated too.
      */
-    const orgSub = await getOrganizationSubscriptionUsable(
-      organizationId,
-      onError === 'throw' ? { onError: 'throw' } : {}
-    )
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId, {
+      executor,
+      ...(onError === 'throw' ? { onError: 'throw' as const } : {}),
+    })
 
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
@@ -602,10 +605,11 @@ export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterpris
  */
 export async function isOrganizationFeatureEntitled(
   organizationId: string,
-  selfHostEntitlement: boolean
+  selfHostEntitlement: boolean,
+  executor: DbOrTx = db
 ): Promise<boolean> {
   if (!isBillingEnabled) return selfHostEntitlement
-  return isOrganizationOnEnterprisePlan(organizationId)
+  return isOrganizationOnEnterprisePlan(organizationId, 'return-false', executor)
 }
 
 /**

@@ -3,6 +3,7 @@ import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { invalidPath, invalidValue, mutability, noTarget } from '@/ee/scim/lib/protocol/errors'
 import {
   isRecord,
+  isScimPasswordAttribute,
   normalizeAttributePath,
   normalizeScimBoolean,
   unwrapSingleElement,
@@ -113,7 +114,8 @@ function applyOperation(
   user: ScimUserAttributes,
   op: 'add' | 'replace' | 'remove',
   rawPath: string,
-  value: unknown
+  value: unknown,
+  resourceAttribute = false
 ): void {
   const path = normalizeAttributePath(rawPath)
   const key = path.toLowerCase()
@@ -135,6 +137,23 @@ function applyOperation(
   }
 
   switch (key) {
+    case 'password':
+      return
+
+    case 'name':
+    case 'enterprise': {
+      if (op === 'remove') {
+        if (key === 'name') user.name = { formatted: user.userName }
+        else user.enterprise = undefined
+        return
+      }
+      if (!isRecord(value)) throw invalidValue(`${path} requires an object value`)
+      for (const [sub, nested] of sortFormattedLast(Object.entries(value))) {
+        applyOperation(user, op, `${path}.${sub}`, nested)
+      }
+      return
+    }
+
     case 'active':
       user.active = op === 'remove' ? true : requireBoolean(value, 'active')
       return
@@ -247,13 +266,41 @@ function applyOperation(
 
     default:
       if (key.startsWith('meta')) throw mutability(`${rawPath} is read-only`)
-      applyExtraOperation(user, op, path, value)
+      applyExtraOperation(user, op, path, value, resourceAttribute)
   }
 }
 
 /** `attr`, `attr.sub`, or `attr[type eq "x"].sub` on an attribute Sim does not model. */
 const EXTRA_PATH_PATTERN =
-  /^(?<attribute>[A-Za-z][\w-]*)(?:\[\s*type\s+eq\s+(?<quote>"|')?(?<type>[^"'\]]+)\k<quote>?\s*\])?(?:\.(?<sub>[A-Za-z][\w-]*))?$/
+  /^(?<attribute>[A-Za-z][\w-]*)(?:\[\s*type\s+eq\s+(?<quote>"|')?(?<type>[^"'\]]+)\k<quote>?\s*\])?(?:\.(?<sub>[A-Za-z][\w-]*))?$/i
+
+/** Uses the resource's schema keys to distinguish an extension from one of its attributes. */
+function extensionTarget(
+  extra: Record<string, unknown>,
+  path: string,
+  resourceAttribute: boolean,
+  value: unknown
+): { schema: string; attribute?: string } | undefined {
+  if (!path.toLowerCase().startsWith('urn:')) return undefined
+  const lowered = path.toLowerCase()
+  const existing = Object.keys(extra)
+    .filter(
+      (schema) =>
+        schema.toLowerCase().startsWith('urn:') &&
+        (lowered === schema.toLowerCase() || lowered.startsWith(`${schema.toLowerCase()}:`))
+    )
+    .sort((left, right) => right.length - left.length)[0]
+  if (existing) {
+    return {
+      schema: existing,
+      ...(path.length > existing.length ? { attribute: path.slice(existing.length + 1) } : {}),
+    }
+  }
+  if (resourceAttribute && isRecord(value)) return { schema: path }
+  const separator = path.lastIndexOf(':')
+  if (separator <= 'urn:'.length) throw invalidPath(`User PATCH path ${path} is not supported`)
+  return { schema: path.slice(0, separator), attribute: path.slice(separator + 1) }
+}
 
 /**
  * Applies an operation to an attribute Sim does not model.
@@ -268,29 +315,63 @@ function applyExtraOperation(
   user: ScimUserAttributes,
   op: 'add' | 'replace' | 'remove',
   path: string,
+  value: unknown,
+  resourceAttribute: boolean
+): void {
+  user.extra ??= {}
+  const extension = extensionTarget(user.extra, path, resourceAttribute, value)
+  if (extension) {
+    if (!extension.attribute) {
+      if (op === 'remove') delete user.extra[extension.schema]
+      else {
+        if (!isRecord(value)) throw invalidValue(`${path} requires an object value`)
+        const current = user.extra[extension.schema]
+        user.extra[extension.schema] = { ...(isRecord(current) ? current : {}), ...value }
+      }
+      return
+    }
+    const current = user.extra[extension.schema]
+    const attributes = isRecord(current) ? { ...current } : {}
+    applyExtraAttribute(attributes, op, extension.attribute, value)
+    user.extra[extension.schema] = attributes
+    return
+  }
+  applyExtraAttribute(user.extra, op, path, value)
+}
+
+/** Applies a simple or typed complex path inside either the core resource or an extension. */
+function applyExtraAttribute(
+  attributes: Record<string, unknown>,
+  op: 'add' | 'replace' | 'remove',
+  path: string,
   value: unknown
 ): void {
   const match = path.match(EXTRA_PATH_PATTERN)
   if (!match?.groups) throw invalidPath(`User PATCH path ${path} is not supported`)
-  const { attribute, type, sub } = match.groups
-  user.extra ??= {}
+  const { type, sub } = match.groups
+  const attribute =
+    Object.keys(attributes).find(
+      (key) => key.toLowerCase() === match.groups?.attribute.toLowerCase()
+    ) ?? match.groups.attribute
 
   if (!type && !sub) {
-    if (op === 'remove') user.extra[attribute] = undefined
-    else user.extra[attribute] = value
+    if (op === 'remove') attributes[attribute] = undefined
+    else attributes[attribute] = value
     return
   }
 
   if (type) {
-    const list = Array.isArray(user.extra[attribute]) ? [...user.extra[attribute]] : []
+    const list = Array.isArray(attributes[attribute]) ? [...attributes[attribute]] : []
     const index = list.findIndex(
       (entry) => isRecord(entry) && String(entry.type).toLowerCase() === type.toLowerCase()
     )
-    if (op === 'remove') {
+    if (op === 'remove' && !sub) {
       if (index !== -1) list.splice(index, 1)
     } else if (sub) {
+      if (op === 'remove' && index === -1) return
       const current = index !== -1 && isRecord(list[index]) ? list[index] : { type }
-      const next = { ...current, [sub]: value }
+      const key = Object.keys(current).find((key) => key.toLowerCase() === sub.toLowerCase()) ?? sub
+      const next = { ...current, [key]: op === 'remove' ? undefined : value }
       if (index === -1) list.push(next)
       else list[index] = next
     } else if (isRecord(value)) {
@@ -299,14 +380,14 @@ function applyExtraOperation(
     } else {
       throw invalidValue(`${path} requires an object value`)
     }
-    user.extra[attribute] = list
+    attributes[attribute] = list
     return
   }
 
-  const current = isRecord(user.extra[attribute]) ? { ...user.extra[attribute] } : {}
-  if (op === 'remove') current[sub as string] = undefined
-  else current[sub as string] = value
-  user.extra[attribute] = current
+  const current = isRecord(attributes[attribute]) ? { ...attributes[attribute] } : {}
+  const key = Object.keys(current).find((key) => key.toLowerCase() === sub.toLowerCase()) ?? sub
+  current[key] = op === 'remove' ? undefined : value
+  attributes[attribute] = current
 }
 
 /**
@@ -355,6 +436,11 @@ export function applyUserPatch(
   operations: readonly ScimPatchOperation[]
 ): UserPatchOutcome {
   const next = structuredClone(current)
+  if (next.extra) {
+    for (const attribute of Object.keys(next.extra)) {
+      if (isScimPasswordAttribute(attribute)) delete next.extra[attribute]
+    }
+  }
 
   for (const operation of operations) {
     if (operation.op === 'remove' && !operation.path) {
@@ -372,19 +458,7 @@ export function applyUserPatch(
        * arrived as its own operation.
        */
       for (const [attribute, nested] of sortFormattedLast(Object.entries(value))) {
-        /**
-         * RFC 7644's canonical form nests complex attributes — `{"name": {"givenName": …}}`
-         * and the enterprise extension keyed by its URN — so each sub-attribute is
-         * dispatched by its dotted path.
-         */
-        const normalized = normalizeAttributePath(attribute).toLowerCase()
-        if (isRecord(nested) && (normalized === 'name' || normalized === 'enterprise')) {
-          for (const [sub, subValue] of sortFormattedLast(Object.entries(nested))) {
-            applyOperation(next, operation.op, `${normalized}.${sub}`, subValue)
-          }
-          continue
-        }
-        applyOperation(next, operation.op, attribute, nested)
+        applyOperation(next, operation.op, attribute, nested, true)
       }
       continue
     }

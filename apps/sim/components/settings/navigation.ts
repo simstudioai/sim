@@ -689,7 +689,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     docsLink: 'https://docs.sim.ai/platform/enterprise/sso',
     unified: {
       id: 'sso',
-      description: 'Configure single sign-on for your organization.',
+      description: 'Manage sign-in, verified domains, and provisioning.',
       group: 'organization',
       order: 7,
       requiresHosted: true,

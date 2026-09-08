@@ -22,6 +22,7 @@
     "start": "next start",
     "prepare": "cd ../.. && bun husky",
     "test": "vitest run",
+    "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",

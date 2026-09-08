@@ -2269,6 +2269,13 @@
       "when": 1788826234724,
       "tag": "0324_scim_provisioning",
       "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1788832902289,
+      "tag": "0325_scim_manual_workspace_baseline",
+      "breakpoints": true
     }
   ]
 }

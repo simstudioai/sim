@@ -43,6 +43,7 @@ import {
   getRequestedSignInProviderId,
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
+import { getAuthDatabase } from '@/lib/auth/database-context'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
@@ -56,6 +57,7 @@ import {
 } from '@/lib/auth/oauth-provider'
 import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
+import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
@@ -268,7 +270,7 @@ export const auth = betterAuth({
        * revocation latency becomes the policy cache TTL, not the full `maxAge`.
        */
       version: async (session) =>
-        getSessionCookieCacheVersion(session as { userId?: string | null }),
+        getSessionCookieCacheVersion(session as { userId?: string | null }, getAuthDatabase()),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
@@ -656,85 +658,7 @@ export const auth = betterAuth({
     },
     session: {
       create: {
-        before: async (session) => {
-          /**
-           * Blocked emails/domains and suspended accounts must not establish
-           * sessions, whatever the provider (email/password, OAuth, SSO).
-           * Deliberately outside the try below: a thrown APIError must
-           * propagate, not be swallowed.
-           */
-          const accessControl = await getAccessControlConfig()
-          const [sessionUser] = await db
-            .select({ email: schema.user.email, suspendedAt: schema.user.suspendedAt })
-            .from(schema.user)
-            .where(eq(schema.user.id, session.userId))
-            .limit(1)
-
-          /**
-           * A suspension leaves the account's resources intact, so nothing else
-           * in the sign-in path refuses it. This is the gate that makes a
-           * directory deactivation take effect on the next sign-in attempt;
-           * existing sessions are deleted when the suspension is applied.
-           */
-          if (sessionUser?.suspendedAt) {
-            logger.warn('Blocking session creation for suspended account', {
-              userId: session.userId,
-            })
-            throw new APIError('FORBIDDEN', {
-              message: 'This account is suspended. Please contact your administrator.',
-            })
-          }
-
-          if (
-            accessControl.blockedSignupDomains.length > 0 ||
-            accessControl.blockedEmails.length > 0
-          ) {
-            if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
-              logger.warn('Blocking session creation for blocked account', {
-                userId: session.userId,
-              })
-              throw new APIError('FORBIDDEN', {
-                message: 'Access restricted. Please contact your administrator.',
-              })
-            }
-          }
-
-          try {
-            // Find the first organization this user is a member of
-            const members = await db
-              .select({ organizationId: schema.member.organizationId })
-              .from(schema.member)
-              .where(eq(schema.member.userId, session.userId))
-              .limit(1)
-
-            if (members.length > 0) {
-              logger.info('Found organization for user', {
-                userId: session.userId,
-                organizationId: members[0].organizationId,
-              })
-
-              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
-
-              return {
-                data: {
-                  ...session,
-                  expiresAt,
-                  activeOrganizationId: members[0].organizationId,
-                },
-              }
-            }
-            logger.info('No organizations found for user', {
-              userId: session.userId,
-            })
-            return { data: session }
-          } catch (error) {
-            logger.error('Error setting active organization', {
-              error,
-              userId: session.userId,
-            })
-            return { data: session }
-          }
-        },
+        before: prepareSessionForCreation,
       },
       update: {
         /**
@@ -749,10 +673,11 @@ export const auth = betterAuth({
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
           if (!current) return { data }
-          const expiresAt = await clampExpiryForSession({
-            ...current,
-            expiresAt: new Date(data.expiresAt),
-          })
+          const expiresAt = await clampExpiryForSession(
+            { ...current, expiresAt: new Date(data.expiresAt) },
+            undefined,
+            getAuthDatabase()
+          )
           return { data: { ...data, expiresAt } }
         },
       },

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { scimUserResourceSchema } from '@/lib/api/contracts/scim'
+import { scimGroupResourceSchema, scimUserResourceSchema } from '@/lib/api/contracts/scim'
 import { SCIM_MAX_PAGE_SIZE } from '@/ee/scim/lib/protocol/constants'
 import type { ScimError } from '@/ee/scim/lib/protocol/errors'
 import {
@@ -10,6 +10,7 @@ import {
   projectionWants,
   projectResource,
   resolvePage,
+  toGroupResource,
   toUserResource,
 } from '@/ee/scim/lib/protocol/resources'
 
@@ -98,6 +99,28 @@ describe('toUserResource', () => {
       primary: true,
     })
   })
+
+  it('never returns a password from legacy stored extra attributes', () => {
+    const base = userRow()
+    const resource = toUserResource(
+      {
+        ...base,
+        attributes: {
+          ...base.attributes,
+          extra: {
+            password: 'synthetic-password',
+            Password: 'synthetic-password',
+            'urn:ietf:params:scim:schemas:core:2.0:User:password': 'synthetic-password',
+            title: 'Analyst',
+          },
+        },
+      },
+      BASE_URL
+    )
+    expect(resource.title).toBe('Analyst')
+    expect(JSON.stringify(resource)).not.toContain('synthetic-password')
+    expect(resource.schemas).toEqual(['urn:ietf:params:scim:schemas:core:2.0:User'])
+  })
 })
 
 describe('attribute projection', () => {
@@ -122,6 +145,75 @@ describe('attribute projection', () => {
     const projection = parseAttributeProjection({ attributes: 'userName' })
     const projected = projectResource(toUserResource(userRow(), BASE_URL), projection)
     expect(Object.keys(projected).sort()).toEqual(['id', 'meta', 'schemas', 'userName'])
+  })
+
+  it.each(['name.givenName', 'urn:ietf:params:scim:schemas:core:2.0:User:name.givenName'])(
+    'returns the requested name sub-attribute %s',
+    (attributes) => {
+      const projected = projectResource(
+        toUserResource(userRow(), BASE_URL),
+        parseAttributeProjection({ attributes })
+      )
+      expect(projected.name).toEqual({ givenName: 'Ada' })
+      expect(projected).not.toHaveProperty('emails')
+      expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
+    }
+  )
+
+  it('excludes a nested name attribute without dropping its siblings', () => {
+    const projected = projectResource(
+      toUserResource(userRow(), BASE_URL),
+      parseAttributeProjection({ excludedAttributes: 'name.formatted' })
+    )
+    expect(projected.name).toEqual({ givenName: 'Ada', familyName: 'Lovelace' })
+    expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
+  })
+
+  it('projects each multi-valued entry and still loads requested group sub-attributes', () => {
+    const projection = parseAttributeProjection({ attributes: 'emails.value,groups.value' })
+    const projected = projectResource(toUserResource(userRow(), BASE_URL), projection)
+    expect(projectionWants(projection, 'groups')).toBe(true)
+    expect(projected.emails).toEqual([{ value: 'ada@acme.test' }])
+    expect(projected.groups).toEqual([{ value: 'g1' }])
+    expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
+  })
+
+  it('projects group member sub-attributes through the response contract', () => {
+    const projection = parseAttributeProjection({ attributes: 'members.value' })
+    const resource = toGroupResource(
+      {
+        id: 'g1',
+        externalId: null,
+        displayName: 'Engineering',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        members: [{ scimUserId: 'su1', displayName: 'Ada Lovelace' }],
+      },
+      BASE_URL
+    )
+    const projected = projectResource(resource, projection)
+    expect(projectionWants(projection, 'members')).toBe(true)
+    expect(projected.members).toEqual([{ value: 'su1' }])
+    expect(scimGroupResourceSchema.safeParse(projected).success).toBe(true)
+  })
+
+  it('projects a schema-qualified extension attribute', () => {
+    const schema = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+    const base = userRow()
+    const resource = toUserResource(
+      {
+        ...base,
+        attributes: { ...base.attributes, enterprise: { department: 'Maths', costCenter: '123' } },
+      },
+      BASE_URL
+    )
+    const projected = projectResource(
+      resource,
+      parseAttributeProjection({ attributes: `${schema}:department` })
+    )
+    expect(projected[schema]).toEqual({ department: 'Maths' })
+    expect(projected).not.toHaveProperty('name')
+    expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
   })
 
   it('refuses combining an include list with an exclude list', () => {

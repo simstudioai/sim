@@ -14,7 +14,10 @@ import {
   isInstanceOrganizationMode,
 } from '@/lib/organizations/instance-org'
 import { suspendMemberTx, unsuspendMemberTx } from '@/lib/organizations/members/lifecycle'
-import { invalidateAfterSessionRevocation } from '@/lib/organizations/members/revocation'
+import {
+  invalidateAfterSessionRevocation,
+  revokeUserSessionsTx,
+} from '@/lib/organizations/members/revocation'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import {
@@ -55,6 +58,7 @@ export interface ProvisionScimUserResult {
   /** The subscription seats were validated against, so the post-commit seat sync targets the same one. */
   subscriptionId: string | undefined
   organizationId: string
+  emailChanged: boolean
   resource: ReturnType<typeof toUserResource>
 }
 
@@ -153,6 +157,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       scimUserId: string
       joinedOrganization: boolean
       subscriptionId: string | undefined
+      emailChanged: boolean
       resource: ReturnType<typeof toUserResource>
     }
     try {
@@ -165,6 +170,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           ...seatPolicy,
         })
         if (!membership.success) throw membershipFailure(membership.failureCode)
+        let emailChanged = false
 
         /**
          * A relinked account takes the directory's current identity. A rename
@@ -173,7 +179,14 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
          * account does not have.
          */
         if (resolution.action === 'link') {
-          await syncAccountIdentityTx(tx, { userId, email, name: attributes.name.formatted })
+          emailChanged = await syncAccountIdentityTx(tx, {
+            userId,
+            email,
+            name: attributes.name.formatted,
+          })
+          if (emailChanged && attributes.active) {
+            await revokeUserSessionsTx(tx, { userId, organizationId: context.organizationId })
+          }
           /** A relinked account may still carry the suspension a lost deprovisioning left behind. */
           if (attributes.active) await unsuspendMemberTx(tx, { userId, source: 'scim' })
         }
@@ -216,6 +229,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           scimUserId: inserted.id,
           joinedOrganization: !membership.alreadyMember,
           subscriptionId: seatPolicy.organizationSubscriptionId,
+          emailChanged,
           resource: toUserResource(toUserResourceRow(record, []), context.baseUrl),
         }
       })
@@ -271,7 +285,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
    */
   afterSuccess: async ({ result, context }) => {
     /** A member provisioned already inactive had their sessions revoked inside the transaction. */
-    if (!result.resource.active) {
+    if (!result.resource.active || result.emailChanged) {
       invalidateAfterSessionRevocation({
         userId: result.userId,
         organizationId: context.organizationId,

@@ -3,11 +3,17 @@ import { type ScimConnectionSettings, scimConnection } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
+import {
+  autoMapPermissionGroupByName,
+  settleMappedPermissionGroupsExplicit,
+} from '@/ee/scim/lib/projection/auto-map'
 import {
   PROJECTION_BATCH_SIZE,
   reconcileUsersProjectionInBatches,
 } from '@/ee/scim/lib/projection/reconcile-user'
+import { listScimGroupsForReconcile } from '@/ee/scim/lib/repository/groups'
 import { listScimUserIds } from '@/ee/scim/lib/repository/users'
 import { pruneScimRequestLog } from '@/ee/scim/lib/request-log'
 
@@ -36,11 +42,6 @@ const LEASE_TTL_MS = 15 * 60 * 1000
  * tick. Fifty minutes keeps the once-an-hour guarantee the docs make.
  */
 const RECONCILE_INTERVAL_MS = 50 * 60 * 1000
-
-/**
- * Users reconciled per transaction. The organization lock is held for the whole
- * batch, so it is kept small enough that a tenant's own writes never wait long.
- */
 
 export interface ScimReconcileReport {
   connectionId: string
@@ -79,9 +80,56 @@ async function holdsLease(connectionId: string, runId: string): Promise<boolean>
   const [row] = await db
     .select({ token: scimConnection.reconcileLockToken })
     .from(scimConnection)
-    .where(eq(scimConnection.id, connectionId))
+    .where(and(eq(scimConnection.id, connectionId), eq(scimConnection.status, 'active')))
     .limit(1)
   return row?.token === runId
+}
+
+/** Matches existing groups before projecting users, so enabling matching does not require a directory rename. */
+async function reconcileExistingGroupNames(
+  connection: { id: string; organizationId: string },
+  runId: string
+): Promise<boolean> {
+  let cursor: string | undefined
+  for (;;) {
+    const batch = await db.transaction(async (tx) => {
+      await acquireOrganizationMutationLock(tx, connection.organizationId)
+      const [fresh] = await tx
+        .select({
+          status: scimConnection.status,
+          token: scimConnection.reconcileLockToken,
+          settings: scimConnection.settings,
+        })
+        .from(scimConnection)
+        .where(eq(scimConnection.id, connection.id))
+        .limit(1)
+      if (fresh?.status !== 'active' || fresh.token !== runId) return { stopped: true }
+      if (!fresh.settings.autoMapPermissionGroupsByName) return { stopped: false }
+
+      const groups = await listScimGroupsForReconcile(tx, {
+        connectionId: connection.id,
+        afterOrderKey: cursor,
+        limit: PROJECTION_BATCH_SIZE,
+      })
+      for (const group of groups) {
+        const mapped = await autoMapPermissionGroupByName(tx, {
+          organizationId: connection.organizationId,
+          scimGroupId: group.id,
+          displayName: group.displayName,
+        })
+        if (mapped === 'mapped') {
+          await settleMappedPermissionGroupsExplicit(tx, {
+            organizationId: connection.organizationId,
+            scimGroupId: group.id,
+          })
+        }
+      }
+      return { stopped: false, cursor: groups.at(-1)?.orderKey }
+    })
+    if (batch.stopped) return false
+    if (!batch.cursor) return true
+    cursor = batch.cursor
+  }
 }
 
 /** Releases the lease; the watermark advances only when the pass finished, so a failed batch is retried next hour. */
@@ -151,6 +199,12 @@ export async function reconcileConnection(connection: {
   try {
     /** Pruned before the pass, so a connection whose pass keeps failing still keeps its log bounded. */
     await pruneScimRequestLog(connection.id)
+    if (
+      connection.settings.autoMapPermissionGroupsByName &&
+      !(await reconcileExistingGroupNames(connection, runId))
+    ) {
+      return null
+    }
     let cursor: string | undefined
     for (;;) {
       const page = await listScimUserIds(db, {

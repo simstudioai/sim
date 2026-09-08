@@ -149,7 +149,7 @@ async function runAdmissionTransaction(
 
     /** A directory that can no longer sync (plan lapsed, feature off) no longer owns the door either. */
     const directoryOwnsAdmission =
-      Boolean(directoryOnly) && (await isScimEntitledForOrganization(provider.organizationId))
+      Boolean(directoryOnly) && (await isScimEntitledForOrganization(provider.organizationId, tx))
 
     if (!provider.jitProvisioningEnabled || directoryOwnsAdmission) {
       const [sameOrganization] = await tx

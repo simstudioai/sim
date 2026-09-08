@@ -3,7 +3,7 @@ import { isValidEmailSyntax } from '@sim/utils/string'
 import type { ScimGroupWriteParsed, ScimUserWriteParsed } from '@/lib/api/contracts/scim'
 import { SCIM_ENTERPRISE_USER_SCHEMA } from '@/ee/scim/lib/protocol/constants'
 import { invalidValue } from '@/ee/scim/lib/protocol/errors'
-import { isRecord } from '@/ee/scim/lib/protocol/normalize'
+import { isRecord, isScimPasswordAttribute } from '@/ee/scim/lib/protocol/normalize'
 
 /** Attributes Sim models itself; everything else is preserved under `extra`. */
 const MODELLED_USER_KEYS = new Set([
@@ -82,7 +82,7 @@ function formatName(
 function collectExtra(body: ScimUserWriteParsed): Record<string, unknown> | undefined {
   const extra: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(body)) {
-    if (MODELLED_USER_KEYS.has(key.toLowerCase())) continue
+    if (MODELLED_USER_KEYS.has(key.toLowerCase()) || isScimPasswordAttribute(key)) continue
     extra[key] = value
   }
   return Object.keys(extra).length > 0 ? extra : undefined

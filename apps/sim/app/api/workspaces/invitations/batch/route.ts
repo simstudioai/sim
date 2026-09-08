@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
@@ -117,7 +116,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         })
         failed.push({
           email: normalizedEmail,
-          error: getErrorMessage(error, 'Failed to create invitation'),
+          error: 'Failed to create invitation',
         })
       }
     }

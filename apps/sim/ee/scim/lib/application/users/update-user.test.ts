@@ -65,6 +65,7 @@ vi.mock('@/ee/scim/lib/application/audit', () => ({
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
 import type { Principal } from '@sim/auth/principal'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { patchScimUser, replaceScimUser } from '@/ee/scim/lib/application/users/update-user'
 
 const principal: Principal = {
@@ -172,6 +173,25 @@ describe('user updates', () => {
     expect(actions).toEqual(['scim_user.updated', 'scim_user.deactivated'])
     expect(mocks.invalidate).toHaveBeenCalledWith({ userId: 'u-1', organizationId: 'org-1' })
   })
+
+  it.each(['patch', 'replace'] as const)(
+    'propagates owner protection through %s',
+    async (method) => {
+      stage()
+      mocks.suspend.mockRejectedValueOnce(
+        new OrchestrationError('conflict', 'Transfer ownership first')
+      )
+      const useCase = method === 'patch' ? patchScimUser : replaceScimUser
+      const input =
+        method === 'patch'
+          ? { scimUserId: 'su-1', operations: [{ op: 'replace', path: 'active', value: false }] }
+          : { scimUserId: 'su-1', attributes: attributes({ active: false }) }
+      await expect(run(useCase, input)).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.updateScimUser).not.toHaveBeenCalled()
+      expect(mocks.reconcile).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    }
+  )
 
   it('proves the organization owns the new domain before moving the address, then signs the user out', async () => {
     stage()

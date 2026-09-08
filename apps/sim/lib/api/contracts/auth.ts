@@ -118,6 +118,8 @@ export const listSsoProvidersContract = defineRouteContract({
   },
 })
 
+export type SsoProviderView = z.output<typeof ssoProviderListEntrySchema>
+
 export const getAuthProvidersContract = defineRouteContract({
   method: 'GET',
   path: '/api/auth/providers',

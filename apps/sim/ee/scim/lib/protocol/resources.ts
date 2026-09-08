@@ -7,6 +7,11 @@ import {
   SCIM_USER_SCHEMA,
 } from '@/ee/scim/lib/protocol/constants'
 import { invalidValue } from '@/ee/scim/lib/protocol/errors'
+import {
+  isRecord,
+  isScimPasswordAttribute,
+  normalizeAttributePath,
+} from '@/ee/scim/lib/protocol/normalize'
 
 export interface ScimResourceMeta {
   resourceType: 'User' | 'Group'
@@ -75,6 +80,10 @@ export interface UserResourceRow {
 export function toUserResource(row: UserResourceRow, baseUrl: string): ScimUserResource {
   const stored = row.attributes
   const primaryType = stored.emails.find((entry) => entry.primary)?.type
+  const extra: Record<string, unknown> = {}
+  for (const [attribute, value] of Object.entries(stored.extra ?? {})) {
+    if (!isScimPasswordAttribute(attribute)) extra[attribute] = value
+  }
 
   /**
    * The address comes from the Sim account rather than the stored resource. The
@@ -97,9 +106,9 @@ export function toUserResource(row: UserResourceRow, baseUrl: string): ScimUserR
     schemas: [
       SCIM_USER_SCHEMA,
       ...(stored.enterprise ? [SCIM_ENTERPRISE_USER_SCHEMA] : []),
-      ...Object.keys(stored.extra ?? {}).filter(isSchemaUrn),
+      ...Object.keys(extra).filter(isSchemaUrn),
     ],
-    ...(stored.extra ?? {}),
+    ...extra,
     id: row.id,
     ...(row.externalId ? { externalId: row.externalId } : {}),
     userName: row.userName,
@@ -214,7 +223,14 @@ function parseAttributeList(value: string | undefined): Set<string> | undefined 
   if (!value) return undefined
   const names = value
     .split(',')
-    .map((name) => name.trim().toLowerCase())
+    .map((name) => {
+      const normalized = normalizeAttributePath(name).toLowerCase()
+      if (normalized === 'enterprise') return SCIM_ENTERPRISE_USER_SCHEMA.toLowerCase()
+      if (normalized.startsWith('enterprise.')) {
+        return `${SCIM_ENTERPRISE_USER_SCHEMA.toLowerCase()}:${normalized.slice('enterprise.'.length)}`
+      }
+      return normalized
+    })
     .filter(Boolean)
   return names.length > 0 ? new Set(names) : undefined
 }
@@ -235,17 +251,58 @@ export function parseAttributeProjection(query: {
 export function projectionWants(projection: ScimAttributeProjection, attribute: string): boolean {
   const name = attribute.toLowerCase()
   if (projection.exclude?.has(name)) return false
-  if (projection.include) return projection.include.has(name)
+  if (projection.include) {
+    return [...projection.include].some(
+      (selected) =>
+        selected === name || selected.startsWith(`${name}.`) || selected.startsWith(`${name}:`)
+    )
+  }
   return true
 }
 
-/** Attributes every resource keeps regardless of the projection requested. */
 /** An `extra` key that is itself a schema URN carries a provider extension the resource must declare. */
 function isSchemaUrn(key: string): boolean {
   return key.startsWith('urn:')
 }
 
 const ALWAYS_RETURNED = new Set(['schemas', 'id', 'meta'])
+
+/** Projects complex attributes and each entry of multi-valued attributes using RFC attribute paths. */
+function projectAttribute(
+  value: unknown,
+  path: string,
+  projection: ScimAttributeProjection,
+  inheritedInclude: boolean,
+  extensionRoot = false
+): unknown {
+  if (projection.exclude?.has(path)) return undefined
+  const included = inheritedInclude || projection.include?.has(path) === true
+  const separator = extensionRoot ? ':' : '.'
+  if (
+    !included &&
+    projection.include &&
+    ![...projection.include].some((selected) => selected.startsWith(`${path}${separator}`))
+  ) {
+    return undefined
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => projectAttribute(entry, path, projection, included))
+      .filter((entry) => entry !== undefined)
+  }
+  if (!isRecord(value)) return value
+  const projected: Record<string, unknown> = {}
+  for (const [key, nested] of Object.entries(value)) {
+    const selected = projectAttribute(
+      nested,
+      `${path}${separator}${key.toLowerCase()}`,
+      projection,
+      included
+    )
+    if (selected !== undefined) projected[key] = selected
+  }
+  return Object.keys(projected).length > 0 ? projected : undefined
+}
 
 /** Drops attributes the request did not ask for. */
 export function projectResource<Resource extends object>(
@@ -260,7 +317,14 @@ export function projectResource<Resource extends object>(
       projected[key] = value
       continue
     }
-    if (projectionWants(projection, name)) projected[key] = value
+    const selected = projectAttribute(
+      value,
+      name,
+      projection,
+      !projection.include,
+      isSchemaUrn(name)
+    )
+    if (selected !== undefined) projected[key] = selected
   }
   return projected as Resource
 }

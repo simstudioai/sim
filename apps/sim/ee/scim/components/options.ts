@@ -28,7 +28,7 @@ export const SETTING_TOGGLES = [
     key: 'disableJit',
     label: 'Disable just-in-time provisioning',
     description:
-      'Refuse membership for someone signing in with SSO who the directory never provisioned. The directory becomes the only way in.',
+      'Prevent SSO from creating new organization memberships. Existing members can still sign in, including members added by invitation.',
   },
   {
     key: 'autoMapPermissionGroupsByName',

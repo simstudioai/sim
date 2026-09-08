@@ -8,6 +8,7 @@ import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SessionPolicy')
 
@@ -50,15 +51,17 @@ const NO_POLICY: ResolvedSessionPolicy = {
  * longer manage them.
  */
 export async function getSessionPolicy(
-  organizationId: string | null | undefined
+  organizationId: string | null | undefined,
+  executor: DbOrTx = db
 ): Promise<ResolvedSessionPolicy> {
   if (!organizationId) return NO_POLICY
 
-  const cached = policyCache.get(organizationId)
+  /** Uncommitted policy reads must neither consume nor populate the shared cache. */
+  const cached = executor === db ? policyCache.get(organizationId) : undefined
   if (cached) return cached
 
   try {
-    const [row] = await db
+    const [row] = await executor
       .select({ settings: organization.sessionPolicySettings })
       .from(organization)
       .where(eq(organization.id, organizationId))
@@ -67,14 +70,15 @@ export async function getSessionPolicy(
     const settings: SessionPolicySettings = row?.settings ?? {}
     const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
     const isEntitled =
-      !hasBounds || (await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled))
+      !hasBounds ||
+      (await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled, executor))
     const policy: ResolvedSessionPolicy = isEntitled
       ? {
           maxSessionHours: settings.maxSessionHours ?? null,
           idleTimeoutHours: settings.idleTimeoutHours ?? null,
         }
       : NO_POLICY
-    policyCache.set(organizationId, policy)
+    if (executor === db) policyCache.set(organizationId, policy)
     return policy
   } catch (error) {
     logger.error('Failed to resolve session policy; applying no policy', {
@@ -143,7 +147,8 @@ interface ClampableSession {
  */
 export async function clampExpiryForSession(
   session: ClampableSession,
-  freshMembershipOrgId?: string | null
+  freshMembershipOrgId?: string | null,
+  executor: DbOrTx = db
 ): Promise<Date | undefined> {
   // Better Auth context values can cross a serialization boundary — normalize
   // date fields in case they arrive as ISO strings rather than Dates.
@@ -154,10 +159,10 @@ export async function clampExpiryForSession(
   const organizationId =
     freshMembershipOrgId !== undefined
       ? freshMembershipOrgId
-      : await getMemberOrganizationId(session.userId)
+      : await getMemberOrganizationId(session.userId, executor)
   if (!organizationId) return expiresAt
 
-  const policy = await getSessionPolicy(organizationId)
+  const policy = await getSessionPolicy(organizationId, executor)
   const createdAt = session.createdAt ? new Date(session.createdAt) : new Date()
   return clampSessionExpiry(policy, createdAt, expiresAt)
 }

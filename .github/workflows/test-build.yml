@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   oauth-postgres:
-    name: OAuth PostgreSQL (${{ matrix.provision }})
+    name: OAuth and SCIM PostgreSQL (${{ matrix.provision }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     strategy:
@@ -22,17 +22,17 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sim_oauth
+          POSTGRES_DB: sim_auth_scim
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d sim_oauth"
+          --health-cmd "pg_isready -U postgres -d sim_auth_scim"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_oauth
-      OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_oauth
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+      OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
       BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
       OAUTH_PROVIDER_ENABLED: 'true'
       NEXT_PUBLIC_APP_URL: https://test.sim.ai
@@ -73,7 +73,7 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
-      - name: Verify provider issuance and token lifecycle in PostgreSQL
+      - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim
         run: >-
           bunx vitest run
@@ -81,6 +81,68 @@ jobs:
           lib/auth/oauth-provider-lifecycle.postgres.test.ts
           app/api/auth/oauth2/token/route.postgres.test.ts
           lib/auth/sim-auth-adapter.test.ts
+          ee/scim/lib/managed-membership.postgres.test.ts
+          lib/auth/sso/application/admit-sso-user.postgres.test.ts
+
+      - name: Verify SCIM and administration over real HTTP
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3017
+          BETTER_AUTH_URL: http://127.0.0.1:3017
+          NEXT_PUBLIC_FORCE_HOSTED: 'true'
+          BILLING_ENABLED: 'true'
+          NEXT_PUBLIC_BILLING_ENABLED: 'true'
+          ENTERPRISE_ENABLED: 'true'
+          NEXT_PUBLIC_ENTERPRISE_ENABLED: 'true'
+          SCIM_ENABLED: 'true'
+          NEXT_PUBLIC_SCIM_ENABLED: 'true'
+          SSO_ENABLED: 'true'
+          NEXT_PUBLIC_SSO_ENABLED: 'true'
+          ORGANIZATIONS_ENABLED: 'true'
+          NEXT_PUBLIC_ORGANIZATIONS_ENABLED: 'true'
+          INTERNAL_API_SECRET: scim-http-ci-local-secret-at-least-32-characters
+          DB_TX_TRIPWIRE: throw
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_CHAT_DISABLED: 'true'
+        run: |
+          server_log="$RUNNER_TEMP/scim-next.log"
+          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
+          server_pid=$!
+          finish() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+            awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$RUNNER_TEMP/scim-http-status.log"
+          }
+          trap finish EXIT
+          deadline=$((SECONDS + 120))
+          until curl --fail --silent --max-time 3 http://127.0.0.1:3017/api/health > /dev/null; do
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo 'Local SCIM app exited during startup.'
+              exit 1
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo 'Local SCIM app did not become ready within 120 seconds.'
+              exit 1
+            fi
+            sleep 2
+          done
+          SCIM_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
+          SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+          SCIM_E2E_REPORT_PATH="$RUNNER_TEMP/scim-e2e-report.json" \
+            bun run test:scim:e2e
+
+      - name: Upload SCIM failure report and HTTP status log
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: scim-failure-${{ matrix.provision }}
+          path: |
+            ${{ runner.temp }}/scim-e2e-report.json
+            ${{ runner.temp }}/scim-http-status.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   test-build:
     name: Lint and Test

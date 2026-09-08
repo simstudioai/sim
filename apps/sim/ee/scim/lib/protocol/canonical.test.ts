@@ -79,6 +79,14 @@ describe('toCanonicalUser', () => {
     expect(JSON.stringify(user)).not.toContain('hunter2')
   })
 
+  it.each(['Password', 'urn:ietf:params:scim:schemas:core:2.0:User:password'])(
+    'also strips the write-only password attribute %s',
+    (attribute) => {
+      const user = parseUser({ userName: 'ada@acme.test', [attribute]: 'synthetic-password' })
+      expect(JSON.stringify(user)).not.toContain('synthetic-password')
+    }
+  )
+
   it('accepts Entra’s string boolean for active', () => {
     expect(parseUser({ userName: 'ada@acme.test', active: 'False' }).active).toBe(false)
   })

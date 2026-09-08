@@ -6357,6 +6357,8 @@ export const scimProjectionGrant = pgTable(
     targetId: text('target_id').notNull(),
     /** The permission SCIM set, so a later manual upgrade stays detectable. */
     permissionType: permissionTypeEnum('permission_type'),
+    /** Manual workspace access to restore when an unlocked directory withdraws its grant. */
+    baselinePermission: permissionTypeEnum('baseline_permission'),
     /**
      * `directory` when the directory created the access; `adopted` when the
      * person already held it by hand and a mapping merely covers it. Adopted

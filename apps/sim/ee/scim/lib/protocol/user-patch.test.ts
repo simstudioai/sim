@@ -8,9 +8,8 @@ import { SCIM_PATCH_OP_SCHEMA } from '@/ee/scim/lib/protocol/constants'
 import { applyUserPatch } from '@/ee/scim/lib/protocol/user-patch'
 
 /**
- * Every fixture here is a request shape taken from Okta's or Microsoft's own
- * provisioning documentation, not an invented one. The point of the test is that
- * what those two products actually send is accepted.
+ * Covers RFC 7644 operation semantics and the request variants documented by
+ * Okta and Microsoft Entra.
  */
 
 function baseUser(overrides: Partial<ScimUserAttributes> = {}): ScimUserAttributes {
@@ -167,6 +166,139 @@ describe('applyUserPatch', () => {
     expect(next.name.givenName).toBe('Augusta')
     expect(next.name.formatted).toBe('Augusta Lovelace')
     expect(next.enterprise?.department).toBe('Maths')
+  })
+
+  it.each(['name', 'NAME', 'urn:ietf:params:scim:schemas:core:2.0:User:name'])(
+    'updates the modelled name through the complex path %s',
+    (path) => {
+      const { next } = applyUserPatch(
+        baseUser(),
+        parseOperations([{ op: 'replace', path, value: { givenName: 'Augusta' } }])
+      )
+      expect(next.name).toEqual({
+        givenName: 'Augusta',
+        familyName: 'Lovelace',
+        formatted: 'Augusta Lovelace',
+      })
+      expect(next.extra?.name).toBeUndefined()
+    }
+  )
+
+  it('preserves an explicit formatted name in a complex name update', () => {
+    const { next } = applyUserPatch(
+      baseUser(),
+      parseOperations([
+        {
+          op: 'add',
+          path: 'name',
+          value: { formatted: 'Countess Lovelace', givenName: 'Augusta' },
+        },
+      ])
+    )
+    expect(next.name).toEqual({
+      givenName: 'Augusta',
+      familyName: 'Lovelace',
+      formatted: 'Countess Lovelace',
+    })
+  })
+
+  it('updates a whole enterprise extension and preserves omitted attributes', () => {
+    const { next } = applyUserPatch(
+      baseUser({ enterprise: { department: 'Maths', employeeNumber: '123' } }),
+      parseOperations([
+        {
+          op: 'replace',
+          path: 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User',
+          value: { department: 'Engineering' },
+        },
+      ])
+    )
+    expect(next.enterprise).toEqual({ department: 'Engineering', employeeNumber: '123' })
+    expect(next.extra?.enterprise).toBeUndefined()
+  })
+
+  it.each([
+    'password',
+    'Password',
+    'urn:ietf:params:scim:schemas:core:2.0:User:password',
+    'URN:IETF:PARAMS:SCIM:SCHEMAS:CORE:2.0:USER:PASSWORD',
+  ])('never stores the write-only password path %s', (path) => {
+    const original = baseUser()
+    const targeted = applyUserPatch(
+      original,
+      parseOperations([{ op: 'replace', path, value: 'synthetic-password' }])
+    )
+    const pathless = applyUserPatch(
+      original,
+      parseOperations([{ op: 'add', value: { [path]: 'synthetic-password' } }])
+    )
+    expect(targeted).toEqual({ next: original, changed: false })
+    expect(pathless).toEqual({ next: original, changed: false })
+  })
+
+  it('removes a previously persisted password when applying another update', () => {
+    const { next, changed } = applyUserPatch(
+      baseUser({ extra: { Password: 'synthetic-password', title: 'Analyst' } }),
+      parseOperations([{ op: 'replace', path: 'active', value: true }])
+    )
+    expect(changed).toBe(true)
+    expect(next.extra).toEqual({ title: 'Analyst' })
+  })
+
+  it('updates a custom extension through Entra’s qualified attribute path', () => {
+    const schema = 'urn:ietf:params:scim:schemas:extension:CustomExtensionName:2.0:User'
+    const { next } = applyUserPatch(
+      baseUser({ extra: { [schema]: { tag: 'old', other: 'keep' } } }),
+      parseOperations([{ op: 'Replace', path: `${schema}:tag`, value: 'new' }])
+    )
+    expect(next.extra).toEqual({ [schema]: { tag: 'new', other: 'keep' } })
+  })
+
+  it('adds a custom extension attribute on its first PATCH', () => {
+    const schema = 'urn:ietf:params:scim:schemas:extension:CustomExtensionName:2.0:User'
+    const { next } = applyUserPatch(
+      baseUser(),
+      parseOperations([{ op: 'add', path: `${schema}:tag`, value: 'new' }])
+    )
+    expect(next.extra).toEqual({ [schema]: { tag: 'new' } })
+  })
+
+  it('merges a path-less custom extension then removes one nested attribute', () => {
+    const schema = 'urn:okta:sim:2.0:user:custom'
+    const { next } = applyUserPatch(
+      baseUser({ extra: { [schema]: { costCenter: 'R&D' } } }),
+      parseOperations([
+        { op: 'replace', value: { [schema]: { department: 'Engineering' } } },
+        { op: 'remove', path: `${schema}:costCenter` },
+      ])
+    )
+    expect(next.extra?.[schema]).toEqual({ department: 'Engineering', costCenter: undefined })
+  })
+
+  it('accepts a new extension object in a path-less PATCH', () => {
+    const schema = 'urn:okta:sim:2.0:user:custom'
+    const { next } = applyUserPatch(
+      baseUser(),
+      parseOperations([{ op: 'add', value: { [schema]: { costCenter: 'R&D' } } }])
+    )
+    expect(next.extra).toEqual({ [schema]: { costCenter: 'R&D' } })
+  })
+
+  it('removes a custom extension by its exact schema path', () => {
+    const schema = 'urn:okta:sim:2.0:user:custom'
+    const { next } = applyUserPatch(
+      baseUser({ extra: { [schema]: { costCenter: 'R&D' }, title: 'Analyst' } }),
+      parseOperations([{ op: 'remove', path: schema }])
+    )
+    expect(next.extra).toEqual({ title: 'Analyst' })
+  })
+
+  it('removes only the addressed sub-attribute of a typed complex attribute', () => {
+    const { next } = applyUserPatch(
+      baseUser({ extra: { addresses: [{ type: 'work', locality: 'London', country: 'GB' }] } }),
+      parseOperations([{ op: 'remove', path: 'addresses[type eq "work"].locality' }])
+    )
+    expect(next.extra?.addresses).toEqual([{ type: 'work', locality: undefined, country: 'GB' }])
   })
 
   it('reports no change when a patch re-sends what is already stored', () => {

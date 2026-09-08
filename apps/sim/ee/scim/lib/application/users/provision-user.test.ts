@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   suspend: vi.fn(),
   unsuspend: vi.fn(),
   invalidate: vi.fn(),
+  revokeSessions: vi.fn(),
   captureEvent: vi.fn(),
   deleteAccount: vi.fn(),
   syncIdentity: vi.fn(),
@@ -62,6 +63,7 @@ vi.mock('@/lib/organizations/members/lifecycle', () => ({
 }))
 vi.mock('@/lib/organizations/members/revocation', () => ({
   invalidateAfterSessionRevocation: mocks.invalidate,
+  revokeUserSessionsTx: mocks.revokeSessions,
 }))
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mocks.captureEvent,
@@ -103,6 +105,7 @@ vi.mock('@/ee/scim/lib/application/audit', () => ({
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
 import type { Principal } from '@sim/auth/principal'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { provisionScimUser } from '@/ee/scim/lib/application/users/provision-user'
 import { ScimError, uniqueness } from '@/ee/scim/lib/protocol/errors'
 
@@ -162,7 +165,7 @@ describe('provisionScimUser', () => {
     mocks.assertUserNameAvailable.mockResolvedValue(undefined)
     mocks.assertEmailAvailable.mockResolvedValue(undefined)
     mocks.consumeTombstone.mockResolvedValue(undefined)
-    mocks.syncIdentity.mockResolvedValue(undefined)
+    mocks.syncIdentity.mockResolvedValue(false)
     mocks.suspend.mockResolvedValue(undefined)
     mocks.unsuspend.mockResolvedValue(undefined)
     mocks.isInstanceMode.mockReturnValue(false)
@@ -449,6 +452,28 @@ describe('provisionScimUser', () => {
     expect(mocks.invalidate).toHaveBeenCalledWith({ userId: 'u-new', organizationId: 'org-1' })
   })
 
+  it('refuses an inactive create that links the organization owner without reporting success', async () => {
+    stageConnection()
+    mocks.resolveIdentity.mockResolvedValue({
+      action: 'link',
+      userId: 'owner',
+      via: 'verified-domain',
+    })
+    mocks.ensureMember.mockResolvedValue({
+      success: true,
+      memberId: 'm-owner',
+      alreadyMember: true,
+    })
+    mocks.suspend.mockRejectedValueOnce(
+      new OrchestrationError('conflict', 'Transfer ownership first')
+    )
+    await expect(run(attributes({ active: false }))).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.consumeTombstone).not.toHaveBeenCalled()
+    expect(mocks.reconcile).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mocks.deleteAccount).not.toHaveBeenCalled()
+  })
+
   it('relinks a tombstoned account instead of creating a new one', async () => {
     stageConnection()
     mocks.resolveIdentity.mockResolvedValue({ action: 'link', userId: 'u-old', via: 'tombstone' })
@@ -502,6 +527,20 @@ describe('provisionScimUser', () => {
       organizationId: 'org-1',
       source: 'scim',
     })
+  })
+
+  it('ends sessions under the old address when a tombstone relink renames the account', async () => {
+    stageConnection()
+    mocks.resolveIdentity.mockResolvedValue({ action: 'link', userId: 'u-old', via: 'tombstone' })
+    mocks.syncIdentity.mockResolvedValue(true)
+    stageReadBack('u-old', attributes(), null)
+    await run(attributes())
+    expect(mocks.revokeSessions).toHaveBeenCalledWith(db, {
+      userId: 'u-old',
+      organizationId: 'org-1',
+    })
+    expect(mocks.invalidate).toHaveBeenCalledWith({ userId: 'u-old', organizationId: 'org-1' })
+    expect(mocks.suspend).not.toHaveBeenCalled()
   })
 
   it('refuses to provision an account this connection already links', async () => {

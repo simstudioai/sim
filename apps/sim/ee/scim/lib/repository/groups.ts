@@ -1,7 +1,7 @@
 import { scimGroup, scimGroupMember, scimUser } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import type { ScimFilterTerm, ScimGroupFilterField } from '@/ee/scim/lib/protocol/filter'
 import { buildOrderKey } from '@/ee/scim/lib/repository/users'
@@ -51,6 +51,24 @@ export async function findScimGroupById(
     .where(and(eq(scimGroup.connectionId, connectionId), eq(scimGroup.id, groupId)))
     .limit(1)
   return row ?? null
+}
+
+/** Stable, bounded pages for remapping groups that arrived before automatic matching was enabled. */
+export async function listScimGroupsForReconcile(
+  tx: DbOrTx,
+  params: { connectionId: string; afterOrderKey?: string; limit: number }
+): Promise<Array<{ id: string; displayName: string; orderKey: string }>> {
+  return tx
+    .select({ id: scimGroup.id, displayName: scimGroup.displayName, orderKey: scimGroup.orderKey })
+    .from(scimGroup)
+    .where(
+      and(
+        eq(scimGroup.connectionId, params.connectionId),
+        params.afterOrderKey ? gt(scimGroup.orderKey, params.afterOrderKey) : undefined
+      )
+    )
+    .orderBy(asc(scimGroup.orderKey))
+    .limit(params.limit)
 }
 
 export async function pageScimGroups(

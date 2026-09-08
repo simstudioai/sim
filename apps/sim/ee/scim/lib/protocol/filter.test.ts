@@ -36,7 +36,16 @@ describe('parseUserFilter', () => {
 
   it('parses the work-email filtered path Entra sends', () => {
     expect(parseUserFilter('emails[type eq "work"].value eq "ada@acme.test"')).toEqual([
-      { field: 'email', value: 'ada@acme.test' },
+      { field: 'workEmail', value: 'ada@acme.test' },
+    ])
+  })
+
+  it('keeps all-email and primary-only matching distinct from work-email matching', () => {
+    expect(parseUserFilter('emails.value eq "ada@home.test"')).toEqual([
+      { field: 'email', value: 'ada@home.test' },
+    ])
+    expect(parseUserFilter('emails[primary eq true].value eq "ada@home.test"')).toEqual([
+      { field: 'primaryEmail', value: 'ada@home.test' },
     ])
   })
 
@@ -76,6 +85,11 @@ describe('parseUserFilter', () => {
   it('accepts the unquoted booleans RFC 7644 writes for active', () => {
     expect(parseUserFilter('active eq true')).toEqual([{ field: 'active', value: 'true' }])
     expect(parseUserFilter('active eq false')).toEqual([{ field: 'active', value: 'false' }])
+  })
+
+  it('normalizes quoted boolean values and refuses other strings', () => {
+    expect(parseUserFilter('active eq "False"')).toEqual([{ field: 'active', value: 'false' }])
+    expect(scimTypeOf(() => parseUserFilter('active eq "not-a-boolean"'))).toBe('invalidFilter')
   })
 
   it('refuses an unquoted value', () => {

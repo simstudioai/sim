@@ -3,6 +3,7 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SecurityPolicy')
 
@@ -44,22 +45,23 @@ const versionCache = new LRUCache<string, number>({
  * re-validate bumps this one counter.
  */
 export async function getSecurityPolicyVersion(
-  organizationId: string | null | undefined
+  organizationId: string | null | undefined,
+  executor: DbOrTx = db
 ): Promise<number> {
   if (!organizationId) return DEFAULT_VERSION
 
-  const cached = versionCache.get(organizationId)
+  const cached = executor === db ? versionCache.get(organizationId) : undefined
   if (cached !== undefined) return cached
 
   try {
-    const [row] = await db
+    const [row] = await executor
       .select({ version: organization.securityPolicyVersion })
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
 
     const version = row?.version ?? DEFAULT_VERSION
-    versionCache.set(organizationId, version)
+    if (executor === db) versionCache.set(organizationId, version)
     return version
   } catch (error) {
     logger.error('Failed to resolve security policy version; using default', {
@@ -125,22 +127,26 @@ export function invalidateMembershipCache(userId: string): void {
  * org-wide revocation) for up to the 24h cookie lifetime.
  */
 export async function getMemberOrganizationId(
-  userId: string | null | undefined
+  userId: string | null | undefined,
+  executor: DbOrTx = db
 ): Promise<string | null> {
   if (!userId) return null
 
-  const cached = membershipCache.get(userId)
+  /** A transaction may have just created or moved the membership; shared cache entries cannot see it. */
+  const cached = executor === db ? membershipCache.get(userId) : undefined
   if (cached) return cached.organizationId
 
   try {
-    const [row] = await db
+    const [row] = await executor
       .select({ organizationId: member.organizationId })
       .from(member)
       .where(eq(member.userId, userId))
       .limit(1)
 
     const organizationId = row?.organizationId ?? null
-    membershipCache.set(userId, { organizationId }, { ttl: membershipCacheTtlMs(organizationId) })
+    if (executor === db) {
+      membershipCache.set(userId, { organizationId }, { ttl: membershipCacheTtlMs(organizationId) })
+    }
     return organizationId
   } catch (error) {
     logger.error('Failed to resolve org membership; treating session as org-less', {
@@ -161,13 +167,14 @@ export async function getMemberOrganizationId(
  * bumps for up to the 24h cookie lifetime. Sessions of non-members use the
  * static default.
  */
-export async function getSessionCookieCacheVersion(session: {
-  userId?: string | null
-}): Promise<string> {
-  const organizationId = await getMemberOrganizationId(session.userId)
+export async function getSessionCookieCacheVersion(
+  session: { userId?: string | null },
+  executor: DbOrTx = db
+): Promise<string> {
+  const organizationId = await getMemberOrganizationId(session.userId, executor)
   if (!organizationId) return 'none'
   // The org id is part of the version so moving between orgs always changes
   // the string — two orgs whose counters happen to hold the same number must
   // not produce interchangeable cookie versions.
-  return `${organizationId}:${await getSecurityPolicyVersion(organizationId)}`
+  return `${organizationId}:${await getSecurityPolicyVersion(organizationId, executor)}`
 }

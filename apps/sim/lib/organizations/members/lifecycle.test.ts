@@ -128,6 +128,10 @@ describe('revokeUserSessionsTx', () => {
 })
 
 describe('suspendMemberTx and unsuspendMemberTx', () => {
+  beforeEach(() => {
+    queueTableRows(member, [{ role: 'member' }])
+  })
+
   it('suspends once, revokes sessions, and never touches API keys', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'u-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 's-1' }])
@@ -147,6 +151,27 @@ describe('suspendMemberTx and unsuspendMemberTx', () => {
     await expect(
       suspendMemberTx(db, { userId: 'u-1', organizationId: 'org-1', source: 'scim' })
     ).resolves.toMatchObject({ suspended: false })
+  })
+
+  it('refuses to suspend the owner under the membership lock without changing access', async () => {
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'owner' }])
+    await expect(
+      suspendMemberTx(db, { userId: 'u-1', organizationId: 'org-1', source: 'scim' })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(mockAcquireLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.select.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('cannot suspend an account outside the asserted organization', async () => {
+    resetDbChainMock()
+    await expect(
+      suspendMemberTx(db, { userId: 'u-1', organizationId: 'org-2', source: 'scim' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('lifts only a suspension raised by the same source', async () => {
