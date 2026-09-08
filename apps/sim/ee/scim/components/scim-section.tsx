@@ -387,7 +387,7 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
       })
       setIssuedSecret(result.secret)
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to issue credential'))
+      toast.error(getErrorMessage(error, 'Failed to issue token'))
     }
   }
 
@@ -396,9 +396,9 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
     try {
       await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })
       setPendingRevoke(null)
-      toast.success('Credential revoked')
+      toast.success('Token revoked')
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to revoke credential'))
+      toast.error(getErrorMessage(error, 'Failed to revoke token'))
     }
   }
 
@@ -457,12 +457,12 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
       ))}
 
       <SettingRow
-        label='Credentials'
+        label='Tokens'
         description='The token is shown once. Two can be active at a time so you can rotate without downtime.'
       >
         <div className='flex flex-col gap-3'>
           {connection.credentials.length === 0 ? (
-            <SettingsEmptyState variant='inline'>No credentials yet.</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>No tokens yet.</SettingsEmptyState>
           ) : (
             connection.credentials.map((credential) => (
               <CredentialRow
@@ -474,7 +474,7 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
           )}
           <div className='flex flex-wrap items-center gap-2'>
             <ChipSelect
-              aria-label='Credential expiry'
+              aria-label='Token expiry'
               align='start'
               value={credentialExpiry}
               onChange={(next) => setCredentialExpiry(next as CredentialExpiry)}
@@ -485,7 +485,7 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
               onClick={handleIssue}
               disabled={issueCredential.isPending || connection.credentials.length >= 2}
             >
-              {issueCredential.isPending ? 'Issuing...' : 'Issue credential'}
+              {issueCredential.isPending ? 'Issuing...' : 'Issue token'}
             </Chip>
           </div>
         </div>
@@ -541,11 +541,11 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
       <ChipConfirmModal
         open={pendingRevoke !== null}
         onOpenChange={(open) => !open && setPendingRevoke(null)}
-        title='Revoke credential'
+        title='Revoke token'
         text={[
           'Revoke ',
           { text: pendingRevoke?.tokenPrefix ?? '', bold: true },
-          '? Your identity provider stops syncing the moment it next uses this token. Issue a new credential first if you are rotating.',
+          '? Your identity provider stops syncing the moment it next uses this token. Issue a new token first if you are rotating.',
         ]}
         confirm={{
           label: 'Revoke',

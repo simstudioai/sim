@@ -52,11 +52,11 @@ https://<your-sim-domain>/api/scim/v2
 </Step>
 
 <Step>
-### Issue a credential
+### Issue a token
 
-Choose whether the credential expires (never, 90 days, or a year) and select **Issue credential**. The token appears once — copy it straight into your provider.
+Choose whether the token expires (never, 90 days, or a year) and select **Issue token**. It appears once — copy it straight into your provider.
 
-Two credentials can be active at a time, so you can rotate without downtime: issue the new one, update your provider, confirm a sync succeeds, then revoke the old one.
+Two tokens can be active at a time, so you can rotate without downtime: issue the new one, update your provider, confirm a sync succeeds, then revoke the old one.
 </Step>
 
 <Step>
@@ -70,7 +70,7 @@ In your Okta app, open **Provisioning → Integration** and select **Configure A
 - **SCIM connector base URL**: `https://<your-sim-domain>/api/scim/v2`
 - **Unique identifier field for users**: `userName`
 - **Supported provisioning actions**: Push New Users, Push Profile Updates, Push Groups
-- **Authentication Mode**: HTTP Header, with your Sim credential as the token
+- **Authentication Mode**: HTTP Header, with your Sim token
 
 Select **Test API Credentials**, then save. Under **Provisioning → To App**, enable Create Users, Update User Attributes, and Deactivate Users.
 
@@ -82,7 +82,7 @@ Okta never deletes users over SCIM. Unassigning someone, or deactivating them in
 In your enterprise application, open **Provisioning** and set Provisioning Mode to **Automatic**.
 
 - **Tenant URL**: `https://<your-sim-domain>/api/scim/v2`
-- **Secret Token**: your Sim credential
+- **Secret Token**: your Sim token
 
 Select **Test Connection**, then save and start provisioning.
 
@@ -94,7 +94,7 @@ Entra runs an initial cycle over everyone in scope, then incremental cycles roug
 Add a **SCIM Provisioner with SAML** app.
 
 - **SCIM Base URL**: `https://<your-sim-domain>/api/scim/v2`
-- **SCIM Bearer Token**: your Sim credential
+- **SCIM Bearer Token**: your Sim token
 
 Enable provisioning and choose what happens when a user is removed. Suspend maps to a Sim suspension; Delete removes their membership.
 
@@ -104,7 +104,7 @@ Enable provisioning and choose what happens when a user is removed. Suspend maps
 Add a **Custom SCIM** identity management integration.
 
 - **Base URL**: `https://<your-sim-domain>/api/scim/v2`
-- **Token Key**: your Sim credential
+- **Token Key**: your Sim token
 
 Enable group sync if you plan to map groups.
 
@@ -154,7 +154,7 @@ Sim also re-applies every group mapping once an hour, so drift cannot persist. Y
 ## Reference
 
 - Base URL: `https://<your-sim-domain>/api/scim/v2`
-- Authentication: `Authorization: Bearer <credential>`
+- Authentication: `Authorization: Bearer <token>`
 - Resources: `/Users`, `/Groups`, plus `/ServiceProviderConfig`, `/ResourceTypes`, and `/Schemas`
 - Filters: `eq` only, up to ten terms joined with `and`. Users: `id`, `userName`, `externalId`, `emails.value` (also `emails[type eq "work"].value`), `active`. Groups: `id`, `displayName`, `externalId`
 - Limits: 1,500 requests per minute per connection, 1 MB per request, 5,000 members per group

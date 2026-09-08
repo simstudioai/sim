@@ -44,7 +44,7 @@ async function expectUnauthorized(request: NextRequest, detail?: string) {
   expect(error.status).toBe(401)
   expect(error.headers).toEqual({ 'WWW-Authenticate': 'Bearer realm="SCIM"' })
   if (detail) expect(error.message).toBe(detail)
-  else expect(error.message).toBe('Invalid SCIM credential')
+  else expect(error.message).toBe('Invalid SCIM token')
 }
 
 afterAll(resetDbChainMock)
@@ -68,7 +68,7 @@ describe('authenticateScimRequest', () => {
   })
 
   it('demands a bearer credential', async () => {
-    await expectUnauthorized(requestWithToken(), 'A bearer credential is required')
+    await expectUnauthorized(requestWithToken(), 'A bearer token is required')
   })
 
   it('looks the credential up by digest, never by the secret', async () => {

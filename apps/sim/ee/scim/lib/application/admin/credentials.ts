@@ -118,7 +118,7 @@ export const revokeScimCredential = defineAuthorizedScimAdminUseCase({
         connectionId: scimCredential.connectionId,
       })
 
-    if (!revoked) throw new OrchestrationError('not_found', 'Credential not found')
+    if (!revoked) throw new OrchestrationError('not_found', 'Token not found')
     return { success: true as const, revoked }
   },
   projectAudit: ({ result }) => ({

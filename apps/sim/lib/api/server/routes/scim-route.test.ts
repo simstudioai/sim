@@ -168,7 +168,7 @@ describe('SCIM route builder', () => {
 
   it('bounds failed authentication per address and renders 401 with the challenge', async () => {
     authenticate.mockRejectedValue(
-      new ScimError(401, undefined, 'Invalid SCIM credential', {
+      new ScimError(401, undefined, 'Invalid SCIM token', {
         'WWW-Authenticate': 'Bearer realm="SCIM"',
       })
     )

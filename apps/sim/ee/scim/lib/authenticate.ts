@@ -41,7 +41,7 @@ export function generateScimToken(): { secret: string; hash: string; prefix: str
   }
 }
 
-function unauthorized(detail = 'Invalid SCIM credential'): ScimError {
+function unauthorized(detail = 'Invalid SCIM token'): ScimError {
   return new ScimError(401, undefined, detail, {
     'WWW-Authenticate': 'Bearer realm="SCIM"',
   })
@@ -88,7 +88,7 @@ export async function authenticateScimRequest(
   request: NextRequest
 ): Promise<ScimConnectionPrincipal> {
   const token = parseBearerToken(request.headers)
-  if (!token) throw unauthorized('A bearer credential is required')
+  if (!token) throw unauthorized('A bearer token is required')
 
   const [row] = await db
     .select({

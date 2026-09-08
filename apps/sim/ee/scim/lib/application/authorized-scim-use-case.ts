@@ -82,7 +82,7 @@ async function loadActiveConnection(
     .limit(1)
 
   if (!row || row.status !== 'active') {
-    throw new ScimError(401, undefined, 'Invalid SCIM credential', {
+    throw new ScimError(401, undefined, 'Invalid SCIM token', {
       'WWW-Authenticate': 'Bearer realm="SCIM"',
     })
   }
