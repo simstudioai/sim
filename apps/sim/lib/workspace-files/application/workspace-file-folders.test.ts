@@ -13,6 +13,7 @@ const {
   mockDeleteByPath,
   mockEnsure,
   mockList,
+  mockGetFolderPath,
   mockRelocate,
   mockRestore,
   mockAudit,
@@ -27,6 +28,7 @@ const {
   mockDeleteByPath: vi.fn(),
   mockEnsure: vi.fn(),
   mockList: vi.fn(),
+  mockGetFolderPath: vi.fn(),
   mockRelocate: vi.fn(),
   mockRestore: vi.fn(),
   mockAudit: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   deleteWorkspaceFileFolderByPath: mockDeleteByPath,
   ensureWorkspaceFileFolderPath: mockEnsure,
   listWorkspaceFileFolders: mockList,
+  getWorkspaceFileFolderPath: mockGetFolderPath,
   loadWorkspaceFileOperationContext: mockLoadContext,
   relocateWorkspaceFileFolderByPath: mockRelocate,
   restoreWorkspaceFileFolder: mockRestore,
@@ -61,12 +64,14 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
 
+import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceFileFolderOperation,
   deleteWorkspaceFileFolderOperation,
   ensureWorkspaceFileFolderPathOperation,
   listWorkspaceFileFoldersOperation,
+  resolveWorkspaceFileFolderPathOperation,
   restoreWorkspaceFileFolderOperation,
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
@@ -102,6 +107,36 @@ describe('workspace file folder operations', () => {
     })
     mockAssertItems.mockResolvedValue(undefined)
     mockArchive.mockResolvedValue({ files: 0, folders: 1, fileIds: [], folderIds: ['folder-1'] })
+  })
+
+  it('resolves a Copilot folder pointer after authorization without listing every folder', async () => {
+    mockGetFolderPath.mockImplementation(async () => {
+      events.push('read-path')
+      return 'Reports/Quarterly'
+    })
+    const result = await resolveWorkspaceFileFolderPathOperation.execute({
+      principal: createCopilotChatFilePrincipal({
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }),
+      input: { workspaceId: 'ws-1', folderId: 'folder-1' },
+    })
+    expect(result.path).toBe('Reports/Quarterly')
+    expect(events.indexOf('authorize')).toBeLessThan(events.indexOf('read-path'))
+    expect(mockGetFolderPath).toHaveBeenCalledWith('ws-1', 'folder-1')
+    expect(mockList).not.toHaveBeenCalled()
+  })
+
+  it('refuses a folder pointer after the Copilot user loses workspace access', async () => {
+    mockResolvePermission.mockResolvedValue(null)
+    await expect(
+      resolveWorkspaceFileFolderPathOperation.execute({
+        principal: createCopilotChatFilePrincipal({ userId: 'user-1', workspaceId: 'ws-1' }),
+        input: { workspaceId: 'ws-1', folderId: 'folder-1' },
+      })
+    ).rejects.toThrow()
+    expect(mockGetFolderPath).not.toHaveBeenCalled()
   })
 
   const LEAF = {

@@ -257,7 +257,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   createFolder: defineKnowledgeOperation(

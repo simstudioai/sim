@@ -13,6 +13,28 @@ export interface ResourceMentionGroup {
   items: AvailableItem[]
 }
 
+/** Adds table and knowledge-base folders as stable folder-ID chat mentions. */
+export function withFolderMentions(
+  groups: readonly ResourceMentionGroup[],
+  folders: { table: AvailableItem[]; knowledgebase: AvailableItem[] }
+): ResourceMentionGroup[] {
+  return groups.map((group) =>
+    group.type === 'folder'
+      ? {
+          ...group,
+          items: [
+            ...group.items,
+            ...folders.table.map((item) => ({ ...item, mentionFamily: 'Table folders' })),
+            ...folders.knowledgebase.map((item) => ({
+              ...item,
+              mentionFamily: 'Knowledge base folders',
+            })),
+          ],
+        }
+      : group
+  )
+}
+
 export type ResourceMentionLevel = 'resource' | 'tab'
 
 /** A family query such as "browser" keeps that resource's live tabs visible. */
