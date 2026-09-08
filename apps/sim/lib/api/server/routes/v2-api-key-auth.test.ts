@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/core/config/env-flags', () => mocks.envFlags)
 vi.mock('@/lib/api-key/crypto', () => ({ hashApiKey: (value: string) => `hash:${value}` }))
-vi.mock('@/lib/auth/oauth-provider', () => ({ OAUTH_ACCESS_TOKEN_PREFIX: 'sim_oat_' }))
 vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `oauth-hash:${value}` }))
 vi.mock('@/lib/api-key/service', () => ({ updateApiKeyLastUsed: mocks.updateLastUsed }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
@@ -282,6 +281,45 @@ describe('v2 bearer token authentication', () => {
     const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: 'sim_oat_ignored' })
 
     expect(result.keyType).toBe('personal')
+  })
+
+  it.each(['api:read', 'api:write'])(
+    'authenticates existing %s grants when Search MCP opts in',
+    async (scope) => {
+      queueTableRows(schemaMock.oauthAccessToken, [tokenRow({ resource: null, scopes: [scope] })])
+
+      await expect(
+        authenticateV2ApiKey(
+          { apiKey: null, bearer: 'sim_oat_secret' },
+          {
+            resource: 'https://sim.example/api/mcp/search/organizations/one',
+            allowUnboundApiTokens: true,
+          }
+        )
+      ).resolves.toMatchObject({
+        principal: { kind: 'oauth_access_token', userId: 'user-1', scopes: [scope] },
+      })
+    }
+  )
+
+  it('still refuses invalid or differently bound API grants when Search MCP opts in', async () => {
+    for (const overrides of [
+      { resource: 'https://sim.example/api/mcp/search/organizations/other' },
+      { expiresAt: new Date(0) },
+      { clientDisabled: true },
+      { userBanned: true },
+    ]) {
+      queueTableRows(schemaMock.oauthAccessToken, [tokenRow(overrides)])
+      await expect(
+        authenticateV2ApiKey(
+          { apiKey: null, bearer: 'sim_oat_secret' },
+          {
+            resource: 'https://sim.example/api/mcp/search/organizations/one',
+            allowUnboundApiTokens: true,
+          }
+        )
+      ).rejects.toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    }
   })
 
   it('preserves auth-disabled deployment behavior without verifying an OAuth token', async () => {

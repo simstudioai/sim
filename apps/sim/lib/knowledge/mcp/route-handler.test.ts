@@ -169,7 +169,7 @@ describe('organization MCP request admission', () => {
     expect(mocks.close).toHaveBeenCalledOnce()
     expect(mocks.authenticate).toHaveBeenCalledWith(
       { apiKey: 'personal-key', bearer: null },
-      { resource }
+      { resource, allowUnboundApiTokens: true }
     )
   })
   it('preserves API keys supplied in the MCP bearer header', async () => {
@@ -178,7 +178,7 @@ describe('organization MCP request admission', () => {
     expect((await post(req)).status).toBe(200)
     expect(mocks.authenticate).toHaveBeenCalledWith(
       { apiKey: 'personal-key', bearer: null },
-      { resource }
+      { resource, allowUnboundApiTokens: true }
     )
   })
   it('authenticates OAuth bearer tokens and checks organization membership', async () => {
@@ -198,7 +198,10 @@ describe('organization MCP request admission', () => {
       keyType: 'oauth',
     })
     expect((await post(req)).status).toBe(200)
-    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: null, bearer: token }, { resource })
+    expect(mocks.authenticate).toHaveBeenCalledWith(
+      { apiKey: null, bearer: token },
+      { resource, allowUnboundApiTokens: true }
+    )
     expect(mocks.index).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
   })
   it('rejects workspace API keys even if the workspace ID matches the organization ID', async () => {

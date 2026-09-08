@@ -36,7 +36,7 @@ function mcpAuth(resource: string) {
           apiKey: apiKey ?? (oauthBearer ? null : (bearer ?? null)),
           bearer: oauthBearer,
         },
-        { resource }
+        { resource, allowUnboundApiTokens: true }
       )
     },
   }
