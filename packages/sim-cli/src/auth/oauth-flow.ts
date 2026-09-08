@@ -17,7 +17,7 @@ import { USER_AGENT } from '../version'
  * the life of one login.
  *
  * The result is a short-lived access token and a rotating refresh token, both
- * revocable from Settings → Authorized apps, instead of the permanent API key
+ * revocable from Settings → General → Authorized apps, instead of the permanent API key
  * the pairing-code handoff in `device-flow.ts` mints. That handoff remains the
  * path for a terminal whose browser cannot reach it (SSH, containers).
  */

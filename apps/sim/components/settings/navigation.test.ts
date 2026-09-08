@@ -110,7 +110,6 @@ describe('settings navigation boundaries', () => {
       'custom-tools',
       'mcp',
       'apikeys',
-      'authorized-apps',
       'workflow-mcp-servers',
       'byok',
       'sandboxes',
@@ -130,7 +129,6 @@ describe('settings navigation boundaries', () => {
       'general',
       'billing',
       'api-keys',
-      'authorized-apps',
       'admin',
       'mothership',
     ])

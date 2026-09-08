@@ -25,11 +25,6 @@ const ApiKeys = dynamic(() =>
 const BYOK = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK)
 )
-const AuthorizedApps = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps').then(
-    (m) => m.AuthorizedApps
-  )
-)
 const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
@@ -189,7 +184,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
-      {effectiveSection === 'authorized-apps' && <AuthorizedApps />}
       {billingEnabled && effectiveSection === 'billing' && (
         <Billing
           scope={organizationId ? 'organization' : 'account'}

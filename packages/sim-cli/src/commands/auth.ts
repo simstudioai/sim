@@ -501,7 +501,7 @@ async function loginWithOAuth(
     } catch (revocationError) {
       console.log(
         chalk.yellow(
-          `Could not revoke the uncommitted login (${safeOneLine(getErrorMessage(revocationError))}). Revoke Sim CLI in Settings → Authorized apps.`
+          `Could not revoke the uncommitted login (${safeOneLine(getErrorMessage(revocationError))}). Revoke Sim CLI in Settings → General → Authorized apps.`
         )
       )
     }
@@ -518,7 +518,7 @@ async function loginWithOAuth(
   console.log(
     chalk.dim(
       grantsWriteAccess(tokens.scope)
-        ? '  Renews itself; revoke it any time in Settings → Authorized apps, or with: sim logout'
+        ? '  Renews itself; revoke it any time in Settings → General → Authorized apps, or with: sim logout'
         : '  Read-only login — commands that change anything will be refused.'
     )
   )
@@ -708,7 +708,7 @@ async function loginWithHandoff(
 
 /**
  * Revokes the complete server-side token family before forgetting it locally.
- * Settings → Authorized apps is broader: it revokes every independent login
+ * Settings → General → Authorized apps is broader: it revokes every independent login
  * for the client. An unreachable server must not stop someone clearing their
  * machine, but it is said out loud so nobody assumes revocation succeeded.
  */
@@ -739,7 +739,7 @@ async function revokeStoredOAuth(credential: StoredOAuthCredential): Promise<voi
   } catch (error) {
     console.log(
       chalk.yellow(
-        `  Could not revoke the login on ${displayEndpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → Authorized apps.`
+        `  Could not revoke the login on ${displayEndpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → General → Authorized apps.`
       )
     )
   }

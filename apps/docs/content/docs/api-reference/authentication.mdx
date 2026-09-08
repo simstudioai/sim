@@ -108,7 +108,7 @@ curl https://www.sim.ai/api/v2/workspaces \
 
 Scopes limit what an application may do; your current workspace membership and role still apply. Each endpoint documents its required scope. Some GET endpoints that perform external discovery require `api:write`, so HTTP method alone does not determine the permission.
 
-Manage grants in **Settings** → **Authorized apps**. Revoking an application signs out all of its logins. `sim logout` revokes the current CLI login and removes it from your machine. The Python and TypeScript SDKs currently use API keys; they do not manage OAuth sign-in or refresh tokens.
+Manage grants in **Settings** → **General** → **Authorized apps**. Revoking an application signs out all of its logins. `sim logout` revokes the current CLI login and removes it from your machine. The Python and TypeScript SDKs currently use API keys; they do not manage OAuth sign-in or refresh tokens.
 
 ## Security
 

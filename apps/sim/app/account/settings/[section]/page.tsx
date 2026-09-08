@@ -41,6 +41,9 @@ export default async function AccountSettingsSectionPage({
   if (!session?.user) redirect('/login')
 
   const { section } = await params
+  if (section === 'authorized-apps') {
+    redirect(`${getAccountSettingsHref('general')}?view=authorized-apps`)
+  }
   const parsed = parseSettingsPathSection({
     path: section,
     items: ACCOUNT_SETTINGS_ITEMS,
