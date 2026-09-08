@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import {
   CancelWorkflowRun,
+  GenerateApiKey,
   RunBlock,
   RunFromBlock,
   RunWorkflow,
@@ -13,6 +14,7 @@ import { executeRunCode } from '../tools/handlers/run-code'
 import { executeSimCli } from '../tools/handlers/sim-cli'
 import {
   executeCancelWorkflowRun,
+  executeGenerateApiKey,
   executeRunBlock,
   executeRunFromBlock,
   executeRunWorkflow,
@@ -50,6 +52,7 @@ function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
 function buildHandlerMap(): Record<string, ToolHandler> {
   return {
     [CancelWorkflowRun.id]: h(executeCancelWorkflowRun),
+    [GenerateApiKey.id]: h(executeGenerateApiKey),
     [RunWorkflow.id]: h(executeRunWorkflow),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),
