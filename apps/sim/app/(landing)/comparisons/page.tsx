@@ -5,6 +5,7 @@ import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
 import { BrandIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { COMPARISON_THEME } from '@/app/(landing)/comparisons/theme'
 import { ALL_COMPETITORS, ensurePeriod, lowercaseFirst } from '@/app/(landing)/comparisons/utils'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
@@ -102,22 +103,17 @@ export default function ComparisonHubPage() {
       <JsonLd data={itemListJsonLd} />
       <JsonLd data={faqJsonLd} />
 
-      <main id='main-content' className='bg-[var(--bg)]'>
+      <main id='main-content' className={cn('bg-[var(--bg)]', COMPARISON_THEME)}>
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
-          {/* Invisible spacer matching the detail page's BackLink block height/margin, so the divider below lands at the same Y on both pages. */}
-          <div className='mb-6 h-6' aria-hidden='true' />
-
-          <div className='flex flex-col gap-4'>
+          <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
             <h1
               id='comparison-hub-heading'
               className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
             >
               Sim comparisons
             </h1>
-            <p className='max-w-[720px] text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
-              Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
-              See how Sim compares to workflow automation platforms and AI agent builders on
-              platform architecture, AI capabilities, integrations, pricing, security, and support.
+            <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+              See how Sim compares to workflow automation platforms and AI agent builders.
             </p>
             <p className='sr-only'>
               This directory lists every Sim vs. competitor comparison page, covering workflow

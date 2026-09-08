@@ -1,5 +1,6 @@
 import type { ComponentType, SVGProps } from 'react'
 import { cn, SimWordmark } from '@sim/emcn'
+import { RetoolIcon } from '@/components/icons'
 import type { CompetitorBrand } from '@/lib/compare/data'
 
 export interface BrandIconTileProps {
@@ -36,7 +37,7 @@ export function BrandIconTile({
     return (
       <div
         className={cn(
-          'shrink-0 overflow-hidden rounded-xl border border-[var(--border-1)]',
+          'shrink-0 overflow-hidden rounded-[20%] border border-[var(--border)]',
           className
         )}
       >
@@ -47,11 +48,17 @@ export function BrandIconTile({
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]',
+        'flex shrink-0 items-center justify-center rounded-[20%] border border-[var(--border)] bg-[var(--bg)]',
         className
       )}
     >
-      <Icon className={iconClassName} aria-hidden='true' />
+      <Icon
+        className={cn(
+          iconClassName,
+          Icon === RetoolIcon && 'dark:[&_path]:fill-[var(--text-primary)]'
+        )}
+        aria-hidden='true'
+      />
     </div>
   )
 }
@@ -59,6 +66,8 @@ export function BrandIconTile({
 export interface SimIconTileProps {
   /** Outer tile size, e.g. `size-8`. Defaults to the integrations-page card size. */
   className?: string
+  /** Sim wordmark scale inside the tile. Defaults to the compact comparison-table size. */
+  wordmarkClassName?: string
 }
 
 /**
@@ -66,16 +75,16 @@ export interface SimIconTileProps {
  * wordmark. So "Sim" gets the identical icon-chip treatment as every
  * competitor it's compared against, instead of appearing as bare text.
  */
-export function SimIconTile({ className = 'size-8' }: SimIconTileProps) {
+export function SimIconTile({ className = 'size-8', wordmarkClassName }: SimIconTileProps) {
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]',
+        'flex shrink-0 items-center justify-center rounded-[20%] border border-[var(--border)] bg-white text-[#434343]',
         className
       )}
     >
-      <span className='inline-flex scale-[0.6]'>
-        <SimWordmark />
+      <span className={cn('inline-flex scale-[0.6]', wordmarkClassName)}>
+        <SimWordmark tone='inherit' />
       </span>
     </div>
   )

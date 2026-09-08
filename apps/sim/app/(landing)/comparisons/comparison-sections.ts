@@ -28,6 +28,7 @@ export interface ComparisonRowDef {
 
 /** One section of the comparison table, mirroring a {@link ComparisonFacts} group. */
 export interface ComparisonSectionDef {
+  id: string
   group: keyof ComparisonFacts
   title: string
   rows: ComparisonRowDef[]
@@ -44,7 +45,7 @@ function defineSection<G extends keyof ComparisonFacts>(section: {
   title: string
   rows: Array<{ key: keyof ComparisonFacts[G]; label: string }>
 }): ComparisonSectionDef {
-  return section as ComparisonSectionDef
+  return { ...section, id: `comparison-${section.group}` } as ComparisonSectionDef
 }
 
 /**
@@ -55,7 +56,7 @@ function defineSection<G extends keyof ComparisonFacts>(section: {
 export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
   defineSection({
     group: 'platform',
-    title: 'Platform & deployment',
+    title: 'Platform',
     rows: [
       { key: 'builderType', label: 'Builder type' },
       { key: 'learningCurve', label: 'Learning curve' },

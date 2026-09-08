@@ -239,6 +239,11 @@ export {
   TableHeader,
   TableRow,
 } from './table/table'
+export {
+  TableOfContents,
+  type TableOfContentsItem,
+  type TableOfContentsProps,
+} from './table-of-contents/table-of-contents'
 export { type FileInputOptions, TagInput, type TagItem } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'
