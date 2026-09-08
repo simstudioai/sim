@@ -37,27 +37,33 @@ export function OrganizationIntegrationsSettings() {
         />
       </div>
       {tab === 'providers' && <OrganizationIntegrationsSetup />}
-      {tab === 'people' &&
-        (accounts.error ? (
-          <SettingsQueryErrorState
-            error={accounts.error}
-            fallback='Could not load connected accounts'
-            isRetrying={accounts.isFetching}
-            onRetry={() => void accounts.refetch()}
-            variant='inline'
-          />
-        ) : !accounts.data ? (
-          <SettingsEmptyState variant='inline'>Loading connected accounts…</SettingsEmptyState>
-        ) : !accounts.data.credentialGroup ? (
-          <div className='flex flex-col items-start gap-4'>
-            <SettingsEmptyState variant='inline'>
-              Set up a provider for personal account connections before inviting people.
-            </SettingsEmptyState>
-            <Chip onClick={() => void setTab('providers')}>Set up providers</Chip>
-          </div>
-        ) : (
-          <OrganizationAccountPeople key={organization.id} organizationId={organization.id} />
-        ))}
+      {tab === 'people' && (
+        <OrganizationAccountPeople
+          key={organization.id}
+          organizationId={organization.id}
+          enabled={!accounts.error && (!accounts.data || Boolean(accounts.data.credentialGroup))}
+          setupFallback={
+            accounts.error ? (
+              <SettingsQueryErrorState
+                error={accounts.error}
+                fallback='Could not load connected accounts'
+                isRetrying={accounts.isFetching}
+                onRetry={() => void accounts.refetch()}
+                variant='inline'
+              />
+            ) : !accounts.data ? (
+              <SettingsEmptyState variant='inline'>Loading connected accounts…</SettingsEmptyState>
+            ) : !accounts.data.credentialGroup ? (
+              <div className='flex flex-col items-start gap-4'>
+                <SettingsEmptyState variant='inline'>
+                  Set up a provider for personal account connections before inviting people.
+                </SettingsEmptyState>
+                <Chip onClick={() => void setTab('providers')}>Set up providers</Chip>
+              </div>
+            ) : undefined
+          }
+        />
+      )}
     </div>
   )
 }

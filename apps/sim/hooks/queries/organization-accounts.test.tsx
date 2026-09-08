@@ -8,8 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
 
+import { ApiClientError } from '@/lib/api/client/errors'
 import { listOrganizationAccountPeopleContract } from '@/lib/api/contracts/organization-accounts'
-import { useOrganizationAccountPeople } from '@/hooks/queries/organization-accounts'
+import {
+  organizationAccountsKeys,
+  useOrganizationAccountPeople,
+} from '@/hooks/queries/organization-accounts'
 
 describe('organization people search pagination', () => {
   let root: Root
@@ -17,9 +21,21 @@ describe('organization people search pagination', () => {
   let client: QueryClient
   let result: ReturnType<typeof useOrganizationAccountPeople>
 
-  function Probe({ search, organizationId }: { search: string; organizationId: string }) {
-    result = useOrganizationAccountPeople(organizationId, search)
-    return <span>{result.data?.pages.length}</span>
+  function Probe({
+    search,
+    organizationId,
+    enabled,
+  }: {
+    search: string
+    organizationId: string
+    enabled: boolean
+  }) {
+    result = useOrganizationAccountPeople(organizationId, search, { enabled })
+    return (
+      <span>
+        {result.status}: {result.data?.pages.length}
+      </span>
+    )
   }
 
   async function flushQueries() {
@@ -28,11 +44,11 @@ describe('organization people search pagination', () => {
     })
   }
 
-  async function render(search: string, organizationId = 'org-1') {
+  async function render(search: string, organizationId = 'org-1', enabled = true) {
     await act(async () =>
       root.render(
         <QueryClientProvider client={client}>
-          <Probe search={search} organizationId={organizationId} />
+          <Probe search={search} organizationId={organizationId} enabled={enabled} />
         </QueryClientProvider>
       )
     )
@@ -43,7 +59,7 @@ describe('organization people search pagination', () => {
     vi.clearAllMocks()
     mocks.request.mockReset()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } })
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -99,5 +115,46 @@ describe('organization people search pagination', () => {
     })
     expect(result.hasNextPage).toBe(false)
     expect(result.data?.pages).toHaveLength(1)
+  })
+
+  it('waits for an organization even when explicitly enabled', async () => {
+    await render('', '', true)
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('does not request people while disabled and stops refetching after setup is known missing', async () => {
+    mocks.request.mockResolvedValue({ enrollments: [], nextCursor: null })
+    await render('', 'org-1', false)
+    expect(mocks.request).not.toHaveBeenCalled()
+
+    await render('', 'org-1', true)
+    expect(mocks.request).toHaveBeenCalledOnce()
+    await render('', 'org-1', false)
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: organizationAccountsKeys.people('org-1') })
+    })
+    await render('another search', 'org-1', false)
+    expect(mocks.request).toHaveBeenCalledOnce()
+  })
+
+  it.each([400, 401, 403, 404, 409, 422])(
+    'does not retry a non-retryable %s response',
+    async (status) => {
+      mocks.request.mockRejectedValue(
+        new ApiClientError({ status, message: 'Unavailable', body: null })
+      )
+      await render('')
+      expect(result.isError).toBe(true)
+      expect(mocks.request).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([408, 429, 500])('retains one retry for a transient %s response', async (status) => {
+    mocks.request.mockRejectedValue(
+      new ApiClientError({ status, message: 'Try again', body: null })
+    )
+    await render('')
+    expect(result.isError).toBe(true)
+    expect(mocks.request).toHaveBeenCalledTimes(2)
   })
 })

@@ -1,6 +1,13 @@
 'use client'
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  isServer,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type AddOrganizationAccountMcpProviderBody,
@@ -193,12 +200,21 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
 }
 export function useOrganizationAccountPeople(
   organizationId: string,
-  search?: OrganizationAccountPeopleQuery['search']
+  search?: OrganizationAccountPeopleQuery['search'],
+  options?: { enabled?: boolean }
 ) {
   const normalizedSearch = search?.trim() || undefined
   return useInfiniteQuery({
     queryKey: organizationAccountsKeys.peopleList(organizationId, normalizedSearch),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
+    retry: (failureCount, error) =>
+      !isServer &&
+      failureCount < 1 &&
+      (!isApiClientError(error) ||
+        error.status === 408 ||
+        error.status === 429 ||
+        error.status >= 500),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
       requestJson(listOrganizationAccountPeopleContract, {

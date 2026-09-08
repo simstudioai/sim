@@ -6,6 +6,7 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -23,11 +24,12 @@ import {
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail/components/unsaved-changes-modal'
 import { ConnectorDocuments } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-documents'
 import {
-  ConnectorActions,
   ConnectorRecovery,
   ConnectorSyncHistory,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section'
+import { ConnectorActionFeedback } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions'
 import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
+import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { ConnectorSettingsFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
 import {
@@ -201,24 +203,16 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
       />
     )
   return (
-    <SettingsPanel
+    <SourcePanel
+      connector={connector}
       back={{ text: 'Integrations', icon: ArrowLeft, onSelect: onBack }}
       title={title}
       description={description}
       docsLink={meta?.searchDocsUrl}
-      search={
-        view === 'documents'
-          ? { value: search, onChange: setSearch, placeholder: 'Search documents...' }
-          : undefined
-      }
+      onRemoved={onBack}
     >
       {queryError}
-      <SourceNavigation
-        connector={connector}
-        view={view}
-        onViewChange={onViewChange}
-        onRemoved={onBack}
-      />
+      <SourceNavigation view={view} onViewChange={onViewChange} />
       <ConnectorRecovery
         connector={connector}
         knowledgeBaseId={connector.knowledgeBaseId}
@@ -231,6 +225,7 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
           knowledgeBaseId={connector.knowledgeBaseId}
           connectorId={connector.id}
           search={documentSearch}
+          searchControl={{ value: search, onChange: setSearch }}
           filter={filter}
           onFilterChange={(next) => void setFilter(next)}
           progressScope={scope}
@@ -243,41 +238,61 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
           detail={connector}
         />
       )}
-    </SettingsPanel>
+    </SourcePanel>
   )
 }
 
 interface SourceNavigationProps {
-  connector: ConnectorData
   view: SourceView
   onViewChange: (view: string) => void
-  onRemoved: () => void
-  disabled?: boolean
 }
 
-function SourceNavigation({
-  connector,
-  view,
-  onViewChange,
-  onRemoved,
-  disabled = false,
-}: SourceNavigationProps) {
+function SourceNavigation({ view, onViewChange }: SourceNavigationProps) {
   return (
-    <div className='flex flex-wrap items-center justify-between gap-3'>
+    <div>
       <ChipModalTabs
         tabs={SOURCE_VIEWS}
         value={view}
         onChange={onViewChange}
         aria-label='Source views'
       />
-      <ConnectorActions
-        connector={connector}
-        knowledgeBaseId={connector.knowledgeBaseId}
-        canEdit
-        disabled={disabled}
-        onRemoved={onRemoved}
-      />
     </div>
+  )
+}
+
+interface SourcePanelProps {
+  connector: ConnectorData
+  back: SettingsBackAction
+  title: string
+  description?: string
+  docsLink?: string
+  actions?: SettingsAction[]
+  lifecycleDisabled?: boolean
+  onRemoved: () => void
+  children: ReactNode
+}
+
+function SourcePanel({
+  connector,
+  actions,
+  lifecycleDisabled,
+  onRemoved,
+  children,
+  ...panel
+}: SourcePanelProps) {
+  const lifecycle = useConnectorActions({
+    connector,
+    knowledgeBaseId: connector.knowledgeBaseId,
+    canEdit: true,
+    disabled: lifecycleDisabled,
+    primarySync: !actions,
+    onRemoved,
+  })
+  return (
+    <SettingsPanel {...panel} actions={[...lifecycle.actions, ...(actions ?? [])]}>
+      <ConnectorActionFeedback state={lifecycle} />
+      {children}
+    </SettingsPanel>
   )
 }
 
@@ -333,11 +348,14 @@ function SourceSettingsForm({
   })
   const guard = useSettingsUnsavedGuard({ isDirty: form.dirty, navigationBlocked: form.saving })
   return (
-    <SettingsPanel
+    <SourcePanel
+      connector={connector}
       back={{ text: 'Integrations', icon: ArrowLeft, onSelect: () => guard.guardBack(onBack) }}
       title={title}
       description={description}
       docsLink={form.docsUrl}
+      lifecycleDisabled={form.dirty || form.saving}
+      onRemoved={onBack}
       actions={saveDiscardActions({
         dirty: form.dirty,
         saving: form.saving,
@@ -348,13 +366,10 @@ function SourceSettingsForm({
     >
       {queryError}
       <SourceNavigation
-        connector={connector}
         view='settings'
         onViewChange={(next) => {
           if (next !== 'settings') guard.guardBack(() => onViewChange(next))
         }}
-        onRemoved={onBack}
-        disabled={form.dirty || form.saving}
       />
       <div className='-mx-2 flex flex-col gap-4'>
         <ConnectorSettingsFields {...form.fieldsProps} />
@@ -364,6 +379,6 @@ function SourceSettingsForm({
         onOpenChange={guard.setShowUnsavedModal}
         onDiscard={guard.confirmDiscard}
       />
-    </SettingsPanel>
+    </SourcePanel>
   )
 }

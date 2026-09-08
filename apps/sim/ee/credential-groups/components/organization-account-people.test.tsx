@@ -193,7 +193,7 @@ it('restores the existing People URL search and requests server-filtered results
       </NuqsTestingAdapter>
     )
   )
-  expect(mocks.people).toHaveBeenLastCalledWith('organization-1', 'late-page')
+  expect(mocks.people).toHaveBeenLastCalledWith('organization-1', 'late-page', { enabled: true })
   expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('late-page')
   expect(container.textContent).toContain('No people match your search')
   expect(container.textContent).not.toContain('loaded people')
@@ -214,6 +214,29 @@ it('keeps header search available after a people request fails', async () => {
   )
   expect(container.querySelector('input[placeholder="Search people..."]')).not.toBeDisabled()
   expect(container.textContent).toContain('People unavailable')
+})
+
+it('keeps setup fallback in the standard panel without exposing cached people or actions', async () => {
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter hasMemory>
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationAccountPeople
+              organizationId='organization-1'
+              enabled={false}
+              setupFallback={<span>Set up a provider first</span>}
+            />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      </NuqsTestingAdapter>
+    )
+  )
+  expect(mocks.people).toHaveBeenLastCalledWith('organization-1', '', { enabled: false })
+  expect(container.textContent).toContain('Set up a provider first')
+  expect(container.textContent).not.toContain('person@example.com')
+  expect(button(container, 'Request connections')).toBeDisabled()
+  expect(container.querySelector('input[placeholder="Search people..."]')).not.toBeNull()
 })
 
 it('retains loaded people and retries only the failed next page', async () => {

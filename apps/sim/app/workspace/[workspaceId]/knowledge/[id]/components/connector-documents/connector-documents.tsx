@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipLink, Skeleton } from '@sim/emcn'
-import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Chip, ChipDropdown, ChipInput, ChipLink, Skeleton } from '@sim/emcn'
+import { RefreshCw, Search, SquareArrowUpRight } from '@sim/emcn/icons'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import {
@@ -23,6 +23,7 @@ interface ConnectorDocumentsProps {
   knowledgeBaseId: string
   connectorId: string
   search?: string
+  searchControl?: { value: string; onChange: (value: string) => void }
   progressScope?: ResourceScope
   syncing?: boolean
   filter: ConnectorDocumentFilter
@@ -34,6 +35,7 @@ export function ConnectorDocuments({
   connectorId,
   filter,
   search,
+  searchControl,
   progressScope,
   syncing,
   onFilterChange,
@@ -67,21 +69,20 @@ export function ConnectorDocuments({
     retryMutation.reset()
   }
 
-  if (query.isError && !query.isFetchNextPageError) {
-    return (
-      <SettingsQueryErrorState
-        error={query.error}
-        isRetrying={query.isFetching}
-        onRetry={() => query.refetch()}
-        fallback='Could not load documents'
-      />
-    )
-  }
-
   return (
     <>
       <div className='flex flex-col gap-4'>
-        <div className='flex items-center'>
+        <div className='flex items-center gap-2'>
+          {searchControl && (
+            <ChipInput
+              icon={Search}
+              placeholder='Search documents...'
+              value={searchControl.value}
+              onChange={(event) => searchControl.onChange(event.target.value)}
+              autoComplete='off'
+              className='min-w-0 flex-1'
+            />
+          )}
           <ChipDropdown
             aria-label='Document status'
             value={filter}
@@ -101,7 +102,15 @@ export function ConnectorDocuments({
           />
         </div>
         <div className={RESOURCE_LIST_STACK}>
-          {isLoading ? (
+          {query.isError && !query.isFetchNextPageError ? (
+            <SettingsQueryErrorState
+              error={query.error}
+              isRetrying={query.isFetching}
+              onRetry={() => query.refetch()}
+              fallback='Could not load documents'
+              variant='inline'
+            />
+          ) : isLoading ? (
             <>
               <Skeleton className='h-10 w-full rounded-lg' />
               <Skeleton className='h-10 w-full rounded-lg' />

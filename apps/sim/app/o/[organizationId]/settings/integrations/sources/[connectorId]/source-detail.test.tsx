@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
+import type { ConnectorActionsOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 
 const mocks = vi.hoisted(() => ({
   admin: true,
@@ -53,16 +54,24 @@ vi.mock(
   })
 )
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section', () => ({
-  ConnectorActions: (props: unknown) => {
-    mocks.actions(props)
-    return <button type='button'>Sync now</button>
-  },
   ConnectorRecovery: () => null,
   ConnectorSyncHistory: () => {
     mocks.history()
     return <p>Source sync history</p>
   },
 }))
+vi.mock(
+  '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions',
+  () => ({
+    useConnectorActions: mocks.actions,
+  })
+)
+vi.mock(
+  '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions',
+  () => ({
+    ConnectorActionFeedback: () => null,
+  })
+)
 vi.mock(
   '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form',
   () => ({ useConnectorSettingsForm: mocks.form })
@@ -113,6 +122,19 @@ describe('organization source detail navigation', () => {
     mocks.dirty = false
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
     mocks.detail.mockReturnValue({ data: connector })
+    mocks.actions.mockImplementation((options: ConnectorActionsOptions) => ({
+      actions: [
+        {
+          id: 'sync',
+          text: 'Sync now',
+          variant: options.primarySync ? 'primary' : undefined,
+          disabled: options.disabled,
+          onSelect: vi.fn(),
+        },
+        { id: 'pause', text: 'Pause', disabled: options.disabled, onSelect: vi.fn() },
+        { id: 'delete', text: 'Remove', disabled: options.disabled, onSelect: vi.fn() },
+      ],
+    }))
     mocks.form.mockImplementation(() => ({
       dirty: mocks.dirty,
       saving: false,
@@ -171,9 +193,9 @@ describe('organization source detail navigation', () => {
     expect(mocks.documents).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: 'notes', filter: 'excluded' })
     )
-    expect(
-      container.querySelector<HTMLInputElement>('input[placeholder="Search documents..."]')?.value
-    ).toBe('notes')
+    expect(mocks.documents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ searchControl: { value: 'notes', onChange: expect.any(Function) } })
+    )
   })
 
   it.each([
@@ -206,6 +228,15 @@ describe('organization source detail navigation', () => {
   it('requires discard confirmation before leaving dirty settings', async () => {
     mocks.dirty = true
     await render('?view=settings')
+    expect(mocks.actions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ disabled: true, primarySync: false })
+    )
+    for (const label of ['Sync now', 'Pause', 'Remove']) {
+      const action = Array.from(container.querySelectorAll('button')).find(
+        (item) => item.textContent === label
+      )
+      expect(action).toBeDisabled()
+    }
     await click('Documents')
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Unsaved Changes')
     expect(mocks.documents).not.toHaveBeenCalled()
@@ -214,6 +245,18 @@ describe('organization source detail navigation', () => {
     expect(mocks.push).not.toHaveBeenCalled()
     await click('Discard Changes')
     expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
+  })
+
+  it('places source actions in the resource header before the view tabs', async () => {
+    await render()
+    const sync = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'Sync now'
+    )
+    const tabs = container.querySelector('[aria-label="Source views"]')
+    expect(sync).toBeTruthy()
+    expect(tabs).toBeTruthy()
+    expect(sync!.compareDocumentPosition(tabs!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(mocks.actions).toHaveBeenLastCalledWith(expect.objectContaining({ primarySync: true }))
   })
   it.each(['index', 'detail'] as const)(
     'preserves a dirty draft when a background %s refresh fails',
