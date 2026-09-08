@@ -10,8 +10,19 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, Chip, ChipDropdown, cn, Tooltip, toast } from '@sim/emcn'
-import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
+import {
+  Button,
+  Chip,
+  ChipDropdown,
+  cn,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Slider,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
+import { ChevronDown, Paperclip, Plus, Slash, Zap } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
@@ -44,7 +55,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   MOTHERSHIP_EFFORT_OPTIONS,
-  type MothershipEffort,
+  MOTHERSHIP_MODEL_OPTIONS,
   useMothershipEffortStore,
 } from '@/stores/mothership-effort/store'
 import type { ChatContext } from '@/stores/panel'
@@ -540,6 +551,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     editorRef.current.openResourceMenu({ left: rect.left, top: rect.top })
   }, [])
 
+  const modelSelection = useMothershipEffortStore((state) => state.modelSelection)
+  const setModel = useMothershipEffortStore((state) => state.setModel)
+  const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
   const effort = useMothershipEffortStore((state) => state.effort)
   const setEffort = useMothershipEffortStore((state) => state.setEffort)
 
@@ -618,16 +632,87 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>
-          <ChipDropdown
-            variant='ghost'
-            options={MOTHERSHIP_EFFORT_OPTIONS}
-            value={effort}
-            placeholder='Effort'
-            aria-label='Effort'
-            align='start'
-            matchTriggerWidth={false}
-            onChange={(value) => setEffort(value as MothershipEffort)}
-          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                className='gap-1.5'
+                aria-label='Model and reasoning effort'
+              >
+                {modelSelection.fastMode && <Zap className='size-[14px]' />}
+                {
+                  MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
+                    ?.label
+                }
+                <span className='text-[var(--text-muted)]'>
+                  {MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label}
+                </span>
+                <ChevronDown className='size-[14px]' />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side='top' align='start' minWidth={280} maxWidth={280}>
+              <div className='flex flex-col gap-4 p-2'>
+                <div className='flex items-center gap-2'>
+                  <ChipDropdown
+                    options={MOTHERSHIP_MODEL_OPTIONS}
+                    value={modelSelection.model}
+                    aria-label='Model'
+                    className='min-w-0 flex-1'
+                    onChange={(value) => {
+                      const option = MOTHERSHIP_MODEL_OPTIONS.find(
+                        (option) => option.value === value
+                      )
+                      if (option) setModel(option.value)
+                    }}
+                  />
+                  {modelSelection.model === 'gpt-6-astra' && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          type='button'
+                          variant={modelSelection.fastMode ? 'active' : 'ghost'}
+                          aria-label='Fast mode'
+                          aria-pressed={modelSelection.fastMode}
+                          onClick={() => setFastMode(!modelSelection.fastMode)}
+                        >
+                          <Zap className='size-[14px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        Fast mode · faster responses at 2× the token cost
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+                </div>
+                <div className='flex items-center justify-between text-small'>
+                  <span className='text-[var(--text-muted)]'>Reasoning effort</span>
+                  <span>
+                    {MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label}
+                  </span>
+                </div>
+                <Slider
+                  aria-label='Reasoning effort'
+                  aria-valuetext={
+                    MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label
+                  }
+                  min={0}
+                  max={MOTHERSHIP_EFFORT_OPTIONS.length - 1}
+                  step={1}
+                  value={[MOTHERSHIP_EFFORT_OPTIONS.findIndex((option) => option.value === effort)]}
+                  onValueChange={([index]) => {
+                    const option = MOTHERSHIP_EFFORT_OPTIONS[index]
+                    if (option) setEffort(option.value)
+                  }}
+                />
+                <div className='flex justify-between text-[var(--text-muted)] text-caption'>
+                  {MOTHERSHIP_EFFORT_OPTIONS.map((option) => (
+                    <span key={option.value}>{option.label}</span>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className='flex items-center gap-1.5'>
           {isSttSupported && (

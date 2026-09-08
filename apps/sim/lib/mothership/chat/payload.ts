@@ -22,7 +22,7 @@ import { isHosted, isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
-import type { ChatRequest } from '@/lib/mothership/generated/protocol'
+import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
 import {
   type IntegrationGateConfig,
   integrationGateSignature,
@@ -75,6 +75,7 @@ interface BuildPayloadParams {
   userTimezone?: string
   /** Per-turn model effort dial (user-selected in the composer). */
   effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  modelSelection?: ModelSelection
   desktopLocalFilesystem?: boolean
   browser?: boolean
   terminalCapable?: boolean
@@ -373,7 +374,7 @@ export async function buildCopilotRequestPayload(
   }
 
   // The wire payload IS the shared contract (ChatRequest in lib/mothership/generated/
-  // protocol.ts) — nothing else. Model/provider/mode are server-decided (P12); permissions
+  // protocol.ts) — nothing else. The closed model selection is separate from raw model/provider/mode; permissions
   // are enforced by v2 under the delegation token, not asserted here; desktop capabilities
   // are out of scope for v1. The params above still carry sim-internal knowledge (mode
   // gates which tool schemas get built), but none of it rides the wire.
@@ -404,6 +405,7 @@ export async function buildCopilotRequestPayload(
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
+    ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
     ...(inventory ? { inventory } : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit or send [] and the

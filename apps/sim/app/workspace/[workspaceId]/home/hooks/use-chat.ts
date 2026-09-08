@@ -3438,6 +3438,7 @@ export function useChat(
             ...desktopChatCapabilities,
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             effort: useMothershipEffortStore.getState().effort,
+            modelSelection: useMothershipEffortStore.getState().modelSelection,
           }),
           signal: abortController.signal,
         })
