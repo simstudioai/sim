@@ -32,6 +32,14 @@ export const ToolActivity = z
   });
 export type ToolActivity = z.infer<typeof ToolActivity>;
 
+/** Existing Sim secret names; plaintext credentials never enter this tool's arguments. */
+export const ConnectSlackBotInputSchema = z.strictObject({
+  displayName: z.string().trim().min(1).max(255),
+  description: z.string().max(1_000).optional(),
+  signingSecretEnvVar: z.string().trim().min(1).max(1_024),
+  botTokenEnvVar: z.string().trim().min(1).max(1_024),
+});
+
 /** Activity acknowledged through a completed leg, scoped to one emitter's lifetime. */
 export interface StreamActivityReceipt {
   emitterId: string;
