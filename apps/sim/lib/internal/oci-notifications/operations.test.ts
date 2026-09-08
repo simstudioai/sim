@@ -219,28 +219,34 @@ describe('OCI Notifications operation contracts', () => {
     expect(request).toHaveBeenCalledTimes(2)
   })
 
-  it('creates in the authenticated parent compartment without exposing a confirmation URL', async () => {
-    request.mockResolvedValueOnce(response(topic)).mockResolvedValueOnce(response(subscription))
-    const output = await run('create_subscription', {
-      protocol: 'EMAIL',
-      endpoint: 'recipient@example.com',
-      compartmentId: 'untrusted',
-      retryToken: 'creation-token',
-    })
-    expect(sentBody(1)).toEqual({
-      topicId: 'topic',
-      compartmentId: 'topic-compartment',
-      protocol: 'EMAIL',
-      endpoint: 'recipient@example.com',
-    })
-    expect(request.mock.calls[1][0].retry).toEqual({
-      kind: 'tokenized',
-      maxAttempts: 2,
-      retryToken: 'creation-token',
-    })
-    expect(output.subscription?.lifecycleState).toBe('PENDING')
-    expect(output).not.toHaveProperty('confirmationUrl')
-  })
+  it.each([200, 202])(
+    'creates with %i in the authenticated parent compartment without exposing a confirmation URL',
+    async (status) => {
+      request
+        .mockResolvedValueOnce(response(topic))
+        .mockResolvedValueOnce(response(subscription, status))
+      const output = await run('create_subscription', {
+        protocol: 'EMAIL',
+        endpoint: 'recipient@example.com',
+        compartmentId: 'untrusted',
+        retryToken: 'creation-token',
+      })
+      expect(sentBody(1)).toEqual({
+        topicId: 'topic',
+        compartmentId: 'topic-compartment',
+        protocol: 'EMAIL',
+        endpoint: 'recipient@example.com',
+      })
+      expect(request.mock.calls[1][0].retry).toEqual({
+        kind: 'tokenized',
+        maxAttempts: 2,
+        retryToken: 'creation-token',
+      })
+      expect(output.subscription?.lifecycleState).toBe('PENDING')
+      expect(output.status).toBe(status)
+      expect(output).not.toHaveProperty('confirmationUrl')
+    }
+  )
 
   it('returns update details rather than requiring a full subscription', async () => {
     const update = {
@@ -338,21 +344,29 @@ describe('OCI Notifications operation contracts', () => {
     })
   })
 
-  it('counts serialized UTF-8 bytes before discovery and preserves the exact publish result', async () => {
-    await expect(run('publish_message', { body: '😀'.repeat(16_000) })).rejects.toMatchObject({
-      status: 413,
-    })
-    await expect(run('publish_message', { body: '"'.repeat(32_000) })).rejects.toMatchObject({
-      status: 413,
-    })
-    expect(request).not.toHaveBeenCalled()
-    const published = { messageId: 'message', timeStamp: '2026-01-01T00:00:00Z' }
-    request.mockResolvedValueOnce(response(topic)).mockResolvedValueOnce(response(published))
-    expect(await run('publish_message', { body: 'a'.repeat(63_989) })).toMatchObject(published)
-    expect(request.mock.calls[1][0].body?.byteLength).toBe(64_000)
-    expect(request.mock.calls[1][0].retry).toBeUndefined()
-    expect(request.mock.calls[1][0].headers).toBeUndefined()
-  })
+  it.each([200, 202])(
+    'counts serialized UTF-8 bytes before discovery and preserves the exact %i publish result',
+    async (status) => {
+      await expect(run('publish_message', { body: '😀'.repeat(16_000) })).rejects.toMatchObject({
+        status: 413,
+      })
+      await expect(run('publish_message', { body: '"'.repeat(32_000) })).rejects.toMatchObject({
+        status: 413,
+      })
+      expect(request).not.toHaveBeenCalled()
+      const published = { messageId: 'message', timeStamp: '2026-01-01T00:00:00Z' }
+      request
+        .mockResolvedValueOnce(response(topic))
+        .mockResolvedValueOnce(response(published, status))
+      expect(await run('publish_message', { body: 'a'.repeat(63_989) })).toMatchObject({
+        ...published,
+        status,
+      })
+      expect(request.mock.calls[1][0].body?.byteLength).toBe(64_000)
+      expect(request.mock.calls[1][0].retry).toBeUndefined()
+      expect(request.mock.calls[1][0].headers).toBeUndefined()
+    }
+  )
 
   it.each([
     new OciClientError('request_failed'),
