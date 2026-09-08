@@ -16180,6 +16180,121 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_streaming",
+      "slug": "oci-streaming",
+      "name": "OCI Streaming",
+      "description": "Manage streams and pools, publish messages, and consume bounded batches",
+      "longDescription": "Use native OCI REST APIs with a reusable API signing-key service account. Manage streams and pools, publish one bounded batch, read one batch using expiring cursors, explicitly commit consumer groups, and inspect work requests. Message operations require GetStream permission for authenticated endpoint discovery. Offsets remain decimal strings and delivery is at least once. Group cursors default to manual commits. No Kafka client, continuous consumer, automatic polling, or private endpoint provisioning is included.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_streaming",
+      "operations": [
+        {
+          "name": "Change Stream Compartment",
+          "description": "Move a stream into the destination compartment and its default stream pool."
+        },
+        {
+          "name": "Change Stream Pool Compartment",
+          "description": "Move a stream pool and its streams to another compartment."
+        },
+        {
+          "name": "Consumer Commit",
+          "description": "Commit processed group offsets using the nextCursor from the fully processed read batch. Return a replacement cursor; delivery remains at least once."
+        },
+        {
+          "name": "Consumer Heartbeat",
+          "description": "Send one group heartbeat and return the replacement cursor. Does not create a background heartbeat or commit messages."
+        },
+        {
+          "name": "Create Cursor",
+          "description": "Create a five-minute individual partition cursor at an explicit position. Offsets are decimal strings, local to a partition."
+        },
+        {
+          "name": "Create Group Cursor",
+          "description": "Create or join a consumer group. Existing groups retain their position; joining may rebalance. commitOnGet defaults to false."
+        },
+        {
+          "name": "Create Stream",
+          "description": "Create a stream. Returned lifecycle state and work request identify provisioning progress, not completion."
+        },
+        {
+          "name": "Create Stream Pool",
+          "description": "Create a public stream pool. Only an explicit retry token enables tokenized retries; provisioning may be asynchronous."
+        },
+        {
+          "name": "Delete Stream",
+          "description": "Delete a stream and its retained messages. This is destructive; an accepted deletion may still be in progress."
+        },
+        {
+          "name": "Delete Stream Pool",
+          "description": "Delete a non-default stream pool and ALL streams and retained messages inside it. Deletion is destructive and may be asynchronous."
+        },
+        {
+          "name": "Get Group",
+          "description": "Read current group reservations and exact committed offsets. No automatic retries."
+        },
+        {
+          "name": "Get Messages",
+          "description": "Read one bounded batch, including empty batches, and return nextCursor. No polling or retries. With commitOnGet enabled, reads can commit the prior batch."
+        },
+        {
+          "name": "Get Stream",
+          "description": "Get stream configuration and its authenticated message endpoint."
+        },
+        {
+          "name": "Get Stream Pool",
+          "description": "Get a stream pool, its encryption settings, and native REST configuration."
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Get asynchronous Streaming operation status and affected resources."
+        },
+        {
+          "name": "List Stream Pools",
+          "description": "List one page of native OCI stream pools."
+        },
+        {
+          "name": "List Streams",
+          "description": "List one page of native OCI streams in a compartment or pool."
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List one page of errors for a Streaming work request."
+        },
+        {
+          "name": "List Work Request Logs",
+          "description": "List one page of logs for a Streaming work request."
+        },
+        {
+          "name": "List Work Requests",
+          "description": "List one page of Streaming work requests. Oracle currently omits these APIs from its Streaming IAM permission table."
+        },
+        {
+          "name": "Put Messages",
+          "description": "Publish one bounded batch through native REST. Inspect allSucceeded and ordered entries for partial failures. No automatic splitting or replay; retrying can duplicate delivered messages."
+        },
+        {
+          "name": "Update Group",
+          "description": "Forcefully reset the committed position for ALL consumers in a group. Successful native REST response has no body."
+        },
+        {
+          "name": "Update Stream",
+          "description": "Update stream tags or move it to a compatible stream pool. Partition count and retention are immutable."
+        },
+        {
+          "name": "Update Stream Pool",
+          "description": "Update stream pool name, tags, encryption key, or Kafka compatibility settings through native REST."
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "messaging", "automation"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",

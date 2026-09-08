@@ -1,0 +1,818 @@
+---
+title: OCI Streaming
+description: Manage streams and pools, publish messages, and consume bounded batches
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_streaming"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Use native OCI REST APIs with a reusable API signing-key service account. Manage streams and pools, publish one bounded batch, read one batch using expiring cursors, explicitly commit consumer groups, and inspect work requests. Message operations require GetStream permission for authenticated endpoint discovery. Offsets remain decimal strings and delivery is at least once. Group cursors default to manual commits. No Kafka client, continuous consumer, automatic polling, or private endpoint provisioning is included.
+
+
+
+## Actions
+
+### OCI Streaming Change Stream Compartment
+
+Move a stream into the destination compartment and its default stream pool.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `compartmentId` | string | Yes | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. A mismatch fails without overwriting the resource. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+
+### OCI Streaming Change Stream Pool Compartment
+
+Move a stream pool and its streams to another compartment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamPoolId` | string | Yes | Stream pool OCID. For update stream, the destination pool. |
+| `compartmentId` | string | Yes | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. A mismatch fails without overwriting the resource. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+
+### OCI Streaming Consumer Commit
+
+Commit processed group offsets using the nextCursor from the fully processed read batch. Return a replacement cursor; delivery remains at least once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `cursor` | string | Yes | Opaque cursor, expiring after five minutes. Use the latest read, commit, or heartbeat cursor; never decode or recreate it automatically. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `cursor` | string | Replacement opaque cursor; use it for the next read, commit, or heartbeat. |
+
+### OCI Streaming Consumer Heartbeat
+
+Send one group heartbeat and return the replacement cursor. Does not create a background heartbeat or commit messages.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `cursor` | string | Yes | Opaque cursor, expiring after five minutes. Use the latest read, commit, or heartbeat cursor; never decode or recreate it automatically. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `cursor` | string | Replacement opaque cursor; use it for the next read, commit, or heartbeat. |
+
+### OCI Streaming Create Cursor
+
+Create a five-minute individual partition cursor at an explicit position. Offsets are decimal strings, local to a partition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `partition` | string | Yes | Partition identifier as a non-negative decimal string. Offsets are local to this partition. |
+| `type` | string | Yes | Cursor position: AT_TIME, LATEST, or TRIM_HORIZON; individual cursors also support AT_OFFSET and AFTER_OFFSET. |
+| `offset` | string | No | Non-negative signed 64-bit offset as a decimal string; never use a JavaScript number. Required for AT_OFFSET and AFTER_OFFSET. |
+| `time` | string | No | RFC 3339 timestamp, required only for AT_TIME. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `cursor` | string | Replacement opaque cursor; use it for the next read, commit, or heartbeat. |
+
+### OCI Streaming Create Group Cursor
+
+Create or join a consumer group. Existing groups retain their position; joining may rebalance. commitOnGet defaults to false.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `groupName` | string | Yes | Consumer group name. Creating a group cursor joins the group and may rebalance partitions. |
+| `type` | string | Yes | Cursor position: AT_TIME, LATEST, or TRIM_HORIZON; individual cursors also support AT_OFFSET and AFTER_OFFSET. |
+| `time` | string | No | RFC 3339 timestamp, required only for AT_TIME. |
+| `instanceName` | string | No | Consumer instance name. Oracle generates one if omitted. Reuse deliberately for an existing instance. |
+| `timeoutInMs` | number | No | Group member timeout in milliseconds, at least 5,000; Oracle defaults to 30,000. |
+| `commitOnGet` | boolean | No | Default false. True permits subsequent reads to commit prior batches automatically; use only when that behavior is intended. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `cursor` | string | Replacement opaque cursor; use it for the next read, commit, or heartbeat. |
+
+### OCI Streaming Create Stream
+
+Create a stream. Returned lifecycle state and work request identify provisioning progress, not completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `name` | string | Yes | Resource name; list operations match the exact name. |
+| `partitions` | number | Yes | Positive partition count. Cannot be changed after stream creation. |
+| `compartmentId` | string | No | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `streamPoolId` | string | No | Stream pool OCID. For update stream, the destination pool. |
+| `retentionInHours` | number | No | Retention in hours, 24 to 168; Oracle defaults to 24. Cannot be changed after creation. |
+| `freeformTags` | json | No | Freeform tag object. Update replaces tags; an empty object clears them. |
+| `definedTags` | json | No | Defined tags keyed by namespace and tag name, with string values. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `stream` | json | Stream configuration. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `streamPoolId` | string | Containing stream pool OCID. |
+|   ↳ `partitions` | number | Partition count. |
+|   ↳ `messagesEndpoint` | string | Endpoint reported by Oracle; message tools rediscover it through authenticated GetStream. |
+|   ↳ `retentionInHours` | number | Retention period in hours. |
+|   ↳ `lifecycleStateDetails` | string | Additional lifecycle details. |
+
+### OCI Streaming Create Stream Pool
+
+Create a public stream pool. Only an explicit retry token enables tokenized retries; provisioning may be asynchronous.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `name` | string | Yes | Resource name; list operations match the exact name. |
+| `compartmentId` | string | Yes | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `freeformTags` | json | No | Freeform tag object. Update replaces tags; an empty object clears them. |
+| `definedTags` | json | No | Defined tags keyed by namespace and tag name, with string values. |
+| `customEncryptionKeyDetails` | json | No | Customer-managed encryption key object: \{"kmsKeyId":"ocid1.key..."\}. Requires the appropriate KMS permissions. |
+| `kafkaSettings` | json | No | Native REST pool configuration: autoCreateTopicsEnable, logRetentionHours \(1–672\), numPartitions \(positive\). Does not establish Kafka access. |
+| `retryToken` | string | No | CreateStreamPool only: explicit idempotency token, up to 255 characters. Enables at most two attempts with identical bytes and token. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `streamPool` | json | Stream pool configuration. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `isPrivate` | boolean | Whether the pool is private. Private message endpoints remain subject to the foundation egress restrictions. |
+|   ↳ `endpointFqdn` | string | Pool endpoint hostname reported by Oracle. |
+|   ↳ `lifecycleStateDetails` | string | Additional lifecycle details. |
+|   ↳ `kafkaSettings` | json | Kafka compatibility configuration; no Kafka client or authentication is established. |
+|     ↳ `autoCreateTopicsEnable` | boolean | Whether Kafka can automatically create topics. |
+|     ↳ `bootstrapServers` | string | Kafka bootstrap servers, returned as metadata only. |
+|     ↳ `logRetentionHours` | number | Kafka log retention hours. |
+|     ↳ `numPartitions` | number | Default Kafka topic partition count. |
+|   ↳ `customEncryptionKey` | json | Customer-managed encryption key settings. |
+|     ↳ `kmsKeyId` | string | KMS key OCID. |
+|     ↳ `keyState` | string | Encryption key lifecycle state. |
+|   ↳ `privateEndpointSettings` | json | Read-only private endpoint configuration. |
+|     ↳ `nsgIds` | array | Network security group OCIDs. |
+|     ↳ `privateEndpointIp` | string | Private endpoint IP. |
+|     ↳ `subnetId` | string | Subnet OCID. |
+
+### OCI Streaming Delete Stream
+
+Delete a stream and its retained messages. This is destructive; an accepted deletion may still be in progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. A mismatch fails without overwriting the resource. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+
+### OCI Streaming Delete Stream Pool
+
+Delete a non-default stream pool and ALL streams and retained messages inside it. Deletion is destructive and may be asynchronous.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamPoolId` | string | Yes | Stream pool OCID. For update stream, the destination pool. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. A mismatch fails without overwriting the resource. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+
+### OCI Streaming Get Group
+
+Read current group reservations and exact committed offsets. No automatic retries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `groupName` | string | Yes | Consumer group name. Creating a group cursor joins the group and may rebalance partitions. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `group` | json | Consumer group state. |
+|   ↳ `streamId` | string | Stream OCID. |
+|   ↳ `groupName` | string | Consumer group name. |
+|   ↳ `reservations` | array | Current partition reservations. |
+|     ↳ `partition` | string | Reserved partition. |
+|     ↳ `committedOffset` | string | Exact signed decimal committed offset. |
+|     ↳ `reservedInstance` | string | Reserved consumer instance. |
+|     ↳ `timeReservedUntil` | string | Reservation expiry. |
+
+### OCI Streaming Get Messages
+
+Read one bounded batch, including empty batches, and return nextCursor. No polling or retries. With commitOnGet enabled, reads can commit the prior batch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `cursor` | string | Yes | Opaque cursor, expiring after five minutes. Use the latest read, commit, or heartbeat cursor; never decode or recreate it automatically. |
+| `limit` | number | No | Maximum messages in one batch: default 100, maximum 1,000. Empty batches still return nextCursor. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `messages` | array | One bounded batch; may be empty. |
+|   ↳ `stream` | string | Stream identifier as returned by Oracle. |
+|   ↳ `partition` | string | Partition identifier. |
+|   ↳ `key` | string | Base64 key, or null. |
+|   ↳ `value` | string | Base64 message value. |
+|   ↳ `offset` | string | Exact partition-local decimal offset. |
+|   ↳ `timestamp` | string | Append timestamp. |
+| `nextCursor` | string | Next opaque message cursor, also returned for empty batches. Not an administrative page token. |
+
+### OCI Streaming Get Stream
+
+Get stream configuration and its authenticated message endpoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `stream` | json | Stream configuration. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `streamPoolId` | string | Containing stream pool OCID. |
+|   ↳ `partitions` | number | Partition count. |
+|   ↳ `messagesEndpoint` | string | Endpoint reported by Oracle; message tools rediscover it through authenticated GetStream. |
+|   ↳ `retentionInHours` | number | Retention period in hours. |
+|   ↳ `lifecycleStateDetails` | string | Additional lifecycle details. |
+
+### OCI Streaming Get Stream Pool
+
+Get a stream pool, its encryption settings, and native REST configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamPoolId` | string | Yes | Stream pool OCID. For update stream, the destination pool. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `streamPool` | json | Stream pool configuration. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `isPrivate` | boolean | Whether the pool is private. Private message endpoints remain subject to the foundation egress restrictions. |
+|   ↳ `endpointFqdn` | string | Pool endpoint hostname reported by Oracle. |
+|   ↳ `lifecycleStateDetails` | string | Additional lifecycle details. |
+|   ↳ `kafkaSettings` | json | Kafka compatibility configuration; no Kafka client or authentication is established. |
+|     ↳ `autoCreateTopicsEnable` | boolean | Whether Kafka can automatically create topics. |
+|     ↳ `bootstrapServers` | string | Kafka bootstrap servers, returned as metadata only. |
+|     ↳ `logRetentionHours` | number | Kafka log retention hours. |
+|     ↳ `numPartitions` | number | Default Kafka topic partition count. |
+|   ↳ `customEncryptionKey` | json | Customer-managed encryption key settings. |
+|     ↳ `kmsKeyId` | string | KMS key OCID. |
+|     ↳ `keyState` | string | Encryption key lifecycle state. |
+|   ↳ `privateEndpointSettings` | json | Read-only private endpoint configuration. |
+|     ↳ `nsgIds` | array | Network security group OCIDs. |
+|     ↳ `privateEndpointIp` | string | Private endpoint IP. |
+|     ↳ `subnetId` | string | Subnet OCID. |
+
+### OCI Streaming Get Work Request
+
+Get asynchronous Streaming operation status and affected resources.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `workRequestId` | string | Yes | Asynchronous work request OCID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `workRequest` | json | Asynchronous work request. |
+|   ↳ `id` | string | Work request OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `operationType` | string | Tracked operation. |
+|   ↳ `status` | string | Asynchronous operation status. |
+|   ↳ `percentComplete` | number | Completion percentage. |
+|   ↳ `timeAccepted` | string | Acceptance timestamp. |
+|   ↳ `timeStarted` | string | Start timestamp. |
+|   ↳ `timeFinished` | string | Finish timestamp. |
+|   ↳ `resources` | array | Affected resources. |
+|     ↳ `actionType` | string | Effect on this resource. |
+|     ↳ `entityType` | string | Resource type. |
+|     ↳ `identifier` | string | Resource identifier. |
+|     ↳ `entityUri` | string | Resource URI returned as metadata; never followed automatically. |
+
+### OCI Streaming List Stream Pools
+
+List one page of native OCI stream pools.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `compartmentId` | string | Yes | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `id` | string | No | Filter by resource OCID. |
+| `name` | string | No | Resource name; list operations match the exact name. |
+| `lifecycleState` | string | No | CREATING, ACTIVE, DELETING, DELETED, FAILED, or UPDATING. |
+| `limit` | number | No | One administrative page: default 10, maximum 50. |
+| `page` | string | No | Opaque nextPage from a previous administrative list. This is not a message cursor. |
+| `sortBy` | string | No | NAME or TIMECREATED for resources; TIMEACCEPTED for work requests. |
+| `sortOrder` | string | No | ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPage` | string | Opaque administrative continuation token, or null when this list has no next page. |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `streamPools` | array | One page of stream pools. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `isPrivate` | boolean | Whether the pool is private. Private message endpoints remain subject to the foundation egress restrictions. |
+
+### OCI Streaming List Streams
+
+List one page of native OCI streams in a compartment or pool.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `compartmentId` | string | No | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `streamPoolId` | string | No | Stream pool OCID. For update stream, the destination pool. |
+| `id` | string | No | Filter by resource OCID. |
+| `name` | string | No | Resource name; list operations match the exact name. |
+| `lifecycleState` | string | No | CREATING, ACTIVE, DELETING, DELETED, FAILED, or UPDATING. |
+| `limit` | number | No | One administrative page: default 10, maximum 50. |
+| `page` | string | No | Opaque nextPage from a previous administrative list. This is not a message cursor. |
+| `sortBy` | string | No | NAME or TIMECREATED for resources; TIMEACCEPTED for work requests. |
+| `sortOrder` | string | No | ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPage` | string | Opaque administrative continuation token, or null when this list has no next page. |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `streams` | array | One page of streams. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `streamPoolId` | string | Containing stream pool OCID. |
+|   ↳ `partitions` | number | Partition count. |
+|   ↳ `messagesEndpoint` | string | Endpoint reported by Oracle; message tools rediscover it through authenticated GetStream. |
+
+### OCI Streaming List Work Request Errors
+
+List one page of errors for a Streaming work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `workRequestId` | string | Yes | Asynchronous work request OCID. |
+| `limit` | number | No | One administrative page: default 10, maximum 50. |
+| `page` | string | No | Opaque nextPage from a previous administrative list. This is not a message cursor. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPage` | string | Opaque administrative continuation token, or null when this list has no next page. |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `errors` | array | One page of work request errors. |
+|   ↳ `code` | string | Oracle error code. |
+|   ↳ `message` | string | Error message. |
+|   ↳ `timestamp` | string | Error timestamp. |
+
+### OCI Streaming List Work Request Logs
+
+List one page of logs for a Streaming work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `workRequestId` | string | Yes | Asynchronous work request OCID. |
+| `limit` | number | No | One administrative page: default 10, maximum 50. |
+| `page` | string | No | Opaque nextPage from a previous administrative list. This is not a message cursor. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPage` | string | Opaque administrative continuation token, or null when this list has no next page. |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `logs` | array | One page of work request logs. |
+|   ↳ `message` | string | Log message. |
+|   ↳ `timestamp` | string | Log timestamp. |
+
+### OCI Streaming List Work Requests
+
+List one page of Streaming work requests. Oracle currently omits these APIs from its Streaming IAM permission table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `compartmentId` | string | Yes | Compartment OCID. For list/create stream, supply exactly one of compartmentId or streamPoolId. |
+| `workRequestId` | string | No | Asynchronous work request OCID. |
+| `resourceId` | string | No | Filter work requests by affected resource OCID. |
+| `limit` | number | No | One administrative page: default 10, maximum 50. |
+| `page` | string | No | Opaque nextPage from a previous administrative list. This is not a message cursor. |
+| `sortBy` | string | No | NAME or TIMECREATED for resources; TIMEACCEPTED for work requests. |
+| `sortOrder` | string | No | ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPage` | string | Opaque administrative continuation token, or null when this list has no next page. |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `workRequests` | array | One page of work requests. |
+|   ↳ `id` | string | Work request OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `operationType` | string | Tracked operation. |
+|   ↳ `status` | string | Asynchronous operation status. |
+|   ↳ `percentComplete` | number | Completion percentage. |
+|   ↳ `timeAccepted` | string | Acceptance timestamp. |
+|   ↳ `timeStarted` | string | Start timestamp. |
+|   ↳ `timeFinished` | string | Finish timestamp. |
+|   ↳ `resources` | array | Affected resources. |
+|     ↳ `actionType` | string | Effect on this resource. |
+|     ↳ `entityType` | string | Resource type. |
+|     ↳ `identifier` | string | Resource identifier. |
+|     ↳ `entityUri` | string | Resource URI returned as metadata; never followed automatically. |
+
+### OCI Streaming Put Messages
+
+Publish one bounded batch through native REST. Inspect allSucceeded and ordered entries for partial failures. No automatic splitting or replay; retrying can duplicate delivered messages.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `messages` | json | Yes | Ordered array of key/value messages. Maximum 1,000 entries and 1 MiB decoded keys plus values. Keys at most 256 bytes. Values must be nonempty. |
+| `encoding` | string | No | Encoding of every key and value: utf-8 \(default\) or canonical padded base64. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `entries` | array | Results in exactly the same order as input messages; successful entries are preserved on partial failure. |
+|   ↳ `error` | string | Failure code for this entry. |
+|   ↳ `errorMessage` | string | Failure explanation for this entry. |
+|   ↳ `offset` | string | Exact partition-local decimal offset for a successful entry. |
+|   ↳ `partition` | string | Partition of a successful entry. |
+|   ↳ `timestamp` | string | Append timestamp of a successful entry. |
+| `failures` | number | Number of failed entries. |
+| `allSucceeded` | boolean | True only when every message succeeded. |
+
+### OCI Streaming Update Group
+
+Forcefully reset the committed position for ALL consumers in a group. Successful native REST response has no body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `groupName` | string | Yes | Consumer group name. Creating a group cursor joins the group and may rebalance partitions. |
+| `type` | string | Yes | Cursor position: AT_TIME, LATEST, or TRIM_HORIZON; individual cursors also support AT_OFFSET and AFTER_OFFSET. |
+| `time` | string | No | RFC 3339 timestamp, required only for AT_TIME. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+
+### OCI Streaming Update Stream
+
+Update stream tags or move it to a compatible stream pool. Partition count and retention are immutable.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamId` | string | Yes | Stream OCID. Message operations also require GetStream permission for authenticated endpoint discovery. |
+| `streamPoolId` | string | No | Stream pool OCID. For update stream, the destination pool. |
+| `freeformTags` | json | No | Freeform tag object. Update replaces tags; an empty object clears them. |
+| `definedTags` | json | No | Defined tags keyed by namespace and tag name, with string values. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. A mismatch fails without overwriting the resource. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `stream` | json | Stream configuration. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `streamPoolId` | string | Containing stream pool OCID. |
+|   ↳ `partitions` | number | Partition count. |
+|   ↳ `messagesEndpoint` | string | Endpoint reported by Oracle; message tools rediscover it through authenticated GetStream. |
+|   ↳ `retentionInHours` | number | Retention period in hours. |
+|   ↳ `lifecycleStateDetails` | string | Additional lifecycle details. |
+
+### OCI Streaming Update Stream Pool
+
+Update stream pool name, tags, encryption key, or Kafka compatibility settings through native REST.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Reusable OCI API signing-key service account. Private keys stay in the foundation. |
+| `ociRegion` | string | No | Optional OCI region override; defaults to the credential region. |
+| `requestId` | string | No | Optional Oracle request identifier, up to 255 printable characters. |
+| `streamPoolId` | string | Yes | Stream pool OCID. For update stream, the destination pool. |
+| `name` | string | No | Resource name; list operations match the exact name. |
+| `freeformTags` | json | No | Freeform tag object. Update replaces tags; an empty object clears them. |
+| `definedTags` | json | No | Defined tags keyed by namespace and tag name, with string values. |
+| `customEncryptionKeyDetails` | json | No | Customer-managed encryption key object: \{"kmsKeyId":"ocid1.key..."\}. Requires the appropriate KMS permissions. |
+| `kafkaSettings` | json | No | Native REST pool configuration: autoCreateTopicsEnable, logRetentionHours \(1–672\), numPartitions \(positive\). Does not establish Kafka access. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. A mismatch fails without overwriting the resource. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP success status; inspect lifecycle state or work request for asynchronous completion. |
+| `requestId` | string | Oracle request identifier. |
+| `etag` | string | Resource ETag when provided by Oracle. |
+| `workRequestId` | string | Asynchronous work request OCID when provided by Oracle. |
+| `streamPool` | json | Stream pool configuration. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `name` | string | Resource name. |
+|   ↳ `compartmentId` | string | Containing compartment OCID. |
+|   ↳ `lifecycleState` | string | Current lifecycle state; acceptance does not imply provisioning is complete. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `freeformTags` | json | Dynamic freeform tag names and string values. |
+|   ↳ `definedTags` | json | Dynamic tag namespaces and string-valued tag names. |
+|   ↳ `isPrivate` | boolean | Whether the pool is private. Private message endpoints remain subject to the foundation egress restrictions. |
+|   ↳ `endpointFqdn` | string | Pool endpoint hostname reported by Oracle. |
+|   ↳ `lifecycleStateDetails` | string | Additional lifecycle details. |
+|   ↳ `kafkaSettings` | json | Kafka compatibility configuration; no Kafka client or authentication is established. |
+|     ↳ `autoCreateTopicsEnable` | boolean | Whether Kafka can automatically create topics. |
+|     ↳ `bootstrapServers` | string | Kafka bootstrap servers, returned as metadata only. |
+|     ↳ `logRetentionHours` | number | Kafka log retention hours. |
+|     ↳ `numPartitions` | number | Default Kafka topic partition count. |
+|   ↳ `customEncryptionKey` | json | Customer-managed encryption key settings. |
+|     ↳ `kmsKeyId` | string | KMS key OCID. |
+|     ↳ `keyState` | string | Encryption key lifecycle state. |
+|   ↳ `privateEndpointSettings` | json | Read-only private endpoint configuration. |
+|     ↳ `nsgIds` | array | Network security group OCIDs. |
+|     ↳ `privateEndpointIp` | string | Private endpoint IP. |
+|     ↳ `subnetId` | string | Subnet OCID. |
+
+
