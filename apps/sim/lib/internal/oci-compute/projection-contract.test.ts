@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { projectOciComputeResource } from '@/lib/internal/oci-compute/operations'
+import { ociComputeSchemas } from '@/lib/internal/oci-compute/schema'
 import {
   credentialProviderMatchesService,
   getServiceConfigByProviderId,
@@ -113,5 +114,33 @@ describe('OCI Compute input and resource projections', () => {
     expect(
       selectTool({ operation: 'oci_compute_launch_instance', imageId: '<image.output.id>' })
     ).toBe('oci_compute_launch_instance')
+  })
+
+  it('preserves nested JSON nulls and rejects invalid boolean values', () => {
+    const extendedMetadata = { nested: { missing: null, values: [null, false, 0, ''] } }
+    const raw = {
+      operation: 'oci_compute_update_instance',
+      oauthCredential: 'credential',
+      region: 'us-ashburn-1',
+      instanceId: 'instance',
+      extendedMetadata,
+      capacityReservationId: '',
+    }
+    const params = { ...raw, ...OciComputeBlock.tools.config!.params!(raw) }
+    const input = ociComputeOperationInput(params, [
+      'instanceId',
+      'extendedMetadata',
+      'capacityReservationId',
+    ])
+    expect(ociComputeSchemas.update_instance.parse(input)).toMatchObject({
+      extendedMetadata,
+      capacityReservationId: '',
+    })
+    expect(() =>
+      OciComputeBlock.tools.config!.params!({
+        operation: 'oci_compute_terminate_instance',
+        preserveBootVolume: 'yes',
+      })
+    ).toThrow('Boolean inputs must be true or false')
   })
 })

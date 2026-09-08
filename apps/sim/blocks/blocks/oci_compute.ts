@@ -1706,6 +1706,13 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
             result.instanceDisplayNameFormatter = undefined
           if (result.instanceHostnameFormatter === '') result.instanceHostnameFormatter = undefined
         }
+        for (const field of [
+          'capacityReservationId',
+          'instanceDisplayNameFormatter',
+          'instanceHostnameFormatter',
+        ]) {
+          if (result[field] === null) result[field] = undefined
+        }
         if (
           params.operation === 'oci_compute_list_instances' &&
           (result.capacityReservationId === '' || result.capacityReservationId === null)
@@ -1760,11 +1767,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
           'resourceId',
           'workRequestId',
         ]) {
-          if (
-            result[field] === '' ||
-            (result[field] === null && params.operation.startsWith('oci_compute_list_'))
-          )
-            result[field] = undefined
+          if (result[field] === '' || result[field] === null) result[field] = undefined
         }
         if (params.operation === 'oci_compute_launch_instance') {
           let vnic = result.createVnicDetails

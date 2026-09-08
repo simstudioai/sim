@@ -19,6 +19,19 @@ vi.mock('@/lib/internal/oci-compute/operations', () => ({
 
 import { executeOciComputeTool } from '@/lib/internal/oci-compute/execute-tool'
 import { OciComputeBlock } from '@/blocks/blocks/oci_compute'
+import {
+  ociComputeChangeImageCompartmentTool,
+  ociComputeChangeInstanceCompartmentTool,
+  ociComputeCreateComputeCapacityReportTool,
+  ociComputeCreateImageTool,
+  ociComputeCreateInstanceConfigurationTool,
+  ociComputeDeleteImageTool,
+  ociComputeInstanceActionTool,
+  ociComputeLaunchInstanceTool,
+  ociComputeTerminateInstanceTool,
+  ociComputeUpdateImageTool,
+  ociComputeUpdateInstanceTool,
+} from '@/tools/oci_compute'
 import { ociComputeListImagesTool } from '@/tools/oci_compute/list_images'
 import { ociComputeListInstanceConfigurationsTool } from '@/tools/oci_compute/list_instance_configurations'
 import { ociComputeListInstancePoolsTool } from '@/tools/oci_compute/list_instance_pools'
@@ -49,6 +62,70 @@ beforeEach(() => {
 })
 
 describe('OCI Compute trusted execution wiring', () => {
+  it.each([
+    ociComputeChangeImageCompartmentTool,
+    ociComputeChangeInstanceCompartmentTool,
+    ociComputeCreateComputeCapacityReportTool,
+    ociComputeCreateImageTool,
+    ociComputeCreateInstanceConfigurationTool,
+    ociComputeDeleteImageTool,
+    ociComputeInstanceActionTool,
+    ociComputeLaunchInstanceTool,
+    ociComputeTerminateInstanceTool,
+    ociComputeUpdateImageTool,
+    ociComputeUpdateInstanceTool,
+  ])('accepts native blank mutation defaults for $id', async (tool) => {
+    for (const blank of [null, '', undefined]) {
+      const raw = {
+        operation: tool.id,
+        oauthCredential: 'submitted',
+        region: 'us-ashburn-1',
+        compartmentId: 'compartment',
+        instanceId: 'instance',
+        imageId: 'image',
+        availabilityDomain: 'AD',
+        shape: 'VM.Standard.E5.Flex',
+        sourceMode: 'image',
+        configurationSource: 'NONE',
+        instanceDetails: { instanceType: 'compute' },
+        shapeAvailabilities: [{ instanceShape: 'VM.Standard.E5.Flex' }],
+        subnetId: 'subnet',
+        createVnicDetails: { assignPublicIp: false },
+        action: 'STOP',
+        displayName: 'Synthetic',
+        retryToken: blank,
+        ifMatch: blank,
+        freeformTags: blank,
+        definedTags: blank,
+        shapeConfig: blank,
+        faultDomain: blank,
+        kmsKeyId: blank,
+        metadata: blank,
+        extendedMetadata: blank,
+        agentConfig: blank,
+        availabilityConfig: blank,
+        instanceOptions: blank,
+        capacityReservationId: blank,
+        dedicatedVmHostId: blank,
+        timeMaintenanceRebootDue: blank,
+        updateOperationConstraint: blank,
+      }
+      const params = { ...raw, ...OciComputeBlock.tools.config?.params?.(raw) }
+      const response = await executeOciComputeTool(
+        call({ toolId: tool.id, input: tool.operation.input(params) })
+      )
+      expect(response.status).toBe(200)
+      const dispatched = mocks.execute.mock.lastCall?.[2]
+      expect(dispatched).not.toHaveProperty('retryToken')
+      expect(dispatched).not.toHaveProperty('ifMatch')
+      expect(dispatched).not.toHaveProperty('freeformTags')
+      expect(dispatched).not.toHaveProperty('definedTags')
+      if (tool.id === 'oci_compute_update_instance') {
+        expect(dispatched.updateOperationConstraint).toBe('AVOID_DOWNTIME')
+      }
+    }
+  })
+
   it.each([
     ociComputeListInstancesTool,
     ociComputeListImagesTool,
