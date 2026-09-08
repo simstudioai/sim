@@ -174,7 +174,7 @@ describe('performUploadKnowledgeDocument', () => {
 
   it.each([
     { startProcessing: 'queue' as const, expected: mockProcessDocumentsWithQueue },
-    { startProcessing: 'async' as const, expected: mockProcessDocumentAsync },
+    { startProcessing: 'async' as const, expected: mockProcessDocumentsWithQueue },
   ])('hands the record to the $startProcessing pipeline', async ({ startProcessing, expected }) => {
     await performUploadKnowledgeDocument({
       ...ACTOR,
@@ -184,6 +184,7 @@ describe('performUploadKnowledgeDocument', () => {
     })
 
     expect(expected).toHaveBeenCalled()
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
   it('classifies a storage-quota rejection as too large, by class not message', async () => {

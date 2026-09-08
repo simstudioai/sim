@@ -33,6 +33,8 @@ export interface FileParseResult {
 
 export interface FileParseOptions {
   signal?: AbortSignal
+  /** Complete PDF extraction rejects safety limits instead of returning preview text. */
+  pdfTextMode?: 'preview' | 'complete'
 }
 
 export interface FileParser {

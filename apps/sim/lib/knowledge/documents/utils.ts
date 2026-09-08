@@ -41,6 +41,8 @@ type RetryableError =
   | { status?: number; message?: string; headers?: HeaderReader }
 
 export interface RetryOptions {
+  /** Provider transport hooks run for every attempt, including retries and streamed responses. */
+  fetcher?: typeof fetch
   /** Cancels the current retry cycle, including waits between attempts. */
   signal?: AbortSignal
   maxRetries?: number
@@ -623,7 +625,10 @@ export async function fetchWithRetry(
         signal,
         AbortSignal.timeout(Math.max(0, Math.ceil(deadlineAt - Date.now()))),
       ])
-      const response = await fetch(url, { ...options, signal: requestSignal })
+      const response = await (retryOptions.fetcher ?? fetch)(url, {
+        ...options,
+        signal: requestSignal,
+      })
 
       if (
         !response.ok &&

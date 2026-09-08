@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { interruptibleSleep } from '@sim/utils/helpers'
+import { PDFDocument } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -57,9 +58,13 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('knowledge document model-input provenance', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockAdmit.mockReset().mockResolvedValue(undefined)
+    const pdf = await PDFDocument.create()
+    pdf.addPage()
+    mockDownloadFileFromUrl.mockReset().mockResolvedValue(Buffer.from(await pdf.save()))
+    mockParseBuffer.mockReset().mockResolvedValue({ content: '', metadata: { pageCount: 1 } })
     Object.assign(env, {
       OCR_PROVIDER: 'azure-mistral',
       OCR_AZURE_API_KEY: 'test-key',
@@ -106,7 +111,7 @@ describe('knowledge document model-input provenance', () => {
         1024,
         200,
         1,
-        'user-1',
+        { userId: 'user-1' },
         'workspace-1'
       )
     )
@@ -139,13 +144,15 @@ describe('knowledge document model-input provenance', () => {
             1024,
             200,
             100,
-            'user-1'
+            { userId: 'user-1' }
           ),
         { opaqueInputSafe: false }
       )
     ).rejects.toThrow('Knowledge model input could not be safely projected')
 
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockAdmit).not.toHaveBeenCalled()
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
   })
 
   it('attaches exact-empty provenance to the internal Mistral OCR request', async () => {
@@ -153,7 +160,6 @@ describe('knowledge document model-input provenance', () => {
       OCR_PROVIDER: 'mistral',
       MISTRAL_API_KEY: 'mistral-key',
     })
-    mockDownloadFileFromUrl.mockResolvedValue(Buffer.from('not-a-real-pdf'))
     const processed = await runWithKnowledgeModelInputProvenance(
       undefined,
       () =>
@@ -164,7 +170,7 @@ describe('knowledge document model-input provenance', () => {
           1024,
           200,
           1,
-          'user-1'
+          { userId: 'user-1' }
         ),
       { opaqueInputSafe: true }
     )
@@ -204,7 +210,7 @@ describe('knowledge document model-input provenance', () => {
           1024,
           200,
           1,
-          'user-1'
+          { userId: 'user-1' }
         ),
       { opaqueInputSafe: true }
     )
@@ -241,11 +247,14 @@ describe('knowledge document model-input provenance', () => {
           1024,
           200,
           1,
-          'user-1'
+          { userId: 'user-1' }
         ),
       { opaqueInputSafe: true }
     )
-    const rejected = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: 'ProviderCapacityDeferredError',
+      reason: 'provider_timeout',
+    })
     await vi.advanceTimersByTimeAsync(120_000)
     await rejected
     expect(mockExecuteMistralParse).toHaveBeenCalledOnce()

@@ -1,16 +1,54 @@
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { OutboxHandler, OutboxHandlerRegistry } from '@/lib/core/outbox/service'
+import { env, envNumber } from '@/lib/core/config/env'
+import {
+  type OutboxHandler,
+  type OutboxHandlerRegistry,
+  withOutboxHandlerTimeout,
+} from '@/lib/core/outbox/service'
+import { isBYOKEmbeddingCredentialRejection, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import {
+  getOcrRequestRejection,
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
+import {
+  cleanupEmbeddingCheckpoint,
+  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+} from '@/lib/knowledge/documents/embedding-checkpoints'
+import {
+  cleanupOcrCheckpoint,
+  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import {
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
   type KnowledgeDocumentProcessingOutboxPayload,
 } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
+  assertDocumentProcessingPayload,
+  shouldRefundDocumentProcessingPredecessor,
+} from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingProviderContinuation } from '@/lib/knowledge/documents/processing-provider-continuation'
+import {
+  getProviderCapacityDeferral,
+  ProviderCapacityContinuationExhaustedError,
+} from '@/lib/knowledge/documents/processing-provider-deferral'
+import {
+  canScheduleDocumentProcessingQuotaContinuation,
+  scheduleDocumentProcessingQuotaContinuation,
+} from '@/lib/knowledge/documents/processing-quota-continuation'
+import {
   getKnowledgeDocument,
   type ProcessingOptions,
+  processDocumentAsync,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
+import {
+  cleanupKnowledgeStorage,
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
+} from '@/lib/knowledge/documents/storage-cleanup'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -91,13 +129,79 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     payload.knowledgeBaseId,
     payload.processingOptions,
     context.eventId,
-    payload.billingAttribution
+    payload.billingAttribution,
+    undefined,
+    { signal: context.signal, deadlineAt: context.deadlineAt }
   )
+  context.signal.throwIfAborted()
   if (dispatch.failed > 0 || dispatch.accepted !== 1) {
     throw new Error(`Knowledge document ${document.id} processing dispatch was not accepted`)
   }
 }
 
+/** Resumes the saved indexing generation without admitting or billing a new pass. */
+const resumeKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, context) => {
+  const payload = assertDocumentProcessingPayload(rawPayload)
+  context.signal.throwIfAborted()
+  try {
+    await processDocumentAsync(
+      payload.knowledgeBaseId,
+      payload.documentId,
+      payload.docData,
+      payload.processingOptions,
+      payload,
+      payload.requestId,
+      {
+        chargedAtDispatch: false,
+        processingQueueToken: payload.processingQueueToken,
+        processingPredecessorToken: payload.processingPredecessorToken,
+        refundPredecessorAdmission: shouldRefundDocumentProcessingPredecessor(payload),
+        ...(payload.processingQueuedAt
+          ? { processingQueuedAt: new Date(payload.processingQueuedAt) }
+          : {}),
+        ...(canScheduleDocumentProcessingQuotaContinuation(payload)
+          ? {
+              scheduleQuotaContinuation: () =>
+                scheduleDocumentProcessingQuotaContinuation(payload, false),
+            }
+          : { quotaContinuationExhausted: true }),
+        scheduleProviderContinuation: (error) =>
+          scheduleDocumentProcessingProviderContinuation(payload, error, false),
+        signal: context.signal,
+        deadlineAt: context.deadlineAt,
+      }
+    )
+  } catch (error) {
+    context.signal.throwIfAborted()
+    if (
+      getProviderCapacityDeferral(error) ||
+      error instanceof ProviderCapacityContinuationExhaustedError ||
+      isEmbeddingQuotaExhaustion(error) ||
+      isBYOKEmbeddingCredentialRejection(error) ||
+      getOcrRequestRejection(error) ||
+      isPermanentDocumentProcessingError(error) ||
+      isUsageLimitDocumentProcessingError(error)
+    )
+      return
+    throw error
+  }
+}
+
+const KNOWLEDGE_HANDLER_TIMEOUT_MS = Math.min(
+  550_000,
+  Math.max(1, envNumber(env.KB_CONFIG_MAX_DURATION, 600) * 1000 - 30_000)
+)
+
 export const knowledgeDocumentProcessingOutboxHandlers = {
-  [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: processKnowledgeDocument,
+  [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
+  [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
+  [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,
+  [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: withOutboxHandlerTimeout(
+    processKnowledgeDocument,
+    KNOWLEDGE_HANDLER_TIMEOUT_MS
+  ),
+  [KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT]: withOutboxHandlerTimeout(
+    resumeKnowledgeDocument,
+    KNOWLEDGE_HANDLER_TIMEOUT_MS
+  ),
 } satisfies OutboxHandlerRegistry

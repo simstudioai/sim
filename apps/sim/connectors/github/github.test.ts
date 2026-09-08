@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { githubConnector } from '@/connectors/github/github'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
+vi.mock('@/lib/core/rate-limiter/provider-capacity', () => ({
+  acquireProviderCapacity: vi.fn(async () => ({ settle: vi.fn(async () => 0) })),
+}))
+
 const source = { repository: 'owner/repo', branch: 'main' }
 
 function treeFile(path: string, sha = path, size = 20) {

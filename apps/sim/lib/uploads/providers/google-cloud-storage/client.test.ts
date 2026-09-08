@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { Readable } from 'node:stream'
+import { Readable, Writable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -17,6 +17,7 @@ const {
 } = vi.hoisted(() => {
   const mockFile = {
     save: vi.fn(),
+    createWriteStream: vi.fn(),
     createReadStream: vi.fn(),
     getMetadata: vi.fn(),
     delete: vi.fn(),
@@ -27,7 +28,7 @@ const {
   const mockGetAccessToken = vi.fn()
   const mockStorageInstance = {
     bucket: vi.fn(() => mockBucket),
-    authClient: { getAccessToken: mockGetAccessToken },
+    authClient: { getAccessToken: mockGetAccessToken, request: vi.fn() },
   }
   const mockEnv: Record<string, string | undefined> = {
     GCS_BUCKET_NAME: 'test-bucket',
@@ -166,6 +167,69 @@ describe('GCS Client', () => {
   })
 
   describe('uploadToGcs', () => {
+    it('destroys a stalled upload stream when its caller cancels', async () => {
+      const controller = new AbortController()
+      let started!: () => void
+      const ready = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      const destination = new Writable({
+        write() {
+          started()
+        },
+      })
+      mockFile.createWriteStream.mockReturnValueOnce(destination)
+      const pending = uploadToGcs(
+        Buffer.from('private text'),
+        'checkpoint.txt',
+        'text/plain',
+        undefined,
+        undefined,
+        true,
+        undefined,
+        false,
+        controller.signal
+      )
+      const result = expect(pending).rejects.toHaveProperty('name', 'AbortError')
+      await ready
+      controller.abort()
+      await result
+      expect(destination.destroyed).toBe(true)
+      expect(mockFile.save).not.toHaveBeenCalled()
+      expect(mockFile.createWriteStream).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 30_000, resumable: false })
+      )
+    })
+
+    it('uploads through a cancelable stream with metadata and create-only semantics intact', async () => {
+      const chunks: Buffer[] = []
+      const destination = new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          chunks.push(chunk)
+          callback()
+        },
+      })
+      mockFile.createWriteStream.mockReturnValueOnce(destination)
+      await uploadToGcs(
+        Buffer.from('private text'),
+        'checkpoint.txt',
+        'text/plain',
+        undefined,
+        undefined,
+        true,
+        { source: 'test' },
+        true,
+        new AbortController().signal
+      )
+      expect(Buffer.concat(chunks).toString()).toBe('private text')
+      expect(mockFile.createWriteStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preconditionOpts: { ifGenerationMatch: 0 },
+          metadata: { metadata: expect.objectContaining({ source: 'test' }) },
+        })
+      )
+    })
+
     it('adds a generation-zero precondition for an immutable upload', async () => {
       mockFile.save.mockResolvedValueOnce(undefined)
 
@@ -408,6 +472,42 @@ describe('GCS Client', () => {
   })
 
   describe('deleteFromGcs', () => {
+    it('cancels deletion through the existing SDK credentials and treats missing objects as deleted', async () => {
+      const controller = new AbortController()
+      let started!: () => void
+      const ready = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      mockStorageInstance.authClient.request.mockImplementationOnce(
+        (options: { signal: AbortSignal }) => {
+          started()
+          return new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(options.signal.reason), {
+              once: true,
+            })
+          })
+        }
+      )
+      const pending = deleteFromGcs(
+        'checkpoint/private.txt',
+        { bucket: 'private-bucket' },
+        controller.signal
+      )
+      const result = expect(pending).rejects.toHaveProperty('name', 'AbortError')
+      await ready
+      controller.abort()
+      await result
+      const options = mockStorageInstance.authClient.request.mock.calls[0][0]
+      expect(options.url).toBe(
+        'https://storage.googleapis.com/storage/v1/b/private-bucket/o/checkpoint%2Fprivate.txt'
+      )
+      expect(options.method).toBe('DELETE')
+      expect(options.validateStatus(204)).toBe(true)
+      expect(options.validateStatus(404)).toBe(true)
+      expect(options.validateStatus(403)).toBe(false)
+      expect(mockFile.delete).not.toHaveBeenCalled()
+    })
+
     it('should delete a file, ignoring missing objects', async () => {
       mockFile.delete.mockResolvedValueOnce(undefined)
 

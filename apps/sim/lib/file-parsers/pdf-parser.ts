@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
@@ -16,6 +17,12 @@ const MAX_PDF_PAGES = 10_000
 
 /** Ceiling on extracted characters — roughly 3,000 pages of dense text. */
 export const MAX_PDF_TEXT_CHARS = 10_000_000
+
+/** Complete extraction shares the ingestion pipeline's bounded text-output envelope. */
+export const MAX_COMPLETE_PDF_TEXT_BYTES = 20 * 1024 * 1024
+
+/** Bounds expansion on one page independently of a long document's output budget. */
+export const MAX_COMPLETE_PDF_PAGE_CHARS = 250_000
 
 /** Wall-clock ceiling for extracting text from a whole document. */
 const PDF_EXTRACTION_TIMEOUT_MS = 60_000
@@ -36,6 +43,7 @@ interface PageExtraction {
   used: number
   /** False when a budget stopped the read before the page was exhausted. */
   completed: boolean
+  deadlineReached: boolean
 }
 
 interface BoundedExtraction {
@@ -180,31 +188,47 @@ async function readPageWithinBudget(
           break
         }
 
-        parts.push(piece)
+        if (piece.length > 0) parts.push(piece)
         remaining -= piece.length
       }
     }
   } finally {
     if (!completed) {
       const pendingCancellation = cancelReader(new Error('PDF text extraction budget exceeded'))
-      if (!signal?.aborted && !deadlineReached) await pendingCancellation
+      if (!signal?.aborted && !deadlineReached) {
+        await waitForAbort(pendingCancellation, signal)
+      }
     }
   }
 
-  return { text: parts.join(''), used: budget - remaining, completed }
+  return { text: parts.join(''), used: budget - remaining, completed, deadlineReached }
+}
+
+function completeExtractionLimit(message: string): FileParserError {
+  return new FileParserError('complexity_limit', `${message} Split or simplify the PDF and retry.`)
 }
 
 async function extractTextWithinBudget(
   pdf: PDFDocumentProxy,
-  signal?: AbortSignal
+  options: FileParseOptions,
+  deadline: number
 ): Promise<BoundedExtraction> {
-  const deadline = Date.now() + PDF_EXTRACTION_TIMEOUT_MS
+  const { signal } = options
+  const complete = options.pdfTextMode === 'complete'
   const totalPages = pdf.numPages
   const pageLimit = Math.min(totalPages, MAX_PDF_PAGES)
   const pageTexts: string[] = []
 
   let remainingChars = MAX_PDF_TEXT_CHARS
+  let outputBytes = 0
+  let pagesRead = 0
   let truncated = totalPages > pageLimit
+
+  if (complete && truncated) {
+    throw completeExtractionLimit(
+      `PDF exceeds the safe limit of ${MAX_PDF_PAGES.toLocaleString()} pages.`
+    )
+  }
 
   for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber++) {
     signal?.throwIfAborted()
@@ -220,6 +244,7 @@ async function extractTextWithinBudget(
       cleanupLatePage
     )
     if (pageResult === PDF_READ_DEADLINE_REACHED) {
+      if (complete) throw completeExtractionLimit('PDF text extraction exceeded its time limit.')
       truncated = true
       break
     }
@@ -227,31 +252,56 @@ async function extractTextWithinBudget(
     const page = pageResult
     let extraction: PageExtraction
     try {
-      extraction = await readPageWithinBudget(page, remainingChars, deadline, signal)
+      extraction = await readPageWithinBudget(
+        page,
+        complete ? MAX_COMPLETE_PDF_PAGE_CHARS : remainingChars,
+        deadline,
+        signal
+      )
     } finally {
       page.cleanup()
     }
 
     const { text, used, completed } = extraction
 
-    remainingChars -= used
+    if (!complete) remainingChars -= used
 
-    // A page the budget cut off before it yielded anything was never really
-    // read, so it must not count toward `pagesRead` or add a blank separator.
+    /** A page stopped before yielding text must not count as read or add a separator. */
     if (completed || text.length > 0) {
-      pageTexts.push(text)
+      pagesRead++
+      if (complete) {
+        const normalized = sanitizeTextForUTF8(text.replace(/\s+/g, ' ')).trim()
+        if (normalized.length > 0) {
+          outputBytes += Buffer.byteLength(normalized, 'utf8') + (pageTexts.length > 0 ? 1 : 0)
+          if (outputBytes > MAX_COMPLETE_PDF_TEXT_BYTES) {
+            throw completeExtractionLimit(
+              `PDF text exceeds the safe ${MAX_COMPLETE_PDF_TEXT_BYTES.toLocaleString()}-byte output limit.`
+            )
+          }
+          pageTexts.push(normalized)
+        }
+      } else {
+        pageTexts.push(text)
+      }
     }
 
     if (!completed) {
+      if (complete) {
+        throw completeExtractionLimit(
+          extraction.deadlineReached
+            ? 'PDF text extraction exceeded its time limit.'
+            : `PDF page ${pageNumber} exceeds the safe expansion limit of ${MAX_COMPLETE_PDF_PAGE_CHARS.toLocaleString()} characters per page.`
+        )
+      }
       truncated = true
       break
     }
   }
 
   return {
-    text: pageTexts.join('\n').replace(/\s+/g, ' '),
+    text: complete ? pageTexts.join(' ') : pageTexts.join('\n').replace(/\s+/g, ' '),
     totalPages,
-    pagesRead: pageTexts.length,
+    pagesRead,
     truncated,
   }
 }
@@ -277,17 +327,36 @@ export class PdfParser implements FileParser {
   }
 
   async parseBuffer(dataBuffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
+    const deadline = Date.now() + PDF_EXTRACTION_TIMEOUT_MS
+    const complete = options.pdfTextMode === 'complete'
+    const deadlineController = new AbortController()
+    const timeoutId = complete
+      ? setTimeout(
+          () =>
+            deadlineController.abort(
+              completeExtractionLimit('PDF text extraction exceeded its time limit.')
+            ),
+          PDF_EXTRACTION_TIMEOUT_MS
+        )
+      : undefined
+    const signal = complete
+      ? options.signal
+        ? AbortSignal.any([options.signal, deadlineController.signal])
+        : deadlineController.signal
+      : options.signal
     try {
-      options.signal?.throwIfAborted()
+      signal?.throwIfAborted()
       logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
       const uint8Array = new Uint8Array(dataBuffer)
-      const pdf = await openPdfDocument(uint8Array, options.signal)
+      const opening = openPdfDocument(uint8Array, signal)
+      const pdf = complete ? await waitForAbort(opening, signal) : await opening
 
       try {
         const { text, totalPages, pagesRead, truncated } = await extractTextWithinBudget(
           pdf,
-          options.signal
+          { ...options, signal },
+          complete ? deadline : Date.now() + PDF_EXTRACTION_TIMEOUT_MS
         )
 
         logger.info('PDF parsed successfully, pages:', totalPages, 'text length:', text.length)
@@ -296,13 +365,9 @@ export class PdfParser implements FileParser {
           logger.warn(PDF_TRUNCATION_WARNING, { totalPages, pagesRead, textLength: text.length })
         }
 
-        const body = sanitizeTextForUTF8(text)
+        const body = complete ? text : sanitizeTextForUTF8(text)
 
-        // Callers only ever read `content`, so without an inline notice a truncated
-        // document is indistinguishable from a complete one. Tested after sanitizing
-        // and against `trim`, because a text-free multi-page PDF collapses to a lone
-        // separator — appending a notice to that would turn a document callers treat
-        // as empty into one that looks like it holds content.
+        /** The inline notice keeps truncated previews visible to content-only callers. */
         const notice =
           truncated && body.trim().length > 0
             ? truncationNotice(
@@ -320,13 +385,16 @@ export class PdfParser implements FileParser {
           },
         }
       } finally {
-        // Releases the document-level page, font, and image caches, which the
-        // per-page cleanup() does not touch.
-        await pdf.destroy().catch(() => {})
+        /** Releases document-level page, font, and image caches. */
+        const destruction = pdf.destroy().catch(() => {})
+        if (complete) await waitForAbort(destruction, signal)
+        else await destruction
       }
     } catch (error) {
       logger.error('Error parsing buffer:', error)
       throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 }

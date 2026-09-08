@@ -20,12 +20,22 @@ export interface DocumentProcessingPayloadBase {
   requestId: string
   /** Opaque queue generation. Absent only on payloads created before token rollout. */
   processingQueueToken?: string
+  /** Exact generation that enqueued this continuation before persisting its handoff. */
+  processingPredecessorToken?: string
+  /** Whether the actual predecessor invocation charged the admission being transferred. */
+  processingPredecessorCharged?: boolean
   /** Whether this payload's admission incremented the durable attempt budget. */
   chargedAtDispatch?: boolean
   /** Exact queue-generation stamp this task is allowed to claim. */
   processingQueuedAt?: string
   /** Number of durable quota continuations already scheduled for this indexing pass. */
   quotaRetryCount?: number
+  /** Number of durable provider-capacity continuations for this indexing pass. */
+  providerRetryCount?: number
+  /** Successful checkpointed slices that yielded before the worker deadline. */
+  processingSliceCount?: number
+  /** Start of the bounded provider-capacity recovery window. */
+  providerRetryStartedAt?: string
 }
 
 export interface WorkspaceDocumentProcessingBillingContext {
@@ -167,6 +177,22 @@ export function createNonWorkspaceDocumentProcessingBillingContext(
   return billingContext
 }
 
+/** Identifies a durable handoff independently of its original indexing pass and scheduled time. */
+export function createDocumentProcessingContinuationToken(
+  payload: Pick<DocumentProcessingPayloadBase, 'documentId' | 'requestId'>,
+  reason: 'quota' | 'provider' | 'slice',
+  attempt: number
+): string {
+  return `knowledge-${reason}-${payload.documentId}-${payload.requestId}-${attempt}`
+}
+
+/** Whether adopting the original generation must refund its one dispatch admission. */
+export function shouldRefundDocumentProcessingPredecessor(
+  payload: DocumentProcessingPayload
+): boolean {
+  return payload.processingPredecessorCharged === true
+}
+
 export function assertDocumentProcessingPayload(value: unknown): DocumentProcessingPayload {
   if (!isRecordLike(value)) {
     throw new Error('Document processing payload must be an object')
@@ -181,9 +207,78 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   if (
     value.processingQueueToken !== undefined &&
     (!isNonEmptyString(value.processingQueueToken) ||
-      value.processingQueueToken !== value.requestId)
+      (value.processingQueueToken !== value.requestId &&
+        !(
+          typeof value.quotaRetryCount === 'number' &&
+          value.quotaRetryCount > 0 &&
+          value.processingQueueToken ===
+            createDocumentProcessingContinuationToken(
+              { documentId: value.documentId, requestId: value.requestId },
+              'quota',
+              value.quotaRetryCount
+            )
+        ) &&
+        !(
+          typeof value.processingSliceCount === 'number' &&
+          value.processingSliceCount > 0 &&
+          value.processingQueueToken ===
+            createDocumentProcessingContinuationToken(
+              { documentId: value.documentId, requestId: value.requestId },
+              'slice',
+              value.processingSliceCount
+            )
+        ) &&
+        !(
+          typeof value.providerRetryCount === 'number' &&
+          value.providerRetryCount > 0 &&
+          value.processingQueueToken ===
+            createDocumentProcessingContinuationToken(
+              { documentId: value.documentId, requestId: value.requestId },
+              'provider',
+              value.providerRetryCount
+            )
+        )))
   ) {
     throw new Error('Document processing queue token is invalid')
+  }
+  if (value.processingPredecessorToken !== undefined) {
+    const counts = [
+      ['quota', value.quotaRetryCount],
+      ['provider', value.providerRetryCount],
+      ['slice', value.processingSliceCount],
+    ] as const
+    const matchesPriorGeneration =
+      value.processingPredecessorToken === value.requestId ||
+      counts.some(
+        ([reason, count]) =>
+          typeof count === 'number' &&
+          [count, count - 1].some(
+            (attempt) =>
+              attempt > 0 &&
+              value.processingPredecessorToken ===
+                createDocumentProcessingContinuationToken(
+                  { documentId: value.documentId as string, requestId: value.requestId as string },
+                  reason,
+                  attempt
+                )
+          )
+      )
+    if (
+      !isNonEmptyString(value.processingPredecessorToken) ||
+      !isNonEmptyString(value.processingQueueToken) ||
+      value.processingQueueToken === value.requestId ||
+      value.processingPredecessorToken === value.processingQueueToken ||
+      !matchesPriorGeneration
+    ) {
+      throw new Error('Document processing predecessor generation is invalid')
+    }
+  }
+  if (
+    value.processingPredecessorCharged !== undefined &&
+    (typeof value.processingPredecessorCharged !== 'boolean' ||
+      value.processingPredecessorToken === undefined)
+  ) {
+    throw new Error('Document processing predecessor admission marker is invalid')
   }
   if (value.processingQueueToken !== undefined && !isNonEmptyString(value.processingQueuedAt)) {
     throw new Error('Document processing payload is missing its queue stamp')
@@ -233,6 +328,39 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   }
   const processingOptions = value.processingOptions
   if (
+    value.providerRetryCount !== undefined &&
+    (typeof value.providerRetryCount !== 'number' ||
+      !Number.isSafeInteger(value.providerRetryCount) ||
+      value.providerRetryCount < 1)
+  ) {
+    throw new Error('Document processing provider retry count is invalid')
+  }
+  if (
+    value.processingSliceCount !== undefined &&
+    (typeof value.processingSliceCount !== 'number' ||
+      !Number.isSafeInteger(value.processingSliceCount) ||
+      value.processingSliceCount < 1)
+  ) {
+    throw new Error('Document processing slice count is invalid')
+  }
+  if (
+    (value.providerRetryCount === undefined && value.processingSliceCount === undefined) !==
+    (value.providerRetryStartedAt === undefined)
+  ) {
+    throw new Error(
+      'Document processing continuation count and start time must be supplied together'
+    )
+  }
+  if (value.providerRetryStartedAt !== undefined) {
+    if (
+      !isNonEmptyString(value.providerRetryStartedAt) ||
+      Number.isNaN(Date.parse(value.providerRetryStartedAt)) ||
+      new Date(value.providerRetryStartedAt).toISOString() !== value.providerRetryStartedAt
+    ) {
+      throw new Error('Document processing provider retry start time is invalid')
+    }
+  }
+  if (
     (processingOptions.recipe !== undefined && typeof processingOptions.recipe !== 'string') ||
     (processingOptions.lang !== undefined && typeof processingOptions.lang !== 'string')
   ) {
@@ -257,6 +385,12 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
     ...(value.processingQueueToken !== undefined
       ? { processingQueueToken: value.processingQueueToken }
       : {}),
+    ...(value.processingPredecessorToken !== undefined
+      ? { processingPredecessorToken: value.processingPredecessorToken }
+      : {}),
+    ...(value.processingPredecessorCharged !== undefined
+      ? { processingPredecessorCharged: value.processingPredecessorCharged }
+      : {}),
     ...(value.chargedAtDispatch !== undefined
       ? { chargedAtDispatch: value.chargedAtDispatch }
       : {}),
@@ -264,6 +398,15 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
       ? { processingQueuedAt: value.processingQueuedAt }
       : {}),
     ...(value.quotaRetryCount !== undefined ? { quotaRetryCount: value.quotaRetryCount } : {}),
+    ...(value.providerRetryCount !== undefined
+      ? { providerRetryCount: value.providerRetryCount }
+      : {}),
+    ...(value.processingSliceCount !== undefined
+      ? { processingSliceCount: value.processingSliceCount }
+      : {}),
+    ...(value.providerRetryStartedAt !== undefined
+      ? { providerRetryStartedAt: value.providerRetryStartedAt }
+      : {}),
     ...billingContext,
   }
 }

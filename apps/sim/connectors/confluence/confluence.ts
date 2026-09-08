@@ -27,7 +27,13 @@ import {
   openConfluenceDirectory,
 } from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  joinTagArray,
+  markSkipped,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
@@ -310,6 +316,8 @@ const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v1'
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
  * does not depend on which API surface (v1 CQL or v2) returned the page.
+ * Only authored storage bodies can cache empty skips by source version;
+ * rendered inclusions can recover when another page changes.
  */
 function pageToStub(
   page: Record<string, unknown>,
@@ -337,6 +345,16 @@ function pageToStub(
     title: (page.title as string) || 'Untitled',
     content: '',
     contentDeferred: true,
+    skippedRetryPolicy:
+      representation === SCOPED_CONTENT_REPRESENTATION &&
+      ((typeof versionNumber === 'number' &&
+        Number.isSafeInteger(versionNumber) &&
+        versionNumber > 0) ||
+        (versionNumber == null &&
+          typeof lastModified === 'string' &&
+          Boolean(parseTagDate(lastModified))))
+        ? 'source-change'
+        : undefined,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
     contentHash: `confluence:${representation}:${page.id}:${versionKey}`,
@@ -660,10 +678,10 @@ export const confluenceConnector: ConnectorConfig = {
     if (!page || !isCurrentContent(page)) return null
     const body = page.body as Record<string, unknown> | undefined
     const representation = body?.[bodyFormat] as Record<string, unknown> | undefined
-    if (scopedContent && typeof representation?.value !== 'string') {
-      throw new Error('Confluence content is missing its storage body')
+    if (typeof representation?.value !== 'string') {
+      throw new Error(`Confluence content is missing its ${bodyFormat} body`)
     }
-    const rawContent = (representation?.value as string) || ''
+    const rawContent = representation.value
     const plainText = scopedContent
       ? confluenceStorageToPlainText(rawContent)
       : htmlToPlainText(preserveConfluenceCallouts(rawContent))
@@ -678,6 +696,13 @@ export const confluenceConnector: ConnectorConfig = {
       },
       syncContext
     )
+
+    if (!plainText.trim()) {
+      return {
+        ...markSkipped(stub, 'Document contains no extractable text'),
+        skippedExistingDisposition: 'replace',
+      }
+    }
 
     return {
       ...stub,

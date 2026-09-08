@@ -11,13 +11,21 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   hasWorkspaceLiveSyncAccess,
   isOrganizationOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
+import {
+  applyStorageUsageDeltasInTx,
+  incrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimitForBillingContext,
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
@@ -45,7 +53,7 @@ import {
   stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
-import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
+import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -1067,31 +1075,173 @@ export async function performDeleteKnowledgeConnector(
     )
   }
 
-  let deletedDocs: Array<{ id: string; fileUrl: string }>
   let docCount: number
+  let storageNotification: { context: StorageBillingContext; updatedUsage: number } | undefined
   try {
-    ;({ deletedDocs, docCount } = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
+    const [owner] = await db
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, kb.id), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+    if (!owner) throw new OrchestrationError('not_found', 'Knowledge base not found')
+    if (
+      owner.workspaceId !== kb.workspaceId ||
+      (owner.organizationId ?? null) !== (kb.organizationId ?? null)
+    ) {
+      throw new OrchestrationError('conflict', 'Knowledge base ownership changed; retry deletion')
+    }
+    const storageContext =
+      !deleteDocuments && owner.workspaceId
+        ? await resolveStorageBillingContext(owner.workspaceId)
+        : undefined
+    const legacySubscription =
+      !deleteDocuments && !owner.workspaceId && !owner.organizationId
+        ? await getHighestPrioritySubscription(owner.userId)
+        : null
 
-      // Includes pending-removal (tombstoned) docs — the connector is being
-      // deleted, so there's no future sync left to confirm or resurrect them.
-      const docs = await tx
-        .select({ id: document.id, fileUrl: document.fileUrl })
-        .from(document)
-        .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
+    docCount = await db.transaction(async (tx) => {
+      /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
+      const [lockedOwner] = await tx
+        .select({
+          workspaceId: knowledgeBase.workspaceId,
+          organizationId: knowledgeBase.organizationId,
+          userId: knowledgeBase.userId,
+        })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.id, kb.id), isNull(knowledgeBase.deletedAt)))
+        .for('update')
+        .limit(1)
+      if (
+        !lockedOwner ||
+        lockedOwner.workspaceId !== owner.workspaceId ||
+        lockedOwner.organizationId !== owner.organizationId ||
+        lockedOwner.userId !== owner.userId
+      ) {
+        throw new OrchestrationError('conflict', 'Knowledge base ownership changed; retry deletion')
+      }
+      const [lockedConnector] = await tx
+        .select({ accessMode: knowledgeConnector.accessMode })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            eq(knowledgeConnector.knowledgeBaseId, kb.id),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+        .for('update')
+        .limit(1)
+      if (!lockedConnector) throw new OrchestrationError('not_found', 'Connector not found')
+      if (!deleteDocuments && lockedConnector.accessMode !== 'workspace') {
+        throw new OrchestrationError(
+          'conflict',
+          'Documents with source-derived access cannot be kept after disconnecting their source'
+        )
+      }
 
-      const documentIds = docs.map((doc) => doc.id)
+      let count = 0
       if (deleteDocuments) {
-        if (documentIds.length > 0) {
+        let afterId: string | undefined
+        for (;;) {
+          /** Archived rows also lose their connector FK and must not escape deletion or cleanup. */
+          const docs = await tx
+            .select({ id: document.id, fileUrl: document.fileUrl })
+            .from(document)
+            .where(
+              and(
+                eq(document.connectorId, connectorId),
+                eq(document.knowledgeBaseId, kb.id),
+                afterId ? gt(document.id, afterId) : undefined
+              )
+            )
+            .orderBy(asc(document.id))
+            .limit(250)
+          if (docs.length === 0) break
+          const documentIds = docs.map((doc) => doc.id)
           await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
           await tx.delete(document).where(inArray(document.id, documentIds))
+          await enqueueKnowledgeStorageCleanup(
+            tx,
+            docs.map((doc) => ({
+              ...doc,
+              workspaceId: owner.workspaceId,
+              organizationId: owner.organizationId,
+              userId: owner.userId,
+            })),
+            requestId
+          )
+          count += docs.length
+          afterId = docs.at(-1)?.id
         }
-      } else if (documentIds.length > 0) {
-        // Kept documents become normal standalone KB entries once their connector
-        // is gone — resurrect any pending-removal ones rather than leaving them
-        // invisible tombstones with no future sync left to ever confirm or
-        // resurrect them.
-        await tx.update(document).set({ deletedAt: null }).where(inArray(document.id, documentIds))
+      } else {
+        /** Legacy skipped rows used remote size despite retaining no artifact. */
+        await tx
+          .update(document)
+          .set({ fileSize: 0 })
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              eq(document.knowledgeBaseId, kb.id),
+              isNull(document.storageKey),
+              eq(document.fileUrl, '')
+            )
+          )
+        /**
+         * Connector bytes are unmetered until detachment. Count retained archived files too;
+         * live tombstones are resurrected below, while archived tombstones remain nonbillable.
+         */
+        const [totals] = await tx
+          .select({
+            count: sql<number>`COUNT(*)::integer`,
+            bytes: sql<string>`COALESCE(SUM(${document.fileSize}::bigint) FILTER (
+              WHERE ${document.archivedAt} IS NULL OR ${document.deletedAt} IS NULL
+            ), 0)::text`,
+          })
+          .from(document)
+          .where(and(eq(document.connectorId, connectorId), eq(document.knowledgeBaseId, kb.id)))
+        count = totals?.count ?? 0
+        const retainedBytes = Number(totals?.bytes ?? 0)
+        if (!Number.isSafeInteger(retainedBytes) || retainedBytes < 0) {
+          throw new Error('Invalid retained connector storage size')
+        }
+        if (retainedBytes > 0) {
+          if (storageContext) {
+            const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+              tx,
+              storageContext,
+              retainedBytes
+            )
+            if (updatedUsage !== undefined)
+              storageNotification = { context: storageContext, updatedUsage }
+          } else if (!owner.organizationId) {
+            await applyStorageUsageDeltasInTx(tx, {
+              workspaceDeltas: [],
+              legacyDeltas: [
+                {
+                  userId: owner.userId,
+                  subscription: legacySubscription,
+                  deltaBytes: retainedBytes,
+                },
+              ],
+            })
+          }
+        }
+        await tx
+          .update(document)
+          .set({ deletedAt: null })
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              eq(document.knowledgeBaseId, kb.id),
+              isNull(document.archivedAt)
+            )
+          )
       }
 
       const deletedConnectors = await tx
@@ -1105,25 +1255,24 @@ export async function performDeleteKnowledgeConnector(
           )
         )
         .returning({ id: knowledgeConnector.id })
-
       if (deletedConnectors.length === 0) {
         throw new OrchestrationError('not_found', 'Connector not found')
       }
-
-      return { deletedDocs: deleteDocuments ? docs : [], docCount: docs.length }
-    }))
+      return count
+    })
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete connector ${connectorId}`)
   }
 
+  if (storageNotification) {
+    await maybeNotifyStorageLimitForBillingContext(
+      storageNotification.context,
+      storageNotification.updatedUsage
+    )
+  }
+
   if (deleteDocuments) {
     await Promise.all([
-      deletedDocs.length > 0
-        ? deleteDocumentStorageFiles(
-            deletedDocs.map((doc) => ({ ...doc, workspaceId: kb.workspaceId })),
-            requestId
-          )
-        : Promise.resolve(),
       cleanupUnusedTagDefinitions(kb.id, requestId).catch((error) => {
         logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
       }),

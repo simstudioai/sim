@@ -172,6 +172,11 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modu
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
 
+# PDF.js requires native canvas primitives even for text extraction. Standalone
+# tracing can miss the platform binding behind canvas's dynamic require. Copy
+# the complete matching install after the partial standalone node_modules.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@napi-rs ./node_modules/@napi-rs
+
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 

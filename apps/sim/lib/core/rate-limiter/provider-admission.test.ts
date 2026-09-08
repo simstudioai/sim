@@ -74,7 +74,10 @@ describe('provider admission', () => {
 
   it('refuses a wait beyond the caller budget and fails closed on storage errors', async () => {
     consumeTokens.mockResolvedValueOnce({ allowed: false, retryAfterMs: 20_000 })
-    await expect(waitForProviderAdmission(INPUT)).rejects.toMatchObject({ status: 429 })
+    await expect(waitForProviderAdmission(INPUT)).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 20_000,
+    })
     consumeTokens.mockRejectedValueOnce(new Error('storage unavailable'))
     await expect(waitForProviderAdmission(INPUT)).rejects.toThrow(
       'Provider admission storage is unavailable'
@@ -91,6 +94,17 @@ describe('provider admission', () => {
     expect(consumeTokens.mock.calls[0][0]).toMatchObject([
       { key: 'provider:ocr:openai:another-key:requests' },
     ])
+  })
+  it('retains the cooldown when an admission storage call consumes the remaining deadline', async () => {
+    consumeTokens.mockImplementationOnce(async () => {
+      vi.setSystemTime(Date.now() + INPUT.maxWaitMs)
+      return { allowed: false, retryAfterMs: 600_000 }
+    })
+    await expect(waitForProviderAdmission(INPUT)).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 600_000,
+    })
+    expect(consumeTokens).toHaveBeenCalledOnce()
   })
   it('stops before spending capacity when another worker reported exhausted credit', async () => {
     getCooldownUntil.mockResolvedValue(new Date(Date.now() + 300_000))

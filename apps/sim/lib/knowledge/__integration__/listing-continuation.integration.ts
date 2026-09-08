@@ -616,6 +616,101 @@ describe('durable source and member cycles in PostgreSQL', () => {
     }
   })
 
+  it('resumes a throttled hydration batch from durable siblings without advancing past deferred sources', async () => {
+    let runId = generateId()
+    const connectorId = generateId()
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorType: 'google_drive',
+      status: 'syncing',
+      syncLockToken: runId,
+      accessMode: 'workspace',
+      sourceConfig: {},
+    })
+    const documents = ['healthy', 'deferred', 'failed'].map((id) => ({
+      ...sourceDoc(`paced-${id}`),
+      content: '',
+      contentDeferred: true,
+      estimatedBytes: 100,
+    }))
+    fixture.list.mockResolvedValue({ documents, hasMore: false })
+    const throttle = Object.assign(new Error('Synthetic provider throttle'), {
+      status: 429,
+      retryAfterMs: 60_000,
+    })
+    const getDocument = vi.fn(async (externalId: string) => {
+      if (externalId === 'paced-deferred') throw throttle
+      if (externalId === 'paced-failed') throw new Error('Temporary source failure')
+      return sourceDoc(externalId)
+    })
+    const run = async () => {
+      const [connector] = await db
+        .select()
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, connectorId))
+      return runConnectorContentPass({
+        connectorId,
+        connector,
+        connectorConfig: CONNECTOR_REGISTRY.google_drive,
+        sourceConfig: {},
+        syncContext: {},
+        kbOwner: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+        billingAttribution: billing,
+        result: result(),
+        lease: createContentSyncLease(connectorId, runId),
+        leaseKind: 'content',
+        runId,
+        fingerprint: listingFingerprint({ source: 'paced-page' }),
+        documentAccess: 'workspace',
+        getAccessToken: async () => 'fixture',
+        hydration: { getDocument },
+        forceRehydrate: true,
+        deadlineAt: Date.now() + 60_000,
+      })
+    }
+    await expect(run()).rejects.toBe(throttle)
+    const firstRows = await db.select().from(document).where(eq(document.connectorId, connectorId))
+    expect(firstRows.map((row) => row.externalId).sort()).toEqual(['paced-failed', 'paced-healthy'])
+    expect(firstRows.find((row) => row.externalId === 'paced-healthy')).toMatchObject({
+      processingStatus: 'completed',
+      deletedAt: null,
+    })
+    expect(firstRows.find((row) => row.externalId === 'paced-failed')).toMatchObject({
+      processingStatus: 'failed',
+      contentHash: null,
+      processingAttempts: 0,
+      deletedAt: null,
+    })
+    expect(firstRows.every((row) => row.sourceSeenAt !== null)).toBe(true)
+    const [interrupted] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+    expect(interrupted.listingCheckpoint).toMatchObject({
+      cursor: null,
+      complete: false,
+      listedCount: 0,
+    })
+    runId = generateId()
+    await db
+      .update(knowledgeConnector)
+      .set({ syncLockToken: runId })
+      .where(eq(knowledgeConnector.id, connectorId))
+    getDocument.mockClear()
+    getDocument.mockImplementation(async (externalId: string) => sourceDoc(externalId))
+    const resumed = await run()
+    expect(getDocument).toHaveBeenCalledExactlyOnceWith('paced-deferred')
+    expect(resumed.checkpoint).toMatchObject({
+      complete: true,
+      listedCount: 3,
+      contentFailures: true,
+    })
+    const completed = await db.select().from(document).where(eq(document.connectorId, connectorId))
+    expect(completed.filter((row) => row.processingStatus === 'completed')).toHaveLength(2)
+    expect(completed.every((row) => row.deletedAt === null)).toBe(true)
+  })
+
   it('keeps old observations through partial runs and revokes them only when the stable member generation completes', async () => {
     const memberFixture = await seedKnowledgeMemberFixture(ids)
     const [alice, bob] = memberFixture.members

@@ -74,6 +74,7 @@ import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import {
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
@@ -85,6 +86,10 @@ import {
   PermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
+import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
+import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
+import { ProviderCapacityContinuationExhaustedError } from '@/lib/knowledge/documents/processing-provider-deferral'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
@@ -258,12 +263,30 @@ describe('knowledge document processing source', () => {
         userId: PERSISTED_CONTEXT.uploadedBy,
         knowledgeAccess: undefined,
         signal: expect.any(AbortSignal),
+        processingDeadlineAt: expect.any(Number),
       },
       null,
       undefined,
       undefined
     )
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it('passes a cooperative deadline below the durable worker hard limit', async () => {
+    const deadlineAt = Date.now() + 550_000
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      PERSISTED_CONTEXT,
+      {},
+      undefined,
+      undefined,
+      {
+        chargedAtDispatch: false,
+        deadlineAt,
+      }
+    )
+    expect(mockProcessDocument.mock.calls[0][6].processingDeadlineAt).toBe(deadlineAt - 15_000)
   })
 
   it('reads a connector-owned source file as the system, not as the actor', async () => {
@@ -292,6 +315,7 @@ describe('knowledge document processing source', () => {
         userId: PERSISTED_CONTEXT.uploadedBy,
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
         signal: expect.any(AbortSignal),
+        processingDeadlineAt: expect.any(Number),
       },
       null,
       undefined,
@@ -321,6 +345,7 @@ describe('knowledge document processing source', () => {
         userId: PERSISTED_CONTEXT.uploadedBy,
         knowledgeAccess: undefined,
         signal: expect.any(AbortSignal),
+        processingDeadlineAt: expect.any(Number),
       },
       null,
       undefined,
@@ -376,6 +401,16 @@ describe('knowledge document processing source', () => {
 })
 
 describe('processDocumentAsync write guards', () => {
+  function armProviderSource(): void {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+  }
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -858,6 +893,140 @@ describe('processDocumentAsync write guards', () => {
     })
   })
 
+  it.each([true, false])(
+    'defers OCR capacity and refunds only the original admission (%s)',
+    async (chargedAtDispatch) => {
+      armProviderSource()
+      const error = new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 600_000 })
+      const deferredUntil = new Date(Date.now() + 600_000)
+      const schedule = vi
+        .fn()
+        .mockResolvedValue({ deferredUntil, processingQueueToken: 'continuation-1' })
+      mockProcessDocument.mockRejectedValue(error)
+      await expect(
+        processDocumentAsync(
+          'knowledge-base-1',
+          'document-1',
+          PERSISTED_CONTEXT,
+          {},
+          undefined,
+          'pass-1',
+          {
+            chargedAtDispatch,
+            processingQueueToken: 'pass-1',
+            processingQueuedAt: new Date(),
+            scheduleProviderContinuation: schedule,
+          }
+        )
+      ).rejects.toBe(error)
+      expect(schedule).toHaveBeenCalledWith(error)
+      expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+      const deferred = dbChainMockFns.set.mock.calls.find(
+        ([value]) => value.processingDeferredUntil === deferredUntil
+      )?.[0]
+      expect(deferred).toMatchObject({
+        processingStatus: 'pending',
+        processingError: null,
+        processingDeferredUntil: deferredUntil,
+        processingQueuedAt: deferredUntil,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+      })
+      if (chargedAtDispatch)
+        expect(deferred.processingAttempts.toSQL().sql).toBe('GREATEST(? - 1, 0)')
+      else expect(deferred).not.toHaveProperty('processingAttempts')
+      expect(
+        dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
+      ).toBe(false)
+      expect(
+        dbChainMockFns.where.mock.calls.some(([where]) =>
+          hasMockCondition(
+            where,
+            (node) =>
+              node.type === 'eq' &&
+              node.left === schemaMock.document.processingQueueToken &&
+              node.right === 'pass-1'
+          )
+        )
+      ).toBe(true)
+    }
+  )
+
+  it('records an actionable state after the provider recovery window is exhausted', async () => {
+    armProviderSource()
+    const exhausted = new ProviderCapacityContinuationExhaustedError()
+    mockProcessDocument.mockRejectedValue(new ProviderCapacityDeferredError('rate_limit'))
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        PERSISTED_CONTEXT,
+        {},
+        undefined,
+        'pass-1',
+        {
+          chargedAtDispatch: false,
+          processingQueueToken: 'pass-1',
+          scheduleProviderContinuation: vi.fn().mockRejectedValue(exhausted),
+        }
+      )
+    ).rejects.toBe(exhausted)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'failed',
+        processingError: exhausted.message,
+        processingAttempts: MAX_PROCESSING_ATTEMPTS,
+      })
+    )
+  })
+
+  it('does not schedule a continuation after an outbox lease is cancelled', async () => {
+    armProviderSource()
+    const controller = new AbortController()
+    const schedule = vi.fn()
+    mockProcessDocument.mockImplementation(async () => {
+      controller.abort(new DOMException('Lease lost', 'AbortError'))
+      throw new ProviderCapacityDeferredError('rate_limit')
+    })
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        PERSISTED_CONTEXT,
+        {},
+        undefined,
+        'pass-1',
+        {
+          chargedAtDispatch: false,
+          signal: controller.signal,
+          scheduleProviderContinuation: schedule,
+        }
+      )
+    ).rejects.toThrow('Lease lost')
+    expect(schedule).not.toHaveBeenCalled()
+  })
+
+  it('does not parse or reschedule a superseded provider continuation', async () => {
+    armProviderSource()
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    const schedule = vi.fn()
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      PERSISTED_CONTEXT,
+      {},
+      undefined,
+      'obsolete-pass',
+      {
+        chargedAtDispatch: false,
+        processingQueueToken: 'obsolete-pass',
+        scheduleProviderContinuation: schedule,
+      }
+    )
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+    expect(schedule).not.toHaveBeenCalled()
+  })
+
   it.each([
     { chargedAtDispatch: true, refundsAttempt: true },
     { chargedAtDispatch: false, refundsAttempt: false },
@@ -976,20 +1145,21 @@ describe('in-process quota continuation dispatch', () => {
       processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'knowledge-process-document',
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
-        documentId: 'document-1',
-        processingQueuedAt: expect.any(String),
-        quotaRetryCount: 1,
-      }),
-      expect.objectContaining({
-        idempotencyKey: 'knowledge-quota-document-1-request-1-1',
-        delay: expect.any(Date),
+        id: 'knowledge-quota-document-1-request-1-1',
+        eventType: KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
+        payload: expect.objectContaining({
+          documentId: 'document-1',
+          processingQueuedAt: expect.any(String),
+          quotaRetryCount: 1,
+        }),
+        availableAt: expect.any(Date),
       })
     )
 
-    const deferredUntil = mockTrigger.mock.calls[0]?.[2]?.delay as Date
+    const deferredUntil = dbChainMockFns.values.mock.calls[0][0].availableAt as Date
     expect(deferredUntil.getTime()).toBeGreaterThanOrEqual(1_000 + 5 * 60 * 1000 * 0.8)
     expect(deferredUntil.getTime()).toBeLessThanOrEqual(1_000 + 5 * 60 * 1000 * 1.2)
 
@@ -1006,13 +1176,98 @@ describe('in-process quota continuation dispatch', () => {
       processingCompletedAt: null,
       processingError: null,
     })
-    expect(mockTrigger.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(dbChainMockFns.values.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.set.mock.invocationCallOrder[deferredWriteIndex]
     )
   })
 
+  it('passes the admitting outbox deadline through initial in-process dispatch', async () => {
+    const context = { signal: new AbortController().signal, deadlineAt: Date.now() + 550_000 }
+    await expect(
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        undefined,
+        undefined,
+        context
+      )
+    ).resolves.toMatchObject({ accepted: 1 })
+    expect(mockProcessDocument.mock.calls[0][6].processingDeadlineAt).toBe(
+      context.deadlineAt - 15_000
+    )
+  })
+
+  it('resumes an OCR-throttled regular KB from the durable outbox to a completed index', async () => {
+    mockProcessDocument.mockRejectedValueOnce(
+      new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 600_000 })
+    )
+    await expect(
+      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+    ).resolves.toMatchObject({ accepted: 1, failed: 0 })
+    expect(mockTrigger).not.toHaveBeenCalled()
+    const event = dbChainMockFns.values.mock.calls.find(
+      ([value]) => value.eventType === KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT
+    )?.[0]
+    expect(event).toMatchObject({
+      id: 'knowledge-provider-document-1-request-1-1',
+      payload: {
+        requestId: 'request-1',
+        processingQueueToken: 'knowledge-provider-document-1-request-1-1',
+        providerRetryCount: 1,
+      },
+    })
+    const payload = event.payload as DocumentProcessingPayload
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
+    ).toBe(false)
+    const refunded = dbChainMockFns.set.mock.calls.filter(
+      ([value]) => value.processingDeferredUntil instanceof Date
+    )
+    expect(refunded).toHaveLength(1)
+    expect(refunded[0][0].processingAttempts.toSQL().sql).toBe('GREATEST(? - 1, 0)')
+
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    dbChainMockFns.set.mockClear()
+    mockGenerateEmbeddings.mockResolvedValue({
+      embeddings: [Array(1536).fill(0)],
+      billableTokens: 0,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+    await knowledgeDocumentProcessingOutboxHandlers[KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT](
+      payload,
+      {
+        eventId: event.id,
+        eventType: event.eventType,
+        attempts: 0,
+        maxAttempts: 10,
+        signal: new AbortController().signal,
+        checkpointPayload: vi.fn(),
+      }
+    )
+    expect(mockProcessDocument).toHaveBeenCalledTimes(2)
+    expect(mockGenerateEmbeddings).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'completed',
+        processingAttempts: 0,
+        processingQueueToken: null,
+        processingDeferredUntil: null,
+      })
+    )
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
+    ).toBe(false)
+  })
+
   it.each(['preflight', 'request'])(
-    'preserves a tokenless queue stamp across an accepted %s quota continuation',
+    'upgrades a tokenless queue stamp across an accepted %s quota continuation',
     async (stage) => {
       const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
       const deferredUntil = new Date('2026-08-24T23:00:00.000Z')
@@ -1050,7 +1305,9 @@ describe('in-process quota continuation dispatch', () => {
           {
             chargedAtDispatch: false,
             processingQueuedAt: originalQueuedAt,
-            scheduleQuotaContinuation: vi.fn().mockResolvedValue(deferredUntil),
+            scheduleQuotaContinuation: vi
+              .fn()
+              .mockResolvedValue({ deferredUntil, processingQueueToken: 'continuation-1' }),
           }
         )
       ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
@@ -1065,7 +1322,10 @@ describe('in-process quota continuation dispatch', () => {
         processingStatus: 'pending',
         processingDeferredUntil: deferredUntil,
       })
-      expect(deferredWrite?.[0]).not.toHaveProperty('processingQueuedAt')
+      expect(deferredWrite?.[0]).toMatchObject({
+        processingQueuedAt: deferredUntil,
+        processingQueueToken: 'continuation-1',
+      })
       expect(
         dbChainMockFns.where.mock.calls.some((call) =>
           hasMockCondition(
@@ -1133,6 +1393,8 @@ describe('in-process quota continuation dispatch', () => {
   })
 
   it('keeps a claimed direct dispatch accepted when quota continuation handoff fails', async () => {
+    markInsideTriggerRun()
+    mockBatchTrigger.mockRejectedValue(new Error('batch unavailable'))
     mockTrigger.mockRejectedValue(new Error('continuation unavailable'))
 
     await expect(

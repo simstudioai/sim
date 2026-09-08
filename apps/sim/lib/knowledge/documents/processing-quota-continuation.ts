@@ -1,8 +1,13 @@
 import { backoffWithJitter } from '@sim/utils/retry'
-import { tasks } from '@trigger.dev/sdk'
-import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
-import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
+import {
+  type DocumentProcessingContinuation,
+  dispatchDocumentProcessingContinuation,
+} from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import {
+  createDocumentProcessingContinuationToken,
+  type DocumentProcessingPayload,
+} from '@/lib/knowledge/documents/processing-payload'
 
 const MAX_QUOTA_CONTINUATION_DELAY_MS = 6 * 60 * 60 * 1000
 export const MAX_QUOTA_CONTINUATION_ATTEMPTS = 8
@@ -30,28 +35,35 @@ export function canScheduleDocumentProcessingQuotaContinuation(
  * the same continuation generation converge on one run.
  */
 export async function scheduleDocumentProcessingQuotaContinuation(
-  payload: DocumentProcessingPayload
-): Promise<Date> {
+  payload: DocumentProcessingPayload,
+  useTrigger?: boolean,
+  predecessorAdmissionCharged = false
+): Promise<DocumentProcessingContinuation> {
   if (!canScheduleDocumentProcessingQuotaContinuation(payload)) {
     throw new Error('Document processing quota continuation limit reached')
   }
   const quotaRetryCount = (payload.quotaRetryCount ?? 0) + 1
   const delayMs = resolveQuotaContinuationDelayMs(quotaRetryCount)
-  const region = await resolveTriggerRegion()
   const deferredUntil = new Date(Date.now() + delayMs)
-  await tasks.trigger(
-    'knowledge-process-document',
+  const processingQueueToken = createDocumentProcessingContinuationToken(
+    payload,
+    'quota',
+    quotaRetryCount
+  )
+  await dispatchDocumentProcessingContinuation(
     {
       ...payload,
-      ...(payload.processingQueueToken ? { processingQueuedAt: deferredUntil.toISOString() } : {}),
+      processingQueueToken,
+      processingPredecessorToken: payload.processingQueueToken,
+      processingPredecessorCharged: payload.processingQueueToken
+        ? predecessorAdmissionCharged
+        : undefined,
+      processingQueuedAt: deferredUntil.toISOString(),
       quotaRetryCount,
     },
-    {
-      delay: deferredUntil,
-      idempotencyKey: `knowledge-quota-${payload.documentId}-${payload.requestId}-${quotaRetryCount}`,
-      tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
-      region,
-    }
+    deferredUntil,
+    processingQueueToken,
+    useTrigger
   )
-  return deferredUntil
+  return { deferredUntil, processingQueueToken }
 }

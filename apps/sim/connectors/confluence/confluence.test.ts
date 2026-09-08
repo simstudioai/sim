@@ -609,6 +609,113 @@ describe('Confluence permission-scoped content', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
+  it.each([
+    { bodyFormat: 'view', mode: {} },
+    { bodyFormat: 'storage', mode: { mirrorsSourceAcls: true } },
+    { bodyFormat: 'storage', mode: { perMemberListing: true, memberId: 'member-1' } },
+  ])(
+    'authoritatively skips verified empty $bodyFormat content for $mode',
+    async ({ bodyFormat, mode }) => {
+      for (const value of ['', ' \n ', '<p> </p>']) {
+        vi.mocked(fetch).mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 'empty-page',
+              title: 'Empty page',
+              version: { number: 3 },
+              body: { [bodyFormat]: { value } },
+            })
+          )
+        )
+        await expect(
+          confluenceConnector.getDocument('token', config, 'empty-page', {
+            cloudId: 'cloud-1',
+            ...mode,
+          })
+        ).resolves.toMatchObject({
+          externalId: 'empty-page',
+          content: '',
+          contentDeferred: false,
+          skippedReason: 'Document contains no extractable text',
+          skippedExistingDisposition: 'replace',
+          skippedRetryPolicy: bodyFormat === 'storage' ? 'source-change' : undefined,
+        })
+      }
+    }
+  )
+
+  it.each([
+    { bodyFormat: 'view', mode: {} },
+    { bodyFormat: 'storage', mode: { mirrorsSourceAcls: true } },
+    { bodyFormat: 'storage', mode: { perMemberListing: true } },
+  ])(
+    'rejects missing and malformed $bodyFormat content for $mode',
+    async ({ bodyFormat, mode }) => {
+      for (const body of [
+        undefined,
+        null,
+        {},
+        { [bodyFormat]: {} },
+        { [bodyFormat]: { value: null } },
+        { [bodyFormat]: { value: 42 } },
+      ]) {
+        vi.mocked(fetch).mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 'page',
+              version: { number: 3 },
+              body,
+            })
+          )
+        )
+        await expect(
+          confluenceConnector.getDocument('token', config, 'page', { cloudId: 'cloud-1', ...mode })
+        ).rejects.toThrow(`missing its ${bodyFormat} body`)
+      }
+    }
+  )
+
+  it('skips scoped inclusion-only pages without rendering another page into their ACL', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 'page',
+          version: { number: 3 },
+          body: {
+            storage: {
+              value:
+                '<ac:structured-macro ac:name="include"><ac:parameter ac:name="">Restricted page</ac:parameter></ac:structured-macro>',
+            },
+            view: { value: 'CONFIDENTIAL SALARY DATA' },
+          },
+        })
+      )
+    )
+    await expect(
+      confluenceConnector.getDocument('token', config, 'page', {
+        cloudId: 'cloud-1',
+        mirrorsSourceAcls: true,
+      })
+    ).resolves.toMatchObject({ content: '', skippedExistingDisposition: 'replace' })
+  })
+
+  it('keeps skipped pages retryable when no usable source version is available', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 'page',
+          body: { storage: { value: '' } },
+        })
+      )
+    )
+    const document = await confluenceConnector.getDocument('token', config, 'page', {
+      cloudId: 'cloud-1',
+      mirrorsSourceAcls: true,
+    })
+    expect(document?.skippedReason).toBe('Document contains no extractable text')
+    expect(document?.skippedRetryPolicy).toBeUndefined()
+  })
+
   it.each([{ mirrorsSourceAcls: true }, { perMemberListing: true, memberId: 'member-1' }])(
     'keeps external restricted content out of a shared page for %j',
     async (mode) => {

@@ -1554,6 +1554,8 @@ cronjobs:
       name: outbox-process
       schedule: "*/1 * * * *"
       path: "/api/webhooks/outbox/process"
+      requestTimeoutSeconds: 810
+      activeDeadlineSeconds: 900
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

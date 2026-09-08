@@ -97,6 +97,8 @@ async function findActiveFileMetadataByKey(
     .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
+    /** Wait for in-flight cleanup before accepting an active identity for newly uploaded bytes. */
+    .for('share')
     .limit(1)
   return record
 }
@@ -163,12 +165,14 @@ async function insertFileMetadataWithExecutor(
         uploadedAt: new Date(),
         contentUpdatedAt: sql<Date>`GREATEST(CURRENT_TIMESTAMP, ${workspaceFiles.contentUpdatedAt} + INTERVAL '1 millisecond')`,
       })
-      .where(eq(workspaceFiles.id, existingDeleted.id))
+      .where(and(eq(workspaceFiles.id, existingDeleted.id), isNotNull(workspaceFiles.deletedAt)))
       .returning(workspaceFileColumns)
 
     if (restored) {
       return restored
     }
+    const concurrentlyRestored = await findActiveFileMetadataByKey(executor, key)
+    if (concurrentlyRestored) return resolveExistingFileMetadata(concurrentlyRestored, options)
   }
 
   const fileId = id || generateId()
@@ -274,8 +278,11 @@ export async function insertFileMetadata(
  * only when the complete ownership and file identity are unchanged.
  */
 export async function insertImmutableFileMetadata(
-  options: FileMetadataInsertOptions
+  options: FileMetadataInsertOptions,
+  /** Atomic pre-upload reservations use a create-only binding and never revive an old key. */
+  executor?: DbTransaction
 ): Promise<FileMetadataRecord> {
+  if (executor) return insertImmutableFileMetadataWithExecutor(executor, options)
   return insertFileMetadataWithExecutor(db, options, true)
 }
 
@@ -422,12 +429,13 @@ export async function resolveStoredFileContext(key: string): Promise<StorageCont
 export async function getFileMetadataByKeys(
   keys: string[],
   context: StorageContext,
-  executor: Pick<typeof db, 'select'> = db
+  executor: Pick<typeof db, 'select'> = db,
+  options?: { lock?: 'share' }
 ): Promise<FileMetadataRecord[]> {
   if (keys.length === 0) {
     return []
   }
-  return executor
+  const query = executor
     .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
@@ -437,6 +445,7 @@ export async function getFileMetadataByKeys(
         isNull(workspaceFiles.deletedAt)
       )
     )
+  return options?.lock ? query.orderBy(workspaceFiles.id).for(options.lock) : query
 }
 
 /**
@@ -473,13 +482,16 @@ export async function deleteFileMetadata(key: string): Promise<boolean> {
  * Postgres timestamps are compared at JavaScript `Date` precision because a selected
  * microsecond timestamp has already been rounded to milliseconds at this boundary.
  */
-export async function deleteFileMetadataByIdentity(identity: {
-  id: string
-  key: string
-  context: StorageContext
-  contentUpdatedAt: Date
-}): Promise<boolean> {
-  const deleted = await db
+export async function deleteFileMetadataByIdentity(
+  identity: {
+    id: string
+    key: string
+    context: StorageContext
+    contentUpdatedAt: Date
+  },
+  executor: Pick<typeof db, 'update'> = db
+): Promise<boolean> {
+  const deleted = await executor
     .update(workspaceFiles)
     .set({ deletedAt: new Date() })
     .where(
@@ -489,7 +501,7 @@ export async function deleteFileMetadataByIdentity(identity: {
         eq(workspaceFiles.context, identity.context),
         eq(
           sql<Date>`date_trunc('milliseconds', ${workspaceFiles.contentUpdatedAt})`,
-          identity.contentUpdatedAt
+          sql`${identity.contentUpdatedAt.toISOString()}::timestamp`
         ),
         isNull(workspaceFiles.deletedAt)
       )

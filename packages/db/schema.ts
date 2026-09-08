@@ -1511,6 +1511,8 @@ export const rateLimitBucket = pgTable('rate_limit_bucket', {
   tokens: decimal('tokens').notNull(),
   lastRefillAt: timestamp('last_refill_at').notNull(),
   blockedUntil: timestamp('blocked_until'),
+  /** Bounded adaptive provider budgets and expiring request leases; ordinary buckets leave it null. */
+  capacityState: jsonb('capacity_state'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 

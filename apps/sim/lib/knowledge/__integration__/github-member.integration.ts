@@ -17,13 +17,14 @@ import {
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
+  rateLimitBucket,
   resourcePolicy,
   user,
   workspace,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/embeddings', async () => ({
@@ -42,6 +43,7 @@ vi.mock('@/lib/embeddings', async () => ({
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import { resetStorageMethod } from '@/lib/core/storage'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
   completeCredentialGroupEnrollment,
@@ -118,6 +120,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
   let oauthStateKey: string | undefined
   let oauthVerification: { codeVerifier: string; redirectUri: string } | undefined
   const tokenFor = (userId: string) => `ghu_fixture_${userId}`
+  const capacityKeyFor = (token: string) =>
+    `provider:ocr:github-rest:${createHash('sha256').update(`Bearer ${token}`).digest('hex')}:capacity:v1`
   const actor = (userId: string): Principal => ({
     kind: 'session',
     userId,
@@ -411,6 +415,15 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       if (oauthStateKey) await getRedisClient()?.del(oauthStateKey)
       await closeRedisConnection()
       Object.assign(env, { REDIS_URL: previousClient.redis })
+      resetStorageMethod()
+      await db.delete(rateLimitBucket).where(
+        inArray(
+          rateLimitBucket.key,
+          enrolled.members.flatMap(({ userId }) =>
+            [tokenFor(userId), `${tokenFor(userId)}_refreshed`].map(capacityKeyFor)
+          )
+        )
+      )
       await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
       vi.unstubAllGlobals()
@@ -714,7 +727,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     const [shared] = await rows()
     const source = repositories.get('shared')!
     source.throttledReaders.add(ids.bobId)
-    expect((await sync()).error).toMatch(/403|rate limit/i)
+    expect((await sync()).error).toMatch(/403|rate limit|provider capacity/i)
     expect(await search(actor(ids.bobId))).toEqual([shared.id])
     const [bob] = await db
       .select()
@@ -724,6 +737,18 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     source.throttledReaders.clear()
     source.readers.delete(ids.bobId)
     source.deniedStatus = 403
+    /** A provider cooldown protects the shared credential even when another sync starts early. */
+    const requestsBeforeRetry = requests.filter(({ userId }) => userId === ids.bobId).length
+    await sync()
+    expect(requests.filter(({ userId }) => userId === ids.bobId)).toHaveLength(requestsBeforeRetry)
+    expect(await search(actor(ids.bobId))).toEqual([shared.id])
+    /** Expire only the fixture's cooldown so the next poll observes the subsequent access change. */
+    await db
+      .update(rateLimitBucket)
+      .set({
+        capacityState: sql`${rateLimitBucket.capacityState} || ${JSON.stringify({ cooldownUntil: 0, nextRequestAt: 0 })}::jsonb`,
+      })
+      .where(eq(rateLimitBucket.key, capacityKeyFor(tokenFor(ids.bobId))))
     await sync()
     expect(await search(actor(ids.bobId))).toEqual([])
     expect(await search(actor(ids.aliceId))).toEqual([shared.id])

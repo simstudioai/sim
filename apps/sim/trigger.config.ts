@@ -123,6 +123,7 @@ export default defineConfig({
       // pdf.js resolves its worker via a runtime-relative dynamic import that
       // breaks inside the worker bundle; it must load from node_modules.
       'pdfjs-dist',
+      '@napi-rs/canvas',
     ],
     extensions: [
       syncEnvVars(() => [
@@ -154,6 +155,7 @@ export default defineConfig({
           '@e2b/code-interpreter',
           '@daytona/sdk',
           'pdfjs-dist',
+          '@napi-rs/canvas',
         ],
       }),
     ],
