@@ -527,11 +527,9 @@ describe('knowledge_base and table folder resources', () => {
     })
   })
 
-  it('guards a table folder delete on table locks and leaves knowledge folders unguarded', () => {
-    // Table locks are a governance feature that must survive a folder delete; knowledge
-    // bases have no equivalent, so a guard there would be dead weight.
+  it('guards folder deletion for locked tables and the shared search index', () => {
     expect(tableConfig.guardDelete).toBeTypeOf('function')
-    expect(knowledgeConfig.guardDelete).toBeUndefined()
+    expect(knowledgeConfig.guardDelete).toBeTypeOf('function')
   })
 
   it('keeps manual folder sort ordering workflow-only', () => {

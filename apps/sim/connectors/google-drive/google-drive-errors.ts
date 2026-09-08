@@ -1,3 +1,10 @@
+import {
+  attachRetryHeaders,
+  isRetryableError,
+  type RetryOptions,
+  resolveRetryDelayMs,
+  retryWithExponentialBackoff,
+} from '@/lib/knowledge/documents/utils'
 import { readBodyWithLimit } from '@/connectors/utils'
 
 const GOOGLE_ERROR_BODY_MAX_BYTES = 64 * 1024
@@ -140,4 +147,36 @@ export async function readGoogleDriveApiError(response: Response): Promise<Googl
     ...new Set(rawReasons.flatMap((reason) => normalizeReason(reason) ?? [])),
   ]
   return new GoogleDriveApiError(response.status, normalizedReasons)
+}
+
+/**
+ * Fetches a Google API, retrying errors whose structured body identifies a
+ * transient rejection. Shared by every Google call a connector makes — Drive
+ * and the Admin SDK use the same error envelope and the same rate-limit
+ * reasons.
+ */
+export async function fetchGoogleDriveWithRetry(
+  url: string,
+  options: RequestInit,
+  retryOptions: RetryOptions = {}
+): Promise<Response> {
+  return retryWithExponentialBackoff(
+    async () => {
+      const response = await fetch(url, options)
+      if (response.ok) return response
+
+      const error = await readGoogleDriveApiError(response)
+      attachRetryHeaders(error, response.headers)
+      const waitMs = resolveRetryDelayMs(response.headers)
+      if (waitMs !== undefined) error.retryAfterMs = waitMs
+      throw error
+    },
+    {
+      ...retryOptions,
+      retryCondition: (error) =>
+        error instanceof GoogleDriveApiError
+          ? error.kind === 'transient' || isRetryableError(error)
+          : (retryOptions.retryCondition?.(error) ?? isRetryableError(error)),
+    }
+  )
 }

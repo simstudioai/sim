@@ -1,7 +1,7 @@
 import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal, PrincipalAuditAttribution } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
-import type { OperationUseCase } from '@/lib/core/application/operation'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeWorkspaceOperation,
   requireAllowedWorkspacePrincipal,
@@ -92,12 +92,13 @@ function isAuthorizationOptionsResolver<
   return typeof options === 'function'
 }
 
-export function recordProjectedUseCaseAuditEntries<O extends WorkspaceOperation>(
-  operation: O,
+export function recordProjectedUseCaseAuditEntries(
+  operation: ApplicationOperation,
   workspaceId: string | null | undefined,
-  principal: PrincipalForOperation<O>,
+  principal: Principal,
   request: OrchestrationRequestContext | undefined,
-  entries: readonly WorkspaceUseCaseAuditEntry[]
+  entries: readonly WorkspaceUseCaseAuditEntry[],
+  organizationId?: string
 ): void {
   const attribution: PrincipalAuditAttribution = resolvePrincipalAuditAttribution(principal)
   for (const entry of entries) {
@@ -112,6 +113,7 @@ export function recordProjectedUseCaseAuditEntries<O extends WorkspaceOperation>
       description: entry.description,
       metadata: {
         ...entry.metadata,
+        ...(organizationId ? { organizationId } : {}),
         operation: operation.id,
         actor: attribution.actor,
       },

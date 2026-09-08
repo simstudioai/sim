@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobResponse> = {
   id: 'gitlab_play_job',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Play Job',
   description: 'Trigger (play) a manual GitLab job',
   version: '1.0.0',

@@ -49,7 +49,7 @@ const slackCredentialGroupOptionInputSchema = z
   .object({
     provider: z.literal('slack'),
     ...credentialGroupOptionFields,
-    slackBotCredentialId: z.string().uuid('Select a custom Slack bot'),
+    slackBotCredentialId: z.string().uuid('Select a custom Slack bot').optional(),
   })
   .strict()
 
@@ -68,6 +68,7 @@ export const credentialGroupOptionSchema = z.discriminatedUnion('provider', [
     id: z.string().min(1),
     status: z.enum(['active', 'disabled']),
     configurationStatus: credentialGroupOptionConfigurationStatusSchema,
+    requiredScopes: z.array(z.string().min(1).max(255)).max(100).optional(),
   }),
 ])
 
@@ -122,7 +123,7 @@ export const credentialGroupEnrollmentSchema = z.object({
 export type CredentialGroupEnrollment = z.output<typeof credentialGroupEnrollmentSchema>
 
 export const credentialGroupEnrollmentConnectionSchema = z.object({
-  provider: credentialGroupProviderSchema,
+  provider: z.union([credentialGroupProviderSchema, z.literal('gitlab')]),
   status: z.enum(['active', 'needs_reauth', 'revoked']),
   count: z.number().int().positive(),
 })
@@ -136,7 +137,7 @@ export const credentialGroupEnrollmentMcpConnectionSchema = z.object({
 export const credentialGroupEnrollmentDetailSchema = credentialGroupEnrollmentSchema.extend({
   connections: z
     .array(credentialGroupEnrollmentConnectionSchema)
-    .max(CREDENTIAL_GROUP_PROVIDER_IDS.length * 3),
+    .max((CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3),
   mcpConnections: z
     .array(credentialGroupEnrollmentMcpConnectionSchema)
     .max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),
@@ -266,9 +267,20 @@ export type CredentialGroupOAuthCallbackQuery = z.output<
 
 export const startSlackCredentialGroupConfigurationBodySchema = z
   .object({
-    slackBotCredentialId: z.string().uuid('Select a custom Slack bot'),
+    slackBotCredentialId: z.string().uuid('Select a custom Slack bot').optional(),
+    appId: z
+      .string()
+      .regex(/^A[A-Z0-9]+$/, 'Enter the Slack App ID')
+      .max(64)
+      .optional(),
+    teamId: z
+      .string()
+      .regex(/^T[A-Z0-9]+$/, 'Enter the Slack workspace ID')
+      .max(64)
+      .optional(),
     clientId: z.string().trim().min(1, 'Slack Client ID is required').max(256),
     clientSecret: z.string().trim().min(1, 'Slack Client Secret is required').max(512),
+    requiredScopes: z.array(z.string().trim().min(1).max(255)).min(1).max(100).optional(),
   })
   .strict()
 
@@ -306,50 +318,8 @@ export const credentialGroupEnrollmentInviteResultSchema = z.discriminatedUnion(
   }),
 ])
 
-export const createCredentialGroupBodySchema = z
-  .object({
-    name: z.string().trim().min(1, 'Name is required').max(100),
-    description: z.string().trim().max(500).optional(),
-    options: z.array(credentialGroupOptionInputSchema).max(CREDENTIAL_GROUP_PROVIDER_IDS.length),
-  })
-  .strict()
-  .superRefine((body, ctx) => {
-    const labels = new Set<string>()
-    const providers = new Set<string>()
-    for (const [index, option] of body.options.entries()) {
-      if (option.provider === 'slack') {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['options', index],
-          message: 'Create the Credential Group before configuring Slack',
-        })
-      }
-      const normalized = option.label.toLocaleLowerCase()
-      if (labels.has(normalized)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['options', index, 'label'],
-          message: 'Credential option labels must be unique within a group',
-        })
-      }
-      labels.add(normalized)
-      if (providers.has(option.provider)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['options', index, 'provider'],
-          message: 'Each provider can only be added once',
-        })
-      }
-      providers.add(option.provider)
-    }
-  })
-
-export type CreateCredentialGroupBody = z.input<typeof createCredentialGroupBodySchema>
-
 export const updateCredentialGroupBodySchema = z
   .object({
-    name: z.string().trim().min(1, 'Name is required').max(100).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
     options: z
       .array(credentialGroupOptionUpdateInputSchema)
       .max(CREDENTIAL_GROUP_PROVIDER_IDS.length)
@@ -430,8 +400,8 @@ export type UpdateCredentialGroupMcpConnectorBody = z.input<
   typeof updateCredentialGroupMcpConnectorBodySchema
 >
 
-const listCredentialGroupsResponseSchema = z.object({
-  credentialGroups: z.array(credentialGroupSchema),
+export const workspaceAccountsSettingsSchema = z.object({
+  credentialGroup: credentialGroupSchema.nullable(),
   /**
    * The providers this deployment has an OAuth client for. The settings picker offers only these,
    * so an admin is never shown an account type nobody could finish connecting.
@@ -439,25 +409,26 @@ const listCredentialGroupsResponseSchema = z.object({
   availableProviders: z.array(credentialGroupProviderSchema),
 })
 
-export type CredentialGroupSettingsList = z.output<typeof listCredentialGroupsResponseSchema>
+export type WorkspaceAccountsSettings = z.output<typeof workspaceAccountsSettingsSchema>
 
-export const listCredentialGroupsContract = defineRouteContract({
+export const getWorkspaceAccountsContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/credential-groups',
   params: credentialGroupWorkspaceParamsSchema,
-  response: { mode: 'json', schema: listCredentialGroupsResponseSchema },
+  response: { mode: 'json', schema: workspaceAccountsSettingsSchema },
 })
 
-export const createCredentialGroupContract = defineRouteContract({
+export const ensureWorkspaceAccountsResponseSchema = z.object({
+  credentialGroup: credentialGroupSchema,
+})
+
+export type EnsureWorkspaceAccountsResponse = z.output<typeof ensureWorkspaceAccountsResponseSchema>
+
+export const ensureWorkspaceAccountsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/workspaces/[id]/credential-groups',
+  path: '/api/workspaces/[id]/credential-groups/ensure',
   params: credentialGroupWorkspaceParamsSchema,
-  body: createCredentialGroupBodySchema,
-  response: {
-    mode: 'json',
-    status: 201,
-    schema: z.object({ credentialGroup: credentialGroupSchema }),
-  },
+  response: { mode: 'json', schema: ensureWorkspaceAccountsResponseSchema },
 })
 
 export const getCredentialGroupContract = defineRouteContract({
@@ -507,16 +478,6 @@ export const deleteCredentialGroupEnrollmentContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({ credentialGroupEnrollment: credentialGroupEnrollmentSchema }),
-  },
-})
-
-export const deleteCredentialGroupContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/workspaces/[id]/credential-groups/[groupId]',
-  params: credentialGroupDetailParamsSchema,
-  response: {
-    mode: 'json',
-    schema: z.object({ success: z.literal(true) }),
   },
 })
 
@@ -576,6 +537,10 @@ export const updateCredentialGroupAccessContract = defineRouteContract({
   response: { mode: 'json', schema: credentialGroupAccessPolicySchema },
 })
 
+export type StartSlackCredentialGroupConfigurationBody = z.input<
+  typeof startSlackCredentialGroupConfigurationBodySchema
+>
+
 export const startSlackCredentialGroupConfigurationContract = defineRouteContract({
   method: 'POST',
   path: '/api/workspaces/[id]/credential-groups/[groupId]/slack-managed-users',
@@ -597,10 +562,16 @@ export const slackCredentialGroupConfigurationCallbackContract = defineRouteCont
   response: { mode: 'text' },
 })
 
+export const startCredentialGroupOAuthQuerySchema = z.object({
+  returnTo: z.literal('search').optional(),
+})
+export type StartCredentialGroupOAuthQuery = z.output<typeof startCredentialGroupOAuthQuerySchema>
+
 export const startCredentialGroupOAuthContract = defineRouteContract({
   method: 'GET',
   path: '/api/credential-groups/enroll/[token]/oauth/[optionId]',
   params: startCredentialGroupOAuthParamsSchema,
+  query: startCredentialGroupOAuthQuerySchema,
   response: { mode: 'empty' },
 })
 

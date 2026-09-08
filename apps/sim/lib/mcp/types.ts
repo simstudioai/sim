@@ -25,6 +25,7 @@ export interface McpServerConfig {
    */
   userId?: string
   workspaceId?: string
+  organizationId?: string
   headers?: Record<string, string>
   timeout?: number
   retries?: number

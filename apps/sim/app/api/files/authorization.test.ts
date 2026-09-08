@@ -33,7 +33,9 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  inferContextFromKey: vi.fn(() => 'knowledge-base'),
+  inferContextFromKey: vi.fn((key: string) =>
+    key.startsWith('kb/') ? 'knowledge-base' : key.split('/')[0]
+  ),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -44,6 +46,7 @@ vi.mock('@/executor/constants', () => ({
   isUuid: vi.fn(() => false),
 }))
 
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 
 const CLOUD_KEY = 'kb/1780162789495-secret.txt'
@@ -320,5 +323,72 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
 
     await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization connector cache access', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetFileMetadataByKey.mockResolvedValue({
+      workspaceId: null,
+      organizationId: 'org-1',
+      userId: USER_ID,
+      deletedAt: null,
+    })
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    mockGetFileMetadata.mockResolvedValue({ userId: USER_ID })
+    dbChainMockFns.limit.mockResolvedValue([{ id: 'doc-1' }])
+  })
+
+  it.each(['general', 'profile-pictures', 'knowledge-base'] as const)(
+    'denies the uploader a raw download even with a forged %s context',
+    async (context) => {
+      await expect(
+        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, context, false, { knowledgeAccess: 'user' })
+      ).resolves.toBe(false)
+      expect(mockGetFileMetadata).not.toHaveBeenCalled()
+      expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+    }
+  )
+
+  it('allows the internal processor to read a live bound connector cache', async () => {
+    await expect(
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+        knowledgeAccess: SYSTEM_ACCESS_SCOPE,
+      })
+    ).resolves.toBe(true)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
+  it('denies system reads after the cache loses its active document reference', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+    await expect(
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+        knowledgeAccess: SYSTEM_ACCESS_SCOPE,
+      })
+    ).resolves.toBe(false)
+  })
+
+  it('denies a binding claiming both organization and workspace ownership', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue({
+      organizationId: 'org-1',
+      workspaceId: 'ws-1',
+      deletedAt: null,
+    })
+    await expect(
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+        knowledgeAccess: SYSTEM_ACCESS_SCOPE,
+      })
+    ).resolves.toBe(false)
+    await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(false)
+  })
+
+  it('does not let a raw download endpoint delete organization caches', async () => {
+    await expect(
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'general', false, {
+        requireWrite: true,
+        knowledgeAccess: SYSTEM_ACCESS_SCOPE,
+      })
+    ).resolves.toBe(false)
   })
 })

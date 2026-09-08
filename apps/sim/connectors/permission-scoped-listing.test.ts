@@ -38,6 +38,25 @@ const permissionScoped = Object.values(CONNECTOR_META_REGISTRY).filter(
  * fix it from the connector's settings.
  */
 describe('permission-scoped connector listings', () => {
+  it('offers Search only for reviewed source and permission capabilities', () => {
+    const search = Object.values(CONNECTOR_META_REGISTRY).filter((meta) => meta.search)
+    expect(search.map((meta) => meta.id).sort()).toEqual([
+      'confluence',
+      'github',
+      'gitlab',
+      'gmail',
+      'google_calendar',
+      'google_drive',
+      'jira',
+      'slack',
+    ])
+    for (const meta of search) {
+      expect(Boolean(meta.permissionScopedListing) || meta.mirrorsSourceAcls === true).toBe(true)
+      if (meta.auth.mode === 'apiKey') expect(meta.mirrorsSourceAcls).toBe(true)
+      if (meta.supportsSeparateContentCredential) expect(meta.permissionScopedListing).toBeDefined()
+    }
+  })
+
   it('covers the connectors that crawl per member', () => {
     expect(permissionScoped.map((meta) => meta.id).sort()).toEqual([
       'airtable',
@@ -48,6 +67,7 @@ describe('permission-scoped connector listings', () => {
       'confluence',
       'docusign',
       'dropbox',
+      'github',
       'gmail',
       'google_calendar',
       'google_chat',

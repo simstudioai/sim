@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getRedisClient, onRedisReconnect } from '@/lib/core/config/redis'
+import type { RateLimitStorageAdapter } from '@/lib/core/rate-limiter/storage/adapter'
+import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
+import { RedisTokenBucket } from '@/lib/core/rate-limiter/storage/redis-token-bucket'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import type { RateLimitStorageAdapter } from './adapter'
-import { DbTokenBucket } from './db-token-bucket'
-import { RedisTokenBucket } from './redis-token-bucket'
 
 const logger = createLogger('RateLimitStorage')
 
@@ -18,7 +18,16 @@ if (!('_rlCachedAdapter' in g)) {
   g._rlReconnectListenerRegistered = false
 }
 
-export function createStorageAdapter(): RateLimitStorageAdapter {
+export function createStorageAdapter(
+  options: { requireConfiguredBackend?: boolean } = {}
+): RateLimitStorageAdapter {
+  /** Provider quotas cannot split across two backends when only some workers lose Redis. */
+  if (options.requireConfiguredBackend) {
+    if (getStorageMethod() !== 'redis') return new DbTokenBucket()
+    const redis = getRedisClient()
+    if (!redis) throw new Error('Configured Redis rate limit storage is unavailable')
+    return new RedisTokenBucket(redis)
+  }
   if (g._rlCachedAdapter) {
     return g._rlCachedAdapter
   }

@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   account,
+  foldedEmail,
   invitation,
   member,
   permissions,
@@ -149,7 +150,7 @@ async function runAdmissionTransaction(
 
     /** A directory that can no longer sync (plan lapsed, feature off) no longer owns the door either. */
     const directoryOwnsAdmission =
-      Boolean(directoryOnly) && (await isScimEntitledForOrganization(provider.organizationId))
+      Boolean(directoryOnly) && (await isScimEntitledForOrganization(provider.organizationId, tx))
 
     if (!provider.jitProvisioningEnabled || directoryOwnsAdmission) {
       const [sameOrganization] = await tx
@@ -205,7 +206,7 @@ async function runAdmissionTransaction(
             eq(invitation.organizationId, provider.organizationId),
             eq(invitation.status, 'pending'),
             gt(invitation.expiresAt, new Date()),
-            sql`lower(trim(${invitation.email})) = ${normalizedEmail}`
+            eq(foldedEmail(invitation.email), normalizedEmail)
           )
         )
         .limit(1),

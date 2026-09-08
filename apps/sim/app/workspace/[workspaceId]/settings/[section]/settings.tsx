@@ -84,9 +84,6 @@ const AccessControl = dynamic(() =>
 const CustomBlocks = dynamic(() =>
   import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
 )
-const CredentialGroups = dynamic(() =>
-  import('@/ee/credential-groups/components').then((m) => m.CredentialGroupsSettings)
-)
 const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
@@ -163,9 +160,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'browser' && <Browser />}
       {effectiveSection === 'terminal' && <Terminal />}
       {effectiveSection === 'secrets' && <Secrets />}
-      {effectiveSection === 'credential-groups' && (
-        <CredentialGroups workspaceId={hostContext.workspace.id} />
-      )}
       {effectiveSection === 'access-control' && organizationId && (
         <AccessControl
           organizationId={organizationId}

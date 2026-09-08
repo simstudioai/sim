@@ -34,7 +34,7 @@ function providerSelector(
       ...(options.sensitive ? { sensitive: options.sensitive } : {}),
       ...(options.sourceFields ? { sourceFields: options.sourceFields } : {}),
     },
-    scopeKinds: SERVER_SCOPE_KINDS,
+    scopeKinds: [...SERVER_SCOPE_KINDS, 'organization'],
     listMode: options.listMode ?? 'flat',
     supportsSearch: options.search ?? false,
     supportsDetail: options.detail ?? false,
@@ -368,8 +368,8 @@ export const selectorManifest = {
     staleTime: 0,
   }),
   'workspace.credentialProviders': internalSelector([], { detail: true }),
-  'workspace.credentialGroups': internalSelector([], { detail: true }),
-  'workspace.credentialGroupProviders': internalSelector(['credentialGroupId'], {
+  'workspace.organizationMcpProviders': internalSelector([], { detail: true }),
+  'workspace.credentialGroupProviders': internalSelector([], {
     detail: true,
   }),
   'workspace.secretNames': internalSelector(),

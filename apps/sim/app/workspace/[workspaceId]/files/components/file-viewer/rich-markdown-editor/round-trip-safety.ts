@@ -91,13 +91,13 @@ function imageSources(token: Token): string[] {
  * adjacent equal link marks can merge losslessly. Task references are conservatively source-only:
  * their parser resolves definitions before a task but loses definitions appearing after it, so
  * rearranging otherwise valid Markdown can silently remove a destination.
- * Count HTML image sources too, allowing lossless HTML-to-Markdown conversion while catching images
- * dropped from inline-only table cells. Frontmatter is stored separately, not interpreted as Markdown.
+ * Images parsed inside headings or table-cell paragraphs violate their inline-only content and are
+ * discarded on Yjs hydration. Frontmatter is stored separately, not interpreted as Markdown.
  */
 function inspectMarkdownFidelity(content: string) {
   const targets = new Map<string, number>()
   let hasTaskReference = false
-  let hasTableHtmlImage = false
+  let hasUnsupportedImageContext = false
   let hasQuotedImageMetadata = false
   let preservedQuotes = 0
   const body = splitFrontmatter(content).body
@@ -114,9 +114,10 @@ function inspectMarkdownFidelity(content: string) {
     if (token.type === 'html') preservedQuotes += inspectHtmlImages(token.raw).quotedEntities
     if (token.type === 'code' || token.type === 'codespan')
       preservedQuotes += token.raw.match(/&quot;/g)?.length ?? 0
-    if (token.type === 'table') {
+    if (token.type === 'heading' || token.type === 'table') {
       fidelityLexer.walkTokens([token], (child) => {
-        if (child.type === 'html' && /^<img(?=[\s/>])/i.test(child.raw)) hasTableHtmlImage = true
+        if (child.type === 'image' || (child.type === 'html' && /^<img(?=[\s/>])/i.test(child.raw)))
+          hasUnsupportedImageContext = true
       })
     }
     for (const src of imageSources(token)) add('image', src)
@@ -139,7 +140,7 @@ function inspectMarkdownFidelity(content: string) {
   })
   const hasUnsafeQuotes =
     hasQuotedImageMetadata || (body.match(/&quot;/g)?.length ?? 0) > preservedQuotes
-  return { targets, hasTaskReference, hasTableHtmlImage, hasUnsafeQuotes }
+  return { targets, hasTaskReference, hasUnsupportedImageContext, hasUnsafeQuotes }
 }
 
 /**
@@ -200,7 +201,8 @@ export function isRoundTripSafe(content: string): boolean {
   if (hasOrphanReferenceDefinition(stripped)) return false
   try {
     const source = inspectMarkdownFidelity(content)
-    if (source.hasTaskReference || source.hasTableHtmlImage || source.hasUnsafeQuotes) return false
+    if (source.hasTaskReference || source.hasUnsupportedImageContext || source.hasUnsafeQuotes)
+      return false
     const once = serializeMarkdownDocument(content)
     const preservedImages = inspectHtmlImages(stripCode(once)).unsupported
     for (const [tag, count] of inspectHtmlImages(stripped).unsupported) {

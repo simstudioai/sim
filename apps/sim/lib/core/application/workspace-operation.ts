@@ -97,6 +97,10 @@ export function defineWorkspaceOperation<
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)
   }
 
+  if (operation.principalKinds.includes('organization_delegated')) {
+    throw new Error(`Workspace operation ${operation.id} cannot accept organization delegation`)
+  }
+
   const allowsWorkspaceApiKey = operation.principalKinds.includes('workspace_api_key')
   if (allowsWorkspaceApiKey !== (operation.workspaceApiKey === 'allow')) {
     throw new Error(`Operation ${operation.id} has inconsistent workspace API key policy`)

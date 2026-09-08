@@ -10,6 +10,7 @@ export const gitlabUpdateMergeRequestTool: ToolConfig<
   GitLabUpdateMergeRequestResponse
 > = {
   id: 'gitlab_update_merge_request',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Update Merge Request',
   description: 'Update an existing merge request in a GitLab project',
   version: '1.0.0',

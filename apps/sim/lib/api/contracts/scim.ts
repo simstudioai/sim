@@ -203,16 +203,28 @@ export const scimUserResourceSchema = z.looseObject({
   displayName: z.string().optional(),
   name: z
     .looseObject({
-      formatted: z.string(),
+      formatted: z.string().optional(),
       givenName: z.string().optional(),
       familyName: z.string().optional(),
     })
     .optional(),
   emails: z
-    .array(z.object({ value: z.string(), type: z.string().optional(), primary: z.boolean() }))
+    .array(
+      z.object({
+        value: z.string().optional(),
+        type: z.string().optional(),
+        primary: z.boolean().optional(),
+      })
+    )
     .optional(),
   groups: z
-    .array(z.object({ value: z.string(), display: z.string(), $ref: z.string() }))
+    .array(
+      z.object({
+        value: z.string().optional(),
+        display: z.string().optional(),
+        $ref: z.string().optional(),
+      })
+    )
     .optional(),
   meta: scimMetaSchema,
 })
@@ -225,10 +237,10 @@ export const scimGroupResourceSchema = z.looseObject({
   members: z
     .array(
       z.object({
-        value: z.string(),
+        value: z.string().optional(),
         display: z.string().optional(),
-        $ref: z.string(),
-        type: z.literal('User'),
+        $ref: z.string().optional(),
+        type: z.literal('User').optional(),
       })
     )
     .optional(),

@@ -49,6 +49,7 @@ Point cron at an **internal** address where possible (the in-cluster Service, or
 | Workspace file search dispatch | `/api/cron/workspace-file-search-dispatch` | `*/1 * * * *` | Dispatches indexing work for workspace file search |
 | Connector sync | `/api/knowledge/connectors/sync` | `*/5 * * * *` | Knowledge base connector syncs |
 | Connector member sync | `/api/knowledge/connectors/member-sync` | `*/5 * * * *` | Per-member access sync for permission-aware connectors |
+| Connector directory sync | `/api/knowledge/connectors/directory-sync` | `*/5 * * * *` | Refreshes the directory groups administrator-mode connectors mirror, so a membership change takes effect without waiting for a content sync |
 | Workspace events poll | `/api/workspace-events/poll` | `*/15 * * * *` | Workspace event triggers |
 | Table row TTL cleanup | `/api/cron/cleanup-table-row-ttl` | `*/15 * * * *` | Deletes table rows whose TTL column has expired |
 | OAuth token cleanup | `/api/cron/cleanup-oauth-tokens` | `0 * * * *` | Deletes access and refresh tokens after the retention tail |

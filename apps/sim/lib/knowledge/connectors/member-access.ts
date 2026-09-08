@@ -1,7 +1,21 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import type { CredentialGroupOptionConfig } from '@sim/db/schema'
+import { db } from '@sim/db'
+import {
+  type CredentialGroupOptionConfig,
+  credentialGroup,
+  knowledgeBase,
+  knowledgeConnector,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
   type CredentialGroupKnowledgeConnectorAccess,
   compileCredentialGroupWorkflowAccessPolicy,
@@ -25,8 +39,10 @@ import {
 } from '@/lib/credential-groups/providers'
 import {
   type ResolvedManagedOAuthToken,
+  rejectManagedOAuthToken,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
+import { MEMBER_LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   type ResourcePolicyBindingFor,
@@ -58,15 +74,19 @@ export class KnowledgeConnectorMemberAccessDeniedError extends Error {
 }
 
 /** The credential-group slot a members-mode connector crawls with. */
-export interface KnowledgeConnectorCredentialBinding {
-  workspaceId: string
+export interface KnowledgeConnectorCredentialBinding extends ResourceOwner {
   credentialGroupId: string
   credentialGroupOptionId: string
   connectorId: string
 }
 
+type WorkspaceCredentialBinding = KnowledgeConnectorCredentialBinding & {
+  workspaceId: string
+  organizationId?: never
+}
+
 function policyTarget(
-  binding: Pick<KnowledgeConnectorCredentialBinding, 'workspaceId' | 'credentialGroupId'>
+  binding: Pick<WorkspaceCredentialBinding, 'workspaceId' | 'credentialGroupId'>
 ) {
   return {
     workspaceId: binding.workspaceId,
@@ -134,7 +154,7 @@ function sameAccess(
  * fresh document rather than retried blindly, so nobody's statement is lost.
  */
 async function rewriteKnowledgeConnectorAccess(input: {
-  binding: Pick<KnowledgeConnectorCredentialBinding, 'workspaceId' | 'credentialGroupId'>
+  binding: Pick<WorkspaceCredentialBinding, 'workspaceId' | 'credentialGroupId'>
   actorUserId: string
   change: 'granted' | 'revoked'
   connectorId: string
@@ -209,7 +229,7 @@ async function rewriteKnowledgeConnectorAccess(input: {
  * crawls with exactly one credential slot.
  */
 export async function grantKnowledgeConnectorCredentialAccess(
-  binding: KnowledgeConnectorCredentialBinding,
+  binding: WorkspaceCredentialBinding,
   actorUserId: string
 ): Promise<void> {
   await rewriteKnowledgeConnectorAccess({
@@ -228,10 +248,7 @@ export async function grantKnowledgeConnectorCredentialAccess(
  * left to revoke.
  */
 export async function revokeKnowledgeConnectorCredentialAccess(
-  binding: Pick<
-    KnowledgeConnectorCredentialBinding,
-    'workspaceId' | 'credentialGroupId' | 'connectorId'
-  >,
+  binding: Pick<WorkspaceCredentialBinding, 'workspaceId' | 'credentialGroupId' | 'connectorId'>,
   actorUserId: string
 ): Promise<void> {
   try {
@@ -248,11 +265,43 @@ export async function revokeKnowledgeConnectorCredentialAccess(
   }
 }
 
-/** Throws unless the group's policy lets this connector use the option's credentials. */
+/** Requires the current scope's canonical connector and option authorization before token use. */
 export async function assertKnowledgeConnectorCredentialAccess(
   binding: KnowledgeConnectorCredentialBinding
 ): Promise<void> {
-  const policy = await requireResourcePolicy(policyTarget(binding)).catch((error: unknown) => {
+  const scope = resourceScopeFromOwner(binding)
+  if (scope.kind === 'organization') {
+    const [connector] = await db
+      .select({ id: knowledgeConnector.id })
+      .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .innerJoin(credentialGroup, eq(credentialGroup.id, knowledgeConnector.credentialGroupId))
+      .where(
+        and(
+          eq(knowledgeConnector.id, binding.connectorId),
+          eq(knowledgeConnector.accessMode, 'members'),
+          inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
+          ne(knowledgeConnector.memberSyncStatus, 'disabled'),
+          eq(knowledgeConnector.credentialGroupId, binding.credentialGroupId),
+          eq(knowledgeConnector.credentialGroupOptionId, binding.credentialGroupOptionId),
+          resourceScopeCondition(knowledgeBase, scope),
+          resourceScopeCondition(credentialGroup, scope),
+          isNull(knowledgeBase.deletedAt),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!connector) {
+      throw new KnowledgeConnectorMemberAccessDeniedError(
+        'Credential Group is not bound to this organization connector'
+      )
+    }
+    return
+  }
+  const policy = await requireResourcePolicy(
+    policyTarget({ ...binding, workspaceId: scope.workspaceId })
+  ).catch((error: unknown) => {
     if (error instanceof ResourcePolicyNotFoundError) {
       throw new KnowledgeConnectorMemberAccessDeniedError(
         'Credential Group no longer has an access policy'
@@ -274,9 +323,8 @@ export async function assertKnowledgeConnectorCredentialAccess(
   }
 }
 
-export interface MintKnowledgeConnectorMemberTokenInput {
+export interface MintKnowledgeConnectorMemberTokenInput extends ResourceOwner {
   connectorId: string
-  workspaceId: string
   credentialId: string
   expectedProviderId: string
   requiredScopes: string[]
@@ -294,9 +342,12 @@ export async function mintKnowledgeConnectorMemberToken(
   input: MintKnowledgeConnectorMemberTokenInput
 ): Promise<ResolvedManagedOAuthToken> {
   const binding = await loadManagedCredentialGroupBinding(input.credentialId)
-  if (!binding || binding.workspaceId !== input.workspaceId) {
+  if (
+    !binding ||
+    !sameResourceScope(resourceScopeFromOwner(binding), resourceScopeFromOwner(input))
+  ) {
     throw new KnowledgeConnectorMemberAccessDeniedError(
-      'Managed credential is not enrolled in a Credential Group in this workspace'
+      'Managed credential is not enrolled in a Credential Group in this scope'
     )
   }
   if (!isManagedCredentialGroupBindingLive(binding)) {
@@ -305,14 +356,14 @@ export async function mintKnowledgeConnectorMemberToken(
     )
   }
   await assertKnowledgeConnectorCredentialAccess({
-    workspaceId: binding.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(binding)),
     credentialGroupId: binding.credentialGroupId,
     credentialGroupOptionId: binding.credentialGroupOptionId,
     connectorId: input.connectorId,
   })
   const token = await resolveManagedOAuthToken({
     credentialId: binding.credentialId,
-    workspaceId: binding.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(binding)),
     expectedProviderId: input.expectedProviderId,
     requiredScopes: input.requiredScopes,
   })
@@ -325,6 +376,7 @@ export async function mintKnowledgeConnectorMemberToken(
     resourceId: binding.credentialId,
     description: `Accessed managed OAuth credential for provider ${input.expectedProviderId} on behalf of a knowledge connector`,
     metadata: {
+      organizationId: binding.organizationId,
       provider: input.expectedProviderId,
       credentialType: 'managed_oauth',
       connectorId: input.connectorId,
@@ -334,6 +386,54 @@ export async function mintKnowledgeConnectorMemberToken(
     },
   })
   return token
+}
+
+/** Reports a provider-rejected token under the same connector grant required to mint it. */
+export async function rejectKnowledgeConnectorMemberToken(
+  input: MintKnowledgeConnectorMemberTokenInput & {
+    rejectedAccessToken: string
+  }
+): Promise<boolean> {
+  const binding = await loadManagedCredentialGroupBinding(input.credentialId)
+  if (
+    !binding ||
+    !sameResourceScope(resourceScopeFromOwner(binding), resourceScopeFromOwner(input))
+  ) {
+    throw new KnowledgeConnectorMemberAccessDeniedError(
+      'Managed credential is not enrolled in a Credential Group in this scope'
+    )
+  }
+  await assertKnowledgeConnectorCredentialAccess({
+    ...resourceScopeFields(resourceScopeFromOwner(binding)),
+    credentialGroupId: binding.credentialGroupId,
+    credentialGroupOptionId: binding.credentialGroupOptionId,
+    connectorId: input.connectorId,
+  })
+  const rejected = await rejectManagedOAuthToken({
+    credentialId: binding.credentialId,
+    ...resourceScopeFields(resourceScopeFromOwner(binding)),
+    expectedProviderId: input.expectedProviderId,
+    requiredScopes: input.requiredScopes,
+    rejectedAccessToken: input.rejectedAccessToken,
+  })
+  if (rejected)
+    recordAudit({
+      workspaceId: binding.workspaceId,
+      actorId: null,
+      actorName: 'Knowledge connector sync',
+      action: AuditAction.CREDENTIAL_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: binding.credentialId,
+      description: 'Marked provider-rejected managed OAuth credential as needing reauthorization',
+      metadata: {
+        organizationId: binding.organizationId,
+        provider: input.expectedProviderId,
+        credentialType: 'managed_oauth',
+        connectorId: input.connectorId,
+        runId: input.runId,
+      },
+    })
+  return rejected
 }
 
 export interface ListKnowledgeConnectorMemberCredentialsInput
@@ -352,7 +452,7 @@ export async function listKnowledgeConnectorMemberCredentials(
 ): Promise<{ credentials: CredentialGroupOptionCredentialReference[]; nextCursor: string | null }> {
   await assertKnowledgeConnectorCredentialAccess(input)
   return listCredentialGroupOptionCredentialReferences({
-    workspaceId: input.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(input)),
     credentialGroupId: input.credentialGroupId,
     credentialGroupOptionId: input.credentialGroupOptionId,
     limit: input.limit,

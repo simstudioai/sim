@@ -87,6 +87,7 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(mockSearch).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
+        surface: 'api',
         workspaceId: WORKSPACE_ID,
         knowledgeBaseIds: ['kb-1'],
         query: 'hello',

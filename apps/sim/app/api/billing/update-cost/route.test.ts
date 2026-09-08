@@ -68,7 +68,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   },
   COPILOT_BILLING_PROTOCOL_HEADER: 'x-sim-billing-protocol',
   requireAccountBillingDecisionHeader: mockRequireAccountBillingDecisionHeader,
-  requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
+  requireBillingCallbackAttribution: mockRequireBillingAttributionHeader,
   resolveLegacyV0BillingAttribution: mockResolveLegacyV0BillingAttribution,
   toBillingContext: mockToBillingContext,
 }))
@@ -301,6 +301,33 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(res.status).toBe(400)
     expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
+  })
+
+  it('settles an organization charge from its immutable envelope with no workspace ID', async () => {
+    const orgAttribution = { ...ATTRIBUTION, workspaceId: null }
+    mockRequireBillingAttributionHeader.mockReturnValueOnce(orgAttribution)
+    const id = '00000000-0000-4000-8000-000000000001'
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { ...SELF_HOSTED_WORKSPACELESS_UPDATE_COST_BODY, idempotencyKey: id },
+        {
+          'x-api-key': 'internal',
+          'x-sim-billing-protocol': 'attribution-v1',
+          'x-sim-billing-request-id': id,
+          'x-sim-billing-attribution': 'serialized-org-attribution',
+        }
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: undefined,
+        billingEntity: { type: 'organization', id: 'org-1' },
+      })
+    )
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
   })
 
   it('does not let markerless legacy traffic fall through to a modern attribution envelope', async () => {

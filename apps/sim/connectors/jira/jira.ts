@@ -1,21 +1,31 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
+import { z } from 'zod'
 import {
   AtlassianSiteNotAccessibleError,
   AtlassianSiteNotMatchedError,
   normalizeAtlassianSiteUrl,
+  resolveAtlassianCloudId,
 } from '@/lib/atlassian/discovery'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  fetchWithRetry,
+  type RetryOptions,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  computeContentHash,
   isListingScopeUnavailableError,
+  isPerMemberListing,
   joinTagArray,
   listingRequestError,
+  memberDocumentId,
   parseMultiValue,
   parseTagDate,
+  sourceDocumentId,
 } from '@/connectors/utils'
-import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
+import { extractAdfText } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
 
@@ -30,6 +40,56 @@ const logger = createLogger('JiraConnector')
  * the absence of `nextPageToken`, never by a short page.
  */
 const PAGE_SIZE = 100
+
+const ISSUE_METADATA_FIELDS =
+  'summary,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
+
+const jiraIssueSchema = z.object({
+  id: z.string().min(1),
+  key: z.string().min(1),
+  fields: z
+    .object({ project: z.object({ id: z.string().min(1), key: z.string().min(1) }) })
+    .catchall(z.unknown()),
+})
+
+const jiraSearchPageSchema = z.object({
+  issues: z.array(jiraIssueSchema),
+  nextPageToken: z.string().min(1).nullish(),
+  isLast: z.boolean().optional(),
+  warnings: z.unknown().optional(),
+})
+
+type JiraIssue = z.infer<typeof jiraIssueSchema>
+
+class JiraCredentialInvalidError extends Error {}
+class JiraListingCursorInvalidError extends Error {}
+
+async function resolveCloudId(
+  accessToken: string,
+  domain: string,
+  syncContext?: Record<string, unknown>,
+  retryOptions?: RetryOptions
+): Promise<string> {
+  if (typeof syncContext?.cloudId === 'string') return syncContext.cloudId
+  const cloudId = await resolveAtlassianCloudId({
+    accessToken,
+    domain,
+    product: 'Jira',
+    requireExactMatch: isPerMemberListing(syncContext),
+    retryOptions,
+  })
+  if (syncContext) syncContext.cloudId = cloudId
+  return cloudId
+}
+
+function getMaxIssues(sourceConfig: Record<string, unknown>): number {
+  if (!sourceConfig.maxIssues) return 0
+  const maxIssues = Number(sourceConfig.maxIssues)
+  if (!Number.isSafeInteger(maxIssues) || maxIssues <= 0) {
+    throw new Error('Max issues must be a positive whole number')
+  }
+  return maxIssues
+}
 
 /**
  * Builds a JQL clause restricting issues to the given project keys.
@@ -48,7 +108,7 @@ function buildProjectClause(projectKeys: string[]): string {
 /**
  * Builds a plain-text representation of a Jira issue for knowledge base indexing.
  */
-function buildIssueContent(fields: Record<string, unknown>): string {
+function buildIssueContent(fields: Record<string, unknown>, includeComments = true): string {
   const parts: string[] = []
 
   const summary = fields.summary as string | undefined
@@ -60,7 +120,7 @@ function buildIssueContent(fields: Record<string, unknown>): string {
   const comments = fields.comment as
     | { comments?: Array<{ body?: unknown }>; total?: number }
     | undefined
-  if (comments?.comments) {
+  if (includeComments && comments?.comments) {
     for (const comment of comments.comments) {
       const text = extractAdfText(comment.body)
       if (text) parts.push(text)
@@ -87,9 +147,9 @@ function buildIssueContent(fields: Record<string, unknown>): string {
  * stub with deferred content. The contentHash is metadata-based so it is
  * identical whether produced during listing or full fetch.
  */
-function issueToStub(issue: Record<string, unknown>, siteUrl: string): ExternalDocument {
-  const fields = (issue.fields || {}) as Record<string, unknown>
-  const key = issue.key as string
+function issueToStub(issue: JiraIssue, siteUrl: string): ExternalDocument {
+  const fields = issue.fields
+  const key = issue.key
   const issueType = fields.issuetype as Record<string, unknown> | undefined
   const status = fields.status as Record<string, unknown> | undefined
   const priority = fields.priority as Record<string, unknown> | undefined
@@ -105,7 +165,7 @@ function issueToStub(issue: Record<string, unknown>, siteUrl: string): ExternalD
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: `${siteUrl}/browse/${key}`,
+    sourceUrl: `${siteUrl}/browse/${encodeURIComponent(key)}`,
     contentHash: `jira:${issue.id}:${updated}`,
     metadata: {
       key,
@@ -126,10 +186,9 @@ function issueToStub(issue: Record<string, unknown>, siteUrl: string): ExternalD
  * Converts a fully-fetched Jira issue (with description and comments) into an
  * ExternalDocument with resolved content.
  */
-function issueToFullDocument(issue: Record<string, unknown>, siteUrl: string): ExternalDocument {
+function issueToFullDocument(issue: JiraIssue, siteUrl: string): ExternalDocument {
   const stub = issueToStub(issue, siteUrl)
-  const fields = (issue.fields || {}) as Record<string, unknown>
-  const content = buildIssueContent(fields)
+  const content = buildIssueContent(issue.fields)
 
   return {
     ...stub,
@@ -138,8 +197,44 @@ function issueToFullDocument(issue: Record<string, unknown>, siteUrl: string): E
   }
 }
 
+/**
+ * Member listings carry the complete indexed projection so permission-dependent
+ * fields refresh even when Jira's issue update timestamp stays unchanged.
+ * Comments have independent visibility and pagination; member Search indexes
+ * issue titles and descriptions instead of caching a partial comment thread.
+ */
+async function issueToMemberDocument(
+  issue: JiraIssue,
+  siteUrl: string,
+  cloudId: string,
+  syncContext: Record<string, unknown> | undefined
+): Promise<ExternalDocument> {
+  const stub = issueToStub(issue, siteUrl)
+  const content = buildIssueContent(issue.fields, false)
+  return {
+    ...stub,
+    externalId: memberDocumentId(`jira:${encodeURIComponent(cloudId)}:${issue.id}`, syncContext),
+    content,
+    contentDeferred: false,
+    contentHash: await computeContentHash(JSON.stringify([stub.title, content, stub.metadata])),
+  }
+}
+
+/** JQL can refine the configured projects but must not expand their scope. */
+function isInConfiguredProject(issue: JiraIssue, projectKeys: string[]): boolean {
+  const project = issue.fields.project
+  return projectKeys.some(
+    (value) => value === project.id || value.toUpperCase() === project.key.toUpperCase()
+  )
+}
+
 export const jiraConnector: ConnectorConfig = {
   ...jiraConnectorMeta,
+  isListingCursorInvalidError: (error) => error instanceof JiraListingCursorInvalidError,
+
+  isCredentialInvalidError: (error) =>
+    error instanceof JiraCredentialInvalidError ||
+    (error instanceof Error && 'status' in error && error.status === 401),
 
   /**
    * A member whose token reaches no Atlassian site, or only sites other than
@@ -160,17 +255,18 @@ export const jiraConnector: ConnectorConfig = {
     const siteUrl = normalizeAtlassianSiteUrl(domain)
     const projectKeys = parseMultiValue(sourceConfig.projectKey)
     const jqlFilter = (sourceConfig.jql as string) || ''
-    const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
+    const maxIssues = getMaxIssues(sourceConfig)
+    const perMember = isPerMemberListing(syncContext)
+
+    if (perMember && maxIssues > 0) {
+      throw new Error('Member account sources cannot limit the number of issues')
+    }
 
     if (projectKeys.length === 0) {
       throw new Error('At least one project key is required')
     }
 
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getJiraCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
-    }
+    const cloudId = await resolveCloudId(accessToken, domain, syncContext)
 
     const projectClause = buildProjectClause(projectKeys)
     let jql = `${projectClause} ORDER BY updated DESC`
@@ -185,7 +281,7 @@ export const jiraConnector: ConnectorConfig = {
      * compatibility with cursors emitted before this format existed.
      */
     let pageToken: string | undefined
-    let collectedSoFar = (syncContext?.collectedCount as number | undefined) ?? 0
+    let collectedSoFar = cursor ? ((syncContext?.collectedCount as number | undefined) ?? 0) : 0
     if (cursor) {
       const sep = cursor.lastIndexOf('|')
       if (sep > 0) {
@@ -213,7 +309,7 @@ export const jiraConnector: ConnectorConfig = {
     params.append('maxResults', String(Math.min(PAGE_SIZE, remaining)))
     params.append(
       'fields',
-      'summary,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
+      perMember ? `${ISSUE_METADATA_FIELDS},description` : ISSUE_METADATA_FIELDS
     )
     if (pageToken) params.append('nextPageToken', pageToken)
 
@@ -233,7 +329,16 @@ export const jiraConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
+      if (response.status === 401)
+        throw new JiraCredentialInvalidError('Reconnect your Jira account')
       const errorText = await response.text()
+      if (
+        response.status === 400 &&
+        pageToken &&
+        errorText.includes('The provided next page token is invalid or expired.')
+      ) {
+        throw new JiraListingCursorInvalidError('Jira listing cursor expired; restart the listing')
+      }
       logger.error('Failed to search Jira issues', {
         status: response.status,
         error: errorText,
@@ -246,15 +351,21 @@ export const jiraConnector: ConnectorConfig = {
       )
     }
 
-    const data = await response.json()
-    let issues = (data.issues || []) as Record<string, unknown>[]
+    const data = jiraSearchPageSchema.parse(await response.json())
+    let issues = data.issues
     /**
      * `/rest/api/3/search/jql` signals end-of-results purely by the absence of
      * `nextPageToken` — the parameter docs state the field "is **not included**
      * in the response for the last page". `data.isLast` carries the same intent
      * but is redundant, so the token is the single source of truth here.
      */
-    const nextPageToken = data.nextPageToken as string | undefined
+    const nextPageToken = data.nextPageToken ?? undefined
+    if (nextPageToken === pageToken && nextPageToken) {
+      throw new Error('Jira search returned a repeated page token')
+    }
+    if (data.isLast === false && !nextPageToken) {
+      throw new Error('Jira search did not return its next page token')
+    }
     const isLast = !nextPageToken
 
     let slicedByCap = false
@@ -271,13 +382,19 @@ export const jiraConnector: ConnectorConfig = {
      * flagged Experimental and "may be absent, empty, or change shape without
      * notice", so only its presence is relied on, never its contents.
      */
-    const warnings = data.warnings as Array<{ type?: string; message?: string }> | undefined
-    const serverDegradedResults = Boolean(warnings?.length)
+    const warnings = data.warnings
+    const serverDegradedResults =
+      warnings != null && (!Array.isArray(warnings) || warnings.length > 0)
     if (serverDegradedResults) {
       logger.warn('Jira search returned warnings; skipping deletion reconciliation', { warnings })
     }
 
-    const documents: ExternalDocument[] = issues.map((issue) => issueToStub(issue, siteUrl))
+    const scopedIssues = issues.filter((issue) => isInConfiguredProject(issue, projectKeys))
+    const documents: ExternalDocument[] = perMember
+      ? await Promise.all(
+          scopedIssues.map((issue) => issueToMemberDocument(issue, siteUrl, cloudId, syncContext))
+        )
+      : scopedIssues.map((issue) => issueToStub(issue, siteUrl))
 
     const newCollected = collectedSoFar + issues.length
     if (syncContext) syncContext.collectedCount = newCollected
@@ -312,19 +429,22 @@ export const jiraConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     const domain = sourceConfig.domain as string
     const siteUrl = normalizeAtlassianSiteUrl(domain)
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getJiraCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
+    const cloudId = await resolveCloudId(accessToken, domain, syncContext)
+
+    const perMember = isPerMemberListing(syncContext)
+    let issueId = sourceDocumentId(externalId, syncContext)
+    if (!issueId) return null
+    if (perMember) {
+      const prefix = `jira:${encodeURIComponent(cloudId)}:`
+      if (!issueId.startsWith(prefix)) return null
+      issueId = issueId.slice(prefix.length)
+      if (!issueId) return null
     }
 
     const params = new URLSearchParams()
-    params.append(
-      'fields',
-      'summary,description,comment,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
-    )
+    params.append('fields', `${ISSUE_METADATA_FIELDS},description${perMember ? '' : ',comment'}`)
 
-    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(externalId)}?${params.toString()}`
+    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(issueId)}?${params.toString()}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -335,17 +455,23 @@ export const jiraConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
+      if (response.status === 401)
+        throw new JiraCredentialInvalidError('Reconnect your Jira account')
       if (response.status === 404) return null
       throw new Error(`Failed to get Jira issue: ${response.status}`)
     }
 
-    const issue = await response.json()
-    return issueToFullDocument(issue, siteUrl)
+    const issue = jiraIssueSchema.parse(await response.json())
+    if (!isInConfiguredProject(issue, parseMultiValue(sourceConfig.projectKey))) return null
+    return perMember
+      ? issueToMemberDocument(issue, siteUrl, cloudId, syncContext)
+      : issueToFullDocument(issue, siteUrl)
   },
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
     const projectKeys = parseMultiValue(sourceConfig.projectKey)
@@ -354,20 +480,20 @@ export const jiraConnector: ConnectorConfig = {
       return { valid: false, error: 'Domain and at least one project key are required' }
     }
 
-    const maxIssues = sourceConfig.maxIssues as string | undefined
-    if (maxIssues && (Number.isNaN(Number(maxIssues)) || Number(maxIssues) <= 0)) {
-      return { valid: false, error: 'Max issues must be a positive number' }
-    }
-
     const jqlFilter = (sourceConfig.jql as string | undefined)?.trim() || ''
 
     try {
-      const cloudId = await getJiraCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
+      const maxIssues = getMaxIssues(sourceConfig)
+      if (isPerMemberListing(syncContext) && maxIssues > 0) {
+        return { valid: false, error: 'Member account sources cannot limit the number of issues' }
+      }
+      const cloudId = await resolveCloudId(accessToken, domain, syncContext, VALIDATE_RETRY_OPTIONS)
 
       const projectClause = buildProjectClause(projectKeys)
       const params = new URLSearchParams()
       params.append('jql', projectClause)
       params.append('maxResults', '1')
+      params.append('fields', 'id')
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
       const response = await fetchWithRetry(
@@ -397,6 +523,7 @@ export const jiraConnector: ConnectorConfig = {
         const filterParams = new URLSearchParams()
         filterParams.append('jql', `${projectClause} AND (${jqlFilter})`)
         filterParams.append('maxResults', '1')
+        filterParams.append('fields', 'id')
 
         const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${filterParams.toString()}`
         const filterResponse = await fetchWithRetry(
@@ -418,7 +545,7 @@ export const jiraConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
+      return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
 

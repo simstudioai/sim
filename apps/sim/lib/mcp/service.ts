@@ -12,6 +12,8 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
@@ -326,15 +328,17 @@ class McpService {
 
   private async getServerConfig(
     serverId: string,
-    workspaceId: string
+    scopeInput: string | ResourceScope
   ): Promise<McpServerConfig | null> {
+    const scope: ResourceScope =
+      typeof scopeInput === 'string' ? { kind: 'workspace', workspaceId: scopeInput } : scopeInput
     const [server] = await db
       .select()
       .from(mcpServers)
       .where(
         and(
           eq(mcpServers.id, serverId),
-          eq(mcpServers.workspaceId, workspaceId),
+          resourceScopeCondition(mcpServers, scope),
           eq(mcpServers.enabled, true),
           isNull(mcpServers.deletedAt)
         )
@@ -356,7 +360,7 @@ class McpService {
       transport: 'streamable-http' as const,
       url: server.url || undefined,
       authType: (server.authType as McpServerConfig['authType']) ?? 'headers',
-      workspaceId: server.workspaceId,
+      ...resourceScopeFields(scope),
       headers: (server.headers as Record<string, string>) || {},
       timeout: server.timeout || 30000,
       retries: server.retries || 3,
@@ -386,7 +390,7 @@ class McpService {
         transport: server.transport as McpTransport,
         url: server.url || undefined,
         authType: (server.authType as McpServerConfig['authType']) ?? 'headers',
-        workspaceId: server.workspaceId,
+        workspaceId,
         headers: (server.headers as Record<string, string>) || {},
         timeout: server.timeout || 30000,
         retries: server.retries || 3,
@@ -490,12 +494,12 @@ class McpService {
 
   async discoverManagedMcpTools(
     serverId: string,
-    workspaceId: string,
+    scope: string | ResourceScope,
     auth: OAuthClientProvider | McpOauthCredentials,
     signal?: AbortSignal,
     options: { requireComplete?: boolean } = {}
   ): Promise<McpTool[]> {
-    const config = await this.getServerConfig(serverId, workspaceId)
+    const config = await this.getServerConfig(serverId, scope)
     if (!config) throw new Error('Managed MCP server is unavailable')
     return this.withServerClient(
       { key: '', serverId, allowPool: false },
@@ -510,14 +514,14 @@ class McpService {
   async executeManagedMcpTool(params: {
     connectionId: string
     serverId: string
-    workspaceId: string
+    scope: ResourceScope
     toolCall: McpToolCall
     loadAuthProvider: () => Promise<OAuthClientProvider>
     extraHeaders?: Record<string, string>
     signal?: AbortSignal
     timeoutMs?: number
   }): Promise<McpToolResult> {
-    const config = await this.getServerConfig(params.serverId, params.workspaceId)
+    const config = await this.getServerConfig(params.serverId, params.scope)
     if (!config) throw new Error('Managed MCP server is unavailable')
     const effectiveConfig = params.extraHeaders
       ? { ...config, headers: { ...config.headers, ...params.extraHeaders } }

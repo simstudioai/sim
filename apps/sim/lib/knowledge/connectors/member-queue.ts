@@ -7,11 +7,15 @@ import { isRecordLike } from '@sim/utils/object'
 import { idempotencyKeys, tasks } from '@trigger.dev/sdk'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   resolveSystemBillingAttribution,
+  resolveSystemOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
   SYNC_DISPATCH_FAILED_ERROR,
@@ -20,6 +24,7 @@ import {
 import {
   connectorIsLive,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+  RUNNABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
@@ -40,6 +45,7 @@ export interface MemberSyncPayload {
   billingAttribution: BillingAttributionSnapshot
   /** The queue entry this task is allowed to consume; see `ConnectorSyncPayload.dispatchToken`. */
   dispatchToken?: string
+  forceContentRefresh?: boolean
 }
 
 export interface DispatchMemberSyncOptions {
@@ -49,6 +55,8 @@ export interface DispatchMemberSyncOptions {
   /** Skip automatic work unless the connector is idle or recovering from an error. */
   requireRunnable?: boolean
   requestId?: string
+  /** Defaults to true for explicit dispatch and false for automatic dispatch. */
+  forceContentRefresh?: boolean
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -66,6 +74,9 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
   if (value.dispatchToken !== undefined && !isNonEmptyString(value.dispatchToken)) {
     throw new Error('Member sync payload dispatchToken must be a string when provided')
   }
+  if (value.forceContentRefresh !== undefined && typeof value.forceContentRefresh !== 'boolean') {
+    throw new Error('Member sync payload forceContentRefresh must be a boolean when provided')
+  }
   if (value.billingAttribution === undefined) {
     throw new Error('Member sync payload requires billing attribution')
   }
@@ -74,6 +85,7 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
     requestId: value.requestId,
     billingAttribution: assertBillingAttributionSnapshot(value.billingAttribution),
     dispatchToken: value.dispatchToken as string | undefined,
+    forceContentRefresh: value.forceContentRefresh as boolean | undefined,
   }
 }
 
@@ -212,6 +224,7 @@ export async function dispatchMemberSync(
     connectorId,
     requestId,
     billingAttribution: options.billingAttribution,
+    forceContentRefresh: options.forceContentRefresh ?? !options.requireRunnable,
   })
 
   const [row] = await db
@@ -224,6 +237,7 @@ export async function dispatchMemberSync(
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
     })
     .from(knowledgeConnector)
@@ -285,14 +299,10 @@ export async function dispatchMemberSync(
       reason: 'The member sync schedule changed after this run was scheduled',
     }
   }
-  if (!row.workspaceId) {
+  if (!row.workspaceId && !row.organizationId) {
     throw new Error(`Connector ${connectorId} is missing workspace billing context`)
   }
-  if (payload.billingAttribution.workspaceId !== row.workspaceId) {
-    throw new Error(
-      `Member sync billing attribution does not match connector workspace ${row.workspaceId}`
-    )
-  }
+  assertBillingAttributionOwner(payload.billingAttribution, row)
 
   const dispatchToken = await markMemberSyncPending(connectorId, options.expectedNextMemberSyncAt)
   if (!dispatchToken) {
@@ -321,7 +331,9 @@ export async function dispatchMemberSync(
           tags: [
             `connectorId:${connectorId}`,
             `knowledgeBaseId:${row.knowledgeBaseId}`,
-            `workspaceId:${row.workspaceId}`,
+            row.workspaceId
+              ? `workspaceId:${row.workspaceId}`
+              : `organizationId:${row.organizationId}`,
             `userId:${payload.billingAttribution.actorUserId}`,
           ],
           region: await resolveTriggerRegion(),
@@ -337,6 +349,7 @@ export async function dispatchMemberSync(
 
   executeMemberSync(connectorId, {
     billingAttribution: payload.billingAttribution,
+    forceContentRefresh: payload.forceContentRefresh,
     dispatchToken,
   }).catch(async (error) => {
     logger.error(`Member sync failed for connector ${connectorId}`, {
@@ -356,7 +369,8 @@ export async function dispatchMemberSync(
  * up on whichever was not.
  */
 export async function dispatchMemberSyncsForCredentialOption(input: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupOptionId: string
 }): Promise<void> {
   const connectors = await db
@@ -365,17 +379,21 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
     .where(
       and(
-        eq(knowledgeBase.workspaceId, input.workspaceId),
+        resourceScopeCondition(knowledgeBase, resourceScopeFromOwner(input)),
         isNull(knowledgeBase.deletedAt),
         eq(knowledgeConnector.accessMode, 'members'),
         eq(knowledgeConnector.credentialGroupOptionId, input.credentialGroupOptionId),
-        inArray(knowledgeConnector.status, ['active', 'error']),
+        inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )
     )
   if (connectors.length === 0) return
-  const billingAttribution = await resolveSystemBillingAttribution(input.workspaceId)
+  const scope = resourceScopeFromOwner(input)
+  const billingAttribution =
+    scope.kind === 'organization'
+      ? await resolveSystemOrganizationBillingAttribution(scope.organizationId)
+      : await resolveSystemBillingAttribution(scope.workspaceId)
   for (const connector of connectors) {
     try {
       const dispatch = await dispatchMemberSync(connector.id, { billingAttribution })

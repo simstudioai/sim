@@ -30,6 +30,7 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
   }),
 }))
 
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 
 type Enrollment = ReturnType<typeof useMemberEnrollment>
@@ -37,6 +38,7 @@ type Enrollment = ReturnType<typeof useMemberEnrollment>
 let latest: Enrollment | null = null
 let root: Root | null = null
 let container: HTMLDivElement | null = null
+let enrollmentTab: { location: { href: string }; closed: boolean; close: () => void }
 
 function Harness({ connected }: { connected: ReadonlySet<string> }) {
   latest = useMemberEnrollment({ membershipQueryKeys: [], connectedConnectorIds: connected })
@@ -58,10 +60,13 @@ function enrollment(): Enrollment {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'open').mockReturnValue({
+  vi.useFakeTimers()
+  enrollmentTab = {
     location: { href: '' },
+    closed: false,
     close: vi.fn(),
-  } as unknown as Window)
+  }
+  vi.spyOn(window, 'open').mockReturnValue(enrollmentTab as unknown as Window)
 })
 
 afterEach(() => {
@@ -70,10 +75,36 @@ afterEach(() => {
   root = null
   container = null
   latest = null
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
 describe('useMemberEnrollment', () => {
+  it.each(['blocked', 'failed', 'closed', 'success'] as const)(
+    'retains source setup until enrollment navigation succeeds: %s',
+    (outcome) => {
+      mount()
+      const connector = SEARCH_CONNECTORS.find((item) => item.type === 'github')!
+      act(() => enrollment().connectSearchSource('workspace-1', connector, undefined))
+      expect(enrollment().setupConnector).toBe(connector)
+      if (outcome === 'blocked') vi.mocked(window.open).mockReturnValueOnce(null)
+      act(() => enrollment().connectSource('workspace-1', 'github', { repository: 'acme/docs' }))
+      if (outcome === 'blocked') {
+        expect(mocks.sourceConnectionMutate).not.toHaveBeenCalled()
+        expect(enrollment().error).toContain('Allow pop-ups')
+      } else {
+        const [, handlers] = mocks.sourceConnectionMutate.mock.calls[0]
+        if (outcome === 'closed') enrollmentTab.closed = true
+        act(() => {
+          if (outcome === 'failed') handlers.onError(new Error('Try again'))
+          else
+            handlers.onSuccess({ url: 'https://example.test/enroll', connectorId: 'connector-1' })
+        })
+      }
+      expect(enrollment().setupConnector).toBe(outcome === 'success' ? null : connector)
+    }
+  )
+
   /**
    * The connect that creates a Sim Search source's connector returns its id,
    * but the membership list has no row for it until it refetches, so the
@@ -114,6 +145,36 @@ describe('useMemberEnrollment', () => {
     act(() => handlers.onSuccess({ url: 'https://example.test/enroll' }))
 
     expect(enrollment().isAwaiting('connector-1')).toBe(true)
+    expect(enrollment().isAwaitingSource('google_drive')).toBe(false)
+  })
+
+  it('allows retrying and stops polling after the enrollment tab closes', () => {
+    mount()
+    act(() => enrollment().connect('kb-1', 'connector-1'))
+    const [, handlers] = mocks.enrollmentMutate.mock.calls[0]
+    act(() => handlers.onSuccess({ url: 'https://example.test/enroll' }))
+    expect(enrollment().isAwaiting('connector-1')).toBe(true)
+
+    enrollmentTab.closed = true
+    act(() => vi.advanceTimersByTime(4_000))
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
+
+    mocks.invalidateQueries.mockClear()
+    act(() => vi.advanceTimersByTime(12_000))
+    expect(mocks.invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it('does not navigate or await a tab closed before the enrollment request completes', () => {
+    mount()
+    act(() => enrollment().connectSource('workspace-1', 'google_drive'))
+    enrollmentTab.closed = true
+    const [, handlers] = mocks.sourceConnectionMutate.mock.calls[0]
+    act(() =>
+      handlers.onSuccess({ url: 'https://example.test/enroll', connectorId: 'connector-1' })
+    )
+
+    expect(enrollmentTab.location.href).toBe('')
+    expect(enrollment().isAwaiting('connector-1')).toBe(false)
     expect(enrollment().isAwaitingSource('google_drive')).toBe(false)
   })
 })

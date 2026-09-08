@@ -5,6 +5,7 @@ import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -16,7 +17,7 @@ const logger = createLogger('MarkTaskReadAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
       return createUnauthorizedResponse()
     }
@@ -24,6 +25,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(markMothershipChatReadContract, request, {})
     if (!parsed.success) return parsed.response
     const { chatId } = parsed.data.body
+    const chat = await getAccessibleCopilotChatAuth(chatId, userId, { principal })
+    if (!chat) return NextResponse.json({ success: true })
 
     await db
       .update(copilotChats)

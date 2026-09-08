@@ -39,7 +39,7 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. `scope=archived` lists tables a `DELETE` archived, which `POST /api/v2/tables/{tableId}/restore` can bring back. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List active tables with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find tables available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -72,9 +72,9 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to tables in this folder. Unknown folder paths contribute no matches.",
             "schema": {
-              "description": "Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to tables in this folder. Unknown folder paths contribute no matches.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -262,7 +262,7 @@
       "get": {
         "operationId": "getTable",
         "summary": "Get Table",
-        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get a table with its metadata, column schema, locks, and current job. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -341,7 +341,7 @@
       "delete": {
         "operationId": "deleteTable",
         "summary": "Delete Table",
-        "description": "Archive a table and return an explicit deletion acknowledgement. The table is soft-deleted, not erased: its rows are retained and `POST /api/v2/tables/{tableId}/restore` brings it back.\n\nOAuth scope: `api:write`.",
+        "description": "Archive a table while retaining its rows. Use List Tables with `scope=archived` to find it and Restore Table to recover it.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -420,7 +420,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags are read-only.\n\nNOT atomic: fields are written independently, so a 4xx may follow a partial update. When fields were applied, `details.applied` names them; retry only the missing fields. If it is absent, nothing changed.\n\nA workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Rename a table, edit its description, or move it to a folder. Fields are saved independently: a failed request may leave partial changes. `error.details.applied` lists saved fields; retry only the remaining fields. If absent, nothing changed. Lock flags are read-only. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -764,7 +764,7 @@
       "get": {
         "operationId": "listTableRows",
         "summary": "List Rows",
-        "description": "List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting. Set `includeRunState=true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set.\n\nOAuth scope: `api:read`.",
+        "description": "List rows in default order with cursor pagination. Pages default to a 5 MB limit and may contain fewer rows than requested; continue until `nextCursor` is null. Use Query Rows for filtering and sorting. `includeRunState=true` adds per-group run outcomes and reduces the row limit.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -1132,7 +1132,7 @@
       "get": {
         "operationId": "getTableRow",
         "summary": "Get Row",
-        "description": "Retrieve one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.\n\nOAuth scope: `api:read`.",
+        "description": "Get one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -1417,7 +1417,7 @@
       "post": {
         "operationId": "upsertTableRow",
         "summary": "Upsert Row",
-        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is the complete new row value, so every column you omit is cleared on the matched row. Send the full row here, or use `PATCH /api/v2/tables/{tableId}/rows/{rowId}` to change a subset.\n\nOAuth scope: `api:write`.",
+        "description": "Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update Row for a partial patch.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.upsert",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -1504,7 +1504,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows using an optional typed condition or `all`/`any` group, ordered sorting, and opaque cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB cap and may return fewer rows than requested; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and lowers the row cap. Counts come from a separate snapshot at `POST /query/count`; take the count first and treat it as a floor.\n\nOAuth scope: `api:read`.",
+        "description": "Query rows with typed predicates, sorting, and cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB limit; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and reduces the row limit. Counts are read separately and can differ from paged results if rows change.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.query",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -1588,7 +1588,7 @@
       "post": {
         "operationId": "countTableRows",
         "summary": "Count Rows",
-        "description": "Count the rows matching a typed predicate across the entire table. A predicate may be one condition or an `all`/`any` group. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Count rows matching a typed predicate, or omit the predicate to count all rows. The count is read separately from row pages and can change between requests. Oversized predicates return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.query",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -1672,7 +1672,7 @@
       "get": {
         "operationId": "listTableViews",
         "summary": "List Views",
-        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "description": "List saved table views, omitting references to removed columns. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.views.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -1832,7 +1832,7 @@
       "get": {
         "operationId": "getTableView",
         "summary": "Get View",
-        "description": "Retrieve one saved table view by identifier.\n\nOAuth scope: `api:read`.",
+        "description": "Get one saved table view by identifier.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.views.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -2101,7 +2101,7 @@
       "get": {
         "operationId": "listTableWorkflowGroups",
         "summary": "List Workflow Groups",
-        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "description": "List the workflow and enrichment groups that can be dispatched for a table. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.groups.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -2437,7 +2437,7 @@
       "post": {
         "operationId": "createTableDispatch",
         "summary": "Create Run Dispatch",
-        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `canceled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.\n\nOAuth scope: `api:write`.",
+        "description": "Start workflow or enrichment groups across all rows or selected rows. Poll Get Run Dispatch until `complete` or `canceled`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`. Use Cancel Run Dispatch to stop further scheduling.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.start",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -2519,7 +2519,7 @@
       "get": {
         "operationId": "listTableDispatches",
         "summary": "List Active Run Dispatches",
-        "description": "List the run dispatches still in flight on one table. Bounded by the dispatcher rather than by a page size, so this list is unpaginated and `nextCursor` is always null. A settled dispatch is read by identifier.\n\nOAuth scope: `api:read`.",
+        "description": "List in-flight run dispatches for a table in one page; `nextCursor` is always null. Use Get Run Dispatch to read a settled dispatch.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -2597,7 +2597,7 @@
       "post": {
         "operationId": "runRowEnrichment",
         "summary": "Run Enrichment For One Row",
-        "description": "Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.\n\nOAuth scope: `api:write`.",
+        "description": "Start one workflow or enrichment group for a table row. Poll Get Run Dispatch using the returned `dispatchId`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.start",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -2701,7 +2701,7 @@
       "get": {
         "operationId": "getRowEnrichment",
         "summary": "Get Enrichment Run Detail",
-        "description": "Retrieve the provider cascade behind one enrichment cell: every configured provider in cascade order, each one's status, hosted-key cost, and duration, plus which provider produced the match. `null` means the cell has never run, or ran before cascade detail was recorded — distinct from a `404`, which means the table, row, or group does not exist.\n\nOAuth scope: `api:read`.",
+        "description": "Get an enrichment cell's provider attempts, statuses, hosted-key costs, durations, and matching provider. Null means no run detail was recorded; `404` means the table, row, or group does not exist.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -2801,7 +2801,7 @@
       "post": {
         "operationId": "searchTableRows",
         "summary": "Search Rows",
-        "description": "Search every cell case-insensitively for substring `q`, optionally within a predicate-filtered, sorted view. This is text search; `POST /query` performs structured predicate reads. Results are cell coordinates `{ ordinal, rowId, column }`, never row data; `ordinal` indexes the same view paged by `POST /query`. Results are uncursored and capped at 1000; `truncated` signals more matches. Narrow `q` or the predicate instead of paging.\n\nOAuth scope: `api:read`.",
+        "description": "Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; `ordinal` matches the view used by Query Rows. Results are unpaginated and capped at 1000. If `truncated` is true, narrow the search or predicate.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.search",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -2885,7 +2885,7 @@
       "post": {
         "operationId": "createTableImport",
         "summary": "Create Table Import",
-        "description": "Create a durable CSV import. Upload sources receive signed transfer instructions; workspace-file sources begin processing directly.\n\nOAuth scope: `api:write`.",
+        "description": "Create a CSV import. Upload sources receive signed transfer instructions; workspace-file sources start processing directly.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -2962,7 +2962,7 @@
       "get": {
         "operationId": "getTableImport",
         "summary": "Get Table Import",
-        "description": "Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase is a `404`.\n\nOAuth scope: `api:read`.",
+        "description": "Get an import's progress and status. During `uploading`, the signed upload token is required; omitting it returns `404`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.imports.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -3050,7 +3050,7 @@
       "delete": {
         "operationId": "cancelTableImport",
         "summary": "Cancel Table Import",
-        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nAn import that is not in a cancelable state, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.\n\nOAuth scope: `api:write`.",
+        "description": "Cancel an upload or processing import. Committed row batches remain. Non-cancelable states, including `expired`, return `409`; unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -3143,7 +3143,7 @@
       "post": {
         "operationId": "createTableImportPartUrls",
         "summary": "Create Table Import Part URLs",
-        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be `uploading`; one that has moved on, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.\n\nOAuth scope: `api:write`.",
+        "description": "Create signed URLs for multipart upload parts. Requires the `uploading` state; other states return `409`. Unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.create_parts",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -3253,7 +3253,7 @@
       "post": {
         "operationId": "completeTableImportUpload",
         "summary": "Complete Table Import Upload",
-        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nAn import no longer awaiting an upload, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.\n\nOAuth scope: `api:write`.",
+        "description": "Verify or assemble uploaded CSV bytes and start processing under the same import ID. Requires an import awaiting upload completion; other states return `409`. Unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -3349,7 +3349,7 @@
       "post": {
         "operationId": "createTableExport",
         "summary": "Create Table Export",
-        "description": "Create a durable CSV or JSON export that completes inline for small tables and queues larger work.\n\nOAuth scope: `api:write`.",
+        "description": "Create a CSV or JSON export. Exports of small tables finish during the request; larger exports run asynchronously.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.exports.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -3436,7 +3436,7 @@
       "get": {
         "operationId": "getTableExport",
         "summary": "Get Table Export",
-        "description": "Read progress and terminal state for a durable table export.\n\nOAuth scope: `api:read`.",
+        "description": "Get a table export's progress and status.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.exports.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -3524,7 +3524,7 @@
       "delete": {
         "operationId": "cancelTableExport",
         "summary": "Cancel Table Export",
-        "description": "Cancel an export that has not reached a terminal state.\n\nOAuth scope: `api:write`.",
+        "description": "Cancel an export that is still in progress.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.exports.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -3617,7 +3617,7 @@
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
-        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.\n\nOAuth scope: `api:read`.",
+        "description": "Get a short-lived signed download URL for a completed export. Other states return `409`; an unavailable export file returns `404`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.exports.download",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -3794,7 +3794,7 @@
       "get": {
         "operationId": "listTablesFolders",
         "summary": "List Folders",
-        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "description": "List table folders, optionally limiting results to direct children of a parent path. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -3815,9 +3815,9 @@
             "name": "parentPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.",
             "schema": {
-              "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -4053,7 +4053,7 @@
       "delete": {
         "operationId": "deleteTablesFolder",
         "summary": "Delete Folder",
-        "description": "Delete an empty table folder, or recursively delete its descendants and tables when explicitly requested.\n\nOAuth scope: `api:write`.",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its tables and subfolders. Use Restore Folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -4165,7 +4165,7 @@
       "post": {
         "operationId": "restoreTablesFolder",
         "summary": "Restore Folder",
-        "description": "Restore a recursively archived table folder with its subfolders and tables, addressed by its former path. If its parent remains archived, it is re-rooted to `/`; active-name conflicts are deduplicated, so use the returned `path`. Non-archived paths return `404`. Preserve the path returned by `DELETE /api/v2/tables/folders`: unlike the files API, the table-folder list cannot discover archived paths.\n\nOAuth scope: `api:write`.",
+        "description": "Restore an archived table folder, its descendants, and tables using its former path. An archived parent moves it to the root; name conflicts may change the returned `path`. Non-archived paths return `404`. Save the path from Delete Folder, because List Folders does not include archived table folders.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.folders.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -4239,7 +4239,7 @@
       "post": {
         "operationId": "restoreTable",
         "summary": "Restore Table",
-        "description": "Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Idempotent: a table that is already active is returned unchanged with no audit entry recorded, so a retry after a dropped response cannot look like a failure. A name collision is resolved by renaming, so the restored table may come back under a different `name`.\n\nOAuth scope: `api:write`.",
+        "description": "Restore a table and its archived rows, views, and workflow groups. Active tables return unchanged without a new audit event. Name conflicts may change the returned `name`. Find archived tables with List Tables and `scope=archived`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -4326,7 +4326,7 @@
       "post": {
         "operationId": "bulkUpdateTableRows",
         "summary": "Bulk Update Rows",
-        "description": "Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole request with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.\n\nOAuth scope: `api:write`.",
+        "description": "Apply separate partial patches to up to 1,000 rows, preserving omitted columns. A row outside the table rejects the entire request with `400` and lists missing IDs. Use Update Rows by Filter to apply one patch to every matching row.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.update_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -4413,7 +4413,7 @@
       "get": {
         "operationId": "getTableDispatch",
         "summary": "Get Run Dispatch",
-        "description": "Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `canceled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.\n\nOAuth scope: `api:read`.",
+        "description": "Get a dispatch's current state. Poll until `complete` or `canceled`; use row reads with `includeRunState` for per-cell outcomes.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -4501,7 +4501,7 @@
       "delete": {
         "operationId": "cancelTableDispatch",
         "summary": "Cancel Run Dispatch",
-        "description": "Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT canceled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `canceled` is returned unchanged.\n\nOAuth scope: `api:write`.",
+        "description": "Stop a dispatch from scheduling more cells. Already queued or running cells continue; use Cancel Column Runs to stop them. Completed or canceled dispatches return unchanged.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -4591,7 +4591,7 @@
       "post": {
         "operationId": "moveTables",
         "summary": "Move Tables and Folders",
-        "description": "Move up to 100 tables and canonical-path folders to one destination; `null` or `/` means the workspace root. Processing is best-effort per item: tables already carried by selected folders are `skipped`, missing items are `notFound`, and lock or cycle refusals are `failed` with reasons. An invalid destination rejects the entire request before any move.\n\nOAuth scope: `api:write`.",
+        "description": "Move up to 100 tables and folders to one destination. Items succeed or fail independently: covered tables are `skipped`, missing items are `notFound`, and lock or cycle failures include reasons in `failed`. An invalid destination rejects the request before any move.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.bulk_move",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -4662,7 +4662,7 @@
       "post": {
         "operationId": "bulkDeleteTables",
         "summary": "Bulk Delete Tables and Folders",
-        "description": "Archive up to 100 tables and delete table folders in a single authorized request. Folders are named by canonical path and each cascades to everything inside it; `deletedItems` reports the totals across every cascade. Archived tables stay recoverable through `POST /api/v2/tables/{tableId}/restore`. Best-effort per item, with the same `skipped` / `notFound` / `failed` dispositions as the bulk move.\n\nOAuth scope: `api:write`.",
+        "description": "Archive up to 100 selected tables and folders, including folder contents. Items succeed or fail independently, with `skipped`, `notFound`, and `failed` outcomes. `deletedItems` includes all descendants. Use Restore Table or Restore Folder to recover archived items.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.bulk_delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -8135,7 +8135,7 @@
                 "type": "null"
               }
             ],
-            "description": "Background dispatch identifier, or null when execution is inline."
+            "description": "Run dispatch ID, or null when no dispatch is available to poll. Use row reads with `includeRunState` to check cell outcomes."
           }
         },
         "required": ["dispatchId"],
@@ -8534,7 +8534,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+            "description": "Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss."
           },
           "cellsRejected": {
             "type": "integer",
@@ -8776,7 +8776,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+            "description": "Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss."
           },
           "cellsRejected": {
             "type": "integer",
@@ -9120,7 +9120,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+            "description": "Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss."
           },
           "cellsRejected": {
             "type": "integer",
@@ -10047,7 +10047,7 @@
           },
           "status": {
             "type": "string",
-            "description": "How this provider ended: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Declared as a string rather than a closed enum because the value is read back out of a schemaless JSONB blob — a member added by a newer runner must widen a client's switch, not fail its read."
+            "description": "Provider outcome: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Handle unrecognized values, since additional statuses may be returned."
           },
           "cost": {
             "type": "number",

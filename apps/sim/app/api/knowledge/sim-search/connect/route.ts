@@ -14,11 +14,7 @@ export const POST = defineInternalJsonRoute({
   operation: knowledgeOperations.simSearchConnect,
   rateLimit: internalRateLimits.none({ reason: 'One click per source; mints a single-use link' }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ body }) => ({
-    workspaceId: body.workspaceId,
-    connectorType: body.connectorType,
-    sourceConfig: body.sourceConfig,
-  }),
+  mapInput: ({ body }) => body,
   useCase: connectSimSearchConnector,
   present: (result) => ({ success: true as const, data: result }),
 })

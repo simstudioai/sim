@@ -237,7 +237,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           workspaceAccess,
           secretMountPolicy,
         }),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        buildIntegrationToolSchemas(userId, undefined, workspaceId),
         mothershipToolsPromise,
         computeWorkspaceEntitlements(workspaceId, userId),
         processContextsServer(

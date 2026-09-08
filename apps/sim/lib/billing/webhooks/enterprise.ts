@@ -1,9 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
+import { foldedEmail, organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
@@ -532,7 +533,7 @@ async function reconcileManualEnterpriseSubscription(
         requestedByUserId
           ? eq(user.id, requestedByUserId)
           : requestedByEmail
-            ? eq(user.normalizedEmail, requestedByEmail.toLowerCase())
+            ? eq(foldedEmail(user.email), normalizeEmail(requestedByEmail))
             : eq(user.stripeCustomerId, stripeCustomerId)
       )
       .limit(1)

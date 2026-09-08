@@ -111,7 +111,9 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     const result = await verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
       apiToken: 'tok',
       domain: 'Acme.atlassian.net',
+      atlassianProduct: 'confluence',
     })
+    expect(mockValidateAtlassian).toHaveBeenCalledWith('tok', 'acme.atlassian.net', 'confluence')
     expect(result.providerId).toBe(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID)
     expect(result.displayName).toBe('Jira Bot')
     expect(result.auditMetadata.atlassianCloudId).toBe('cloud-1')
@@ -123,6 +125,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       apiToken: 'tok',
       domain: 'acme.atlassian.net',
       cloudId: 'cloud-1',
+      atlassianProduct: 'confluence',
     })
   })
 

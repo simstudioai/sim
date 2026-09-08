@@ -1,6 +1,6 @@
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -52,7 +52,13 @@ import {
   type WorkspaceKnowledgeSearchBody,
   type WorkspaceKnowledgeSearchResult,
 } from '@/lib/api/contracts/knowledge'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
@@ -233,7 +239,6 @@ export function useKnowledgeBasesQuery(
     queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -252,7 +257,6 @@ export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) 
     queryFn: ({ signal }) => fetchDocument(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -283,7 +287,12 @@ export function useKnowledgeDocumentsQuery(
     queryFn: ({ signal }) => fetchKnowledgeDocuments(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
     staleTime: KNOWLEDGE_DOCUMENT_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .documentLists(params.knowledgeBaseId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
     refetchInterval: options?.refetchInterval ?? false,
   })
 }
@@ -310,7 +319,12 @@ export function useKnowledgeChunksQuery(
     queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
     staleTime: KNOWLEDGE_CHUNK_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -371,7 +385,12 @@ export function useDocumentChunkSearchQuery(
       (options?.enabled ?? true) &&
       Boolean(params.knowledgeBaseId && params.documentId && params.search.trim()),
     staleTime: KNOWLEDGE_CHUNK_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -839,7 +858,6 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
     queryFn: ({ signal }) => fetchTagDefinitions(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -984,7 +1002,6 @@ export function useDocumentTagDefinitionsQuery(
       fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -1166,29 +1183,34 @@ async function searchWorkspaceKnowledge(
   return data.data.results
 }
 
-/**
- * What the signed-in person may read that matches `query`, across the given
- * knowledge bases. Off until there is a query and a base to search.
- */
+/** Searches the canonical index under the signed-in person's ACLs. */
 export function useWorkspaceKnowledgeSearch(
-  workspaceId: string | undefined,
-  knowledgeBaseIds: readonly string[],
-  query: string
+  owner: string | ResourceScope | undefined,
+  query: string,
+  filters?: WorkspaceSearchFilters
 ) {
   const trimmed = query.trim()
+  const scope =
+    typeof owner === 'string'
+      ? owner
+        ? { kind: 'workspace' as const, workspaceId: owner }
+        : undefined
+      : owner
+  const scopeKey =
+    scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(workspaceId, knowledgeBaseIds, trimmed),
+    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
-          workspaceId: workspaceId as string,
-          knowledgeBaseIds: [...knowledgeBaseIds],
+          ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
+          filters,
         },
         signal
       ),
-    enabled: Boolean(workspaceId) && knowledgeBaseIds.length > 0 && trimmed.length > 0,
+    enabled: Boolean(scope) && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    retry: false,
   })
 }

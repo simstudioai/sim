@@ -2657,7 +2657,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     channels: {
       type: 'json',
       description:
-        'Array of up to 10,000 accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
+        'Array of up to 10,000 accessible public and private channel objects, including conversation type and membership fields.',
     },
     count: {
       type: 'number',

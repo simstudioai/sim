@@ -1,4 +1,9 @@
+import { db } from '@sim/db'
+import { credentialGroup } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
+import { and, eq } from 'drizzle-orm'
+import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type {
   CredentialGroupProviderAdapter,
@@ -12,6 +17,7 @@ import {
 import { getSlackCredentialGroupConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import {
+  resolveSlackManagedUserScopes,
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
   SLACK_MANAGED_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
@@ -26,13 +32,15 @@ import type { DbOrTx } from '@/lib/db/types'
 const PROVIDER = 'slack' as const
 
 async function getSlackPolicy(params: {
-  workspaceId: string
+  workspaceId?: string | null
+  organizationId?: string | null
   credentialGroupId: string
   slackBotCredentialId?: string
+  requiredScopes?: readonly string[]
   executor?: DbOrTx
 }): Promise<
   CredentialGroupProviderPolicy & {
-    slackBotCredentialId: string
+    slackBotCredentialId?: string
     clientId: string
     clientSecret: string
     appId: string
@@ -40,7 +48,7 @@ async function getSlackPolicy(params: {
   }
 > {
   const managed = await getSlackCredentialGroupConfiguration({
-    workspaceId: params.workspaceId,
+    ...resourceScopeColumns(resourceScopeFromOwner(params)),
     credentialGroupId: params.credentialGroupId,
     ...(params.executor ? { executor: params.executor } : {}),
   })
@@ -52,23 +60,31 @@ async function getSlackPolicy(params: {
       'The selected custom Slack bot does not match this Credential Group configuration'
     )
   }
-  const app = await getSlackCustomBotCredential({
-    workspaceId: params.workspaceId,
-    credentialId: managed.slackBotCredentialId,
-    ...(params.executor ? { executor: params.executor } : {}),
-  })
-  if (!app) {
+  if (params.workspaceId) {
+    if (!managed.slackBotCredentialId)
+      throw new CredentialGroupProviderConfigurationError('Configure the workspace Slack bot')
+    const app = await getSlackCustomBotCredential({
+      ...resourceScopeColumns(resourceScopeFromOwner(params)),
+      credentialId: managed.slackBotCredentialId,
+      ...(params.executor ? { executor: params.executor } : {}),
+    })
+    if (!app) {
+      throw new CredentialGroupProviderConfigurationError(
+        'The selected custom Slack bot is unavailable'
+      )
+    }
+    if (app.teamId !== managed.teamId) {
+      throw new CredentialGroupProviderConfigurationError(
+        'The custom Slack bot no longer belongs to the configured Slack workspace'
+      )
+    }
+  } else if (managed.slackBotCredentialId) {
     throw new CredentialGroupProviderConfigurationError(
-      'The selected custom Slack bot is unavailable'
-    )
-  }
-  if (app.teamId !== managed.teamId) {
-    throw new CredentialGroupProviderConfigurationError(
-      'The custom Slack bot no longer belongs to the configured Slack workspace'
+      'Reconfigure Slack as an organization personal OAuth app'
     )
   }
   const service = getCredentialGroupProviderService(PROVIDER)
-  const requiredScopes = [...SLACK_MANAGED_USER_SCOPES]
+  const requiredScopes = resolveSlackManagedUserScopes(params.requiredScopes)
   const scopeVersion = credentialGroupScopePolicyVersion(requiredScopes)
   if (!requiredScopes.every((scope) => managed.scopes.includes(scope))) {
     throw new CredentialGroupProviderConfigurationError(
@@ -111,19 +127,45 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
     if (!context.credentialGroupId) {
       throw new CredentialGroupProviderConfigurationError('Credential Group context is required')
     }
+    if (!option) {
+      const [group] = await (context.executor ?? db)
+        .select({ options: credentialGroup.options })
+        .from(credentialGroup)
+        .where(
+          and(
+            eq(credentialGroup.id, context.credentialGroupId),
+            resourceScopeCondition(credentialGroup, resourceScopeFromOwner(context)),
+            eq(credentialGroup.status, 'active')
+          )
+        )
+        .limit(1)
+      option = group?.options.find(
+        (candidate) =>
+          candidate.id === context.credentialGroupOptionId &&
+          candidate.provider === PROVIDER &&
+          candidate.status === 'active'
+      )
+      if (!option) {
+        throw new CredentialGroupProviderConfigurationError(
+          'The managed Slack credential option is unavailable'
+        )
+      }
+    }
     const slackBotCredentialId = option?.slackBotCredentialId
     return getSlackPolicy({
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
+      requiredScopes: option?.requiredScopes,
       ...(slackBotCredentialId ? { slackBotCredentialId } : {}),
       ...(context.executor ? { executor: context.executor } : {}),
     })
   },
   async prepareAuthorization(context, policy) {
     const currentPolicy = await getSlackPolicy({
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
+      requiredScopes: context.option.requiredScopes,
     })
     if (currentPolicy.authorizationAppId !== policy.authorizationAppId) {
       throw new CredentialGroupOAuthError(
@@ -147,9 +189,10 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
   },
   async exchangeAndVerify({ context, attempt, code, policy }) {
     const currentPolicy = await getSlackPolicy({
-      workspaceId: context.workspaceId,
+      ...resourceScopeColumns(resourceScopeFromOwner(context)),
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
+      requiredScopes: context.option.requiredScopes,
     })
     const redirectUri = `${getBaseUrl()}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`
     if (

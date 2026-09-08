@@ -200,6 +200,7 @@ describe('SSO JIT admission', () => {
       kind: 'provisioning-disabled',
       organizationId: 'org-1',
     })
+    expect(mockIsScimEntitledForOrganization).toHaveBeenCalledWith('org-1', dbChainMock.db)
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
   })
 
@@ -212,6 +213,21 @@ describe('SSO JIT admission', () => {
 
     expect(outcome.kind).toBe('provisioned')
     expect(mockEnsureUserInOrganizationTx).toHaveBeenCalled()
+  })
+
+  it('retains existing membership when the directory has disabled JIT', async () => {
+    queueIdentity()
+    queueDirectoryOnly(true)
+    mockIsScimEntitledForOrganization.mockResolvedValue(true)
+    queueTableRows(schemaMock.member, [{ id: 'member-existing' }])
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'already-member',
+      organizationId: 'org-1',
+      memberId: 'member-existing',
+    })
+    expect(mockIsScimEntitledForOrganization).toHaveBeenCalledWith('org-1', dbChainMock.db)
+    expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
   })
 
   it('keeps an existing member active when new provisioning is invite-only', async () => {

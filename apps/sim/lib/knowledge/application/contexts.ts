@@ -1,12 +1,14 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { embedding } from '@sim/db/schema'
+import { embedding, organization } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import type {
   KnowledgeAuthorizationContext,
+  KnowledgeOrganizationAuthorizationContext,
   LegacyPersonalKnowledgeAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
 import type { ChunkData } from '@/lib/knowledge/chunks/types'
@@ -36,7 +38,24 @@ export interface KnowledgeWorkspaceContext extends KnowledgeAuthorizationContext
 export interface LegacyPersonalKnowledgeContext
   extends LegacyPersonalKnowledgeAuthorizationContext {}
 
-export type KnowledgeResourceContext = KnowledgeWorkspaceContext | LegacyPersonalKnowledgeContext
+export interface KnowledgeOrganizationContext extends KnowledgeOrganizationAuthorizationContext {}
+
+export type KnowledgeResourceContext =
+  | KnowledgeWorkspaceContext
+  | KnowledgeOrganizationContext
+  | LegacyPersonalKnowledgeContext
+
+export async function resolveKnowledgeOrganizationContext(input: {
+  organizationId: string
+}): Promise<KnowledgeOrganizationContext> {
+  const [row] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, input.organizationId))
+    .limit(1)
+  if (!row) throw new OrchestrationError('not_found', 'Organization not found')
+  return { organizationId: row.id, workspaceId: undefined }
+}
 
 /**
  * What the calling principal may read within this knowledge base, resolved
@@ -137,6 +156,7 @@ export async function resolveActiveKnowledgeBaseContext(
   input: {
     knowledgeBaseId: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeBaseContext> {
@@ -212,16 +232,32 @@ export async function resolveActiveKnowledgeResourceContext(
   input: {
     knowledgeBaseId: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeResourceBaseContext> {
   const knowledgeBase = await getKnowledgeBaseById(input.knowledgeBaseId)
   if (
     !knowledgeBase ||
+    (input.assertedOrganizationId !== undefined &&
+      knowledgeBase.organizationId !== input.assertedOrganizationId) ||
     (input.assertedWorkspaceId !== undefined &&
       knowledgeBase.workspaceId !== input.assertedWorkspaceId)
   ) {
     throw new OrchestrationError('not_found', 'Knowledge base not found')
+  }
+  if (knowledgeBase.organizationId) {
+    if (knowledgeBase.workspaceId)
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
+    const owner = await resolveKnowledgeOrganizationContext({
+      organizationId: knowledgeBase.organizationId,
+    })
+    return {
+      ...owner,
+      knowledgeBaseId: knowledgeBase.id,
+      knowledgeBase,
+      access: createKnowledgeAccessProvider(principal, owner),
+    }
   }
   if (!knowledgeBase.workspaceId) {
     return {
@@ -247,6 +283,7 @@ export async function resolveActiveKnowledgeDocumentContext(
     knowledgeBaseId: string
     documentId: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeDocumentContext> {
@@ -276,6 +313,7 @@ export async function resolveCanonicalActiveKnowledgeDocumentContext(
     knowledgeBaseId: string
     documentId: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeDocumentContext> {
@@ -297,6 +335,7 @@ export async function resolveActiveKnowledgeChunkContext(
     documentId: string
     chunkId: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeChunkContext> {
@@ -321,6 +360,7 @@ export async function resolveActiveKnowledgeTagContext(
     tagDefinitionId: string
     knowledgeBaseId?: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeTagContext> {
@@ -350,6 +390,7 @@ export async function resolveActiveKnowledgeConnectorContext(
     connectorId: string
     knowledgeBaseId?: string
     assertedWorkspaceId?: string
+    assertedOrganizationId?: string
   },
   principal: Principal
 ): Promise<ActiveKnowledgeConnectorContext> {
@@ -372,4 +413,14 @@ export async function resolveActiveKnowledgeConnectorContext(
     connectorId: connector.id,
     connector,
   }
+}
+
+/** Resolves the canonical owner named by Search setup, without adopting another scope's index. */
+export function resolveKnowledgeOwnerContext(
+  input: ResourceOwner
+): Promise<KnowledgeWorkspaceContext | KnowledgeOrganizationContext> {
+  const scope = resourceScopeFromOwner(input)
+  return scope.kind === 'workspace'
+    ? resolveKnowledgeWorkspaceContext(scope)
+    : resolveKnowledgeOrganizationContext(scope)
 }

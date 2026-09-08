@@ -325,21 +325,11 @@ describe('Enterprise future-owner claims', () => {
           condition.type === 'eq' && condition.left === user.id && condition.right === 'owner-1'
       )
     ).toBe(true)
-    const emailScope = updateConditions.find((condition) => condition.type === 'or')
-    const emailConditions = Array.isArray(emailScope?.conditions) ? emailScope.conditions : []
-    expect(
-      emailConditions.some(
-        (condition) =>
-          condition?.type === 'eq' &&
-          condition.left === user.normalizedEmail &&
-          condition.right === request.ownerEmail
-      )
-    ).toBe(true)
-    expect(
-      emailConditions.filter(
-        (condition) => condition?.type === 'eq' && condition.right === request.ownerEmail
-      )
-    ).toHaveLength(2)
+    /** The folded address is one `eq`, not an OR over a dead column and an ad-hoc fold. */
+    const emailConditions = updateConditions.filter(
+      (condition) => condition?.type === 'eq' && condition.right === request.ownerEmail
+    )
+    expect(emailConditions).toHaveLength(1)
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
   })

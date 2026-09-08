@@ -1,12 +1,13 @@
+import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import {
   defineAuthorizedWorkspaceUseCase,
   type OperationUseCase,
   type PrincipalForOperation,
   recordProjectedUseCaseAuditEntries,
   requireAllowedWorkspacePrincipal,
-  type WorkspaceOperation,
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application'
+import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -18,20 +19,43 @@ import {
   type LegacyPersonalKnowledgeAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
+import type { ScopedKnowledgeOperation } from '@/lib/knowledge/application/operations'
+
+type KnowledgePrincipalForOperation<O extends ScopedKnowledgeOperation> =
+  | PrincipalForOperation<O>
+  | ('copilot' extends NonNullable<O['delegatedServices']>[number]
+      ? O['minimumRole'] extends 'read'
+        ? OrganizationDelegatedPrincipal
+        : never
+      : never)
+
+function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
+  principal: Principal,
+  operation: O
+): asserts principal is KnowledgePrincipalForOperation<O> {
+  if (principal.kind !== 'organization_delegated')
+    return requireAllowedWorkspacePrincipal(principal, operation)
+  if (operation.minimumRole !== 'read' || !operation.delegatedServices?.includes('copilot')) {
+    throw new OrchestrationError(
+      'forbidden',
+      'Organization delegation cannot perform this operation'
+    )
+  }
+}
 
 interface AuthorizedKnowledgeUseCaseContext<
-  O extends WorkspaceOperation,
+  O extends ScopedKnowledgeOperation,
   I,
   C extends KnowledgeResourceAuthorizationContext,
 > {
-  principal: PrincipalForOperation<O>
+  principal: KnowledgePrincipalForOperation<O>
   input: I
   context: C
   request?: OrchestrationRequestContext
 }
 
 interface AuthorizedKnowledgeUseCaseResultContext<
-  O extends WorkspaceOperation,
+  O extends ScopedKnowledgeOperation,
   I,
   C extends KnowledgeResourceAuthorizationContext,
   R,
@@ -40,13 +64,13 @@ interface AuthorizedKnowledgeUseCaseResultContext<
 }
 
 interface AuthorizedKnowledgeUseCaseDefinition<
-  O extends WorkspaceOperation,
+  O extends ScopedKnowledgeOperation,
   I,
   C extends KnowledgeResourceAuthorizationContext,
   R,
 > {
   operation: O
-  resolveContext(args: { principal: PrincipalForOperation<O>; input: I }): C | Promise<C>
+  resolveContext(args: { principal: KnowledgePrincipalForOperation<O>; input: I }): C | Promise<C>
   execute(args: AuthorizedKnowledgeUseCaseContext<O, I, C>): Promise<R>
   projectAudit?(
     args: AuthorizedKnowledgeUseCaseResultContext<O, I, C, R>
@@ -57,19 +81,19 @@ interface AuthorizedKnowledgeUseCaseDefinition<
 function isLegacyPersonalKnowledgeContext(
   context: KnowledgeResourceAuthorizationContext
 ): context is LegacyPersonalKnowledgeAuthorizationContext {
-  return context.workspaceId === undefined
+  return context.workspaceId === undefined && context.organizationId === undefined
 }
 
 function assertWorkspaceKnowledgeContext<C extends KnowledgeResourceAuthorizationContext>(
   context: C
 ): asserts context is C & KnowledgeAuthorizationContext {
-  if (isLegacyPersonalKnowledgeContext(context)) {
+  if (context.workspaceId === undefined) {
     throw new Error('Expected a workspace-scoped Knowledge authorization context')
   }
 }
 
 export function defineAuthorizedKnowledgeUseCase<
-  const O extends WorkspaceOperation,
+  const O extends ScopedKnowledgeOperation,
   I,
   C extends KnowledgeResourceAuthorizationContext,
   R,
@@ -121,8 +145,32 @@ export function defineAuthorizedKnowledgeUseCase<
   return {
     operation: definition.operation,
     async execute({ principal, input, request }) {
-      requireAllowedWorkspacePrincipal(principal, definition.operation)
+      requireKnowledgePrincipal(principal, definition.operation)
       const context = await definition.resolveContext({ principal, input })
+      if (context.organizationId) {
+        await authorizeOrganizationOperation(
+          principal,
+          definition.operation.organizationOperation,
+          context
+        )
+        const result = await definition.execute({ principal, input, context, request })
+        const resultContext = { principal, input, context, request, result }
+        const projectedAudit = definition.projectAudit?.(resultContext)
+        if (projectedAudit !== undefined) {
+          recordProjectedUseCaseAuditEntries(
+            definition.operation,
+            undefined,
+            principal,
+            request,
+            Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit],
+            context.organizationId
+          )
+        }
+        await definition.afterSuccess?.(resultContext)
+        return result
+      }
+      if (principal.kind === 'organization_delegated')
+        throw new OrchestrationError('not_found', 'Knowledge base not found')
       if (isLegacyPersonalKnowledgeContext(context)) {
         if (
           principal.kind === 'workspace_api_key' ||

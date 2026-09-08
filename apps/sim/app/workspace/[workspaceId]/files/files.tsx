@@ -27,7 +27,11 @@ import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
-import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
+import {
+  type FileDownloadSource,
+  triggerArchiveDownload,
+  triggerFileDownload,
+} from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
@@ -262,6 +266,7 @@ function formatFileType(storedType: string | null, filename: string): string {
 export function Files() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const downloadSourceRef = useRef<FileDownloadSource | null>(null)
   const discardRef = useRef<(() => void) | null>(null)
 
   const params = useParams()
@@ -1094,7 +1099,7 @@ export function Files() {
   const handleDownload = useCallback(
     async (file: WorkspaceFileRecord) => {
       try {
-        await triggerFileDownload(file)
+        await triggerFileDownload(file, downloadSourceRef.current)
         captureEvent(posthogRef.current, 'file_downloaded', {
           workspace_id: workspaceId,
           is_bulk: false,
@@ -2167,6 +2172,7 @@ export function Files() {
               onDirtyChange={setIsDirty}
               onSaveStatusChange={handleSaveStatusChange}
               saveRef={saveRef}
+              downloadSourceRef={downloadSourceRef}
               discardRef={discardRef}
               collaborative
               onDeriveTitleFromHeading={handleDeriveTitleFromHeading}

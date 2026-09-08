@@ -56,9 +56,15 @@ describe('knowledge operation registry', () => {
       'knowledge.connectors.create',
       'knowledge.connectors.update',
       'knowledge.connectors.access.update',
+      'knowledge.search.sources.list',
+      'knowledge.search.integrations.list',
+      'knowledge.search.integrations.approve',
       'knowledge.connectors.members.list',
       'knowledge.connectors.members.enroll',
       'knowledge.simSearch.connect',
+      'knowledge.search.sources.connectApproved',
+      'knowledge.search.index.read',
+      'knowledge.search.sources.prepare',
       'knowledge.connectors.delete',
       'knowledge.connectors.sync',
       'knowledge.connectors.documents.list',
@@ -80,6 +86,65 @@ describe('knowledge operation registry', () => {
       expect(operation.principalKinds).toContain('workspace_api_key')
       expect(permissionSatisfies('write', operation.minimumRole)).toBe(true)
     }
+  })
+
+  it('uses the same semantic IDs and permission-group capabilities for organization access', () => {
+    for (const operation of Object.values(knowledgeOperations)) {
+      expect(operation.organizationOperation.id).toBe(operation.id)
+      expect(operation.organizationOperation.capability).toBe(operation.capability)
+      expect(operation.organizationOperation.principalKinds).not.toContain('workspace_api_key')
+      expect(operation.organizationOperation.principalKinds).not.toContain('delegated')
+      expect(operation.organizationOperation.principalKinds).not.toContain('system')
+      expect(Object.isFrozen(operation.organizationOperation)).toBe(true)
+      expect(Object.isFrozen(operation)).toBe(true)
+    }
+  })
+
+  it('requires organization admin authority for writes while allowing members to search and enroll', () => {
+    for (const operation of [
+      knowledgeOperations.create,
+      knowledgeOperations.update,
+      knowledgeOperations.delete,
+      knowledgeOperations.uploadDocument,
+      knowledgeOperations.prepareSearchSource,
+      knowledgeOperations.updateConnectorAccess,
+    ]) {
+      expect(operation.organizationOperation.minimumRole).toBe('admin')
+      expect(operation.organizationOperation.principalKinds).toEqual([
+        'session',
+        'personal_api_key',
+        'oauth_access_token',
+      ])
+      expect(operation.organizationOperation.oauthScope).toBe('api:write')
+      expect(operation.organizationOperation.delegationAudience).toBeUndefined()
+    }
+    for (const operation of [
+      knowledgeOperations.search,
+      knowledgeOperations.readSearchIndex,
+      knowledgeOperations.enrollConnectorMember,
+      knowledgeOperations.simSearchConnect,
+    ]) {
+      expect(operation.organizationOperation.minimumRole).toBe('member')
+    }
+  })
+
+  it('permits organization delegation only for Copilot reads', () => {
+    for (const operation of Object.values(knowledgeOperations)) {
+      if (!operation.organizationOperation.principalKinds.includes('organization_delegated'))
+        continue
+      expect(operation.minimumRole).toBe('read')
+      expect(operation.delegatedServices).toContain('copilot')
+      expect(operation.organizationOperation.delegationAudience).toBe('sim:knowledge')
+    }
+    expect(knowledgeOperations.search.organizationOperation.principalKinds).toContain(
+      'organization_delegated'
+    )
+    expect(knowledgeOperations.readDocument.organizationOperation.principalKinds).toContain(
+      'organization_delegated'
+    )
+    expect(knowledgeOperations.listFolders.organizationOperation.principalKinds).not.toContain(
+      'organization_delegated'
+    )
   })
 
   /**

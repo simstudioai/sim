@@ -387,7 +387,7 @@ export function createOTelSpansForWorkflowExecution(params: {
  */
 export function trackPlatformEvent(
   eventName: string,
-  attributes: Record<string, string | number | boolean>
+  attributes: Record<string, string | number | boolean | string[]>
 ): void {
   try {
     const tracer = getTracer()
@@ -682,16 +682,31 @@ export const PlatformEvents = {
    */
   knowledgeBaseSearched: (attrs: {
     knowledgeBaseId: string
+    knowledgeBaseIds: string[]
+    documentIds: string[]
+    connectorTypes: string[]
     resultsCount: number
     workspaceId?: string
+    actorUserId?: string
+    principalKind: string
+    delegatedServiceId?: string
     /** Whether the search ran as a person (`user`) or as the workspace (`workspace`). */
     accessScopeKind?: 'user' | 'workspace'
+    surface?: string
   }) => {
     trackPlatformEvent('platform.knowledge_base.searched', {
       'knowledge_base.id': attrs.knowledgeBaseId,
+      'knowledge_base.ids': attrs.knowledgeBaseIds,
+      'search.document_ids': attrs.documentIds,
+      'search.documents_count': attrs.documentIds.length,
+      'search.connector_types': attrs.connectorTypes,
       'search.results_count': attrs.resultsCount,
+      'search.principal_kind': attrs.principalKind,
       ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.actorUserId && { 'user.id': attrs.actorUserId }),
+      ...(attrs.delegatedServiceId && { 'search.delegated_service': attrs.delegatedServiceId }),
       ...(attrs.accessScopeKind && { 'search.access_scope_kind': attrs.accessScopeKind }),
+      ...(attrs.surface && { 'search.surface': attrs.surface }),
     })
   },
 

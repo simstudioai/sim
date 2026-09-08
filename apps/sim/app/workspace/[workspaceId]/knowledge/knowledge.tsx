@@ -64,7 +64,7 @@ import {
   KnowledgeEmptyState,
   ResourceNoResults,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal'
 import {
   CreateBaseModal,
   DeleteKnowledgeBaseModal,
@@ -73,6 +73,7 @@ import {
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
+import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
 import {
   knowledgeListPreferenceConfig,
   knowledgeParsers,
@@ -105,13 +106,9 @@ import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 
 const logger = createLogger('Knowledge')
 
-interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
-  docCount?: number
-}
-
 /** A list row, resolved to the entity it refers to. */
 type KnowledgeResourceItem =
-  | { kind: 'base'; base: KnowledgeBaseWithDocCount }
+  | { kind: 'base'; base: KnowledgeBaseData }
   | { kind: 'folder'; folder: WorkflowFolder }
 
 const COLUMNS: ResourceColumn[] = [
@@ -256,6 +253,23 @@ export function Knowledge() {
     onBeforeOpenFolder: () => setSearchQuery(''),
   })
 
+  const searchIndexFolders = useMemo(() => {
+    const ancestors = new Set<string>()
+    for (const knowledgeBase of knowledgeBases) {
+      if (!knowledgeBase.isSearchIndex) continue
+      let folderId = knowledgeBase.folderId
+      while (folderId && !ancestors.has(folderId)) {
+        ancestors.add(folderId)
+        folderId = folderById.get(folderId)?.parentId ?? null
+      }
+    }
+    return ancestors
+  }, [knowledgeBases, folderById])
+  const canDeleteFolder = useCallback(
+    (folderId: string) => canEdit && !searchIndexFolders.has(folderId),
+    [canEdit, searchIndexFolders]
+  )
+
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()
   const deleteFolder = useDeleteFolderMutation()
@@ -339,9 +353,7 @@ export function Knowledge() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
-  const [activeKnowledgeBase, setActiveKnowledgeBase] = useState<KnowledgeBaseWithDocCount | null>(
-    null
-  )
+  const [activeKnowledgeBase, setActiveKnowledgeBase] = useState<KnowledgeBaseData | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
@@ -393,8 +405,8 @@ export function Knowledge() {
    * not short-circuit.
    */
   const knowledgeBaseById = useMemo(() => {
-    const byId = new Map<string, KnowledgeBaseWithDocCount>()
-    for (const base of knowledgeBases) byId.set(base.id, base as KnowledgeBaseWithDocCount)
+    const byId = new Map<string, KnowledgeBaseData>()
+    for (const base of knowledgeBases) byId.set(base.id, base)
     return byId
   }, [knowledgeBases])
   const knowledgeBaseByIdRef = useRef(knowledgeBaseById)
@@ -492,11 +504,13 @@ export function Knowledge() {
 
   const handleDeleteKnowledgeBase = useCallback(
     async (id: string) => {
+      const knowledgeBase = knowledgeBases.find((base) => base.id === id)
+      if (!canDeleteKnowledgeBase(knowledgeBase, userPermissions)) return
       await deleteKnowledgeBase.mutateAsync({ knowledgeBaseId: id })
       logger.info(`Knowledge base deleted: ${id}`)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
-    []
+    [knowledgeBases, userPermissions.canEdit, userPermissions.canAdmin]
   )
 
   /**
@@ -552,7 +566,7 @@ export function Knowledge() {
     }
 
     if (contentFilter.length > 0) {
-      const docCount = (kb: KnowledgeBaseData) => (kb as KnowledgeBaseWithDocCount).docCount ?? 0
+      const docCount = (kb: KnowledgeBaseData) => kb.docCount ?? 0
       result = result.filter((kb) => {
         if (contentFilter.includes('has-docs') && docCount(kb) > 0) return true
         if (contentFilter.includes('empty') && docCount(kb) === 0) return true
@@ -608,12 +622,12 @@ export function Knowledge() {
 
     for (const kb of processedKBs) {
       entries.push({
-        item: { kind: 'base', base: kb as KnowledgeBaseWithDocCount },
+        item: { kind: 'base', base: kb },
         pinned: pinnedBaseIds.has(kb.id),
         name: kb.name,
         key:
           sortColumn === 'documents'
-            ? ((kb as KnowledgeBaseWithDocCount).docCount ?? 0)
+            ? (kb.docCount ?? 0)
             : sortColumn === 'tokens'
               ? (kb.tokenCount ?? 0)
               : sortColumn === 'connectors'
@@ -771,6 +785,15 @@ export function Knowledge() {
     () => splitFolderedRowIds(selectedRowIds),
     [selectedRowIds]
   )
+  const canDeleteSelection =
+    canEdit &&
+    selectedKnowledgeBaseIds.every((id) =>
+      canDeleteKnowledgeBase(
+        knowledgeBases.find((base) => base.id === id),
+        userPermissions
+      )
+    ) &&
+    selectedFolderIds.every(canDeleteFolder)
 
   const bulkDeleteCount = selectedKnowledgeBaseIds.length + selectedFolderIds.length
   const bulkDeleteFirstName =
@@ -816,9 +839,7 @@ export function Knowledge() {
         return
       }
 
-      const kb = knowledgeBasesRef.current.find((k) => k.id === parsed.id) as
-        | KnowledgeBaseWithDocCount
-        | undefined
+      const kb = knowledgeBasesRef.current.find((k) => k.id === parsed.id)
       setActiveKnowledgeBase(kb ?? null)
       handleRowCtxMenu(e)
     },
@@ -827,11 +848,11 @@ export function Knowledge() {
 
   const handleConfirmDelete = useCallback(async () => {
     const kb = activeKnowledgeBaseRef.current
-    if (!kb) return
+    if (!kb || !canDeleteKnowledgeBase(kb, userPermissions)) return
     await handleDeleteKnowledgeBase(kb.id)
     setIsDeleteModalOpen(false)
     setActiveKnowledgeBase(null)
-  }, [handleDeleteKnowledgeBase])
+  }, [handleDeleteKnowledgeBase, userPermissions.canEdit, userPermissions.canAdmin])
 
   const handleCloseDeleteModal = useCallback(() => {
     setIsDeleteModalOpen(false)
@@ -861,8 +882,9 @@ export function Knowledge() {
   }, [])
 
   const handleDelete = useCallback(() => {
+    if (!canDeleteKnowledgeBase(activeKnowledgeBaseRef.current, userPermissions)) return
     setIsDeleteModalOpen(true)
-  }, [])
+  }, [userPermissions.canEdit, userPermissions.canAdmin])
 
   const handleCreateFolder = useCallback(async () => {
     if (!workspaceId) return
@@ -915,15 +937,16 @@ export function Knowledge() {
   }, [])
 
   const handleRequestFolderDelete = useCallback(() => {
+    if (!activeFolderRef.current || !canDeleteFolder(activeFolderRef.current.id)) return
     setFolderPendingDelete(activeFolderRef.current)
-  }, [])
+  }, [canDeleteFolder])
 
   const folderPendingDeleteRef = useRef(folderPendingDelete)
   folderPendingDeleteRef.current = folderPendingDelete
 
   const handleConfirmFolderDelete = useCallback(async () => {
     const folder = folderPendingDeleteRef.current
-    if (!folder) return
+    if (!folder || !canDeleteFolder(folder.id)) return
     try {
       await deleteFolder.mutateAsync({
         workspaceId,
@@ -944,7 +967,7 @@ export function Knowledge() {
       toast.error(getErrorMessage(deleteError, 'Failed to delete folder'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, openFolder])
+  }, [workspaceId, openFolder, canDeleteFolder])
 
   const descendantsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
 
@@ -1090,15 +1113,17 @@ export function Knowledge() {
     selectedKnowledgeBaseIds.length + selectedFolderIds.length > MAX_KNOWLEDGE_BATCH_ITEMS
 
   const handleBulkDelete = useCallback(() => {
+    if (!canDeleteSelection) return
     if (selectedKnowledgeBaseIds.length === 0 && selectedFolderIds.length === 0) return
     if (exceedsBatchCap) {
       toast.error(`Select ${MAX_KNOWLEDGE_BATCH_ITEMS} or fewer items to delete at once`)
       return
     }
     setIsBulkDeleteModalOpen(true)
-  }, [selectedKnowledgeBaseIds, selectedFolderIds, exceedsBatchCap])
+  }, [selectedKnowledgeBaseIds, selectedFolderIds, exceedsBatchCap, canDeleteSelection])
 
   const confirmBulkDelete = useCallback(async () => {
+    if (!canDeleteSelection) return
     try {
       const result = await bulkDeleteKnowledgeBases.mutateAsync({
         knowledgeBaseIds: selectedKnowledgeBaseIds,
@@ -1112,7 +1137,7 @@ export function Knowledge() {
       logger.error('Failed to delete selected items', deleteError)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
-  }, [selectedKnowledgeBaseIds, selectedFolderIds, clearSelection])
+  }, [selectedKnowledgeBaseIds, selectedFolderIds, clearSelection, canDeleteSelection])
 
   /**
    * Destinations for the action bar's move menu. Every selected folder — and everything beneath
@@ -1228,11 +1253,15 @@ export function Knowledge() {
                     breadcrumbRenameRef.current.startRename(folder.id, folder.name)
                   },
                 },
-                {
-                  label: 'Delete',
-                  icon: Trash,
-                  onClick: () => setFolderPendingDelete(breadcrumbs[breadcrumbs.length - 1]),
-                },
+                ...(canDeleteFolder(breadcrumbs[breadcrumbs.length - 1].id)
+                  ? [
+                      {
+                        label: 'Delete',
+                        icon: Trash,
+                        onClick: () => setFolderPendingDelete(breadcrumbs[breadcrumbs.length - 1]),
+                      },
+                    ]
+                  : []),
               ]
             : undefined,
       }),
@@ -1241,6 +1270,7 @@ export function Knowledge() {
       currentFolderId,
       openFolder,
       canEdit,
+      canDeleteFolder,
       breadcrumbRename.editingId,
       breadcrumbRename.editValue,
       breadcrumbRename.isSaving,
@@ -1384,7 +1414,7 @@ export function Knowledge() {
         selectedCount={selectedRowIds.size}
         onMove={canEdit ? handleBulkMove : undefined}
         moveOptions={canEdit ? bulkMoveOptions : undefined}
-        onDelete={canEdit ? handleBulkDelete : undefined}
+        onDelete={canDeleteSelection ? handleBulkDelete : undefined}
         isLoading={bulkMoveKnowledgeBases.isPending || bulkDeleteKnowledgeBases.isPending}
         maxSelectable={MAX_KNOWLEDGE_BATCH_ITEMS}
       />
@@ -1392,6 +1422,7 @@ export function Knowledge() {
     [
       selectedRowIds.size,
       canEdit,
+      canDeleteSelection,
       handleBulkMove,
       bulkMoveOptions,
       handleBulkDelete,
@@ -1517,7 +1548,12 @@ export function Knowledge() {
           showOpenInNewTab
           showViewTags
           showEdit
-          showDelete
+          showDelete={
+            hasMultiSelection
+              ? canDeleteSelection
+              : !activeKnowledgeBase.isSearchIndex ||
+                canDeleteKnowledgeBase(activeKnowledgeBase, userPermissions)
+          }
           disableEdit={!canEdit}
           disableDelete={!canEdit}
           selectedCount={selectedRowIds.size}
@@ -1538,6 +1574,12 @@ export function Knowledge() {
           onMove={handleMoveFolderFromMenu}
           moveOptions={activeFolderMoveOptions}
           canEdit={canEdit}
+          canDelete={hasMultiSelection ? canDeleteSelection : canEdit}
+          deleteDisabledReason={
+            searchIndexFolders.has(activeFolder.id)
+              ? 'Delete the search knowledge base first'
+              : undefined
+          }
           selectedCount={selectedRowIds.size}
         />
       )}

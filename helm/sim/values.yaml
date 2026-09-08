@@ -1483,6 +1483,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    connectorDirectorySync:
+      enabled: true
+      name: connector-directory-sync
+      schedule: "*/5 * * * *"
+      path: "/api/knowledge/connectors/directory-sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     runDataDrains:
       enabled: true
       name: run-data-drains

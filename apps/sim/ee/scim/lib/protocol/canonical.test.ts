@@ -3,7 +3,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import { scimGroupWriteSchema, scimUserWriteSchema } from '@/lib/api/contracts/scim'
-import { primaryEmail, toCanonicalGroup, toCanonicalUser } from '@/ee/scim/lib/protocol/canonical'
+import {
+  accountName,
+  primaryEmail,
+  toCanonicalGroup,
+  toCanonicalUser,
+} from '@/ee/scim/lib/protocol/canonical'
 import {
   SCIM_ENTERPRISE_USER_SCHEMA,
   SCIM_GROUP_SCHEMA,
@@ -52,13 +57,30 @@ describe('toCanonicalUser', () => {
     expect(scimType).toBe('invalidValue')
   })
 
-  it('builds a display name from the parts when none is supplied', () => {
+  it('uses name parts for the account without inventing a provider display name', () => {
     const user = parseUser({
       userName: 'ada@acme.test',
       name: { givenName: 'Ada', familyName: 'Lovelace' },
     })
     expect(user.name.formatted).toBe('Ada Lovelace')
-    expect(user.displayName).toBe('Ada Lovelace')
+    expect(user).not.toHaveProperty('displayName')
+    expect(accountName(user)).toBe('Ada Lovelace')
+  })
+
+  it('prefers an explicit display name while retaining the independent formatted name', () => {
+    const user = parseUser({
+      userName: 'ada@acme.test',
+      displayName: 'Countess Lovelace',
+      name: { formatted: 'Ada Lovelace', givenName: 'Augusta', familyName: 'King' },
+    })
+    expect(accountName(user)).toBe('Countess Lovelace')
+    expect(user.name.formatted).toBe('Ada Lovelace')
+  })
+
+  it('falls back to the account email when no name is supplied', () => {
+    const user = parseUser({ userName: 'ada@acme.test' })
+    expect(accountName(user)).toBe('ada@acme.test')
+    expect(user).not.toHaveProperty('displayName')
   })
 
   it('keeps a provider extension’s attributes under its URN', () => {
@@ -78,6 +100,14 @@ describe('toCanonicalUser', () => {
     const user = parseUser({ userName: 'ada@acme.test', password: 'hunter2' })
     expect(JSON.stringify(user)).not.toContain('hunter2')
   })
+
+  it.each(['Password', 'urn:ietf:params:scim:schemas:core:2.0:User:password'])(
+    'also strips the write-only password attribute %s',
+    (attribute) => {
+      const user = parseUser({ userName: 'ada@acme.test', [attribute]: 'synthetic-password' })
+      expect(JSON.stringify(user)).not.toContain('synthetic-password')
+    }
+  )
 
   it('accepts Entra’s string boolean for active', () => {
     expect(parseUser({ userName: 'ada@acme.test', active: 'False' }).active).toBe(false)

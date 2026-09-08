@@ -33,6 +33,7 @@ import {
 import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
@@ -62,8 +63,14 @@ import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
+  assertKnowledgeEmbeddingCapacity,
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
   getEmbeddingAggregateItemLimit,
@@ -104,6 +111,7 @@ import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
   createNonWorkspaceDocumentProcessingBillingContext,
+  createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
   type DocumentProcessingBillingContext,
   type DocumentProcessingPayload,
@@ -323,14 +331,6 @@ const TIMEOUTS = {
 
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
-  /**
-   * One module-level constant serves every knowledge base, whose width is not
-   * known here, so it is sized for the widest one that can exist. The item
-   * ceiling falls as the width grows — 2,126 items at 1,536 but 1,064 at 3,072 —
-   * and `generateEmbeddings` *rejects* an oversized batch rather than splitting
-   * it, so sizing this against the default width would fail every 3,072-wide
-   * document past that many chunks.
-   */
   MAX_EMBEDDING_BATCH: Math.min(
     envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
     getEmbeddingAggregateItemLimit(MAX_KB_EMBEDDING_DIMENSIONS)
@@ -340,17 +340,30 @@ const LARGE_DOC_CONFIG = {
 
 const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
 
-function withTimeout<T>(
-  promise: Promise<T>,
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
   operation = 'Operation'
 ): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ])
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      run(controller.signal),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(`${operation} timed out after ${timeoutMs}ms`)
+          controller.abort(error)
+          reject(error)
+        }, timeoutMs)
+      }),
+    ])
+  } catch (error) {
+    controller.abort(error)
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -728,6 +741,7 @@ async function resolveDocumentProcessingBillingContext(
     .select({
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
     })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
@@ -737,6 +751,12 @@ async function resolveDocumentProcessingBillingContext(
     throw new Error(`Knowledge base ${knowledgeBaseId} not found for document processing`)
   }
 
+  if (knowledgeBaseContext.organizationId) {
+    if (!providedBillingAttribution)
+      throw new Error('Organization processing requires billing attribution')
+    assertBillingAttributionOwner(providedBillingAttribution, knowledgeBaseContext)
+    return createOrganizationDocumentProcessingBillingContext(providedBillingAttribution)
+  }
   if (knowledgeBaseContext.workspaceId) {
     if (!providedBillingAttribution) {
       throw new Error('Workspace document processing requires a billing attribution snapshot')
@@ -1403,6 +1423,7 @@ export async function processDocumentAsync(
     const contextRows = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         knowledgeBaseUserId: knowledgeBase.userId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
@@ -1553,7 +1574,7 @@ export async function processDocumentAsync(
       ? assertDocumentProcessingBillingContext(providedBillingContext)
       : undefined
     const restoredBillingAttribution =
-      queuedBillingContext?.billingScope === 'workspace'
+      queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace'
         ? queuedBillingContext.billingAttribution
         : providedBillingContext && !queuedBillingContext
           ? assertBillingAttributionSnapshot(providedBillingContext)
@@ -1565,7 +1586,7 @@ export async function processDocumentAsync(
       ctx.billedAccountUserId ??
       ctx.knowledgeBaseUserId
     let billingAttribution: BillingAttributionSnapshot | undefined
-    if (ctx.workspaceId) {
+    if (ctx.workspaceId || ctx.organizationId) {
       if (queuedBillingContext?.billingScope === 'non-workspace') {
         throw new Error('Document processing billing scope does not match knowledge base workspace')
       }
@@ -1573,13 +1594,14 @@ export async function processDocumentAsync(
         throw new Error('Billing attribution is required for queued document processing')
       }
       billingAttribution = restoredBillingAttribution
-      if (
-        billingAttribution.actorUserId !== documentActorUserId ||
-        billingAttribution.workspaceId !== ctx.workspaceId
-      ) {
+      assertBillingAttributionOwner(billingAttribution, ctx)
+      if (billingAttribution.actorUserId !== documentActorUserId) {
         throw new Error('Document billing attribution does not match its actor and workspace')
       }
-    } else if (restoredBillingAttribution || queuedBillingContext?.billingScope === 'workspace') {
+    } else if (
+      restoredBillingAttribution ||
+      (queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace')
+    ) {
       throw new Error('Workspace-less document processing cannot use workspace billing attribution')
     }
 
@@ -1614,227 +1636,237 @@ export async function processDocumentAsync(
 
     let processingCommitted = false
     await withTimeout(
-      runWithKnowledgeModelInputProvenance(
-        documentSecretContext.registry,
-        async () => {
-          const processed = await processDocument(
-            persistedDocData.fileUrl,
-            persistedDocData.filename,
-            persistedDocData.mimeType,
-            kbConfig.maxSize,
-            kbConfig.overlap,
-            kbConfig.minSize,
-            sourceFileAccessFor(ctx.connectorId, documentActorUserId),
-            ctx.workspaceId,
-            rawConfig?.strategy,
-            rawConfig?.strategyOptions
-          )
-
-          assertDocumentChunkCountWithinLimit(processed.chunks.length)
-
-          const now = new Date()
-
-          logger.info(
-            `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
-          )
-
-          const chunkTexts = processed.chunks.map((chunk) => chunk.text)
-          const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
-          for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
-            const tokenCount = estimateTokenCount(
-              chunkTexts[chunkIndex],
-              embeddingModelInfo.tokenizerProvider
-            ).count
-            if (tokenCount > embeddingModelInfo.maxInputTokens) {
-              throw new PermanentDocumentProcessingError(
-                'document_complexity_limit',
-                `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
-              )
-            }
-          }
-          const embeddings: number[][] = []
-
-          if (chunkTexts.length > 0) {
-            const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
-            const totalBatches = Math.ceil(chunkTexts.length / batchSize)
-
-            logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
-
-            for (let i = 0; i < chunkTexts.length; i += batchSize) {
-              const batch = chunkTexts.slice(i, i + batchSize)
-              const batchNum = Math.floor(i / batchSize) + 1
-
-              logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
-              const {
-                embeddings: batchEmbeddings,
-                billableTokens: batchBillableTokens,
-                modelName,
-                pricingId,
-              } = await generateEmbeddings(batch, kbEmbedding, ctx.workspaceId)
-              for (const emb of batchEmbeddings) {
-                embeddings.push(emb)
-              }
-              billableEmbeddingTokens += batchBillableTokens
-              if (i === 0) {
-                embeddingModelName = modelName
-                embeddingPricingId = pricingId
-              }
-            }
-          }
-
-          /**
-           * Every chunk must carry a vector. The row's width column would
-           * otherwise be NULL and `embedding_width_check` would reject the whole
-           * batch, naming a constraint rather than the chunk that went missing.
-           */
-          if (embeddings.length !== processed.chunks.length) {
-            throw new Error(
-              `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
+      (signal) =>
+        runWithKnowledgeModelInputProvenance(
+          documentSecretContext.registry,
+          async () => {
+            await assertKnowledgeEmbeddingCapacity({
+              ...kbEmbedding,
+              workspaceId: ctx.workspaceId,
+              signal,
+            })
+            const processed = await processDocument(
+              persistedDocData.fileUrl,
+              persistedDocData.filename,
+              persistedDocData.mimeType,
+              kbConfig.maxSize,
+              kbConfig.overlap,
+              kbConfig.minSize,
+              { ...sourceFileAccessFor(ctx.connectorId, documentActorUserId), signal },
+              ctx.workspaceId,
+              rawConfig?.strategy,
+              rawConfig?.strategyOptions
             )
+
+            signal.throwIfAborted()
+            assertDocumentChunkCountWithinLimit(processed.chunks.length)
+
+            const now = new Date()
+
+            logger.info(
+              `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+            )
+
+            const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+            const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
+            const chunkTokenCounts: number[] = []
+            for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
+              const tokenCount = estimateTokenCount(
+                chunkTexts[chunkIndex],
+                embeddingModelInfo.tokenizerProvider
+              ).count
+              chunkTokenCounts.push(tokenCount)
+              if (tokenCount > embeddingModelInfo.maxInputTokens) {
+                throw new PermanentDocumentProcessingError(
+                  'document_complexity_limit',
+                  `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
+                )
+              }
+            }
+            const embeddings: number[][] = []
+
+            if (chunkTexts.length > 0) {
+              const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
+              const totalBatches = Math.ceil(chunkTexts.length / batchSize)
+
+              logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
+
+              for (let i = 0; i < chunkTexts.length; i += batchSize) {
+                signal.throwIfAborted()
+                const batch = chunkTexts.slice(i, i + batchSize)
+                const batchNum = Math.floor(i / batchSize) + 1
+
+                logger.info(
+                  `[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`
+                )
+                const {
+                  embeddings: batchEmbeddings,
+                  billableTokens: batchBillableTokens,
+                  modelName,
+                  pricingId,
+                } = await generateEmbeddings(batch, kbEmbedding, ctx.workspaceId, signal)
+                for (const emb of batchEmbeddings) {
+                  embeddings.push(emb)
+                }
+                billableEmbeddingTokens += batchBillableTokens
+                if (i === 0) {
+                  embeddingModelName = modelName
+                  embeddingPricingId = pricingId
+                }
+              }
+            }
+
+            if (embeddings.length !== processed.chunks.length) {
+              throw new Error(
+                `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
+              )
+            }
+            const documentTags = ctx
+
+            logger.info(
+              `[${documentId}] Embeddings generated, creating embedding records with tags`
+            )
+
+            const chunkProvenances = processed.chunks.map((chunk) =>
+              documentSecretContext.tracked
+                ? documentSecretContext.registry
+                  ? durableSecretProvenanceFromRegistry(documentSecretContext.registry, chunk.text)
+                  : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
+                : undefined
+            )
+            const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
+              id: generateId(),
+              knowledgeBaseId,
+              documentId,
+              chunkIndex,
+              chunkHash: sha256Hex(chunk.text),
+              content: chunk.text,
+              secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
+              contentLength: chunk.text.length,
+              tokenCount: chunkTokenCounts[chunkIndex],
+              ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
+              embeddingModel: kbEmbeddingModel,
+              startOffset: chunk.metadata.startIndex,
+              endOffset: chunk.metadata.endIndex,
+              tag1: documentTags.tag1,
+              tag2: documentTags.tag2,
+              tag3: documentTags.tag3,
+              tag4: documentTags.tag4,
+              tag5: documentTags.tag5,
+              tag6: documentTags.tag6,
+              tag7: documentTags.tag7,
+              number1: documentTags.number1,
+              number2: documentTags.number2,
+              number3: documentTags.number3,
+              number4: documentTags.number4,
+              number5: documentTags.number5,
+              date1: documentTags.date1,
+              date2: documentTags.date2,
+              boolean1: documentTags.boolean1,
+              boolean2: documentTags.boolean2,
+              boolean3: documentTags.boolean3,
+              createdAt: now,
+              updatedAt: now,
+            }))
+
+            signal.throwIfAborted()
+            processingCommitted = await db.transaction(async (tx) => {
+              signal.throwIfAborted()
+              const activeDocument = await tx
+                .select({ id: document.id })
+                .from(document)
+                .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+                .where(
+                  and(
+                    eq(document.id, documentId),
+                    eq(document.processingStatus, 'processing'),
+                    eq(document.processingStartedAt, processingStartedAt),
+                    ...queueGenerationConditions(attemptContext),
+                    eq(document.userExcluded, false),
+                    isNull(document.archivedAt),
+                    isNull(document.deletedAt),
+                    isNull(knowledgeBase.deletedAt)
+                  )
+                )
+                .for('update', { of: document })
+                .limit(1)
+
+              if (activeDocument.length === 0) {
+                return false
+              }
+
+              if (embeddingRecords.length > 0) {
+                await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+                const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+                const batches: (typeof embeddingRecords)[] = []
+                for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+                  batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+                }
+
+                logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+                for (const batch of batches) {
+                  signal.throwIfAborted()
+                  await tx.insert(embedding).values(batch)
+                }
+                const provenanceRecords = embeddingRecords.flatMap((record, index) => {
+                  const provenance = chunkProvenances[index]
+                  if (!provenance) return []
+                  return [
+                    {
+                      embeddingId: record.id,
+                      contentHash: record.chunkHash,
+                      status: provenance.status,
+                      entries: provenance.status === 'exact' ? [...provenance.entries] : [],
+                      updatedAt: now,
+                    },
+                  ]
+                })
+                for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
+                  signal.throwIfAborted()
+                  await tx
+                    .insert(embeddingSecretProvenance)
+                    .values(provenanceRecords.slice(i, i + insertBatchSize))
+                }
+              }
+
+              signal.throwIfAborted()
+              await tx
+                .update(document)
+                .set({
+                  chunkCount: processed.metadata.chunkCount,
+                  tokenCount: processed.metadata.tokenCount,
+                  characterCount: processed.metadata.characterCount,
+                  processingStatus: 'completed',
+                  processingCompletedAt: now,
+                  processingError: null,
+                  /** A completed pass restores the retry allowance for a future failure. */
+                  processingAttempts: 0,
+                  processingQueueToken: null,
+                  processingQueuedAt: null,
+                  processingDeferredUntil: null,
+                })
+                .where(
+                  and(
+                    eq(document.id, documentId),
+                    eq(document.processingStatus, 'processing'),
+                    eq(document.processingStartedAt, processingStartedAt),
+                    ...queueGenerationConditions(attemptContext),
+                    eq(document.userExcluded, false),
+                    isNull(document.archivedAt),
+                    isNull(document.deletedAt)
+                  )
+                )
+              signal.throwIfAborted()
+              return true
+            })
+          },
+          {
+            opaqueInputSafe:
+              documentSecretContext.provenance.status === 'exact' &&
+              documentSecretContext.provenance.entries.length === 0,
           }
-
-          // Tag values prefetched above; reuse for the embedding rows.
-          const documentTags = ctx
-
-          logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
-
-          const tokenizerProvider = embeddingModelInfo.tokenizerProvider
-
-          const chunkProvenances = processed.chunks.map((chunk) =>
-            documentSecretContext.tracked
-              ? documentSecretContext.registry
-                ? durableSecretProvenanceFromRegistry(documentSecretContext.registry, chunk.text)
-                : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
-              : undefined
-          )
-          const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-            id: generateId(),
-            knowledgeBaseId,
-            documentId,
-            chunkIndex,
-            chunkHash: sha256Hex(chunk.text),
-            content: chunk.text,
-            secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
-            contentLength: chunk.text.length,
-            tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
-            ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
-            embeddingModel: kbEmbeddingModel,
-            startOffset: chunk.metadata.startIndex,
-            endOffset: chunk.metadata.endIndex,
-            tag1: documentTags.tag1,
-            tag2: documentTags.tag2,
-            tag3: documentTags.tag3,
-            tag4: documentTags.tag4,
-            tag5: documentTags.tag5,
-            tag6: documentTags.tag6,
-            tag7: documentTags.tag7,
-            number1: documentTags.number1,
-            number2: documentTags.number2,
-            number3: documentTags.number3,
-            number4: documentTags.number4,
-            number5: documentTags.number5,
-            date1: documentTags.date1,
-            date2: documentTags.date2,
-            boolean1: documentTags.boolean1,
-            boolean2: documentTags.boolean2,
-            boolean3: documentTags.boolean3,
-            createdAt: now,
-            updatedAt: now,
-          }))
-
-          processingCommitted = await db.transaction(async (tx) => {
-            const activeDocument = await tx
-              .select({ id: document.id })
-              .from(document)
-              .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-              .where(
-                and(
-                  eq(document.id, documentId),
-                  eq(document.processingStatus, 'processing'),
-                  eq(document.processingStartedAt, processingStartedAt),
-                  ...queueGenerationConditions(attemptContext),
-                  eq(document.userExcluded, false),
-                  isNull(document.archivedAt),
-                  isNull(document.deletedAt),
-                  isNull(knowledgeBase.deletedAt)
-                )
-              )
-              .for('update', { of: document })
-              .limit(1)
-
-            if (activeDocument.length === 0) {
-              return false
-            }
-
-            if (embeddingRecords.length > 0) {
-              await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-              const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-              const batches: (typeof embeddingRecords)[] = []
-              for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-                batches.push(embeddingRecords.slice(i, i + insertBatchSize))
-              }
-
-              logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-              for (const batch of batches) {
-                await tx.insert(embedding).values(batch)
-              }
-              const provenanceRecords = embeddingRecords.flatMap((record, index) => {
-                const provenance = chunkProvenances[index]
-                if (!provenance) return []
-                return [
-                  {
-                    embeddingId: record.id,
-                    contentHash: record.chunkHash,
-                    status: provenance.status,
-                    entries: provenance.status === 'exact' ? [...provenance.entries] : [],
-                    updatedAt: now,
-                  },
-                ]
-              })
-              for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
-                await tx
-                  .insert(embeddingSecretProvenance)
-                  .values(provenanceRecords.slice(i, i + insertBatchSize))
-              }
-            }
-
-            await tx
-              .update(document)
-              .set({
-                chunkCount: processed.metadata.chunkCount,
-                tokenCount: processed.metadata.tokenCount,
-                characterCount: processed.metadata.characterCount,
-                processingStatus: 'completed',
-                processingCompletedAt: now,
-                processingError: null,
-                // A completed pass clears the budget: the next failure starts
-                // from a full allowance rather than inheriting a stale count.
-                processingAttempts: 0,
-                processingQueueToken: null,
-                processingQueuedAt: null,
-                processingDeferredUntil: null,
-              })
-              .where(
-                and(
-                  eq(document.id, documentId),
-                  eq(document.processingStatus, 'processing'),
-                  eq(document.processingStartedAt, processingStartedAt),
-                  ...queueGenerationConditions(attemptContext),
-                  eq(document.userExcluded, false),
-                  isNull(document.archivedAt),
-                  isNull(document.deletedAt)
-                )
-              )
-            return true
-          })
-        },
-        {
-          opaqueInputSafe:
-            documentSecretContext.provenance.status === 'exact' &&
-            documentSecretContext.provenance.entries.length === 0,
-        }
-      ),
+        ),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
     )
@@ -2106,6 +2138,7 @@ async function resolveDocumentStorageAdmission(
   const [kb] = await db
     .select({
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       userId: knowledgeBase.userId,
     })
     .from(knowledgeBase)
@@ -2115,6 +2148,11 @@ async function resolveDocumentStorageAdmission(
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
+  if (kb.organizationId)
+    throw new OrchestrationError(
+      'validation',
+      'Add documents to organization Search through a connected source'
+    )
   if (bytes <= 0) {
     return { workspaceId: kb.workspaceId, knowledgeBaseUserId: kb.userId }
   }
@@ -2182,6 +2220,7 @@ export async function createDocumentRecords(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
@@ -2796,6 +2835,7 @@ export async function createSingleDocument(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
@@ -3250,6 +3290,7 @@ export async function retryDocumentProcessing(
       .where(
         and(
           eq(document.id, documentId),
+          or(isNull(document.connectorId), isNotNull(document.contentHash)),
           or(
             inArray(document.processingStatus, ['completed', 'failed']),
             and(
@@ -3276,6 +3317,24 @@ export async function retryDocumentProcessing(
   })
 
   if (!requeued) {
+    const [sourceFailure] = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNotNull(document.connectorId),
+          isNull(document.contentHash)
+        )
+      )
+      .limit(1)
+    if (sourceFailure)
+      return {
+        success: false,
+        status: 'failed',
+        message: 'Source content could not be downloaded. Sync the connector to retry.',
+      }
     logger.info(`[${requestId}] Document retry skipped, already queued: ${documentId}`)
     return {
       success: true,
@@ -3613,7 +3672,7 @@ function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
 const STORAGE_DELETE_CONCURRENCY = 10
 
 export async function deleteDocumentStorageFiles(
-  documentsToDelete: Array<{ id: string; fileUrl: string | null; workspaceId?: string | null }>,
+  documentsToDelete: Array<{ id: string; fileUrl: string | null } & ResourceOwner>,
   requestId: string
 ): Promise<void> {
   const entries = documentsToDelete.map((doc) => ({
@@ -3648,24 +3707,17 @@ export async function deleteDocumentStorageFiles(
     }
 
     const binding = bindingByKey.get(storageKey)
-    if (!binding?.workspaceId || binding.context !== 'knowledge-base') {
+    if (!binding || binding.deletedAt || binding.context !== 'knowledge-base') {
       logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
         documentId: doc.id,
         storageKey,
       })
       return
     }
-    if (!doc.workspaceId || binding.workspaceId !== doc.workspaceId) {
-      logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
-        documentId: doc.id,
-        storageKey,
-        bindingWorkspaceId: binding.workspaceId,
-        documentWorkspaceId: doc.workspaceId ?? null,
-      })
-      return
-    }
-
     try {
+      if (!sameResourceScope(resourceScopeFromOwner(binding), resourceScopeFromOwner(doc))) {
+        throw new Error('Storage ownership binding does not match the document owner')
+      }
       const metadataDeleted = await deleteFileMetadataByIdentity({
         id: binding.id,
         key: binding.key,
@@ -3873,6 +3925,7 @@ async function hardDeleteDocumentBatch(
       uploadedBy: document.uploadedBy,
       connectorId: document.connectorId,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       kbUserId: knowledgeBase.userId,
     })
     .from(document)
@@ -3902,7 +3955,7 @@ async function hardDeleteDocumentBatch(
   const storageContextByWorkspace = new Map<string, StorageBillingContext>()
   const candidateUserIds = new Set<string>()
   for (const doc of documentsToDelete) {
-    if (doc.connectorId || doc.fileSize <= 0) continue
+    if (doc.organizationId || doc.connectorId || doc.fileSize <= 0) continue
     if (doc.workspaceId) {
       if (!storageContextByWorkspace.has(doc.workspaceId)) {
         storageContextByWorkspace.set(
@@ -3938,6 +3991,7 @@ async function hardDeleteDocumentBatch(
       .select({
         id: knowledgeBase.id,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
@@ -3958,6 +4012,7 @@ async function hardDeleteDocumentBatch(
       if (
         !lockedKb ||
         lockedKb.workspaceId !== doc.workspaceId ||
+        (lockedKb.organizationId ?? null) !== (doc.organizationId ?? null) ||
         lockedKb.userId !== doc.kbUserId
       ) {
         throw new Error(
@@ -4032,7 +4087,7 @@ async function hardDeleteDocumentBatch(
     const bytesByWorkspace = new Map<string, number>()
     const legacyBytesByUser = new Map<string, number>()
     for (const doc of deletedDocs) {
-      if (doc.connectorId || doc.fileSize <= 0) continue
+      if (doc.organizationId || doc.connectorId || doc.fileSize <= 0) continue
       if (doc.workspaceId) {
         bytesByWorkspace.set(
           doc.workspaceId,

@@ -1,15 +1,15 @@
 'use client'
 
-import { chipVariants } from '@sim/emcn'
+import { type ChipLinkProps, chipVariants } from '@sim/emcn'
 
-interface OAuthConnectLinkProps {
+interface OAuthConnectLinkProps extends Pick<ChipLinkProps, 'variant'> {
   href: string
   reconnect?: boolean
 }
 
-export function OAuthConnectLink({ href, reconnect = false }: OAuthConnectLinkProps) {
+export function OAuthConnectLink({ href, reconnect = false, variant }: OAuthConnectLinkProps) {
   return (
-    <a href={href} className={chipVariants()}>
+    <a href={href} className={chipVariants({ variant })}>
       {reconnect ? 'Reconnect' : 'Connect'}
     </a>
   )

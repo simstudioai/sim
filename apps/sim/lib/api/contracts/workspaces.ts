@@ -15,7 +15,6 @@ export type WorkspacePermission = z.output<typeof workspacePermissionSchema>
 export const workspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
-  color: z.string().optional(),
   logoUrl: z.string().nullable().optional(),
   ownerId: z.string(),
   organizationId: z.string().nullable(),
@@ -67,10 +66,6 @@ export type WorkspaceQueryScope = NonNullable<z.input<typeof listWorkspacesQuery
 
 export const createWorkspaceBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .optional(),
   skipDefaultWorkflow: z.boolean().optional().default(false),
 })
 
@@ -80,10 +75,6 @@ export const workspaceParamsSchema = z.object({
 
 export const updateWorkspaceBodySchema = z.object({
   name: z.string().trim().min(1).optional(),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .optional(),
   logoUrl: z
     .string()
     .refine((val) => val.startsWith('/') || val.startsWith('https://'), {
@@ -305,6 +296,8 @@ export const workspaceHostContextSchema = z.object({
       credentialGroups: z.boolean(),
       /** Optional for rolling compatibility with app versions that predate the flag. */
       knowledgeMemberAccess: z.boolean().optional(),
+      /** Optional for rolling compatibility with app versions that predate administrator mode. */
+      knowledgeSourceMirroredAccess: z.boolean().optional(),
     })
     .optional(),
   /** Optional for rolling compatibility with app versions that predate deployment projection. */

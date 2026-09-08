@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  assertAssistantIntegrationCall,
+  isAssistantIntegrationTool,
+} from '@/lib/copilot/assistant/tool-policy'
 import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import { slackListChannelsTool } from '@/tools/slack/list_channels'
 import type { SlackListChannelsParams } from '@/tools/slack/types'
@@ -32,10 +36,28 @@ describe('Slack list channels', () => {
   it('uses the internal operation boundary for bounded multi-page reads', () => {
     expect(slackListChannelsTool.operation.input).toBeTypeOf('function')
     expect(slackListChannelsTool.request).toBeUndefined()
+    expect(slackListChannelsTool.oauth?.requiredScopes).toEqual([])
     expect(slackListChannelsTool.params.maxPages).toMatchObject({
       type: 'number',
       required: false,
     })
+  })
+
+  it('remains available through the caller’s own Assistant account without model-supplied tokens', () => {
+    expect(isAssistantIntegrationTool(slackListChannelsTool)).toBe(true)
+    expect(() =>
+      assertAssistantIntegrationCall(slackListChannelsTool, {
+        credentialId: 'my-slack-account',
+        includePrivate: true,
+        maxPages: 2,
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertAssistantIntegrationCall(slackListChannelsTool, {
+        credentialId: 'my-slack-account',
+        accessToken: 'untrusted-token',
+      })
+    ).toThrow('Authentication comes from your connected account')
   })
 
   it('continues after a short virtual page while Slack returns a cursor', async () => {
@@ -81,10 +103,13 @@ describe('Slack list channels', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const firstUrl = new URL(String(fetchMock.mock.calls[0]?.[0]))
     const secondUrl = new URL(String(fetchMock.mock.calls[1]?.[0]))
-    expect(firstUrl.searchParams.get('types')).toBe('public_channel,private_channel,im,mpim')
+    expect(firstUrl.searchParams.get('types')).toBe('public_channel,private_channel')
     expect(firstUrl.searchParams.get('limit')).toBe('100')
     expect(firstUrl.searchParams.has('cursor')).toBe(false)
     expect(secondUrl.searchParams.get('cursor')).toBe('cursor-2')
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer xoxp-token')
+    }
     expect(result).toEqual({
       success: true,
       output: {
@@ -119,27 +144,28 @@ describe('Slack list channels', () => {
     })
   })
 
-  it('keeps DM access and the private-channel toggle credential-aware', async () => {
-    fetchMock.mockImplementation(async () =>
-      slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: '' } })
-    )
+  it.each([undefined, 'oauth', 'managed_oauth', 'service_account'])(
+    'does not request DM scopes based on credential storage type %s',
+    async (credentialType) => {
+      fetchMock.mockImplementation(async () =>
+        slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: '' } })
+      )
 
-    await executeSlackListConversationsOperation({
-      ...BASE_PARAMS,
-      credentialType: 'oauth',
-    })
-    await executeSlackListConversationsOperation({
-      ...BASE_PARAMS,
-      includePrivate: false,
-    })
+      await executeSlackListConversationsOperation({ ...BASE_PARAMS, credentialType })
+      await executeSlackListConversationsOperation({
+        ...BASE_PARAMS,
+        credentialType,
+        includePrivate: false,
+      })
 
-    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('types')).toBe(
-      'public_channel,private_channel'
-    )
-    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get('types')).toBe(
-      'public_channel,im,mpim'
-    )
-  })
+      expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('types')).toBe(
+        'public_channel,private_channel'
+      )
+      expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get('types')).toBe(
+        'public_channel'
+      )
+    }
+  )
 
   it('stops at maxPages and returns a resumable cursor', async () => {
     fetchMock
@@ -250,6 +276,16 @@ describe('Slack list channels', () => {
     })
 
     expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('limit')).toBe('100')
+  })
+
+  it('does not call Slack for an aborted invocation', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('Cancelled'))
+
+    await expect(
+      executeSlackListConversationsOperation(BASE_PARAMS, controller.signal)
+    ).rejects.toThrow('Cancelled')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('fails fast on malformed successful responses and repeated cursors', async () => {

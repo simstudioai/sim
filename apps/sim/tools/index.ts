@@ -538,6 +538,28 @@ function enforceCopilotCredentialSelection(
   )
 }
 
+/** Protects only the account secrets resolved for this Assistant call, including provider reflections. */
+async function registerAssistantCredentialSecrets(
+  registry: ResolvedSecretTraceRegistry | undefined,
+  tokens: readonly (string | undefined)[]
+): Promise<void> {
+  if (typeof window !== 'undefined' || !registry) {
+    throw new Error('Assistant credential use requires a trusted secret projection registry')
+  }
+  const { encryptSecret } = await import('@/lib/core/security/encryption')
+  const secrets = [...new Set(tokens.filter((token): token is string => Boolean(token)))]
+  const entries = await Promise.all(
+    secrets.map(async (token) => ({ encryptedValue: (await encryptSecret(token)).encrypted }))
+  )
+  const imported = await registry.importProvenance(
+    { version: 1, complete: true, entries },
+    { trusted: true, anonymous: true, origin: 'tools.assistantCredentials' }
+  )
+  if (!imported || !registry.isComplete()) {
+    throw new Error('Assistant account secrets could not be protected before execution')
+  }
+}
+
 /** Result from hosted key injection */
 interface HostedKeyInjectionResult {
   isUsingHostedKey: boolean
@@ -1676,14 +1698,19 @@ async function executeToolImplementation(
 ): Promise<ToolResponse> {
   const {
     skipPostProcess = false,
-    executionContext,
+    executionContext: suppliedExecutionContext,
     signal,
     resolvedSecretTraceRegistry: explicitResolvedSecretTraceRegistry,
     internalSandboxProfile,
     operationContext: suppliedOperationContext,
   } = options
+  /** A nested operation cannot replace the Assistant's person with workflow execution authority. */
+  const executionContext =
+    suppliedOperationContext?.requestMode === 'assistant' ? undefined : suppliedExecutionContext
   const resolvedSecretTraceRegistry =
-    explicitResolvedSecretTraceRegistry ?? executionContext?.resolvedSecretTraceRegistry
+    explicitResolvedSecretTraceRegistry ??
+    executionContext?.resolvedSecretTraceRegistry ??
+    suppliedOperationContext?.resolvedSecretTraceRegistry
   const effectiveSignal = signal ?? executionContext?.abortSignal
   const operationContext = executionContext
     ? createInternalToolOperationContext(executionContext)
@@ -1693,7 +1720,11 @@ async function executeToolImplementation(
   const executeNestedTool: typeof executeTool = (nestedToolId, nestedParams, nestedOptions = {}) =>
     executeTool(nestedToolId, nestedParams, {
       ...nestedOptions,
-      executionContext: nestedOptions.executionContext ?? executionContext,
+      ...(operationContext?.requestMode === 'assistant' ? { operationContext } : {}),
+      executionContext:
+        operationContext?.requestMode === 'assistant'
+          ? undefined
+          : (nestedOptions.executionContext ?? executionContext),
       signal: nestedOptions.signal ?? effectiveSignal,
       resolvedSecretTraceRegistry:
         nestedOptions.resolvedSecretTraceRegistry ?? resolvedSecretTraceRegistry,
@@ -1724,6 +1755,17 @@ async function executeToolImplementation(
     }
 
     const scope = resolveToolScope(params, executionContext)
+    if (operationContext?.requestMode === 'assistant') {
+      const { assertAssistantIntegrationCall } = await import('@/lib/copilot/assistant/tool-policy')
+      const { getToolMetadata } = await import('@/tools/metadata')
+      const { _context, ...modelParams } = params
+      assertAssistantIntegrationCall(getToolMetadata(toolId), modelParams)
+      scope.envReferenceMode = 'off'
+      scope.userId = operationContext.userId
+      scope.workspaceId = operationContext.workspaceId
+      scope.copilotToolExecution = true
+      scope.enforceCredentialAccess = true
+    }
 
     const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
       normalizedToolId === 'load_skill'
@@ -1847,6 +1889,26 @@ async function executeToolImplementation(
     if (contextParams.oauthCredential) {
       contextParams.credential = contextParams.oauthCredential
     }
+    if (operationContext?.requestMode === 'assistant' && tool.personalToken) {
+      if (typeof window !== 'undefined' || !operationContext.workspaceId) {
+        throw new Error('Personal tokens require a trusted workspace execution context')
+      }
+      const [{ executeCopilotCredentialUseCase }, { resolvePersonalToken }] = await Promise.all([
+        import('@/lib/copilot/application/execute-credential-use-case'),
+        import('@/lib/credentials/application/resolve-personal-token'),
+      ])
+      const token = await executeCopilotCredentialUseCase(operationContext, resolvePersonalToken, {
+        credentialId: String(contextParams.credential),
+        assertedWorkspaceId: operationContext.workspaceId,
+        expectedProviderId: tool.personalToken.provider,
+      })
+      await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [token.accessToken])
+      contextParams[tool.personalToken.tokenParam] = token.accessToken
+      contextParams[tool.personalToken.hostParam] = token.instanceUrl
+      contextParams.credential = undefined
+      contextParams.credentialId = undefined
+      contextParams.oauthCredential = undefined
+    }
     if (contextParams.credential) {
       logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
       try {
@@ -1923,6 +1985,12 @@ async function executeToolImplementation(
           }
         }
 
+        if (operationContext?.requestMode === 'assistant') {
+          await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
+            data.accessToken,
+            data.idToken,
+          ])
+        }
         contextParams.accessToken = data.accessToken
         if (data.credentialType && tool.oauth?.authoritativeParams?.includes('credentialType')) {
           contextParams.credentialType = data.credentialType

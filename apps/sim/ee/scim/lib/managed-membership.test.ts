@@ -6,6 +6,9 @@ import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application'
 
+vi.unmock('@sim/db/schema')
+vi.unmock('drizzle-orm')
+
 const { mockDeploymentEnabled, mockEntitled } = vi.hoisted(() => ({
   mockDeploymentEnabled: vi.fn(),
   mockEntitled: vi.fn(),
@@ -45,7 +48,7 @@ describe('assertMembershipNotScimManaged', () => {
     queueProbe(true)
     mockEntitled.mockResolvedValue(false)
     await expect(assertMembershipNotScimManaged(params)).resolves.toBeUndefined()
-    expect(mockEntitled).toHaveBeenCalledWith('org-1')
+    expect(mockEntitled).toHaveBeenCalledWith('org-1', db)
   })
 
   it('never reads the plan for a member the directory does not manage', async () => {

@@ -9,6 +9,10 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
   description: 'Sync calendar events from Google Calendar',
   version: '1.0.0',
   icon: GoogleCalendarIcon,
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/google-calendar',
+  memberSetupHint:
+    'Each teammate connects their Google Calendar account. They see only event details available to them.',
 
   auth: {
     mode: 'oauth',
@@ -73,7 +77,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
         { label: 'No', id: 'false' },
       ],
       description:
-        'When Yes, organizer and attendee names and email addresses are written into the indexed event text and into the Organizer tag. Indexed text is embedded into searchable chunks, so anyone with access to this knowledge base can retrieve those addresses — a wider audience than the calendar itself grants. Choose No to index a non-identifying attendee count instead and drop the Organizer tag.',
+        'Include organizer and attendee names and email addresses in searchable event details. Choose No to include only the attendee count.',
     },
     {
       id: 'maxEvents',

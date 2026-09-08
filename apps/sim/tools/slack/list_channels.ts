@@ -22,13 +22,14 @@ export const slackListChannelsTool: InternalToolConfig<
   id: 'slack_list_channels',
   name: 'Slack List Channels',
   description:
-    'List up to 10,000 accessible Slack conversations across as many cursor pages as Slack supplies, capped at 200 provider pages. Credential-group user tokens also return one-to-one and group direct messages.',
+    'List up to 10,000 accessible public and private Slack channels across as many cursor pages as Slack supplies, capped at 200 provider pages.',
   version: '1.3.0',
 
   oauth: {
     required: true,
     provider: 'slack',
-    authoritativeParams: ['credentialType'],
+    /** Slack enforces the required scope for the target conversation type. */
+    requiredScopes: [],
   },
 
   params: {
@@ -50,17 +51,11 @@ export const slackListChannelsTool: InternalToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token or bot token for Slack API',
     },
-    credentialType: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Credential type supplied by authorized token resolution',
-    },
     includePrivate: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include private channels the bot is a member of (default: true)',
+      description: 'Include private channels the connected account can access (default: true)',
     },
     excludeArchived: {
       type: 'boolean',
@@ -95,8 +90,7 @@ export const slackListChannelsTool: InternalToolConfig<
   outputs: {
     channels: {
       type: 'array',
-      description:
-        'Up to 10,000 accessible public and private channels, plus direct and group DMs for credential-group user tokens',
+      description: 'Up to 10,000 accessible public and private channels',
       items: {
         type: 'object',
         properties: CONVERSATION_LIST_OUTPUT_PROPERTIES,
@@ -104,12 +98,12 @@ export const slackListChannelsTool: InternalToolConfig<
     },
     ids: {
       type: 'array',
-      description: 'Conversation IDs for every returned channel or DM',
+      description: 'Conversation IDs for every returned channel',
       items: { type: 'string', description: 'Slack conversation ID' },
     },
     names: {
       type: 'array',
-      description: 'Names of returned channels and group DMs; one-to-one DMs have no name',
+      description: 'Names of returned channels',
       items: { type: 'string', description: 'Slack conversation name' },
     },
     count: {

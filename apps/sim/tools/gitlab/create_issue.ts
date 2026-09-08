@@ -5,6 +5,7 @@ import type { ToolConfig } from '@/tools/types'
 export const gitlabCreateIssueTool: ToolConfig<GitLabCreateIssueParams, GitLabCreateIssueResponse> =
   {
     id: 'gitlab_create_issue',
+    personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     name: 'GitLab Create Issue',
     description: 'Create a new issue in a GitLab project',
     version: '1.0.0',

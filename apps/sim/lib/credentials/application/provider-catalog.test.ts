@@ -202,6 +202,62 @@ describe('listCredentialProviderCatalog', () => {
     )
   })
 
+  it('uses enrollment app visibility for managed OAuth without changing ordinary OAuth', async () => {
+    const isCredentialVisible = vi.fn(({ type }) => type === 'managed_oauth')
+    mocks.createVisibility.mockReturnValue({
+      isOAuthServiceVisible: () => false,
+      isCredentialVisible,
+    })
+    const ordinary = await listCredentialProviderCatalog(personalPrincipal, context)
+    expect(ordinary.find((provider) => provider.serviceId === 'salesforce')?.available).toBe(false)
+    const enrolled = await listCredentialProviderCatalog(
+      personalPrincipal,
+      context,
+      'managed_oauth'
+    )
+    expect(enrolled.find((provider) => provider.serviceId === 'salesforce')?.available).toBe(true)
+    expect(isCredentialVisible).toHaveBeenCalledWith({
+      providerId: 'salesforce',
+      type: 'managed_oauth',
+    })
+  })
+
+  it('exposes an explicit Confluence verification target to service-account API clients', async () => {
+    mocks.getServiceConfigByServiceId.mockReturnValue({
+      providerId: 'confluence',
+      name: 'Confluence',
+    })
+    mocks.getAllOAuthServices.mockReturnValue([
+      {
+        serviceId: 'confluence',
+        providerId: 'confluence',
+        serviceAccountProviderId: 'atlassian-service-account',
+        name: 'Confluence',
+        description: 'Connect Confluence.',
+        baseProvider: 'atlassian',
+        authType: 'oauth',
+      },
+    ])
+    const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
+    const atlassian = catalog.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'atlassian-service-account'
+    )
+    expect(atlassian?.type).toBe('service_account')
+    if (atlassian?.type !== 'service_account') throw new Error('Missing Atlassian catalog entry')
+    expect(atlassian.fields).toContainEqual(
+      expect.objectContaining({
+        id: 'atlassianProduct',
+        required: false,
+        secret: false,
+        options: [
+          { value: 'jira', label: 'Jira' },
+          { value: 'confluence', label: 'Confluence' },
+        ],
+      })
+    )
+  })
+
   it('does not borrow a human permission group for workspace API keys', async () => {
     await listCredentialProviderCatalog(
       {

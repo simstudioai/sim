@@ -14,6 +14,7 @@ export const slackDeleteMessageTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
   },
 
   params: {

@@ -69,17 +69,26 @@ vi.mock('@sim/emcn', () => ({
   ),
   ChipModalFooter: ({
     primaryAction,
+    secondaryActions,
   }: {
     primaryAction: { label: string; onClick: () => void; disabled: boolean }
+    secondaryActions?: { label: string; onClick: () => void }[]
   }) => (
-    <button
-      type='button'
-      data-testid='connect'
-      onClick={primaryAction.onClick}
-      disabled={primaryAction.disabled}
-    >
-      {primaryAction.label}
-    </button>
+    <>
+      {secondaryActions?.map((action) => (
+        <button key={action.label} type='button' onClick={action.onClick}>
+          {action.label}
+        </button>
+      ))}
+      <button
+        type='button'
+        data-testid='connect'
+        onClick={primaryAction.onClick}
+        disabled={primaryAction.disabled}
+      >
+        {primaryAction.label}
+      </button>
+    </>
   ),
   ChipModalHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
   InfoCard: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -127,7 +136,10 @@ vi.mock('@/hooks/queries/credentials', () => ({
     mutateAsync: mocks.createDraft,
     isPending: false,
   }),
-  useWorkspaceCredentials: mocks.workspaceCredentials,
+}))
+
+vi.mock('@/hooks/queries/scoped-credentials', () => ({
+  useScopedCredentials: mocks.workspaceCredentials,
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
@@ -216,6 +228,54 @@ describe('ConnectOAuthModal reauthorization', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.restoreAllMocks()
+  })
+
+  it('opens an optional setup guide without submitting or losing the connection name', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const onOpenChange = vi.fn()
+    act(() => {
+      root.render(
+        <ConnectOAuthModal
+          mode='connect'
+          origin='kb-connectors'
+          open
+          onOpenChange={onOpenChange}
+          providerId='slack'
+          workspaceId='workspace-1'
+          knowledgeBaseId='kb-search'
+          requiredScopes={[]}
+          docsUrl='https://docs.sim.ai/search/slack'
+        />
+      )
+    })
+    const name = container.querySelector<HTMLInputElement>('input[aria-label="Display name"]')!
+    expect(name).not.toBeNull()
+    act(() => setFormControlValue(name, 'Team account'))
+    const guide = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Setup guide'
+    )!
+
+    act(() => guide.click())
+
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.sim.ai/search/slack',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(name.value).toBe('Team account')
+    expect(mocks.createDraft).not.toHaveBeenCalled()
+    expect(mocks.connectOAuthService).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await clickConnect()
+    expect(mocks.createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ displayName: 'Team account', providerId: 'slack' })
+    )
+  })
+
+  it('does not add a setup action without a contextual guide', () => {
+    renderReauthorizeModal()
+    expect(container.textContent).not.toContain('Setup guide')
   })
 
   it('binds the selected credential draft to the OAuth launch', async () => {

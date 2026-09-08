@@ -144,19 +144,10 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
  * refuses to commit unless live membership still equals that value, so a verdict
  * reached here can never be applied to a different organization.
  *
- * Only the entitlement half of the decision is answered here, because it cannot
- * be answered anywhere else — see {@link isOrganizationPermissionRegimeActive}
- * for why that read admits no executor. Running it on the transaction executor
- * would check out a second pooled connection while three advisory locks are
- * held — what `packages/db/tx-tripwire.ts` fires on.
- *
- * Nothing is lost by settling it early. `permission_group:<org>` serializes
- * permission-group writes, not subscription changes, so holding it across this
- * read never excluded anything. A concurrent entitlement LAPSE resolves to
- * applying the group's config for one more request, which refuses rather than
- * permits; a concurrent GRANT resolves to skipping the group for one more
- * request, which is the same answer the route's own preflight gave microseconds
- * earlier.
+ * This path settles entitlement during preflight. A concurrent entitlement
+ * lapse can keep the group's restrictions for this request; a concurrent grant
+ * can leave them inactive until the next request. The permission-group lock
+ * alone does not serialize subscription changes.
  *
  * The `forUpdate` subscription re-read below accepts Team *or* Enterprise; the
  * permission-group regime is Enterprise-only, so it cannot stand in for this.

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -7,16 +9,29 @@ import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
   htmlToPlainText,
+  isPerMemberListing,
   joinTagArray,
+  memberDocumentId,
   parseDefaultedUnlimitedSafeInteger,
   parseMultiValue,
   parseTagDate,
+  sourceDocumentId,
 } from '@/connectors/utils'
 
 const logger = createLogger('GmailConnector')
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const THREADS_PER_PAGE = 100
+
+class GmailApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(`${message}: ${status}`)
+    this.name = 'GmailApiError'
+  }
+}
 
 interface GmailHeader {
   name: string
@@ -45,6 +60,57 @@ interface GmailThread {
   historyId?: string
   messages?: GmailMessage[]
   snippet?: string
+}
+
+interface GmailThreadList {
+  threads: GmailThread[]
+  nextPageToken?: string
+}
+
+/** Legacy cursors contain only Gmail's raw page token. */
+function parseListingCursor(cursor?: string): { pageToken?: string; searchQuery?: string } {
+  if (!cursor) return {}
+  try {
+    const parsed: unknown = JSON.parse(cursor)
+    if (
+      isPlainRecord(parsed) &&
+      typeof parsed.pageToken === 'string' &&
+      parsed.pageToken.length > 0 &&
+      typeof parsed.searchQuery === 'string'
+    ) {
+      return { pageToken: parsed.pageToken, searchQuery: parsed.searchQuery }
+    }
+  } catch {
+    return { pageToken: cursor }
+  }
+  return { pageToken: cursor }
+}
+
+function isThreadMetadata(value: unknown): value is GmailThread {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    (value.historyId === undefined ||
+      (typeof value.historyId === 'string' && value.historyId.length > 0)) &&
+    (value.snippet === undefined || typeof value.snippet === 'string')
+  )
+}
+
+function parseThreadList(value: unknown): GmailThreadList {
+  if (
+    !isPlainRecord(value) ||
+    (value.threads !== undefined &&
+      (!Array.isArray(value.threads) || !value.threads.every(isThreadMetadata))) ||
+    (value.nextPageToken !== undefined &&
+      (typeof value.nextPageToken !== 'string' || value.nextPageToken.length === 0))
+  ) {
+    throw new Error('Gmail returned malformed thread listing metadata')
+  }
+  return {
+    threads: (value.threads ?? []) as GmailThread[],
+    nextPageToken: value.nextPageToken as string | undefined,
+  }
 }
 
 interface GmailLabel {
@@ -101,13 +167,20 @@ async function getLabelIndex(
       },
     })
 
+    if (response.status === 401) {
+      throw new GmailApiError('Failed to fetch Gmail labels', response.status)
+    }
     if (response.ok) {
-      const data = await response.json()
-      index = buildLabelIndex((data.labels || []) as GmailLabel[])
+      const data: unknown = await response.json()
+      if (!isPlainRecord(data) || !Array.isArray(data.labels)) {
+        throw new Error('Gmail returned malformed labels')
+      }
+      index = buildLabelIndex(data.labels as GmailLabel[])
     } else {
       logger.warn('Failed to fetch Gmail labels', { status: response.status })
     }
   } catch (error) {
+    if (error instanceof GmailApiError && error.status === 401) throw error
     logger.warn('Failed to fetch Gmail labels', { error: toError(error).message })
   }
 
@@ -261,19 +334,16 @@ function extractBody(part: GmailMessagePart): string {
 
   if (part.parts) {
     const children = part.parts.filter((child) => !isAttachmentPart(child))
-    // Prefer text/plain from multipart
     for (const child of children) {
       if (child.mimeType === 'text/plain' && child.body?.data) {
         return decodeBase64Url(child.body.data)
       }
     }
-    // Fall back to text/html
     for (const child of children) {
       if (child.mimeType === 'text/html' && child.body?.data) {
         return htmlToPlainText(decodeBase64Url(child.body.data))
       }
     }
-    // Recurse into nested multipart
     for (const child of children) {
       const result = extractBody(child)
       if (result) return result
@@ -361,10 +431,16 @@ function formatThread(thread: GmailThread): {
 }
 
 /**
- * Fetches a full thread with all its messages.
+ * Minimal reads recover missing listing revisions without downloading message bodies.
  */
-async function fetchThread(accessToken: string, threadId: string): Promise<GmailThread | null> {
-  const url = `${GMAIL_API_BASE}/threads/${encodeURIComponent(threadId)}?format=full`
+async function fetchThread(
+  accessToken: string,
+  threadId: string,
+  format: 'full' | 'minimal' = 'full'
+): Promise<GmailThread | null> {
+  const params = new URLSearchParams({ format })
+  if (format === 'minimal') params.set('fields', 'id,historyId,snippet')
+  const url = `${GMAIL_API_BASE}/threads/${encodeURIComponent(threadId)}?${params}`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -376,10 +452,19 @@ async function fetchThread(accessToken: string, threadId: string): Promise<Gmail
 
   if (!response.ok) {
     if (response.status === 404) return null
-    throw new Error(`Failed to fetch thread ${threadId}: ${response.status}`)
+    throw new GmailApiError(`Failed to fetch thread ${threadId}`, response.status)
   }
 
-  return (await response.json()) as GmailThread
+  const thread: unknown = await response.json()
+  if (
+    !isThreadMetadata(thread) ||
+    thread.id !== threadId ||
+    !thread.historyId ||
+    (format === 'full' && !Array.isArray(thread.messages))
+  ) {
+    throw new Error('Gmail returned malformed thread metadata')
+  }
+  return thread
 }
 
 /**
@@ -400,20 +485,19 @@ async function resolveLabelNames(
  * Creates a lightweight document stub from a thread list entry.
  * Uses metadata-based contentHash for change detection without downloading content.
  */
-function threadToStub(thread: {
-  id: string
-  snippet?: string
-  historyId?: string
-}): ExternalDocument {
+function threadToStub(
+  thread: GmailThread,
+  syncContext?: Record<string, unknown>
+): ExternalDocument {
   return {
-    externalId: thread.id,
+    externalId: memberDocumentId(thread.id, syncContext),
     title: thread.snippet || 'Untitled Thread',
     content: '',
     contentDeferred: true,
     estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
     sourceUrl: threadUrl(thread.id),
-    contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
+    contentHash: `gmail:${thread.id}:${thread.historyId}`,
     metadata: {},
   }
 }
@@ -430,27 +514,42 @@ function threadUrl(threadId: string): string {
 export const gmailConnector: ConnectorConfig = {
   ...gmailConnectorMeta,
 
+  isCredentialInvalidError: (error) => error instanceof GmailApiError && error.status === 401,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    let labelIndex = EMPTY_LABEL_INDEX
-    if (parseMultiValue(sourceConfig.label).length > 0) {
-      /**
-       * Configured labels are ids that only the label index can turn into the
-       * names `label:` matches. Without it the query silently matches nothing and
-       * the sync would report a complete, empty listing — which the engine reads
-       * as "every stored thread was deleted". Fail the sync instead.
-       */
-      const resolved = await getLabelIndex(accessToken, syncContext)
-      if (!resolved) {
-        throw new Error('Failed to fetch Gmail labels; cannot resolve the configured label filter')
-      }
-      labelIndex = resolved
+    const { pageToken, searchQuery: savedSearchQuery } = parseListingCursor(cursor)
+    let searchQuery = savedSearchQuery
+    const configuredLabels = parseMultiValue(sourceConfig.label)
+    if (
+      isPerMemberListing(syncContext) &&
+      configuredLabels.some((label) => label.startsWith('Label_'))
+    ) {
+      throw new Error(
+        'Use Gmail label names instead of account-specific label IDs for member accounts'
+      )
     }
-    const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
+    if (searchQuery === undefined) {
+      let labelIndex = EMPTY_LABEL_INDEX
+      if (configuredLabels.length > 0) {
+        /**
+         * Unresolved label IDs can silently match nothing, which a complete
+         * listing would misinterpret as deleted documents. Fail the sync instead.
+         */
+        const resolved = await getLabelIndex(accessToken, syncContext)
+        if (!resolved) {
+          throw new Error(
+            'Failed to fetch Gmail labels; cannot resolve the configured label filter'
+          )
+        }
+        labelIndex = resolved
+      }
+      searchQuery = buildSearchQuery(sourceConfig, labelIndex)
+    }
     /** A blank field keeps the default cap; an explicit 0 (a per-member sync) means unlimited. */
     const maxThreads = parseDefaultedUnlimitedSafeInteger(
       sourceConfig.maxThreads,
@@ -468,21 +567,20 @@ export const gmailConnector: ConnectorConfig = {
 
     const queryParams = new URLSearchParams({
       maxResults: String(pageSize),
+      fields: 'threads(id,historyId,snippet),nextPageToken',
     })
 
     if (searchQuery) {
       queryParams.set('q', searchQuery)
     }
 
-    if (cursor) {
-      queryParams.set('pageToken', cursor)
+    if (pageToken) {
+      queryParams.set('pageToken', pageToken)
     }
 
     const url = `${GMAIL_API_BASE}/threads?${queryParams.toString()}`
 
     logger.info('Listing Gmail threads', {
-      query: searchQuery,
-      cursor: cursor ?? 'initial',
       maxThreads,
     })
 
@@ -495,18 +593,20 @@ export const gmailConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Failed to list Gmail threads', { status: response.status, error: errorText })
-      throw new Error(`Failed to list Gmail threads: ${response.status}`)
+      logger.error('Failed to list Gmail threads', { status: response.status })
+      throw new GmailApiError('Failed to list Gmail threads', response.status)
     }
 
-    const data = await response.json()
-    const threads = (data.threads || []) as { id: string; snippet?: string; historyId?: string }[]
-    const nextPageToken = data.nextPageToken as string | undefined
+    const { threads, nextPageToken } = parseThreadList(await response.json())
+    const stubs = await mapWithConcurrency(threads, 5, async (thread) => {
+      const metadata = thread.historyId
+        ? thread
+        : await fetchThread(accessToken, thread.id, 'minimal')
+      return metadata ? threadToStub(metadata, syncContext) : null
+    })
+    const documents = stubs.filter((stub): stub is ExternalDocument => stub !== null)
 
-    const documents = threads.map(threadToStub)
-
-    const newTotal = totalFetched + documents.length
+    const newTotal = totalFetched + threads.length
     if (syncContext) syncContext.totalThreadsFetched = newTotal
 
     const hitLimit = maxThreads > 0 && newTotal >= maxThreads
@@ -528,7 +628,11 @@ export const gmailConnector: ConnectorConfig = {
      */
     return {
       documents,
-      nextCursor: hitLimit ? undefined : nextPageToken,
+      /** Relative dates and resolved label names must stay fixed across checkpoint resumes. */
+      nextCursor:
+        !hitLimit && nextPageToken
+          ? JSON.stringify({ pageToken: nextPageToken, searchQuery })
+          : undefined,
       hasMore: hitLimit ? false : Boolean(nextPageToken),
     }
   },
@@ -539,7 +643,9 @@ export const gmailConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const thread = await fetchThread(accessToken, externalId)
+    const threadId = sourceDocumentId(externalId, syncContext)
+    if (!threadId) return null
+    const thread = await fetchThread(accessToken, threadId)
     if (!thread) return null
 
     const { content, subject, metadata } = formatThread(thread)
@@ -549,13 +655,10 @@ export const gmailConnector: ConnectorConfig = {
     metadata.labels = await resolveLabelNames(accessToken, labelIds, syncContext)
 
     return {
-      externalId: thread.id,
+      ...threadToStub(thread, syncContext),
       title: subject,
       content,
       contentDeferred: false,
-      mimeType: 'text/plain',
-      sourceUrl: threadUrl(thread.id),
-      contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
       metadata,
     }
   },
@@ -576,7 +679,6 @@ export const gmailConnector: ConnectorConfig = {
     }
 
     try {
-      // Verify Gmail API access by fetching profile
       const profileUrl = `${GMAIL_API_BASE}/profile`
       const profileResponse = await fetchWithRetry(
         profileUrl,
@@ -642,7 +744,6 @@ export const gmailConnector: ConnectorConfig = {
         }
       }
 
-      // If a custom query is specified, verify it's valid by doing a dry-run
       const query = sourceConfig.query as string | undefined
       if (query?.trim()) {
         const searchQuery = buildSearchQuery(sourceConfig, labelIndex)

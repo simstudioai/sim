@@ -5,9 +5,15 @@ import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendCopilotChatMessages, mockPublishStatusChanged } = vi.hoisted(() => ({
-  mockAppendCopilotChatMessages: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
+const { mockAppendCopilotChatMessages, mockPublishStatusChanged, mockGetAccessibleChat } =
+  vi.hoisted(() => ({
+    mockGetAccessibleChat: vi.fn(),
+    mockAppendCopilotChatMessages: vi.fn(),
+    mockPublishStatusChanged: vi.fn(),
+  }))
+
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 
 vi.mock('@/lib/copilot/chat/messages-store', () => ({
@@ -49,7 +55,21 @@ describe('copilot chat stop route', () => {
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
+    mockGetAccessibleChat.mockResolvedValue({ id: 'chat-1' })
+  })
+
+  it('does not persist stopped content after organization access is removed', async () => {
+    mockGetAccessibleChat.mockResolvedValueOnce(null)
+    const response = await POST(
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'private' })
+    )
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {

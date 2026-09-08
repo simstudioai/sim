@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipDropdown, toast } from '@sim/emcn'
+import { ChipDropdown, ChipTag, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -154,12 +154,7 @@ export function OrganizationMemberLists({
               disabled={updateMemberRole.isPending}
             />
           ) : (
-            <ChipDropdown
-              value={member.role}
-              options={[{ value: member.role, label: capitalize(member.role) }]}
-              matchTriggerWidth={false}
-              disabled
-            />
+            <ChipTag variant='mono'>{capitalize(member.role)}</ChipTag>
           )
         }
         menu={buildActionsMenu([
@@ -167,7 +162,7 @@ export function OrganizationMemberLists({
           ...(canManage && !isOwner
             ? [
                 {
-                  label: 'Manage Credits',
+                  label: 'Manage credits',
                   onSelect: () =>
                     setCreditsTarget({
                       userId: member.userId,
@@ -262,30 +257,28 @@ export function OrganizationMemberLists({
 
   const renderOrgInviteRow = (invitation: RosterPendingInvitation) => {
     const isExternal = invitation.membershipIntent === 'external'
-    const roleControl = isExternal ? (
-      <ChipDropdown
-        value='external'
-        options={[{ value: 'external', label: 'External' }]}
-        matchTriggerWidth={false}
-        disabled
-      />
-    ) : (
-      <ChipDropdown
-        value={invitation.role === 'admin' ? 'admin' : 'member'}
-        onChange={(role) =>
-          updateInvitation
-            .mutateAsync({
-              orgId: organizationId,
-              invitationId: invitation.id,
-              role: role as OrgRole,
-            })
-            .catch((error) => logger.error('Failed to update invitation role', { error }))
-        }
-        options={ORG_ROLE_OPTIONS}
-        matchTriggerWidth={false}
-        disabled={!canManage || updateInvitation.isPending}
-      />
-    )
+    const roleControl =
+      isExternal || !canManage ? (
+        <ChipTag variant='mono'>
+          {isExternal ? 'External' : invitation.role === 'admin' ? 'Admin' : 'Member'}
+        </ChipTag>
+      ) : (
+        <ChipDropdown
+          value={invitation.role === 'admin' ? 'admin' : 'member'}
+          onChange={(role) =>
+            updateInvitation
+              .mutateAsync({
+                orgId: organizationId,
+                invitationId: invitation.id,
+                role: role as OrgRole,
+              })
+              .catch((error) => logger.error('Failed to update invitation role', { error }))
+          }
+          options={ORG_ROLE_OPTIONS}
+          matchTriggerWidth={false}
+          disabled={updateInvitation.isPending}
+        />
+      )
     return renderInviteRow(invitation, 'org-invite', roleControl)
   }
 

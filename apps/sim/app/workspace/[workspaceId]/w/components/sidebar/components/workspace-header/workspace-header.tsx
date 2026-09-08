@@ -18,14 +18,19 @@ import {
   Plus,
   Send,
   Skeleton,
+  scrollFadeAttributes,
+  scrollFadeClass,
   Tooltip,
   toast,
+  useScrollEdges,
 } from '@sim/emcn'
 import { MoreHorizontal, PanelLeft, Pin, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -42,7 +47,6 @@ import {
 } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -51,21 +55,14 @@ const logger = createLogger('WorkspaceHeader')
  * list viewport to exactly this many rows — so the sixth workspace is the one that
  * both fills the viewport and brings in search.
  *
- * The viewport's `max-h-[190px]` is derived from it: 6 rows at `chipGeometryClass`'s
- * 30px plus the 2px `gap-0.5` between them (6 * 30 + 5 * 2). Tailwind arbitrary
- * values must be statically analyzable, so the arithmetic cannot live in the class —
- * change the two together.
+ * The viewport's `max-h-[200px]` is derived from it: 6 rows at `chipGeometryClass`'s
+ * 30px plus the 2px `gap-0.5` between them (6 * 30 + 5 * 2), plus the list's own
+ * `pt-1.5 pb-1` (6 + 4) — the gaps to the search field and the rule, carried as
+ * the scroll box's padding so rows scroll through them under the edge fade.
+ * Tailwind arbitrary values must be statically analyzable, so the arithmetic
+ * cannot live in the class — change them together.
  */
 const WORKSPACE_SEARCH_THRESHOLD = 6
-
-/**
- * Derives the single-letter avatar initial for a workspace, ignoring the word
- * "workspace" in the name (e.g. "Acme Workspace" → "A").
- */
-function getWorkspaceInitial(name: string | undefined): string {
-  const stripped = (name ?? '').replace(/workspace/gi, '').trim()
-  return (stripped[0] || name?.[0] || 'W').toUpperCase()
-}
 
 interface DisabledReasonTooltipProps {
   reason: string | null
@@ -193,6 +190,13 @@ function WorkspaceHeaderImpl({
   const renameInputRef = useRef<HTMLInputElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const workspaceListRef = useRef<HTMLDivElement>(null)
+  /**
+   * Held in state as well as the ref: the list lives in the menu's portal, which
+   * Radix mounts a commit after the menu opens, so the edge hook has to be handed
+   * the element itself to pick it up.
+   */
+  const [workspaceListElement, setWorkspaceListElement] = useState<HTMLDivElement | null>(null)
+  const listEdges = useScrollEdges(workspaceListElement)
 
   const [workspaceSearch, setWorkspaceSearch] = useState('')
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
@@ -452,45 +456,32 @@ function WorkspaceHeaderImpl({
   return (
     <div className='min-w-0 flex-1'>
       {isMounted && isCollapsed ? (
-        <button
-          type='button'
+        <Chip
           aria-label='Expand sidebar'
           onClick={onExpandSidebar}
-          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
-        >
-          <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
-            {activeWorkspaceFull?.logoUrl ? (
-              <>
-                <img
-                  src={activeWorkspaceFull.logoUrl}
-                  alt={activeWorkspaceFull.name || 'Workspace logo'}
-                  className='size-[16px] rounded-sm object-cover group-hover:invisible'
-                />
-                <PanelLeft
-                  aria-hidden
-                  className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
-                />
-              </>
-            ) : activeWorkspace ? (
-              <>
-                <div
-                  className='flex size-[16px] items-center justify-center rounded-sm text-[9px] text-white leading-none group-hover:invisible'
-                  style={{
-                    backgroundColor: activeWorkspaceFull?.color ?? 'var(--brand-accent)',
-                  }}
-                >
-                  {workspaceInitial}
-                </div>
-                <PanelLeft
-                  aria-hidden
-                  className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
-                />
-              </>
-            ) : (
-              <Skeleton className='size-[16px] rounded-sm' />
-            )}
-          </div>
-        </button>
+          fullWidth
+          className={SIDEBAR_RAIL_CHIP_CLASS}
+          leftAdornment={
+            <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
+              {activeWorkspace ? (
+                <>
+                  <IdentityTile
+                    initial={workspaceInitial}
+                    logoUrl={activeWorkspaceFull?.logoUrl}
+                    alt={activeWorkspaceFull?.name || 'Workspace logo'}
+                    className='group-hover:invisible'
+                  />
+                  <PanelLeft
+                    aria-hidden
+                    className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
+                  />
+                </>
+              ) : (
+                <Skeleton className='size-[16px] rounded-sm' />
+              )}
+            </div>
+          }
+        />
       ) : isMounted && isWorkspaceReady ? (
         <DropdownMenu
           open={isWorkspaceMenuOpen}
@@ -516,47 +507,25 @@ function WorkspaceHeaderImpl({
           }}
         >
           <DropdownMenuTrigger asChild>
-            <button
-              type='button'
+            <Chip
               aria-label='Switch workspace'
-              className={cn(chipVariants(), 'min-w-0 max-w-full')}
+              className='min-w-0 max-w-full'
               onContextMenu={(e) => {
                 if (activeWorkspaceFull) {
                   handleContextMenu(e, activeWorkspaceFull)
                 }
               }}
+              leftAdornment={
+                <IdentityTile
+                  initial={workspaceInitial}
+                  logoUrl={activeWorkspaceFull.logoUrl}
+                  alt={activeWorkspaceFull.name || 'Workspace logo'}
+                />
+              }
+              rightAdornment={activeWorkspace?.name ? <ChipChevronDown /> : undefined}
             >
-              {activeWorkspaceFull ? (
-                activeWorkspaceFull.logoUrl ? (
-                  <img
-                    src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || 'Workspace logo'}
-                    className='size-[16px] shrink-0 rounded-sm object-cover'
-                  />
-                ) : (
-                  <div
-                    className='flex size-[16px] shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
-                    style={{
-                      backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
-                    }}
-                  >
-                    {workspaceInitial}
-                  </div>
-                )
-              ) : (
-                <Skeleton className='size-[16px] shrink-0 rounded-sm' />
-              )}
-              {!isCollapsed && activeWorkspace?.name && (
-                <>
-                  <OverflowText
-                    label={activeWorkspace.name}
-                    className={cn('flex-1', chipContentLabelClass)}
-                    focusTarget='nearest-interactive'
-                  />
-                  <ChipChevronDown />
-                </>
-              )}
-            </button>
+              {activeWorkspace?.name}
+            </Chip>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'
@@ -566,12 +535,7 @@ function WorkspaceHeaderImpl({
                still bounded by the space Radix measured — at six rows the menu is tall
                enough that a short viewport would otherwise push the footer actions off
                screen with nothing able to scroll to them. */
-            className='flex max-h-[var(--radix-dropdown-menu-content-available-height,400px)] flex-col overflow-y-auto'
-            style={{
-              width: `${SIDEBAR_WIDTH.DEFAULT}px`,
-              maxWidth: 'calc(100vw - 24px)',
-            }}
-            onCloseAutoFocus={(e) => e.preventDefault()}
+            className='flex max-h-[var(--radix-dropdown-menu-content-available-height,400px)] w-64 max-w-[calc(100vw-24px)] flex-col overflow-y-auto'
           >
             {isWorkspacesLoading ? (
               <div className='px-2 py-[5px] text-[var(--text-secondary)] text-caption'>
@@ -617,12 +581,20 @@ function WorkspaceHeaderImpl({
                         if (target) onWorkspaceSwitch(target)
                       }
                     }}
-                    className='mb-1.5'
                   />
                 )}
+                {/** The list owns the gap below search, when shown, and above the separator. */}
                 <div
-                  ref={workspaceListRef}
-                  className='-mx-1.5 flex max-h-[190px] flex-col gap-0.5 overflow-y-auto px-1.5'
+                  ref={(node) => {
+                    workspaceListRef.current = node
+                    setWorkspaceListElement(node)
+                  }}
+                  className={cn(
+                    scrollFadeClass,
+                    '-mx-1.5 flex max-h-[200px] flex-col gap-0.5 overflow-y-auto px-1.5 pb-1',
+                    showSearch && 'pt-1.5'
+                  )}
+                  {...scrollFadeAttributes(listEdges)}
                 >
                   {filteredWorkspaces.length === 0 && workspaceSearch && (
                     <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
@@ -657,22 +629,11 @@ function WorkspaceHeaderImpl({
                       >
                         {editingWorkspaceId === workspace.id ? (
                           <div className={chipVariants({ active: true, fullWidth: true })}>
-                            {workspace.logoUrl ? (
-                              <img
-                                src={workspace.logoUrl}
-                                alt={workspace.name || 'Workspace logo'}
-                                className='size-[16px] shrink-0 rounded-sm object-cover'
-                              />
-                            ) : (
-                              <div
-                                className='flex size-[16px] shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
-                                style={{
-                                  backgroundColor: workspace.color ?? 'var(--brand-accent)',
-                                }}
-                              >
-                                {initial}
-                              </div>
-                            )}
+                            <IdentityTile
+                              initial={initial}
+                              logoUrl={workspace.logoUrl}
+                              alt={workspace.name || 'Workspace logo'}
+                            />
                             <input
                               ref={(el) => {
                                 renameInputRef.current = el
@@ -749,22 +710,11 @@ function WorkspaceHeaderImpl({
                             }}
                             onContextMenu={(e) => handleContextMenu(e, workspace)}
                           >
-                            {workspace.logoUrl ? (
-                              <img
-                                src={workspace.logoUrl}
-                                alt={workspace.name || 'Workspace logo'}
-                                className='size-[16px] shrink-0 rounded-sm object-cover'
-                              />
-                            ) : (
-                              <div
-                                className='flex size-[16px] shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
-                                style={{
-                                  backgroundColor: workspace.color ?? 'var(--brand-accent)',
-                                }}
-                              >
-                                {initial}
-                              </div>
-                            )}
+                            <IdentityTile
+                              initial={initial}
+                              logoUrl={workspace.logoUrl}
+                              alt={workspace.name || 'Workspace logo'}
+                            />
                             <OverflowText
                               label={workspace.name}
                               className='flex-1 text-[var(--text-body)] text-sm'
@@ -811,7 +761,7 @@ function WorkspaceHeaderImpl({
                   })}
                 </div>
 
-                <DropdownMenuSeparator className='mx-0' />
+                <DropdownMenuSeparator className='mx-0 mt-0' />
 
                 <div className='flex flex-col gap-0.5'>
                   <DisabledReasonTooltip reason={createWorkspaceDisabledReason}>
@@ -835,23 +785,25 @@ function WorkspaceHeaderImpl({
                       New workspace
                     </Chip>
                   </DisabledReasonTooltip>
-                  <DisabledReasonTooltip reason={inviteDisabledReason}>
-                    <Chip
-                      leftIcon={Send}
-                      onClick={() => {
-                        setIsWorkspaceMenuOpen(false)
-                        if (isInvitationsDisabled) {
-                          if (billingEnabled) navigateToSettings({ section: 'billing' })
-                          return
-                        }
-                        setIsInviteModalOpen(true)
-                      }}
-                      fullWidth
-                      className='select-none'
-                    >
-                      Invite teammates
-                    </Chip>
-                  </DisabledReasonTooltip>
+                  {userPermissions.canAdmin && (
+                    <DisabledReasonTooltip reason={inviteDisabledReason}>
+                      <Chip
+                        leftIcon={Send}
+                        onClick={() => {
+                          setIsWorkspaceMenuOpen(false)
+                          if (isInvitationsDisabled) {
+                            if (billingEnabled) navigateToSettings({ section: 'billing' })
+                            return
+                          }
+                          setIsInviteModalOpen(true)
+                        }}
+                        fullWidth
+                        className='select-none'
+                      >
+                        Invite teammates
+                      </Chip>
+                    </DisabledReasonTooltip>
+                  )}
                   <ViewInvitationsMenuItem
                     onOpen={() => {
                       setIsWorkspaceMenuOpen(false)
@@ -873,19 +825,12 @@ function WorkspaceHeaderImpl({
           className={cn(chipGeometryClass, isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full')}
           disabled
         >
-          {activeWorkspaceFull?.logoUrl ? (
-            <img
-              src={activeWorkspaceFull.logoUrl}
-              alt={activeWorkspaceFull.name || 'Workspace logo'}
-              className='size-[16px] shrink-0 rounded-sm object-cover'
+          {activeWorkspace ? (
+            <IdentityTile
+              initial={workspaceInitial}
+              logoUrl={activeWorkspaceFull?.logoUrl}
+              alt={activeWorkspaceFull?.name || 'Workspace logo'}
             />
-          ) : activeWorkspace ? (
-            <div
-              className='flex size-[16px] shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
-              style={{ backgroundColor: activeWorkspaceFull?.color ?? 'var(--brand-accent)' }}
-            >
-              {workspaceInitial}
-            </div>
           ) : (
             <Skeleton className='size-[16px] shrink-0 rounded-sm' />
           )}

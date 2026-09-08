@@ -108,6 +108,30 @@ describe('Azure Blob Storage Client', () => {
   })
 
   describe('uploadToBlob', () => {
+    it('adds an if-none-match precondition for an immutable upload', async () => {
+      mockUpload.mockResolvedValueOnce({})
+
+      await uploadToBlob(
+        Buffer.from('new'),
+        'kb/new.txt',
+        'text/plain',
+        undefined,
+        undefined,
+        true,
+        { uploadId: 'attempt-1' },
+        true
+      )
+
+      expect(mockUpload).toHaveBeenCalledWith(
+        Buffer.from('new'),
+        3,
+        expect.objectContaining({
+          conditions: { ifNoneMatch: '*' },
+          metadata: expect.objectContaining({ uploadId: 'attempt-1' }),
+        })
+      )
+    })
+
     it('should upload a file to Azure Blob Storage', async () => {
       const testBuffer = Buffer.from('test file content')
       const fileName = 'test-file.txt'

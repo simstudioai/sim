@@ -18,6 +18,14 @@ import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
+  recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
+  waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
+}))
+
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
  * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
@@ -196,6 +204,27 @@ describe('Knowledge Search Utils', () => {
   })
 
   describe('handleTagAndVectorSearch', () => {
+    it('returns only bounded ranked rows without first materializing every matching tag ID', async () => {
+      resetDbChainMock()
+      queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
+
+      const results = await handleTagAndVectorSearch({
+        knowledgeBaseIds: ['kb-1', 'kb-2'],
+        access: WORKSPACE_ACCESS_SCOPE,
+        topK: 2,
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' },
+        ],
+        queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
+        distanceThreshold: 0.8,
+      })
+
+      expect(results.map((row) => row.id)).toEqual(['first', 'second'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.select.mock.calls[0][0]).toHaveProperty('distance')
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+    })
+
     it('should throw error when no filters provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],

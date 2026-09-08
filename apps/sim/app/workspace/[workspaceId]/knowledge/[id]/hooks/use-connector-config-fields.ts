@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
@@ -9,6 +10,7 @@ export type ConfigFieldMap = Record<string, ConfigFieldValue>
 
 export interface UseConnectorConfigFieldsOptions {
   connectorConfig: ConnectorMeta | null
+  accessMode?: ConnectorAccessMode
   initialSourceConfig?: ConfigFieldMap
   initialCanonicalModes?: Record<string, 'basic' | 'advanced'>
 }
@@ -69,25 +71,38 @@ function isValuePopulated(value: ConfigFieldValue): boolean {
  */
 export function useConnectorConfigFields({
   connectorConfig,
+  accessMode = 'workspace',
   initialSourceConfig,
   initialCanonicalModes,
 }: UseConnectorConfigFieldsOptions): UseConnectorConfigFieldsResult {
   const [sourceConfig, setSourceConfig] = useState<ConfigFieldMap>(() => initialSourceConfig ?? {})
-  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>(
-    () => initialCanonicalModes ?? {}
-  )
+  const [selectedCanonicalModes, setCanonicalModes] = useState<
+    Record<string, 'basic' | 'advanced'>
+  >(() => initialCanonicalModes ?? {})
 
   const canonicalGroups = useMemo(() => {
     const groups = new Map<string, ConnectorConfigField[]>()
     if (!connectorConfig) return groups
     for (const field of connectorConfig.configFields) {
+      if (accessMode === 'members' && field.hideInMemberMode) continue
       if (!field.canonicalParamId) continue
       const existing = groups.get(field.canonicalParamId)
       if (existing) existing.push(field)
       else groups.set(field.canonicalParamId, [field])
     }
     return groups
-  }, [connectorConfig])
+  }, [connectorConfig, accessMode])
+
+  const canonicalModes = useMemo(() => {
+    const modes = { ...selectedCanonicalModes }
+    for (const [canonicalId, fields] of canonicalGroups) {
+      const selected = modes[canonicalId] ?? 'basic'
+      modes[canonicalId] = fields.some((field) => field.mode === selected)
+        ? selected
+        : (fields[0]?.mode ?? 'basic')
+    }
+    return modes
+  }, [selectedCanonicalModes, canonicalGroups])
 
   const fieldsById = useMemo(() => {
     const map = new Map<string, ConnectorConfigField>()
@@ -137,11 +152,12 @@ export function useConnectorConfigFields({
 
   const isFieldVisible = useCallback(
     (field: ConnectorConfigField): boolean => {
+      if (accessMode === 'members' && field.hideInMemberMode) return false
       if (!field.canonicalParamId || !field.mode) return true
       const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
       return field.mode === activeMode
     },
-    [canonicalModes]
+    [canonicalModes, accessMode]
   )
 
   const isFieldPopulated = useCallback(
@@ -150,23 +166,26 @@ export function useConnectorConfigFields({
     [sourceConfig]
   )
 
-  const handleFieldChange = (fieldId: string, value: ConfigFieldValue) => {
-    setSourceConfig((prev) => {
-      const next: ConfigFieldMap = { ...prev, [fieldId]: value }
-      const toClear = dependentFieldIds.get(fieldId)
-      if (toClear) {
-        for (const depId of toClear) next[depId] = emptyValue(fieldsById.get(depId))
-      }
-      return next
-    })
-  }
+  const handleFieldChange = useCallback(
+    (fieldId: string, value: ConfigFieldValue) => {
+      setSourceConfig((prev) => {
+        const next: ConfigFieldMap = { ...prev, [fieldId]: value }
+        const toClear = dependentFieldIds.get(fieldId)
+        if (toClear) {
+          for (const depId of toClear) next[depId] = emptyValue(fieldsById.get(depId))
+        }
+        return next
+      })
+    },
+    [dependentFieldIds, fieldsById]
+  )
 
-  const toggleCanonicalMode = (canonicalId: string) => {
+  const toggleCanonicalMode = useCallback((canonicalId: string) => {
     setCanonicalModes((prev) => ({
       ...prev,
       [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
     }))
-  }
+  }, [])
 
   const resolveSourceConfig = useCallback((): Record<string, unknown> => {
     const resolved: Record<string, unknown> = {}

@@ -1,13 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
+import { executeCopilotCredentialUseCase } from '@/lib/copilot/application/execute-credential-use-case'
 import type { CopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
+import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
 import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,
 } from '@/lib/oauth/token-resolution'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('ExecutorCredentialToken')
 
@@ -52,6 +55,23 @@ export async function resolveExecutorCredentialToken(
     executorDelegationOrigin,
     copilotExecutionContext,
   } = params
+
+  if (copilotExecutionContext?.requestMode === 'assistant') {
+    if (!userId || userId !== copilotExecutionContext.userId || executorDelegationOrigin) {
+      throw new Error('Assistant credential use requires the authenticated person for this turn.')
+    }
+    const tool = toolId ? getToolMetadata(toolId) : undefined
+    if (!tool?.oauth?.required || !copilotExecutionContext.workspaceId || params.impersonateEmail) {
+      throw new Error(
+        'Assistant requires your own connected account and cannot impersonate another user.'
+      )
+    }
+    await executeCopilotCredentialUseCase(copilotExecutionContext, authorizePersonalCredential, {
+      workspaceId: copilotExecutionContext.workspaceId,
+      credentialId,
+      expectedProviderId: tool.oauth.provider,
+    })
+  }
 
   if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
     throw new Error('Managed credential delegation is missing current workflow authority')

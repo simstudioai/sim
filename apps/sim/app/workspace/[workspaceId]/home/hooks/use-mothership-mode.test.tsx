@@ -7,13 +7,24 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipMode } from '@/app/workspace/[workspaceId]/home/search-params'
 
-const { mockMemberAccessAvailable } = vi.hoisted(() => ({
+const { mockMemberAccessAvailable, history } = vi.hoisted(() => ({
   mockMemberAccessAvailable: vi.fn(() => true),
+  history: {
+    messages: [] as { role: 'user' | 'assistant'; requestMode?: 'agent' | 'assistant' }[],
+  },
 }))
 const mockUrlUpdate = vi.fn<(event: UrlUpdateEvent) => void>()
 
 vi.mock('@/hooks/use-member-access', () => ({
   useMemberAccessAvailable: () => mockMemberAccessAvailable(),
+}))
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ workspaceId: 'workspace-1', chatId: 'chat-1' }),
+  usePathname: () => '/workspace/workspace-1/home',
+  useRouter: () => ({ push: vi.fn() }),
+}))
+vi.mock('@/hooks/queries/mothership-chats', () => ({
+  useMothershipChatHistory: () => ({ data: history }),
 }))
 
 import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
@@ -32,6 +43,10 @@ function mount(searchParams = '') {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  navigate(searchParams)
+}
+
+function navigate(searchParams: string) {
   act(() =>
     root?.render(
       <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mockUrlUpdate}>
@@ -57,6 +72,7 @@ async function setMode(next: MothershipMode) {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   mockMemberAccessAvailable.mockReturnValue(true)
+  history.messages = []
   mockUrlUpdate.mockClear()
 })
 
@@ -83,6 +99,62 @@ describe('useMothershipMode', () => {
     expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.get('mode')).toBe('search')
   })
 
+  it.each([
+    ['agent', 'assistant', 'assistant'],
+    ['assistant', 'agent', 'build'],
+  ] as const)('resumes the latest user mode, %s then %s', (first, last, expected) => {
+    history.messages = [
+      { role: 'user', requestMode: first },
+      { role: 'user', requestMode: last },
+      { role: 'assistant', requestMode: first },
+    ]
+    mount()
+    expect(mode()).toBe(expected)
+    expect(mockUrlUpdate).not.toHaveBeenCalled()
+  })
+
+  it.each(['build', 'search', 'assistant'] as const)(
+    'respects explicit URL mode %s on reload',
+    (explicit) => {
+      history.messages = [{ role: 'user', requestMode: 'assistant' }]
+      mount(`?mode=${explicit}`)
+      expect(mode()).toBe(explicit)
+    }
+  )
+
+  it('opens a query-only link in Search without writing a mode or message', () => {
+    mount('?q=budget')
+    expect(mode()).toBe('search')
+    expect(mockUrlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps explicit Build even when the URL also contains a query', () => {
+    mount('?mode=build&q=budget')
+    expect(mode()).toBe('build')
+  })
+
+  it('follows back and forward URL changes without overriding them from history', () => {
+    history.messages = [{ role: 'user', requestMode: 'assistant' }]
+    mount('?mode=build')
+    expect(mode()).toBe('build')
+    navigate('?mode=search&q=budget')
+    expect(mode()).toBe('search')
+    navigate('?mode=build')
+    expect(mode()).toBe('build')
+    navigate('')
+    expect(mode()).toBe('assistant')
+    expect(mockUrlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the selected mode when an earlier in-flight turn finishes persisting', async () => {
+    history.messages = [{ role: 'user', requestMode: 'agent' }]
+    mount()
+    await setMode('search')
+    history.messages = [...history.messages, { role: 'user', requestMode: 'assistant' }]
+    navigate('?mode=search')
+    expect(mode()).toBe('search')
+  })
+
   describe('without per-member access', () => {
     beforeEach(() => {
       mockMemberAccessAvailable.mockReturnValue(false)
@@ -107,7 +179,7 @@ describe('useMothershipMode', () => {
       await setMode('build')
 
       expect(mode()).toBe('build')
-      expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe('')
+      expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe('mode=build')
     })
   })
 })

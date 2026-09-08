@@ -5,6 +5,10 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import {
+  isAssistantIntegrationParameter,
+  isAssistantIntegrationTool,
+} from '@/lib/copilot/assistant/tool-policy'
 import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
@@ -17,22 +21,25 @@ import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('CopilotChatPayload')
 const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
 const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES = 500
+const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_BYTES = 32 * 1024 * 1024
 
 interface BuildPayloadParams {
   message: string
   workflowId?: string
   workflowName?: string
   workspaceId?: string
+  organizationId?: string
   userId: string
   userMessageId: string
   mode: string
@@ -49,6 +56,7 @@ interface BuildPayloadParams {
   chatId?: string
   prefetch?: boolean
   implicitFeedback?: string
+  assistantSearch?: WorkspaceSearchFilters
   workspaceContext?: string
   vfs?: VfsSnapshotV1
   userPermission?: string
@@ -96,15 +104,28 @@ export interface ToolSchema {
 
 interface BuildIntegrationToolSchemasOptions {
   schemaSurface?: 'default' | 'copilot'
+  personalAccountsOnly?: boolean
 }
 
-interface IntegrationToolSchemaCacheEntry {
-  promise: Promise<ToolSchema[]>
+interface IntegrationToolSchemaBuildContext {
+  userId: string
+  options: Required<BuildIntegrationToolSchemasOptions>
+  vis: BlockVisibilityState | null
+  permissionConfig: IntegrationGateConfig | null
 }
 
-const integrationToolSchemaCache = new LRUCache<string, IntegrationToolSchemaCacheEntry>({
+const integrationToolSchemaCache = new LRUCache<
+  string,
+  ToolSchema[],
+  IntegrationToolSchemaBuildContext
+>({
   max: INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES,
+  maxSize: INTEGRATION_TOOL_SCHEMA_CACHE_MAX_BYTES,
+  sizeCalculation: (schemas) => Buffer.byteLength(JSON.stringify(schemas)),
   ttl: INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS,
+  ignoreFetchAbort: true,
+  fetchMethod: async (_key, _staleValue, { context }) =>
+    buildIntegrationToolSchemasUncached(context),
 })
 
 function getIntegrationToolSchemaCacheKey(
@@ -119,19 +140,6 @@ function getIntegrationToolSchemaCacheKey(
   // The gate signature does the same for permission-group policy, so an admin's
   // change takes effect on the next build rather than when the entry expires.
   return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature, gateSignature])
-}
-
-function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
-  return toolSchemas.map((tool) => {
-    const cloned: ToolSchema = {
-      ...tool,
-      input_schema: { ...tool.input_schema },
-    }
-    if (tool.params) cloned.params = { ...tool.params }
-    if (tool.outputs) cloned.outputs = structuredClone(tool.outputs)
-    if (tool.oauth) cloned.oauth = { ...tool.oauth }
-    return cloned
-  })
 }
 
 export function clearIntegrationToolSchemaCacheForTests(): void {
@@ -149,11 +157,11 @@ export function clearIntegrationToolSchemaCacheForTests(): void {
  */
 export async function buildIntegrationToolSchemas(
   userId: string,
-  messageId?: string,
   options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' },
   workspaceId?: string
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
+  const personalAccountsOnly = options.personalAccountsOnly ?? false
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
   // Resolved before the key, not inside the cached build, so the entry is keyed
   // to the policy it was produced under. The read this adds is cheap next to
@@ -168,125 +176,85 @@ export async function buildIntegrationToolSchemas(
   const cacheKey = getIntegrationToolSchemaCacheKey(
     userId,
     workspaceId,
-    schemaSurface,
+    personalAccountsOnly ? `${schemaSurface}:personal` : schemaSurface,
     visibilitySignature(vis),
     integrationGateSignature(permissionConfig)
   )
-  const cached = integrationToolSchemaCache.get(cacheKey)
-  if (cached) {
-    return cloneToolSchemas(await cached.promise)
-  }
-
-  const promise = buildIntegrationToolSchemasUncached(
-    userId,
-    messageId,
-    { schemaSurface },
-    workspaceId,
-    vis,
-    permissionConfig
-  ).catch((error) => {
-    integrationToolSchemaCache.delete(cacheKey)
-    throw error
+  const schemas = await integrationToolSchemaCache.fetch(cacheKey, {
+    context: { userId, options: { schemaSurface, personalAccountsOnly }, vis, permissionConfig },
   })
-
-  integrationToolSchemaCache.set(cacheKey, {
-    promise,
-  })
-
-  return cloneToolSchemas(await promise)
+  if (!schemas) throw new Error('Integration tool catalog is unavailable')
+  return structuredClone(schemas)
 }
 
-async function buildIntegrationToolSchemasUncached(
-  userId: string,
-  messageId: string | undefined,
-  options: Required<BuildIntegrationToolSchemasOptions>,
-  workspaceId?: string,
-  vis: BlockVisibilityState | null = null,
-  permissionConfig: IntegrationGateConfig | null = null
-): Promise<ToolSchema[]> {
-  const reqLogger = logger.withMetadata({ messageId })
+async function buildIntegrationToolSchemasUncached({
+  userId,
+  options,
+  vis,
+  permissionConfig,
+}: IntegrationToolSchemaBuildContext): Promise<ToolSchema[]> {
   const integrationTools: ToolSchema[] = []
+  const { createUserToolSchema } = await import('@/tools/params')
+  const subscription = await getHighestPrioritySubscription(userId)
+  const shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
 
-  try {
-    const { createUserToolSchema } = await import('@/tools/params')
-    let shouldAppendEmailTagline = false
-
-    try {
-      const subscription = await getHighestPrioritySubscription(userId)
-      shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
-    } catch (error) {
-      reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
-        userId,
-        error: toError(error).message,
-      })
-    }
-
-    const { tools: exposedTools } = projectIntegrationToolsForViewer(vis, permissionConfig)
-    for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
-      try {
-        const userSchema = createUserToolSchema(toolConfig, {
-          surface: options.schemaSurface,
-          // On hosted deployments the executor injects hosted keys server-side,
-          // so the gateway schema must not force the model to supply one (the
-          // model never sees the key either way).
-          hostedKeySupport: isHosted,
-        })
-        const catalogEntry = getToolEntry(toolId)
-        integrationTools.push({
-          name: toolId,
-          service,
-          operation,
-          description: getCopilotToolDescription(toolConfig, {
-            isHosted,
-            hostedApiKey: deriveHostedApiKeySupport(toolConfig.hosting),
-            fallbackName: toolId,
-            appendEmailTagline: shouldAppendEmailTagline,
-          }),
-          input_schema: { ...userSchema },
-          ...(toolConfig.outputs && {
-            outputs: Object.fromEntries(
-              Object.entries(toolConfig.outputs)
-                .filter(([, output]) => output != null)
-                .map(([key, output]) => [
-                  key,
-                  { type: output.type, description: output.description },
-                ])
-            ),
-          }),
-          defer_loading: true,
-          executeLocally:
-            catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-          ...(toolConfig.oauth?.required &&
-            isOAuthServiceDeploymentAvailable(toolConfig.oauth.provider) && {
-              oauth: {
-                required: true,
-                provider: toolConfig.oauth.provider,
-              },
-            }),
-        })
-      } catch (toolError) {
-        if (toolError instanceof EnvCapabilityConfigurationError) throw toolError
-        logger.warn(
-          messageId
-            ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
-            : 'Failed to build schema for tool, skipping',
-          {
-            toolId,
-            error: toError(toolError).message,
-          }
-        )
+  const { tools: exposedTools } = projectIntegrationToolsForViewer(vis, permissionConfig)
+  for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
+    const metadata = getToolMetadata(toolId)
+    if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
+    const userSchema = createUserToolSchema(toolConfig, {
+      surface: options.schemaSurface,
+      // On hosted deployments the executor injects hosted keys server-side,
+      // so the gateway schema must not force the model to supply one (the
+      // model never sees the key either way).
+      hostedKeySupport: isHosted,
+    })
+    if (options.personalAccountsOnly && metadata) {
+      for (const name of Object.keys(userSchema.properties ?? {})) {
+        if (!isAssistantIntegrationParameter(metadata, name)) {
+          delete userSchema.properties?.[name]
+          userSchema.required = userSchema.required?.filter((key: string) => key !== name)
+        }
+      }
+      if (metadata.personalToken) {
+        userSchema.properties ??= {}
+        userSchema.properties.credentialId = {
+          type: 'string',
+          description:
+            'ID of your connected personal account. Its token and GitLab host are supplied securely.',
+        }
+        userSchema.required = [...new Set([...(userSchema.required ?? []), 'credentialId'])]
       }
     }
-  } catch (error) {
-    if (error instanceof EnvCapabilityConfigurationError) throw error
-    logger.warn(
-      messageId
-        ? `Failed to build tool schemas [messageId:${messageId}]`
-        : 'Failed to build tool schemas',
-      {
-        error: toError(error).message,
-      }
-    )
+    const catalogEntry = getToolEntry(toolId)
+    integrationTools.push({
+      name: toolId,
+      service,
+      operation,
+      description: getCopilotToolDescription(toolConfig, {
+        isHosted,
+        hostedApiKey: deriveHostedApiKeySupport(toolConfig.hosting),
+        fallbackName: toolId,
+        appendEmailTagline: shouldAppendEmailTagline,
+      }),
+      input_schema: { ...userSchema },
+      ...(toolConfig.outputs && {
+        outputs: Object.fromEntries(
+          Object.entries(toolConfig.outputs)
+            .filter(([, output]) => output != null)
+            .map(([key, output]) => [key, { type: output.type, description: output.description }])
+        ),
+      }),
+      defer_loading: true,
+      executeLocally: catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
+      ...(toolConfig.oauth?.required &&
+        isOAuthServiceDeploymentAvailable(toolConfig.oauth.provider) && {
+          oauth: {
+            required: true,
+            provider: toolConfig.oauth.provider,
+          },
+        }),
+    })
   }
 
   return integrationTools
@@ -320,6 +288,7 @@ export async function buildCopilotRequestPayload(
 
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
+  const isAssistant = effectiveMode === 'assistant'
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
   // Tracking writes `workspace_files` rows, so it needs the same write grant the
@@ -330,7 +299,13 @@ export async function buildCopilotRequestPayload(
   // comparing — an unrecognized value must fail the gate, not rank below it.
   const canWriteWorkspaceFiles =
     isPermissionType(params.userPermission) && permissionSatisfies(params.userPermission, 'write')
-  if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
+  if (
+    !isAssistant &&
+    chatId &&
+    params.workspaceId &&
+    fileAttachments &&
+    fileAttachments.length > 0
+  ) {
     if (!canWriteWorkspaceFiles) {
       logger.warn('Dropping chat file attachments without workspace write access', {
         chatId,
@@ -405,26 +380,20 @@ export async function buildCopilotRequestPayload(
     }
   }
 
-  const allContexts = [...(contexts ?? []), ...uploadContexts]
+  const allContexts = isAssistant ? [] : [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
   let mothershipTools: ToolSchema[] = []
-  const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
-  // "superagent" is a legacy wire value for Direct Action mode; both modes
-  // execute connected-service operations through the main-agent gateway. An
-  // Ask turn keeps them too: it answers from knowledge first and reaches a
-  // connected service only when the indexed sources cannot answer.
-  if (effectiveMode === 'build' || effectiveMode === 'superagent' || effectiveMode === 'ask') {
+  if (!params.organizationId && (effectiveMode === 'build' || isAssistant)) {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
-      userMessageId,
-      { schemaSurface: 'copilot' },
+      { schemaSurface: 'copilot', personalAccountsOnly: isAssistant },
       params.workspaceId
     )
   }
 
-  if (params.workspaceId && params.mcpServerIds?.length) {
+  if (!isAssistant && params.workspaceId && params.mcpServerIds?.length) {
     mothershipTools = await buildTaggedMcpToolSchemas(
       userId,
       params.workspaceId,
@@ -434,13 +403,15 @@ export async function buildCopilotRequestPayload(
 
   return {
     message,
-    ...(workflowId ? { workflowId } : {}),
-    ...(params.workflowName ? { workflowName: params.workflowName } : {}),
+    ...(!isAssistant && workflowId ? { workflowId } : {}),
+    ...(!isAssistant && params.workflowName ? { workflowName: params.workflowName } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
+    ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
     ...(selectedModel ? { model: selectedModel } : {}),
     ...(provider ? { provider } : {}),
     mode: transportMode,
+    ...(isAssistant && params.assistantSearch ? { assistantSearch: params.assistantSearch } : {}),
     messageId: userMessageId,
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(chatId ? { chatId } : {}),
@@ -448,11 +419,11 @@ export async function buildCopilotRequestPayload(
     ...(implicitFeedback ? { implicitFeedback } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
-    ...(commands && commands.length > 0 ? { commands } : {}),
+    ...(!isAssistant && commands && commands.length > 0 ? { commands } : {}),
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
-    ...(params.vfs ? { vfs: params.vfs } : {}),
+    ...(!isAssistant && params.vfs ? { vfs: params.vfs } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
-    ...(params.entitlements?.length ? { entitlements: params.entitlements } : {}),
+    ...(!isAssistant && params.entitlements?.length ? { entitlements: params.entitlements } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.userMetadata &&
     (params.userMetadata.name || params.userMetadata.email || params.userMetadata.timezone)
@@ -461,10 +432,11 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-    ...(params.desktopLocalFilesystem || params.browser || params.terminalCapable
+    ...(!params.organizationId &&
+    ((!isAssistant && params.desktopLocalFilesystem) || params.browser || params.terminalCapable)
       ? {
           desktopCapabilities: {
-            ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
+            ...(!isAssistant && params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
             ...(params.browser ? { browser: true } : {}),
             ...(params.terminalCapable ? { terminal: true } : {}),
             ...(params.terminalCapable && params.terminals?.length

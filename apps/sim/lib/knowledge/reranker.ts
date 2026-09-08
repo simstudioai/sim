@@ -1,9 +1,25 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import {
+  type ProviderIdentity,
+  recordProviderCooldown,
+  waitForProviderAdmission,
+} from '@/lib/core/rate-limiter/provider-admission'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import {
+  attachRetryHeaders,
+  isRetryableError,
+  retryWithExponentialBackoff,
+} from '@/lib/knowledge/documents/utils'
 import {
   projectKnowledgeModelInput,
   projectKnowledgeModelInputs,
@@ -12,7 +28,7 @@ import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
 
 const logger = createLogger('Reranker')
 
-const RERANK_REQUEST_TIMEOUT_MS = 30_000
+const RERANK_OPERATION_TIMEOUT_MS = 30_000
 
 /**
  * Cohere bills per "search unit" = one query with up to 100 documents.
@@ -41,6 +57,7 @@ export interface RerankResponse<T extends RerankItem> {
 
 class RerankAPIError extends Error {
   public status: number
+  retryAfterMs?: number
   constructor(message: string, status: number) {
     super(message)
     this.name = 'RerankAPIError'
@@ -108,8 +125,10 @@ export async function rerank<T extends RerankItem>(
     workspaceId?: string | null
     /** User-supplied Cohere key from the Knowledge block field. Honored only on self-hosted. */
     apiKey?: string
+    signal?: AbortSignal
   }
 ): Promise<RerankResponse<T>> {
+  options.signal?.throwIfAborted()
   if (items.length === 0) return { results: [], isBYOK: false }
 
   if (!isSupportedRerankerModel(options.model)) {
@@ -125,11 +144,21 @@ export async function rerank<T extends RerankItem>(
   const modelQuery = projectKnowledgeModelInput(query)
   const documents = projectKnowledgeModelInputs(cappedItems.map((it) => it.text))
 
+  const identity: ProviderIdentity = {
+    operation: 'rerank',
+    providerId: 'cohere',
+    credentialFingerprint: sha256Hex(apiKey),
+  }
+  const deadlineAt = Date.now() + RERANK_OPERATION_TIMEOUT_MS
+  let attempt = 0
   const response = await retryWithExponentialBackoff(
-    async () => {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), RERANK_REQUEST_TIMEOUT_MS)
-
+    async (signal) => {
+      await waitForProviderAdmission({
+        ...identity,
+        signal,
+        maxWaitMs: Math.max(0, deadlineAt - Date.now()),
+      })
+      attempt += 1
       const res = await fetch('https://api.cohere.com/v2/rerank', {
         method: 'POST',
         headers: {
@@ -142,24 +171,45 @@ export async function rerank<T extends RerankItem>(
           documents,
           top_n: options.topN ?? cappedItems.length,
         }),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
+        signal,
+      })
 
       if (!res.ok) {
-        const errorText = await res.text()
-        throw new RerankAPIError(
-          `Cohere rerank failed: ${res.status} ${res.statusText} - ${errorText}`,
-          res.status
-        )
+        const error = new RerankAPIError(`Cohere rerank failed: ${res.status}`, res.status)
+        attachRetryHeaders(error, res.headers)
+        try {
+          if (res.status === 429) {
+            error.retryAfterMs = backoffWithJitter(
+              attempt,
+              parseRetryAfter(res.headers.get('retry-after'), Number.POSITIVE_INFINITY),
+              { baseMs: 500, maxMs: Number.MAX_SAFE_INTEGER }
+            )
+            await recordProviderCooldown(identity, error.retryAfterMs)
+          }
+          await readResponseTextWithLimit(res, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Cohere rerank error response',
+            signal,
+          })
+        } finally {
+          if (!res.bodyUsed) await res.body?.cancel().catch(() => undefined)
+        }
+        throw error
       }
-
-      return (await res.json()) as CohereRerankResponse
+      return (await readResponseJsonWithLimit(res, {
+        maxBytes: 1024 * 1024,
+        label: 'Cohere rerank response',
+        signal,
+      })) as CohereRerankResponse
     },
     {
       maxRetries: 3,
       initialDelayMs: 500,
       maxDelayMs: 5000,
+      retryBudgetMs: RERANK_OPERATION_TIMEOUT_MS,
+      signal: options.signal,
       retryCondition: (error: unknown) => {
+        if (options.signal?.aborted) return false
         if (error instanceof RerankAPIError) {
           return error.status === 429 || error.status >= 500
         }

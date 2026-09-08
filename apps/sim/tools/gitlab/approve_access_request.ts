@@ -10,6 +10,7 @@ export const gitlabApproveAccessRequestTool: ToolConfig<
   GitLabApproveAccessRequestResponse
 > = {
   id: 'gitlab_approve_access_request',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Approve Access Request',
   description: 'Approve a pending access request for a GitLab project or group',
   version: '1.0.0',

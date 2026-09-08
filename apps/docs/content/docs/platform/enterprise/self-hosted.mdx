@@ -91,7 +91,7 @@ Persist that value as `CRON_SECRET` on the app **and** on whatever calls these e
 <Callout type="warn">
   Both shipped deployments schedule the data-drain dispatcher and OAuth token cleanup, but **not** the three configurable data-retention endpoints. Setting `DATA_RETENTION_ENABLED=true` alone deletes no retained product data — those windows are evaluated only when one of the three endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
 
-  OAuth token cleanup continues when the global `oauth-provider` feature flag is off, so rows created while the provider was enabled do not become permanent. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for AppConfig and fallback configuration.
+  OAuth token cleanup runs independently of sign-in activity, removing expired and revoked credentials. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for provider configuration.
 </Callout>
 
 ```bash

@@ -7,6 +7,7 @@ import {
   createDurableSecretProvenanceRegistry,
   type DurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-enforcement'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -33,6 +34,7 @@ interface KnowledgeDocumentChunkInput {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
 }
 
 interface KnowledgeChunkInput extends KnowledgeDocumentChunkInput {
@@ -111,11 +113,15 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
     input: ListKnowledgeChunksInput
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
   async execute({ input, context }) {
+    if (input.requireEnabledDocument && !context.document.enabled) {
+      throw new OrchestrationError('not_found', 'Document not found')
+    }
     requireChunkReadable(context)
     const {
       knowledgeBaseId: _knowledgeBaseId,
       documentId,
       assertedWorkspaceId: _scope,
+      assertedOrganizationId: _organizationScope,
       ...filters
     } = input
     const result = await queryChunks(
@@ -159,6 +165,12 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     const userId = resolveKnowledgeAttributedUserId(principal, context)
     const provenance = input.resolveContentProvenance({ userId, workspaceId: context.workspaceId })
     if (provenance?.status === 'unknown') {
+      reportDurableSecretProvenanceRefusal({
+        surface: 'knowledge',
+        cause: 'knowledge-chunk-source-unavailable',
+        workspaceId: context.workspaceId,
+        resourceId: context.documentId,
+      })
       throw new OrchestrationError('validation', 'Knowledge chunk secret provenance is unavailable')
     }
     const registry = provenance
@@ -224,6 +236,12 @@ export const updateKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     const userId = resolveKnowledgeAttributedUserId(principal, context)
     const provenance = input.resolveContentProvenance({ userId, workspaceId: context.workspaceId })
     if (provenance?.status === 'unknown') {
+      reportDurableSecretProvenanceRefusal({
+        surface: 'knowledge',
+        cause: 'knowledge-chunk-source-unavailable',
+        workspaceId: context.workspaceId,
+        resourceId: context.documentId,
+      })
       throw new OrchestrationError('validation', 'Knowledge chunk secret provenance is unavailable')
     }
     const registry = provenance

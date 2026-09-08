@@ -2,18 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Chip,
   ChipConfirmModal,
+  ChipTag,
   chipContentIconClass,
-  chipIconSlotClass,
   chipVariants,
   cn,
   OverflowText,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
 } from '@sim/emcn'
-import { ChevronLeft } from '@sim/emcn/icons'
+import { ArrowUpRight, Building, ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
   type DesktopSettingsSurface,
+  getOrganizationSettingsHref,
   isSelfHostedOverrideEnabled,
   ORGANIZATION_PLANE_UNIFIED_SECTIONS,
 } from '@/components/settings/navigation'
@@ -32,6 +37,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { warmSettingsSectionQuery } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-query-warmers'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
@@ -39,7 +45,6 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
@@ -98,7 +103,10 @@ export function SettingsSidebar({
   const pendingLeave = useSettingsDirtyStore((s) => s.pendingLeave)
   const showDiscardDialog = pendingLeave !== null
 
-  const [hasOverflowTop, setHasOverflowTop] = useState(false)
+  const scrollEdges = useScrollEdges(scrollContainerRef, {
+    contentRef: scrollContentRef,
+    enabled: !isCollapsed,
+  })
   const [desktopSurfaces, setDesktopSurfaces] = useState<Record<DesktopSettingsSurface, boolean>>({
     settings: false,
     browser: false,
@@ -130,14 +138,16 @@ export function SettingsSidebar({
 
   const isSuperUser = session?.user?.role === 'admin'
 
-  const isSSOProviderOwner = useMemo(() => {
-    if (hosted) return null
-    if (!userId || isLoadingSSO) return null
-    return ssoProvidersData?.providers?.some((p) => p.userId === userId) || false
-  }, [hosted, userId, ssoProvidersData?.providers, isLoadingSSO])
+  const isSSOProviderOwner =
+    hosted || !userId || isLoadingSSO
+      ? null
+      : (ssoProvidersData?.providers?.some((provider) => provider.userId === userId) ?? false)
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (hostContext.hostOrganizationId && ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id)) {
+        return false
+      }
       if (item.requiresSelfHosted && hosted) {
         return false
       }
@@ -177,12 +187,6 @@ export function SettingsSidebar({
         return false
       }
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
-        return false
-      }
-      if (
-        item.id === 'credential-groups' &&
-        (!hostContext.features?.credentialGroups || !canAdminWorkspace)
-      ) {
         return false
       }
       if (item.id === 'custom-blocks' && !hostContext.hostOrganizationId) {
@@ -261,14 +265,12 @@ export function SettingsSidebar({
     desktopSurfaces,
   ])
 
-  const activeSection = useMemo(() => {
-    const segments = pathname?.split('/') ?? []
-    const settingsIdx = segments.indexOf('settings')
-    if (settingsIdx !== -1 && segments[settingsIdx + 1]) {
-      return segments[settingsIdx + 1] as SettingsSection
-    }
-    return 'general'
-  }, [pathname])
+  const segments = pathname?.split('/') ?? []
+  const settingsIndex = segments.indexOf('settings')
+  const activeSection: SettingsSection =
+    settingsIndex !== -1 && segments[settingsIndex + 1]
+      ? (segments[settingsIndex + 1] as SettingsSection)
+      : 'general'
 
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
@@ -303,62 +305,41 @@ export function SettingsSidebar({
     })
   }, [])
 
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-
-    const updateScrollState = () => {
-      setHasOverflowTop(container.scrollTop > 1)
-    }
-
-    updateScrollState()
-    container.addEventListener('scroll', updateScrollState, { passive: true })
-    const observer = new ResizeObserver(updateScrollState)
-    observer.observe(container)
-    if (scrollContentRef.current) {
-      observer.observe(scrollContentRef.current)
-    }
-
-    return () => {
-      container.removeEventListener('scroll', updateScrollState)
-      observer.disconnect()
-    }
-  }, [isCollapsed])
-
   return (
     <>
-      {/* Back button */}
+      {/* The divider is the pinned block's bottom rule, not the scroll region's top one:
+          the region's edge fade masks its own first pixels, which would erase a rule
+          drawn there exactly when it should show. Same construction as the footer. */}
       <div
         className={cn(
           SIDEBAR_SECTION_GAP_CLASS,
           SIDEBAR_ITEM_GAP_CLASS,
           SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-          'flex shrink-0 flex-col px-2'
+          'flex shrink-0 flex-col border-b px-2 transition-colors duration-150',
+          !scrollEdges.top && 'border-transparent'
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button
-            type='button'
+          <Chip
+            fullWidth
+            leftIcon={ChevronLeft}
             onClick={handleBack}
-            className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+            className={SIDEBAR_RAIL_CHIP_CLASS}
           >
-            {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
-            <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
-              <ChevronLeft className='size-[14px]' />
-            </span>
-            <span className='sidebar-collapse-hide text-[var(--text-body)]'>Back</span>
-          </button>
+            <span className='sidebar-collapse-hide'>Back</span>
+          </Chip>
         </SidebarTooltip>
       </div>
 
-      {/* Settings sections */}
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
           SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pb-2 transition-colors duration-150',
-          !hasOverflowTop && 'border-transparent'
+          SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+          scrollFadeClass,
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden'
         )}
+        {...scrollFadeAttributes(scrollEdges)}
       >
         <div ref={scrollContentRef} className='flex flex-col'>
           {sectionConfig
@@ -369,7 +350,13 @@ export function SettingsSidebar({
                 .filter((item) => item.section === key)
                 .sort((left, right) => left.order - right.order),
             }))
-            .filter(({ items }) => items.length > 0)
+            .filter(
+              ({ key, items }) =>
+                items.length > 0 ||
+                (key === 'organization' &&
+                  hostContext.hostOrganizationId &&
+                  hostContext.viewer.isHostOrganizationMember)
+            )
             .map(({ key, title, items: sectionItems }, index) => (
               <SidebarSection
                 key={key}
@@ -378,6 +365,37 @@ export function SettingsSidebar({
                 className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'shrink-0')}
               >
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                  {key === 'organization' &&
+                    hostContext.hostOrganizationId &&
+                    hostContext.viewer.isHostOrganizationMember && (
+                      <SidebarTooltip label='Organization' enabled={showCollapsedTooltips}>
+                        <SettingsIntentLink
+                          href={getOrganizationSettingsHref(
+                            hostContext.hostOrganizationId,
+                            'members'
+                          )}
+                          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+                          onNavigate={(event) => {
+                            if (!useSettingsDirtyStore.getState().isDirty) return
+                            event.preventDefault()
+                            const organizationId = hostContext.hostOrganizationId
+                            if (organizationId)
+                              requestLeave(() =>
+                                router.push(getOrganizationSettingsHref(organizationId, 'members'))
+                              )
+                          }}
+                        >
+                          <Building className={chipContentIconClass} />
+                          <OverflowText
+                            label='Organization'
+                            className='sidebar-collapse-hide text-[var(--text-body)]'
+                          />
+                          <ArrowUpRight
+                            className={cn('sidebar-collapse-hide ml-auto', chipContentIconClass)}
+                          />
+                        </SettingsIntentLink>
+                      </SidebarTooltip>
+                    )}
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
@@ -406,9 +424,12 @@ export function SettingsSidebar({
                           tooltipEnabled={!showCollapsedTooltips}
                         />
                         {isLocked && (
-                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          <ChipTag
+                            variant='mono'
+                            className='sidebar-collapse-hide ml-auto shrink-0'
+                          >
                             Max
-                          </span>
+                          </ChipTag>
                         )}
                       </>
                     )

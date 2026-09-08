@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 import {
@@ -86,6 +87,7 @@ export function describeMembership({
 /** An enrollment tab this surface opened that has not connected yet. */
 interface AwaitingEnrollment {
   since: number
+  tab: Window
   /**
    * The Sim Search source whose connect created the connector, so the source
    * can be told it is awaited before its membership row exists to look it up by.
@@ -141,8 +143,10 @@ export function useMemberEnrollment({
       setAwaitingSince((current) => {
         const next = new Map(
           [...current].filter(
-            ([id, { since }]) =>
-              !connectedRef.current.has(id) && now - since < AWAITING_CONNECTION_TIMEOUT_MS
+            ([id, { since, tab }]) =>
+              !tab.closed &&
+              !connectedRef.current.has(id) &&
+              now - since < AWAITING_CONNECTION_TIMEOUT_MS
           )
         )
         return next.size === current.size ? current : next
@@ -158,7 +162,7 @@ export function useMemberEnrollment({
   /** Opens the tab inside the click, then sends it wherever `start` mints. */
   const openEnrollment = (
     start: (handlers: {
-      onSuccess: (url: string, connectorId: string, connectorType?: string) => void
+      onSuccess: (url: string, connectorId: string, connectorType?: string) => boolean
       onError: () => void
     }) => void
   ) => {
@@ -171,13 +175,16 @@ export function useMemberEnrollment({
     setPopupBlocked(false)
     start({
       onSuccess: (url, connectorId, connectorType) => {
+        if (tab.closed) return false
         tab.location.href = url
         setAwaitingSince((current) =>
           new Map(current).set(connectorId, {
             since: Date.now(),
+            tab,
             connectorType: connectorType ?? null,
           })
         )
+        return true
       },
       onError: () => tab.close(),
     })
@@ -203,15 +210,21 @@ export function useMemberEnrollment({
    * creates the connector.
    */
   const connectSource = (
-    workspaceId: string,
+    owner: string | ResourceScope,
     connectorType: string,
     sourceConfig?: Record<string, string>
   ) =>
     openEnrollment(({ onSuccess, onError }) => {
       sourceConnection.mutate(
-        { workspaceId, connectorType, sourceConfig },
         {
-          onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId, connectorType),
+          ...(typeof owner === 'string' ? { workspaceId: owner } : resourceScopeFields(owner)),
+          connectorType,
+          sourceConfig,
+        },
+        {
+          onSuccess: ({ url, connectorId }) => {
+            if (onSuccess(url, connectorId, connectorType)) setSetupConnector(null)
+          },
           onError: (err) => {
             onError()
             logger.error('Failed to connect a Sim Search source', { error: err.message })
@@ -228,7 +241,7 @@ export function useMemberEnrollment({
    * otherwise create it and enroll in one step.
    */
   const connectSearchSource = (
-    workspaceId: string,
+    owner: string | ResourceScope,
     connector: SearchConnector,
     connection: WorkspaceMemberConnector | undefined
   ) => {
@@ -240,7 +253,7 @@ export function useMemberEnrollment({
       setSetupConnector(connector)
       return
     }
-    connectSource(workspaceId, connector.type)
+    connectSource(owner, connector.type)
   }
 
   const isAwaiting = (connectorId: string) =>
@@ -267,7 +280,7 @@ export function useMemberEnrollment({
     closeSetup: () => setSetupConnector(null),
     isAwaiting,
     isAwaitingSource,
-    isPending: latest.isPending,
+    isPending: enrollment.isPending || sourceConnection.isPending,
     error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (latest.error?.message ?? null),
   }
 }

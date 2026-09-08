@@ -10,6 +10,7 @@ import { replaceTerminalAsyncToolCallResult } from '@/lib/copilot/async-runs/rep
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { waitForToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import {
+  type ClientToolUnsealFailureReason,
   unsealClientToolCompletion,
   unsealClientToolContext,
 } from '@/lib/copilot/request/tools/client-completion-seal.server'
@@ -91,6 +92,8 @@ export async function waitForClientToolCompletion({
   const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
+  let completionFailure: ClientToolUnsealFailureReason | undefined
+  let contextFailure: ClientToolUnsealFailureReason | undefined
   try {
     /**
      * A tool invoked without a run id has no binding to unseal against, which is a configuration
@@ -101,12 +104,25 @@ export async function waitForClientToolCompletion({
     const [sealedContent, sealedContext] =
       sealingAttempted && binding && registry
         ? await Promise.all([
-            unsealClientToolCompletion(completion.data, binding),
-            unsealClientToolContext(completion.data, binding, registry),
+            unsealClientToolCompletion(completion.data, binding, (reason) => {
+              completionFailure = reason
+            }),
+            unsealClientToolContext(completion.data, binding, registry, (reason) => {
+              contextFailure = reason
+            }),
           ])
         : [null, null]
     if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
+        if (sealingAttempted) {
+          /** The durable row is replaced below, so report the failing guard before it is lost. */
+          logger.error('Client tool provenance could not be restored', {
+            toolCallId,
+            runId,
+            ...(completionFailure ? { completionFailure } : {}),
+            ...(contextFailure ? { contextFailure } : {}),
+          })
+        }
         toolRegistry.markIncomplete(
           sealingAttempted ? 'client-tool-seal-failed' : 'client-tool-seal-absent'
         )
@@ -125,6 +141,11 @@ export async function waitForClientToolCompletion({
       }
     }
   } catch {
+    logger.error('Client tool provenance could not be restored', {
+      toolCallId,
+      runId,
+      cause: 'unexpected-unseal-error',
+    })
     toolRegistry?.markIncomplete('client-tool-seal-failed', {
       origin: 'copilotToolClient.sealedContext',
     })

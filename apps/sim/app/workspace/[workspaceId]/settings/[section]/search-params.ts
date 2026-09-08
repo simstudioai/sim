@@ -92,18 +92,6 @@ export const groupIdUrlKeys = {
   clearOnDefault: true,
 } as const
 
-/** `credential-group-id` deep-links Credential Groups to one collection's detail view. */
-export const credentialGroupIdParam = {
-  key: 'credential-group-id',
-  parser: parseAsString,
-} as const
-
-/** Opening a credential group is a destination; closing replaces the detail URL. */
-export const credentialGroupIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
 /** Active view inside a credential-group detail page. */
 export const credentialGroupTabParam = {
   key: 'credential-group-tab',

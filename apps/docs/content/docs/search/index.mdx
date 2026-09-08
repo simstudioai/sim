@@ -1,0 +1,100 @@
+---
+title: Search
+description: Connect your team's sources and search the documents each person can access
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Search brings your connected sources into one place. An organization admin adds a source and chooses what to include. Teammates then [connect their accounts](/search/connect-your-account) when the source requires it. Each person searches with their own access.
+
+## Add your first source
+
+<Steps>
+<Step>
+
+### Choose a source
+
+As an organization admin, open **Settings → Integrations → Providers**. Approve the provider for Sim Search, then select **Set up** beside it. Use its **Setup guide** for the provider's prerequisites.
+
+Approval lets members connect; it does not connect an account or start indexing. Slack also requires an admin to configure the organization's Slack app first.
+
+</Step>
+<Step>
+
+### Configure it once
+
+Choose the folders, repositories, calendars, spaces, or channels to include. Start with the defaults unless you need to narrow the scope. **Document details** contains optional metadata.
+
+Select **Connect & Sync** for an administrator connection, or **Add source** for member accounts. Creating a source does not invite people or authorize their accounts.
+
+</Step>
+<Step>
+
+### Connect and search
+
+In **Integrations**, select **Connect account** if prompted—even if you created the source. Complete authorization in the new tab, then return to the source list. Open **Search** in the organization sidebar to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
+
+</Step>
+</Steps>
+
+<Image src="/static/search/add-source.jpg" alt="Sim Search source catalog with Set up actions" width={1280} height={720} />
+
+Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue.
+
+## Choose the right connection method
+
+Most sources use member accounts. Google Drive and Confluence also support a central administrator connection; GitLab requires an administrator token for a self-managed instance.
+
+| Method | What the admin does | What teammates do |
+| --- | --- | --- |
+| **Member accounts** | Sets the source's filters once. | Connect their own accounts. Sim lists documents using each member's access. |
+| **Service account** (Drive) / **Admin or service account** (Confluence) | Connects an account that can read the content and the source's permissions or directory. | Join the organization with a matching verified identity. Confluence also requires each person to connect their account. |
+| **Administrator token** (GitLab) | Connects a self-managed instance administrator token and selects projects to index. | Join the organization with a verified Sim email matching GitLab. No personal connection is needed. |
+
+Some member sources offer **Sync documents with**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. **Browse with** only helps an admin pick source options—it does not enroll that account for Search.
+
+<Callout type="info">
+  An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules. It also does not automatically discover every employee's data: the indexing account must be able to read the configured content.
+</Callout>
+
+## Connector guides
+
+| Source | Content | Connection in Search |
+| --- | --- | --- |
+| [Confluence](/search/confluence) | Pages and blog posts | Admin/service account or member accounts; each teammate connects |
+| [GitHub](/search/github) | Repository text files | GitHub App installation plus each member's authorization |
+| [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed instance administrator token; no member connection |
+| [Gmail](/search/gmail) | Email thread text | Each member's Gmail account |
+| [Google Calendar](/search/google-calendar) | Calendar events | Each member's Google Calendar account |
+| [Google Drive](/search/google-drive) | Supported Drive files | Delegated service account or member accounts |
+| [Jira](/search/jira) | Issues | Each member's Jira account |
+| [Slack](/search/slack) | Channel messages and threads | Slack app installation plus each member's authorization |
+
+## Bring your team
+
+Invite people through the organization's **Settings → Members**, or use your organization's [SSO provisioning](/platform/enterprise/sso). Share the organization's **Home** or **Integrations** URL. People need their own Sim account and organization membership; they do not need access to a workspace. Connecting an external account alone does not grant organization membership.
+
+Organization admins manage source configuration and sync status through **Manage** under **Settings → Integrations → Providers**. Other members connect or reconnect their own accounts. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
+
+## Search, Assistant, and MCP
+
+**Search** in the organization sidebar finds documents directly. The assistant on **Home** can search and read the same sources to answer questions with citations. Conversations are private to their author, including when another organization member is an admin.
+
+To search from an MCP-compatible app, open **Settings → Search MCP**. Generate a personal Sim API key there, or use an existing personal key with the displayed connection details. MCP applies your current organization membership and document access.
+
+## Existing workspace Search
+
+Workspace Search remains separate. Workspace admins add sources through **Search → Add source**; the member-account action is **Create & Invite**. Teammates need workspace access and connect from its source list. Organization Search does not automatically include workspace sources or grant access to workspace content.
+
+## Check that it works
+
+1. Let the first sync finish, then search for a distinctive phrase in a document you can open in the source.
+2. Open the result's source link and confirm the document is the expected one.
+3. Ask a teammate with different source access to repeat the search. Documents restricted to you should not appear for them.
+4. Change or remove a test document's access in the source and check again after the next completed content and permission refresh.
+
+Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits and access changes are not fetched live for every query. Admins can inspect errors and progress under **Manage**.
+
+These guides cover permission-aware Search sources. For a general knowledge base used by workflows, see [Knowledge-base connectors](/knowledgebase/connectors); its workspace access settings are a separate choice.

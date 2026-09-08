@@ -20,7 +20,7 @@ import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-sub
 import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
 /** Any registered key; the hook only uses it to look the definition up. */
-const SELECTOR_KEY = 'workspace.credentialGroups' as SelectorKey
+const SELECTOR_KEY = 'workspace.credentialGroupProviders' as SelectorKey
 
 interface HookHarness<T> {
   result: () => T

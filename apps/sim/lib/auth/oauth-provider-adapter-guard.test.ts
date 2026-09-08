@@ -6,9 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   delete: vi.fn(),
   insert: vi.fn(),
+  isCapabilityWithheldForUser: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ db: { delete: mocks.delete, insert: mocks.insert } }))
+vi.mock('@/lib/permission-groups/user-scope.server', () => ({
+  isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
+}))
 
 import {
   guardOAuthProviderWrites,
@@ -43,6 +47,7 @@ function mockUpsert(rows: Record<string, unknown>[]) {
 describe('guardOAuthProviderWrites', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isCapabilityWithheldForUser.mockResolvedValue(false)
     mocks.delete.mockReturnValue({ where: vi.fn(async () => undefined) })
   })
 
@@ -94,12 +99,59 @@ describe('guardOAuthProviderWrites', () => {
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 
+  it.each(['oauthAccessToken', 'oauthRefreshToken'])(
+    'refuses %s before persistence when the canonical owner is restricted',
+    async (model) => {
+      const base = adapter()
+      mocks.isCapabilityWithheldForUser.mockResolvedValue(true)
+      const guarded = guardOAuthProviderWrites(base)
+      await expect(
+        guarded.create({ model, data: { userId: 'token-owner', clientId: 'partner-app' } })
+      ).rejects.toMatchObject({ body: { error: 'invalid_grant' } })
+      expect(mocks.isCapabilityWithheldForUser).toHaveBeenCalledWith(
+        'token-owner',
+        'oauth_apps.use'
+      )
+      expect(base.create).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['oauthAccessToken', 'oauthRefreshToken'])(
+    'requires a canonical user for %s',
+    async (model) => {
+      const base = adapter()
+      await expect(
+        guardOAuthProviderWrites(base).create({ model, data: { clientId: 'partner-app' } })
+      ).rejects.toMatchObject({ body: { error: 'invalid_grant' } })
+      expect(base.create).not.toHaveBeenCalled()
+      expect(mocks.isCapabilityWithheldForUser).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rechecks policy between the refresh and access inserts and compensates the family', async () => {
+    const base = adapter()
+    const guarded = guardOAuthProviderWrites(base)
+    mocks.isCapabilityWithheldForUser.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    await expect(
+      withOAuthProviderIssuanceCompensation(async () => {
+        await guarded.create({ model: 'oauthRefreshToken', data: { userId: 'user-1' } })
+        await guarded.create({ model: 'oauthAccessToken', data: { userId: 'user-1' } })
+        return new Response(null, { status: 200 })
+      })
+    ).rejects.toMatchObject({ body: { error: 'invalid_grant' } })
+    expect(base.create).toHaveBeenCalledOnce()
+    expect(mocks.delete).toHaveBeenCalledOnce()
+  })
+
   it('deletes a refresh family when delegated token issuance fails', async () => {
     const base = adapter()
     const guarded = guardOAuthProviderWrites(base)
 
     const response = await withOAuthProviderIssuanceCompensation(async () => {
-      await guarded.create({ model: 'oauthRefreshToken', data: { token: 'hashed' } })
+      await guarded.create({
+        model: 'oauthRefreshToken',
+        data: { token: 'hashed', userId: 'user-1' },
+      })
       return new Response('failed', { status: 500 })
     })
 
@@ -111,7 +163,10 @@ describe('guardOAuthProviderWrites', () => {
     const guarded = guardOAuthProviderWrites(adapter())
 
     await withOAuthProviderIssuanceCompensation(async () => {
-      await guarded.create({ model: 'oauthRefreshToken', data: { token: 'hashed' } })
+      await guarded.create({
+        model: 'oauthRefreshToken',
+        data: { token: 'hashed', userId: 'user-1' },
+      })
       return new Response(null, { status: 200 })
     })
 

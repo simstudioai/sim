@@ -159,7 +159,7 @@ export const v2FileMetadataSchema = v2FileSchema
   .meta({
     id: 'V2FileMetadata',
     title: 'File metadata',
-    description: 'Workspace file metadata enriched with nullable public-share state.',
+    description: 'Workspace file metadata and current public-share configuration.',
   })
 
 export type V2FileMetadata = z.output<typeof v2FileMetadataSchema>
@@ -326,7 +326,7 @@ export const v2ListFilesQuerySchema = z
     folderPath: v2FolderPathInputSchema
       .optional()
       .describe(
-        `Restrict results to files inside this folder — its direct children, or its whole subtree when \`recursive\` is true. ${V2_FOLDER_FILTER_MISS}`
+        `Restrict files to this folder, including subfolders when \`recursive\` is true. ${V2_FOLDER_FILTER_MISS}`
       ),
     /**
      * Descend into subfolders. Meaningful only alongside `folderPath`: with no folder filter
@@ -346,7 +346,7 @@ export const v2ListFilesQuerySchema = z
       .stringbool({ case: 'sensitive' })
       .optional()
       .describe(
-        'Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.'
+        'Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter.'
       )
       .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
     scope: v2FileScopeSchema
@@ -1036,7 +1036,7 @@ export const v2BulkDownloadFilesQuerySchema = z
       `File identifiers to include, comma-separated. At most ${MAX_ZIP_DOWNLOAD_FILES} entries.`
     ),
     folderPaths: v2QuerySelectionListSchema('folderPaths').describe(
-      `Folder paths to include with all their descendants, comma-separated. At most ${MAX_ZIP_DOWNLOAD_FILES} entries, and the files they resolve to count against the same ${MAX_ZIP_DOWNLOAD_FILES}-file download ceiling. A path that matches no folder is rejected rather than ignored.`
+      `Comma-separated folder paths whose contents are included recursively. Up to ${MAX_ZIP_DOWNLOAD_FILES} paths; resolved files share the ${MAX_ZIP_DOWNLOAD_FILES}-file download limit. Unknown paths are rejected.`
     ),
   })
   .strict()
@@ -1366,7 +1366,7 @@ export const v2FileSearchResultsSchema = z
     complete: z
       .boolean()
       .describe(
-        'True when no file in the searched scope is still pending or failed indexing. It does NOT cover `skippedFiles` (never indexed, such as binaries) or `partialFiles` (indexed only in part), so a missing match is authoritative only when all three are clear. Treat any of them as nonzero meaning unknown rather than absent.'
+        'True when no files in the searched scope have pending or failed indexing. Missing matches remain inconclusive unless this is true and both `indexStatus.skippedFiles` and `indexStatus.partialFiles` are zero.'
       ),
     indexStatus: z
       .object({

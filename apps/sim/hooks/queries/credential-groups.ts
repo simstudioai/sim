@@ -5,40 +5,42 @@ import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   type CredentialGroupAccessResponse,
-  createCredentialGroupContract,
   createCredentialGroupMcpConnectorContract,
-  deleteCredentialGroupContract,
   deleteCredentialGroupEnrollmentContract,
   deleteCredentialGroupMcpConnectorContract,
+  ensureWorkspaceAccountsContract,
   getCredentialGroupAccessContract,
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
   resendCredentialGroupEnrollmentContract,
+  type StartSlackCredentialGroupConfigurationBody,
   startSlackCredentialGroupConfigurationContract,
   updateCredentialGroupAccessContract,
   updateCredentialGroupContract,
   updateCredentialGroupMcpConnectorContract,
 } from '@/lib/api/contracts/credential-groups'
+import { startOrganizationSlackConfigurationContract } from '@/lib/api/contracts/organization-accounts'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mcpKeys } from '@/hooks/queries/mcp'
 import {
   CREDENTIAL_GROUP_ACCESS_STALE_TIME,
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
-  CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
-  fetchCredentialGroupSettings,
+  fetchWorkspaceAccounts,
+  WORKSPACE_ACCOUNTS_STALE_TIME,
 } from '@/hooks/queries/utils/credential-group-queries'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
-export function useCredentialGroups(workspaceId?: string) {
+export function useWorkspaceAccounts(workspaceId?: string) {
   return useQuery({
-    queryKey: credentialGroupKeys.list(workspaceId),
+    queryKey: credentialGroupKeys.workspace(workspaceId),
     queryFn: async ({ signal }) => {
-      if (!workspaceId) return { credentialGroups: [], availableProviders: [] }
-      return fetchCredentialGroupSettings(workspaceId, signal)
+      if (!workspaceId) throw new Error('Workspace ID is required')
+      return fetchWorkspaceAccounts(workspaceId, signal)
     },
     enabled: Boolean(workspaceId),
-    staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
+    staleTime: WORKSPACE_ACCOUNTS_STALE_TIME,
   })
 }
 
@@ -134,50 +136,21 @@ export function useUpdateCredentialGroupAccess() {
   })
 }
 
-export function useCreateCredentialGroup() {
+export function useEnsureWorkspaceAccounts() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      body,
-    }: {
-      workspaceId: string
-      body: ContractBodyInput<typeof createCredentialGroupContract>
-    }) => requestJson(createCredentialGroupContract, { params: { id: workspaceId }, body }),
-    onSettled: (_data, _error, variables) =>
+    mutationFn: async ({ workspaceId }: { workspaceId: string }) =>
+      requestJson(ensureWorkspaceAccountsContract, { params: { id: workspaceId } }),
+    onSuccess: (_data, variables) =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: credentialGroupKeys.list(variables.workspaceId),
+          queryKey: credentialGroupKeys.workspace(variables.workspaceId),
         }),
         queryClient.invalidateQueries({
           queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
         }),
         invalidateSelectorQueries(queryClient),
       ]),
-  })
-}
-
-export function useDeleteCredentialGroup() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ workspaceId, groupId }: { workspaceId: string; groupId: string }) =>
-      requestJson(deleteCredentialGroupContract, {
-        params: { id: workspaceId, groupId },
-      }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.removeQueries({
-        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
-      })
-      return Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: credentialGroupKeys.list(variables.workspaceId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
-        }),
-        invalidateSelectorQueries(queryClient),
-      ])
-    },
   })
 }
 
@@ -203,7 +176,7 @@ export function useUpdateCredentialGroup() {
     onSettled: (_data, _error, variables) =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: credentialGroupKeys.list(variables.workspaceId),
+          queryKey: credentialGroupKeys.workspace(variables.workspaceId),
         }),
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
@@ -222,7 +195,7 @@ function invalidateManagedMcpConnectorQueries(
   groupId: string
 ) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: credentialGroupKeys.detail(workspaceId, groupId) }),
     queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) }),
@@ -298,17 +271,36 @@ export function useStartSlackCredentialGroupConfiguration() {
   return useMutation({
     mutationFn: async ({
       workspaceId,
+      organizationId,
       credentialGroupId,
       body,
     }: {
-      workspaceId: string
       credentialGroupId: string
-      body: ContractBodyInput<typeof startSlackCredentialGroupConfigurationContract>
-    }) =>
-      requestJson(startSlackCredentialGroupConfigurationContract, {
-        params: { id: workspaceId, groupId: credentialGroupId },
+      body: StartSlackCredentialGroupConfigurationBody
+    } & (
+      | { workspaceId: string; organizationId?: never }
+      | { organizationId: string; workspaceId?: never }
+    )) => {
+      const scope = resourceScopeFromOwner({ workspaceId, organizationId })
+      if (scope.kind === 'organization') {
+        if (!body.appId || !body.teamId)
+          throw new Error('Slack App ID and workspace ID are required')
+        return requestJson(startOrganizationSlackConfigurationContract, {
+          params: { id: scope.organizationId, groupId: credentialGroupId },
+          body: {
+            clientId: body.clientId,
+            clientSecret: body.clientSecret,
+            appId: body.appId,
+            teamId: body.teamId,
+            requiredScopes: body.requiredScopes,
+          },
+        })
+      }
+      return requestJson(startSlackCredentialGroupConfigurationContract, {
+        params: { id: scope.workspaceId, groupId: credentialGroupId },
         body,
-      }),
+      })
+    },
   })
 }
 

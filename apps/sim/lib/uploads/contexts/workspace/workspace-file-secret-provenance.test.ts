@@ -5,15 +5,19 @@ import { workspaceFileSecretProvenance, workspaceFiles } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
+const { mockIsEnforced, mockReport, mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
   mockIsEnforced: vi.fn(() => false),
   mockReport: vi.fn(),
+  mockReportWrite: vi.fn(),
+  mockReportRefusal: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
   DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge', 'workspace-file'],
   isDurableSecretProvenanceEnforced: mockIsEnforced,
   reportUnrecordedDurableProvenance: mockReport,
+  reportDurableSecretProvenanceWrite: mockReportWrite,
+  reportDurableSecretProvenanceRefusal: mockReportRefusal,
 }))
 
 import type { DbTransaction } from '@/lib/db/types'
@@ -80,6 +84,7 @@ describe('workspace file secret provenance', () => {
     )
     expect(dbChainMockFns.update).toHaveBeenCalledWith(workspaceFiles)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ secretProvenanceVersion: 1 })
+    expect(mockReportWrite).not.toHaveBeenCalled()
   })
 
   it('keeps the legacy logical-byte budget when storing an anonymous entry', async () => {
@@ -169,6 +174,12 @@ describe('workspace file secret provenance', () => {
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ fileId: 'file-1', status: 'unrecorded', entries: [] })
     )
+    expect(mockReportWrite).toHaveBeenCalledWith({
+      surface: 'workspace-file',
+      status: 'unrecorded',
+      cause: 'workspace-file-write-unrecorded',
+      resourceId: 'file-1',
+    })
   })
 
   it('persists a refused write as unknown, not as an absence', async () => {
@@ -182,6 +193,23 @@ describe('workspace file secret provenance', () => {
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ fileId: 'file-1', status: 'unknown', entries: [] })
     )
+    expect(mockReportWrite).toHaveBeenCalledWith({
+      surface: 'workspace-file',
+      status: 'unknown',
+      cause: 'workspace-file-write-unknown',
+      resourceId: 'file-1',
+    })
+  })
+
+  it('does not report a non-exact initialization ignored for an existing sidecar', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await initializeWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      { status: 'unknown' }
+    )
+    expect(mockReportWrite).not.toHaveBeenCalled()
   })
 
   it('persists an unrecorded replacement as its own status', async () => {
@@ -448,6 +476,7 @@ describe('workspace file secret provenance', () => {
     ])
 
     await expect(isModelSafeWorkspaceFileKey('legacy-key')).resolves.toBe(true)
+    expect(mockReportRefusal).not.toHaveBeenCalled()
   })
 
   it('allows opaque egress only for exact-empty or legacy file provenance', async () => {
@@ -982,6 +1011,27 @@ describe('workspace file secret provenance', () => {
     ).toEqual({ status: 'unknown' })
   })
 
+  it('does not discard known secret entries when another contributor is unrecorded', () => {
+    const known = {
+      status: 'exact' as const,
+      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+    }
+    const unrecorded = { status: 'unrecorded' as const }
+    expect(mergeWorkspaceFileSecretProvenance(known, unrecorded)).toEqual({ status: 'unknown' })
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, known)).toEqual({ status: 'unknown' })
+  })
+
+  it('preserves absences without known secrets and never relaxes an unknown contributor', () => {
+    const unrecorded = { status: 'unrecorded' as const }
+    const empty = { status: 'exact' as const, entries: [] }
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded)).toEqual(unrecorded)
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, empty)).toEqual(unrecorded)
+    expect(mergeWorkspaceFileSecretProvenance(empty, unrecorded)).toEqual(unrecorded)
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, { status: 'unknown' })).toEqual({
+      status: 'unknown',
+    })
+  })
+
   it('fails closed when persisted provenance is malformed', async () => {
     queueTableRows(workspaceFiles, [
       {
@@ -1495,6 +1545,11 @@ describe('workspace file secret provenance', () => {
 
     await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(false)
     expect(mockReport).not.toHaveBeenCalled()
+    expect(mockReportRefusal).toHaveBeenCalledWith({
+      surface: 'workspace-file',
+      cause: 'workspace-file-unrecorded-enforced',
+      workspaceId: undefined,
+    })
   })
 
   /**
@@ -1530,6 +1585,13 @@ describe('workspace file secret provenance', () => {
       queueTableRows(workspaceFiles, [row])
       await expect(isModelSafeWorkspaceFileKey(row.key)).resolves.toBe(false)
     }
+    expect(mockReportRefusal).toHaveBeenCalledTimes(2)
+    expect(mockReportRefusal).toHaveBeenCalledWith({
+      surface: 'workspace-file',
+      cause: 'workspace-file-provenance-unavailable',
+      workspaceId: 'workspace-1',
+      resourceId: undefined,
+    })
   })
 
   /**

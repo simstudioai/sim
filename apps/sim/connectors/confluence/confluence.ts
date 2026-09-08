@@ -1,12 +1,31 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
 import {
   AtlassianSiteNotAccessibleError,
   AtlassianSiteNotMatchedError,
 } from '@/lib/atlassian/discovery'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import {
+  type ConfluenceRestriction,
+  confluencePageAcl,
+} from '@/lib/knowledge/access/confluence-permissions'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import {
+  createRetryableHttpError,
+  fetchWithRetry,
+  type RetryOptions,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
+import { extractCursor } from '@/connectors/confluence/cursor'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
+import {
+  describeContent,
+  getReadRestriction,
+  listAncestorIds,
+  listSpaceReadPrincipals,
+  openConfluenceDirectory,
+} from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
@@ -96,6 +115,8 @@ function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>
     $node.contents().each((_, child) => {
       if (child.type === 'text') {
         current += $(child).text()
+      } else if (child.type === 'cdata') {
+        current += $(child.children).text()
       } else if (child.type === 'tag') {
         const tag = child.tagName?.toLowerCase()
         if (tag && INLINE_FORMATTING_TAGS.has(tag)) {
@@ -174,6 +195,64 @@ export function preserveConfluenceCallouts(html: string): string {
   return $.html()
 }
 
+const STORAGE_MACRO_SELECTOR = 'ac\\:structured-macro, ac\\:macro'
+const LOCAL_STORAGE_MACROS = new Set([
+  'info',
+  'note',
+  'warning',
+  'tip',
+  'panel',
+  'expand',
+  'excerpt',
+  'code',
+  'noformat',
+])
+
+/**
+ * Search authorizes the containing page, not content expanded from another
+ * resource. Read authored storage text and known local macro bodies only;
+ * inclusion and third-party macros may render differently for each reader.
+ */
+export function confluenceStorageToPlainText(storage: string): string {
+  const $ = cheerio.load(
+    storage,
+    { xml: { xmlMode: false, recognizeCDATA: true, recognizeSelfClosing: true } },
+    false
+  )
+  $('ac\\:adf-extension').remove()
+
+  $(STORAGE_MACRO_SELECTOR).each((_, element) => {
+    if (!LOCAL_STORAGE_MACROS.has($(element).attr('ac:name') ?? '')) {
+      $(element).remove()
+    }
+  })
+
+  for (const element of $(STORAGE_MACRO_SELECTOR).toArray().reverse()) {
+    const macro = $(element)
+    const name = macro.attr('ac:name') ?? ''
+    const title = macro.children('ac\\:parameter[ac\\:name="title"]').text().trim()
+    const body = extractBlockJoinedText(
+      $,
+      macro.children('ac\\:rich-text-body, ac\\:plain-text-body')
+    )
+    const label =
+      name === 'panel'
+        ? title
+          ? `[CALLOUT: ${title}]`
+          : '[CALLOUT]'
+        : CALLOUT_LABELS[name === 'info' ? 'information' : name]
+    const text = [label, name === 'panel' ? '' : title, body].filter(Boolean).join(' ')
+    macro.replaceWith($('<p></p>').text(text))
+  }
+
+  $('ac\\:parameter, ac\\:default-parameter, script, style').remove()
+  return extractBlockJoinedText($, $.root()).replace(/\s+/g, ' ').trim()
+}
+
+function usesPermissionScopedContent(syncContext?: Record<string, unknown>): boolean {
+  return syncContext?.perMemberListing === true || syncContext?.mirrorsSourceAcls === true
+}
+
 /**
  * Escapes a value for use inside CQL double-quoted strings.
  */
@@ -220,31 +299,13 @@ export function readIncludedLabels(page: Record<string, unknown>): string[] {
 }
 
 /**
- * Extracts the `cursor` query value from a relative `_links.next` URL. Both the
- * v2 endpoints and the v1 CQL search return the next page as a relative path
- * carrying an opaque cursor, so the value has to be parsed back out rather than
- * derived.
- */
-export function extractCursor(nextLink: unknown): string | undefined {
-  if (typeof nextLink !== 'string' || !nextLink) return undefined
-  try {
-    return new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
  * Body representation marker embedded in the contentHash. Bumping this
- * invalidates every previously-synced Confluence document so a one-time
- * re-hydration picks up content newly reachable by the current extraction
- * (e.g. the switch from `storage` to rendered `view`, which expands Include
- * Page / Excerpt macros; or `preserveConfluenceCallouts`, which stops
- * flattening panel/info/note/warning/tip macros into indistinguishable plain
- * text). Without it, already-indexed pages whose version is unchanged
- * classify as `unchanged` and keep their stale (pre-fix) content.
+ * causes the next complete listing to rehydrate pages even if their version
+ * is unchanged. Search must replace rendered inclusions with authored content;
+ * ordinary knowledge bases retain their existing rendered representation.
  */
 const CONTENT_REPRESENTATION = 'view-callouts'
+const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v1'
 
 /**
  * Produces a canonical metadata stub with a deterministic contentHash that
@@ -254,14 +315,22 @@ function pageToStub(
   page: Record<string, unknown>,
   options: {
     spaceId?: unknown
+    /** The space's key, which the permission pass resolves the page's space from. */
+    spaceKey?: string
+    /** `page` or `blogpost`; only a page has ancestors to inherit restrictions from. */
+    contentType?: string
     labels?: string[]
     sourceUrl?: string
-  } = {}
+  } = {},
+  syncContext?: Record<string, unknown>
 ): ExternalDocument {
   const version = page.version as Record<string, unknown> | undefined
   const versionNumber = version?.number as number | undefined
   const lastModified = (version?.createdAt ?? version?.when ?? '') as string
   const versionKey = versionNumber ?? lastModified
+  const representation = usesPermissionScopedContent(syncContext)
+    ? SCOPED_CONTENT_REPRESENTATION
+    : CONTENT_REPRESENTATION
 
   return {
     externalId: String(page.id),
@@ -270,9 +339,11 @@ function pageToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
-    contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
+    contentHash: `confluence:${representation}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
+      spaceKey: options.spaceKey,
+      contentType: options.contentType,
       status: page.status,
       version: versionNumber,
       labels: options.labels ?? [],
@@ -284,21 +355,191 @@ function pageToStub(
 /**
  * Converts a v1 CQL search result item to a lightweight metadata stub.
  */
-function cqlResultToStub(item: Record<string, unknown>, domain: string): ExternalDocument {
+function cqlResultToStub(
+  item: Record<string, unknown>,
+  domain: string,
+  syncContext?: Record<string, unknown>
+): ExternalDocument {
   const links = item._links as Record<string, string> | undefined
   const metadata = item.metadata as Record<string, unknown> | undefined
   const labelsWrapper = metadata?.labels as Record<string, unknown> | undefined
   const labelResults = (labelsWrapper?.results || []) as Record<string, unknown>[]
   const labels = labelResults.map((l) => l.name as string)
 
-  return pageToStub(item, {
-    spaceId: (item.space as Record<string, unknown>)?.key,
-    labels,
-    sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+  const spaceKey = (item.space as Record<string, unknown>)?.key
+  return pageToStub(
+    item,
+    {
+      spaceId: spaceKey,
+      spaceKey: typeof spaceKey === 'string' ? spaceKey : undefined,
+      contentType: typeof item.type === 'string' ? item.type : undefined,
+      labels,
+      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+    },
+    syncContext
+  )
+}
+
+/**
+ * The site's cloud id, memoised on the run so it is discovered once per sync
+ * rather than once per call — and taken from the credential where a service
+ * account already carries it, since its API token cannot call
+ * `accessible-resources` to discover one.
+ */
+async function resolveCloudId(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>,
+  retryOptions?: RetryOptions
+): Promise<string> {
+  const cached = syncContext?.cloudId
+  if (typeof cached === 'string' && cached) return cached
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  const cloudId = await getConfluenceCloudId(domain, accessToken, retryOptions)
+  if (syncContext) syncContext.cloudId = cloudId
+  return cloudId
+}
+
+/**
+ * The provider segment of every Confluence group token. Fixed, and baked into
+ * stored ACLs, so it must never change.
+ */
+const CONFLUENCE_ACL_PROVIDER_ID = 'confluence'
+
+/**
+ * One in-flight promise per key, so a value fetched for one page is shared by
+ * every other page that needs it — an ancestor's restriction is consulted by
+ * all its descendants, and a space's readers by every page in it.
+ */
+function memoizeAsync<K, V>(load: (key: K) => Promise<V>): (key: K) => Promise<V> {
+  const cache = new Map<K, Promise<V>>()
+  return (key: K) => {
+    let pending = cache.get(key)
+    if (!pending) {
+      pending = load(key)
+      cache.set(key, pending)
+    }
+    return pending
+  }
+}
+
+/** Pages whose restrictions are resolved at once. Bounded to keep a crawl responsive. */
+const ACL_CONCURRENCY = 8
+
+/** Where a listed piece of content lives, as the permission pass needs it. */
+interface ContentLocation {
+  spaceId: string
+  contentType: string
+}
+
+/**
+ * Resolves who may read each listed page.
+ *
+ * Confluence reports a page's restrictions only when asked for that page, so
+ * unlike Drive this cannot ride along with the listing. Two things are cached
+ * for the batch: each space's read principals and each page's restriction,
+ * which may be consulted by many descendants.
+ *
+ * A page falls back to *its own* space's readers, never the union of every
+ * configured space: a connector over two spaces must not let a reader of one
+ * into the unrestricted pages of the other.
+ *
+ * A page whose restrictions could not be read this run is omitted, which the
+ * engine stores as readable by nobody, and the rest of the batch still
+ * resolves — the same per-document containment Drive has.
+ */
+async function resolveConfluenceAcls(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  documents: readonly ExternalDocument[],
+  syncContext?: Record<string, unknown>
+): Promise<Record<string, MirroredDocumentAcl>> {
+  const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
+
+  const spaceIdForKey = memoizeAsync((spaceKey: string) =>
+    resolveSpaceId(cloudId, accessToken, spaceKey)
+  )
+  const spacePrincipalsFor = memoizeAsync((spaceId: string) =>
+    listSpaceReadPrincipals(cloudId, accessToken, spaceId)
+  )
+  const readRestriction = memoizeAsync((contentId: string) =>
+    getReadRestriction(cloudId, accessToken, contentId)
+  )
+
+  /** The listing usually says where a page lives; anything it did not describe is asked. */
+  const locate = async (doc: ExternalDocument): Promise<ContentLocation | null> => {
+    const spaceKey = doc.metadata?.spaceKey
+    const contentType = doc.metadata?.contentType
+    if (typeof spaceKey === 'string' && spaceKey) {
+      return {
+        spaceId: await spaceIdForKey(spaceKey),
+        contentType: typeof contentType === 'string' ? contentType : 'page',
+      }
+    }
+    return describeContent(cloudId, accessToken, doc.externalId)
+  }
+
+  /** One entry per page whose permissions this run could read in full. */
+  const resolved = new Map<string, { spaceId: string; chain: ConfluenceRestriction[] }>()
+  let unreadable = 0
+  await mapWithConcurrency(documents, ACL_CONCURRENCY, async (doc) => {
+    const externalId = doc.externalId
+    try {
+      const location = await locate(doc)
+      if (!location) {
+        unreadable += 1
+        return
+      }
+      const own = await readRestriction(externalId)
+      /**
+       * Every ancestor restriction still applies when the page has its own.
+       * A blog post has no ancestors to inherit from.
+       */
+      const chain: ConfluenceRestriction[] = [own]
+      if (location.contentType !== 'blogpost') {
+        for (const ancestorId of await listAncestorIds(cloudId, accessToken, externalId)) {
+          const restriction = await readRestriction(ancestorId)
+          chain.push(restriction)
+        }
+      }
+      await spacePrincipalsFor(location.spaceId)
+      resolved.set(externalId, { spaceId: location.spaceId, chain })
+    } catch (error) {
+      unreadable += 1
+      logger.warn("Could not read a page's permissions; it stays readable by nobody", {
+        cloudId,
+        externalId,
+        error: getErrorMessage(error),
+      })
+    }
   })
+
+  const acls: Record<string, MirroredDocumentAcl> = {}
+  for (const [externalId, { spaceId, chain }] of resolved) {
+    const result = confluencePageAcl({
+      spacePrincipals: await spacePrincipalsFor(spaceId),
+      restrictionChain: chain,
+      providerId: CONFLUENCE_ACL_PROVIDER_ID,
+      tenantId: cloudId,
+    })
+    acls[externalId] =
+      result.requirements.length > 0
+        ? { acl: result.acl, requirements: result.requirements }
+        : result.acl
+  }
+
+  if (unreadable > 0) {
+    logger.warn('Some Confluence pages had unreadable permissions and stay readable by nobody', {
+      cloudId,
+      unreadable,
+    })
+  }
+  return acls
 }
 
 export const confluenceConnector: ConnectorConfig = {
+  isCredentialInvalidError: (error) =>
+    error instanceof Error && 'status' in error && error.status === 401,
   ...confluenceConnectorMeta,
 
   listDocuments: async (
@@ -318,11 +559,7 @@ export const confluenceConnector: ConnectorConfig = {
       throw new Error('At least one space key is required')
     }
 
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getConfluenceCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
-    }
+    const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
     /**
      * Route through CQL when a label filter is set, when multiple spaces are
@@ -379,6 +616,15 @@ export const confluenceConnector: ConnectorConfig = {
     )
   },
 
+  getDocumentAcls: resolveConfluenceAcls,
+
+  openDirectory: async (accessToken, sourceConfig, syncContext) =>
+    openConfluenceDirectory(
+      CONFLUENCE_ACL_PROVIDER_ID,
+      await resolveCloudId(accessToken, sourceConfig, syncContext),
+      accessToken
+    ),
+
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -386,24 +632,13 @@ export const confluenceConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getConfluenceCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
-    }
+    const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
-    /**
-     * Fetch the `view` representation rather than `storage`. Storage format only
-     * carries unexpanded macro references (e.g. Include Page / Excerpt Include),
-     * so "mirrored" content that pulls in another page's body is stripped to
-     * nothing by `htmlToPlainText`. The `view` representation is server-rendered
-     * HTML with those macros expanded inline, so included content is indexed too.
-     * The v2 single-item GET (`/pages/{id}`, `/blogposts/{id}`) supports
-     * `body-format=view`; only the bulk list endpoints are limited to storage/adf.
-     */
+    const scopedContent = usesPermissionScopedContent(syncContext)
+    const bodyFormat = scopedContent ? 'storage' : 'view'
     let page: Record<string, unknown> | null = null
     for (const endpoint of ['pages', 'blogposts']) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=view&include-labels=true`
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=${bodyFormat}&include-labels=true`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
@@ -416,6 +651,7 @@ export const confluenceConnector: ConnectorConfig = {
         page = await response.json()
         break
       }
+      if (response.status === 401) throw await createRetryableHttpError(response)
       if (response.status !== 404) {
         throw new Error(`Failed to get Confluence content: ${response.status}`)
       }
@@ -423,16 +659,25 @@ export const confluenceConnector: ConnectorConfig = {
 
     if (!page || !isCurrentContent(page)) return null
     const body = page.body as Record<string, unknown> | undefined
-    const view = body?.view as Record<string, unknown> | undefined
-    const rawContent = (view?.value as string) || ''
-    const plainText = htmlToPlainText(preserveConfluenceCallouts(rawContent))
+    const representation = body?.[bodyFormat] as Record<string, unknown> | undefined
+    if (scopedContent && typeof representation?.value !== 'string') {
+      throw new Error('Confluence content is missing its storage body')
+    }
+    const rawContent = (representation?.value as string) || ''
+    const plainText = scopedContent
+      ? confluenceStorageToPlainText(rawContent)
+      : htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
     const links = page._links as Record<string, unknown> | undefined
-    const stub = pageToStub(page, {
-      spaceId: page.spaceId,
-      labels: readIncludedLabels(page),
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-    })
+    const stub = pageToStub(
+      page,
+      {
+        spaceId: page.spaceId,
+        labels: readIncludedLabels(page),
+        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+      },
+      syncContext
+    )
 
     return {
       ...stub,
@@ -443,7 +688,8 @@ export const confluenceConnector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
     const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
@@ -458,7 +704,12 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
+      const cloudId = await resolveCloudId(
+        accessToken,
+        sourceConfig,
+        syncContext,
+        VALIDATE_RETRY_OPTIONS
+      )
       const params = new URLSearchParams()
       for (const key of spaceKeys) params.append('keys', key)
       params.append('limit', String(Math.max(spaceKeys.length, 1)))
@@ -489,7 +740,7 @@ export const confluenceConnector: ConnectorConfig = {
       }
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
+      return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
 
@@ -561,6 +812,7 @@ async function listDocumentsV2(
   })
 
   if (!response.ok) {
+    if (response.status === 401) throw await createRetryableHttpError(response)
     const errorText = await response.text()
     logger.error(`Failed to list Confluence ${endpoint}`, {
       status: response.status,
@@ -576,10 +828,16 @@ async function listDocumentsV2(
     .filter(isCurrentContent)
     .map((page) => {
       const links = page._links as Record<string, string> | undefined
-      return pageToStub(page, {
-        spaceId: page.spaceId,
-        sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-      })
+      return pageToStub(
+        page,
+        {
+          spaceId: page.spaceId,
+          spaceKey,
+          contentType,
+          sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+        },
+        syncContext
+      )
     })
 
   const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
@@ -805,6 +1063,7 @@ async function listDocumentsViaCql(
   })
 
   if (!response.ok) {
+    if (response.status === 401) throw await createRetryableHttpError(response)
     const errorText = await response.text()
     logger.error('Failed to search Confluence via CQL', {
       status: response.status,
@@ -818,7 +1077,7 @@ async function listDocumentsViaCql(
 
   const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
-    .map((item) => cqlResultToStub(item, domain))
+    .map((item) => cqlResultToStub(item, domain, syncContext))
 
   /**
    * Trim to the remaining budget. Trimming stops the walk (`hitLimit` below is
@@ -869,6 +1128,7 @@ async function resolveSpaceId(
   })
 
   if (!response.ok) {
+    if (response.status === 401) throw await createRetryableHttpError(response)
     throw new Error(`Failed to resolve space key "${spaceKey}": ${response.status}`)
   }
 

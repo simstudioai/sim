@@ -78,6 +78,7 @@ export function getS3Client(): S3Client {
  * @param size File size in bytes (required if configOrSize is S3Config, optional otherwise)
  * @param skipTimestampPrefix Skip adding timestamp prefix to filename (default: false)
  * @param metadata Optional metadata to store with the file
+ * @param createOnly Reject an existing key instead of replacing its object
  * @returns Object with file information
  */
 export async function uploadToS3(
@@ -87,7 +88,8 @@ export async function uploadToS3(
   configOrSize?: S3Config | number,
   size?: number,
   skipTimestampPrefix?: boolean,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  createOnly = false
 ): Promise<FileInfo> {
   let config: S3Config
   let fileSize: number
@@ -124,6 +126,7 @@ export async function uploadToS3(
       Body: file,
       ContentType: contentType,
       Metadata: s3Metadata,
+      ...(createOnly ? { IfNoneMatch: '*' } : {}),
     })
   )
 

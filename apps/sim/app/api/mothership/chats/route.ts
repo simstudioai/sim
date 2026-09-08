@@ -8,6 +8,10 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
+import {
+  createOrganizationChat,
+  listOrganizationChats,
+} from '@/lib/copilot/chat/organization-chats'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import {
@@ -16,6 +20,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -31,21 +36,34 @@ const logger = createLogger('MothershipChatsAPI')
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
       return createUnauthorizedResponse()
     }
 
     const queryResult = await parseRequest(listMothershipChatsContract, request, {})
     if (!queryResult.success) return queryResult.response
-    const { workspaceId, scope } = queryResult.data.query
+    const { workspaceId, organizationId, scope } = queryResult.data.query
 
+    if (organizationId) {
+      if (!principal) return createUnauthorizedResponse()
+      const data = await listOrganizationChats.execute({
+        principal,
+        input: { organizationId, scope },
+      })
+      return NextResponse.json({ success: true, data })
+    }
+
+    if (!workspaceId) throw new Error('Conversation owner is required')
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
     const data = await listMothershipChats(userId, workspaceId, scope)
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
+    const code = asOrchestrationError(error)?.code
+    if (code === 'not_found' || code === 'forbidden')
+      return createForbiddenResponse('Organization access denied')
     if (isWorkspaceAccessDeniedError(error)) {
       return createForbiddenResponse('Workspace access denied')
     }
@@ -60,15 +78,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
       return createUnauthorizedResponse()
     }
 
     const validation = await parseRequest(createMothershipChatContract, request, {})
     if (!validation.success) return validation.response
-    const { workspaceId } = validation.data.body
+    const { workspaceId, organizationId } = validation.data.body
 
+    if (organizationId) {
+      if (!principal) return createUnauthorizedResponse()
+      const chat = await createOrganizationChat.execute({ principal, input: { organizationId } })
+      return NextResponse.json({ success: true, id: chat.id })
+    }
+
+    if (!workspaceId) throw new Error('Conversation owner is required')
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
     const now = new Date()
@@ -98,6 +123,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {
+    const code = asOrchestrationError(error)?.code
+    if (code === 'not_found' || code === 'forbidden')
+      return createForbiddenResponse('Organization access denied')
     if (isWorkspaceAccessDeniedError(error)) {
       return createForbiddenResponse('Workspace access denied')
     }

@@ -9,13 +9,29 @@ import {
 import {
   buildLastModifiedClause,
   confluenceConnector,
+  confluenceStorageToPlainText,
   escapeCql,
-  extractCursor,
   isCurrentContent,
   preserveConfluenceCallouts,
   readIncludedLabels,
 } from '@/connectors/confluence/confluence'
+import { extractCursor } from '@/connectors/confluence/cursor'
 import { htmlToPlainText } from '@/connectors/utils'
+
+describe('Confluence service-account scopes', () => {
+  it('requests metadata and role reads needed for complete mirrored ACLs', () => {
+    expect(confluenceConnector.auth.mode).toBe('oauth')
+    if (confluenceConnector.auth.mode !== 'oauth') throw new Error('Expected OAuth authentication')
+    expect(confluenceConnector.auth.serviceAccountScopes).toEqual(
+      expect.arrayContaining([
+        'read:content.metadata:confluence',
+        'read:space.permission:confluence',
+        'read:group:confluence',
+        'read:user:confluence',
+      ])
+    )
+  })
+})
 
 describe('escapeCql', () => {
   it.concurrent('returns plain strings unchanged', () => {
@@ -57,6 +73,40 @@ describe('buildLastModifiedClause', () => {
     expect(buildLastModifiedClause(new Date(now.getTime() + 60_000), now)).toBe(
       'lastModified >= now("-1m")'
     )
+  })
+})
+
+describe('Confluence rejected credentials', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each(['discovery', 'space', 'pages', 'cql', 'content'] as const)(
+    'preserves authenticated401 at the %s boundary',
+    async (boundary) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('', { status: 401 }))
+      )
+      const config = {
+        domain: 'revocation-fixture.atlassian.net',
+        spaceKey: 'ENG',
+        ...(boundary === 'cql' ? { labelFilter: 'fixture' } : {}),
+      }
+      const context =
+        boundary === 'discovery'
+          ? {}
+          : { cloudId: 'cloud', ...(boundary === 'pages' ? { spaceId: 'space' } : {}) }
+      const request =
+        boundary === 'content'
+          ? confluenceConnector.getDocument('token', config, 'page', context)
+          : confluenceConnector.listDocuments('token', config, undefined, context)
+      const error = await request.catch((error: unknown) => error)
+      expect(confluenceConnector.isCredentialInvalidError?.(error)).toBe(true)
+    }
+  )
+
+  it.each([403, 404, 429, 503])('does not invalidate credentials for status%s', (status) => {
+    const error = Object.assign(new Error('Provider request failed'), { status })
+    expect(confluenceConnector.isCredentialInvalidError?.(error)).toBe(false)
   })
 })
 
@@ -469,5 +519,347 @@ describe('confluence incremental CQL listing', () => {
 
     expect(cqlOfCall(0)).toContain('lastModified >= now("-31m")')
     expect(cqlOfCall(1)).toBe(cqlOfCall(0))
+  })
+})
+
+describe('confluenceStorageToPlainText', () => {
+  it('preserves rich text, word boundaries, link labels, and encoded literals', () => {
+    const storage =
+      '<h2>Overview</h2><p>Un<strong>break</strong>able &amp; readable.</p>' +
+      '<ul><li>First</li><li>Second</li></ul>' +
+      '<table><tbody><tr><td>Name</td><td>Value</td></tr></tbody></table>' +
+      '<p><ac:link><ri:page ri:content-title="Another page" />' +
+      '<ac:plain-text-link-body><![CDATA[Read <more>]]></ac:plain-text-link-body></ac:link>' +
+      '&nbsp;Next</p>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      'Overview Unbreakable & readable. First Second Name Value Read <more> Next'
+    )
+  })
+
+  it('retains nested local callouts and literal code without indexing macro parameters', () => {
+    const storage =
+      '<ac:structured-macro ac:name="panel"><ac:parameter ac:name="title">Caution</ac:parameter>' +
+      '<ac:parameter ac:name="borderColor">#ff0000</ac:parameter><ac:rich-text-body>' +
+      '<p>Outer body</p><ac:structured-macro ac:name="warning"><ac:rich-text-body>' +
+      '<p>Do not run:</p><ac:structured-macro ac:name="code"><ac:parameter ac:name="language">xml</ac:parameter>' +
+      '<ac:plain-text-body><![CDATA[<delete key="all" />]]></ac:plain-text-body>' +
+      '</ac:structured-macro></ac:rich-text-body></ac:structured-macro>' +
+      '</ac:rich-text-body></ac:structured-macro>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe(
+      '[CALLOUT: Caution] Outer body [WARNING] Do not run: <delete key="all" />'
+    )
+  })
+
+  it('omits inclusion references, remote macro bodies, and extension metadata', () => {
+    const storage =
+      '<p>Public body</p><ac:macro ac:name="excerpt-include">' +
+      '<ac:default-parameter>PRIVATE:Salary</ac:default-parameter></ac:macro>' +
+      '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="jql">private-project</ac:parameter>' +
+      '<ac:rich-text-body><p>Cached private issue</p></ac:rich-text-body></ac:structured-macro>' +
+      '<ac:adf-extension><ac:adf-node type="extension"><ac:adf-attribute key="parameters">' +
+      'remote-parameters</ac:adf-attribute></ac:adf-node></ac:adf-extension>'
+
+    expect(confluenceStorageToPlainText(storage)).toBe('Public body')
+  })
+
+  it.each(['expand', 'excerpt', 'noformat'])(
+    'retains the authored content of the %s macro',
+    (name) => {
+      const storage =
+        `<ac:structured-macro ac:name="${name}"><ac:plain-text-body>` +
+        '<![CDATA[Locally authored content]]></ac:plain-text-body></ac:structured-macro>'
+      expect(confluenceStorageToPlainText(storage)).toBe('Locally authored content')
+    }
+  )
+})
+
+describe('Confluence permission-scoped content', () => {
+  const config = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
+  const storage =
+    '<p>Shared handbook</p>' +
+    '<ac:structured-macro ac:name="include">' +
+    '<ac:parameter ac:name=""><ri:page ri:content-title="Restricted compensation" /></ac:parameter>' +
+    '</ac:structured-macro>' +
+    '<ac:structured-macro ac:name="info">' +
+    '<ac:rich-text-body><p>Local information</p></ac:rich-text-body>' +
+    '</ac:structured-macro>'
+  const view = '<p>Shared handbook</p><p>CONFIDENTIAL SALARY DATA</p><p>Local information</p>'
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const format = new URL(String(input)).searchParams.get('body-format')
+        return new Response(
+          JSON.stringify({
+            id: 'shared-page',
+            title: 'Shared handbook',
+            status: 'current',
+            spaceId: 'space-1',
+            version: { number: 1 },
+            body: { [format ?? 'view']: { value: format === 'storage' ? storage : view } },
+          }),
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      })
+    )
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([{ mirrorsSourceAcls: true }, { perMemberListing: true, memberId: 'member-1' }])(
+    'keeps external restricted content out of a shared page for %j',
+    async (mode) => {
+      const document = await confluenceConnector.getDocument(
+        'authorized-reader',
+        config,
+        'shared-page',
+        {
+          cloudId: 'cloud-1',
+          ...mode,
+        }
+      )
+
+      expect(document?.content).toContain('Shared handbook')
+      expect(document?.content).toContain('Local information')
+      expect(document?.content).not.toContain('CONFIDENTIAL SALARY DATA')
+      expect(document?.contentHash).toContain('storage')
+    }
+  )
+
+  it('retains rendered inclusions for ordinary workspace knowledge bases', async () => {
+    const document = await confluenceConnector.getDocument(
+      'workspace-account',
+      config,
+      'shared-page',
+      {
+        cloudId: 'cloud-1',
+      }
+    )
+
+    expect(document?.content).toContain('CONFIDENTIAL SALARY DATA')
+    expect(document?.contentHash).toBe('confluence:view-callouts:shared-page:1')
+  })
+
+  it('rejects a missing storage body without falling back to rendered content', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'shared-page',
+          version: { number: 1 },
+          body: { view: { value: view } },
+        })
+      )
+    )
+
+    await expect(
+      confluenceConnector.getDocument('token', config, 'shared-page', {
+        cloudId: 'cloud-1',
+        mirrorsSourceAcls: true,
+      })
+    ).rejects.toThrow('missing its storage body')
+  })
+
+  it.each([{ mirrorsSourceAcls: true }, { perMemberListing: true, memberId: 'member-1' }, {}])(
+    'keeps v2, CQL, and hydration hashes consistent for %j',
+    async (mode) => {
+      const content = {
+        id: 'shared-page',
+        title: 'Shared handbook',
+        status: 'current',
+        spaceId: 'space-1',
+        version: { number: 1 },
+      }
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = new URL(String(input))
+        if (url.pathname.endsWith('/spaces')) {
+          return new Response(JSON.stringify({ results: [{ id: 'space-1', key: 'ENG' }] }))
+        }
+        const format = url.searchParams.get('body-format')
+        return new Response(
+          JSON.stringify(
+            format
+              ? { ...content, body: { [format]: { value: format === 'storage' ? storage : view } } }
+              : { results: [content] }
+          )
+        )
+      })
+      const context = { cloudId: 'cloud-1', ...mode }
+      const v2 = await confluenceConnector.listDocuments('token', config, undefined, { ...context })
+      const cql = await confluenceConnector.listDocuments(
+        'token',
+        { ...config, labelFilter: 'published' },
+        undefined,
+        { ...context }
+      )
+      const hydrated = await confluenceConnector.getDocument(
+        'token',
+        config,
+        'shared-page',
+        context
+      )
+      const expectedHash =
+        'mirrorsSourceAcls' in mode || 'perMemberListing' in mode
+          ? 'confluence:storage-local-body-v1:shared-page:1'
+          : 'confluence:view-callouts:shared-page:1'
+
+      expect(v2.documents[0].contentHash).toBe(expectedHash)
+      expect(cql.documents[0].contentHash).toBe(expectedHash)
+      expect(hydrated?.contentHash).toBe(expectedHash)
+    }
+  )
+})
+
+describe('confluence mirrored permissions', () => {
+  const fetchMock =
+    vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  /** A two-space site where each space is readable by one different person. */
+  function site() {
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      const path = url.pathname
+      if (path.endsWith('/api/v2/spaces')) {
+        const key = url.searchParams.get('keys')
+        return jsonResponse({ results: [{ id: key === 'ENG' ? '1' : '2', key }] })
+      }
+      if (path.endsWith('/spaces/1/permissions')) {
+        return jsonResponse({
+          results: [
+            {
+              principal: { type: 'user', id: 'acc-eng' },
+              operation: { key: 'read', targetType: 'space' },
+            },
+          ],
+        })
+      }
+      if (path.endsWith('/spaces/2/permissions')) {
+        return jsonResponse({
+          results: [
+            {
+              principal: { type: 'user', id: 'acc-hr' },
+              operation: { key: 'read', targetType: 'space' },
+            },
+          ],
+        })
+      }
+      if (path.includes('/restriction/byOperation/read')) {
+        return jsonResponse({ restrictions: { user: { results: [] }, group: { results: [] } } })
+      }
+      if (path.endsWith('/ancestors')) return jsonResponse({ results: [] })
+      return jsonResponse({ error: `unexpected ${path}` }, 500)
+    })
+  }
+
+  function page(externalId: string, spaceKey: string, contentType = 'page') {
+    return {
+      externalId,
+      title: externalId,
+      content: '',
+      mimeType: 'text/plain',
+      contentHash: externalId,
+      metadata: { spaceKey, contentType },
+    }
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /**
+   * The bug this pins: a connector over two spaces once pooled every space's
+   * readers and gave the pool to every unrestricted page, so a reader of one
+   * space could read the other's pages.
+   */
+  it("gives an unrestricted page its own space's readers, never another space's", async () => {
+    site()
+
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: ['ENG', 'HR'] },
+      [page('eng-page', 'ENG'), page('hr-post', 'HR', 'blogpost')],
+      { cloudId: 'cloud-1' }
+    )
+
+    expect(acls).toEqual({
+      'eng-page': ['s:confluence:-:acc-eng'],
+      'hr-post': ['s:confluence:-:acc-hr'],
+    })
+    /** A blog post has no ancestors and is never asked for them. */
+    const asked = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)
+    expect(asked.some((path) => path.includes('/blogposts/hr-post/ancestors'))).toBe(false)
+    expect(asked.some((path) => path.includes('/pages/eng-page/ancestors'))).toBe(true)
+    expect(asked.some((path) => path.includes('/user/'))).toBe(false)
+  })
+
+  it('omits a page whose permissions could not be read and still answers for the rest', async () => {
+    site()
+    const healthy = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).includes('/content/broken/restriction')) {
+        return jsonResponse({ error: 'nope' }, 404)
+      }
+      return healthy(input, init)
+    })
+
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: 'ENG' },
+      [page('eng-page', 'ENG'), page('broken', 'ENG')],
+      { cloudId: 'cloud-1' }
+    )
+
+    expect(acls).toEqual({ 'eng-page': ['s:confluence:-:acc-eng'] })
+  })
+
+  it('loads restrictions above the first ancestor batch even when the page and parent already restrict access', async () => {
+    site()
+    const healthy = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = new URL(String(input)).pathname
+      if (path.endsWith('/pages/eng-page/ancestors'))
+        return jsonResponse({ results: [{ id: 'parent' }] })
+      if (path.endsWith('/pages/parent/ancestors'))
+        return jsonResponse({ results: [{ id: 'grandparent' }] })
+      if (path.endsWith('/ancestors')) return jsonResponse({ results: [] })
+      const match = path.match(/\/content\/([^/]+)\/restriction\/byOperation\/read/)
+      if (match) {
+        return jsonResponse({
+          restrictions: {
+            user: { results: [] },
+            group: { results: [{ id: `group-${match[1]}` }] },
+          },
+        })
+      }
+      return healthy(input, init)
+    })
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: 'ENG' },
+      [page('eng-page', 'ENG')],
+      { cloudId: 'cloud-1' }
+    )
+    expect(acls?.['eng-page']).toEqual({
+      acl: ['s:confluence:-:acc-eng'],
+      requirements: expect.arrayContaining([
+        ['g:confluence:cloud-1:group-eng-page'],
+        ['g:confluence:cloud-1:group-parent'],
+        ['g:confluence:cloud-1:group-grandparent'],
+      ]),
+    })
   })
 })

@@ -3,10 +3,10 @@ import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { createWorkspaceAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
 import type { DbOrTx } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
   getWorkspaceInvitePolicy,
   lockWorkspaceCreationContext,
@@ -23,7 +23,6 @@ export interface CreateWorkspaceParams {
   observedOrganizationId: string | null
   name: string
   skipDefaultWorkflow?: boolean
-  explicitColor?: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
@@ -41,7 +40,6 @@ export interface CreateWorkspaceParams {
 export interface CreatedWorkspace {
   id: string
   name: string
-  color: string
   ownerId: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
@@ -78,9 +76,9 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * Canonical transaction-enlisted workspace creation primitive.
  *
  * The caller supplies the creation-policy snapshot. This function revalidates
- * that snapshot — including the `workspace.create` capability, under the
+ * that snapshot — including the `workspace.create` capability under the
  * permission-group advisory lock — before inserting the workspace, owner
- * permission, and optional starter workflow atomically.
+ * permission, connected accounts, and optional starter workflow atomically.
  */
 export async function createWorkspaceInTransaction(
   tx: DbOrTx,
@@ -89,7 +87,6 @@ export async function createWorkspaceInTransaction(
     observedOrganizationId,
     name,
     skipDefaultWorkflow = false,
-    explicitColor,
     organizationId,
     workspaceMode,
     billedAccountUserId,
@@ -99,7 +96,6 @@ export async function createWorkspaceInTransaction(
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
-  const color = explicitColor || getRandomWorkspaceColor()
   /** Built before the locks: it takes no arguments, so nothing makes it wait for them. */
   const defaultWorkflowArtifacts = skipDefaultWorkflow ? null : buildDefaultWorkflowArtifacts()
   const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
@@ -116,7 +112,6 @@ export async function createWorkspaceInTransaction(
   await tx.insert(workspace).values({
     id: workspaceId,
     name,
-    color,
     ownerId: userId,
     organizationId,
     workspaceMode,
@@ -150,6 +145,8 @@ export async function createWorkspaceInTransaction(
   }
   await tx.insert(permissions).values(permissionRows)
 
+  await createWorkspaceAccountsGroup(tx, workspaceId, userId)
+
   if (defaultWorkflowArtifacts) {
     await tx.insert(workflow).values({
       id: workflowId,
@@ -180,7 +177,6 @@ export async function createWorkspaceInTransaction(
   return {
     id: workspaceId,
     name,
-    color,
     ownerId: userId,
     organizationId,
     workspaceMode,

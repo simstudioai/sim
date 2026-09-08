@@ -27,6 +27,8 @@ const logger = createLogger('MistralOperations')
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'] as const
 
 export interface MistralOperationContext {
+  /** Absolute ingestion deadline shared by admission, retries, and transport. */
+  deadlineAt?: number
   headers: Headers
   maxResponseBytes?: number
   requestId: string
@@ -56,7 +58,7 @@ async function buildInlineDocument(
   file: Exclude<MistralParseInput['file'], string | undefined>,
   context: MistralOperationContext
 ): Promise<Record<string, string>> {
-  if (!context.userId) {
+  if (!context.userId && context.trustedCaller !== 'knowledge-ingestion') {
     throw new MistralOperationError(401, { success: false, error: 'Unauthorized' })
   }
   let userFile
@@ -218,7 +220,8 @@ export async function executeMistralParse(
     input.apiKey,
     body,
     context.signal,
-    context.maxResponseBytes
+    context.maxResponseBytes,
+    context.deadlineAt
   )
   context.signal?.throwIfAborted()
   return { success: true, output }

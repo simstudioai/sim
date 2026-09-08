@@ -22,7 +22,9 @@ import {
 } from '@/lib/execution/durable-secret-provenance-enforcement'
 import { memoryDelegationPolicy } from '@/lib/memory/application/authorization'
 import { memoryOperations } from '@/lib/memory/application/operations'
+import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import {
+  bindMemorySecretProvenanceToMessages,
   readBoundMemorySecretProvenance,
   replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
@@ -268,16 +270,20 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
           input.resolveBillingAttribution
         )
       : undefined
-    const writeProvenance =
+    const incomingProvenance =
       input.resolveWriteProvenance && provenanceScope
         ? input.resolveWriteProvenance(provenanceScope)
         : input.writeProvenance
     const initialData = Array.isArray(input.data) ? input.data : [input.data]
+    const writeProvenance = incomingProvenance
+      ? await bindMemorySecretProvenanceToMessages(initialData, incomingProvenance)
+      : undefined
     const now = new Date()
     const id = `mem_${generateId().replace(/-/g, '')}`
 
     try {
       await db.transaction(async (tx) => {
+        await lockMemoryConversationInTx(tx, context.workspaceId, input.key)
         const [existing] = await tx
           .select({
             id: memory.id,
@@ -329,13 +335,19 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
           .returning({ id: memory.id, data: memory.data })
 
         if (writeProvenance) {
+          const nextProvenance = previousProvenance
+            ? mergeDurableSecretProvenance(previousProvenance, writeProvenance)
+            : writeProvenance
           await replaceMemorySecretProvenanceInTx(
             tx,
             written.id,
             written.data,
-            previousProvenance
-              ? mergeDurableSecretProvenance(previousProvenance, writeProvenance)
-              : writeProvenance
+            nextProvenance,
+            previousProvenance?.status === 'unknown'
+              ? 'inherited-provenance-unknown'
+              : writeProvenance.status === 'exact' && nextProvenance.status === 'unknown'
+                ? 'merge-provenance-limit'
+                : undefined
           )
         }
       })

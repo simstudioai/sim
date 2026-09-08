@@ -11,6 +11,7 @@ import {
   isDurableSecretProvenanceEnforced,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
@@ -86,18 +87,26 @@ const STORED_ENTRY_KEYS = new Set([
 /**
  * Why a durable table row write could not vouch for the cells it persisted.
  *
- * Every path that stamps a row `unknown` through this module funnels into one mutation, so this is
- * the whole cause set for the durable write — a closed union for the reason the read side's is one,
- * and because these are the lines a surface would be closed on the strength of reaching zero.
+ * Shared by ordinary mutations and derived column transformations, so the same event covers
+ * every writer rather than only the paths that classify provenance in JavaScript.
  */
 type UnvouchedTableRowWriteCause =
   | 'incoming-provenance-incomplete'
   | 'merge-base-unvouchable'
   | 'merge-base-unnormalizable'
   | 'merge-result-unnormalizable'
+  | 'derived-base-unvouchable'
+  | 'derived-base-unnormalizable'
+
+type UnvouchedTableRowWriteReport = {
+  cause: UnvouchedTableRowWriteCause
+  workspaceId: string
+  tableId: string
+  rowCount: number
+}
 
 /**
- * Records that a write persisted rows nobody could vouch for.
+ * Reports rows actually bound by the current transaction, which can still roll back later.
  *
  * Summarised per mutation rather than per row: one incomplete envelope marks every row of a batch,
  * and a batch runs to a thousand rows. Error for the same reason the read side uses it — an
@@ -105,17 +114,14 @@ type UnvouchedTableRowWriteCause =
  * back to.
  */
 function reportUnvouchedTableRowWrite(
-  countsByCause: ReadonlyMap<UnvouchedTableRowWriteCause, number>,
-  mode: 'replace' | 'merge'
+  report: UnvouchedTableRowWriteReport,
+  mode: 'replace' | 'merge' | DerivedTableRowTransformation['mode']
 ): void {
-  for (const [cause, rowCount] of countsByCause) {
-    logger.error('Table row write persisted unrecorded secret provenance', {
-      surface: 'table-row',
-      cause,
-      mode,
-      rowCount,
-    })
-  }
+  logger.error('Table row write staged unrecorded secret provenance', {
+    surface: 'table-row',
+    ...report,
+    mode,
+  })
 }
 
 function compareStrings(left: string, right: string): number {
@@ -149,36 +155,71 @@ function isStoredEntry(value: unknown): value is StoredTableRowSecretProvenanceE
   )
 }
 
-function storedEntryKey(entry: StoredTableRowSecretProvenanceEntry): string {
-  return [
-    entry.columnId,
-    entry.encryptedValue,
-    entry.name ?? '',
-    entry.sourceUserId ?? '',
-    entry.sourceWorkspaceId ?? '',
-  ].join('\u0000')
+function normalizeStoredEntryBindings(
+  values: Iterable<unknown>
+): StoredTableRowSecretProvenanceEntry[] | undefined {
+  const deduplicated = new Map<string, StoredTableRowSecretProvenanceEntry>()
+  const budget = new SecretProvenanceBudget()
+  for (const entry of values) {
+    if (!isStoredEntry(entry)) return undefined
+    let minimumBytes = 0
+    for (const value of Object.values(entry)) {
+      if (typeof value === 'string') minimumBytes += Buffer.byteLength(value, 'utf8')
+      if (minimumBytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
+    }
+    const normalized = {
+      columnId: entry.columnId,
+      encryptedValue: entry.encryptedValue,
+      ...(entry.name ? { name: entry.name } : {}),
+      ...(entry.sourceUserId ? { sourceUserId: entry.sourceUserId } : {}),
+      ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
+    }
+    const key = JSON.stringify(normalized)
+    if (deduplicated.has(key)) continue
+    if (!budget.add(entry.encryptedValue, Buffer.byteLength(key, 'utf8'))) return undefined
+    deduplicated.set(key, normalized)
+  }
+  return [...deduplicated.values()].sort(
+    (left, right) =>
+      compareStrings(left.columnId, right.columnId) ||
+      compareStrings(left.encryptedValue, right.encryptedValue) ||
+      compareStrings(left.name ?? '', right.name ?? '') ||
+      compareStrings(left.sourceUserId ?? '', right.sourceUserId ?? '') ||
+      compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '')
+  )
 }
 
 function normalizeStoredEntries(value: unknown): StoredTableRowSecretProvenanceEntry[] | undefined {
-  if (
-    !Array.isArray(value) ||
-    value.length > PROVENANCE_MAX_ENTRIES ||
-    !value.every(isStoredEntry)
-  ) {
-    return undefined
+  return Array.isArray(value) ? normalizeStoredEntryBindings(value) : undefined
+}
+
+function* storedEntriesFromColumns(
+  columns: [string, ResolvedSecretTraceProvenanceV1][]
+): Generator<StoredTableRowSecretProvenanceEntry> {
+  for (const [columnId, provenance] of columns) {
+    for (const entry of provenance.entries) {
+      yield {
+        columnId,
+        encryptedValue: entry.encryptedValue,
+        ...(entry.name ? { name: entry.name } : {}),
+        ...(provenance.scope?.userId ? { sourceUserId: provenance.scope.userId } : {}),
+        ...(provenance.scope?.workspaceId
+          ? { sourceWorkspaceId: provenance.scope.workspaceId }
+          : {}),
+      }
+    }
   }
-  const deduplicated = new Map<string, StoredTableRowSecretProvenanceEntry>()
-  for (const entry of value) deduplicated.set(storedEntryKey(entry), { ...entry })
-  const entries = [...deduplicated.values()].sort((left, right) =>
-    compareStrings(storedEntryKey(left), storedEntryKey(right))
-  )
-  if (
-    entries.length > PROVENANCE_MAX_ENTRIES ||
-    serializedBytes(entries) > PROVENANCE_MAX_SERIALIZED_BYTES
-  ) {
-    return undefined
+}
+
+function* mergedStoredEntries(
+  existing: StoredTableRowSecretProvenanceEntry[],
+  incoming: StoredTableRowSecretProvenanceEntry[],
+  touchedColumns: Set<string>
+): Generator<StoredTableRowSecretProvenanceEntry> {
+  for (const entry of existing) {
+    if (!touchedColumns.has(entry.columnId)) yield entry
   }
-  return entries
+  yield* incoming
 }
 
 function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
@@ -200,21 +241,7 @@ function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
     return { complete: false, touchedColumns, entries: [] }
   }
 
-  const entries: StoredTableRowSecretProvenanceEntry[] = []
-  for (const [columnId, columnProvenance] of columnEntries) {
-    for (const entry of columnProvenance.entries) {
-      entries.push({
-        columnId,
-        encryptedValue: entry.encryptedValue,
-        ...(entry.name ? { name: entry.name } : {}),
-        ...(columnProvenance.scope?.userId ? { sourceUserId: columnProvenance.scope.userId } : {}),
-        ...(columnProvenance.scope?.workspaceId
-          ? { sourceWorkspaceId: columnProvenance.scope.workspaceId }
-          : {}),
-      })
-    }
-  }
-  const normalized = normalizeStoredEntries(entries)
+  const normalized = normalizeStoredEntryBindings(storedEntriesFromColumns(columnEntries))
   return normalized
     ? { complete: true, touchedColumns, entries: normalized }
     : { complete: false, touchedColumns, entries: [] }
@@ -376,10 +403,10 @@ export async function mutateTableRowsWithSecretProvenance<T>(
       row_id: string
       status: 'exact' | 'unknown'
       entries: StoredTableRowSecretProvenanceEntry[]
+      cause?: UnvouchedTableRowWriteCause
     }
   >()
 
-  const unvouchedRowCounts = new Map<UnvouchedTableRowWriteCause, number>()
   for (const mutation of mutations) {
     if (mutation.provenance === undefined) continue
     const row = rowsById.get(mutation.rowId)
@@ -400,10 +427,9 @@ export async function mutateTableRowsWithSecretProvenance<T>(
       ) {
         const existing = normalizeStoredEntries(row.sidecarEntries)
         if (existing) {
-          const merged = normalizeStoredEntries([
-            ...existing.filter((entry) => !incoming.touchedColumns.has(entry.columnId)),
-            ...incoming.entries,
-          ])
+          const merged = normalizeStoredEntryBindings(
+            mergedStoredEntries(existing, incoming.entries, incoming.touchedColumns)
+          )
           if (merged) entries = merged
           else {
             status = 'unknown'
@@ -418,14 +444,13 @@ export async function mutateTableRowsWithSecretProvenance<T>(
         cause = 'merge-base-unvouchable'
       }
     }
-    if (cause) unvouchedRowCounts.set(cause, (unvouchedRowCounts.get(cause) ?? 0) + 1)
     pendingByRowId.set(mutation.rowId, {
       row_id: mutation.rowId,
       status,
       entries: status === 'exact' ? entries : [],
+      ...(cause ? { cause } : {}),
     })
   }
-  reportUnvouchedTableRowWrite(unvouchedRowCounts, options.mode)
 
   const outcome = await options.mutate()
   const affectedRowIds = new Set<string>()
@@ -442,18 +467,22 @@ export async function mutateTableRowsWithSecretProvenance<T>(
   const pending = [...pendingByRowId.values()].filter((row) => affectedRowIds.has(row.row_id))
   for (let index = 0; index < pending.length; index += QUERY_CHUNK_SIZE) {
     const chunk = JSON.stringify(pending.slice(index, index + QUERY_CHUNK_SIZE))
-    await trx.execute(sql`
+    const unrecordedWrites = await trx.execute<UnvouchedTableRowWriteReport>(sql`
       WITH pending AS (
         SELECT *
         FROM jsonb_to_recordset(${chunk}::jsonb)
-          AS value(row_id text, status text, entries jsonb)
+          AS value(row_id text, status text, entries jsonb, cause text)
       ), bound AS (
         UPDATE ${userTableRows} AS target
         SET secret_provenance_version = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
         FROM pending
         WHERE target.id = pending.row_id
-        RETURNING target.id AS row_id, target.updated_at AS content_updated_at
-      )
+        RETURNING
+          target.id AS row_id,
+          target.updated_at AS content_updated_at,
+          target.workspace_id,
+          target.table_id
+      ), persisted AS (
       INSERT INTO ${userTableRowSecretProvenance} (
         row_id,
         content_updated_at,
@@ -474,7 +503,20 @@ export async function mutateTableRowsWithSecretProvenance<T>(
         status = EXCLUDED.status,
         entries = EXCLUDED.entries,
         updated_at = EXCLUDED.updated_at
+      RETURNING row_id, status
+      )
+      SELECT
+        bound.workspace_id AS "workspaceId",
+        bound.table_id AS "tableId",
+        pending.cause,
+        count(*)::integer AS "rowCount"
+      FROM bound
+      INNER JOIN pending ON pending.row_id = bound.row_id
+      INNER JOIN persisted ON persisted.row_id = bound.row_id
+      WHERE persisted.status = 'unknown'
+      GROUP BY bound.workspace_id, bound.table_id, pending.cause
     `)
+    for (const report of unrecordedWrites) reportUnvouchedTableRowWrite(report, options.mode)
   }
 
   return outcome.value
@@ -556,10 +598,12 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     const rowIds = page.map((row) => row.id)
     updatedCount += rowIds.length
 
-    await trx.execute(sql`
+    const unrecordedWrites = await trx.execute<UnvouchedTableRowWriteReport>(sql`
       WITH source AS MATERIALIZED (
         SELECT
           ${userTableRows.id} AS row_id,
+          ${userTableRows.workspaceId} AS workspace_id,
+          ${userTableRows.tableId} AS table_id,
           ${userTableRows.updatedAt} AS old_updated_at,
           ${userTableRows.secretProvenanceVersion} AS old_provenance_version,
           ${userTableRowSecretProvenance.rowId} AS provenance_row_id,
@@ -584,6 +628,17 @@ export async function updateTableRowsWithDerivedSecretProvenance(
         SELECT
           updated.row_id,
           updated.content_updated_at,
+          source.workspace_id,
+          source.table_id,
+          CASE
+            WHEN (
+              source.old_provenance_version = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
+              AND source.provenance_status = 'exact'
+              AND source.provenance_content_updated_at = source.old_updated_at
+            ) IS TRUE
+            THEN 'derived-base-unnormalizable'
+            ELSE 'derived-base-unvouchable'
+          END AS unrecorded_cause,
           CASE
             WHEN source.old_provenance_version IS NULL
             THEN '[]'::jsonb
@@ -591,12 +646,15 @@ export async function updateTableRowsWithDerivedSecretProvenance(
               AND source.provenance_status = 'exact'
               AND source.provenance_content_updated_at = source.old_updated_at
               AND jsonb_typeof(source.provenance_entries) = 'array'
-              AND jsonb_array_length(
-                CASE
-                  WHEN jsonb_typeof(source.provenance_entries) = 'array'
-                  THEN source.provenance_entries
-                  ELSE '[]'::jsonb
-                END
+              AND (
+                SELECT count(DISTINCT value.entry ->> 'encryptedValue')
+                FROM jsonb_array_elements(
+                  CASE
+                    WHEN jsonb_typeof(source.provenance_entries) = 'array'
+                    THEN source.provenance_entries
+                    ELSE '[]'::jsonb
+                  END
+                ) AS value(entry)
               ) <= ${PROVENANCE_MAX_ENTRIES}
               AND octet_length(source.provenance_entries::text) <= ${PROVENANCE_MAX_SERIALIZED_BYTES}
               AND NOT EXISTS (
@@ -657,7 +715,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
           END AS exact_entries
         FROM updated
         INNER JOIN source ON source.row_id = updated.row_id
-      )
+      ), persisted AS (
       INSERT INTO ${userTableRowSecretProvenance} (
         row_id,
         content_updated_at,
@@ -677,6 +735,17 @@ export async function updateTableRowsWithDerivedSecretProvenance(
         status = EXCLUDED.status,
         entries = EXCLUDED.entries,
         updated_at = EXCLUDED.updated_at
+      RETURNING row_id, status
+      )
+      SELECT
+        classified.workspace_id AS "workspaceId",
+        classified.table_id AS "tableId",
+        classified.unrecorded_cause AS cause,
+        count(*)::integer AS "rowCount"
+      FROM classified
+      INNER JOIN persisted ON persisted.row_id = classified.row_id
+      WHERE persisted.status = 'unknown'
+      GROUP BY classified.workspace_id, classified.table_id, classified.unrecorded_cause
     `)
 
     await trx.execute(sql`
@@ -687,6 +756,10 @@ export async function updateTableRowsWithDerivedSecretProvenance(
         AND ${inArray(sql`target.id`, rowIds)}
         AND provenance.content_updated_at = target.updated_at
     `)
+
+    for (const report of unrecordedWrites) {
+      reportUnvouchedTableRowWrite(report, options.transformation.mode)
+    }
 
     afterId = rowIds[rowIds.length - 1]
     if (page.length < QUERY_CHUNK_SIZE) break
@@ -720,8 +793,28 @@ export async function getTableSnapshotModelMountSafety(options: {
     return 'stale'
   }
 
-  const [unsafeRow] = await db
-    .select({ id: userTableRows.id })
+  /**
+   * A missing LEFT JOIN sidecar is an explicit absence, not SQL NULL in a negated safety
+   * predicate. Legacy and unrecorded rows follow the same policy as ordinary table reads;
+   * a current exact sidecar containing secrets cannot accompany an unredacted CSV mount.
+   */
+  const classification = sql`CASE
+    WHEN ${userTableRows.secretProvenanceVersion} IS NULL THEN 'safe'
+    WHEN (
+      ${userTableRows.secretProvenanceVersion} = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
+      AND ${userTableRowSecretProvenance.status} = 'exact'
+      AND ${userTableRowSecretProvenance.contentUpdatedAt} = ${userTableRows.updatedAt}
+    ) IS NOT TRUE THEN 'unrecorded'
+    WHEN ${userTableRowSecretProvenance.entries} = '[]'::jsonb THEN 'safe'
+    ELSE 'unsafe'
+  END`
+  const [counts] = await db
+    .select({
+      unsafeCount: sql<number | string>`count(*) FILTER (WHERE (${classification}) = 'unsafe')`,
+      unrecordedCount: sql<
+        number | string
+      >`count(*) FILTER (WHERE (${classification}) = 'unrecorded')`,
+    })
     .from(userTableRows)
     .leftJoin(
       userTableRowSecretProvenance,
@@ -730,31 +823,26 @@ export async function getTableSnapshotModelMountSafety(options: {
     .where(
       and(
         eq(userTableRows.tableId, options.tableId),
-        eq(userTableRows.workspaceId, options.workspaceId),
-        sql`NOT (
-          ${userTableRows.secretProvenanceVersion} IS NULL
-          OR
-          (${userTableRows.secretProvenanceVersion} = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
-            AND ${userTableRowSecretProvenance.status} = 'exact'
-            AND ${userTableRowSecretProvenance.contentUpdatedAt} = ${userTableRows.updatedAt}
-            AND jsonb_typeof(${userTableRowSecretProvenance.entries}) = 'array'
-            AND jsonb_array_length(
-              CASE
-                WHEN jsonb_typeof(${userTableRowSecretProvenance.entries}) = 'array'
-                THEN ${userTableRowSecretProvenance.entries}
-                ELSE '[]'::jsonb
-              END
-            ) = 0)
-        )`
+        eq(userTableRows.workspaceId, options.workspaceId)
       )
     )
-    .limit(1)
 
   if ((await readTableRowsVersion(options.tableId, options.workspaceId)) !== options.rowsVersion) {
     return 'stale'
   }
 
-  return unsafeRow ? 'unsafe-provenance' : 'safe'
+  if (!counts || Number(counts.unsafeCount) > 0) return 'unsafe-provenance'
+  const unrecordedCount = Number(counts.unrecordedCount)
+  if (unrecordedCount > 0) {
+    if (isDurableSecretProvenanceEnforced('table-row')) return 'unsafe-provenance'
+    reportUnrecordedDurableProvenance({
+      surface: 'table-row',
+      cause: 'row-sidecar-not-exact',
+      affectedCount: unrecordedCount,
+      workspaceId: options.workspaceId,
+    })
+  }
+  return 'safe'
 }
 
 /**

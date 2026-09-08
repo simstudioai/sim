@@ -293,6 +293,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         if (await addGroupMember(tx, { groupId: current.id, scimUserId })) touched.add(scimUserId)
       }
       await assertMemberCount(tx, current.id)
+      if (touched.size > 0) await touchScimGroup(tx, current.id)
 
       await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,

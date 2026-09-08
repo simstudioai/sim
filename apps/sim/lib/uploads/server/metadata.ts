@@ -4,12 +4,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import {
   getWorkspaceFileSize,
   isWorkspaceScopedContext,
   type StorageContext,
-} from '../shared/types'
+} from '@/lib/uploads/shared/types'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileMetadata')
 
@@ -19,6 +19,7 @@ export interface FileMetadataInsertOptions {
   key: string
   userId: string
   workspaceId?: string | null
+  organizationId?: string | null
   context: StorageContext
   originalName: string
   contentType: string
@@ -36,6 +37,21 @@ export class ActiveFileMetadataKeyConflictError extends Error {
   }
 }
 
+/** Organization file bindings are restricted to connector caches, never personal uploads. */
+function assertFileMetadataOrganizationOwner(options: FileMetadataInsertOptions): void {
+  if (
+    options.organizationId &&
+    (options.workspaceId ||
+      options.folderId ||
+      options.context !== 'knowledge-base' ||
+      inferContextFromKey(options.key) !== 'knowledge-base')
+  ) {
+    throw new Error(
+      'Organization file bindings require knowledge-base context and no workspace or folder'
+    )
+  }
+}
+
 function isSameFileMetadataInsert(
   existing: FileMetadataRecord,
   options: FileMetadataInsertOptions
@@ -44,6 +60,7 @@ function isSameFileMetadataInsert(
     existing.key === options.key &&
     existing.userId === options.userId &&
     existing.workspaceId === (options.workspaceId ?? null) &&
+    (existing.organizationId ?? null) === (options.organizationId ?? null) &&
     existing.folderId === (options.folderId ?? null) &&
     existing.context === options.context &&
     existing.originalName === options.originalName &&
@@ -62,6 +79,7 @@ function isSameFileMetadataRequest(
     left.key === right.key &&
     left.userId === right.userId &&
     (left.workspaceId ?? null) === (right.workspaceId ?? null) &&
+    (left.organizationId ?? null) === (right.organizationId ?? null) &&
     (left.folderId ?? null) === (right.folderId ?? null) &&
     left.context === right.context &&
     left.originalName === right.originalName &&
@@ -98,12 +116,25 @@ async function insertFileMetadataWithExecutor(
   options: FileMetadataInsertOptions,
   requireExactActiveIdentity: boolean
 ): Promise<FileMetadataRecord> {
-  const { key, userId, workspaceId, context, originalName, contentType, size, folderId, id } =
-    options
+  const {
+    key,
+    userId,
+    workspaceId,
+    organizationId,
+    context,
+    originalName,
+    contentType,
+    size,
+    folderId,
+    id,
+  } = options
 
+  assertFileMetadataOrganizationOwner(options)
   const active = await findActiveFileMetadataByKey(executor, key)
   if (active) {
-    return requireExactActiveIdentity ? resolveExistingFileMetadata(active, options) : active
+    return requireExactActiveIdentity || active.organizationId
+      ? resolveExistingFileMetadata(active, options)
+      : active
   }
 
   const [existingDeleted] = await executor
@@ -113,11 +144,15 @@ async function insertFileMetadataWithExecutor(
     .limit(1)
 
   if (existingDeleted) {
+    if (requireExactActiveIdentity || existingDeleted.organizationId) {
+      resolveExistingFileMetadata({ ...existingDeleted, deletedAt: null }, options)
+    }
     const [restored] = await executor
       .update(workspaceFiles)
       .set({
         userId,
         workspaceId: workspaceId || null,
+        organizationId: organizationId || null,
         folderId: folderId ?? null,
         context,
         originalName,
@@ -146,6 +181,7 @@ async function insertFileMetadataWithExecutor(
         key,
         userId,
         workspaceId: workspaceId || null,
+        organizationId: organizationId || null,
         folderId: folderId ?? null,
         context,
         originalName,
@@ -166,7 +202,7 @@ async function insertFileMetadataWithExecutor(
     if (code === '23505' || (error instanceof Error && error.message.includes('unique'))) {
       const existingAfterError = await findActiveFileMetadataByKey(executor, key)
       if (existingAfterError) {
-        return requireExactActiveIdentity
+        return requireExactActiveIdentity || existingAfterError.organizationId
           ? resolveExistingFileMetadata(existingAfterError, options)
           : existingAfterError
       }
@@ -181,8 +217,19 @@ async function insertImmutableFileMetadataWithExecutor(
   executor: DbOrTx,
   options: FileMetadataInsertOptions
 ): Promise<FileMetadataRecord> {
-  const { key, userId, workspaceId, context, originalName, contentType, size, folderId, id } =
-    options
+  const {
+    key,
+    userId,
+    workspaceId,
+    organizationId,
+    context,
+    originalName,
+    contentType,
+    size,
+    folderId,
+    id,
+  } = options
+  assertFileMetadataOrganizationOwner(options)
   const [inserted] = await executor
     .insert(workspaceFiles)
     .values({
@@ -190,6 +237,7 @@ async function insertImmutableFileMetadataWithExecutor(
       key,
       userId,
       workspaceId: workspaceId || null,
+      organizationId: organizationId || null,
       folderId: folderId ?? null,
       context,
       originalName,
@@ -218,7 +266,7 @@ async function insertImmutableFileMetadataWithExecutor(
 export async function insertFileMetadata(
   options: FileMetadataInsertOptions
 ): Promise<FileMetadataRecord> {
-  return insertFileMetadataWithExecutor(db, options, false)
+  return insertFileMetadataWithExecutor(db, options, Boolean(options.organizationId))
 }
 
 /**
@@ -251,6 +299,7 @@ export async function insertFileMetadataMany(
 
   const uniqueRowsByKey = new Map<string, (typeof rows)[number]>()
   for (const row of rows) {
+    assertFileMetadataOrganizationOwner(row)
     const existing = uniqueRowsByKey.get(row.key)
     if (existing && !isSameFileMetadataRequest(existing, row)) {
       throw new ActiveFileMetadataKeyConflictError(row.key)
@@ -267,6 +316,7 @@ export async function insertFileMetadataMany(
         key: row.key,
         userId: row.userId,
         workspaceId: row.workspaceId || null,
+        organizationId: row.organizationId || null,
         folderId: row.folderId ?? null,
         context: row.context,
         originalName: row.originalName,

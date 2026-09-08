@@ -7,6 +7,7 @@ export const gitlabListReleasesTool: ToolConfig<
   GitLabListReleasesResponse
 > = {
   id: 'gitlab_list_releases',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Releases',
   description: 'List releases in a GitLab project',
   version: '1.0.0',

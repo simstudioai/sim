@@ -28,6 +28,7 @@ export const POST = defineV2JsonRoute({
       : [body.knowledgeBaseIds],
     query: body.query,
     topK: body.topK,
+    surface: 'api' as const,
     tagFilters: body.tagFilters,
     searchMode: body.searchMode,
     rerankerEnabled: body.rerankerEnabled,

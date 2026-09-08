@@ -24,7 +24,7 @@ export async function resolveCredentialApplicationContext(
         credentialId: input.credentialId,
       })
     : await getCredentialById(input.credentialId)
-  if (!credential) throw new OrchestrationError('not_found', 'Credential not found')
+  if (!credential?.workspaceId) throw new OrchestrationError('not_found', 'Credential not found')
   const workspace =
     assertedWorkspace ?? (await loadActiveWorkspaceApplicationContext(credential.workspaceId))
   if (!workspace) throw new OrchestrationError('not_found', 'Credential not found')

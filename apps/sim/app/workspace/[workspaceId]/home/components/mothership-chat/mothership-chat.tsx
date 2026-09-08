@@ -34,7 +34,10 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { prepareCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
+import {
+  prepareCopyableMarkdown,
+  toCopyableMarkdown,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
@@ -51,7 +54,7 @@ import type {
   QueuedMessage,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getWorkspaceFilesQueryOptions, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
@@ -59,7 +62,8 @@ import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
-  workspaceId: string
+  workspaceId?: string
+  composer?: ReactNode
   messages: ChatMessage[]
   isSending: boolean
   /** The composer's Search-mode results, shown above the input. */
@@ -212,6 +216,7 @@ interface AssistantMessageRowProps {
   isStreaming: boolean
   isLast: boolean
   precedingUserContent: string | undefined
+  requestMode?: ChatMessage['requestMode']
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
@@ -229,6 +234,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   isStreaming,
   isLast,
   precedingUserContent,
+  requestMode,
   questionAnswers,
   credentialSubmission,
   credentialAbandoned,
@@ -236,7 +242,8 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   onOptionSelect,
   onAnimatingChange,
 }: AssistantMessageRowProps) {
-  const { canEdit } = useUserPermissionsContext()
+  const permissions = useOptionalWorkspacePermissionsContext()
+  const canEdit = permissions?.userPermissions.canEdit ?? false
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
   const hasAnyBlocks = blocks.length > 0
   const trimmedContent = message.content?.trim() ?? ''
@@ -266,7 +273,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const endsWithCredential = trimmedContent.endsWith('</credential>')
   const trailingCredentials = endsWithCredential ? parseLastCredentialTag(trimmedContent) : null
   const showsCredentialCard = trailingCredentials
-    ? credentialTagHasVisibleCard(trailingCredentials, canEdit)
+    ? credentialTagHasVisibleCard(trailingCredentials, canEdit, message.requestMode ?? requestMode)
     : false
   const questionTag = endsWithQuestion
     ? trimmedContent.slice(trimmedContent.lastIndexOf('<question>'))
@@ -296,6 +303,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
       <MessageContent
         messageId={message.id}
+        requestMode={message.requestMode ?? requestMode}
         blocks={blocks}
         fallbackContent={message.content}
         isStreaming={isStreaming}
@@ -326,6 +334,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 
 export function MothershipChat({
   workspaceId,
+  composer,
   messages: messagesProp,
   isSending,
   searchResults,
@@ -379,17 +388,19 @@ export function MothershipChat({
   const floorDrainRafRef = useRef(0)
   const prepareContentForCopy = useCallback(
     (content: string) =>
-      prepareCopyableMarkdown(
-        content,
-        queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
-          workspaceFilesKeys.list(workspaceId)
-        ) ?? EMPTY_WORKSPACE_FILES,
-        () =>
-          queryClient.fetchQuery({
-            ...getWorkspaceFilesQueryOptions(workspaceId),
-            staleTime: 0,
-          })
-      ),
+      workspaceId
+        ? prepareCopyableMarkdown(
+            content,
+            queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
+              workspaceFilesKeys.list(workspaceId)
+            ) ?? EMPTY_WORKSPACE_FILES,
+            () =>
+              queryClient.fetchQuery({
+                ...getWorkspaceFilesQueryOptions(workspaceId),
+                staleTime: 0,
+              })
+          )
+        : toCopyableMarkdown(content),
     [queryClient, workspaceId]
   )
   useEffect(() => () => cancelAnimationFrame(floorDrainRafRef.current), [])
@@ -565,12 +576,12 @@ export function MothershipChat({
     return out
   }, [messages])
 
-  const precedingUserContentByIndex = useMemo(() => {
-    const out: Array<string | undefined> = []
-    let lastUserContent: string | undefined
+  const precedingUserByIndex = useMemo(() => {
+    const out: Array<ChatMessage | undefined> = []
+    let lastUser: ChatMessage | undefined
     for (const [index, message] of messages.entries()) {
-      out[index] = lastUserContent
-      if (message.role === 'user') lastUserContent = message.content
+      out[index] = lastUser
+      if (message.role === 'user') lastUser = message
     }
     return out
   }, [messages])
@@ -822,7 +833,8 @@ export function MothershipChat({
                         prepareContentForCopy={prepareContentForCopy}
                         isStreaming={isStreamActive && isLast}
                         isLast={isLast}
-                        precedingUserContent={precedingUserContentByIndex[index]}
+                        precedingUserContent={precedingUserByIndex[index]?.content}
+                        requestMode={precedingUserByIndex[index]?.requestMode}
                         questionAnswers={interactionPairing.answersByIndex[index]}
                         credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
                         credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
@@ -855,21 +867,24 @@ export function MothershipChat({
               onEdit={handleEditQueued}
               onCancelEdit={onCancelQueueEdit}
             />
-            <UserInput
-              key={draftScopeKey}
-              ref={userInputRef}
-              defaultValue={searchQuery}
-              onSubmit={onSubmit}
-              canSearch={canSearch}
-              clearOnSubmit={clearOnSubmit}
-              onCleared={onCleared}
-              isSending={isStreamActive}
-              onStopGeneration={onStopGeneration}
-              isInitialView={false}
-              onSendQueuedHead={handleSendQueuedHead}
-              onEditQueuedTail={handleEditQueuedTail}
-              draftScopeKey={draftScopeKey}
-            />
+            {!isLoading &&
+              (composer ?? (
+                <UserInput
+                  key={draftScopeKey}
+                  ref={userInputRef}
+                  defaultValue={searchQuery}
+                  onSubmit={onSubmit}
+                  canSearch={canSearch}
+                  clearOnSubmit={clearOnSubmit}
+                  onCleared={onCleared}
+                  isSending={isStreamActive}
+                  onStopGeneration={onStopGeneration}
+                  isInitialView={false}
+                  onSendQueuedHead={handleSendQueuedHead}
+                  onEditQueuedTail={handleEditQueuedTail}
+                  draftScopeKey={draftScopeKey}
+                />
+              ))}
           </div>
         </div>
       </div>

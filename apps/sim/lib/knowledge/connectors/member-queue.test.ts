@@ -5,12 +5,14 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAssertBillingOwner,
   mockExecuteMemberSync,
   mockIsTriggerAvailable,
   mockTrigger,
   mockResolveRegion,
   mockResolveSystemBilling,
 } = vi.hoisted(() => ({
+  mockAssertBillingOwner: vi.fn(),
   mockExecuteMemberSync: vi.fn(),
   mockIsTriggerAvailable: vi.fn(),
   mockTrigger: vi.fn(),
@@ -19,6 +21,7 @@ const {
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionOwner: mockAssertBillingOwner,
   assertBillingAttributionSnapshot: (value: unknown) => value,
   resolveSystemBillingAttribution: mockResolveSystemBilling,
 }))
@@ -81,12 +84,14 @@ describe('member sync queue', () => {
           requestId: 'r-1',
           billingAttribution: BILLING,
           dispatchToken: 't-1',
+          forceContentRefresh: true,
         })
       ).toEqual({
         connectorId: 'c-1',
         requestId: 'r-1',
         billingAttribution: BILLING,
         dispatchToken: 't-1',
+        forceContentRefresh: true,
       })
     })
 
@@ -94,6 +99,15 @@ describe('member sync queue', () => {
       ['no connector', { requestId: 'r-1', billingAttribution: BILLING }],
       ['no request id', { connectorId: 'c-1', billingAttribution: BILLING }],
       ['no billing attribution', { connectorId: 'c-1', requestId: 'r-1' }],
+      [
+        'non-boolean content refresh',
+        {
+          connectorId: 'c-1',
+          requestId: 'r-1',
+          billingAttribution: BILLING,
+          forceContentRefresh: 'yes',
+        },
+      ],
       [
         'a blank token',
         { connectorId: 'c-1', requestId: 'r-1', billingAttribution: BILLING, dispatchToken: ' ' },
@@ -118,6 +132,7 @@ describe('member sync queue', () => {
           connectorId: 'c-1',
           requestId: 'r-1',
           dispatchToken: expect.any(String),
+          forceContentRefresh: true,
         }),
         expect.objectContaining({ region: 'us' })
       )
@@ -142,6 +157,22 @@ describe('member sync queue', () => {
       expect(mockExecuteMemberSync).toHaveBeenCalledWith(
         'c-1',
         expect.objectContaining({ billingAttribution: BILLING, dispatchToken: expect.any(String) })
+      )
+    })
+
+    it('automatic permission refresh does not force another content crawl', async () => {
+      const nextMemberSyncAt = new Date()
+      queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, nextMemberSyncAt }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+      await dispatchMemberSync('c-1', {
+        billingAttribution: BILLING,
+        requireRunnable: true,
+        expectedNextMemberSyncAt: nextMemberSyncAt,
+      })
+      expect(mockTrigger).toHaveBeenCalledWith(
+        MEMBER_SYNC_TASK_ID,
+        expect.objectContaining({ forceContentRefresh: false }),
+        expect.anything()
       )
     })
 
@@ -215,12 +246,15 @@ describe('member sync queue', () => {
       expect(mockTrigger).not.toHaveBeenCalled()
     })
 
-    it('refuses billing attribution for another workspace', async () => {
+    it('refuses the queue handoff when billing owner validation fails', async () => {
+      mockAssertBillingOwner.mockImplementationOnce(() => {
+        throw new Error('Billing attribution does not match resource owner')
+      })
       queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])
 
       await expect(
         dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
-      ).rejects.toThrow('does not match connector workspace ws-2')
+      ).rejects.toThrow('Billing attribution does not match resource owner')
     })
 
     /**
@@ -295,6 +329,9 @@ describe('member sync queue', () => {
 
   describe('dispatchMemberSyncsForCredentialOption', () => {
     it('keeps dispatching the remaining connectors when one hand-off throws', async () => {
+      mockAssertBillingOwner.mockImplementationOnce(() => {
+        throw new Error('Billing attribution does not match resource owner')
+      })
       mockResolveSystemBilling.mockResolvedValue(BILLING)
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }, { id: 'c-2' }])
       queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])

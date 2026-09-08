@@ -10,6 +10,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
 const {
   mockAuthenticateEnrollment,
@@ -30,7 +31,7 @@ vi.mock('@/lib/mcp/service', () => ({
   mcpService: { discoverServerTools: mockDiscoverServerTools },
 }))
 vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
-  authenticateCredentialGroupEnrollment: mockAuthenticateEnrollment,
+  credentialGroupOAuthAttemptPrincipal: mockAuthenticateEnrollment,
 }))
 vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
   completePublicCredentialGroupMcpOAuth: { execute: mockCompleteManagedMcpOAuth },
@@ -68,6 +69,8 @@ describe('MCP OAuth callback route', () => {
     mockDiscoverServerTools.mockResolvedValue(undefined)
     mockConsumeManagedAttempt.mockResolvedValue({
       state: 'mcp_cg_state-1',
+      workspaceId: 'workspace-1',
+      email: 'invitee@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       mcpServerId: 'server-1',
@@ -75,7 +78,7 @@ describe('MCP OAuth callback route', () => {
       invitationToken: 'invitation-token',
       createdAt: Date.now(),
     })
-    mockAuthenticateEnrollment.mockResolvedValue({
+    mockAuthenticateEnrollment.mockReturnValue({
       kind: 'credential_group_enrollment',
       workspaceId: 'workspace-1',
       credentialGroupId: 'group-1',
@@ -159,7 +162,13 @@ describe('MCP OAuth callback route', () => {
 
     expect(mockEnforceCallbackRateLimit).toHaveBeenCalledWith(request, 'oauth-callback')
     expect(mockConsumeManagedAttempt).toHaveBeenCalledWith('mcp_cg_state-1')
-    expect(mockAuthenticateEnrollment).toHaveBeenCalledWith('invitation-token')
+    expect(mockAuthenticateEnrollment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        email: 'invitee@example.com',
+        invitationToken: 'invitation-token',
+      })
+    )
     expect(mockCompleteManagedMcpOAuth).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({
@@ -185,6 +194,15 @@ describe('MCP OAuth callback route', () => {
 
     expect(response.status).toBe(429)
     expect(mockConsumeManagedAttempt).not.toHaveBeenCalled()
+    expect(mockCompleteManagedMcpOAuth).not.toHaveBeenCalled()
+  })
+  it('reports a state protocol change without exchanging a code or loading an enrollment', async () => {
+    mockConsumeManagedAttempt.mockRejectedValue(new CredentialGroupOAuthStateVersionError())
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=mcp_cg_old&code=code')
+    )
+    expect(await response.text()).toContain('Reopen your invitation and connect again')
+    expect(mockAuthenticateEnrollment).not.toHaveBeenCalled()
     expect(mockCompleteManagedMcpOAuth).not.toHaveBeenCalled()
   })
 })

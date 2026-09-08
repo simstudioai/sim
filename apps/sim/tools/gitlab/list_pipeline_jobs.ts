@@ -10,6 +10,7 @@ export const gitlabListPipelineJobsTool: ToolConfig<
   GitLabListPipelineJobsResponse
 > = {
   id: 'gitlab_list_pipeline_jobs',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Pipeline Jobs',
   description: 'List jobs for a GitLab pipeline',
   version: '1.0.0',

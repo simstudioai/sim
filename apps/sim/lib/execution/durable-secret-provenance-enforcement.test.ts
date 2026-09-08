@@ -3,14 +3,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv, mockLogger, mockRecordAudit } = vi.hoisted(() => ({
+const { mockEnv, mockLogger, mockPersistenceLogger, mockRecordAudit } = vi.hoisted(() => ({
   mockEnv: {} as Record<string, string | undefined>,
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  mockPersistenceLogger: { error: vi.fn() },
   mockRecordAudit: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
-vi.mock('@sim/logger', () => ({ createLogger: () => mockLogger }))
+vi.mock('@sim/logger', () => ({
+  createLogger: (module: string) =>
+    module === 'DurableSecretProvenancePersistence' ? mockPersistenceLogger : mockLogger,
+}))
 /** Literal values rather than the real constants: these reach the database and the trail. */
 vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
@@ -21,6 +25,8 @@ vi.mock('@sim/audit', () => ({
 import {
   DURABLE_SECRET_PROVENANCE_SURFACES,
   isDurableSecretProvenanceEnforced,
+  reportDurableSecretProvenanceRefusal,
+  reportDurableSecretProvenanceWrite,
   reportUnrecordedDurableProvenance,
   resetDurableSecretProvenanceEnforcementCache,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
@@ -146,5 +152,51 @@ describe('durable secret provenance enforcement', () => {
 
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockLogger.error).toHaveBeenCalled()
+  })
+
+  it('separates non-exact write telemetry from permissive reads and copies only safe fields', () => {
+    const report = {
+      surface: 'knowledge' as const,
+      status: 'unknown' as const,
+      cause: 'source-provenance-unknown' as const,
+      recordCount: 2,
+      workspaceId: 'workspace-1',
+      resourceId: 'document-1',
+      content: 'private document content',
+      entries: [{ secretName: 'PRIVATE_TOKEN', ciphertext: 'private encrypted value' }],
+    }
+    reportDurableSecretProvenanceWrite(report)
+
+    expect(mockPersistenceLogger.error).toHaveBeenCalledWith(
+      'Writing non-exact durable secret provenance',
+      {
+        surface: 'knowledge',
+        status: 'unknown',
+        cause: 'source-provenance-unknown',
+        recordCount: 2,
+        workspaceId: 'workspace-1',
+        resourceId: 'document-1',
+      }
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(isDurableSecretProvenanceEnforced('knowledge')).toBe(false)
+  })
+
+  it('reports existing refusals without resolving or changing enforcement', () => {
+    configure('workspace-file')
+    reportDurableSecretProvenanceRefusal({
+      surface: 'workspace-file',
+      cause: 'workspace-file-opaque-secret-content',
+    })
+
+    expect(mockPersistenceLogger.error).toHaveBeenCalledWith(
+      'Refusing unavailable durable secret provenance',
+      { surface: 'workspace-file', cause: 'workspace-file-opaque-secret-content' }
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(isDurableSecretProvenanceEnforced('workspace-file')).toBe(true)
+    expect(isDurableSecretProvenanceEnforced('memory')).toBe(false)
   })
 })

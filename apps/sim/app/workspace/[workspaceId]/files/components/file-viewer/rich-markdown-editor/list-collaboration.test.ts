@@ -169,6 +169,48 @@ describe('list editing with delayed peer updates', () => {
     expect(a.editor.state.doc.textContent).toContain('PEER one')
   })
 
+  /**
+   * The required empty paragraph before a nested list cannot be deleted in this schema. The current
+   * Backspace remains a structural no-op: upstream lift/join instead discard delayed sibling edits.
+   */
+  describe.each(['bullet', 'ordered', 'task'] as const)(
+    '%s empty parent with nested content',
+    (kind) => {
+      it.each([false, true])(
+        'preserves delayed edits and a safe caret (reordered=%s)',
+        (reversed) => {
+          const tag = kind === 'ordered' ? 'ol' : 'ul'
+          const listAttrs = kind === 'task' ? ' data-type="taskList"' : ''
+          const itemAttrs = kind === 'task' ? ' data-type="taskItem" data-checked="false"' : ''
+          const item = (content: string) => `<li${itemAttrs}>${content}</li>`
+          const list = (content: string) => `<${tag}${listAttrs}>${content}</${tag}>`
+          const { a, b } = pair(
+            list(
+              item('<p>before</p>') +
+                item(`<p></p>${list(item('<p>child</p>'))}`) +
+                item('<p>following</p>')
+            ),
+            true
+          )
+          a.editor.commands.setTextSelection(
+            a.editor.state.doc.firstChild!.firstChild!.nodeSize + 3
+          )
+          for (const word of ['before', 'child', 'following']) {
+            b.editor.commands.insertContentAt(findText(b.editor, word), `PEER-${word} `)
+          }
+          const expected = b.editor.getJSON()
+
+          key(a.editor, 'Backspace')
+          reconnect(a, b, reversed)
+
+          expect(a.editor.getJSON()).toEqual(expected)
+          expect(a.editor.state.selection.empty).toBe(true)
+          expect(a.editor.state.selection.$from.parent.isTextblock).toBe(true)
+        }
+      )
+    }
+  )
+
   it('undoes a local bullet join without undoing received peer text', () => {
     const { a, b } = pair()
     const history: { undoManager: Y.UndoManager } = yUndoPluginKey.getState(a.editor.state)
@@ -196,22 +238,61 @@ describe('list editing with delayed peer updates', () => {
    * half of a split list into new CRDT identities. Convergence alone does not prove preservation.
    * https://github.com/yjs/y-prosemirror/blob/master/CAVEATS.md#node-splitting-merging-and-lifting
    */
-  it.each([false, true])(
-    'clearing a new middle item retains concurrent text in every sibling (reordered=%s)',
-    (reversed) => {
-      const { a, b } = pair()
-      for (const word of ['one', 'two', 'three']) {
-        b.editor.commands.insertContentAt(findText(b.editor, word), 'PEER ')
-        expect(b.editor.state.doc.textContent).toContain(`PEER ${word}`)
-      }
-      a.editor.commands.setTextSelection(findText(a.editor, 'one') + 3)
-      key(a.editor, 'Enter')
-      key(a.editor, 'Enter')
-      reconnect(a, b, reversed)
+  describe.each([
+    { kind: 'bullet', content: '- one\n- two\n- three', listType: 'bulletList' },
+    { kind: 'ordered', content: '7. one\n8. two\n9. three', listType: 'orderedList' },
+    { kind: 'task', content: '- [x] one\n- [ ] two\n- [x] three', listType: 'taskList' },
+  ])('$kind empty-item boundaries', ({ content, listType }) => {
+    it.each(
+      ['one', 'two'].flatMap((preceding) =>
+        [false, true].map((reversed) => ({ preceding, reversed }))
+      )
+    )(
+      'clearing a middle item after $preceding retains all peer edits (reordered=$reversed)',
+      ({ preceding, reversed }) => {
+        const { a, b } = pair(content)
+        for (const word of ['one', 'two', 'three']) {
+          b.editor.commands.insertContentAt(findText(b.editor, word), `PEER-${word} `)
+        }
+        const expectedList = b.editor.state.doc.firstChild!.toJSON()
 
-      for (const word of ['one', 'two', 'three']) {
-        expect(a.editor.state.doc.textContent).toContain(`PEER ${word}`)
+        a.editor.commands.setTextSelection(findText(a.editor, preceding) + preceding.length)
+        key(a.editor, 'Enter')
+        expect(a.editor.state.selection.$from.parent.content.size).toBe(0)
+        key(a.editor, 'Enter')
+        expect(a.editor.state.selection.$from.parent.textContent).toBe(preceding)
+        expect(a.editor.state.doc.firstChild!.childCount).toBe(3)
+        reconnect(a, b, reversed)
+
+        expect(a.editor.state.doc.firstChild!.type.name).toBe(listType)
+        expect(a.editor.state.doc.firstChild!.toJSON()).toEqual(expectedList)
       }
-    }
-  )
+    )
+
+    it.each([false, true])(
+      'exits a trailing empty item without losing peer edits (reordered=%s)',
+      (reversed) => {
+        const { a, b } = pair(content)
+        for (const word of ['one', 'two', 'three']) {
+          b.editor.commands.insertContentAt(findText(b.editor, word), `PEER-${word} `)
+        }
+        const expectedList = b.editor.state.doc.firstChild!.toJSON()
+
+        a.editor.commands.setTextSelection(findText(a.editor, 'three') + 'three'.length)
+        key(a.editor, 'Enter')
+        key(a.editor, 'Enter')
+        expect(a.editor.state.selection.$from.depth).toBe(1)
+        expect(a.editor.state.selection.$from.parent.type.name).toBe('paragraph')
+        a.editor.commands.insertContent('LOCAL AFTER LIST')
+        reconnect(a, b, reversed)
+
+        expect(a.editor.state.doc.firstChild!.type.name).toBe(listType)
+        expect(a.editor.state.doc.firstChild!.toJSON()).toEqual(expectedList)
+        expect(a.editor.state.doc.child(1).toJSON()).toEqual({
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'LOCAL AFTER LIST' }],
+        })
+      }
+    )
+  })
 })

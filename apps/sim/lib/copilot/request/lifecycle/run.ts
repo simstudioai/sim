@@ -5,6 +5,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -147,7 +148,9 @@ async function ensureModelEgressRegistry(
   if (!registry) {
     const environmentContext =
       options.environmentContext ??
-      (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId))
+      (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId, {
+        includeSecrets: execContext.requestMode !== 'assistant',
+      }))
     registry = environmentContext.resolvedSecretTraceRegistry
     execContext.resolvedSecretTraceRegistry = registry
   }
@@ -171,6 +174,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   userId: string
   workflowId?: string
   workspaceId?: string
+  organizationId?: string
   chatId?: string
   executionId?: string
   runId?: string
@@ -256,11 +260,17 @@ export async function runCopilotLifecycle(
     userId,
     workflowId,
     workspaceId,
+    organizationId,
     chatId,
     executionId,
     runId,
     goRoute = '/api/copilot',
   } = options
+  if (organizationId && (workspaceId || workflowId || requestPayload.mode !== 'assistant')) {
+    throw new Error(
+      'Organization conversations require Assistant mode without workspace or workflow scope'
+    )
+  }
   const payloadMsgId =
     typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : generateId()
   const runIdentity = await ensureHeadlessRunIdentity({
@@ -308,6 +318,7 @@ export async function runCopilotLifecycle(
       userId,
       workflowId,
       workspaceId,
+      organizationId,
       chatId,
       executionId: resolvedExecutionId,
       runId: resolvedRunId,
@@ -319,6 +330,13 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  if (typeof requestPayload.mode === 'string') execContext.requestMode = requestPayload.mode
+  if (execContext.requestMode === 'assistant') {
+    execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
+      requestPayload.assistantSearch ?? {}
+    )
+    execContext.secretActorUserId = null
+  }
   execContext.copilotInteractionMode =
     lifecycleOptions.interactive === true ? 'interactive' : 'headless'
   if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
@@ -326,7 +344,10 @@ export async function runCopilotLifecycle(
   } else {
     execContext.sandboxProfile = undefined
   }
-  if (isHosted && (!execContext.workspaceId || !execContext.billingAttribution)) {
+  if (
+    isHosted &&
+    (!(execContext.workspaceId || execContext.organizationId) || !execContext.billingAttribution)
+  ) {
     throw new Error('Billing attribution is required for hosted Copilot execution')
   }
   let hostedBillingRequest: AttributedBillingRequestEnvelope | undefined
@@ -334,7 +355,9 @@ export async function runCopilotLifecycle(
     const billingAttribution = assertBillingAttributionSnapshot(execContext.billingAttribution)
     if (
       billingAttribution.actorUserId !== execContext.userId ||
-      billingAttribution.workspaceId !== execContext.workspaceId
+      billingAttribution.workspaceId !== (execContext.workspaceId ?? null) ||
+      (execContext.organizationId !== undefined &&
+        billingAttribution.organizationId !== execContext.organizationId)
     ) {
       throw new Error('Copilot billing attribution does not match its actor and workspace')
     }
@@ -772,6 +795,9 @@ async function driveOneChildChain(
         checkpointId,
         userId: options.userId,
         ...(workspaceId ? { workspaceId } : {}),
+        ...(execContext.organizationId
+          ? { organizationId: execContext.organizationId, chatId: execContext.chatId }
+          : {}),
         results,
       },
       leg,
@@ -895,6 +921,7 @@ async function runCheckpointLoop(
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+  const lifecycleOrganizationId = nonBlankString(execContext.organizationId)
   const mothershipRequestId = nonBlankString(options.simRequestId) ?? generateId()
   if (!options.simRequestId) {
     options = { ...options, simRequestId: mothershipRequestId }
@@ -912,6 +939,21 @@ async function runCheckpointLoop(
   // raw payload) still send it on the first request.
   if (lifecycleWorkspaceId && !nonBlankString(payload.workspaceId)) {
     payload = { ...payload, workspaceId: lifecycleWorkspaceId }
+  }
+
+  if (lifecycleOrganizationId) {
+    if (
+      lifecycleWorkspaceId ||
+      execContext.workspaceId ||
+      execContext.workflowId ||
+      payload.mode !== 'assistant' ||
+      !execContext.chatId ||
+      nonBlankString(payload.workspaceId) ||
+      (nonBlankString(payload.organizationId) && payload.organizationId !== lifecycleOrganizationId)
+    ) {
+      throw new Error('Organization execution scope does not match the request')
+    }
+    payload = { ...payload, organizationId: lifecycleOrganizationId, chatId: execContext.chatId }
   }
 
   // Enterprise BYOK eligibility hint: set once on the initial mothership request
@@ -1286,6 +1328,9 @@ async function runCheckpointLoop(
       checkpointId: continuation.checkpointId,
       userId: options.userId,
       ...(lifecycleWorkspaceId ? { workspaceId: lifecycleWorkspaceId } : {}),
+      ...(lifecycleOrganizationId
+        ? { organizationId: lifecycleOrganizationId, chatId: execContext.chatId }
+        : {}),
       results,
     }
 
@@ -1312,6 +1357,7 @@ async function buildExecutionContext(
     userId: string
     workflowId?: string
     workspaceId?: string
+    organizationId?: string
     chatId?: string
     executionId?: string
     runId?: string
@@ -1328,6 +1374,7 @@ async function buildExecutionContext(
     userId,
     workflowId,
     workspaceId,
+    organizationId,
     chatId,
     executionId,
     runId,
@@ -1344,7 +1391,7 @@ async function buildExecutionContext(
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
 
   let execContext: ExecutionContext
-  if (workflowId) {
+  if (workflowId && requestMode !== 'assistant') {
     execContext = await prepareExecutionContext(userId, workflowId, chatId, {
       workspaceId,
       billingAttribution,
@@ -1352,11 +1399,15 @@ async function buildExecutionContext(
     })
   } else {
     const activeEnvironmentContext =
-      environmentContext ?? (await prepareCopilotEnvironmentContext(userId, workspaceId))
+      environmentContext ??
+      (await prepareCopilotEnvironmentContext(userId, workspaceId, {
+        includeSecrets: requestMode !== 'assistant',
+      }))
     execContext = {
       userId,
       workflowId: '',
       workspaceId,
+      organizationId,
       chatId,
       ...activeEnvironmentContext,
       billingAttribution,
@@ -1366,6 +1417,12 @@ async function buildExecutionContext(
   if (userTimezone) execContext.userTimezone = userTimezone
   execContext.copilotToolExecution = true
   if (requestMode) execContext.requestMode = requestMode
+  if (requestMode === 'assistant') {
+    execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
+      requestPayload?.assistantSearch ?? {}
+    )
+    execContext.secretActorUserId = null
+  }
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
     typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : undefined

@@ -11,11 +11,12 @@ import { assertEmailAvailable } from '@/ee/scim/lib/identity/resolve-user'
  * rename that arrives as delete-and-recreate lands the same way as one that
  * arrives as a PATCH. The caller has already proven the organization owns the
  * new address's domain; this asserts nobody else holds it and applies it.
+ * Returns whether the email changed so callers revoke sessions established under the old address.
  */
 export async function syncAccountIdentityTx(
   tx: DbOrTx,
   params: { userId: string; email?: string; name: string }
-): Promise<void> {
+): Promise<boolean> {
   let emailChanged = false
   if (params.email !== undefined) {
     const [current] = await tx
@@ -40,4 +41,5 @@ export async function syncAccountIdentityTx(
       updatedAt: new Date(),
     })
     .where(eq(user.id, params.userId))
+  return emailChanged
 }

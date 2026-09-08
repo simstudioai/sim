@@ -11,6 +11,7 @@ export const slackDeleteCanvasTool: ToolConfig<SlackDeleteCanvasParams, SlackDel
     oauth: {
       required: true,
       provider: 'slack',
+      requiredScopes: ['canvases:write'],
     },
 
     params: {

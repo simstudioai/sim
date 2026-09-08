@@ -78,10 +78,10 @@ import {
   serializeApiKeys,
   serializeBlockSchema,
   serializeBuiltinTriggerSchema,
+  serializeConnectedAccounts,
   serializeConnectorOverview,
   serializeConnectorSchema,
   serializeConnectors,
-  serializeCredentialGroups,
   serializeCredentials,
   serializeCustomTool,
   serializeDeployments,
@@ -115,8 +115,7 @@ import {
   isHosted,
 } from '@/lib/core/config/env-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
-import { listCredentialGroups } from '@/lib/credential-groups/service'
+import type { CredentialGroupRecord } from '@/lib/credential-groups/types'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -721,6 +720,7 @@ function getStaticComponentFiles(): Map<string, string> {
 export class WorkspaceVFS {
   private readonly filePrincipal?: Principal
   private readonly knowledgePrincipal?: Principal
+  private readonly loadConnectedAccounts?: () => Promise<CredentialGroupRecord | null>
   // Eagerly-materialized, cheap content (structure + metadata): folder markers,
   // per-resource meta.json, WORKSPACE.md/WORKSPACE_CONTEXT.md, static components.
   private files: Map<string, string> = new Map()
@@ -754,9 +754,14 @@ export class WorkspaceVFS {
    */
   private _customBlockTypes: Set<string> | null = null
 
-  constructor(filePrincipal?: Principal, knowledgePrincipal?: Principal) {
+  constructor(
+    filePrincipal?: Principal,
+    knowledgePrincipal?: Principal,
+    loadConnectedAccounts?: () => Promise<CredentialGroupRecord | null>
+  ) {
     this.filePrincipal = filePrincipal
     this.knowledgePrincipal = knowledgePrincipal
+    this.loadConnectedAccounts = loadConnectedAccounts
   }
 
   get workspaceId(): string {
@@ -2610,6 +2615,35 @@ export class WorkspaceVFS {
     }
   }
 
+  private materializeConnectedAccounts(
+    hostContext: Pick<
+      NonNullable<Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>>,
+      'features' | 'viewer'
+    >
+  ): boolean {
+    const loadConnectedAccounts = this.loadConnectedAccounts
+    if (
+      hostContext.features?.credentialGroups !== true ||
+      hostContext.viewer.permission !== 'admin' ||
+      !loadConnectedAccounts
+    ) {
+      return false
+    }
+    this.registerLazy('organization/connected-accounts.json', async () => {
+      try {
+        const accounts = await loadConnectedAccounts()
+        return accounts ? serializeConnectedAccounts(accounts) : null
+      } catch (err) {
+        logger.warn('Failed to load connected accounts', {
+          workspaceId: this._workspaceId,
+          error: toError(err).message,
+        })
+        return null
+      }
+    })
+    return true
+  }
+
   /**
    * Materialize `organization/` — org standing, the access-control rules that
    * actually bind this viewer, org-published block provenance, and fork
@@ -2760,61 +2794,7 @@ export class WorkspaceVFS {
         })
       }
 
-      const credentialGroupsAvailable = hostContext.features?.credentialGroups === true
-      if (credentialGroupsAvailable) {
-        const includeEmails = hostContext.viewer.permission === 'admin'
-        this.registerLazy('organization/credential-groups.json', async () => {
-          try {
-            const records = await listCredentialGroups(workspaceId)
-            if (records.length === 0) return null
-            const groups = await Promise.all(
-              records.map(async (record) => {
-                const enrollmentCounts: Record<string, number> = {}
-                let people: Array<{ email: string; status: string }> | undefined
-                let truncated = false
-                try {
-                  const page = await listCredentialGroupEnrollments(workspaceId, record.id, 100)
-                  truncated = page.nextCursor !== null
-                  for (const enrollment of page.enrollments) {
-                    enrollmentCounts[enrollment.status] =
-                      (enrollmentCounts[enrollment.status] ?? 0) + 1
-                  }
-                  if (includeEmails) {
-                    people = page.enrollments.map((enrollment) => ({
-                      email: enrollment.email,
-                      status: enrollment.status,
-                    }))
-                  }
-                } catch {
-                  // Counts degrade to empty; the group itself still lists.
-                }
-                return {
-                  id: record.id,
-                  name: record.name,
-                  description: record.description,
-                  status: record.status,
-                  options: record.options.map((option) => ({
-                    provider: option.provider,
-                    label: 'label' in option ? option.label : undefined,
-                    required: 'required' in option ? option.required : undefined,
-                    configurationStatus: option.configurationStatus,
-                  })),
-                  enrollmentCounts,
-                  enrollmentsTruncated: truncated,
-                  ...(people ? { people } : {}),
-                }
-              })
-            )
-            return serializeCredentialGroups(groups, { includeEmails })
-          } catch (err) {
-            logger.warn('Failed to load credential groups', {
-              workspaceId,
-              error: toError(err).message,
-            })
-            return null
-          }
-        })
-      }
+      const connectedAccountsAvailable = this.materializeConnectedAccounts(hostContext)
 
       const forksAvailable =
         hostContext.viewer.permission === 'admin' &&
@@ -2828,7 +2808,7 @@ export class WorkspaceVFS {
           customBlocks: orgBlocks,
           forksMounted: forksAvailable,
           permissionGroupsMounted: hostContext.viewer.isHostOrganizationAdmin,
-          credentialGroupsMounted: credentialGroupsAvailable,
+          connectedAccountsMounted: connectedAccountsAvailable,
         })
       )
 
@@ -3287,10 +3267,15 @@ export async function getOrMaterializeVFS(
     secretMountPolicy?: SecretMountPolicy
     filePrincipal?: Principal
     knowledgePrincipal?: Principal
+    loadConnectedAccounts?: () => Promise<CredentialGroupRecord | null>
   }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
-  const vfs = new WorkspaceVFS(options?.filePrincipal, options?.knowledgePrincipal)
+  const vfs = new WorkspaceVFS(
+    options?.filePrincipal,
+    options?.knowledgePrincipal,
+    options?.loadConnectedAccounts
+  )
   await vfs.materialize(workspaceId, userId, options)
   return vfs
 }

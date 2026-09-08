@@ -9,9 +9,7 @@ import {
   workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
@@ -37,30 +35,21 @@ async function canOpenWorkspaceSection(
   },
   permission: NonNullable<Awaited<ReturnType<typeof checkWorkspaceAccess>>['permission']>
 ): Promise<boolean> {
-  const needsOwnerBilling = section === 'credential-groups'
-  const ownerBilling = needsOwnerBilling
-    ? await getWorkspaceOwnerSubscriptionAccess(input.workspaceId)
-    : null
-
-  const [accessControl, credentialGroupsAvailable, forksAvailable, customBlocksAvailable] =
-    await Promise.all([
-      workspaceSectionUsesPermissionConfig(section)
-        ? resolveVerifiedUserAccessControlContext(
-            input.userId,
-            input.workspaceId,
-            workspace.organizationId
-          )
-        : null,
-      section === 'credential-groups' && ownerBilling
-        ? isCredentialGroupsAvailable({ workspaceId: input.workspaceId, ownerBilling })
-        : false,
-      section === 'forks'
-        ? isForkingAvailableForWorkspace(workspace.organizationId, input.userId)
-        : false,
-      section === 'custom-blocks' && workspace.organizationId
-        ? isCustomBlocksEligibleForOrganization(workspace.organizationId)
-        : false,
-    ])
+  const [accessControl, forksAvailable, customBlocksAvailable] = await Promise.all([
+    workspaceSectionUsesPermissionConfig(section)
+      ? resolveVerifiedUserAccessControlContext(
+          input.userId,
+          input.workspaceId,
+          workspace.organizationId
+        )
+      : null,
+    section === 'forks'
+      ? isForkingAvailableForWorkspace(workspace.organizationId, input.userId)
+      : false,
+    section === 'custom-blocks' && workspace.organizationId
+      ? isCustomBlocksEligibleForOrganization(workspace.organizationId)
+      : false,
+  ])
 
   const deployment = getDeploymentShape()
   const navigation = resolveWorkspaceNavigation({
@@ -68,7 +57,6 @@ async function canOpenWorkspaceSection(
     permissionConfig: accessControl?.config ?? {},
     deployment,
     entitlements: {
-      credentialGroups: credentialGroupsAvailable,
       inbox: true,
       customBlocks: customBlocksAvailable,
       forks: forksAvailable,

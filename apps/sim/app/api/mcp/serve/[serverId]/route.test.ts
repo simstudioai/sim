@@ -330,6 +330,7 @@ describe('MCP Serve Route', () => {
         workflowId: 'wf-1',
         userId: 'user-1',
         triggerType: 'mcp',
+        principal: PERSONAL_API_KEY_PRINCIPAL,
         useAuthenticatedUserAsActor: true,
         deploymentVersionId: 'deployment-1',
         includeFileBase64: false,
@@ -578,6 +579,7 @@ describe('MCP Serve Route', () => {
     expect(mockExecuteWorkflowService).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
+        principal: WORKSPACE_API_KEY_PRINCIPAL,
         useAuthenticatedUserAsActor: false,
       })
     )

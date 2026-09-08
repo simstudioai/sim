@@ -1,4 +1,6 @@
 import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
+import { sha256Hex } from '@sim/security/hash'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { CredentialGroupMcpOAuthContext } from '@/lib/credential-groups/enrollments'
 import { createCredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
 import { encryptManagedMcpTokens, persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
@@ -21,7 +23,7 @@ export async function startCredentialGroupMcpOAuth(
   return withMcpOauthRefreshLock(context.server.id, async () => {
     const clientRow = await getOrCreateOauthRow({
       mcpServerId: context.server.id,
-      workspaceId: context.workspaceId,
+      ...resourceScopeFields(resourceScopeFromOwner(context)),
     })
     const preregistered = await loadPreregisteredClient(context.server.id)
     const provider = new ManagedMcpOauthProvider({
@@ -42,7 +44,11 @@ export async function startCredentialGroupMcpOAuth(
       if (!(error instanceof McpOauthRedirectRequired)) throw error
       const attempt = provider.requireAuthorizationAttempt()
       await createCredentialGroupMcpOAuthAttempt({
+        oauthConfigVersion: context.server.oauthConfigVersion,
         ...attempt,
+        userId: context.userId,
+        ...resourceScopeFields(resourceScopeFromOwner(context)),
+        email: context.email,
         enrollmentId: context.enrollmentId,
         credentialGroupId: context.credentialGroupId,
         mcpServerId: context.server.id,
@@ -56,12 +62,13 @@ export async function startCredentialGroupMcpOAuth(
 export async function completeCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
   codeVerifier: string,
-  authorizationCode: string
-): Promise<{ connectionId: string; mcpServerId: string }> {
+  authorizationCode: string,
+  invitationToken: string
+) {
   assertSafeOauthServerUrl(context.server.url)
   const clientRow = await getOrCreateOauthRow({
     mcpServerId: context.server.id,
-    workspaceId: context.workspaceId,
+    ...resourceScopeFields(resourceScopeFromOwner(context)),
   })
   const preregistered = await loadPreregisteredClient(context.server.id)
   let grantedTokens: OAuthTokens | undefined
@@ -87,14 +94,19 @@ export async function completeCredentialGroupMcpOAuth(
   }
   const tools = await mcpService.discoverManagedMcpTools(
     context.server.id,
-    context.workspaceId,
+    resourceScopeFromOwner(context),
     provider,
     undefined,
     { requireComplete: true }
   )
-  const connectionId = await persistManagedMcpCredential({
+  const completion = await persistManagedMcpCredential({
+    invitationTokenHash: sha256Hex(invitationToken),
+    oauthConfigVersion: context.server.oauthConfigVersion,
     enrollmentId: context.enrollmentId,
-    workspaceId: context.workspaceId,
+    credentialGroupId: context.credentialGroupId,
+    email: context.email,
+    userId: context.userId,
+    ...resourceScopeFields(resourceScopeFromOwner(context)),
     mcpServerId: context.server.id,
     mcpServerName: context.server.name,
     tokens: grantedTokens,
@@ -104,5 +116,5 @@ export async function completeCredentialGroupMcpOAuth(
       inputSchema: tool.inputSchema,
     })),
   })
-  return { connectionId, mcpServerId: context.server.id }
+  return { ...completion, mcpServerId: context.server.id }
 }

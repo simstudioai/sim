@@ -7,6 +7,7 @@ export const gitlabListBranchesTool: ToolConfig<
   GitLabListBranchesResponse
 > = {
   id: 'gitlab_list_branches',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Branches',
   description: 'List branches in a GitLab project repository',
   version: '1.0.0',

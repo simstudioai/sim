@@ -1,6 +1,9 @@
 import { createEnvMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const { mockError } = vi.hoisted(() => ({ mockError: vi.fn() }))
+vi.mock('@sim/logger', () => ({ createLogger: () => ({ error: mockError }) }))
+
 vi.mock('@/lib/core/config/env', () =>
   createEnvMock({
     ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
@@ -8,7 +11,7 @@ vi.mock('@/lib/core/config/env', () =>
 )
 
 import { env } from '@/lib/core/config/env'
-import { decryptSecret, encryptSecret, generatePassword } from './encryption'
+import { decryptSecret, encryptSecret, generatePassword } from '@/lib/core/security/encryption'
 
 describe('encryptSecret', () => {
   it('should encrypt a secret and return encrypted value with IV', async () => {
@@ -56,6 +59,20 @@ describe('encryptSecret', () => {
 })
 
 describe('decryptSecret', () => {
+  it('logs and throws decryption failures by default', async () => {
+    mockError.mockClear()
+    await expect(decryptSecret('invalid')).rejects.toThrow('Invalid encrypted value format')
+    expect(mockError).toHaveBeenCalledOnce()
+  })
+
+  it('still throws when a caller owns aggregate failure reporting', async () => {
+    mockError.mockClear()
+    await expect(decryptSecret('invalid', { logFailure: false })).rejects.toThrow(
+      'Invalid encrypted value format'
+    )
+    expect(mockError).not.toHaveBeenCalled()
+  })
+
   it('should decrypt an encrypted secret back to original value', async () => {
     const originalSecret = 'my-secret-value'
     const { encrypted } = await encryptSecret(originalSecret)

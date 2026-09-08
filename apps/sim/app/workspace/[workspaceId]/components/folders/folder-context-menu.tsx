@@ -10,6 +10,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Tooltip,
 } from '@sim/emcn'
 import { Duplicate, Eye, FolderInput, Pencil, Pin, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders/move-options'
@@ -30,6 +31,8 @@ interface FolderContextMenuProps {
   pinned: boolean
   moveOptions?: MoveOptionNode[]
   canEdit: boolean
+  canDelete?: boolean
+  deleteDisabledReason?: string
   selectedCount: number
 }
 
@@ -58,12 +61,14 @@ export const FolderContextMenu = memo(function FolderContextMenu({
   pinned,
   moveOptions,
   canEdit,
+  canDelete = canEdit,
+  deleteDisabledReason,
   selectedCount,
 }: FolderContextMenuProps) {
   const isMultiSelect = selectedCount > 1
   const hasMove = Boolean(onMove && moveOptions && moveOptions.length > 0)
   const hasActionsAboveDestructive = !isMultiSelect || hasMove
-  const hasAvailableActions = !isMultiSelect || canEdit
+  const hasAvailableActions = !isMultiSelect || (canEdit && (hasMove || canDelete))
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -122,11 +127,29 @@ export const FolderContextMenu = memo(function FolderContextMenu({
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
-                {hasActionsAboveDestructive && <DropdownMenuSeparator />}
-                <DropdownMenuItem onSelect={onDelete}>
-                  <Trash />
-                  {selectionActionLabel('Delete', selectedCount)}
-                </DropdownMenuItem>
+                {canDelete && (
+                  <>
+                    {hasActionsAboveDestructive && <DropdownMenuSeparator />}
+                    {deleteDisabledReason ? (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <div>
+                            <DropdownMenuItem disabled>
+                              <Trash />
+                              {selectionActionLabel('Delete', selectedCount)}
+                            </DropdownMenuItem>
+                          </div>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>{deleteDisabledReason}</Tooltip.Content>
+                      </Tooltip.Root>
+                    ) : (
+                      <DropdownMenuItem onSelect={onDelete}>
+                        <Trash />
+                        {selectionActionLabel('Delete', selectedCount)}
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
               </>
             )}
           </>

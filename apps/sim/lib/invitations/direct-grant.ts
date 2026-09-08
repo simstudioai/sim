@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  foldedEmail,
   invitation,
   invitationWorkspaceGrant,
   member,
@@ -12,12 +13,12 @@ import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, sql } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
+import { and, eq } from 'drizzle-orm'
 import {
   acquireOrganizationUserMutationLocks,
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -73,7 +74,7 @@ export interface GrantWorkspaceAccessDirectlyInput {
   actorEmail?: string | null
   /** Audit attribution may differ from the authorized product actor for admin tooling. */
   auditActor?: { id: string | null; name: string; email: string | null }
-  request?: NextRequest
+  request?: OrchestrationRequestContext
   /** Send the lightweight "you've been added" email. Defaults to true. */
   notify?: boolean
   /** Ordinary invites preserve access; provisioning may explicitly ensure the requested minimum. */
@@ -95,7 +96,7 @@ async function getPendingWorkspaceInvitationIds(
     .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
     .where(
       and(
-        sql`lower(${invitation.email}) = ${normalizedEmail}`,
+        eq(foldedEmail(invitation.email), normalizedEmail),
         eq(invitation.status, 'pending'),
         eq(invitationWorkspaceGrant.workspaceId, workspaceId)
       )

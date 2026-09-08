@@ -38,9 +38,9 @@ const context = {
   params: Promise.resolve({ token: 'invitation-token', optionId: 'option-1' }),
 }
 
-function request() {
+function request(query = '') {
   return new NextRequest(
-    'http://localhost:3000/api/credential-groups/enroll/invitation-token/oauth/option-1'
+    `http://localhost:3000/api/credential-groups/enroll/invitation-token/oauth/option-1${query}`
   )
 }
 
@@ -68,6 +68,41 @@ describe('credential group OAuth start route', () => {
       request: oauthRequest,
     })
   })
+
+  it('forwards only the closed Search return context to the authorized operation', async () => {
+    await GET(request('?returnTo=search'), context)
+    expect(mocks.startOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: { invitationToken: 'invitation-token', optionId: 'option-1', returnTo: 'search' },
+      })
+    )
+    mocks.startOAuth.mockClear()
+    const response = await GET(request('?returnTo=https://external.test'), context)
+    expect(response.status).toBe(400)
+    expect(mocks.startOAuth).not.toHaveBeenCalled()
+  })
+
+  it.each(['ip', 'enrollment', 'unavailable', 'configuration'])(
+    'preserves exact Search focus after %s failure',
+    async (failure) => {
+      if (failure === 'ip')
+        mocks.ipRateLimit.mockResolvedValue(NextResponse.json({}, { status: 429 }))
+      if (failure === 'enrollment')
+        mocks.enrollmentRateLimit.mockResolvedValue(NextResponse.json({}, { status: 429 }))
+      if (failure === 'unavailable') mocks.authenticate.mockResolvedValue(null)
+      if (failure === 'configuration')
+        mocks.startOAuth.mockRejectedValue(new Error('Unavailable configuration'))
+      const response = await GET(request('?returnTo=search'), context)
+      const location = new URL(response.headers.get('location')!, 'http://localhost')
+      expect(location.pathname).toBe('/credential-groups/enroll/invitation-token')
+      expect(location.searchParams.get('optionId')).toBe('option-1')
+      expect(location.searchParams.get('returnTo')).toBe('search')
+      expect(location.searchParams.get('oauth')).toBe(
+        failure === 'ip' || failure === 'enrollment' ? 'rate_limited' : 'unavailable'
+      )
+    }
+  )
 
   it('returns an unavailable enrollment to its public page', async () => {
     mocks.authenticate.mockResolvedValue(null)

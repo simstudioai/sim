@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -64,9 +64,29 @@ describe('GET /api/files/public/[token]/inline', () => {
   })
 
   it('serves a same-workspace image referenced by the doc, typed from its bytes', async () => {
-    const res = await GET(req(`fileId=${FILE_ID}`), params)
+    const request = req(`fileId=${FILE_ID}`)
+    const res = await GET(request, params)
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/png')
+    expect(mockRateLimit).toHaveBeenCalledExactlyOnceWith(request, 'inline')
+    expect(res.headers.get('cache-control')).toBe('private, no-cache, must-revalidate')
+  })
+
+  it('rejects exhausted image budgets before share lookup, authentication, or storage reads', async () => {
+    const limited = NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': '60' } }
+    )
+    mockRateLimit.mockResolvedValue(limited)
+
+    const response = await GET(req(`fileId=${FILE_ID}`), params)
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('60')
+    expect(mockResolveShare).not.toHaveBeenCalled()
+    expect(mockValidateAuth).not.toHaveBeenCalled()
+    expect(mockResolveImage).not.toHaveBeenCalled()
+    expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
   it('serves an image whose id is percent-encoded in the document', async () => {
@@ -86,11 +106,56 @@ describe('GET /api/files/public/[token]/inline', () => {
     expect(res.status).toBe(200)
   })
 
+  it.each(['fileId', 'key'] as const)(
+    'serves a referenced %s beyond the export bundle limit',
+    async (kind) => {
+      const earlierImages = Array.from(
+        { length: 50 },
+        (_, index) => `![earlier](/api/files/view/wf_earlier_${index})`
+      )
+      const src =
+        kind === 'fileId'
+          ? `/api/files/view/${FILE_ID}`
+          : `/api/files/serve/${encodeURIComponent(IMG_KEY)}`
+      mockDownloadFile.mockImplementation(
+        downloadByKey([...earlierImages, `![last](${src})`].join('\n\n'))
+      )
+
+      const response = await GET(
+        req(`${kind}=${encodeURIComponent(kind === 'fileId' ? FILE_ID : IMG_KEY)}`),
+        params
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockResolveImage).toHaveBeenCalledExactlyOnceWith('ws-1', {
+        [kind]: kind === 'fileId' ? FILE_ID : IMG_KEY,
+      })
+    }
+  )
+
   it('404s when the reference is not embedded in the shared document', async () => {
     mockDownloadFile.mockImplementation(downloadByKey('no images here'))
     const res = await GET(req(`fileId=${FILE_ID}`), params)
     expect(res.status).toBe(404)
     expect(mockResolveImage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    `[link](/api/files/view/${FILE_ID})`,
+    `\`![image](/api/files/view/${FILE_ID})\``,
+    `<script><img src="/api/files/view/${FILE_ID}"></script>`,
+    `<!-- <img src="/api/files/view/${FILE_ID}"> -->`,
+    `<div><!-- <img src="/api/files/view/${FILE_ID}"> --></div>`,
+    `inline <!-- <img src="/api/files/view/${FILE_ID}"> --> text`,
+    `![external](https://example.com/api/files/view/${FILE_ID})`,
+  ])('does not extend a share to an image mentioned as %s', async (source) => {
+    mockDownloadFile.mockImplementation(downloadByKey(source))
+
+    const response = await GET(req(`fileId=${FILE_ID}`), params)
+
+    expect(response.status).toBe(404)
+    expect(mockResolveImage).not.toHaveBeenCalled()
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
   })
 
   it('404s when the referenced file is not in the document workspace', async () => {

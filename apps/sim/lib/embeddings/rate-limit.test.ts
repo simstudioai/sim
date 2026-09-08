@@ -98,4 +98,16 @@ describe('resolveEmbeddingRetryDelayMs', () => {
   it('says nothing when the response carries no rate-limit headers', () => {
     expect(resolveEmbeddingRetryDelayMs(headers({}))).toBeNull()
   })
+  it('honors an exhausted project token pool even when the individual key reports capacity', () => {
+    expect(
+      resolveEmbeddingRetryDelayMs(
+        new Headers({
+          'x-ratelimit-remaining-tokens': '1000',
+          'x-ratelimit-reset-tokens': '1s',
+          'x-ratelimit-remaining-project-tokens': '0',
+          'x-ratelimit-reset-project-tokens': '1m30s',
+        })
+      )
+    ).toBe(90_000)
+  })
 })

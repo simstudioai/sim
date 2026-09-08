@@ -20,13 +20,11 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
 
 import {
-  admitMemberListing,
   buildMemberSyncFailureUpdate,
   deriveMemberActive,
   memberFailureBackoffMs,
   memberNextAttemptAt,
   nextMemberSyncTime,
-  persistedDocumentsByObserver,
   shouldListFully,
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
@@ -35,10 +33,7 @@ import {
   MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
   MEMBER_FULL_RECRAWL_MINUTES,
 } from '@/lib/knowledge/connectors/sync-limits'
-import {
-  CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS,
-  runChangeFeedPass,
-} from '@/lib/knowledge/connectors/sync-primitives'
+import { runChangeFeedPass } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalChangeList, ExternalDocument } from '@/connectors/types'
 
 function doc(externalId: string, content = 'x'): ExternalDocument {
@@ -149,7 +144,6 @@ describe('member sync engine decisions', () => {
       expect(result.removedExternalIds).toEqual(['a'])
       expect(result.cursor).toBe('resume')
       expect(result.exhausted).toBe(true)
-      expect(result.budgetAborted).toBe(false)
       expect(feed.listChanges).toHaveBeenCalledTimes(2)
     })
 
@@ -166,7 +160,31 @@ describe('member sync engine decisions', () => {
       expect(result.removedExternalIds).toEqual(['x'])
       expect(result.cursor).toBe('c1')
       expect(result.exhausted).toBe(false)
-      expect(result.budgetAborted).toBe(false)
+    })
+
+    it('applies a bounded prefix and resumes before a page that would overflow, including removals', async () => {
+      const changes = Array.from({ length: 30_000 }, (_, index) => ({
+        kind: 'removed' as const,
+        externalId: `a-${index}`,
+      }))
+      const feed = pass([
+        { changes, nextCursor: 'c1', hasMore: true },
+        {
+          changes: changes.map((change) => ({ ...change, externalId: `b-${change.externalId}` })),
+          nextCursor: 'c2',
+          hasMore: false,
+        },
+      ])
+      const result = await feed.run()
+      expect(result.removedExternalIds).toHaveLength(30_000)
+      expect(result.cursor).toBe('c1')
+      expect(result.exhausted).toBe(false)
+    })
+
+    it('rejects a provider cursor that does not advance', async () => {
+      await expect(pass([{ changes: [], nextCursor: 'c0', hasMore: true }]).run()).rejects.toThrow(
+        'did not advance'
+      )
     })
 
     it('reads nothing past the deadline and leaves the cursor where it was', async () => {
@@ -176,7 +194,6 @@ describe('member sync engine decisions', () => {
       const result = await feed.run()
 
       expect(result.cursor).toBe('c0')
-      expect(result.budgetAborted).toBe(true)
       expect(result.exhausted).toBe(false)
       expect(feed.listChanges).not.toHaveBeenCalled()
     })
@@ -250,65 +267,6 @@ describe('member sync engine decisions', () => {
       expect(next.getTime()).toBeGreaterThanOrEqual(now.getTime() + 60 * 60 * 1000)
       expect(next.getTime()).toBeLessThanOrEqual(now.getTime() + 60 * 60 * 1000 + 300_000)
       expect(nextMemberSyncTime(now, 0, false)).toBeNull()
-    })
-  })
-
-  describe('admitMemberListing', () => {
-    it('keeps the first writer and records every observer', () => {
-      const union = new Map()
-      const first = admitMemberListing(union, 'm-1', [doc('a', 'first'), doc('b')], 'c-1', 0)
-      const second = admitMemberListing(
-        union,
-        'm-2',
-        [doc('a', 'second'), doc('c')],
-        'c-1',
-        first.retainedBytes
-      )
-
-      expect([...first.seenExternalIds]).toEqual(['a', 'b'])
-      expect([...second.seenExternalIds]).toEqual(['a', 'c'])
-      expect(union.get('a')).toEqual({ document: doc('a', 'first'), observers: ['m-1', 'm-2'] })
-      expect(union.get('b')?.observers).toEqual(['m-1'])
-      expect(union.get('c')?.observers).toEqual(['m-2'])
-      expect(second.retainedBytes).toBeGreaterThan(first.retainedBytes)
-    })
-
-    it('grants a persisted batch to every member who listed each document, as it lands', () => {
-      const union = new Map()
-      admitMemberListing(union, 'm-1', [doc('a'), doc('b')], 'c-1', 0)
-      admitMemberListing(union, 'm-2', [doc('a'), doc('c')], 'c-1', 0)
-
-      const byMember = persistedDocumentsByObserver(
-        [
-          { externalId: 'a', documentId: 'd-a' },
-          { externalId: 'b', documentId: 'd-b' },
-          { externalId: 'zzz', documentId: 'd-z' },
-        ],
-        union
-      )
-
-      expect([...byMember.entries()]).toEqual([
-        ['m-1', ['d-a', 'd-b']],
-        ['m-2', ['d-a']],
-      ])
-    })
-
-    it('counts a member once per external id even when their listing repeats it', () => {
-      const union = new Map()
-      const admitted = admitMemberListing(union, 'm-1', [doc('a'), doc('a')], 'c-1', 0)
-      expect(admitted.seenExternalIds.size).toBe(1)
-      expect(union.get('a')?.observers).toEqual(['m-1'])
-    })
-
-    it('holds the union to the working-set ceiling', () => {
-      const union = new Map()
-      const documents = Array.from({ length: CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS }, (_, index) =>
-        doc(`d-${index}`)
-      )
-      admitMemberListing(union, 'm-1', documents, 'c-1', 0)
-      expect(() => admitMemberListing(union, 'm-2', [doc('overflow')], 'c-1', 0)).toThrow(
-        'exceeds the safe per-corpus limit'
-      )
     })
   })
 })

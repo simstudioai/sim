@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect } from 'react'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 
 export function useCredentialRefreshTriggers(
   refetchCredentials: () => Promise<unknown>,
   providerId: string,
-  workspaceId: string
+  scope: string | ResourceScope
 ) {
+  const workspaceId =
+    typeof scope === 'string' ? scope : scope.kind === 'workspace' ? scope.workspaceId : undefined
+  const organizationId =
+    typeof scope !== 'string' && scope.kind === 'organization' ? scope.organizationId : undefined
   useEffect(() => {
     const refresh = () => {
       void refetchCredentials()
@@ -25,12 +30,15 @@ export function useCredentialRefreshTriggers(
     }
 
     const handleCredentialsUpdated = (
-      event: CustomEvent<{ providerId?: string; workspaceId?: string }>
+      event: CustomEvent<{ providerId?: string; workspaceId?: string; organizationId?: string }>
     ) => {
       if (event.detail?.providerId && event.detail.providerId !== providerId) {
         return
       }
-      if (event.detail?.workspaceId && workspaceId && event.detail.workspaceId !== workspaceId) {
+      if (
+        (event.detail?.workspaceId && event.detail.workspaceId !== workspaceId) ||
+        (event.detail?.organizationId && event.detail.organizationId !== organizationId)
+      ) {
         return
       }
       refresh()
@@ -48,5 +56,5 @@ export function useCredentialRefreshTriggers(
         handleCredentialsUpdated as EventListener
       )
     }
-  }, [providerId, workspaceId, refetchCredentials])
+  }, [providerId, workspaceId, organizationId, refetchCredentials])
 }

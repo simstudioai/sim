@@ -15,6 +15,7 @@ import {
   parseCredentialGroupPolicyDocument,
   reconcileCredentialGroupResourcePolicies,
   type StoredCredentialGroupPolicyRow,
+  validateOrganizationAccountPolicyDocument,
 } from '../credential-group-resource-policies'
 
 const WORKFLOW_POLICY = (id: string, workflowIds: string[]) => ({
@@ -326,11 +327,18 @@ describe('Credential Group resource policy lifecycle', () => {
     expect(queries[1]).toContain('CREATE OR REPLACE FUNCTION')
     expect(queries[1]).toContain("'sid', 'CredentialGroupActorCredentialAccess'")
     expect(queries[1]).toContain("'credential_group:ActorOwnsCredential', true")
+    expect(queries[1]).toContain('IF NEW."workspace_id" IS NULL THEN RETURN NEW; END IF;')
     expect(queries[2]).toContain('DROP TRIGGER IF EXISTS')
     expect(queries[3]).toContain('CREATE TRIGGER')
     expect(queries[4]).toContain('ON CONFLICT (resource_type, resource_id) DO NOTHING')
+    expect(queries[4]).toContain('AND cg.workspace_id IS NOT NULL')
     expect(queries[5]).toContain('octet_length(document::text)')
     expect(queries[5]).toContain('THEN document ELSE NULL')
+    await store.listMissingPolicies('', 2)
+    await store.findRelationalInvariantViolation()
+    expect(queries[6]).toContain('AND cg.workspace_id IS NOT NULL')
+    expect(queries[7]).toContain('WHERE rp.resource_id IS NULL')
+    expect(queries[7]).toContain('rp.organization_id IS DISTINCT FROM cg.organization_id')
   })
 
   it('keeps table creation in 0309 and lifecycle reconciliation in the db:push post-step', async () => {
@@ -355,5 +363,50 @@ describe('Credential Group resource policy lifecycle', () => {
     )
     expect(helperSource).not.toContain('LegacyResourcePolicy')
     expect(helperSource).not.toContain("document ? 'grants'")
+  })
+})
+
+describe('organization account policy validation', () => {
+  const policy = (ids: string[]) => ({
+    version: 2,
+    resource: { type: 'credential_group', id: 'group-org' },
+    statements: ids.length
+      ? [
+          {
+            sid: 'WorkspaceCredentialAccess',
+            effect: 'allow',
+            actions: ['credential_groups.credentials.use'],
+            principals: ids.map((workspaceId) => ({ type: 'workspace', workspaceId })),
+          },
+        ]
+      : [],
+  })
+  it('accepts deny-by-default and the maximum workspace allowlist', () => {
+    expect(() => validateOrganizationAccountPolicyDocument(policy([]), 'group-org')).not.toThrow()
+    expect(() =>
+      validateOrganizationAccountPolicyDocument(
+        policy(Array.from({ length: 1000 }, (_, i) => `workspace-${String(i).padStart(4, '0')}`)),
+        'group-org'
+      )
+    ).not.toThrow()
+  })
+  it.each([
+    ['b', 'a'],
+    ['a', 'a'],
+  ])('rejects unsorted or duplicate workspace principals', (...ids) => {
+    expect(() => validateOrganizationAccountPolicyDocument(policy(ids), 'group-org')).toThrow(
+      'unique and sorted'
+    )
+  })
+  it('rejects workflow grants and a policy for another group', () => {
+    expect(() =>
+      validateOrganizationAccountPolicyDocument(
+        WORKFLOW_POLICY('group-org', ['workflow-1']),
+        'group-org'
+      )
+    ).toThrow('version must be 2')
+    expect(() => validateOrganizationAccountPolicyDocument(policy([]), 'other-group')).toThrow(
+      'canonical resource'
+    )
   })
 })

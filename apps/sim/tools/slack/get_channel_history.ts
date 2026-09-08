@@ -22,6 +22,8 @@ export const slackGetChannelHistoryTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    /** Slack enforces the required scope for the target conversation type. */
+    requiredScopes: [],
   },
 
   params: {

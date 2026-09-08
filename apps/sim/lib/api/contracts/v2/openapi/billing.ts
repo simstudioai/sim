@@ -83,7 +83,7 @@ const routes = [
       operationId: 'getBillingStatus',
       summary: 'Get Billing Status',
       description:
-        "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`.",
+        "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List Billing Logs for credit history.",
       errors: RESOURCE_ERRORS,
       success: { description: 'The current billing and storage status.' },
     }),
@@ -110,7 +110,7 @@ const routes = [
       operationId: 'listBillingLogs',
       summary: 'List Billing Logs',
       description:
-        'List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. An inverted custom window is a 400 rather than an empty page.',
+        'List credit usage with source filtering and cursor pagination. The default `period` is `30d`; pagination covers only the selected time window. An inverted custom window returns `400`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of usage events.' },
     }),

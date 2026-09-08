@@ -16,6 +16,7 @@ vi.mock('@/lib/workflows/variables/variable-manager', () => ({
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertImmutableFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
   insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
   deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
 }))

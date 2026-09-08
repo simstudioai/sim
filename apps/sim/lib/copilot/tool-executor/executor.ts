@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import {
+  ASSISTANT_TOOLS,
+  assertAssistantIntegrationCall,
+} from '@/lib/copilot/assistant/tool-policy'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
+import { getToolMetadata } from '@/tools/metadata'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
@@ -38,6 +43,25 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (
+    context.organizationId &&
+    (context.workspaceId ||
+      context.workflowId ||
+      context.requestMode !== 'assistant' ||
+      !['search_workspace', 'read_document'].includes(toolId))
+  ) {
+    return {
+      success: false,
+      error: 'Organization Assistant can search and read connected documents.',
+    }
+  }
+  if (context.requestMode === 'assistant' && !ASSISTANT_TOOLS.has(toolId)) {
+    try {
+      assertAssistantIntegrationCall(getToolMetadata(toolId), params)
+    } catch (error) {
+      return { success: false, error: toError(error).message }
+    }
+  }
   // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
   // reach this point in interactive mode. In headless mode (Mothership block, no browser) there
   // is no client to delegate to, so fall back to the registered server-side handler when one
@@ -59,6 +83,7 @@ export async function executeTool(
   const requiredPermission =
     getToolEntry(toolId)?.requiredPermission ?? (usesHeadlessClientFallback ? 'write' : undefined)
   if (
+    !context.organizationId &&
     requiredPermission &&
     !permissionSatisfies(
       (context.userPermission ?? null) as PermissionType | null,
@@ -96,6 +121,7 @@ export async function executeTool(
         },
         copilotToolExecution: context.copilotToolExecution,
         copilotInteractionMode: context.copilotInteractionMode,
+        requestMode: context.requestMode,
         billingAttribution: context.billingAttribution,
         resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       },
@@ -210,6 +236,7 @@ function buildAppToolParams(
     requestMode: context.requestMode,
     currentAgentId: context.currentAgentId,
     enforceCredentialAccess: true,
+    ...(context.requestMode === 'assistant' ? { envReferenceMode: 'off' } : {}),
     ...(context.billingAttribution ? { billingAttribution: context.billingAttribution } : {}),
   }
 

@@ -24,6 +24,7 @@ import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
 } from '@/lib/credentials/principal'
+import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -48,6 +49,7 @@ export interface ServiceAccountSecretFields {
   botToken?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   serviceAccountJson?: string
   clientId?: string
   clientSecret?: string
@@ -96,7 +98,8 @@ async function buildAtlassianServiceAccountSecret(
     )
   }
   const normalizedDomain = normalizeAtlassianDomain(domain)
-  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain)
+  const product = fields.atlassianProduct ?? 'jira'
+  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain, product)
   const principal: ServiceAccountPrincipal = {
     kind: 'user',
     id: validation.accountId,
@@ -109,6 +112,7 @@ async function buildAtlassianServiceAccountSecret(
     apiToken,
     domain: normalizedDomain,
     cloudId: validation.cloudId,
+    atlassianProduct: product,
     atlassianAccountId: validation.accountId,
     metadata: serviceAccountPrincipalMetadata(principal),
   })

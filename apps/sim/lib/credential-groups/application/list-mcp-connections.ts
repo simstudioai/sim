@@ -1,12 +1,16 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
-  requireCredentialGroupsAvailable,
-  resolveCredentialGroupContext,
-} from '@/lib/credential-groups/application/context'
+  credentialGroupDelegationPolicy,
+  requireCredentialGroupWorkflowActor,
+} from '@/lib/credential-groups/application/authorization'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
+import {
+  requireOrganizationAccountsWorkspaceAccess,
+  resolveOrganizationAccountsWorkspaceContext,
+} from '@/lib/credential-groups/application/organization-workspace-access'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   CredentialGroupMcpConnectionCursorNotFoundError,
   type CredentialGroupMcpConnectionReference,
@@ -15,11 +19,12 @@ import {
 } from '@/lib/credential-groups/mcp-connections'
 
 export interface ListCredentialGroupMcpConnectionsInput {
-  credentialGroupId: string
+  workspaceId: string
   limit: number
   cursor?: string
   email?: string
   mcpServerId?: string
+  connectorId?: string
 }
 
 export interface ListCredentialGroupMcpConnectionsResult {
@@ -32,8 +37,12 @@ export interface ListCredentialGroupMcpConnectionsResult {
 export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listMcpConnections,
   resolveContext: ({ input }: { input: ListCredentialGroupMcpConnectionsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveOrganizationAccountsWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+  async authorizeResource({ principal, context }) {
+    requireCredentialGroupWorkflowActor(principal)
+    await requireOrganizationAccountsWorkspaceAccess(context)
+  },
   execute: async ({ input, context }): Promise<ListCredentialGroupMcpConnectionsResult> => {
     if (
       !Number.isInteger(input.limit) ||
@@ -54,21 +63,21 @@ export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCas
       throw new OrchestrationError('validation', 'Email must be a valid address')
     }
     const mcpServerId = input.mcpServerId?.trim()
+    if (input.connectorId !== undefined) getManagedMcpConnector(input.connectorId)
     if (input.mcpServerId !== undefined && !mcpServerId) {
       throw new OrchestrationError('validation', 'MCP server ID must not be empty')
     }
 
-    await requireCredentialGroupsAvailable(context.workspaceId)
-
     let page
     try {
       page = await listCredentialGroupMcpConnectionReferences({
-        workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
         credentialGroupId: context.credentialGroupId,
         limit: input.limit,
         cursor: input.cursor,
         email,
         mcpServerId,
+        connectorId: input.connectorId,
       })
     } catch (error) {
       if (error instanceof CredentialGroupMcpConnectionCursorNotFoundError) {

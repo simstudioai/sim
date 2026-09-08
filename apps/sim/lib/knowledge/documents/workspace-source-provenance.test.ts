@@ -330,6 +330,39 @@ describe('knowledge workspace source provenance', () => {
     }
   )
 
+  it.each(['org-1', 'org-2', null])(
+    'only deletes an organization cache for its exact owner: %s',
+    async (organizationId) => {
+      const storageKey = 'kb/org-source.pdf'
+      const binding = {
+        ...SOURCE_BINDING,
+        key: storageKey,
+        context: 'knowledge-base',
+        workspaceId: null,
+        organizationId: 'org-1',
+      }
+      mockGetFileMetadataByKeys.mockResolvedValue([binding])
+      mockDeleteFileMetadataByIdentity.mockResolvedValue(true)
+      await deleteDocumentStorageFiles(
+        [
+          {
+            id: 'org-doc',
+            fileUrl: `/api/files/serve/${encodeURIComponent(storageKey)}`,
+            workspaceId: null,
+            organizationId,
+          },
+        ],
+        'request-1'
+      )
+      if (organizationId === 'org-1') {
+        expect(mockDeleteFile).toHaveBeenCalledWith({ key: storageKey, context: 'knowledge-base' })
+      } else {
+        expect(mockDeleteFile).not.toHaveBeenCalled()
+        expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
+      }
+    }
+  )
+
   it('keeps the object when its metadata identity changed before deletion', async () => {
     const storageKey = 'kb/changed.pdf'
     const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`

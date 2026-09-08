@@ -4,76 +4,143 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { slackConnectorMeta } from '@/connectors/slack/meta'
 import { slackConnector } from '@/connectors/slack/slack'
-import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
+import type { ExternalDocument } from '@/connectors/types'
+import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES } from '@/connectors/utils'
 
-const GENERAL = {
-  id: 'C0GENERAL',
-  name: 'general',
-  topic: { value: 'Company-wide announcements' },
-  purpose: { value: '' },
+const TEAM = 'T0TEAM'
+const ROOT = '1700000100.000100'
+const REPLY = '1700000200.000100'
+const SECOND = '1700000300.000100'
+const GENERAL = { id: 'C0GENERAL', name: 'general', is_archived: false }
+const PRIVATE = { id: 'G0PRIVATE', name: 'private', is_archived: false }
+const ARCHIVE = { id: 'C0ARCHIVE', name: 'archive', is_archived: true }
+const id = (channel: string, ts = ROOT) => `slack:v4:${TEAM}:${channel}:${ts}`
+const root = (text = 'Architecture decision') => ({
+  type: 'message',
+  user: 'U1',
+  text,
+  ts: ROOT,
+  reply_count: 1,
+})
+const reply = (text = 'Use the queue') => ({
+  type: 'message',
+  user: 'U2',
+  text,
+  ts: REPLY,
+  thread_ts: ROOT,
+})
+
+interface FixtureCall {
+  method: string
+  token: string
+  params: URLSearchParams
 }
-const PLATFORM = { id: 'G0PLATFORM', name: 'platform', topic: { value: '' } }
-
-const MESSAGES = [
-  { type: 'message', user: 'U2', text: 'Shipping today', ts: '1700000200.000100' },
-  { type: 'message', user: 'U1', text: 'Morning', ts: '1700000100.000100' },
-  { type: 'message', subtype: 'channel_join', user: 'U1', text: 'joined', ts: '1700000000.000100' },
-]
-
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
+interface ChannelFixture {
+  channel: typeof GENERAL
+  readers: string[]
+  messages: Record<string, unknown>[]
+  replies: Record<string, Record<string, unknown>[]>
 }
 
-const requestedUrls: string[] = []
+let channels: ChannelFixture[]
+let calls: FixtureCall[]
+let pageSize: number
+let failure: ((call: FixtureCall) => Record<string, unknown> | undefined) | undefined
+let replacement: ((call: FixtureCall) => Record<string, unknown> | undefined) | undefined
+let teams: Record<string, string>
 const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
-/** Channels returned by `conversations.list`; per-test overridable. */
-let listedChannels: Record<string, unknown>[] = [GENERAL, PLATFORM]
-/** `next_cursor` returned by `conversations.list`; per-test overridable. */
-let listNextCursor = ''
-/** Messages returned by `conversations.history`; per-test overridable. */
-let history: Record<string, unknown>[] = MESSAGES
-/** Whether `conversations.info` reports the channel as missing; per-test overridable. */
-let channelMissing = false
-/** The channel `conversations.info` returns; per-test overridable. */
-let infoChannel: Record<string, unknown> = GENERAL
+function json(body: unknown): Response {
+  return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })
+}
+
+/** Provider-level fixture: paginates collections and enforces token-specific channel access. */
+function respond(call: FixtureCall): Record<string, unknown> {
+  const override = failure?.(call) ?? replacement?.(call)
+  if (override) return override
+  const { method, token, params } = call
+  if (method === 'auth.test') return { ok: true, team_id: teams[token] ?? TEAM }
+  if (method === 'users.info')
+    return { ok: true, user: { real_name: `Person ${params.get('user')}` } }
+  const cursor = Number(params.get('cursor') || '0')
+  const limit = Math.min(Number(params.get('limit') || pageSize), pageSize)
+  const paginate = (items: Record<string, unknown>[], key: string) => ({
+    ok: true,
+    [key]: items.slice(cursor, cursor + limit),
+    has_more: cursor + limit < items.length,
+    response_metadata: { next_cursor: cursor + limit < items.length ? String(cursor + limit) : '' },
+  })
+  if (method === 'conversations.list') {
+    return paginate(
+      channels
+        .filter(
+          (entry) =>
+            entry.readers.includes(token) &&
+            (params.get('exclude_archived') !== 'true' || !entry.channel.is_archived)
+        )
+        .map((entry) => entry.channel),
+      'channels'
+    )
+  }
+  const entry = channels.find((item) => item.channel.id === params.get('channel'))
+  if (!entry || !entry.readers.includes(token)) return { ok: false, error: 'channel_not_found' }
+  if (method === 'conversations.info') return { ok: true, channel: entry.channel }
+  if (method === 'conversations.history') {
+    const oldest = Number(params.get('oldest') || '0')
+    const latest = Number(params.get('latest') || Number.POSITIVE_INFINITY)
+    return paginate(
+      entry.messages.filter(
+        (message) => Number(message.ts) >= oldest && Number(message.ts) <= latest
+      ),
+      'messages'
+    )
+  }
+  if (method === 'conversations.replies') {
+    const thread = entry.replies[params.get('ts') ?? '']
+    return thread ? paginate(thread, 'messages') : { ok: false, error: 'thread_not_found' }
+  }
+  if (method === 'chat.getPermalink') {
+    return {
+      ok: true,
+      permalink: `https://acme.slack.com/archives/${entry.channel.id}/p${params.get('message_ts')?.replace('.', '')}`,
+    }
+  }
+  throw new Error(`Fixture has no Slack method ${method}`)
+}
 
 beforeEach(() => {
-  requestedUrls.length = 0
-  listedChannels = [GENERAL, PLATFORM]
-  listNextCursor = ''
-  history = MESSAGES
-  channelMissing = false
-  infoChannel = GENERAL
+  channels = [
+    {
+      channel: GENERAL,
+      readers: ['alice', 'bob'],
+      messages: [root()],
+      replies: { [ROOT]: [root(), reply()] },
+    },
+    {
+      channel: PRIVATE,
+      readers: ['alice'],
+      messages: [root('Private decision')],
+      replies: { [ROOT]: [root('Private decision'), reply('Confidential answer')] },
+    },
+    {
+      channel: ARCHIVE,
+      readers: ['alice'],
+      messages: [root('Old decision')],
+      replies: { [ROOT]: [root('Old decision')] },
+    },
+  ]
+  calls = []
+  pageSize = 200
+  failure = undefined
+  replacement = undefined
+  teams = {}
   fetchMock.mockReset()
-  fetchMock.mockImplementation(async (input) => {
+  fetchMock.mockImplementation(async (input, init) => {
     const url = new URL(String(input))
-    requestedUrls.push(`${url.pathname}?${url.searchParams.toString()}`)
-    switch (url.pathname) {
-      case '/api/auth.test':
-        return jsonResponse({ ok: true, team_id: 'T0TEAM' })
-      case '/api/conversations.list':
-        return jsonResponse({
-          ok: true,
-          channels: listedChannels,
-          response_metadata: { next_cursor: listNextCursor },
-        })
-      case '/api/conversations.info':
-        return channelMissing
-          ? jsonResponse({ ok: false, error: 'channel_not_found' })
-          : jsonResponse({ ok: true, channel: infoChannel })
-      case '/api/conversations.history':
-        return jsonResponse({ ok: true, messages: history, response_metadata: {} })
-      case '/api/users.info': {
-        const id = url.searchParams.get('user')
-        return jsonResponse({ ok: true, user: { id, name: id, real_name: `Person ${id}` } })
-      }
-      default:
-        return jsonResponse({ ok: false, error: 'unknown_method' })
-    }
+    const token = new Headers(init?.headers).get('Authorization')?.replace('Bearer ', '') ?? ''
+    const call = { method: url.pathname.split('/').at(-1) ?? '', token, params: url.searchParams }
+    calls.push(call)
+    return json(respond(call))
   })
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -82,131 +149,248 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const requested = (method: string) => requestedUrls.filter((url) => url.includes(`/${method}?`))
+async function listAll(token: string, config: Record<string, unknown> = {}, run = 'run-1') {
+  const context: Record<string, unknown> = { syncRunId: run }
+  const documents: ExternalDocument[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 50; page += 1) {
+    const result = await slackConnector.listDocuments(token, config, cursor, context)
+    documents.push(...result.documents)
+    if (!result.hasMore) return { documents, context }
+    expect(result.nextCursor).toBeTruthy()
+    cursor = result.nextCursor
+  }
+  throw new Error('Fixture listing did not terminate')
+}
 
-describe('slack connector meta', () => {
-  it('crawls per member with the channel selection as the only listing cap', () => {
-    expect(slackConnectorMeta.permissionScopedListing).toEqual({ capFieldIds: ['channel'] })
-  })
-})
-
-describe('listDocuments', () => {
-  it('lists configured channels as deferred stubs without reading their history', async () => {
-    const syncContext: Record<string, unknown> = { syncRunId: 'run-1' }
-    const result = await slackConnector.listDocuments(
-      'token',
-      { channel: ['C0GENERAL'] },
-      undefined,
-      syncContext
-    )
-
-    expect(result.hasMore).toBe(false)
-    expect(result.documents).toEqual([
-      expect.objectContaining({
-        externalId: 'C0GENERAL',
-        title: '#general',
-        content: '',
-        contentDeferred: true,
-        estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
-        contentHash: 'slack-listing:C0GENERAL:run-1',
-        sourceUrl: 'https://app.slack.com/client/T0TEAM/C0GENERAL',
-        metadata: expect.objectContaining({ channelName: 'general' }),
-      }),
-    ])
-    expect(requested('conversations.history')).toHaveLength(0)
+describe('Slack thread indexing through provider APIs', () => {
+  it('lists and hydrates whole threads with exact message links and one stable id per root', async () => {
+    pageSize = 1
+    const { documents, context } = await listAll('alice', { channel: GENERAL.id, maxMessages: 0 })
+    expect(documents).toHaveLength(1)
+    expect(documents[0]).toMatchObject({ externalId: id(GENERAL.id), contentDeferred: true })
+    expect(calls.filter((call) => call.method === 'conversations.replies')).toHaveLength(0)
+    const document = await slackConnector.getDocument('alice', {}, documents[0].externalId, context)
+    expect(document?.content).toContain('Architecture decision')
+    expect(document?.content).toContain('Use the queue')
+    expect(document?.sourceUrl).toBe('https://acme.slack.com/archives/C0GENERAL/p1700000100000100')
+    expect(document?.metadata?.messageCount).toBe(2)
+    expect(calls.filter((call) => call.method === 'conversations.replies')).toHaveLength(2)
+    expect(
+      calls.find((call) => call.method === 'chat.getPermalink')?.params.get('message_ts')
+    ).toBe(ROOT)
   })
 
-  it('lists every readable channel when none is configured, paging through the cursor', async () => {
-    listNextCursor = 'page-2'
-    const syncContext: Record<string, unknown> = {
-      syncRunId: 'run-1',
-      ...PER_MEMBER_LISTING_CONTEXT,
-    }
-    const first = await slackConnector.listDocuments(
-      'token',
-      { channel: 0 },
-      undefined,
-      syncContext
-    )
-
-    expect(first.documents.map((doc) => doc.externalId)).toEqual(['C0GENERAL', 'G0PLATFORM'])
-    expect(first).toMatchObject({ hasMore: true, nextCursor: 'page-2' })
-    expect(requested('conversations.list')[0]).toContain('types=public_channel%2Cprivate_channel')
-    expect(requested('conversations.list')[0]).toContain('exclude_archived=true')
-
-    listNextCursor = ''
-    listedChannels = []
-    const second = await slackConnector.listDocuments(
-      'token',
-      { channel: 0 },
-      'page-2',
-      syncContext
-    )
-    expect(second).toEqual({ documents: [], nextCursor: undefined, hasMore: false })
-    expect(requested('conversations.list')[1]).toContain('cursor=page-2')
+  it('keeps member listings isolated and withdraws documents when the provider removes channel access', async () => {
+    const alice = await listAll('alice', { maxMessages: 0 })
+    const bob = await listAll('bob', { maxMessages: 0 })
+    expect(alice.documents.map((doc) => doc.externalId)).toContain(id(PRIVATE.id))
+    expect(bob.documents.map((doc) => doc.externalId)).toEqual([id(GENERAL.id)])
+    expect(alice.documents[0].contentHash).toBe(bob.documents[0].contentHash)
+    channels[1].readers = []
+    const afterRevocation = await listAll('alice', { maxMessages: 0 }, 'run-2')
+    expect(afterRevocation.documents.map((doc) => doc.externalId)).not.toContain(id(PRIVATE.id))
+    expect(afterRevocation.context.listingCapped).toBeUndefined()
+    expect(await slackConnector.getDocument('alice', {}, id(PRIVATE.id))).toBeNull()
   })
 
-  it('gives every member of one run the same stub for a channel', async () => {
-    const ada = await slackConnector.listDocuments('ada', {}, undefined, { syncRunId: 'run-7' })
-    const bob = await slackConnector.listDocuments('bob', {}, undefined, { syncRunId: 'run-7' })
-    expect(ada.documents[0].contentHash).toBe(bob.documents[0].contentHash)
-  })
-
-  it('changes the stub between runs so each run re-reads the channel', async () => {
-    const first = await slackConnector.listDocuments('token', {}, undefined, {})
-    const second = await slackConnector.listDocuments('token', {}, undefined, {})
-    expect(first.documents[0].contentHash).not.toBe(second.documents[0].contentHash)
-  })
-})
-
-describe('getDocument', () => {
-  it('builds the transcript under a header with the real content hash', async () => {
-    const doc = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
-
-    expect(doc).toMatchObject({
-      externalId: 'C0GENERAL',
-      title: '#general',
-      contentHash: expect.stringMatching(
-        /^slack-v3:C0GENERAL:[0-9a-f]{16}:1700000000\.000100:1700000200\.000100:3:noedit:noreply:0$/
-      ),
-      metadata: expect.objectContaining({ channelName: 'general', messageCount: 2 }),
-    })
-    expect(doc?.content).toBe(
-      [
-        'Channel: #general',
-        'Topic: Company-wide announcements',
-        '',
-        '[2023-11-14T22:15:00.000Z] Person U1: Morning',
-        '[2023-11-14T22:16:40.000Z] Person U2: Shipping today',
-      ].join('\n')
-    )
-  })
-
-  it('moves the hash when the header changes without any message changing', async () => {
-    const before = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
-
-    infoChannel = { ...GENERAL, name: 'general-renamed' }
-    const renamed = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
-    expect(renamed?.contentHash).not.toBe(before?.contentHash)
-
-    infoChannel = { ...GENERAL, topic: { value: 'A new topic' } }
-    const retopiced = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
-    expect(retopiced?.contentHash).not.toBe(before?.contentHash)
-
-    infoChannel = GENERAL
-    const again = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
+  it('changes the text hash for reply edits/deletes and does not rewrite unchanged content', async () => {
+    const before = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    const again = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
     expect(again?.contentHash).toBe(before?.contentHash)
+    channels[0].replies[ROOT] = [root(), reply('Use the corrected queue')]
+    const edited = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(edited?.contentHash).not.toBe(before?.contentHash)
+    expect(edited?.content).toContain('corrected queue')
+    channels[0].replies[ROOT] = [root()]
+    const deleted = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(deleted?.contentHash).not.toBe(edited?.contentHash)
+    expect(deleted?.content).not.toContain('corrected queue')
+    delete channels[0].replies[ROOT]
+    channels[0].messages = []
+    expect(await slackConnector.getDocument('alice', {}, id(GENERAL.id))).toBeNull()
+    expect((await listAll('alice', { channel: GENERAL.id })).documents).toEqual([])
   })
 
-  it('keeps a channel with no messages as a live document', async () => {
-    history = []
-    const doc = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
-    expect(doc?.content).toBe('Channel: #general\nTopic: Company-wide announcements\n')
-    expect(doc?.metadata?.messageCount).toBe(0)
+  it('retires legacy channel ids and marks every thread for reply refresh on the next run', async () => {
+    const first = await listAll('alice', { channel: GENERAL.id }, 'run-1')
+    const next = await listAll('alice', { channel: GENERAL.id }, 'run-2')
+    expect(first.documents.map((doc) => doc.externalId)).not.toContain(GENERAL.id)
+    expect(first.documents[0].externalId).toBe(next.documents[0].externalId)
+    expect(first.documents[0].contentHash).not.toBe(next.documents[0].contentHash)
+    expect(await slackConnector.getDocument('alice', {}, GENERAL.id)).toBeNull()
   })
 
-  it('returns null only for a channel Slack no longer knows', async () => {
-    channelMissing = true
-    await expect(slackConnector.getDocument('token', {}, 'C0GONE', {})).resolves.toBeNull()
+  it('preserves channel inclusion/exclusion and includes archived channels unless excluded', async () => {
+    expect(slackConnectorMeta.permissionScopedListing).toEqual({ capFieldIds: ['maxMessages'] })
+    expect(slackConnectorMeta.supportsSeparateContentCredential).toBe(true)
+    const result = await listAll('alice', {
+      channel: ['general', 'archive'],
+      excludeChannels: '#general',
+      maxMessages: 0,
+    })
+    expect(result.documents.map((doc) => doc.externalId)).toEqual([id(ARCHIVE.id)])
+    expect(
+      (await listAll('alice', { includeArchived: 'false', maxMessages: 0 })).documents.map(
+        (doc) => doc.externalId
+      )
+    ).not.toContain(id(ARCHIVE.id))
+    expect(
+      calls
+        .filter((call) => call.method === 'conversations.list')
+        .every((call) => call.params.get('types') === 'public_channel,private_channel')
+    ).toBe(true)
+  })
+
+  it('defines an explicit root-date scope without inventing a default lookback', async () => {
+    await listAll('alice', { channel: GENERAL.id })
+    expect(
+      calls.find((call) => call.method === 'conversations.history')?.params.has('oldest')
+    ).toBe(false)
+    expect(
+      (await listAll('alice', { channel: GENERAL.id, startDate: '2024-01-01' })).documents
+    ).toEqual([])
+    expect(
+      await slackConnector.getDocument('alice', { startDate: '2024-01-01' }, id(GENERAL.id))
+    ).toBeNull()
+    expect(await slackConnector.validateConfig('alice', { startDate: '2024-02-30' })).toMatchObject(
+      { valid: false }
+    )
+  })
+
+  it('signals partial capped listings and fully reconciles when the configured cap was not reached', async () => {
+    channels[0].messages = [{ ...root(), ts: SECOND }, root()]
+    const capped = await listAll('alice', { channel: GENERAL.id, maxMessages: 1 })
+    expect(capped.documents).toHaveLength(1)
+    expect(capped.context.listingCapped).toBe(true)
+    const full = await listAll('alice', { channel: GENERAL.id, maxMessages: 0 })
+    expect(full.documents).toHaveLength(2)
+    expect(full.context.listingCapped).toBeUndefined()
+    const exact = await listAll('alice', { channel: GENERAL.id, maxMessages: 2 })
+    expect(exact.context.listingCapped).toBeUndefined()
+  })
+
+  it('does not duplicate broadcast replies or index channel lifecycle noise', async () => {
+    channels[0].messages = [
+      { ...reply(), subtype: 'thread_broadcast' },
+      root(),
+      { type: 'message', subtype: 'channel_join', ts: SECOND, text: 'joined' },
+    ]
+    expect(
+      (await listAll('alice', { channel: GENERAL.id })).documents.map((doc) => doc.externalId)
+    ).toEqual([id(GENERAL.id)])
+  })
+
+  it('includes bot attachment and nested Block Kit text in thread content', async () => {
+    channels[0].replies[ROOT] = [
+      {
+        ...root(),
+        attachments: [
+          {
+            text: 'PR approved',
+            blocks: [{ type: 'section', text: { type: 'plain_text', text: 'Deploy tonight' } }],
+          },
+        ],
+      },
+    ]
+    const document = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    expect(document?.content).toContain('PR approved')
+    expect(document?.content).toContain('Deploy tonight')
+  })
+})
+
+describe('Slack incomplete and unsafe provider responses', () => {
+  it('does not complete a member observation when channel access disappears between history pages', async () => {
+    pageSize = 1
+    channels[0].messages = [{ ...root(), ts: SECOND }, root()]
+    failure = (call) =>
+      call.method === 'conversations.history' && call.params.has('cursor')
+        ? { ok: false, error: 'channel_not_found' }
+        : undefined
+    await expect(listAll('alice', { channel: GENERAL.id, maxMessages: 0 })).rejects.toThrow(
+      'channel_not_found'
+    )
+  })
+
+  it('refuses a cursor/document from another workspace', async () => {
+    pageSize = 1
+    const first = await slackConnector.listDocuments('alice', {}, undefined, {})
+    teams.mallory = 'T0OTHER'
+    await expect(slackConnector.listDocuments('mallory', {}, first.nextCursor, {})).rejects.toThrow(
+      'another workspace'
+    )
+    await expect(slackConnector.getDocument('mallory', {}, id(GENERAL.id))).rejects.toThrow(
+      'another workspace'
+    )
+  })
+
+  it('fails the thread when any reply page fails, rather than indexing only the root', async () => {
+    pageSize = 1
+    failure = (call) =>
+      call.method === 'conversations.replies' && call.params.has('cursor')
+        ? { ok: false, error: 'missing_scope' }
+        : undefined
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toThrow(
+      'missing_scope'
+    )
+    expect(calls.some((call) => call.method === 'chat.getPermalink')).toBe(false)
+  })
+
+  it('does not turn malformed collections or missing pagination into authoritative emptiness', async () => {
+    replacement = (call) => (call.method === 'conversations.history' ? { ok: true } : undefined)
+    await expect(listAll('alice')).rejects.toThrow('invalid message page')
+    replacement = (call) =>
+      call.method === 'conversations.history'
+        ? { ok: true, messages: [root()], has_more: true }
+        : undefined
+    await expect(listAll('alice')).rejects.toThrow('continuation cursor')
+  })
+
+  it('rejects repeated reply pages and provider retention truncation', async () => {
+    replacement = (call) =>
+      call.method === 'conversations.replies'
+        ? { ok: true, messages: [root()], response_metadata: { next_cursor: 'again' } }
+        : undefined
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toThrow(
+      /duplicate|advance/
+    )
+    replacement = (call) =>
+      call.method === 'conversations.history'
+        ? { ok: true, messages: [root()], is_limited: true }
+        : undefined
+    expect((await listAll('alice', { channel: GENERAL.id })).context.listingCapped).toBe(true)
+  })
+
+  it.each(['invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'])(
+    'identifies the provider rejection %s as invalid credentials',
+    async (code) => {
+      failure = () => ({ ok: false, error: code })
+      const error = await listAll('alice').catch((error: unknown) => error)
+      expect(slackConnector.isCredentialInvalidError?.(error)).toBe(true)
+    }
+  )
+
+  it.each(['ratelimited', 'service_unavailable', 'internal_error', 'missing_scope'])(
+    'does not invalidate a credential for %s',
+    async (code) => {
+      failure = () => ({ ok: false, error: code })
+      const error = await listAll('alice').catch((error: unknown) => error)
+      expect(slackConnector.isCredentialInvalidError?.(error)).toBe(false)
+    }
+  )
+
+  it('propagates Slack envelope throttling so the sync scheduler can cool down', async () => {
+    failure = (call) =>
+      call.method === 'conversations.replies' ? { ok: false, error: 'ratelimited' } : undefined
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toMatchObject({
+      rateLimited: true,
+    })
+  })
+
+  it('refuses oversized thread text rather than silently indexing a partial answer', async () => {
+    channels[0].replies[ROOT] = [root('x'.repeat(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES))]
+    await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toThrow(
+      /large|size|exceeds/i
+    )
   })
 })

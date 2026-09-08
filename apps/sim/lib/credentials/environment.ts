@@ -851,9 +851,10 @@ export interface AccessibleOAuthCredential {
  */
 export async function getEnrolledManagedOAuthCredentials(
   workspaceId: string,
-  userId: string
-): Promise<AccessibleOAuthCredential[]> {
-  const rows = await db
+  userId: string,
+  credentialId?: string
+): Promise<(AccessibleOAuthCredential & { connectedAt: Date })[]> {
+  const query = db
     .select({
       id: credential.id,
       providerId: credential.providerId,
@@ -865,6 +866,8 @@ export async function getEnrolledManagedOAuthCredentials(
       groupStatus: credentialGroup.status,
       groupOptions: credentialGroup.options,
       updatedAt: credential.updatedAt,
+      grantedAt: credential.grantedAt,
+      createdAt: credential.createdAt,
     })
     .from(credential)
     .innerJoin(
@@ -872,16 +875,28 @@ export async function getEnrolledManagedOAuthCredentials(
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
+    .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
+    .innerJoin(workspace, eq(workspace.id, workspaceId))
     .where(
       and(
-        eq(credential.workspaceId, workspaceId),
-        eq(credentialGroup.workspaceId, workspaceId),
+        or(
+          and(
+            eq(credential.workspaceId, workspaceId),
+            eq(credentialGroup.workspaceId, workspaceId)
+          ),
+          and(
+            eq(credential.organizationId, workspace.organizationId),
+            eq(credentialGroup.organizationId, workspace.organizationId)
+          )
+        ),
+        eq(credential.createdBy, userId),
         eq(credential.type, 'managed_oauth'),
+        credentialId === undefined ? undefined : eq(credential.id, credentialId),
         eq(user.id, userId),
         eq(user.emailVerified, true)
       )
     )
+  const rows = await (credentialId === undefined ? query : query.limit(1))
 
   return rows
     .filter(
@@ -904,6 +919,7 @@ export async function getEnrolledManagedOAuthCredentials(
       role: 'member' as const,
       type: 'managed_oauth' as const,
       updatedAt: row.updatedAt,
+      connectedAt: row.grantedAt ?? row.createdAt,
     }))
 }
 

@@ -20,6 +20,7 @@ vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
   requireWorkspaceCredentialListResponse: mocks.requireWorkspaceCredentialListResponse,
 }))
 
+import { listOrganizationCredentialsContract } from '@/lib/api/contracts/organization-credentials'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   buildKnowledgeBaseOAuthReturnUrl,
@@ -64,13 +65,66 @@ describe('resolveOAuthMessage', () => {
     mocks.requestJson.mockResolvedValue({})
   })
 
+  it('verifies organization OAuth against only the routed organization credentials', async () => {
+    const orgContext: OAuthReturnContext = {
+      ...context,
+      workspaceId: undefined,
+      organizationId: 'org-1',
+    }
+    mocks.requestJson.mockResolvedValue({
+      credentials: [
+        existingCredential,
+        { ...existingCredential, id: 'new-org-credential', displayName: context.displayName },
+      ],
+    })
+    await expect(resolveOAuthMessage(orgContext)).resolves.toMatchObject({
+      kind: 'success',
+      credentialId: 'new-org-credential',
+    })
+    expect(mocks.requestJson).toHaveBeenCalledWith(listOrganizationCredentialsContract, {
+      query: { organizationId: 'org-1', type: 'oauth' },
+    })
+    expect(mocks.requireWorkspaceCredentialListResponse).not.toHaveBeenCalled()
+  })
+
+  it('restores the organization source form after an OAuth detour', () => {
+    expect(
+      buildKnowledgeBaseOAuthReturnUrl(
+        { kind: 'organization', organizationId: 'org-1' },
+        'kb-1',
+        'gmail'
+      )
+    ).toBe('/o/org-1/settings/integrations?addConnector=gmail')
+  })
+
   it('recognizes an idempotent already-connected account from its reconnect timestamp', async () => {
     mocks.requireWorkspaceCredentialListResponse.mockReturnValue([existingCredential])
 
     await expect(resolveOAuthMessage(context)).resolves.toEqual({
       kind: 'success',
       text: 'This account is already connected as "Existing Gmail".',
+      credentialId: 'credential-existing',
     })
+  })
+
+  it('identifies a newly connected account even when several accounts already exist', async () => {
+    mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
+      existingCredential,
+      { ...existingCredential, id: 'credential-new', displayName: context.displayName },
+    ])
+    await expect(resolveOAuthMessage(context)).resolves.toMatchObject({
+      kind: 'success',
+      credentialId: 'credential-new',
+    })
+  })
+
+  it('does not choose an arbitrary account when multiple new credentials are ambiguous', async () => {
+    mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
+      existingCredential,
+      { ...existingCredential, id: 'credential-a' },
+      { ...existingCredential, id: 'credential-b' },
+    ])
+    expect(await resolveOAuthMessage(context)).not.toHaveProperty('credentialId')
   })
 
   it('keeps explicit update-access flows on the reconnect success path without a baseline', async () => {

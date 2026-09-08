@@ -1,3 +1,7 @@
+import {
+  type WorkspaceSearchFilters,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
@@ -322,10 +326,14 @@ export interface MothershipHandoff {
   resumeUserMessageId?: string
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
+
+type MothershipHandoffOwner = string | { organizationId: string }
 
 interface StoredHandoff extends MothershipHandoff {
   workspaceId?: string
+  organizationId?: string
   timestamp?: number
 }
 
@@ -356,10 +364,12 @@ export class MothershipHandoffStorage {
    * @returns True if stored, false when the workspace is empty or the handoff
    * carries neither a message nor a context.
    */
-  static store(handoff: MothershipHandoff, workspaceId: string): boolean {
+  static store(handoff: MothershipHandoff, owner: MothershipHandoffOwner): boolean {
+    const workspaceId = typeof owner === 'string' ? owner : undefined
+    const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
     const message = handoff.message?.trim()
     const contexts = handoff.contexts ?? []
-    if (!workspaceId || (!message && contexts.length === 0)) {
+    if (!(workspaceId || organizationId) || (!message && contexts.length === 0)) {
       return false
     }
 
@@ -367,11 +377,13 @@ export class MothershipHandoffStorage {
       ...(message ? { message } : {}),
       contexts: message
         ? contexts
-        : [...MothershipHandoffStorage.pendingContexts(workspaceId), ...contexts],
+        : [...MothershipHandoffStorage.pendingContexts(owner), ...contexts],
       ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       workspaceId,
+      organizationId,
       timestamp: Date.now(),
     })
   }
@@ -384,9 +396,9 @@ export class MothershipHandoffStorage {
    * abandoned handoff that had already aged out would ride along on the next
    * "Add to chat" and reappear as if it were current.
    */
-  private static pendingContexts(workspaceId: string): ChatContext[] {
+  private static pendingContexts(owner: MothershipHandoffOwner): ChatContext[] {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
-    if (!data || data.message || data.workspaceId !== workspaceId) return []
+    if (!data || data.message || !MothershipHandoffStorage.belongsTo(data, owner)) return []
     if (!data.timestamp || Date.now() - data.timestamp > MothershipHandoffStorage.MAX_AGE_MS) {
       return []
     }
@@ -402,7 +414,7 @@ export class MothershipHandoffStorage {
    * @param maxAge - Maximum age in milliseconds (default: {@link MAX_AGE_MS})
    */
   static consume(
-    workspaceId: string,
+    owner: MothershipHandoffOwner,
     maxAge: number = MothershipHandoffStorage.MAX_AGE_MS
   ): MothershipHandoff | null {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
@@ -411,7 +423,10 @@ export class MothershipHandoffStorage {
       return null
     }
 
-    if (data.workspaceId && data.workspaceId !== workspaceId) {
+    if (
+      (data.workspaceId || data.organizationId) &&
+      !MothershipHandoffStorage.belongsTo(data, owner)
+    ) {
       return null
     }
 
@@ -419,7 +434,8 @@ export class MothershipHandoffStorage {
 
     const contexts = Array.isArray(data.contexts) ? data.contexts : []
     if (
-      !data.workspaceId ||
+      !(data.workspaceId || data.organizationId) ||
+      Boolean(data.workspaceId && data.organizationId) ||
       (!data.message && contexts.length === 0) ||
       !data.timestamp ||
       Date.now() - data.timestamp > maxAge
@@ -427,10 +443,14 @@ export class MothershipHandoffStorage {
       return null
     }
 
+    const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
+    if (!assistantSearch.success) return null
+
     return {
       ...(data.message ? { message: data.message } : {}),
       contexts,
-      ...(data.requestMode === 'ask' ? { requestMode: 'ask' as const } : {}),
+      ...(data.requestMode === 'assistant' ? { requestMode: 'assistant' as const } : {}),
+      ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),
@@ -438,6 +458,12 @@ export class MothershipHandoffStorage {
         ? { resumeUserMessageId: data.resumeUserMessageId }
         : {}),
     }
+  }
+
+  private static belongsTo(data: StoredHandoff, owner: MothershipHandoffOwner): boolean {
+    return typeof owner === 'string'
+      ? data.workspaceId === owner && !data.organizationId
+      : data.organizationId === owner.organizationId && !data.workspaceId
   }
 
   static clear(): boolean {

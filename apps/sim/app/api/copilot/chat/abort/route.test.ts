@@ -5,6 +5,7 @@ import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockGetAccessibleChat,
   mockAbortActiveStream,
   mockAuthenticate,
   mockGetLatestRunForStream,
@@ -16,6 +17,7 @@ const {
   const order: string[] = []
   return {
     order,
+    mockGetAccessibleChat: vi.fn(),
     mockAbortActiveStream: vi.fn(async () => {
       order.push('abortActiveStream')
       return true
@@ -29,6 +31,10 @@ const {
     mockReleasePendingChatStream: vi.fn(),
   }
 })
+
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
+}))
 
 vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly: mockAuthenticate,
@@ -55,6 +61,7 @@ describe('POST /api/copilot/chat/abort', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     order.length = 0
+    mockGetAccessibleChat.mockResolvedValue({ id: 'chat-1' })
     mockAuthenticate.mockResolvedValue({ userId: 'user-1', isAuthenticated: true })
     mockGetLatestRunForStream.mockResolvedValue({ chatId: 'chat-1', workspaceId: 'workspace-1' })
     mockWaitForPendingChatStream.mockResolvedValue(true)
@@ -91,6 +98,21 @@ describe('POST /api/copilot/chat/abort', () => {
 
     await expect(response.json()).resolves.toMatchObject({ settled: false, forceReleased: true })
     expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', 'stream-1')
+  })
+
+  it('refuses an inaccessible organization chat before changing stream state', async () => {
+    mockGetAccessibleChat.mockResolvedValueOnce(null)
+    const response = await POST(abortRequest())
+    expect(response.status).toBe(404)
+    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
+    expect(mockAbortActiveStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses a chat ID that does not belong to the authenticated run', async () => {
+    mockGetLatestRunForStream.mockResolvedValueOnce({ chatId: 'different-chat' })
+    const response = await POST(abortRequest())
+    expect(response.status).toBe(404)
+    expect(mockAbortActiveStream).not.toHaveBeenCalled()
   })
 
   it('rejects an unauthenticated caller without touching either abort path', async () => {

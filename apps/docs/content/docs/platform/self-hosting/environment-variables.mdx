@@ -123,12 +123,6 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).
 
-## Sign in with Sim
-
-| Variable | Description |
-| --- | --- |
-| `OAUTH_PROVIDER_ENABLED` | Fallback for the global `oauth-provider` feature flag when AppConfig is disabled or no AppConfig document has been loaded. Set to `true` only after the migration is applied and every older app instance is drained. With AppConfig, use `"oauth-provider": { "enabled": true }` in the existing `feature-flags` document instead. `DISABLE_AUTH=true` always forces it off. See [Authentication](/platform/self-hosting/authentication#sign-in-with-sim) |
-
 ## Integration Credentials
 
 <Callout type="warn">

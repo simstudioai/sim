@@ -56,7 +56,7 @@ export function requireManageableCredentialType(
 ): void {
   const allowedTypes =
     principal.kind === 'session'
-      ? ['oauth', 'env_workspace', 'env_personal', 'service_account']
+      ? ['oauth', 'env_workspace', 'env_personal', 'service_account', 'personal_token']
       : principal.kind === 'delegated'
         ? ['oauth']
         : ['oauth', 'service_account']

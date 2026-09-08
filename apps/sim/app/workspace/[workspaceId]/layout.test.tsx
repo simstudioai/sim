@@ -65,6 +65,10 @@ vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: ({ children }: { children: ReactNode }) => children,
 }))
 
+vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
+  Sidebar: () => null,
+}))
+
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-access-denied', () => ({
   WorkspaceAccessDenied: () => <div>Workspace access denied</div>,
 }))

@@ -5,7 +5,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNavigateToSettings } = vi.hoisted(() => ({ mockNavigateToSettings: vi.fn() }))
+const { mockNavigateToSettings, mockWorkspacePermissions } = vi.hoisted(() => ({
+  mockNavigateToSettings: vi.fn(),
+  mockWorkspacePermissions: { canAdmin: true, canEdit: true, canRead: true },
+}))
 
 const onWorkspaceSwitch = vi.fn()
 
@@ -21,7 +24,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useWorkspacePermissionsContext: () => ({
-    userPermissions: { canAdmin: true, canEdit: true, canRead: true },
+    userPermissions: mockWorkspacePermissions,
   }),
 }))
 vi.mock('@/hooks/queries/invitations', () => ({ invitationKeys: { all: ['invitations'] } }))
@@ -147,6 +150,7 @@ function typeInto(input: HTMLInputElement, value: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.assign(mockWorkspacePermissions, { canAdmin: true, canEdit: true, canRead: true })
   // jsdom implements neither; the component scrolls the active row into view.
   Element.prototype.scrollIntoView = vi.fn()
 })
@@ -157,6 +161,23 @@ afterEach(() => {
 })
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
+  it.each([
+    { role: 'viewer', canAdmin: false, canEdit: false },
+    { role: 'editor', canAdmin: false, canEdit: true },
+    { role: 'admin', canAdmin: true, canEdit: true },
+  ])(
+    'only offers workspace invitations to admins, including for $role',
+    ({ canAdmin, canEdit }) => {
+      Object.assign(mockWorkspacePermissions, { canAdmin, canEdit })
+      render()
+      const invite = [...document.querySelectorAll('button')].find(
+        (button) => button.textContent?.trim() === 'Invite teammates'
+      )
+      expect(Boolean(invite)).toBe(canAdmin)
+      expect(container.querySelector('button[aria-label="Switch workspace"]')).not.toBeDisabled()
+    }
+  )
+
   it('shows the route workspace identity while the switcher list is unavailable', () => {
     render({
       activeWorkspace: { name: 'Brightwave' },

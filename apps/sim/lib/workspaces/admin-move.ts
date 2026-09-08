@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  foldedEmail,
   invitation,
   invitationWorkspaceGrant,
   member,
@@ -2270,8 +2271,8 @@ async function getProjectedDestinationPendingSeatCount(params: {
       .innerJoin(user, eq(user.id, member.userId))
       .where(
         or(
-          ...incomingInternalEmails.map(
-            (email) => sql`lower(btrim(${user.email})) = ${normalizeEmail(email)}`
+          ...incomingInternalEmails.map((email) =>
+            eq(foldedEmail(user.email), normalizeEmail(email))
           )
         )
       ),

@@ -35,6 +35,8 @@ const NON_ENTERPRISE_PLANS = ['free', 'pro', 'team'] as const satisfies readonly
 export interface CleanupJobPayload {
   plan: PlanCategory
   workspaceIds: string[]
+  /** Organization-owned Search data is retained independently of workspace membership. */
+  organizationIds?: string[]
   retentionHours: number
   label: string
   /** Set on exactly one chunk per dispatch so plan-wide housekeeping runs once. */
@@ -287,6 +289,46 @@ async function forEachCleanupChunk(
         retentionHours: hours,
         label: `enterprise/${row.id}`,
       })
+    }
+  }
+
+  if (jobType === 'cleanup-soft-deletes' || jobType === 'cleanup-tasks') {
+    let afterOrganizationId: string | null = null
+    while (true) {
+      const organizations = await db
+        .select({ id: organization.id, settings: organization.dataRetentionSettings })
+        .from(organization)
+        .where(afterOrganizationId ? gt(organization.id, afterOrganizationId) : undefined)
+        .orderBy(asc(organization.id))
+        .limit(WORKSPACE_SCOPE_PAGE_SIZE)
+      if (organizations.length === 0) break
+      afterOrganizationId = organizations[organizations.length - 1].id
+      for (const row of organizations) {
+        let plan: PlanCategory = 'enterprise'
+        if (isBillingEnabled) {
+          try {
+            const subscription = await getOrganizationSubscription(row.id, { onError: 'throw' })
+            if (!subscription) continue
+            plan = getPlanType(subscription.plan)
+          } catch (error) {
+            logger.error('Skipping organization cleanup after plan lookup failed', {
+              organizationId: row.id,
+              error,
+            })
+            continue
+          }
+        }
+        const retentionHours =
+          plan === 'enterprise' ? (row.settings?.[config.key] ?? null) : config.defaults[plan]
+        if (retentionHours == null) continue
+        await emitChunk({
+          plan,
+          workspaceIds: [],
+          organizationIds: [row.id],
+          retentionHours,
+          label: `${plan}/organization/${row.id}`,
+        })
+      }
     }
   }
 

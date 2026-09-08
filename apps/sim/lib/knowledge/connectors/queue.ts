@@ -7,10 +7,15 @@ import { isRecordLike } from '@sim/utils/object'
 import { idempotencyKeys, tasks } from '@trigger.dev/sdk'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import {
+  CONTENT_ENGINE_ACCESS_MODES,
+  isContentEngineAccessMode,
+} from '@/lib/knowledge/connectors/access-modes'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
@@ -161,7 +166,7 @@ async function markSyncPending(connectorId: string): Promise<string | null> {
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        eq(knowledgeConnector.accessMode, 'workspace'),
+        inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.syncLockToken),
         connectorIsLive()
@@ -298,6 +303,7 @@ export async function dispatchSync(
       connectorDeletedAt: knowledgeConnector.deletedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
     })
     .from(knowledgeConnector)
@@ -347,7 +353,7 @@ export async function dispatchSync(
     })
     return { queued: false, reason: 'Connector has been archived or deleted' }
   }
-  if (row.connectorAccessMode !== 'workspace') {
+  if (!isContentEngineAccessMode(row.connectorAccessMode)) {
     logger.info('Skipping sync dispatch: connector syncs per member', { connectorId, requestId })
     return {
       queued: false,
@@ -378,19 +384,15 @@ export async function dispatchSync(
       reason: 'The connector sync schedule changed after this run was scheduled',
     }
   }
-  if (!row.workspaceId) {
+  if (!row.workspaceId && !row.organizationId) {
     throw new Error(`Connector ${connectorId} is missing workspace billing context`)
   }
-  if (payload.billingAttribution.workspaceId !== row.workspaceId) {
-    throw new Error(
-      `Connector sync billing attribution does not match connector workspace ${row.workspaceId}`
-    )
-  }
+  assertBillingAttributionOwner(payload.billingAttribution, row)
 
   const tags = [
     `connectorId:${connectorId}`,
     `knowledgeBaseId:${row.knowledgeBaseId}`,
-    `workspaceId:${row.workspaceId}`,
+    row.workspaceId ? `workspaceId:${row.workspaceId}` : `organizationId:${row.organizationId}`,
     `userId:${payload.billingAttribution.actorUserId}`,
   ]
 

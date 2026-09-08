@@ -30,7 +30,7 @@ export const launchCredentialConnection = defineAuthorizedWorkspaceUseCase({
     input: LaunchCredentialConnectionInput
   }): Promise<LaunchCredentialConnectionContext> => {
     const draft = await getActiveConnectDraft(input.draftId, principal.userId)
-    if (!draft)
+    if (!draft?.workspaceId)
       throw new OrchestrationError('not_found', 'OAuth connection link is invalid or expired')
     const workspace = await loadActiveWorkspaceApplicationContext(draft.workspaceId)
     if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')

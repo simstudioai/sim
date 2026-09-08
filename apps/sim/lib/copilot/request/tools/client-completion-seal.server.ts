@@ -32,6 +32,59 @@ interface SealClientToolContextInput extends ClientToolBinding {
   toolInput: unknown
 }
 
+export type ClientToolUnsealFailureReason =
+  | 'missing-envelope'
+  | 'malformed-envelope'
+  | 'decrypt-failed'
+  | 'invalid-json'
+  | 'invalid-content'
+  | 'binding-mismatch'
+  | 'registry-mismatch'
+  | 'invalid-provenance'
+
+type ReportUnsealFailure = (reason: ClientToolUnsealFailureReason) => void
+
+/** Reads a sealed record while exposing only the guard that refused it, never its contents. */
+async function readSealedRecord(
+  value: unknown,
+  field: typeof SEALED_CLIENT_TOOL_COMPLETION_FIELD | typeof SEALED_CLIENT_TOOL_CONTEXT_FIELD,
+  reportFailure?: ReportUnsealFailure
+): Promise<Record<string, unknown> | null> {
+  if (!isPlainRecord(value)) {
+    reportFailure?.(value == null ? 'missing-envelope' : 'malformed-envelope')
+    return null
+  }
+  const sealed = value[field]
+  if (sealed === undefined) {
+    reportFailure?.('missing-envelope')
+    return null
+  }
+  if (typeof sealed !== 'string' || sealed.length === 0) {
+    reportFailure?.('malformed-envelope')
+    return null
+  }
+  let decrypted: string
+  try {
+    const result = await decryptSecret(sealed)
+    decrypted = result.decrypted
+  } catch {
+    reportFailure?.('decrypt-failed')
+    return null
+  }
+  let content: unknown
+  try {
+    content = JSON.parse(decrypted)
+  } catch {
+    reportFailure?.('invalid-json')
+    return null
+  }
+  if (!isPlainRecord(content)) {
+    reportFailure?.('invalid-content')
+    return null
+  }
+  return content
+}
+
 type ClientCompletionSealGlobal = typeof globalThis & {
   _clientToolRegistryInstanceIds?: WeakMap<ResolvedSecretTraceRegistry, string>
 }
@@ -66,25 +119,23 @@ export async function sealClientToolCompletion(
 
 export async function unsealClientToolCompletion(
   value: unknown,
-  expected: ClientToolBinding
+  expected: ClientToolBinding,
+  reportFailure?: ReportUnsealFailure
 ): Promise<ClientToolCompletionContent | null> {
-  if (!isPlainRecord(value)) return null
-  const sealed = value[SEALED_CLIENT_TOOL_COMPLETION_FIELD]
-  if (typeof sealed !== 'string' || sealed.length === 0) return null
-
-  try {
-    const { decrypted } = await decryptSecret(sealed)
-    const content: unknown = JSON.parse(decrypted)
-    if (!isPlainRecord(content)) return null
-    if (!bindingMatches(content, expected)) return null
-    if (content.message !== undefined && typeof content.message !== 'string') return null
-    return {
-      ...expected,
-      ...(content.message !== undefined ? { message: content.message } : {}),
-      ...(Object.hasOwn(content, 'data') ? { data: content.data } : {}),
-    }
-  } catch {
+  const content = await readSealedRecord(value, SEALED_CLIENT_TOOL_COMPLETION_FIELD, reportFailure)
+  if (!content) return null
+  if (!bindingMatches(content, expected)) {
+    reportFailure?.('binding-mismatch')
     return null
+  }
+  if (content.message !== undefined && typeof content.message !== 'string') {
+    reportFailure?.('invalid-content')
+    return null
+  }
+  return {
+    ...expected,
+    ...(content.message !== undefined ? { message: content.message } : {}),
+    ...(Object.hasOwn(content, 'data') ? { data: content.data } : {}),
   }
 }
 
@@ -114,24 +165,26 @@ export function retainSealedClientToolContext(
 export async function unsealClientToolContext(
   value: unknown,
   expected: ClientToolBinding,
-  registry: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry,
+  reportFailure?: ReportUnsealFailure
 ): Promise<ClientToolContext | null> {
-  if (!isPlainRecord(value)) return null
-  const sealed = value[SEALED_CLIENT_TOOL_CONTEXT_FIELD]
-  if (typeof sealed !== 'string' || sealed.length === 0) return null
-
-  try {
-    const { decrypted } = await decryptSecret(sealed)
-    const context: unknown = JSON.parse(decrypted)
-    if (!isPlainRecord(context) || !bindingMatches(context, expected)) return null
-    if (context.registryInstanceId !== getRegistryInstanceId(registry)) return null
-    if (!isResolvedSecretTraceProvenanceV1(context.provenance)) return null
-    return {
-      ...expected,
-      registryInstanceId: context.registryInstanceId,
-      provenance: context.provenance,
-    }
-  } catch {
+  const context = await readSealedRecord(value, SEALED_CLIENT_TOOL_CONTEXT_FIELD, reportFailure)
+  if (!context) return null
+  if (!bindingMatches(context, expected)) {
+    reportFailure?.('binding-mismatch')
     return null
+  }
+  if (context.registryInstanceId !== getRegistryInstanceId(registry)) {
+    reportFailure?.('registry-mismatch')
+    return null
+  }
+  if (!isResolvedSecretTraceProvenanceV1(context.provenance)) {
+    reportFailure?.('invalid-provenance')
+    return null
+  }
+  return {
+    ...expected,
+    registryInstanceId: context.registryInstanceId,
+    provenance: context.provenance,
   }
 }

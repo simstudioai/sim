@@ -3,8 +3,8 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import {
   Badge,
-  Button,
   Checkbox,
+  Chip,
   ChipConfirmModal,
   cn,
   DropdownMenu,
@@ -16,6 +16,7 @@ import {
 } from '@sim/emcn'
 import {
   ChevronDown,
+  ChevronUp,
   CircleAlert,
   CircleCheck,
   CircleX,
@@ -30,6 +31,11 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
@@ -38,10 +44,10 @@ import {
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type {
   ConnectorData,
@@ -62,8 +68,10 @@ import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-tri
 const logger = createLogger('ConnectorsSection')
 
 interface ConnectorsSectionProps {
-  workspaceId: string
+  scope?: ResourceScope
+  workspaceId?: string
   knowledgeBaseId: string
+  isSearchIndex?: boolean
   connectors: ConnectorData[]
   isLoading: boolean
   canEdit: boolean
@@ -102,17 +110,17 @@ const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
   disabled: 'disabled',
 } as const satisfies Record<MemberSyncStatus, keyof typeof STATUS_CONFIG>
 
-const CONNECTOR_ACTION_BUTTON_CLASSES =
-  'size-7 rounded-lg p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
-
 export function ConnectorsSection({
   workspaceId,
+  scope: explicitScope,
   knowledgeBaseId,
+  isSearchIndex = false,
   connectors,
   isLoading,
   canEdit,
   className,
 }: ConnectorsSectionProps) {
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const { mutate: triggerSync } = useTriggerSync()
   const {
     mutate: updateConnector,
@@ -213,9 +221,10 @@ export function ConnectorsSection({
             <ConnectorCard
               key={connector.id}
               connector={connector}
-              workspaceId={workspaceId}
+              scope={scope}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
+              isSearchIndex={isSearchIndex}
               /**
                * The optimistic status flip relabels this control Pause -> Resume
                * immediately, so without a guard a second click would send
@@ -235,9 +244,11 @@ export function ConnectorsSection({
 
       {editingConnector && (
         <EditConnectorModal
+          scope={scope}
           open={editingConnector !== null}
           onOpenChange={(val) => !val && setEditingConnector(null)}
           knowledgeBaseId={knowledgeBaseId}
+          isSearchIndex={isSearchIndex}
           connector={editingConnector}
         />
       )}
@@ -283,9 +294,10 @@ export function ConnectorsSection({
 
 interface ConnectorCardProps {
   connector: ConnectorData
-  workspaceId: string
+  scope: ResourceScope
   knowledgeBaseId: string
   canEdit: boolean
+  isSearchIndex: boolean
   isUpdating: boolean
   onSync: (rehydrate?: boolean) => void
   onEdit: () => void
@@ -295,9 +307,10 @@ interface ConnectorCardProps {
 
 function ConnectorCard({
   connector,
-  workspaceId,
+  scope,
   knowledgeBaseId,
   canEdit,
+  isSearchIndex,
   isUpdating,
   onSync,
   onEdit,
@@ -308,8 +321,11 @@ function ConnectorCard({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
+  const docsUrl = isSearchIndex ? connectorDef?.searchDocsUrl : undefined
+  const sourceDescription = connectorDef
+    ? describeSearchSource(connectorDef, connector.sourceConfig)
+    : ''
   const Icon = connectorDef?.icon
-  const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
   /**
    * A members-mode connector's content status stays `active` while the member
    * engine does the work, so its badge reads the member engine's status. A
@@ -334,7 +350,7 @@ function ConnectorCard({
     isFetching: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(providerId, {
-    workspaceId,
+    ...resourceScopeFields(scope),
   })
 
   const selectedCredential = useMemo(() => {
@@ -345,7 +361,7 @@ function ConnectorCard({
   useCredentialRefreshTriggers(
     refetchCredentials,
     selectedCredential?.provider ?? providerId ?? '',
-    workspaceId
+    scope
   )
 
   const missingScopes = useMemo(
@@ -410,24 +426,7 @@ function ConnectorCard({
     >
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div
-            className={cn(
-              'flex size-9 shrink-0 items-center justify-center rounded-xl border',
-              brandBg
-                ? 'border-[var(--border-1)]'
-                : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-            )}
-            style={brandBg ? { background: brandBg } : undefined}
-          >
-            {Icon && (
-              <Icon
-                className={cn(
-                  'size-5',
-                  brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-                )}
-              />
-            )}
-          </div>
+          {Icon && <IntegrationTile blockType={connector.connectorType} icon={Icon} />}
           <div className='flex min-w-0 flex-col gap-0.5'>
             <div className='flex min-w-0 items-center gap-2'>
               <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
@@ -443,6 +442,11 @@ function ConnectorCard({
                 </Badge>
               )}
             </div>
+            {sourceDescription && (
+              <span className='min-w-0 text-[var(--text-muted)] text-xs'>
+                <OverflowText label={sourceDescription} />
+              </span>
+            )}
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
               {lastSyncAt && (
                 <span>Last sync: {format(new Date(lastSyncAt), 'MMM d, h:mm a')}</span>
@@ -495,14 +499,11 @@ function ConnectorCard({
                       {/* span keeps the tooltip hoverable while the trigger button is disabled */}
                       <span className='inline-flex'>
                         <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='ghost'
+                          <Chip
                             aria-label='Sync options'
-                            className={CONNECTOR_ACTION_BUTTON_CLASSES}
                             disabled={syncDisabled}
-                          >
-                            <RefreshCw className='size-3.5' />
-                          </Button>
+                            leftIcon={RefreshCw}
+                          />
                         </DropdownMenuTrigger>
                       </span>
                     </Tooltip.Trigger>
@@ -518,15 +519,12 @@ function ConnectorCard({
                   <Tooltip.Trigger asChild>
                     {/* span keeps the tooltip hoverable while the button is disabled */}
                     <span className='inline-flex'>
-                      <Button
-                        variant='ghost'
+                      <Chip
                         aria-label='Sync now'
-                        className={CONNECTOR_ACTION_BUTTON_CLASSES}
                         disabled={syncDisabled}
                         onClick={() => onSync(false)}
-                      >
-                        <RefreshCw className='size-3.5' />
-                      </Button>
+                        leftIcon={RefreshCw}
+                      />
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{syncTooltip}</Tooltip.Content>
@@ -535,31 +533,27 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onEdit}
-                  >
-                    <Settings className='size-3.5' />
-                  </Button>
+                  <Chip onClick={onEdit} aria-label='Settings' leftIcon={Settings} />
                 </Tooltip.Trigger>
                 <Tooltip.Content>Settings</Tooltip.Content>
               </Tooltip.Root>
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                  <Chip
                     onClick={onTogglePause}
                     disabled={isUpdating}
-                  >
-                    {connector.status === 'paused' || connector.status === 'disabled' ? (
-                      <Play className='size-3.5' />
-                    ) : (
-                      <Pause className='size-3.5' />
-                    )}
-                  </Button>
+                    aria-label={
+                      connector.status === 'paused' || connector.status === 'disabled'
+                        ? 'Resume'
+                        : 'Pause'
+                    }
+                    leftIcon={
+                      connector.status === 'paused' || connector.status === 'disabled'
+                        ? Play
+                        : Pause
+                    }
+                  />
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   {connector.status === 'paused' || connector.status === 'disabled'
@@ -570,13 +564,7 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onDelete}
-                  >
-                    <Trash className='size-3.5' />
-                  </Button>
+                  <Chip onClick={onDelete} aria-label='Delete' leftIcon={Trash} />
                 </Tooltip.Trigger>
                 <Tooltip.Content>Delete</Tooltip.Content>
               </Tooltip.Root>
@@ -585,15 +573,12 @@ function ConnectorCard({
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                className={CONNECTOR_ACTION_BUTTON_CLASSES}
+              <Chip
                 onClick={() => setExpanded((prev) => !prev)}
-              >
-                <ChevronDown
-                  className={cn('size-3.5 transition-transform', expanded && 'rotate-180')}
-                />
-              </Button>
+                aria-label={expanded ? 'Hide history' : 'Sync history'}
+                aria-expanded={expanded}
+                leftIcon={expanded ? ChevronUp : ChevronDown}
+              />
             </Tooltip.Trigger>
             <Tooltip.Content>{expanded ? 'Hide history' : 'Sync history'}</Tooltip.Content>
           </Tooltip.Root>
@@ -630,7 +615,7 @@ function ConnectorCard({
                 : ' Use the resume button to re-enable syncing.'}
             </p>
             {canEdit && serviceId && providerId && (
-              <Button
+              <Chip
                 variant='primary'
                 disabled={Boolean(connector.credentialId && !selectedCredential)}
                 onClick={() => {
@@ -642,18 +627,17 @@ function ConnectorCard({
                       displayName: connectorDef?.name ?? connector.connectorType,
                       providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
-                      workspaceId,
+                      ...resourceScopeFields(scope),
                       reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
                   setShowOAuthModal(true)
                 }}
-                size='sm'
-                className='w-full'
+                fullWidth
               >
                 Reconnect
-              </Button>
+              </Chip>
             )}
           </div>
         </div>
@@ -667,7 +651,7 @@ function ConnectorCard({
               Additional permissions required
             </div>
             {canEdit && (
-              <Button
+              <Chip
                 variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
@@ -678,18 +662,17 @@ function ConnectorCard({
                       displayName: connectorDef?.name ?? connector.connectorType,
                       providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
-                      workspaceId,
+                      ...resourceScopeFields(scope),
                       reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
                   setShowOAuthModal(true)
                 }}
-                size='sm'
-                className='w-full'
+                fullWidth
               >
                 Update access
-              </Button>
+              </Chip>
             )}
           </div>
         </div>
@@ -718,8 +701,9 @@ function ConnectorCard({
           }}
           serviceId={serviceId}
           providerId={providerId}
+          docsUrl={docsUrl}
           requiredScopes={getCanonicalScopesForProvider(providerId)}
-          workspaceId={workspaceId}
+          {...resourceScopeFields(scope)}
           knowledgeBaseId={knowledgeBaseId}
         />
       )}
@@ -743,8 +727,9 @@ function ConnectorCard({
             newScopes={missingScopes}
             serviceId={serviceId}
             providerId={selectedCredential.provider}
+            docsUrl={docsUrl}
             reconnectTarget={{
-              workspaceId,
+              ...resourceScopeFields(scope),
               credentialId: selectedCredential.id,
               displayName: selectedCredential.name,
             }}
@@ -770,12 +755,14 @@ function ConnectorCard({
  * Rendering it as still running is the failure this state exists to fix; the
  * same TTL already governs the reclaim that takes its lock away.
  */
-type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed'
+type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed' | 'partial'
 
 function getSyncLogState(log: SyncLogData, now: number): SyncLogState {
   switch (log.status) {
     case 'completed':
       return 'completed'
+    case 'partial':
+      return 'partial'
     case 'failed':
       return 'failed'
     case 'started': {
@@ -830,7 +817,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
             <div className='mt-[1px] shrink-0'>
               {state === 'running' ? (
                 <Loader className='size-3 text-[var(--text-muted)]' animate />
-              ) : state === 'interrupted' ? (
+              ) : state === 'interrupted' || state === 'partial' ? (
                 <TriangleAlert className='size-3 text-[var(--caution)]' />
               ) : state === 'failed' ? (
                 <CircleX className='size-3 text-[var(--text-error)]' />
@@ -844,7 +831,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                 <span className='text-[var(--text-muted)]'>
                   {format(new Date(log.startedAt), 'MMM d, h:mm a')}
                 </span>
-                {state === 'completed' && (
+                {(state === 'completed' || state === 'partial') && (
                   <span className='text-[var(--text-muted)]'>
                     {totalChanges > 0 ? (
                       <>
@@ -886,6 +873,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                     )}
                   </span>
                 )}
+                {state === 'partial' && <span className='text-[var(--caution)]'>Partial</span>}
                 {state === 'running' && (
                   <span className='text-[var(--text-muted)]'>In progress…</span>
                 )}
@@ -909,6 +897,8 @@ function getMemberSyncLogState(log: MemberSyncLogData, now: number): SyncLogStat
   switch (log.status) {
     case 'completed':
       return 'completed'
+    case 'partial':
+      return 'partial'
     case 'failed':
       return 'failed'
     case 'started': {
@@ -971,7 +961,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
                 <div className='mt-[1px] shrink-0'>
                   {state === 'running' ? (
                     <Loader className='size-3 text-[var(--text-muted)]' animate />
-                  ) : state === 'interrupted' ? (
+                  ) : state === 'interrupted' || state === 'partial' ? (
                     <TriangleAlert className='size-3 text-[var(--caution)]' />
                   ) : state === 'failed' ? (
                     <CircleX className='size-3 text-[var(--text-error)]' />
@@ -982,7 +972,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
                 <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
                   <div className='flex flex-wrap items-center gap-1.5 text-[var(--text-muted)]'>
                     <span>{format(new Date(log.startedAt), 'MMM d, h:mm a')}</span>
-                    {state === 'completed' && (
+                    {(state === 'completed' || state === 'partial') && (
                       <span>
                         {log.membersCompleted + log.membersIncomplete + log.membersFailed} member
                         {log.membersCompleted + log.membersIncomplete + log.membersFailed === 1
@@ -1014,6 +1004,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
                         )}
                       </span>
                     )}
+                    {state === 'partial' && <span className='text-[var(--caution)]'>Partial</span>}
                     {state === 'running' && <span>In progress…</span>}
                     {state === 'interrupted' && (
                       <span className='text-[var(--caution)]'>Interrupted</span>

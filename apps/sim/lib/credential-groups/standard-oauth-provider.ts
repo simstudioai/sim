@@ -330,6 +330,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         identity = await managed.verifyIdentity({
           tokens,
           clientId: current.connector.clientId,
+          expectedEmail: context.email,
         })
       } catch {
         throw new CredentialGroupOAuthError(

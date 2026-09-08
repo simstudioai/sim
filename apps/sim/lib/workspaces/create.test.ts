@@ -22,6 +22,10 @@ const {
 /** The starter workflow is not what these cases are about, and it reaches the block registry. */
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
+vi.mock('@/lib/credential-groups/workspace-accounts', () => ({
+  createWorkspaceAccountsGroup: vi.fn(),
+}))
+
 vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: () => ({ workflowState: {} }),
 }))

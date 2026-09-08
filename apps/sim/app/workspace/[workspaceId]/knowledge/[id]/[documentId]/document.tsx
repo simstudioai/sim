@@ -56,7 +56,7 @@ import {
   documentParsers,
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'

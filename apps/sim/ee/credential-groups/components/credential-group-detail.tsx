@@ -2,20 +2,14 @@
 
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
-import { ArrowLeft, Plus } from '@sim/emcn/icons'
+import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import { McpIcon } from '@/components/icons'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import type {
-  CredentialGroupEnrollment,
-  CredentialGroupEnrollmentConnection,
-  CredentialGroupEnrollmentMcpConnection,
-} from '@/lib/api/contracts/credential-groups'
-import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import type { CredentialGroupEnrollment } from '@/lib/api/contracts/credential-groups'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
 import {
   credentialGroupPeopleSearchParam,
   credentialGroupPeopleSearchUrlKeys,
@@ -40,10 +34,10 @@ import {
   useCredentialGroupAccessEditor,
 } from '@/ee/credential-groups/components/credential-group-access'
 import { CredentialGroupDetails } from '@/ee/credential-groups/components/credential-group-details'
+import { EnrollmentConnections } from '@/ee/credential-groups/components/credential-group-enrollment-connections'
 import { CredentialGroupInviteModal } from '@/ee/credential-groups/components/credential-group-invite-modal'
 import {
   useCredentialGroupDetail,
-  useDeleteCredentialGroup,
   useDeleteCredentialGroupEnrollment,
   useResendCredentialGroupEnrollment,
   useUpdateCredentialGroup,
@@ -54,56 +48,17 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 interface CredentialGroupDetailProps {
   workspaceId: string
   groupId: string
-  onBack: () => void
 }
 
 type CredentialGroupTab = 'details' | 'people' | 'access'
 
 const CREDENTIAL_GROUP_TABS = [
-  { value: 'details', label: 'Details' },
+  { value: 'details', label: 'Accounts' },
   { value: 'people', label: 'People' },
-  { value: 'access', label: 'Access' },
+  { value: 'access', label: 'Workflow access' },
 ] as const
 
-interface EnrollmentConnectionsProps {
-  connections: CredentialGroupEnrollmentConnection[]
-  mcpConnections: CredentialGroupEnrollmentMcpConnection[]
-}
-
-interface CredentialProviderIconProps {
-  provider: CredentialGroupProvider
-}
-
-function CredentialProviderIcon({ provider }: CredentialProviderIconProps) {
-  const ProviderIcon = getCredentialGroupProviderService(provider).icon
-  return <ProviderIcon className='size-[14px]' aria-hidden />
-}
-
-function EnrollmentConnections({ connections, mcpConnections }: EnrollmentConnectionsProps) {
-  const connected = connections.filter((connection) => connection.status === 'active')
-  const connectedMcp = mcpConnections.filter((connection) => connection.status === 'active')
-  const count =
-    connected.reduce((total, connection) => total + connection.count, 0) + connectedMcp.length
-  const providers = [...new Set(connected.map((connection) => connection.provider))]
-
-  return (
-    <span className='flex items-center gap-1.5'>
-      {providers.map((provider) => {
-        return <CredentialProviderIcon key={provider} provider={provider} />
-      })}
-      {connectedMcp.length > 0 ? <McpIcon className='size-[14px]' aria-hidden /> : null}
-      <span>
-        {count} connected {count === 1 ? 'connection' : 'connections'}
-      </span>
-    </span>
-  )
-}
-
-export function CredentialGroupDetail({
-  workspaceId,
-  groupId,
-  onBack,
-}: CredentialGroupDetailProps) {
+export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupDetailProps) {
   const detail = useCredentialGroupDetail(workspaceId, groupId)
   const slackBots = useWorkspaceCredentials({
     workspaceId,
@@ -113,7 +68,6 @@ export function CredentialGroupDetail({
   const resend = useResendCredentialGroupEnrollment()
   const deleteEnrollment = useDeleteCredentialGroupEnrollment()
   const updateGroup = useUpdateCredentialGroup()
-  const deleteGroup = useDeleteCredentialGroup()
   const [activeTab, setActiveTab] = useQueryState(credentialGroupTabParam.key, {
     ...credentialGroupTabParam.parser,
     ...credentialGroupTabUrlKeys,
@@ -134,10 +88,7 @@ export function CredentialGroupDetail({
   })
   const setPeopleSearch = useDebouncedSearchSetter(setPeopleSearchParam)
   const [showInvite, setShowInvite] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null)
-  const [draftName, setDraftName] = useState<string | null>(null)
-  const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const credentialGroup = detail.data?.pages[0]?.credentialGroup
   const enrollments = detail.data?.pages.flatMap((page) => page.enrollments) ?? []
   const peopleFilter = peopleSearch.trim().toLowerCase()
@@ -175,89 +126,68 @@ export function CredentialGroupDetail({
           slackBots.data?.some((bot) => bot.id === option.slackBotCredentialId))
     )
 
-  const name = draftName ?? credentialGroup?.name ?? ''
-  const description = draftDescription ?? credentialGroup?.description ?? ''
-  const normalizedDescription = description.trim() || null
-  const detailsDirty = Boolean(
-    credentialGroup &&
-      (name.trim() !== credentialGroup.name ||
-        normalizedDescription !== credentialGroup.description)
-  )
   const guard = useSettingsUnsavedGuard({
-    isDirty: detailsDirty || accessEditor.dirty,
+    isDirty: accessEditor.dirty,
     navigationBlocked: updateGroup.isPending || accessEditor.saving,
   })
   const credentialGroupMutationPending =
     updateGroup.isPending || accessEditor.saving || resend.isPending || deleteEnrollment.isPending
 
-  const discardDetails = () => {
-    setDraftName(null)
-    setDraftDescription(null)
-  }
-
   const handleTabChange = (value: string) => {
     const nextTab = value as CredentialGroupTab
     if (nextTab === activeTab) return
     guard.guardBack(() => {
-      discardDetails()
       accessEditor.discard()
       void setActiveTab(nextTab)
     })
   }
 
-  const handleSaveDetails = async () => {
-    if (!credentialGroup || !name.trim()) return
+  const handleEnable = async () => {
+    if (!credentialGroup) return
     try {
       await updateGroup.mutateAsync({
         workspaceId,
         groupId: credentialGroup.id,
-        body: { name: name.trim(), description: normalizedDescription },
+        body: { status: 'active' },
       })
-      discardDetails()
-      toast.success('Details saved')
+      toast.success('Connected accounts enabled')
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Could not save details'))
+      toast.error(getErrorMessage(error, 'Could not enable connected accounts'))
     }
   }
 
   const actions: SettingsAction[] = credentialGroup
     ? [
-        ...(activeTab === 'details'
-          ? saveDiscardActions({
-              dirty: detailsDirty,
-              saving: updateGroup.isPending,
-              onSave: () => void handleSaveDetails(),
-              onDiscard: discardDetails,
-              saveDisabled: !name.trim(),
-              saveTooltip: name.trim() ? undefined : 'Name is required',
-            })
-          : activeTab === 'people'
-            ? [
-                {
-                  text: 'Invite users',
-                  icon: Plus,
-                  variant: 'primary' as const,
-                  onSelect: () => setShowInvite(true),
-                  disabled: credentialGroup.status !== 'active' || !configurationReady,
-                },
-              ]
-            : saveDiscardActions({
+        ...(credentialGroup.status === 'disabled'
+          ? [
+              {
+                text: updateGroup.isPending ? 'Enabling...' : 'Enable accounts',
+                variant: 'primary' as const,
+                onSelect: () => void handleEnable(),
+                disabled: credentialGroupMutationPending,
+              },
+            ]
+          : []),
+        ...(activeTab === 'people'
+          ? [
+              {
+                text: 'Request connections',
+                icon: Plus,
+                variant: 'primary' as const,
+                onSelect: () => setShowInvite(true),
+                disabled: credentialGroup.status !== 'active' || !configurationReady,
+              },
+            ]
+          : activeTab === 'access'
+            ? saveDiscardActions({
                 dirty: accessEditor.dirty,
                 saving: accessEditor.saving,
                 onSave: () => void accessEditor.save(),
                 onDiscard: accessEditor.discard,
                 saveDisabled: !accessEditor.isReady,
                 saveTooltip: !accessEditor.isReady ? 'Workflow access is unavailable' : undefined,
-              })),
-        {
-          id: 'delete',
-          text: deleteGroup.isPending ? 'Deleting...' : 'Delete',
-          onSelect: () => setShowDelete(true),
-          disabled: deleteGroup.isPending || credentialGroupMutationPending,
-          tooltip: credentialGroupMutationPending
-            ? 'Wait for the current Credential Group change to finish'
-            : undefined,
-        },
+              })
+            : []),
       ]
     : []
 
@@ -285,26 +215,9 @@ export function CredentialGroupDetail({
     }
   }
 
-  const handleDelete = async () => {
-    if (!credentialGroup) return
-    try {
-      await deleteGroup.mutateAsync({ workspaceId, groupId })
-      setShowDelete(false)
-      onBack()
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Could not delete credential group'))
-    }
-  }
-
   return (
     <>
       <SettingsPanel
-        back={{
-          text: 'Credential groups',
-          icon: ArrowLeft,
-          onSelect: () => guard.guardBack(onBack),
-        }}
-        title={credentialGroup?.name ?? 'Credential group'}
         actions={actions}
         search={
           activeTab === 'details'
@@ -324,9 +237,10 @@ export function CredentialGroupDetail({
               : undefined
         }
       >
+        <SearchSetupReturn workspaceId={workspaceId} onNavigate={guard.guardBack} />
         {detail.error ? (
           <SettingsEmptyState tone='error'>
-            {getErrorMessage(detail.error, "Couldn't load credential group")}
+            {getErrorMessage(detail.error, "Couldn't load connected accounts")}
           </SettingsEmptyState>
         ) : detail.isPending || !credentialGroup ? null : (
           <>
@@ -334,19 +248,17 @@ export function CredentialGroupDetail({
               tabs={CREDENTIAL_GROUP_TABS}
               value={activeTab}
               onChange={handleTabChange}
-              aria-label='Credential group sections'
+              aria-label='Connected accounts sections'
             />
 
             {activeTab === 'details' && (
-              <CredentialGroupDetails
-                workspaceId={workspaceId}
-                credentialGroup={credentialGroup}
-                providerSearch={providerSearch}
-                name={name}
-                onNameChange={setDraftName}
-                description={description}
-                onDescriptionChange={setDraftDescription}
-              />
+              <>
+                <CredentialGroupDetails
+                  workspaceId={workspaceId}
+                  credentialGroup={credentialGroup}
+                  providerSearch={providerSearch}
+                />
+              </>
             )}
 
             {activeTab === 'people' && (
@@ -441,7 +353,7 @@ export function CredentialGroupDetail({
         text={[
           `Delete ${deletingEnrollment?.email ?? 'this person'}?`,
           {
-            text: ' Their private link will stop working and all accounts they connected to this Credential Group will be removed.',
+            text: ' Their invitation link will stop working and the accounts they connected here will be removed.',
             error: true,
           },
         ]}
@@ -450,22 +362,6 @@ export function CredentialGroupDetail({
           label: deleteEnrollment.isPending ? 'Deleting...' : 'Delete',
           onClick: handleDeleteEnrollment,
           disabled: deleteEnrollment.isPending,
-        }}
-      />
-      <ChipConfirmModal
-        open={showDelete}
-        onOpenChange={(open) => !open && !deleteGroup.isPending && setShowDelete(false)}
-        srTitle='Delete credential group'
-        title='Delete credential group'
-        text={[
-          `Delete ${credentialGroup?.name ?? 'this credential group'}?`,
-          { text: ' This cannot be undone.', error: true },
-        ]}
-        dismissLabel='Cancel'
-        confirm={{
-          label: deleteGroup.isPending ? 'Deleting...' : 'Delete',
-          onClick: handleDelete,
-          disabled: deleteGroup.isPending,
         }}
       />
       <UnsavedChangesModal

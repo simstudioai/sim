@@ -45,6 +45,64 @@ describe('copilot tool executor fallback', () => {
     getToolEntry.mockReturnValue(undefined)
   })
 
+  it.each(['run_workflow', 'read', 'manage_knowledge_base', 'mcp_remote_tool', 'unknown_tool'])(
+    'refuses %s in Assistant even for an admin and forged handler',
+    async (toolId) => {
+      isKnownTool.mockReturnValue(true)
+      isSimExecuted.mockReturnValue(true)
+      const handler = vi.fn()
+      registerHandler(toolId, handler)
+      const result = await executeTool(
+        toolId,
+        {},
+        {
+          userId: 'person',
+          workspaceId: 'workspace',
+          workflowId: '',
+          userPermission: 'admin',
+          requestMode: 'assistant',
+        }
+      )
+      expect(result.success).toBe(false)
+      expect(handler).not.toHaveBeenCalled()
+      expect(executeAppTool).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['search_workspace', 'read_document'])(
+    'dispatches %s with explicit org context for canonical organization authorization',
+    async (toolId) => {
+      getToolEntry.mockReturnValue({ requiredPermission: 'read' })
+      isKnownTool.mockReturnValue(true)
+      isSimExecuted.mockReturnValue(true)
+      isClientExecuted.mockReturnValue(false)
+      const handler = vi.fn().mockResolvedValue({ success: true })
+      registerHandler(toolId, handler)
+      const context = {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        requestMode: 'assistant' as const,
+      }
+      expect((await executeTool(toolId, {}, context)).success).toBe(true)
+      expect(handler).toHaveBeenCalledWith({}, expect.objectContaining({ organizationId: 'org-1' }))
+    }
+  )
+
+  it.each([
+    ['run_workflow', undefined],
+    ['gmail_send', undefined],
+    ['search_workspace', 'workspace-1'],
+  ])('refuses organization authority for %s in workspace %s', async (toolId, workspaceId) => {
+    const handler = vi.fn()
+    registerHandler(toolId, handler)
+    expect(
+      (await executeTool(toolId, {}, { userId: 'user-1', organizationId: 'org-1', workspaceId }))
+        .success
+    ).toBe(false)
+    expect(handler).not.toHaveBeenCalled()
+    expect(executeAppTool).not.toHaveBeenCalled()
+  })
+
   it('enforces catalog-required permissions before dispatch and fails closed when absent', async () => {
     getToolEntry.mockReturnValue({ requiredPermission: 'write' })
     isKnownTool.mockReturnValue(true)

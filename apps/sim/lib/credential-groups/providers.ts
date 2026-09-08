@@ -21,6 +21,7 @@ export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'asana',
   'attio',
   'bitbucket',
+  'github-repositories',
   'box',
   'calcom',
   'clickup',
@@ -150,6 +151,11 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   bitbucket: {
     serviceId: 'bitbucket',
     description: 'Let each person connect one Bitbucket account',
+    configuration: 'oauth',
+  },
+  'github-repositories': {
+    serviceId: 'github-repositories',
+    description: 'Let each person connect their GitHub account',
     configuration: 'oauth',
   },
   box: {

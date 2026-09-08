@@ -19,6 +19,7 @@ export type OAuthFormParseResult =
 export function oauthErrorResponse(
   error:
     | OAuthProtocolErrorCode
+    | 'access_denied'
     | 'invalid_request'
     | 'invalid_token'
     | 'insufficient_scope'

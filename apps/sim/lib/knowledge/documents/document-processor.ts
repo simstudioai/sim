@@ -1,6 +1,6 @@
-import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { sha256Hex } from '@sim/security/hash'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
@@ -18,6 +18,10 @@ import {
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env } from '@/lib/core/config/env'
 import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
+import {
+  recordProviderCooldown,
+  waitForProviderAdmission,
+} from '@/lib/core/rate-limiter/provider-admission'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -41,6 +45,7 @@ import {
 import {
   getAzureMistralOcrRequestPolicy,
   MISTRAL_OCR_REQUEST_POLICY,
+  OCR_IMAGE_MIME_TYPES,
   type OcrRequestPolicy,
 } from '@/lib/knowledge/documents/ocr-request-policy'
 import {
@@ -52,13 +57,11 @@ import {
   type PdfOcrChunk,
 } from '@/lib/knowledge/documents/pdf-ocr-chunking'
 import { assessPdfTextLayer } from '@/lib/knowledge/documents/pdf-text-layer'
-import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import { resolveRetryDelayMs, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   assertKnowledgeOpaqueModelInputSafe,
   getKnowledgeOpaqueModelInputRegistry,
 } from '@/lib/knowledge/model-input-provenance'
-import { StorageService } from '@/lib/uploads'
-import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   type DownloadFileFromUrlOptions,
@@ -66,6 +69,7 @@ import {
 } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
+import type { MistralParserInput } from '@/tools/mistral/types'
 
 const logger = createLogger('DocumentProcessor')
 
@@ -136,7 +140,11 @@ type AzureOCRResponse = {
 class APIError extends Error {
   public status: number
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    readonly retryAfterMs?: number
+  ) {
     super(message)
     this.name = 'APIError'
     this.status = status
@@ -201,7 +209,10 @@ async function applyStrategy(
  * Who a source-file read runs as: the actor for authorization and OCR
  * attribution, plus how a knowledge-base file identifies its reader.
  */
-export type SourceFileAccess = Pick<DownloadFileFromUrlOptions, 'userId' | 'knowledgeAccess'>
+export type SourceFileAccess = Pick<
+  DownloadFileFromUrlOptions,
+  'userId' | 'knowledgeAccess' | 'signal'
+>
 
 export async function processDocument(
   fileUrl: string,
@@ -230,7 +241,9 @@ export async function processDocument(
   logger.info('Processing document', { mimeType })
 
   try {
+    access.signal?.throwIfAborted()
     const parseResult = await parseDocument(fileUrl, filename, mimeType, access, workspaceId)
+    access.signal?.throwIfAborted()
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
@@ -317,6 +330,7 @@ export async function processDocument(
       )
     }
 
+    access.signal?.throwIfAborted()
     const characterCount = content.length
     const tokenCount = chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
 
@@ -365,7 +379,7 @@ async function getMistralApiKey(workspaceId?: string | null): Promise<string | n
  * for keeping the two extraction routes independent.
  */
 async function readEmbeddedPdfText(
-  fileUrl: string,
+  buffer: Buffer,
   filename: string,
   mimeType: string,
   access: SourceFileAccess
@@ -379,7 +393,6 @@ async function readEmbeddedPdfText(
   | undefined
 > {
   try {
-    const buffer = await downloadFileWithTimeout(fileUrl, access)
     const parsed = await parseBuffer(buffer, 'pdf')
 
     /**
@@ -408,6 +421,7 @@ async function readEmbeddedPdfText(
       metadata: parsed.metadata,
     }
   } catch (error) {
+    access.signal?.throwIfAborted()
     logger.info('Could not read PDF text layer, routing to OCR', {
       filename,
       mimeType,
@@ -430,9 +444,11 @@ async function parseDocument(
   metadata?: FileParseMetadata
 }> {
   const isPDF = mimeType === 'application/pdf'
+  const isImage = OCR_IMAGE_MIME_TYPES.has(mimeType)
   const mistralApiKey = await getMistralApiKey(workspaceId)
+  access.signal?.throwIfAborted()
 
-  if (isPDF) {
+  if (isPDF || isImage) {
     const ocrProvider = requireCapability(OCR_CAPABILITY, {
       OCR_PROVIDER: env.OCR_PROVIDER,
       OCR_AZURE_API_KEY: env.OCR_AZURE_API_KEY,
@@ -448,84 +464,28 @@ async function parseDocument(
        * documents that actually need it — which also means everything else stops
        * depending on that service being reachable.
        */
-      const embedded = await readEmbeddedPdfText(fileUrl, filename, mimeType, access)
+      const buffer = await downloadFileForBase64(fileUrl, access)
+      access.signal?.throwIfAborted()
+      const embedded = isPDF
+        ? await readEmbeddedPdfText(buffer, filename, mimeType, access)
+        : undefined
       if (embedded) return embedded
 
       assertKnowledgeOpaqueModelInputSafe()
 
       if (ocrProvider === 'azure-mistral') {
         logger.info('Using Azure Mistral OCR')
-        return parseWithAzureMistralOCR(fileUrl, filename, mimeType, access)
+        return parseWithAzureMistralOCR(buffer, filename, mimeType, access)
       }
 
       logger.info('Using Mistral OCR')
-      return parseWithMistralOCR(fileUrl, filename, mimeType, access, workspaceId, mistralApiKey)
+      return parseWithMistralOCR(buffer, filename, mimeType, access, mistralApiKey)
     }
+    if (isImage) throw new Error('Configure Mistral or Azure OCR to index image files')
   }
 
   logger.info('Using file parser')
   return parseWithFileParser(fileUrl, filename, mimeType, access)
-}
-
-async function handleFileForOCR(
-  fileUrl: string,
-  filename: string,
-  mimeType: string,
-  access: SourceFileAccess,
-  workspaceId?: string | null
-) {
-  const isExternalHttps = /^https:\/\//i.test(fileUrl) && !isInternalFileUrl(fileUrl)
-
-  if (isExternalHttps) {
-    if (mimeType === 'application/pdf') {
-      logger.info('handleFileForOCR: Downloading external PDF for OCR admission')
-      const buffer = await downloadFileWithTimeout(fileUrl, access)
-      logger.info('handleFileForOCR: Downloaded external PDF', { bytes: buffer.length })
-      return { httpsUrl: fileUrl, buffer }
-    }
-    logger.info(`handleFileForOCR: Using external URL directly`)
-    return { httpsUrl: fileUrl, buffer: undefined }
-  }
-
-  logger.info('Uploading document to cloud storage for OCR')
-
-  const buffer = await downloadFileWithTimeout(fileUrl, access)
-
-  logger.info('Downloaded document for OCR', { bytes: buffer.length })
-
-  try {
-    const metadata: Record<string, string> = {
-      originalName: filename,
-      uploadedAt: new Date().toISOString(),
-      purpose: 'knowledge-base',
-      ...(access.userId && { userId: access.userId }),
-      ...(workspaceId && { workspaceId }),
-    }
-
-    const timestamp = Date.now()
-    const uniqueId = randomBytes(8).toString('hex')
-    const customKey = `kb/${buildStorageKeySegment(`${timestamp}-${uniqueId}-`, filename)}`
-
-    const cloudResult = await StorageService.uploadFile({
-      file: buffer,
-      fileName: filename,
-      contentType: mimeType,
-      context: 'knowledge-base',
-      customKey,
-      metadata,
-    })
-
-    const httpsUrl = await StorageService.generatePresignedDownloadUrl(
-      cloudResult.key,
-      'knowledge-base',
-      900 // 15 minutes
-    )
-
-    return { httpsUrl, cloudUrl: httpsUrl, buffer }
-  } catch (uploadError) {
-    const message = getErrorMessage(uploadError, 'Unknown error')
-    throw new Error(`Cloud upload failed: ${message}. Cloud upload is required for OCR.`)
-  }
 }
 
 /**
@@ -543,6 +503,7 @@ async function downloadFileWithTimeout(fileUrl: string, access: SourceFileAccess
 }
 
 async function downloadFileForBase64(fileUrl: string, access: SourceFileAccess): Promise<Buffer> {
+  access.signal?.throwIfAborted()
   if (/^data:/i.test(fileUrl)) {
     return decodeDataUriWithinLimit(fileUrl, MAX_FILE_SIZE).buffer
   }
@@ -562,47 +523,6 @@ function assertOcrOutputTextWithinLimit(content: string): void {
     'document_complexity_limit',
     `OCR extracted ${outputBytes.toLocaleString()} bytes of text, exceeding the safe limit of ${MAX_OCR_OUTPUT_TEXT_BYTES.toLocaleString()} bytes. Split the document into smaller files and retry.`
   )
-}
-
-function processOCRContent(result: OCRResult, filename: string, expectedPages?: number): string {
-  if (!result.success) {
-    throw new Error(`OCR processing failed: ${result.error || 'Unknown error'}`)
-  }
-
-  const content = result.output?.content || ''
-  const pageCount = result.output?.metadata?.pageCount
-  const pagesProcessed = result.output?.metadata?.usageInfo?.pagesProcessed
-  if (pageCount === 0) {
-    throw new Error('OCR provider returned no page results')
-  }
-  if (
-    expectedPages !== undefined &&
-    (pageCount !== expectedPages ||
-      (Number.isFinite(pagesProcessed) && pagesProcessed !== expectedPages))
-  ) {
-    throw new Error(
-      `OCR provider returned an incomplete page result: expected ${expectedPages}, received ${pageCount ?? 0}`
-    )
-  }
-  if (
-    expectedPages === undefined &&
-    (!Number.isFinite(pageCount) ||
-      !Number.isFinite(pagesProcessed) ||
-      pageCount !== pagesProcessed)
-  ) {
-    throw new Error('OCR provider did not report a complete page count for this PDF')
-  }
-  if (!content.trim()) {
-    throw new PermanentDocumentProcessingError(
-      'no_extractable_text',
-      unreadableDocumentMessage(filename)
-    )
-  }
-
-  assertOcrOutputTextWithinLimit(content)
-
-  logger.info('OCR completed')
-  return content
 }
 
 function validateOCRConfig(
@@ -628,17 +548,28 @@ function extractPageContent(pages: OCRPage[]): string {
 async function makeOCRRequest(
   endpoint: string,
   headers: HeadersInit,
-  body: string | Record<string, unknown>
+  body: string | Record<string, unknown>,
+  signal?: AbortSignal,
+  deadlineAt = Date.now() + TIMEOUTS.MISTRAL_OCR_API
 ): Promise<Response> {
+  signal?.throwIfAborted()
+  await waitForProviderAdmission({
+    providerId: 'azure-mistral',
+    credentialFingerprint: sha256Hex(env.OCR_AZURE_API_KEY!),
+    operation: 'ocr',
+    signal,
+    maxWaitMs: Math.max(0, deadlineAt - Date.now()),
+  })
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.MISTRAL_OCR_API)
+  const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
 
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: typeof body === 'string' ? body : JSON.stringify(body),
-      signal: controller.signal,
+      signal: requestSignal,
     })
 
     const responseBodyLimit = response.ok ? MAX_OCR_RESPONSE_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES
@@ -647,7 +578,7 @@ async function makeOCRRequest(
       responseText = await readResponseTextWithLimit(response, {
         maxBytes: responseBodyLimit,
         label: response.ok ? 'OCR success response' : 'OCR error response',
-        signal: controller.signal,
+        signal: requestSignal,
       })
     } catch (error) {
       if (response.ok && isPayloadSizeLimitError(error)) {
@@ -670,7 +601,21 @@ async function makeOCRRequest(
           'The OCR provider rejected this document because the request was too large. Split or optimize the document and retry.'
         )
       }
-      throw new APIError(`OCR failed: ${response.status}`, response.status)
+      if (response.status === 429) {
+        await recordProviderCooldown(
+          {
+            providerId: 'azure-mistral',
+            credentialFingerprint: sha256Hex(env.OCR_AZURE_API_KEY!),
+            operation: 'ocr',
+          },
+          resolveRetryDelayMs(response.headers) ?? 1000
+        )
+      }
+      throw new APIError(
+        `OCR failed: ${response.status}`,
+        response.status,
+        resolveRetryDelayMs(response.headers)
+      )
     }
 
     return new Response(responseText, {
@@ -678,6 +623,7 @@ async function makeOCRRequest(
       headers: response.headers,
     })
   } catch (error) {
+    signal?.throwIfAborted()
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('OCR API request timed out')
     }
@@ -688,7 +634,7 @@ async function makeOCRRequest(
 }
 
 async function parseWithAzureMistralOCR(
-  fileUrl: string,
+  fileBuffer: Buffer,
   filename: string,
   mimeType: string,
   access: SourceFileAccess
@@ -700,8 +646,13 @@ async function parseWithAzureMistralOCR(
     'Azure Mistral OCR'
   )
 
-  const fileBuffer = await downloadFileForBase64(fileUrl, access)
   const requestPolicy = getAzureMistralOcrRequestPolicy(env.OCR_AZURE_MODEL_NAME!)
+  if (mimeType !== 'application/pdf' && fileBuffer.length > requestPolicy.maxBytes) {
+    throw new PermanentDocumentProcessingError(
+      'document_complexity_limit',
+      'This image exceeds the OCR request size limit. Resize the image and retry.'
+    )
+  }
 
   try {
     /**
@@ -712,15 +663,23 @@ async function parseWithAzureMistralOCR(
      */
     const content =
       mimeType === 'application/pdf'
-        ? await ocrPdfInChunks(fileBuffer, 'azure-mistral', filename, requestPolicy, (chunk) => {
-            const pageCount = chunk.endPage - chunk.startPage + 1
-            return recognizeWithAzureOCR(
-              chunk.buffer,
-              mimeType,
-              pageCount > 0 ? pageCount : undefined
-            )
-          })
-        : await recognizeWithAzureOCR(fileBuffer, mimeType)
+        ? await ocrPdfInChunks(
+            fileBuffer,
+            'azure-mistral',
+            filename,
+            requestPolicy,
+            (chunk) => {
+              const pageCount = chunk.endPage - chunk.startPage + 1
+              return recognizeWithAzureOCR(
+                chunk.buffer,
+                mimeType,
+                pageCount > 0 ? pageCount : undefined,
+                access.signal
+              )
+            },
+            access.signal
+          )
+        : await recognizeWithAzureOCR(fileBuffer, mimeType, undefined, access.signal)
 
     if (!content.trim()) {
       throw new PermanentDocumentProcessingError(
@@ -745,12 +704,13 @@ async function parseWithAzureMistralOCR(
 async function recognizeWithAzureOCR(
   buffer: Buffer,
   mimeType: string,
-  expectedPages?: number
+  expectedPages?: number,
+  signal?: AbortSignal
 ): Promise<string> {
   const dataUri = `data:${mimeType};base64,${buffer.toString('base64')}`
 
   const response = await retryWithExponentialBackoff(
-    () =>
+    (operationSignal, deadlineAt) =>
       makeOCRRequest(
         env.OCR_AZURE_ENDPOINT!,
         {
@@ -759,14 +719,15 @@ async function recognizeWithAzureOCR(
         },
         {
           model: env.OCR_AZURE_MODEL_NAME!,
-          document: {
-            type: 'document_url',
-            document_url: dataUri,
-          },
+          document: mimeType.startsWith('image/')
+            ? { type: 'image_url', image_url: dataUri }
+            : { type: 'document_url', document_url: dataUri },
           include_image_base64: false,
-        }
+        },
+        operationSignal,
+        deadlineAt
       ),
-    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
+    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000, retryBudgetMs: 120000, signal }
   )
 
   const ocrResult = (await response.json()) as AzureOCRResponse
@@ -802,71 +763,33 @@ async function recognizeWithAzureOCR(
 }
 
 async function parseWithMistralOCR(
-  fileUrl: string,
+  buffer: Buffer,
   filename: string,
   mimeType: string,
   access: SourceFileAccess,
-  workspaceId?: string | null,
   mistralApiKey?: string | null
 ) {
   const apiKey = mistralApiKey || env.MISTRAL_API_KEY
-  if (!apiKey) {
-    throw new Error('Mistral API key required')
+  if (!apiKey) throw new Error('Mistral API key required')
+  access.signal?.throwIfAborted()
+  if (mimeType !== 'application/pdf') {
+    const content = await recognizeWithMistralOCR(
+      { buffer, filename, mimeType, expectedPages: 1 },
+      apiKey,
+      access
+    )
+    return { content, processingMethod: 'mistral-ocr' as const }
   }
-
-  const { httpsUrl, cloudUrl, buffer } = await handleFileForOCR(
-    fileUrl,
-    filename,
-    mimeType,
-    access,
-    workspaceId
-  )
-
-  logger.info('Mistral OCR source prepared')
-
-  let pageCount = 0
-  if (mimeType === 'application/pdf' && buffer) {
-    pageCount = await getPdfPageCount(buffer)
-    logger.info('PDF page count resolved', { pageCount })
-  }
-
-  const needsBatching =
-    Boolean(buffer) &&
-    (pageCount > MISTRAL_OCR_REQUEST_POLICY.maxPages ||
-      buffer!.length > MISTRAL_OCR_REQUEST_POLICY.maxBytes)
-
-  if (needsBatching && buffer) {
-    logger.info('PDF exceeds a Mistral OCR request limit; splitting into bounded chunks', {
-      bytes: buffer.length,
-      pageCount,
-      maxBytes: MISTRAL_OCR_REQUEST_POLICY.maxBytes,
-      maxPages: MISTRAL_OCR_REQUEST_POLICY.maxPages,
-    })
-    return processMistralOCRInBatches(filename, apiKey, buffer, access, cloudUrl)
-  }
-
-  const params = { filePath: httpsUrl, apiKey, resultType: 'text' as const }
-
-  try {
-    const response = await executeMistralOCRRequest(params, access)
-    const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
-    const content = processOCRContent(result, filename, pageCount > 0 ? pageCount : undefined)
-
-    return { content, processingMethod: 'mistral-ocr' as const, cloudUrl }
-  } catch (error) {
-    logger.error('Mistral OCR failed', {
-      errorType: toError(error).name,
-    })
-    throw error
-  }
+  return processMistralOCRInBatches(filename, apiKey, buffer, access)
 }
 
 async function executeMistralOCRRequest(
-  params: { filePath: string; apiKey: string; resultType: 'text' },
+  params: MistralParserInput,
   access: SourceFileAccess
 ): Promise<Response> {
   return retryWithExponentialBackoff(
-    async () => {
+    async (operationSignal, deadlineAt) => {
+      operationSignal?.throwIfAborted()
       const input = mistralParseInputSchema.parse(mistralParserTool.operation.input(params))
       const headers = new Headers()
       const modelInput = mistralParserTool.operation.modelInput
@@ -881,18 +804,23 @@ async function executeMistralOCRRequest(
       )
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.MISTRAL_OCR_API)
+      const requestSignal = operationSignal
+        ? AbortSignal.any([operationSignal, controller.signal])
+        : controller.signal
       try {
         try {
           const result = await executeMistralParse(operationInput, {
             headers,
             maxResponseBytes: MAX_OCR_RESPONSE_BYTES,
+            deadlineAt,
             requestId: generateId(),
-            signal: controller.signal,
+            signal: requestSignal,
             trustedCaller: 'knowledge-ingestion',
             userId: access.userId,
           })
           return Response.json(result)
         } catch (error) {
+          operationSignal?.throwIfAborted()
           if (controller.signal.aborted) throw new Error('OCR API request timed out')
           if (error instanceof MistralOperationError) {
             if (error.status === 413) {
@@ -901,7 +829,7 @@ async function executeMistralOCRRequest(
                 'The OCR provider rejected this document because the request was too large. Split or optimize the document and retry.'
               )
             }
-            throw new APIError(`OCR failed: ${error.status}`, error.status)
+            throw new APIError(`OCR failed: ${error.status}`, error.status, error.retryAfterMs)
           }
           throw error
         }
@@ -909,63 +837,40 @@ async function executeMistralOCRRequest(
         clearTimeout(timeoutId)
       }
     },
-    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
+    {
+      maxRetries: 3,
+      initialDelayMs: 1000,
+      maxDelayMs: 10000,
+      retryBudgetMs: 120000,
+      signal: access.signal,
+    }
   )
 }
 
-async function processChunk(
-  chunk: { buffer: Buffer; startPage: number; endPage: number },
-  chunkIndex: number,
-  filename: string,
+async function recognizeWithMistralOCR(
+  file: { buffer: Buffer; filename: string; mimeType: string; expectedPages?: number },
   apiKey: string,
   access: SourceFileAccess
 ): Promise<string> {
-  const chunkPageCount = chunk.endPage - chunk.startPage + 1
-
-  logger.info('Processing OCR chunk', {
-    chunk: chunkIndex + 1,
-    startPage: chunk.startPage + 1,
-    endPage: chunk.endPage + 1,
-    pages: chunkPageCount,
-    bytes: chunk.buffer.length,
-  })
-
-  let uploadedKey: string | null = null
+  access.signal?.throwIfAborted()
+  if (file.buffer.length > MISTRAL_OCR_REQUEST_POLICY.maxBytes) {
+    throw new PermanentDocumentProcessingError(
+      'document_complexity_limit',
+      'This file exceeds the OCR request size limit. Split or resize the file and retry.'
+    )
+  }
 
   try {
-    const timestamp = Date.now()
-    const uniqueId = randomBytes(8).toString('hex')
-    const chunkKey = `kb/${buildStorageKeySegment(
-      `${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-`,
-      filename
-    )}`
-
-    // No metadata: these chunks are ephemeral OCR artifacts (deleted in the
-    // finally below) that are fetched via a direct presigned URL, never through
-    // verifyKBFileAccess. Omitting metadata avoids writing an orphan ownership
-    // binding row per chunk.
-    const uploadResult = await StorageService.uploadFile({
-      file: chunk.buffer,
-      fileName: `${filename}_chunk${chunkIndex + 1}`,
-      contentType: 'application/pdf',
-      context: 'knowledge-base',
-      customKey: chunkKey,
-    })
-
-    uploadedKey = uploadResult.key
-
-    const chunkUrl = await StorageService.generatePresignedDownloadUrl(
-      uploadResult.key,
-      'knowledge-base',
-      900 // 15 minutes
-    )
-
-    logger.info(`Uploaded chunk ${chunkIndex + 1} for OCR`)
-
-    const params = {
-      filePath: chunkUrl,
+    const params: MistralParserInput = {
+      file: {
+        key: `ocr/${generateId()}`,
+        name: file.filename,
+        type: file.mimeType,
+        size: file.buffer.length,
+        base64: file.buffer.toString('base64'),
+      },
       apiKey,
-      resultType: 'text' as const,
+      resultType: 'text',
     }
 
     const response = await executeMistralOCRRequest(params, access)
@@ -977,36 +882,33 @@ async function processChunk(
 
     const pageCount = result.output?.metadata?.pageCount
     const pagesProcessed = result.output?.metadata?.usageInfo?.pagesProcessed
+    if (pageCount === 0) throw new Error('OCR provider returned no page results')
     if (
-      chunkPageCount > 0 &&
-      (pageCount !== chunkPageCount ||
-        (Number.isFinite(pagesProcessed) && pagesProcessed !== chunkPageCount))
+      file.expectedPages === undefined &&
+      (!Number.isFinite(pageCount) ||
+        !Number.isFinite(pagesProcessed) ||
+        pageCount !== pagesProcessed)
+    ) {
+      throw new Error('OCR provider did not report a complete page count for this PDF')
+    }
+    if (
+      file.expectedPages !== undefined &&
+      (pageCount !== file.expectedPages ||
+        (Number.isFinite(pagesProcessed) && pagesProcessed !== file.expectedPages))
     ) {
       throw new Error(
-        `OCR provider returned an incomplete page result: expected ${chunkPageCount}, received ${pageCount}`
+        `OCR provider returned an incomplete page result: expected ${file.expectedPages}, received ${pageCount}`
       )
     }
 
     const content = result.output?.content ?? ''
     assertOcrOutputTextWithinLimit(content)
-    logger.info(`Chunk ${chunkIndex + 1} completed successfully`)
     return content
   } catch (error) {
-    logger.error(`Chunk ${chunkIndex + 1} failed:`, {
+    logger.error('Mistral OCR failed', {
       errorType: toError(error).name,
     })
     throw error
-  } finally {
-    if (uploadedKey) {
-      try {
-        await StorageService.deleteFile({ key: uploadedKey, context: 'knowledge-base' })
-        logger.info(`Cleaned up chunk ${chunkIndex + 1} from S3`)
-      } catch (deleteError) {
-        logger.warn(`Failed to clean up chunk ${chunkIndex + 1} from S3:`, {
-          errorType: toError(deleteError).name,
-        })
-      }
-    }
   }
 }
 
@@ -1028,8 +930,10 @@ async function ocrPdfInChunks(
   provider: string,
   filename: string,
   policy: OcrRequestPolicy,
-  recognize: (chunk: PdfOcrChunk, chunkIndex: number) => Promise<string | null>
+  recognize: (chunk: PdfOcrChunk, chunkIndex: number) => Promise<string | null>,
+  signal?: AbortSignal
 ): Promise<string> {
+  signal?.throwIfAborted()
   const detectedPageCount = await getPdfPageCount(pdfBuffer)
 
   /**
@@ -1097,6 +1001,7 @@ async function ocrPdfInChunks(
   let wholeDocumentPending = !requiresSplitting
 
   while (wholeDocumentPending || nextPage < totalPages) {
+    signal?.throwIfAborted()
     const batch: Array<{ chunk: PdfOcrChunk; index: number }> = []
 
     if (wholeDocumentPending) {
@@ -1120,6 +1025,7 @@ async function ocrPdfInChunks(
         }
 
         const chunk = await buildLargestFittingPdfChunk(sourcePdf!, nextPage, totalPages, policy)
+        signal?.throwIfAborted()
         cumulativeSplitBytes += chunk.buffer.length
         if (cumulativeSplitBytes > MAX_OCR_SPLIT_BYTES) {
           throw new PermanentDocumentProcessingError(
@@ -1136,11 +1042,13 @@ async function ocrPdfInChunks(
     const batchResults = await Promise.all(
       batch.map(async ({ chunk, index }): Promise<ChunkOutcome> => {
         try {
+          signal?.throwIfAborted()
           const content = await recognize(chunk, index)
           return content && content.trim().length > 0
             ? { index, kind: 'content', content }
             : { index, kind: 'empty' }
         } catch (error) {
+          signal?.throwIfAborted()
           logger.warn('OCR chunk failed', {
             provider,
             chunk: index + 1,
@@ -1173,6 +1081,7 @@ async function ocrPdfInChunks(
       (failure) => failure.error instanceof PermanentDocumentProcessingError
     )?.error
     if (permanentFailure) throw permanentFailure
+    if (chunkCount === 1) throw failures[0].error
 
     throw new Error(
       `OCR completed ${outcomes.length - failures.length} of ${chunkCount} chunks; indexing the document would omit the rest`,
@@ -1205,22 +1114,32 @@ async function processMistralOCRInBatches(
   filename: string,
   apiKey: string,
   pdfBuffer: Buffer,
-  access: SourceFileAccess,
-  cloudUrl?: string
+  access: SourceFileAccess
 ): Promise<{
   content: string
   processingMethod: 'mistral-ocr'
-  cloudUrl?: string
 }> {
   const content = await ocrPdfInChunks(
     pdfBuffer,
     'mistral',
     filename,
     MISTRAL_OCR_REQUEST_POLICY,
-    (chunk, index) => processChunk(chunk, index, filename, apiKey, access)
+    (chunk) =>
+      recognizeWithMistralOCR(
+        {
+          buffer: chunk.buffer,
+          filename,
+          mimeType: 'application/pdf',
+          expectedPages:
+            chunk.endPage >= chunk.startPage ? chunk.endPage - chunk.startPage + 1 : undefined,
+        },
+        apiKey,
+        access
+      ),
+    access.signal
   )
 
-  return { content, processingMethod: 'mistral-ocr', cloudUrl }
+  return { content, processingMethod: 'mistral-ocr' }
 }
 
 /**
@@ -1267,6 +1186,7 @@ async function parseWithFileParser(
       )
     }
 
+    access.signal?.throwIfAborted()
     return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined, metadata }
   } catch (error) {
     logger.error('File parser failed', { errorType: toError(error).name })
@@ -1292,6 +1212,7 @@ async function parseHttpFile(
   access: SourceFileAccess
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl, access)
+  access.signal?.throwIfAborted()
 
   /** Prefer what we actually downloaded over what the document is *called*. */
   const extension =

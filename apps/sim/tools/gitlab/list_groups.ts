@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListGroupsTool: ToolConfig<GitLabListGroupsParams, GitLabListGroupsResponse> = {
   id: 'gitlab_list_groups',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Groups',
   description: 'List GitLab groups accessible to the authenticated user',
   version: '1.0.0',

@@ -7,6 +7,7 @@ export const gitlabListPipelinesTool: ToolConfig<
   GitLabListPipelinesResponse
 > = {
   id: 'gitlab_list_pipelines',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Pipelines',
   description: 'List pipelines in a GitLab project',
   version: '1.0.0',

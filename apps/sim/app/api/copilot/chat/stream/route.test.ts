@@ -10,13 +10,23 @@ import {
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
-const { getLatestRunForStream, readEvents, readFilePreviewSessions, checkForReplayGap } =
-  vi.hoisted(() => ({
-    getLatestRunForStream: vi.fn(),
-    readEvents: vi.fn(),
-    readFilePreviewSessions: vi.fn(),
-    checkForReplayGap: vi.fn(),
-  }))
+const {
+  mockGetAccessibleChat,
+  getLatestRunForStream,
+  readEvents,
+  readFilePreviewSessions,
+  checkForReplayGap,
+} = vi.hoisted(() => ({
+  mockGetAccessibleChat: vi.fn(),
+  getLatestRunForStream: vi.fn(),
+  readEvents: vi.fn(),
+  readFilePreviewSessions: vi.fn(),
+  checkForReplayGap: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
+}))
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getLatestRunForStream,
@@ -65,6 +75,7 @@ async function readAllChunks(response: Response): Promise<string[]> {
 describe('copilot chat stream replay route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetAccessibleChat.mockResolvedValue({ id: 'chat-1' })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -72,6 +83,21 @@ describe('copilot chat stream replay route', () => {
     readEvents.mockResolvedValue([])
     readFilePreviewSessions.mockResolvedValue([])
     checkForReplayGap.mockResolvedValue(null)
+  })
+
+  it('refuses replay after organization membership is removed', async () => {
+    getLatestRunForStream.mockResolvedValueOnce({
+      status: 'complete',
+      id: 'run-1',
+      chatId: 'chat-1',
+    })
+    mockGetAccessibleChat.mockResolvedValueOnce(null)
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&batch=true')
+    )
+    expect(response.status).toBe(404)
+    expect(readEvents).not.toHaveBeenCalled()
+    expect(readFilePreviewSessions).not.toHaveBeenCalled()
   })
 
   it('returns preview sessions in batch mode', async () => {

@@ -1,12 +1,14 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
   userId: string
   workflowId: string
   workspaceId?: string
+  organizationId?: string
   chatId?: string
   messageId?: string
   executionId?: string
@@ -28,6 +30,7 @@ export interface ToolExecutionContext {
   /** Server-owned base image selected from the fixed Go route for this turn. */
   sandboxProfile?: 'mothership'
   requestMode?: string
+  assistantSearch?: WorkspaceSearchFilters
   currentAgentId?: string
   /**
    * The invoking subagent's channel id (its outer tool_use id), threaded per

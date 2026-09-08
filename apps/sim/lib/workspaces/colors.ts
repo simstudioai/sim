@@ -1,21 +1,4 @@
-import { randomItem } from '@sim/utils/random'
 import { hexToRgb } from '@/lib/colors'
-
-/** Color palette for workspace accents. */
-export const WORKSPACE_COLORS = [
-  '#2ABBF8', // Blue
-  '#22c55e', // Green
-  '#FFCC02', // Yellow
-  '#a855f7', // Purple
-  '#f97316', // Orange
-  '#14b8a6', // Teal
-  '#ff6b6b', // Coral
-] as const
-
-/** Picks a random workspace color from the hero palette. */
-export function getRandomWorkspaceColor(): string {
-  return randomItem(WORKSPACE_COLORS)
-}
 
 /**
  * User color palette matching terminal.tsx RUN_ID_COLORS

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Combobox, type ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, ChipTag, type ComboboxOption } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -116,10 +116,7 @@ export function KnowledgeBaseSelector({
     return { options, labelById }
   }, [combinedKnowledgeBases, knowledgeBaseFolders])
 
-  const labelOf = useCallback(
-    (kb: KnowledgeBaseData) => labelById.get(kb.id) ?? kb.name,
-    [labelById]
-  )
+  const labelOf = (kb: KnowledgeBaseData) => labelById.get(kb.id) ?? kb.name
 
   /**
    * Compute selected knowledge bases for tag display
@@ -167,24 +164,22 @@ export function KnowledgeBaseSelector({
   /**
    * Remove selected knowledge base from multi-select tags
    */
-  const handleRemoveKnowledgeBase = useCallback(
-    (knowledgeBaseId: string) => {
-      if (isPreview) return
+  const handleRemoveKnowledgeBase = (knowledgeBaseId: string) => {
+    if (isPreview) return
 
-      const newSelectedIds = selectedIds.filter((id) => id !== knowledgeBaseId)
-      const valueToStore =
-        newSelectedIds.length === 1 ? newSelectedIds[0] : newSelectedIds.join(',')
+    const newSelectedIds = selectedIds.filter((id) => id !== knowledgeBaseId)
+    const valueToStore = newSelectedIds.length === 1 ? newSelectedIds[0] : newSelectedIds.join(',')
 
-      setStoreValue(valueToStore)
-      onKnowledgeBaseSelect?.(newSelectedIds)
-    },
-    [isPreview, selectedIds, setStoreValue, onKnowledgeBaseSelect]
-  )
+    setStoreValue(valueToStore)
+    onKnowledgeBaseSelect?.(newSelectedIds)
+  }
 
   const label =
     subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
 
-  const hasMemberScopedSelection = selectedKnowledgeBases.some((kb) => kb.hasMemberScopedConnector)
+  const hasMemberScopedSelection = selectedKnowledgeBases.some(
+    (kb) => kb.hasPermissionScopedConnector
+  )
 
   return (
     <div className='w-full'>
@@ -200,31 +195,23 @@ export function KnowledgeBaseSelector({
               label: labelOf(kb),
             })
             return (
-              <div
+              <ChipTag
                 key={kb.id}
-                className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
+                leftIcon={PackageSearchIcon}
+                rightIcon={!disabled && !isPreview ? X : undefined}
+                rightIconLabel={`Remove ${labelOf(kb)}`}
+                onRightIconClick={
+                  !disabled && !isPreview ? () => handleRemoveKnowledgeBase(kb.id) : undefined
+                }
               >
-                <PackageSearchIcon className='mr-1 size-3 text-[var(--brand-knowledge)]' />
-                <span className='text-[var(--brand-knowledge)]'>
-                  {formatDisplayText(labelOf(kb), { workflowSearchHighlight })}
-                </span>
-                {!disabled && !isPreview && (
-                  <button
-                    type='button'
-                    onClick={() => handleRemoveKnowledgeBase(kb.id)}
-                    className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
-                    aria-label={`Remove ${labelOf(kb)}`}
-                  >
-                    <X className='size-3' />
-                  </button>
-                )}
-              </div>
+                {formatDisplayText(labelOf(kb), { workflowSearchHighlight })}
+              </ChipTag>
             )
           })}
         </div>
       )}
 
-      <Combobox
+      <ChipCombobox
         options={options}
         value={isMultiSelect ? undefined : (selectedIds[0] ?? '')}
         multiSelect={isMultiSelect}

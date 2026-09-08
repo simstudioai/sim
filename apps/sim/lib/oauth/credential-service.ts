@@ -96,6 +96,7 @@ interface AccountInsertData {
 export interface ResolvedCredential {
   accountId: string
   workspaceId?: string
+  organizationId?: string
   usedCredentialTable: boolean
   credentialType?: string
   credentialId?: string
@@ -117,6 +118,7 @@ export async function resolveOAuthAccountId(
       type: credential.type,
       accountId: credential.accountId,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       providerId: credential.providerId,
     })
     .from(credential)
@@ -129,7 +131,8 @@ export async function resolveOAuthAccountId(
         accountId: '',
         credentialId: credentialRow.id,
         credentialType: 'service_account',
-        workspaceId: credentialRow.workspaceId,
+        workspaceId: credentialRow.workspaceId ?? undefined,
+        organizationId: credentialRow.organizationId ?? undefined,
         providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
@@ -140,7 +143,8 @@ export async function resolveOAuthAccountId(
         accountId: '',
         credentialId: credentialRow.id,
         credentialType: 'managed_oauth',
-        workspaceId: credentialRow.workspaceId,
+        workspaceId: credentialRow.workspaceId ?? undefined,
+        organizationId: credentialRow.organizationId ?? undefined,
         providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
@@ -151,7 +155,8 @@ export async function resolveOAuthAccountId(
     }
     return {
       accountId: credentialRow.accountId,
-      workspaceId: credentialRow.workspaceId,
+      workspaceId: credentialRow.workspaceId ?? undefined,
+      organizationId: credentialRow.organizationId ?? undefined,
       usedCredentialTable: true,
     }
   }
@@ -236,7 +241,7 @@ export async function getServiceAccountToken(
         }
       : {
           iss: keyData.client_email,
-          sub: impersonateEmail || '(none)',
+          hasSubject: Boolean(impersonateEmail),
           scopes: filteredScopes.join(' '),
           aud: tokenUri,
         }
@@ -1000,6 +1005,10 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
   // long-lived token nearing expiry (Meta cannot refresh after expiry).
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
+  if (!credential.refreshToken && tokenExpiry && tokenExpiry <= now) {
+    logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
+    return null
+  }
   const accessTokenNeedsRefresh =
     !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
   const instagramNeedsProactiveRefresh =
@@ -1082,6 +1091,11 @@ export async function resolveCredentialTokenBundle(
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
+
+  if (!credential.refreshToken && accessTokenExpiresAt && accessTokenExpiresAt <= now) {
+    logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
+    return null
+  }
 
   // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =
@@ -1191,6 +1205,10 @@ export async function refreshTokenIfNeeded(
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
+
+  if (!credential.refreshToken && accessTokenExpiresAt && accessTokenExpiresAt <= now) {
+    throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
+  }
 
   // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =

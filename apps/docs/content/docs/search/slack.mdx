@@ -1,0 +1,116 @@
+---
+title: Slack
+description: Set up a workspace Slack app and connect members for channel search
+---
+
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Slack Search indexes channel messages and threads. A Sim organization admin configures your Slack app once, then each teammate authorizes their own Slack account. Their results are limited to the selected public channels and private channels they can access. DMs and group DMs are not indexed.
+
+<Image src="/static/search/slack-setup.jpg" alt="Slack source setup in Sim Search" width={1280} height={720} />
+
+## Before you start
+
+You need a Sim organization admin and permission to create and install an app in the target Slack workspace. Ask a Slack workspace admin for approval when app installation is restricted. Use the same email address for Slack and your verified Sim account.
+
+This guide covers **indexing Slack messages for Search and MCP**. It does not install a Sim assistant that answers inside Slack.
+
+## Set up the organization's Slack app
+
+Skip to **Connect the source** if the organization already has a verified Slack app for member accounts.
+
+<Steps>
+<Step>
+
+### Open provider settings
+
+Open **Settings → Integrations → Providers**. Approve **Slack**, select **Set up**, then **Set up Slack**. Approval alone does not configure the app or start indexing.
+
+</Step>
+<Step>
+
+### Configure an app in Slack
+
+On the [Slack Apps page](https://api.slack.com/apps), create an app for the target workspace, or use an app dedicated to your Sim organization. Under **OAuth & Permissions**, add the user scopes and both redirect URLs listed below. Keep **Token Rotation** disabled.
+
+<Image src="https://docs.slack.dev/assets/images/basic-information-page-e7d531fe4721830376d61a91de5d933e.png" alt="Slack app settings showing Basic Information and App Credentials" width={2692} height={1538} />
+
+*Official Slack example: [Basic Information](https://docs.slack.dev/tools/bolt-python/creating-an-app/#create-a-new-app). Use your own app's credentials.*
+
+In Sim, enter these four fields:
+
+| Sim field | Where to find it |
+|---|---|
+| Slack App ID | Slack app **Basic Information → App Credentials** (`A…`). |
+| Slack workspace ID | The workspace segment of the Slack web URL, `app.slack.com/client/T…/…`. |
+| Client ID | The same app's **Basic Information → App Credentials**. |
+| Client Secret | The same app's **Basic Information → App Credentials**. |
+
+Organization setup uses personal user authorization. It does not ask for a bot token or signing secret.
+
+</Step>
+<Step>
+
+### Verify and continue
+
+Select **Verify and add**, then authorize the app in the Slack popup. Sim verifies the app, workspace, client credentials, and required scopes. Allow popups if the window does not open.
+
+After verification, Sim returns to the source form. If Slack requires administrator approval, complete that approval before continuing.
+
+</Step>
+</Steps>
+
+## Connect the source
+
+Keep **Sync documents with → Connected members** for the usual setup. Configure only the limits you need:
+
+| Field | Behavior |
+|---|---|
+| Channels | Leave blank for all accessible public and private channels, or choose channel names/IDs. |
+| Excluded Channels | Names or IDs to omit; exclusions override included channels. |
+| Archived Channels | Included by default. |
+| Earliest Message Date | Optional UTC date (`YYYY-MM-DD`). Applies to the thread's first message; replies are included with that thread. |
+
+Select **Add source**. On the source row, each person selects **Connect account** and approves the configured Slack app. Creating the source or verifying the Slack app does not authorize teammates automatically.
+
+You can instead select an existing account under **Sync documents with** to supply message content centrally. Members still connect their own accounts to establish access. The selected account must itself be able to read the selected channels.
+
+Admins can use **Manage** to inspect sync progress. Search reads the indexed content, so source changes appear after background syncing. Slack retention and API limits determine how much history is available.
+
+## Permissions reference
+
+The organization account pool supports Search and workspace workflow tools. Its current authorization requests the following **User Token Scopes**, including write permissions. Search itself only indexes channel messages and threads; workspace use is controlled separately in the organization account settings.
+
+| Purpose | User scopes |
+|---|---|
+| Public channels | `channels:read`, `channels:history`, `channels:write` |
+| Private channels | `groups:read`, `groups:history`, `groups:write` |
+| Messages and conversations | `chat:write`, `im:read`, `im:history`, `im:write`, `mpim:read`, `mpim:history`, `mpim:write` |
+| Files and canvases | `files:read`, `files:write`, `canvases:read`, `canvases:write` |
+| Reactions | `reactions:read`, `reactions:write` |
+| Identity and profile | `users:read`, `users:read.email`, `users.profile:read`, `users.profile:write` |
+
+Add both redirect URLs under **OAuth & Permissions → Redirect URLs**, using your Sim origin:
+
+```text
+https://<your-sim-domain>/api/credential-groups/slack-managed-users/callback
+https://<your-sim-domain>/api/credential-groups/oauth/slack/callback
+```
+
+Compare **OAuth & Permissions → Scopes → User Token Scopes** with the table above. If scopes change, update the Slack app and have members reconnect. Do not change a shared production app's credentials to configure a separate test installation.
+
+For existing **workspace** Search, use **Search → Add source → Slack**. That flow uses the custom-bot wizard and **Connected accounts → Access → Search documents**, which requests the six read-only channel and identity scopes instead. Its bot installation is separate from the organization setup described here.
+
+See Slack's [app manifest reference](https://docs.slack.dev/reference/app-manifest/) and [user token access model](https://docs.slack.dev/authentication/tokens/).
+
+## Troubleshooting
+
+| Problem | Next step |
+|---|---|
+| Setup keeps asking for a Slack app | Finish **Verify and add** in the Slack setup; approval alone is insufficient. |
+| Redirect mismatch | Check both redirect URLs above against your Sim origin. |
+| App or workspace mismatch | Use the App ID and client credentials from the same app, and the ID of the workspace being authorized. |
+| Missing scopes | Compare User Token Scopes with the table above, update the Slack app, reinstall as Slack requires, and reconnect. In workspace setup, select **Search documents** in both setup screens. |
+| Missing private-channel results | Confirm the member is in the channel and it is within the source filters. With an indexing account, confirm that account can read it too. |
+| Slow initial indexing | Check sync status and Slack rate limits. A large history can take multiple background runs. |

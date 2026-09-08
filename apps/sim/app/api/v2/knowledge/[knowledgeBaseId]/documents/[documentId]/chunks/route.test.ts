@@ -325,9 +325,10 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunk
 })
 
 describe('chunk operation policy', () => {
-  it('denies workspace API keys on every chunk operation', () => {
+  it('allows ACL-filtered chunk listing while retaining the other chunk policies', () => {
+    expect(knowledgeOperations.listChunks.workspaceApiKey).toBe('allow')
+    expect(knowledgeOperations.listChunks.principalKinds).toContain('workspace_api_key')
     for (const operation of [
-      knowledgeOperations.listChunks,
       knowledgeOperations.readChunk,
       knowledgeOperations.createChunk,
       knowledgeOperations.updateChunk,

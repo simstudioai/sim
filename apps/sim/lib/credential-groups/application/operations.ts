@@ -1,31 +1,23 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
- * Credential groups collect OAuth credentials from people outside the workspace
- * so a workflow can act as them — a distinct, entitlement-gated settings
- * section, not part of the Integrations tab.
- *
- * None of them declares a capability. `integrations.manage` names the
- * Integrations tab, where a member connects their own accounts, and
- * `credentials.personal` withholds exactly that; both describe a member acting
- * for themselves, which is the opposite of this section. Every operation here
- * already requires workspace `admin`, and the executor-delegated reads run
- * inside a workflow whose credential access is decided by the group's own
- * enrollment rows. Borrowing a key that names a different surface would make
- * hiding the Integrations tab silently disable an unrelated admin section.
+ * Workspace admins configure connected accounts. Copilot can read configuration
+ * for the acting admin; enrollment details and setup remain session-only.
+ * Workflow operations retain their enrolled-identity and resource-policy checks.
  */
 export const credentialGroupOperations = {
   // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
-  listSettings: defineWorkspaceOperation({
-    id: 'credential_groups.settings.list',
+  workspaceSettings: defineWorkspaceOperation({
+    id: 'credential_groups.workspace.read',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
-  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
-  create: defineWorkspaceOperation({
-    id: 'credential_groups.create',
+  // permission-group-exempt: workspace account setup requires the same admin role as account settings
+  ensureWorkspaceAccounts: defineWorkspaceOperation({
+    id: 'credential_groups.workspace.ensure',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -58,14 +50,6 @@ export const credentialGroupOperations = {
   // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   updateAccess: defineWorkspaceOperation({
     id: 'credential_groups.access.update',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    principalKinds: ['session'],
-  }),
-  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
-  delete: defineWorkspaceOperation({
-    id: 'credential_groups.delete',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -131,15 +115,6 @@ export const credentialGroupOperations = {
   // permission-group-exempt: read by the executor to resolve an enrolled person's MCP connection; use is enforced by the Credential Group policy
   listMcpConnections: defineWorkspaceOperation({
     id: 'credential_groups.mcp_connections.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
-  // permission-group-exempt: read by the executor to resolve an enrolled person's credential; the group's enrollment rows are the gate, and no group key names them
-  listGroups: defineWorkspaceOperation({
-    id: 'credential_groups.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',

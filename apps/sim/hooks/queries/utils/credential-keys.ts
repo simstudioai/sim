@@ -40,3 +40,15 @@ export const workspaceCredentialKeys = {
   references: (workspaceId?: string, name?: string) =>
     [...workspaceCredentialKeys.all, 'references', workspaceId ?? 'none', name ?? ''] as const,
 }
+
+export const organizationCredentialKeys = {
+  all: ['organizationCredentials'] as const,
+  lists: () => [...organizationCredentialKeys.all, 'list'] as const,
+  list: (organizationId?: string, type?: string, providerId?: string) =>
+    [
+      ...organizationCredentialKeys.lists(),
+      organizationId ?? 'none',
+      type ?? 'all',
+      providerId ?? 'all',
+    ] as const,
+}

@@ -1,5 +1,8 @@
 import { db } from '@sim/db'
 import {
+  member,
+  permissionGroupMember,
+  permissions,
   type ScimConnectionSettings,
   scimGroupMapping,
   scimGroupMember,
@@ -44,14 +47,10 @@ const logger = createLogger('ScimProjection')
  * Turning directory group membership into Sim access.
  *
  * A SCIM group means nothing on its own; an administrator maps it to something
- * Sim understands. This module computes what a user's mappings say they should
- * have, compares it to what SCIM previously granted them, and applies only the
- * difference.
- *
- * The comparison is against SCIM's own grants, recorded in
- * `scim_projection_grant`, never against the user's total access. That is the
- * distinction that keeps a directory sync from revoking access a workspace
- * administrator granted by hand.
+ * Sim understands. This module compares those desired grants with both their
+ * recorded provenance and the user's actual access, repairing missing grants.
+ * Provenance and saved manual workspace levels determine what can be withdrawn
+ * without removing manual access when membership locking is off.
  */
 
 export interface ProjectionDelta {
@@ -96,6 +95,7 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
       targetId: scimProjectionGrant.targetId,
       permissionType: scimProjectionGrant.permissionType,
       origin: scimProjectionGrant.origin,
+      baselinePermission: scimProjectionGrant.baselinePermission,
     })
     .from(scimProjectionGrant)
     .where(eq(scimProjectionGrant.scimUserId, scimUserId))
@@ -103,8 +103,68 @@ async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<Projection
     targetKind: row.targetKind as ProjectionTargetKind,
     targetId: row.targetId,
     origin: row.origin as ProjectionGrantOrigin,
+    baselinePermission: row.baselinePermission ?? null,
     ...(row.permissionType ? { permissionType: row.permissionType } : {}),
   }))
+}
+
+/** Reads access independently of provenance so a reconcile can repair real drift. */
+async function actualGrants(
+  tx: DbOrTx,
+  params: { organizationId: string; userId: string; desired: ProjectionGrant[] }
+): Promise<ProjectionGrant[]> {
+  const workspaceIds = params.desired
+    .filter((grant) => grant.targetKind === 'workspace')
+    .map((grant) => grant.targetId)
+  const groupIds = params.desired
+    .filter((grant) => grant.targetKind === 'permission_group')
+    .map((grant) => grant.targetId)
+  const [workspaceRows, groupRows, memberRows] = await Promise.all([
+    workspaceIds.length > 0
+      ? tx
+          .select({ id: permissions.entityId, permissionType: permissions.permissionType })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.userId, params.userId),
+              eq(permissions.entityType, 'workspace'),
+              inArray(permissions.entityId, workspaceIds)
+            )
+          )
+      : [],
+    groupIds.length > 0
+      ? tx
+          .select({ id: permissionGroupMember.permissionGroupId })
+          .from(permissionGroupMember)
+          .where(
+            and(
+              eq(permissionGroupMember.organizationId, params.organizationId),
+              eq(permissionGroupMember.userId, params.userId),
+              inArray(permissionGroupMember.permissionGroupId, groupIds)
+            )
+          )
+      : [],
+    params.desired.some((grant) => grant.targetKind === 'org_role')
+      ? tx
+          .select({ role: member.role })
+          .from(member)
+          .where(
+            and(eq(member.organizationId, params.organizationId), eq(member.userId, params.userId))
+          )
+          .limit(1)
+      : [],
+  ])
+  return [
+    ...workspaceRows.map((row) => ({
+      targetKind: 'workspace' as const,
+      targetId: row.id,
+      permissionType: row.permissionType,
+    })),
+    ...groupRows.map((row) => ({ targetKind: 'permission_group' as const, targetId: row.id })),
+    ...memberRows
+      .filter((row) => row.role === 'admin')
+      .map(() => ({ targetKind: 'org_role' as const, targetId: 'admin' })),
+  ]
 }
 
 /**
@@ -140,23 +200,30 @@ async function applyGrant(
     organizationId: string
     userId: string
     grant: ProjectionGrant
-    /** The level a previous pass set on a workspace, when lowering it. */
-    previousPermission?: PermissionType
+    previousGrant?: ProjectionGrant
+    baselinePermission: PermissionType | null
+    lockManualMembership: boolean
   }
 ): Promise<GrantOutcome> {
   const { grant } = params
   switch (grant.targetKind) {
     case 'workspace': {
       if (!grant.permissionType) return 'skipped'
+      const minimum =
+        !params.lockManualMembership &&
+        params.baselinePermission &&
+        permissionRank(params.baselinePermission) > permissionRank(grant.permissionType)
+          ? params.baselinePermission
+          : grant.permissionType
       if (
-        params.previousPermission &&
-        permissionRank(params.previousPermission) > permissionRank(grant.permissionType)
+        params.previousGrant?.permissionType &&
+        permissionRank(params.previousGrant.permissionType) > permissionRank(minimum)
       ) {
         const lowered = await lowerWorkspaceAccessTx(tx, {
           workspaceId: grant.targetId,
           userId: params.userId,
-          from: params.previousPermission,
-          to: grant.permissionType,
+          from: params.previousGrant.permissionType,
+          to: minimum,
         })
         if (lowered === 'lowered') return 'applied'
         /** The row is no longer at the level the directory set; ensure at least the desired level. */
@@ -164,7 +231,7 @@ async function applyGrant(
       const outcome = await grantWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,
         userId: params.userId,
-        permission: grant.permissionType,
+        permission: minimum,
       })
       return outcome === 'unchanged' ? 'unchanged' : 'applied'
     }
@@ -188,7 +255,7 @@ async function applyGrant(
  *
  * The owner is out of the directory's reach: ownership carries billing and the
  * last-owner guarantee, and a group that happens to contain the owner must not
- * fail every sync over it. Returns false, and records no grant, so the mapping
+ * fail every sync over it. Returns `skipped` and records no grant, so the mapping
  * is simply inert for that one person.
  */
 async function setOrganizationRole(
@@ -257,6 +324,17 @@ async function withdrawGrant(
         grant.permissionType &&
         permissionRank(current) > permissionRank(grant.permissionType)
       ) {
+        return true
+      }
+      if (!params.lockManualMembership && grant.baselinePermission) {
+        if (permissionRank(current) > permissionRank(grant.baselinePermission)) {
+          await lowerWorkspaceAccessTx(tx, {
+            workspaceId: grant.targetId,
+            userId: params.userId,
+            from: current,
+            to: grant.baselinePermission,
+          })
+        }
         return true
       }
       const outcome = await revokeWorkspaceAccessTx(tx, {
@@ -365,7 +443,12 @@ export async function reconcileUserProjection(
   const desired = mapped.filter(
     (grant) => grant.targetKind !== 'workspace' || !foreignWorkspaceIds.has(grant.targetId)
   )
-  const plan = planGrantChanges(desired, current)
+  const actual = await actualGrants(tx, {
+    organizationId: params.organizationId,
+    userId: record.userId,
+    desired,
+  })
+  const plan = planGrantChanges(desired, current, actual)
 
   const delta: ProjectionDelta = { added: [], removed: [], raised: [] }
   const lockManualMembership = params.settings.lockManualMembership === true
@@ -392,14 +475,35 @@ export async function reconcileUserProjection(
     delta.removed.push(grant)
   }
 
-  for (const { grant, previousPermission } of plan.apply) {
+  for (const { grant, previousGrant } of plan.apply) {
+    const currentPermission =
+      grant.targetKind === 'workspace'
+        ? (actual.find(
+            (observed) =>
+              observed.targetKind === 'workspace' && observed.targetId === grant.targetId
+          )?.permissionType ?? null)
+        : null
+    let baselinePermission = previousGrant?.baselinePermission ?? null
+    if (
+      currentPermission &&
+      (!previousGrant ||
+        previousGrant.origin === 'adopted' ||
+        (previousGrant.permissionType &&
+          permissionRank(currentPermission) > permissionRank(previousGrant.permissionType))) &&
+      (!baselinePermission ||
+        permissionRank(currentPermission) > permissionRank(baselinePermission))
+    ) {
+      baselinePermission = currentPermission
+    }
     let applied: GrantOutcome
     try {
       applied = await applyGrant(tx, {
         organizationId: params.organizationId,
         userId: record.userId,
         grant,
-        ...(previousPermission ? { previousPermission } : {}),
+        previousGrant,
+        baselinePermission,
+        lockManualMembership,
       })
     } catch (error) {
       /**
@@ -443,6 +547,7 @@ export async function reconcileUserProjection(
         targetKind: grant.targetKind,
         targetId: grant.targetId,
         permissionType: grant.permissionType ?? null,
+        baselinePermission,
         origin: applied === 'applied' ? 'directory' : 'adopted',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -455,13 +560,14 @@ export async function reconcileUserProjection(
         ],
         set: {
           permissionType: grant.permissionType ?? null,
+          baselinePermission,
           ...(applied === 'applied' ? { origin: 'directory' } : {}),
           updatedAt: new Date(),
         },
       })
 
     if (applied !== 'applied') continue
-    if (previousPermission) delta.raised.push(grant)
+    if (previousGrant?.permissionType) delta.raised.push(grant)
     else delta.added.push(grant)
   }
 

@@ -1,3 +1,4 @@
+import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 /**
@@ -75,11 +76,12 @@ async function assertAtlassianResponseOk(
  * Scoped service-account tokens cannot call `api.atlassian.com/oauth/token/accessible-resources`
  * (that endpoint is for OAuth-3LO tokens). Instead we use the public, unauthenticated
  * `tenant_info` discovery endpoint to resolve cloudId from the site domain, then verify
- * the token works by hitting `/myself` through the gateway.
+ * the token against the selected product's identity endpoint through the gateway.
  */
 export async function validateAtlassianServiceAccount(
   apiToken: string,
-  domain: string
+  domain: string,
+  product: AtlassianProduct = 'jira'
 ): Promise<{
   accountId: string
   displayName: string
@@ -98,8 +100,6 @@ export async function validateAtlassianServiceAccount(
   if (tenantInfoRes.status === 404) {
     throw new AtlassianValidationError('site_not_found', 404, { step: 'tenant_info', domain })
   }
-  // tenant_info is unauthenticated, so there is no "invalid credentials" branch here —
-  // any non-OK that isn't a 404 means Atlassian is unavailable, not the token's fault.
   await assertAtlassianResponseOk(tenantInfoRes, 'tenant_info', 'atlassian_unavailable', { domain })
   const tenantInfo = (await tenantInfoRes.json()) as { cloudId?: string }
   if (!tenantInfo.cloudId) {
@@ -111,15 +111,20 @@ export async function validateAtlassianServiceAccount(
   }
   const cloudId = tenantInfo.cloudId
 
-  const myselfRes = await fetch(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/myself`, {
-    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
-  })
+  const identityPath = product === 'confluence' ? 'wiki/rest/api/user/current' : 'rest/api/3/myself'
+  const myselfRes = await fetch(
+    `https://api.atlassian.com/ex/${product}/${cloudId}/${identityPath}`,
+    {
+      headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+    }
+  )
   await assertAtlassianResponseOk(myselfRes, 'myself', 'invalid_credentials', { cloudId })
 
   const myself = (await myselfRes.json()) as {
     accountId?: string
     displayName?: string
     emailAddress?: string
+    email?: string
   }
   if (!myself.accountId) {
     throw new AtlassianValidationError('atlassian_unavailable', 502, {
@@ -128,10 +133,11 @@ export async function validateAtlassianServiceAccount(
     })
   }
 
+  const emailAddress = product === 'confluence' ? myself.email : myself.emailAddress
   return {
     accountId: myself.accountId,
-    displayName: myself.displayName || myself.emailAddress || domain,
+    displayName: myself.displayName || emailAddress || domain,
     cloudId,
-    ...(myself.emailAddress ? { emailAddress: myself.emailAddress } : {}),
+    ...(emailAddress ? { emailAddress } : {}),
   }
 }

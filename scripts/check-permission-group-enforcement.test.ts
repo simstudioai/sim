@@ -185,6 +185,35 @@ describe('operation builders other than defineWorkspaceOperation', () => {
     ])
   })
 
+  it('reads a wrapped literal when the factory forwards the operation capability by property', () => {
+    const { declarations, unreadable, overridable } = parseOperationCapabilities(`
+      function defineKnowledgeOperation(operation: WorkspaceOperation) {
+        const organizationOperation = defineOrganizationOperation({
+          id: operation.id,
+          capability: operation.capability,
+          minimumRole: 'member',
+        })
+        return Object.freeze({ ...operation, organizationOperation })
+      }
+
+      export const knowledgeOperations = {
+        search: defineKnowledgeOperation(
+          defineWorkspaceOperation({
+            id: 'knowledge.search',
+            minimumRole: 'read',
+            capability: 'knowledge.use',
+          })
+        ),
+      } as const
+    `)
+
+    expect(declarations).toEqual([
+      expect.objectContaining({ id: 'knowledge.search', capability: 'knowledge.use' }),
+    ])
+    expect(unreadable).toEqual([])
+    expect(overridable).toEqual([])
+  })
+
   it('reports a builder that mints the operation itself from a bare id argument', () => {
     const { declarations, unreadable } = parseOperationCapabilities(`
       function defineCredentialUserOperation(id: string) {

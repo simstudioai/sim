@@ -213,6 +213,33 @@ describe('runCopilotLifecycle', () => {
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 
+  it('pins Assistant mode and Search scope over a supplied execution context', async () => {
+    let captured: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+      captured = context
+    })
+    const scope = { source: 'slack', documentIds: ['doc-1'] }
+    await runCopilotLifecycle(
+      { message: 'Summarize', mode: 'assistant', assistantSearch: scope },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          workflowId: '',
+          requestMode: 'agent',
+          secretActorUserId: 'billing-owner',
+        },
+      }
+    )
+    expect(captured).toMatchObject({
+      requestMode: 'assistant',
+      assistantSearch: scope,
+      secretActorUserId: null,
+    })
+  })
+
   it.each([
     { interactive: true, expected: 'interactive' as const },
     { interactive: false, expected: 'headless' as const },
@@ -356,7 +383,9 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1', {
+      includeSecrets: true,
+    })
     expect(JSON.parse(capturedRequestBody)).toMatchObject({
       message: 'Use runtime-secret',
     })
@@ -1413,10 +1442,13 @@ describe('runCopilotLifecycle', () => {
     expect(capturedExecContext?.userPermission).toBe('read')
   })
 
-  it('uses one server billing identity and immutable attribution on initial and resume legs', async () => {
+  it.each([
+    { workspaceId: 'ws-1', organizationId: undefined },
+    { workspaceId: undefined, organizationId: 'org-1' },
+  ])('uses immutable attribution on initial and resume legs for %j', async (owner) => {
     const billingAttribution = {
       actorUserId: 'user-1',
-      workspaceId: 'ws-1',
+      workspaceId: owner.workspaceId ?? null,
       billedAccountUserId: 'owner-1',
       organizationId: 'org-1',
       billingEntity: { type: 'organization' as const, id: 'org-1' },
@@ -1451,12 +1483,13 @@ describe('runCopilotLifecycle', () => {
     await runCopilotLifecycle(
       {
         message: 'hello',
+        ...(owner.organizationId ? { mode: 'assistant' } : {}),
         messageId: 'message-1',
         billingRequestId: 'caller-controlled',
       },
       {
         userId: 'user-1',
-        workspaceId: 'ws-1',
+        ...owner,
         chatId: 'chat-1',
         executionId: 'execution-1',
         runId: 'run-1',
@@ -1474,6 +1507,13 @@ describe('runCopilotLifecycle', () => {
 
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
     for (const call of mockRunStreamLoop.mock.calls) {
+      const body = JSON.parse(String(call[1].body))
+      expect(body).toMatchObject(
+        owner.organizationId
+          ? { organizationId: owner.organizationId }
+          : { workspaceId: owner.workspaceId }
+      )
+      if (owner.organizationId) expect(body).not.toHaveProperty('workspaceId')
       const headers = call[1].headers as Record<string, string>
       expect(headers).toMatchObject({
         'x-api-key': 'sim-agent-key',

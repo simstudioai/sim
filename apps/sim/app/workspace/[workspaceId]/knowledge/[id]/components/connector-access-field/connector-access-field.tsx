@@ -1,129 +1,250 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ButtonGroup, ButtonGroupItem, ChipCombobox, ChipModalField } from '@sim/emcn'
 import {
-  type ConnectorMemberGroupOptions,
-  decodeConnectorMemberGroupOption,
-  encodeConnectorMemberGroupOption,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
+  ButtonGroup,
+  ButtonGroupItem,
+  ChipCombobox,
+  ChipLink,
+  ChipModalField,
+  type ComboboxOption,
+} from '@sim/emcn'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
+import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
+import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 
-/** What the caller chose; `members` may name the option the connector crawls with. */
 export interface ConnectorAccessSelection {
-  accessMode: 'workspace' | 'members'
-  credentialGroupId?: string
-  credentialGroupOptionId?: string
+  accessMode: ConnectorAccessMode
+}
+
+interface ConnectorContentCredentialFieldProps {
+  credentialId: string | null
+  onChange: (credentialId: string | null) => void
+  options: ComboboxOption[]
+  isLoading: boolean
+  disabled?: boolean
+}
+
+/** A dedicated source account supplies content; member accounts supply visibility only. */
+export function ConnectorContentCredentialField({
+  credentialId,
+  onChange,
+  options,
+  isLoading,
+  disabled,
+}: ConnectorContentCredentialFieldProps) {
+  return (
+    <ChipModalField
+      type='custom'
+      title='Sync documents with'
+      hint={
+        credentialId
+          ? 'Sync documents from this account. Members connect their own accounts to confirm which documents they can access.'
+          : 'Sync documents from connected members. Each person sees only documents they can open in the source.'
+      }
+    >
+      <ChipCombobox
+        value={credentialId ?? '__connected_members__'}
+        options={[{ value: '__connected_members__', label: 'Connected members' }, ...options]}
+        onChange={(value) => onChange(value === '__connected_members__' ? null : value)}
+        isLoading={isLoading}
+        disabled={disabled}
+        placeholder='Choose an account'
+      />
+    </ChipModalField>
+  )
 }
 
 interface ConnectorAccessFieldProps {
+  workspaceId?: string
+  scope?: ResourceScope
   connectorConfig: ConnectorMeta
   value: ConnectorAccessSelection
   onChange: (value: ConnectorAccessSelection) => void
-  /** From `useConnectorMemberGroupOptions`; shared with the modal so both agree on what is required. */
-  groupOptions: ConnectorMemberGroupOptions
-  /** Only an admin may put a connector into members mode. */
+  /** Only an admin may move a connector out of workspace mode. */
   canAdmin: boolean
   disabled?: boolean
-  /** Whether per-member access may be chosen; false leaves only the way back to workspace access. */
+  /** Whether member accounts may be chosen; an existing selection remains visible for recovery. */
   allowMembers?: boolean
-  /**
-   * Whether the connector already syncs per member, so any matching group may
-   * be chosen, not only when several make the choice necessary.
-   */
-  canRebind?: boolean
+  /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
+  allowAdmin?: boolean
+  allowWorkspace?: boolean
   /** Rendered under the selection, for a caller that applies the change with its own control. */
   footer?: ReactNode
+  searchSetupSource?: 'slack'
+  onSetupNavigate?: () => void
 }
 
-/**
- * The Access section of a connector's settings: sync as the workspace, or
- * crawl once per member so each person sees only what the source lets them
- * read. Per-member access needs nothing from the admin: a Credential Group is
- * found or created for the connector's provider, everyone in the workspace is
- * invited, and each person connects their own account. Only a workspace with
- * several matching groups is asked which one to use.
- */
+function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): string {
+  const sourceName = connectorConfig.name
+  if (mode === 'members') {
+    return (
+      connectorConfig.memberSetupHint ??
+      `Each teammate connects their ${sourceName} account. They see only documents they can open there.`
+    )
+  }
+  if (mode === 'admin') {
+    const identityHint = connectorConfig.requiresMemberIdentity
+      ? ` Teammates still connect their ${sourceName} accounts to confirm their identity.`
+      : ''
+    return `${connectorConfig.adminSetupHint ?? 'An admin or service account syncs documents and permissions.'}${identityHint} Each person sees only documents they can open in ${sourceName}.`
+  }
+  return 'Everyone in this workspace can search these documents.'
+}
+
+/** Chooses how a source connects while preserving its document permissions. */
 export function ConnectorAccessField({
+  workspaceId,
+  scope: explicitScope,
   connectorConfig,
   value,
   onChange,
-  groupOptions,
   canAdmin,
   disabled = false,
   allowMembers = true,
-  canRebind = false,
+  allowAdmin = false,
+  allowWorkspace = true,
   footer,
+  searchSetupSource,
+  onSetupNavigate,
 }: ConnectorAccessFieldProps) {
-  if (!groupOptions.supported) return null
-
-  if (!canAdmin) {
-    if (value.accessMode !== 'members') return null
-    return (
-      <ChipModalField type='custom' title='Access'>
-        <ButtonGroup value='members'>
-          <ButtonGroupItem value='workspace' disabled>
-            Workspace
-          </ButtonGroupItem>
-          <ButtonGroupItem value='members' disabled>
-            Per member
-          </ButtonGroupItem>
-        </ButtonGroup>
-      </ChipModalField>
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
+  /**
+   * Member access needs a supported sign-in provider. Source permissions may
+   * also be available for providers authenticated with an API key.
+   */
+  const provider = connectorMemberProvider(connectorConfig)
+  const membersSupported = provider !== null
+  const accountsQuery = useSourceAccounts(
+    canAdmin && provider && value.accessMode === 'members' ? scope : undefined
+  )
+  const accounts = accountsQuery.data?.credentialGroup
+  const showSlackSetup =
+    canAdmin && value.accessMode === 'members' && connectorConfig.id === 'slack'
+  const configured =
+    accounts?.status === 'active' &&
+    accounts.options.some(
+      (option) =>
+        option.provider === provider &&
+        option.status === 'active' &&
+        option.configurationStatus === 'ready'
     )
-  }
+  const adminSupported = Boolean(connectorConfig.mirrorsSourceAcls)
+  if (!membersSupported && !adminSupported && value.accessMode === 'workspace') return null
 
-  const selectedValue =
-    value.accessMode === 'members' && value.credentialGroupId && value.credentialGroupOptionId
-      ? encodeConnectorMemberGroupOption(value.credentialGroupId, value.credentialGroupOptionId)
-      : undefined
-  const { options, needsChoice, isLoading, error } = groupOptions
-  const showPicker = needsChoice || (canRebind && options.length > 0)
+  const modes: { mode: ConnectorAccessMode; label: string; allowed: boolean }[] = [
+    { mode: 'workspace', label: 'Workspace', allowed: allowWorkspace },
+    { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
+    {
+      mode: 'admin',
+      label: isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
+        ? 'Admin or service account'
+        : 'Service account',
+      allowed: adminSupported && allowAdmin,
+    },
+  ]
+  /** Keep a retired current method visible so an admin can select an available replacement. */
+  const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
+  const showModeSelector =
+    canAdmin && visibleModes.some((entry) => entry.allowed && entry.mode !== value.accessMode)
+
+  if (!canAdmin && value.accessMode === 'workspace') return null
 
   return (
     <ChipModalField
       type='custom'
-      title='Access'
-      error={error?.message}
+      title='Connection method'
+      error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
-        value.accessMode === 'members'
-          ? `Everyone in the workspace is invited by email to connect their ${connectorConfig.name} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
-          : allowMembers
-            ? undefined
-            : 'Per-member access is turned off for this workspace.'
+        canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
+          ? `This connection method is not available in this ${scope.kind}.`
+          : accessHint(value.accessMode, connectorConfig)
       }
     >
       <div className='flex flex-col gap-2'>
-        <ButtonGroup
-          value={value.accessMode}
-          onValueChange={(mode) =>
-            onChange(mode === 'members' ? { accessMode: 'members' } : { accessMode: 'workspace' })
-          }
-        >
-          <ButtonGroupItem value='workspace' disabled={disabled}>
-            Workspace
-          </ButtonGroupItem>
-          <ButtonGroupItem value='members' disabled={disabled || !allowMembers}>
-            Per member
-          </ButtonGroupItem>
-        </ButtonGroup>
-
-        {value.accessMode === 'members' && showPicker && (
-          <ChipCombobox
-            options={options}
-            value={selectedValue}
-            onChange={(next) => {
-              const decoded = decodeConnectorMemberGroupOption(next)
-              if (decoded) onChange({ accessMode: 'members', ...decoded })
+        {showModeSelector ? (
+          <ButtonGroup
+            value={value.accessMode}
+            disabled={disabled}
+            onValueChange={(mode) => {
+              const selection = modes.find((entry) => entry.mode === mode && entry.allowed)
+              if (!disabled && selection) onChange({ accessMode: selection.mode })
             }}
-            placeholder='Choose which credential group members connect through'
-            isLoading={isLoading}
-            disabled={disabled || Boolean(error)}
-          />
+          >
+            {visibleModes.map((entry) => (
+              <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
+                {entry.label}
+              </ButtonGroupItem>
+            ))}
+          </ButtonGroup>
+        ) : (
+          <p className='text-[var(--text-body)] text-small'>
+            {modes.find((entry) => entry.mode === value.accessMode)?.label}
+          </p>
         )}
 
-        {footer}
+        {showSlackSetup &&
+          (accountsQuery.isError ? (
+            <SettingsQueryErrorState
+              error={accountsQuery.error}
+              fallback='Could not check Slack setup'
+              isRetrying={accountsQuery.isFetching}
+              onRetry={() => void accountsQuery.refetch()}
+              variant='inline'
+            />
+          ) : accountsQuery.isPending ? (
+            <SettingsEmptyState variant='inline'>Checking Slack setup…</SettingsEmptyState>
+          ) : accountsQuery.isSuccess && !configured ? (
+            <SlackMemberSetup
+              scope={scope}
+              searchSetupSource={searchSetupSource}
+              onNavigate={onSetupNavigate}
+            />
+          ) : null)}
+
+        {canAdmin && footer}
       </div>
     </ChipModalField>
+  )
+}
+
+interface SlackMemberSetupProps {
+  workspaceId?: string
+  scope?: ResourceScope
+  searchSetupSource?: 'slack' | 'search'
+  onNavigate?: () => void
+}
+
+/** Uses the existing app and credential-group setup to collect Slack user authorization. */
+export function SlackMemberSetup({
+  workspaceId,
+  scope: explicitScope,
+  searchSetupSource,
+  onNavigate,
+}: SlackMemberSetupProps) {
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
+  const href =
+    scope.kind === 'organization' || searchSetupSource
+      ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
+      : `/workspace/${scope.workspaceId}/settings/credential-groups`
+  return (
+    <div className='flex flex-col items-start gap-2'>
+      <p className='text-[var(--text-muted)] text-caption leading-snug'>
+        Set up your Slack app to continue.
+      </p>
+      <div className='flex flex-wrap items-center gap-2'>
+        <ChipLink href={href} onClick={onNavigate}>
+          Set up Slack
+        </ChipLink>
+      </div>
+    </div>
   )
 }

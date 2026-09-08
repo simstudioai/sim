@@ -19,6 +19,7 @@ import {
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
+import { cleanupOwnerCondition, resolveCleanupOwnerScope } from '@/lib/cleanup/resource-scope'
 
 const logger = createLogger('CleanupTasks')
 
@@ -75,62 +76,72 @@ async function cleanupRunChildren(
 export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
+  const scope = resolveCleanupOwnerScope(payload)
 
-  if (workspaceIds.length === 0) {
-    logger.info(`[${label}] No workspaces to process`)
+  if (scope.ids.length === 0) {
+    logger.info(`[${label}] No resource owners to process`)
     return
   }
 
   const retentionDate = new Date(Date.now() - retentionHours * 60 * 60 * 1000)
   logger.info(
-    `[${label}] Processing ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
+    `[${label}] Processing ${scope.ids.length} ${scope.kind} owners, cutoff: ${retentionDate.toISOString()}`
   )
 
-  const doomedChats = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+  const doomedChats = await selectRowsByIdChunks(scope.ids, (chunkIds, chunkLimit) =>
     cleanupDb
       .select({ id: copilotChats.id })
       .from(copilotChats)
       .where(
-        and(inArray(copilotChats.workspaceId, chunkIds), lt(copilotChats.updatedAt, retentionDate))
+        and(
+          cleanupOwnerCondition(copilotChats, scope, chunkIds),
+          lt(copilotChats.updatedAt, retentionDate)
+        )
       )
       .limit(chunkLimit)
   )
 
   const doomedChatIds = doomedChats.map((c) => c.id)
 
-  // Prepare chat cleanup (collect file keys + copilot backend call) BEFORE DB deletion
+  /** Collect external chat data before deleting the owning rows. */
   const chatCleanup = await prepareChatCleanup(doomedChatIds, label)
 
-  // Delete run children first (checkpoints, tool calls) since they reference runs
+  /** Delete run children before their parent runs. Organization chats have no workspace runs. */
   const runChildResults = await cleanupRunChildren(workspaceIds, retentionDate, label)
   for (const r of runChildResults) {
     if (r.deleted > 0) logger.info(`[${r.table}] ${r.deleted} deleted`)
   }
 
-  // Delete copilot runs (has workspaceId directly, cascades checkpoints)
-  const runsResult = await batchDeleteByWorkspaceAndTimestamp({
-    tableDef: copilotRuns,
-    workspaceIdCol: copilotRuns.workspaceId,
-    timestampCol: copilotRuns.updatedAt,
-    workspaceIds,
-    retentionDate,
-    tableName: `${label}/copilotRuns`,
-    dbClient: cleanupDb,
-  })
+  const runsResult =
+    scope.kind === 'workspace'
+      ? await batchDeleteByWorkspaceAndTimestamp({
+          tableDef: copilotRuns,
+          workspaceIdCol: copilotRuns.workspaceId,
+          timestampCol: copilotRuns.updatedAt,
+          workspaceIds,
+          retentionDate,
+          tableName: `${label}/copilotRuns`,
+          dbClient: cleanupDb,
+        })
+      : { deleted: 0, failed: 0 }
 
-  // Delete copilot chats using the exact IDs collected above so the chat
-  // cleanup (S3 + copilot backend) and the DB delete can never disagree.
-  // Re-check the retention cutoff in the DELETE: a chat restored from Recently
-  // Deleted mid-run gets a fresh `updatedAt`, so it survives here (and
-  // chatCleanup.execute() re-checks row existence before purging its data).
-  // Chat-scoped children (copilot_messages, copilot_feedback) go with the row
-  // via FK cascade, so they are removed only for chats actually deleted.
+  /**
+   * Delete the selected chats only if their owner and cutoff still match.
+   * Restored chats survive; external cleanup rechecks row existence as well.
+   * Messages and feedback cascade only for chats actually deleted.
+   */
   const chatsResult = { deleted: 0, failed: 0 }
   for (const batch of chunkArray(doomedChatIds, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
       const deleted = await cleanupDb
         .delete(copilotChats)
-        .where(and(inArray(copilotChats.id, batch), lt(copilotChats.updatedAt, retentionDate)))
+        .where(
+          and(
+            inArray(copilotChats.id, batch),
+            cleanupOwnerCondition(copilotChats, scope),
+            lt(copilotChats.updatedAt, retentionDate)
+          )
+        )
         .returning({ id: copilotChats.id })
       chatsResult.deleted += deleted.length
     } catch (error) {
@@ -139,16 +150,18 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     }
   }
 
-  // Delete mothership inbox tasks (has workspaceId directly)
-  const inboxResult = await batchDeleteByWorkspaceAndTimestamp({
-    tableDef: mothershipInboxTask,
-    workspaceIdCol: mothershipInboxTask.workspaceId,
-    timestampCol: mothershipInboxTask.createdAt,
-    workspaceIds,
-    retentionDate,
-    tableName: `${label}/mothershipInboxTask`,
-    dbClient: cleanupDb,
-  })
+  const inboxResult =
+    scope.kind === 'workspace'
+      ? await batchDeleteByWorkspaceAndTimestamp({
+          tableDef: mothershipInboxTask,
+          workspaceIdCol: mothershipInboxTask.workspaceId,
+          timestampCol: mothershipInboxTask.createdAt,
+          workspaceIds,
+          retentionDate,
+          tableName: `${label}/mothershipInboxTask`,
+          dbClient: cleanupDb,
+        })
+      : { deleted: 0, failed: 0 }
 
   const totalDeleted =
     runChildResults.reduce((s, r) => s + r.deleted, 0) +
@@ -158,7 +171,6 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
 
   logger.info(`[${label}] Complete: ${totalDeleted} total rows deleted`)
 
-  // Clean up copilot backend + storage files after DB rows are gone
   await chatCleanup.execute()
 
   const timeElapsed = (Date.now() - startTime) / 1000

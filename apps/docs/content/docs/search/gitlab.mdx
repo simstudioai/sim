@@ -1,0 +1,94 @@
+---
+title: GitLab
+description: Index a self-managed GitLab project with its source permissions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed GitLab email.
+
+<Image src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={1280} height={720} />
+
+Admin setup uses your organization's **Settings → Integrations** page. Teammates do not need a personal GitLab connection. For workspace Search, use **Search → Add source** instead.
+
+## Before you start
+
+Use a self-managed GitLab instance running version **17.4 or later**. Setup needs both a Sim organization admin and an active GitLab **instance administrator**. A project Maintainer or group Owner is insufficient.
+
+<Callout type="info">
+  This Search path requires GitLab's administrator directory and settings APIs. GitLab.com projects do not support this setup. General knowledge-base GitLab connectors can still use project-readable tokens, but their knowledge-base access rules are different from Search's source permissions.
+</Callout>
+
+## Add a project
+
+<Steps>
+<Step>
+
+### Create the administrator token
+
+Sign in to your self-managed GitLab instance as an instance administrator, then open **Avatar → Edit profile → Access → Personal access tokens**. On current releases choose **Generate token → Legacy token**; older versions show **Add new token** or the token form directly.
+
+<Image src="https://handbook.gitlab.com/images/security/product-security/security-platforms-and-architecture/service-account-access-token-page.png" alt="Official GitLab example of the Access Tokens page with the Add new token button" width={1759} height={586} />
+
+*Official [GitLab Handbook example](https://handbook.gitlab.com/handbook/security/product-security/security-platforms-architecture/product-security-engineering/runbooks/rotate-service-account-personal-access-tokens/). Navigation and button labels vary by version. The example's existing `api` tokens are unrelated to Sim; use the scopes below.*
+
+| Token setting | Value for Sim Search |
+|---|---|
+| Token name | A recognizable name, such as `Sim Search` |
+| Expiration date | A date allowed by your instance's token policy |
+| Scopes | `read_api`; also `admin_mode` if Admin Mode is enabled |
+
+Select **Generate token** or **Create personal access token**, then copy the value into Sim. GitLab only shows it once. This connector uses the traditional scoped PAT flow; do not substitute a project/group token or assume a fine-grained token has the required administrator API permissions. See GitLab's [current token creation steps](https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token).
+
+The token must read the project, users, inherited project membership, instance settings, and related group settings. Sim checks these before accepting source permission mirroring. See GitLab's [token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/).
+
+</Step>
+<Step>
+
+### Configure the source in Sim
+
+Open **Settings → Integrations → Providers**, approve **GitLab**, then select **Set up**. Paste the token and enter your instance host explicitly.
+
+| Field | What to enter |
+|---|---|
+| Host | Your self-managed domain, such as `gitlab.example.com`. |
+| Project | `group/project` or the numeric project ID. Add another source for another project. |
+| Content | Defaults to **Wiki & Issues**. Choose **Code, Wiki, Issues & Merge Requests** to include all supported types. |
+| Branch | Optional branch or tag for repository files; blank uses the project's default branch. |
+| Path Filter / File Extensions | Optional limits for repository files. |
+| Issue State / Labels / Milestone | Optional filters for issues. |
+| Max Items | Optional positive limit. Leave blank for all matching items. |
+
+<Image src="/static/search/gitlab-options.jpg" alt="GitLab source configuration scrolled to repository and issue filters, item limit, and document details" width={1280} height={720} />
+
+Select **Connect & Sync**. Sim validates the token and source policy, then starts indexing.
+
+</Step>
+<Step>
+
+### Let teammates search
+
+Invite teammates to the Sim organization using their verified work email. Sim matches that email against the GitLab directory and applies project, feature, and confidential-issue permissions. No GitLab **Connect account** step is required.
+
+Admins can open **Manage** on the source to review sync progress. Permission and membership changes are picked up during background refreshes.
+
+</Step>
+</Steps>
+
+## What is indexed
+
+The connector supports text repository files, wiki pages, issues, merge requests, and non-internal issue and merge-request comments. It does not index internal comments, binaries, or epics. **Document details** controls optional result metadata.
+
+## Troubleshooting
+
+| Problem | Next step |
+|---|---|
+| Administrator token required | Use an active instance administrator's PAT with `read_api`, plus `admin_mode` when required. A project or group token cannot replace it. |
+| Source permissions cannot be mirrored | Read the reported policy. Sim rejects unsupported external authorization, IP restrictions, download-ban policies, or session-specific step-up requirements. |
+| Project not found | Check the host, project path or ID, and token access. |
+| A teammate sees no results | Confirm both accounts' verified/confirmed email addresses match and the user has the required GitLab project or feature access. |
+| Token expired | Remove and add the source again with a new token. This connector does not support replacing its token in place or refreshing PATs automatically. |
+
+Custom GitLab roles may grant more access than Sim's conservative role mapping recognizes. A source requiring unsupported policies must remain unavailable until its access model can be represented accurately.

@@ -48,6 +48,7 @@ export async function searchKnowledgeAsExecutor({
       knowledgeBaseIds,
       query,
       topK,
+      surface: 'workflow',
       resolveBillingAttribution: async () => billingAttribution,
       resultSecretRegistry,
     },

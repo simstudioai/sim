@@ -128,6 +128,17 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
+vi.mock('@/tools/metadata', () => ({
+  getToolMetadata: (id: string) =>
+    id === 'gmail_send'
+      ? {
+          id,
+          params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+          oauth: { required: true, provider: 'google-email' },
+        }
+      : undefined,
+}))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   trackChatUpload: mockTrackChatUpload,
 }))
@@ -176,18 +187,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-paid')
     expect(gmailTool?.description).toBe('Send emails using Gmail')
-  })
-
-  it('still builds integration tools when subscription lookup fails', async () => {
-    mockGetHighestPrioritySubscription.mockRejectedValue(new Error('db unavailable'))
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-error')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-    const brandfetchTool = toolSchemas.find((tool) => tool.name === 'brandfetch_search')
-
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-error')
-    expect(gmailTool?.description).toBe('Send emails using Gmail')
-    expect(brandfetchTool?.description).toBe('Search for brands by company name')
   })
 
   it('emits executeLocally for dynamic client tools only', async () => {
@@ -253,7 +252,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     const toolSchemas = await buildIntegrationToolSchemas(
       'user-intersection',
-      undefined,
       { schemaSurface: 'copilot' },
       'workspace-1'
     )
@@ -281,7 +279,6 @@ describe('buildIntegrationToolSchemas', () => {
     await expect(
       buildIntegrationToolSchemas(
         'user-permission-error',
-        undefined,
         { schemaSurface: 'copilot' },
         'workspace-1'
       )
@@ -303,13 +300,72 @@ describe('buildIntegrationToolSchemas', () => {
     expect(second[0].outputs).not.toHaveProperty('mutated')
   })
 
+  it('isolates nested schemas and required fields between requests', async () => {
+    mockCreateUserToolSchema.mockReturnValueOnce({
+      type: 'object',
+      properties: { recipients: { type: 'array', items: { type: 'string' } } },
+      required: ['recipients'],
+    })
+    const first = await buildIntegrationToolSchemas('user-nested-schema')
+    const properties = first[0].input_schema.properties as Record<string, unknown>
+    properties.recipients = { type: 'number' }
+    ;(first[0].input_schema.required as string[]).push('forged')
+
+    const second = await buildIntegrationToolSchemas('user-nested-schema')
+    expect(second[0].input_schema.properties).toEqual({
+      recipients: { type: 'array', items: { type: 'string' } },
+    })
+    expect(second[0].input_schema.required).toEqual(['recipients'])
+  })
+
+  it('coalesces simultaneous catalog builds', async () => {
+    const catalogs = await Promise.all(
+      Array.from({ length: 20 }, () => buildIntegrationToolSchemas('concurrent-user'))
+    )
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
+    expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
+    expect(catalogs.every((catalog) => catalog.length === 3)).toBe(true)
+  })
+
+  it('propagates schema failures without caching a partial catalog', async () => {
+    mockCreateUserToolSchema.mockImplementationOnce(() => {
+      throw new Error('invalid tool schema')
+    })
+    await expect(buildIntegrationToolSchemas('schema-failure')).rejects.toThrow(
+      'invalid tool schema'
+    )
+    const recovered = await buildIntegrationToolSchemas('schema-failure')
+    expect(recovered).toHaveLength(3)
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(2)
+  })
+
+  it('propagates subscription failures without caching a guessed catalog', async () => {
+    mockGetHighestPrioritySubscription.mockRejectedValueOnce(new Error('billing unavailable'))
+    await expect(buildIntegrationToolSchemas('subscription-failure')).rejects.toThrow(
+      'billing unavailable'
+    )
+    expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
+    expect(await buildIntegrationToolSchemas('subscription-failure')).toHaveLength(3)
+  })
+
+  it('evicts catalogs by their byte size before reaching the entry cap', async () => {
+    mockCreateUserToolSchema.mockImplementation(() => ({
+      type: 'object',
+      properties: { large: { type: 'string', description: 'x'.repeat(1024 * 1024) } },
+    }))
+    for (let i = 0; i < 12; i++) await buildIntegrationToolSchemas(`sized-user-${i}`)
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(12)
+    await buildIntegrationToolSchemas('sized-user-0')
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(13)
+    mockCreateUserToolSchema.mockImplementation(() => ({ type: 'object', properties: {} }))
+  })
+
   it('rebuilds instead of serving a cache entry from the previous policy', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
     mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: null, deniedTools: [] })
 
     const before = await buildIntegrationToolSchemas(
       'user-policy',
-      undefined,
       { schemaSurface: 'copilot' },
       'workspace-policy'
     )
@@ -324,7 +380,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     const after = await buildIntegrationToolSchemas(
       'user-policy',
-      undefined,
       { schemaSurface: 'copilot' },
       'workspace-policy'
     )
@@ -581,5 +636,70 @@ describe('buildCopilotRequestPayload', () => {
       { selectedModel: 'claude-opus-4-8' }
     )
     expect(withoutEntitlements).not.toHaveProperty('entitlements')
+  })
+})
+
+describe('Assistant payload', () => {
+  beforeEach(() => {
+    resetEnvFlagsMock()
+    mockGetUserPermissionConfig.mockResolvedValue(null)
+    mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
+    mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
+    mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
+  })
+  it('forwards organization scope without workspace, integration, or desktop authority', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Find the policy',
+        userId: 'user-1',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        mode: 'assistant',
+        model: '',
+        browser: true,
+        terminalCapable: true,
+        desktopLocalFilesystem: true,
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.organizationId).toBe('org-1')
+    expect(payload).not.toHaveProperty('workspaceId')
+    expect(payload).not.toHaveProperty('desktopCapabilities')
+    expect(payload.integrationTools ?? []).toEqual([])
+  })
+
+  it('keeps the shared search scope and only personally authenticated integrations', async () => {
+    clearIntegrationToolSchemaCacheForTests()
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Find it and update it',
+        userId: 'user-1',
+        userMessageId: 'assistant-message',
+        mode: 'assistant',
+        model: '',
+        workspaceId: 'ws-1',
+        workflowId: 'forbidden-workflow',
+        assistantSearch: { source: 'slack', documentIds: ['document-1'] },
+        contexts: [{ type: 'skill', content: 'Build instructions' }],
+        commands: ['run_function'],
+        mcpServerIds: ['shared-server'],
+        desktopLocalFilesystem: true,
+        browser: true,
+        terminalCapable: true,
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.desktopCapabilities).toEqual({ browser: true, terminal: true })
+    expect(payload.mode).toBe('assistant')
+    expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })
+    for (const field of ['context', 'commands', 'mothershipTools', 'workflowId']) {
+      expect(payload).not.toHaveProperty(field)
+    }
+    expect(payload.integrationTools).toEqual([
+      expect.objectContaining({
+        name: 'gmail_send',
+        oauth: { required: true, provider: 'google-email' },
+      }),
+    ])
   })
 })

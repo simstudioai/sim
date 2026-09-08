@@ -4,6 +4,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { prepareCredentialConnection } from '@/lib/credentials/application/prepare-credential-connection'
 import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
@@ -14,17 +15,17 @@ export async function executeOAuthGetAuthLink(
   const credentialId = rawCredentialId ? String(rawCredentialId) : undefined
   const baseUrl = getBaseUrl()
 
-  // A service account is not an OAuth provider. Catch it here — before the fuzzy
-  // resolver's substring match can swallow e.g. `slack-custom-bot` into the
-  // Slack OAuth service — and return a coherent failure directly rather than
-  // throwing into the generic catch below, which would attach a contradicting
-  // workspace `oauth_url` and "connect manually" message. Normalize spaces and
-  // underscores so a readable form ("slack custom bot") is caught too.
+  /** Reject service-account aliases before the provider resolver's fuzzy OAuth match. */
   const serviceAccountId = providerName
     .toLowerCase()
     .trim()
     .replace(/[\s_]+/g, '-')
   if (isServiceAccountProviderId(serviceAccountId)) {
+    if (context.requestMode === 'assistant') {
+      const message =
+        'Assistant uses your own connected accounts. A service account cannot be used here.'
+      return { success: false, error: message, output: { message } }
+    }
     const message =
       `"${providerName}" is a service account, not an OAuth provider. ` +
       `Emit a service_account credential tag with the service's OAuth provider ` +
@@ -39,7 +40,19 @@ export async function executeOAuthGetAuthLink(
       workspaceId,
       providerName,
       credentialId,
+      ...(context.requestMode === 'assistant' ? { personalOnly: true } : {}),
     })
+    if (context.requestMode === 'assistant') {
+      return {
+        success: true,
+        output: {
+          message: `Connect your ${result.serviceName} account using the in-chat connection card.`,
+          provider: result.serviceName,
+          providerId: result.providerId,
+          instructions: `End your response with <credential>${JSON.stringify({ type: 'link', provider: result.providerId })}</credential>. The card connects the signed-in person's account to Connected accounts. Wait for the connection status before continuing.`,
+        },
+      }
+    }
     const callbackURL = context.workflowId
       ? `${baseUrl}/workspace/${workspaceId}/w/${context.workflowId}`
       : context.chatId
@@ -66,9 +79,12 @@ export async function executeOAuthGetAuthLink(
     }
   } catch (err) {
     const message = messageForCopilotApplicationError(err)
+    if (context.requestMode === 'assistant') {
+      return { success: false, error: message, output: { message } }
+    }
     const workspaceUrl = context.workspaceId
       ? `${baseUrl}/workspace/${context.workspaceId}`
-      : `${baseUrl}/workspace`
+      : `${baseUrl}${APP_ENTRY_PATH}`
     return {
       success: false,
       error: message,

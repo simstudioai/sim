@@ -4,17 +4,26 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import type { SidebarState } from './types'
 
 /**
- * Clamps an expanded sidebar width into the valid range for the current
- * viewport. The upper bound can never drop below {@link SIDEBAR_WIDTH.MIN}, so a
- * narrow window (where `innerWidth * MAX_PERCENTAGE < MIN`) still yields a width
- * at or above the minimum instead of collapsing the sidebar to nothing.
+ * The widest the expanded sidebar may be at a given viewport width: 30% of the
+ * viewport, capped at {@link SIDEBAR_WIDTH.MAX}. It can never drop below
+ * {@link SIDEBAR_WIDTH.MIN}, so a narrow window (where the percentage falls under
+ * the minimum) still yields a usable rail instead of collapsing it to nothing.
+ *
+ * The one definition of the ceiling — the resize handle reads it, and the
+ * pre-paint script in `app/layout.tsx` mirrors it inline (it cannot import).
  */
+export function getMaxSidebarWidth(viewportWidth: number): number {
+  return Math.max(
+    SIDEBAR_WIDTH.MIN,
+    Math.min(SIDEBAR_WIDTH.MAX, viewportWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+  )
+}
+
+/** Clamps an expanded sidebar width into the valid range for the current viewport. */
 function clampSidebarWidth(width: number): number {
   if (!Number.isFinite(width)) return SIDEBAR_WIDTH.DEFAULT
   const max =
-    typeof window === 'undefined'
-      ? Number.POSITIVE_INFINITY
-      : Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+    typeof window === 'undefined' ? Number.POSITIVE_INFINITY : getMaxSidebarWidth(window.innerWidth)
   return Math.min(Math.max(width, SIDEBAR_WIDTH.MIN), max)
 }
 

@@ -42,9 +42,12 @@ vi.mock('@/hooks/use-workspace-invite-policy', () => ({
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
-  SidebarTooltip: ({ children }: { children: React.ReactNode }) => children,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip/sidebar-tooltip',
+  () => ({
+    SidebarTooltip: ({ children }: { children: React.ReactNode }) => children,
+  })
+)
 vi.mock('@/components/icons', () => ({
   SlackIcon: ({ className }: { className?: string }) => <svg className={className} />,
 }))
@@ -63,6 +66,7 @@ async function renderFooter(
     root.render(
       <SidebarFooter
         workspaceId='workspace-1'
+        showDivider={false}
         isCollapsed={false}
         showCollapsedTooltips={false}
         getSettingsHref={(section) => `/workspace/workspace-1/settings/${section}`}

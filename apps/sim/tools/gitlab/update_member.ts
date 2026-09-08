@@ -7,6 +7,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
   GitLabUpdateMemberResponse
 > = {
   id: 'gitlab_update_member',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Update Member',
   description: "Update a member's access level in a GitLab project or group",
   version: '1.0.0',

@@ -205,11 +205,30 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       userId: 'user-1',
       apiToken: 'tok',
       domain: 'other.atlassian.net',
+      atlassianProduct: 'jira',
     })
 
     expect(updatePayload()).not.toHaveProperty('displayName')
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
+
+  it.each(['confluence', 'jira', undefined] as const)(
+    'preserves the saved Atlassian product on reconnect (%s)',
+    async (product) => {
+      mockCredential({ providerId: 'atlassian-service-account', displayName: 'Fixture Atlassian' })
+      mockStoredBlob({ type: 'atlassian_service_account', atlassianProduct: product })
+      await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        apiToken: 'new-token',
+        domain: 'acme.atlassian.net',
+      })
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'atlassian-service-account',
+        expect.objectContaining({ atlassianProduct: product ?? 'jira' })
+      )
+    }
+  )
 
   it('re-labels a Slack custom bot that still carries its previous team name', async () => {
     mockCredential({ providerId: 'slack-custom-bot', displayName: 'Old Team' })

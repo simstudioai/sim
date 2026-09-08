@@ -4,6 +4,12 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, notExists, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import {
+  type ResourceOwner,
+  type ResourceScope,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CredentialDeletion')
@@ -23,9 +29,8 @@ interface DeleteCredentialParams {
   request?: NextRequest
 }
 
-export interface DeleteConnectionCredentialParams {
+export interface DeleteConnectionCredentialParams extends ResourceOwner {
   credentialId: string
-  workspaceId: string
   reason: CredentialDeleteReason
 }
 
@@ -40,6 +45,7 @@ export async function deleteCredential(params: DeleteCredentialParams): Promise<
     .select({
       id: schema.credential.id,
       workspaceId: schema.credential.workspaceId,
+      organizationId: schema.credential.organizationId,
       type: schema.credential.type,
       displayName: schema.credential.displayName,
       providerId: schema.credential.providerId,
@@ -51,7 +57,7 @@ export async function deleteCredential(params: DeleteCredentialParams): Promise<
 
   if (!row) return
 
-  await clearCredentialRefs(credentialId, row.workspaceId)
+  await clearCredentialRefs(credentialId, resourceScopeFromOwner(row))
 
   await db.delete(schema.credential).where(eq(schema.credential.id, credentialId))
 
@@ -81,12 +87,13 @@ export async function deleteCredential(params: DeleteCredentialParams): Promise<
 export async function deleteConnectionCredential(
   params: DeleteConnectionCredentialParams
 ): Promise<boolean> {
-  const { credentialId, workspaceId } = params
-  await clearCredentialRefs(credentialId, workspaceId)
+  const { credentialId } = params
+  const scope = resourceScopeFromOwner(params)
+  await clearCredentialRefs(credentialId, scope)
   const deleted = await db
     .delete(schema.credential)
     .where(
-      and(eq(schema.credential.id, credentialId), eq(schema.credential.workspaceId, workspaceId))
+      and(eq(schema.credential.id, credentialId), resourceScopeCondition(schema.credential, scope))
     )
     .returning({ id: schema.credential.id })
   if (deleted.length > 1) throw new Error('Credential deletion affected multiple rows')
@@ -94,7 +101,7 @@ export async function deleteConnectionCredential(
   if (deleted.length === 1) {
     logger.info('Deleted credential', {
       credentialId,
-      workspaceId,
+      scope,
       reason: params.reason,
     })
   }
@@ -148,8 +155,17 @@ export async function deleteOrphanedOAuthAccount(accountId: string): Promise<voi
  */
 export async function clearCredentialRefs(
   credentialId: string,
-  workspaceId: string
+  scopeInput: string | ResourceScope
 ): Promise<void> {
+  const scope =
+    typeof scopeInput === 'string'
+      ? { kind: 'workspace' as const, workspaceId: scopeInput }
+      : scopeInput
+  if (scope.kind === 'organization') {
+    await clearInKnowledgeConnectors(credentialId)
+    return
+  }
+  const workspaceId = scope.workspaceId
   const needle = `%${credentialId}%`
 
   await Promise.all([

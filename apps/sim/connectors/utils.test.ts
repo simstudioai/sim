@@ -78,17 +78,57 @@ import {
   MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
   markSkipped,
+  memberDocumentId,
   PER_MEMBER_LISTING_CONTEXT,
   parseDefaultedUnlimitedSafeInteger,
   pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
+  sourceDocumentId,
   takeIndexableWithinCap,
 } from '@/connectors/utils'
 import { xConnector } from '@/connectors/x/x'
 import { youtubeConnector } from '@/connectors/youtube/youtube'
 
 const ISO_DATE = '2025-06-15T10:30:00.000Z'
+
+describe('member document identity', () => {
+  const alice = { ...PER_MEMBER_LISTING_CONTEXT, memberId: 'alice' }
+  const bob = { ...PER_MEMBER_LISTING_CONTEXT, memberId: 'bob' }
+
+  it('isolates different member representations of the same source item', () => {
+    const aliceId = memberDocumentId('site:document', alice)
+    const bobId = memberDocumentId('site:document', bob)
+    expect(aliceId).not.toBe(bobId)
+    expect(sourceDocumentId(aliceId, alice)).toBe('site:document')
+    expect(sourceDocumentId(aliceId, bob)).toBeNull()
+    expect(sourceDocumentId(bobId, alice)).toBeNull()
+    expect(sourceDocumentId('site:document', alice)).toBeNull()
+  })
+
+  it('preserves workspace document identities', () => {
+    expect(memberDocumentId('site:document', undefined)).toBe('site:document')
+    expect(sourceDocumentId('site:document', undefined)).toBe('site:document')
+    expect(memberDocumentId('site:document', { memberId: 'alice' })).toBe('site:document')
+  })
+
+  it('encodes member delimiters without changing the source identity', () => {
+    const context = { ...PER_MEMBER_LISTING_CONTEXT, memberId: 'alice:team/%' }
+    const id = memberDocumentId('calendar:recurring:event', context)
+    expect(sourceDocumentId(id, context)).toBe('calendar:recurring:event')
+    expect(sourceDocumentId(id, alice)).toBeNull()
+    expect(sourceDocumentId('member:alice:', alice)).toBeNull()
+  })
+
+  it.each([undefined, '', ' ', 42])(
+    'fails closed without a canonical member ID (%s)',
+    (memberId) => {
+      const context = { ...PER_MEMBER_LISTING_CONTEXT, memberId }
+      expect(() => memberDocumentId('document', context)).toThrow('connector member ID')
+      expect(() => sourceDocumentId('document', context)).toThrow('connector member ID')
+    }
+  )
+})
 
 describe('Jira mapTags', () => {
   const mapTags = jiraConnector.mapTags!

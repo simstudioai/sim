@@ -21,7 +21,7 @@ faq:
   - q: "Does Sim use regular expressions to detect secrets in logs?"
     a: "No. Sim resolved the secret itself, so it can compare content against the exact values activated in that run. Pattern matching is useful when a scanner does not know which secrets exist; the execution runtime has stronger context."
   - q: "What happens if Sim cannot determine whether content contains a secret?"
-    a: "The boundary fails closed. The payload is withheld, while non-sensitive structure such as timing, block identity, and status remains available for debugging."
+    a: "Incomplete provenance at a run's own egress boundaries withholds the payload while preserving safe diagnostic structure. Durable reads follow the surface's enforcement policy: legacy content remains readable, and unknown stored provenance can be observed before enforcement is enabled."
   - q: "Are secrets tracked across files and tables, or only within one execution?"
     a: "Across both. Durable content such as workspace files, table cells, knowledge documents, and agent memory carries encrypted provenance so a later run does not mistake secret-bearing data for clean data."
   - q: "Is the model treated as an internal component or an egress boundary?"

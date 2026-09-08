@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createCredentialGroupBodySchema,
   credentialGroupAccessPolicySchema,
   credentialGroupAccessResponseSchema,
   credentialGroupEnrollmentDetailSchema,
@@ -11,6 +10,8 @@ import {
   sharedCredentialGroupOAuthCallbackContract,
   updateCredentialGroupAccessBodySchema,
   updateCredentialGroupBodySchema,
+  updateCredentialGroupMcpConnectorBodySchema,
+  workspaceAccountsSettingsSchema,
 } from '@/lib/api/contracts/credential-groups'
 import {
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
@@ -18,13 +19,37 @@ import {
 } from '@/lib/credential-groups/limits'
 
 describe('credential group contracts', () => {
+  it('allows MCP source names while rejecting workspace account-container renaming', () => {
+    expect(updateCredentialGroupBodySchema.safeParse({ name: 'Another group' }).success).toBe(false)
+    expect(
+      updateCredentialGroupBodySchema.safeParse({ description: 'Another group' }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupMcpConnectorBodySchema.parse({ name: 'Finance warehouse' })
+    ).toEqual({
+      name: 'Finance warehouse',
+    })
+  })
+
+  it('represents missing workspace accounts as one nullable record, never a group list', () => {
+    expect(
+      workspaceAccountsSettingsSchema.parse({ credentialGroup: null, availableProviders: [] })
+    ).toEqual({
+      credentialGroup: null,
+      availableProviders: [],
+    })
+    expect(
+      workspaceAccountsSettingsSchema.safeParse({ credentialGroups: [], availableProviders: [] })
+        .success
+    ).toBe(false)
+  })
+
   it('describes the shared managed OAuth callback as a redirect', () => {
     expect(sharedCredentialGroupOAuthCallbackContract.response).toEqual({ mode: 'redirect' })
   })
 
-  it('accepts a group before account types are added', () => {
-    const parsed = createCredentialGroupBodySchema.parse({
-      name: 'Support team',
+  it('accepts removing all account types', () => {
+    const parsed = updateCredentialGroupBodySchema.parse({
       options: [],
     })
 
@@ -49,8 +74,7 @@ describe('credential group contracts', () => {
   })
 
   it('rejects the removed multiple-account option', () => {
-    const result = createCredentialGroupBodySchema.safeParse({
-      name: 'Support team',
+    const result = updateCredentialGroupBodySchema.safeParse({
       options: [
         {
           provider: 'gmail',
@@ -65,8 +89,7 @@ describe('credential group contracts', () => {
   })
 
   it('rejects duplicate option labels case-insensitively', () => {
-    const result = createCredentialGroupBodySchema.safeParse({
-      name: 'Support team',
+    const result = updateCredentialGroupBodySchema.safeParse({
       options: [
         {
           provider: 'gmail',
@@ -85,8 +108,7 @@ describe('credential group contracts', () => {
   })
 
   it('rejects duplicate providers', () => {
-    const result = createCredentialGroupBodySchema.safeParse({
-      name: 'Support team',
+    const result = updateCredentialGroupBodySchema.safeParse({
       options: [
         { provider: 'gmail', label: 'Primary inbox', required: true },
         { provider: 'gmail', label: 'Escalations', required: true },
@@ -96,7 +118,7 @@ describe('credential group contracts', () => {
     expect(result.success).toBe(false)
   })
 
-  it('requires a custom bot for Slack option updates', () => {
+  it('allows Slack options without a workspace bot for organization personal authorization', () => {
     const missingApp = updateCredentialGroupBodySchema.safeParse({
       options: [
         {
@@ -117,7 +139,7 @@ describe('credential group contracts', () => {
       ],
     })
 
-    expect(missingApp.success).toBe(false)
+    expect(missingApp.success).toBe(true)
     expect(withApp.success).toBe(true)
   })
 
@@ -141,7 +163,6 @@ describe('credential group contracts', () => {
     const result = credentialGroupSchema.safeParse({
       id: 'group-1',
       workspaceId: 'workspace-1',
-      name: 'Support team',
       description: null,
       options: [
         {

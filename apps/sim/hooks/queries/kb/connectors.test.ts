@@ -37,16 +37,21 @@ vi.mock('@/lib/api/client/request', () => ({
 import {
   type ConnectorData,
   listKnowledgeConnectorDocumentsContract,
+  listSearchSourcesContract,
 } from '@/lib/api/contracts/knowledge'
+import { readSearchIndexContract } from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import {
   CONNECTOR_SYNC_POLL_INTERVAL_MS,
   connectorKeys,
   isConnectorSyncingOrPending,
   memberConnectorKeys,
+  searchSourceKeys,
   useConnectorDetail,
   useConnectorDocuments,
   useConnectorList,
+  useSearchIndex,
+  useSearchSources,
   useTriggerSync,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
@@ -321,7 +326,10 @@ describe('useTriggerSync optimistic state', () => {
       context
     )
 
-    expect(mocks.setQueriesData).not.toHaveBeenCalled()
+    expect(mocks.setQueriesData).not.toHaveBeenCalledWith(
+      { queryKey: memberConnectorKeys.lists() },
+      expect.any(Function)
+    )
     expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({
       queryKey: memberConnectorKeys.lists(),
     })
@@ -388,5 +396,62 @@ describe('useConnectorDocuments', () => {
 
     const options = mocks.useInfiniteQuery.mock.calls[0]?.[0] as ConnectorDocumentsQueryOptions
     expect(options.getNextPageParam(activePage, [activePage])).toBeUndefined()
+  })
+})
+
+describe('useSearchSources', () => {
+  it('isolates organization sources and resolves their index without listing workspace knowledge bases', async () => {
+    const scope = { kind: 'organization' as const, organizationId: 'scope-1' }
+    const signal = new AbortController().signal
+    mocks.requestJson.mockResolvedValue({ data: { knowledgeBaseId: 'org-index' } })
+    useSearchIndex(scope)
+    const index = mocks.useQuery.mock.calls.at(-1)?.[0]
+    await expect(index.queryFn({ signal })).resolves.toEqual({ knowledgeBaseId: 'org-index' })
+    expect(mocks.requestJson).toHaveBeenCalledWith(readSearchIndexContract, {
+      query: { organizationId: 'scope-1' },
+      signal,
+    })
+    useSearchSources(scope)
+    const sources = mocks.useQuery.mock.calls.at(-1)?.[0]
+    expect(sources.queryKey).not.toEqual(searchSourceKeys.list('scope-1'))
+    await sources.queryFn({ signal })
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(listSearchSourcesContract, {
+      query: { organizationId: 'scope-1' },
+      signal,
+    })
+  })
+  it('uses a workspace-specific key and forwards request cancellation', async () => {
+    const signal = new AbortController().signal
+    mocks.requestJson.mockResolvedValueOnce({ data: [] })
+    useSearchSources('workspace-a')
+    const options = mocks.useQuery.mock.calls.at(-1)?.[0]
+    expect(options.queryKey).toEqual(searchSourceKeys.list('workspace-a'))
+    expect(options.enabled).toBe(true)
+    expect(options.staleTime).toBe(30_000)
+    expect(options.placeholderData).toBeUndefined()
+    await expect(options.queryFn({ signal })).resolves.toEqual([])
+    expect(mocks.requestJson).toHaveBeenCalledWith(listSearchSourcesContract, {
+      query: { workspaceId: 'workspace-a' },
+      signal,
+    })
+  })
+
+  it('waits for a workspace and respects explicit disabling', () => {
+    useSearchSources()
+    expect(mocks.useQuery.mock.calls.at(-1)?.[0].enabled).toBe(false)
+    useSearchSources('')
+    expect(mocks.useQuery.mock.calls.at(-1)?.[0].enabled).toBe(false)
+    useSearchSources('workspace-a', { enabled: false })
+    expect(mocks.useQuery.mock.calls.at(-1)?.[0].enabled).toBe(false)
+  })
+
+  it('polls while sources are syncing and stops after completion', () => {
+    useSearchSources('workspace-a')
+    const options = mocks.useQuery.mock.calls.at(-1)?.[0]
+    expect(options.refetchInterval({ state: { data: [{ isSyncing: true }] } })).toBe(
+      CONNECTOR_SYNC_POLL_INTERVAL_MS
+    )
+    expect(options.refetchInterval({ state: { data: [{ isSyncing: false }] } })).toBe(false)
+    expect(options.refetchInterval({ state: {} })).toBe(false)
   })
 })

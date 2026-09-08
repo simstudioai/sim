@@ -12,20 +12,12 @@ export type CredentialGroupOptionInput =
     })
   | (CredentialGroupOptionInputBase & {
       provider: 'slack'
-      slackBotCredentialId: string
+      slackBotCredentialId?: string
     })
 
 export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id?: string }
 
-export interface CreateCredentialGroupInput {
-  name: string
-  description?: string
-  options: CredentialGroupOptionInput[]
-}
-
 export interface UpdateCredentialGroupInput {
-  name?: string
-  description?: string | null
   options?: CredentialGroupOptionUpdateInput[]
   status?: 'active' | 'disabled'
 }
@@ -53,13 +45,14 @@ export type CredentialGroupOption =
     })
   | (CredentialGroupOptionBase & {
       provider: 'slack'
-      slackBotCredentialId: string
+      slackBotCredentialId?: string
       configurationStatus: 'not_configured' | 'ready' | 'needs_update'
     })
 
 export interface CredentialGroupRecord {
   id: string
-  workspaceId: string
+  workspaceId: string | null
+  organizationId?: string
   name: string
   description: string | null
   options: CredentialGroupOption[]
@@ -92,7 +85,7 @@ export interface CredentialGroupEnrollmentRecord {
 }
 
 export interface CredentialGroupEnrollmentConnection {
-  provider: CredentialGroupProvider
+  provider: CredentialGroupProvider | 'gitlab'
   status: 'active' | 'needs_reauth' | 'revoked'
   count: number
 }

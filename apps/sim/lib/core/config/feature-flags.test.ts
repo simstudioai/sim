@@ -15,7 +15,6 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     TABLE_ROW_TTL: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
-    OAUTH_PROVIDER_ENABLED: undefined as boolean | undefined,
   },
 }))
 
@@ -126,34 +125,6 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
-    envRef.OAUTH_PROVIDER_ENABLED = undefined
-  })
-
-  describe('oauth-provider flag', () => {
-    it('uses the global fallback only when AppConfig has no document', async () => {
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-      envRef.OAUTH_PROVIDER_ENABLED = true
-      expect(await isFeatureEnabled('oauth-provider')).toBe(true)
-
-      setEnvFlags({ isAppConfigEnabled: true })
-      mockFetch.mockResolvedValue(null)
-      expect(await isFeatureEnabled('oauth-provider')).toBe(true)
-    })
-
-    it('reads runtime changes from AppConfig without targeting or admin lookups', async () => {
-      envRef.OAUTH_PROVIDER_ENABLED = true
-      withAppConfig({ 'oauth-provider': { enabled: false } })
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-
-      withAppConfig({ 'oauth-provider': { enabled: true } })
-      expect(await isFeatureEnabled('oauth-provider')).toBe(true)
-
-      withAppConfig({ 'oauth-provider': { enabled: false } })
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-      withAppConfig({})
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
-    })
   })
 
   describe('knowledge-member-access flag', () => {
@@ -202,11 +173,16 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('opens for an allowlisted workspace only', async () => {
-      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+    it('opens for an allowlisted organization only', async () => {
+      withAppConfig({ 'credential-groups': { orgIds: ['org-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-2' })).toBe(false)
       expect(await isFeatureEnabled('credential-groups')).toBe(false)
+    })
+
+    it('a legacy workspace allowlist does not enable the organization gate', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(false)
     })
   })
 

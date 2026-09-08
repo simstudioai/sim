@@ -4,17 +4,12 @@ import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { getUserProfile } from '@/lib/users/queries'
+import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
-import {
-  mapUserProfileResponse,
-  USER_PROFILE_STALE_TIME,
-  userProfileKeys,
-} from '@/hooks/queries/current-user-data'
 import {
   MOTHERSHIP_CHAT_LIST_STALE_TIME,
   mapChat,
@@ -161,19 +156,9 @@ export async function prefetchWorkspaceSidebar(
     /**
      * The sidebar footer renders the viewer's name and avatar, so the profile is
      * sidebar data and joins this batch rather than trailing it as a client
-     * waterfall. Keyed identically to `useUserProfile`, so the footer paints
-     * hydrated. Unlike the settings prefetch this needs no session lookup — the
-     * caller already resolved the viewer.
+     * waterfall.
      */
-    queryClient.prefetchQuery({
-      queryKey: userProfileKeys.profile(),
-      queryFn: async () => {
-        const user = await getUserProfile(userId)
-        if (!user) throw new Error('User not found')
-        return mapUserProfileResponse(user)
-      },
-      staleTime: USER_PROFILE_STALE_TIME,
-    }),
+    prefetchUserProfile(queryClient, userId),
     seedWorkspaceList(queryClient, userId, activeOrganizationId),
   ])
 }

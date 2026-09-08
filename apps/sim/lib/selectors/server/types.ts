@@ -45,6 +45,7 @@ export type SelectorCredentialPolicy =
 
 export interface AuthorizedSelectorCredential {
   suppliedId: string
+  organization?: { principal: SessionPrincipal; organizationId: string }
   access?: CredentialAccessResult
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */
@@ -71,7 +72,8 @@ export interface ExecuteServerSelectorArgs {
   context: SelectorContext
   request: SelectorRequest
   scope: SelectorScope
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   principal: SessionPrincipal
   requesterUserId: string
   credential?: AuthorizedSelectorCredential

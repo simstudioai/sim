@@ -7,6 +7,7 @@ export const gitlabCreateReleaseTool: ToolConfig<
   GitLabCreateReleaseResponse
 > = {
   id: 'gitlab_create_release',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create Release',
   description: 'Create a new release in a GitLab project',
   version: '1.0.0',

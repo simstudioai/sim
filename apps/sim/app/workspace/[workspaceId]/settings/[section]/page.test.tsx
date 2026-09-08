@@ -11,6 +11,7 @@ const {
   mockNotFound,
   mockRedirect,
   mockSectionPrefetch,
+  mockGetHostContext,
 } = vi.hoisted(() => ({
   mockAuthorizeSection: vi.fn(),
   mockGetQueryClient: vi.fn(),
@@ -22,12 +23,16 @@ const {
     throw new Error(`NEXT_REDIRECT:${href}`)
   }),
   mockSectionPrefetch: vi.fn(),
+  mockGetHostContext: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({ notFound: mockNotFound, redirect: mockRedirect }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/settings/application/workspace-section-access', () => ({
   authorizeWorkspaceSettingsSection: mockAuthorizeSection,
+}))
+vi.mock('@/lib/workspaces/host-context', () => ({
+  getWorkspaceHostContextForViewer: mockGetHostContext,
 }))
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
@@ -59,6 +64,7 @@ describe('WorkspaceSettingsSectionPage', () => {
     mockAuthorizeSection.mockResolvedValue({ allowed: true })
     mockGetQueryClient.mockReturnValue(new QueryClient())
     mockSectionPrefetch.mockResolvedValue(undefined)
+    mockGetHostContext.mockResolvedValue(null)
   })
 
   it('authenticates before authorizing the resolved section', async () => {
@@ -70,6 +76,19 @@ describe('WorkspaceSettingsSectionPage', () => {
       section: 'billing',
     })
     expect(mockSectionPrefetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves legacy organization settings query state on the canonical org destination', async () => {
+    mockGetHostContext.mockResolvedValue({ hostOrganizationId: 'org-target' })
+    await expect(
+      WorkspaceSettingsSectionPage({
+        ...pageProps('subscription'),
+        searchParams: Promise.resolve({ window: 'month', source: ['search', 'chat'] }),
+      })
+    ).rejects.toThrow(
+      'NEXT_REDIRECT:/o/org-target/settings/billing?window=month&source=search&source=chat'
+    )
+    expect(mockSectionPrefetch).not.toHaveBeenCalled()
   })
 
   it('conceals inaccessible workspaces and platform-only sections', async () => {

@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip, chipContentGap, cn } from '@sim/emcn'
+import { Chip, chipContentGap, cn, OverflowText } from '@sim/emcn'
 import { Loader, Plus } from '@sim/emcn/icons'
+import { groupSearchConnections } from '@/lib/sim-search/connections'
 import {
   canConnectPersonally,
   SEARCH_CONNECTORS,
   type SearchConnector,
-  SIM_SEARCH_KNOWLEDGE_BASE_NAME,
   searchConnectorUnavailableReason,
 } from '@/lib/sim-search/connectors'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
@@ -28,18 +28,6 @@ const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const PERSONAL_SEARCH_CONNECTORS = SEARCH_CONNECTORS.filter((connector) =>
   canConnectPersonally(connector.meta)
 )
-
-/** The Sim Search connection per source, keyed by connector type. */
-function simSearchConnectionsByType(
-  connectors: readonly WorkspaceMemberConnector[]
-): Map<string, WorkspaceMemberConnector> {
-  const byType = new Map<string, WorkspaceMemberConnector>()
-  for (const connector of connectors) {
-    if (connector.knowledgeBaseName !== SIM_SEARCH_KNOWLEDGE_BASE_NAME) continue
-    if (!byType.has(connector.connectorType)) byType.set(connector.connectorType, connector)
-  }
-  return byType
-}
 
 /** Whether a connected source is still indexing for the viewer. */
 export function isIndexing(connection: WorkspaceMemberConnector | undefined): boolean {
@@ -77,6 +65,7 @@ function sourceState(
 interface SourceChipProps {
   connector: SearchConnector
   connection: WorkspaceMemberConnector | undefined
+  showSource: boolean
   /** Why the source cannot be connected here, shown as the chip's title; null when it can. */
   unavailableReason: string | null
   waiting: boolean
@@ -87,6 +76,7 @@ interface SourceChipProps {
 function SourceChip({
   connector,
   connection,
+  showSource,
   unavailableReason,
   waiting,
   disabled,
@@ -99,9 +89,11 @@ function SourceChip({
     !unavailable &&
     !waiting &&
     (!connection || CONNECTABLE_MEMBERSHIPS.has(connection.viewerMembership))
-  const title =
-    unavailableReason ??
-    (connected ? `${connector.meta.name}: ${state}` : `Connect ${connector.meta.name}`)
+  const name =
+    showSource && connection?.sourceDescription
+      ? `${connector.meta.name} · ${connection.sourceDescription}`
+      : connector.meta.name
+  const title = unavailableReason ?? (connected ? `${name}: ${state}` : `Connect ${name}`)
   const busy = waiting || isIndexing(connection)
   return (
     <Chip
@@ -119,7 +111,7 @@ function SourceChip({
       }
     >
       <span className={cn('flex items-baseline', chipContentGap)}>
-        <span>{connector.meta.name}</span>
+        <OverflowText label={name} className='max-w-[280px]' focusTarget='nearest-interactive' />
         {state && <span className='text-[var(--text-muted)] text-caption'>{state}</span>}
       </span>
     </Chip>
@@ -139,7 +131,8 @@ interface SearchSourcesProps {
  * as workspace connectors do not appear here.
  */
 export function SearchSources({ workspaceId }: SearchSourcesProps) {
-  const { integrationAvailability } = usePermissionConfig()
+  const { integrationAvailability, oauthServiceAvailability, isIntegrationAvailabilityReady } =
+    usePermissionConfig()
   /** With per-member access off, a connect is refused, so the chips say so instead. */
   const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
@@ -152,8 +145,8 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
   const memberConnectors = memberAccessAvailable
     ? (memberConnectorRows ?? EMPTY_MEMBER_CONNECTORS)
     : EMPTY_MEMBER_CONNECTORS
-  const connectionByType = useMemo(
-    () => simSearchConnectionsByType(memberConnectors),
+  const { connectionByType } = useMemo(
+    () => groupSearchConnections(memberConnectors),
     [memberConnectors]
   )
   const connectedConnectorIds = useMemo(
@@ -179,7 +172,7 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
 
   /** Connected sources first; the catalog is already alphabetical, so the partition keeps the order. */
   const isConnected = (connector: SearchConnector) =>
-    connectionByType.get(connector.type)?.viewerMembership === 'connected'
+    connectionByType.get(connector.type)?.some((source) => source.viewerMembership === 'connected')
   const ordered = [
     ...PERSONAL_SEARCH_CONNECTORS.filter(isConnected),
     ...PERSONAL_SEARCH_CONNECTORS.filter((connector) => !isConnected(connector)),
@@ -188,17 +181,24 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex flex-wrap gap-1.5'>
-        {ordered.map((connector) => {
-          const connection = connectionByType.get(connector.type)
-          return (
+        {ordered.flatMap((connector) => {
+          const connections = connectionByType.get(connector.type) ?? []
+          return (connections.length ? connections : [undefined]).map((connection) => (
             <SourceChip
-              key={connector.type}
+              key={connection?.connectorId ?? connector.type}
               connector={connector}
               connection={connection}
+              showSource={connections.length > 1}
               unavailableReason={searchConnectorUnavailableReason(
                 connector,
                 integrationAvailability,
-                { memberAccessAvailable, hasConnection: connection !== undefined, canCreate }
+                {
+                  memberAccessAvailable,
+                  hasConnection: connection !== undefined,
+                  canCreate,
+                  oauthServiceAvailability,
+                  isIntegrationAvailabilityReady,
+                }
               )}
               waiting={
                 connection ? isAwaiting(connection.connectorId) : isAwaitingSource(connector.type)
@@ -206,13 +206,15 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
               disabled={isPending}
               onConnect={() => connectSearchSource(workspaceId, connector, connection)}
             />
-          )
+          ))
         })}
       </div>
       {error && <p className='px-2 text-[var(--text-error)] text-caption'>{error}</p>}
       {setupConnector && (
         <SourceSetupModal
           connector={setupConnector}
+          isPending={isPending}
+          error={error}
           onClose={closeSetup}
           onConnect={(sourceConfig) =>
             connectSource(workspaceId, setupConnector.type, sourceConfig)

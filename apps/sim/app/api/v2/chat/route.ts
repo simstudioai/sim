@@ -335,7 +335,7 @@ export const POST = withRouteHandler(
       const [workspaceContext, integrationTools, entitlements, billingAttribution] =
         await Promise.all([
           generateWorkspaceContext(workspaceId, userId, { workspaceAccess, secretMountPolicy }),
-          buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+          buildIntegrationToolSchemas(userId, undefined, workspaceId),
           computeWorkspaceEntitlements(workspaceId, userId),
           // Hosted execution refuses to run without an attribution snapshot;
           // the executor path receives it as a header, this path resolves it

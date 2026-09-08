@@ -98,6 +98,7 @@ export interface ToolCatalogEntry {
     | 'query_logs'
     | 'query_user_table'
     | 'read'
+    | 'read_document'
     | 'redeploy'
     | 'respond'
     | 'restore_resource'
@@ -116,6 +117,7 @@ export interface ToolCatalogEntry {
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
+    | 'search_workspace'
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
@@ -234,6 +236,7 @@ export interface ToolCatalogEntry {
     | 'query_logs'
     | 'query_user_table'
     | 'read'
+    | 'read_document'
     | 'redeploy'
     | 'respond'
     | 'restore_resource'
@@ -252,6 +255,7 @@ export interface ToolCatalogEntry {
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
+    | 'search_workspace'
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
@@ -4734,6 +4738,37 @@ export const Read: ToolCatalogEntry = {
   },
 }
 
+export const ReadDocument: ToolCatalogEntry = {
+  id: 'read_document',
+  name: 'read_document',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    properties: {
+      documentId: {
+        description: 'Canonical document ID returned by search or the selected document context.',
+        type: 'string',
+      },
+      limit: {
+        default: 20,
+        description: 'Maximum number of chunks to read.',
+        maximum: 50,
+        minimum: 1,
+        type: 'integer',
+      },
+      offset: {
+        default: 0,
+        description: 'Number of chunks to skip.',
+        maximum: 5000,
+        minimum: 0,
+        type: 'integer',
+      },
+    },
+    required: ['documentId'],
+    type: 'object',
+  },
+}
+
 export const Redeploy: ToolCatalogEntry = {
   id: 'redeploy',
   name: 'redeploy',
@@ -5544,6 +5579,51 @@ export const SearchLibraryDocs: ToolCatalogEntry = {
       },
     },
     required: ['library_name', 'query'],
+  },
+}
+
+export const SearchWorkspace: ToolCatalogEntry = {
+  id: 'search_workspace',
+  name: 'search_workspace',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    properties: {
+      documentIds: {
+        description:
+          'Optional document IDs returned by search or selected by the user; narrows retrieval to these documents.',
+        items: { type: 'string' },
+        maxItems: 20,
+        minItems: 1,
+        type: 'array',
+      },
+      modifiedAfter: {
+        description:
+          'Optional ISO datetime; restrict results to documents modified after this time.',
+        format: 'date-time',
+        type: 'string',
+      },
+      query: {
+        description: 'Search query describing the information needed.',
+        maxLength: 2000,
+        minLength: 1,
+        type: 'string',
+      },
+      source: {
+        description:
+          'Optional connector type or upload source; can narrow the selected search scope.',
+        type: 'string',
+      },
+      topK: {
+        default: 20,
+        description: 'Maximum number of matching chunks to return.',
+        maximum: 50,
+        minimum: 1,
+        type: 'integer',
+      },
+    },
+    required: ['query'],
+    type: 'object',
   },
 }
 
@@ -7591,6 +7671,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [QueryLogs.id]: QueryLogs,
   [QueryUserTable.id]: QueryUserTable,
   [Read.id]: Read,
+  [ReadDocument.id]: ReadDocument,
   [Redeploy.id]: Redeploy,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
@@ -7609,6 +7690,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
+  [SearchWorkspace.id]: SearchWorkspace,
   [SetBlockEnabled.id]: SetBlockEnabled,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,

@@ -9,6 +9,11 @@ import {
   wireFallback,
 } from '@/lib/core/config/env-capabilities'
 import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  ProviderQuotaExhaustedError,
+  recordProviderCooldown,
+  waitForProviderAdmission,
+} from '@/lib/core/rate-limiter/provider-admission'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -208,6 +213,7 @@ export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
  * retries because another provider may merely be temporarily unavailable.
  */
 export function isEmbeddingQuotaExhaustion(error: unknown): boolean {
+  if (error instanceof ProviderQuotaExhaustedError) return true
   if (error instanceof EmbeddingAPIError) return error.quotaExhausted === true
   if (error instanceof AggregateError) {
     return error.errors.length > 0 && error.errors.every(isEmbeddingQuotaExhaustion)
@@ -251,13 +257,15 @@ function isQuotaExhaustionBody(errorText: string): boolean {
 }
 
 /** Reads a bounded provider body only for internal quota classification. */
-async function readEmbeddingErrorBody(response: Response): Promise<string> {
+async function readEmbeddingErrorBody(response: Response, signal?: AbortSignal): Promise<string> {
   try {
     return await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Embedding API error response',
+      signal,
     })
   } catch {
+    signal?.throwIfAborted()
     return ''
   }
 }
@@ -336,7 +344,10 @@ function resolveAzureOverride(info: EmbeddingModelInfo, model: string) {
   return { apiKey, endpoint, apiVersion, deployment: env.KB_OPENAI_MODEL_NAME || model }
 }
 
-async function resolveProvider(model: string, options: EmbedOptions): Promise<ResolvedProvider> {
+async function resolveProvider(
+  model: string,
+  options: Omit<EmbedOptions, 'projectInputs'>
+): Promise<ResolvedProvider> {
   const info = getEmbeddingModelInfo(model)
   const dimensions = resolveDimensions(info, options.dimensions)
 
@@ -478,6 +489,15 @@ function validateEmbeddingBatch(
   return { embeddings: value as number[][], dimensions: resolvedDimensions }
 }
 
+/** Deployment-managed key rotations share one operating budget and provider pause. */
+function embeddingAdmissionIdentity(
+  provider: Pick<ResolvedProvider, 'providerId' | 'quotaCircuitIdentity' | 'isBYOK'>
+): EmbeddingQuotaCircuitIdentity {
+  return provider.isBYOK
+    ? provider.quotaCircuitIdentity
+    : { providerId: provider.providerId, credentialFingerprint: `hosted:${provider.providerId}` }
+}
+
 /** `inputs` are already projected and batched by the embedding orchestrator. */
 async function callEmbeddingAPI(
   inputs: string[],
@@ -497,10 +517,28 @@ async function callEmbeddingAPI(
   isBYOK: boolean,
   signal?: AbortSignal
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
+  const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
   return retryWithExponentialBackoff(
-    async () => {
-      if (await isEmbeddingQuotaCircuitOpen(quotaCircuitIdentity)) {
+    async (operationSignal, deadlineAt) => {
+      if (await isEmbeddingQuotaCircuitOpen(admissionIdentity)) {
         throw new EmbeddingQuotaExhaustedError(providerId)
+      }
+
+      try {
+        await waitForProviderAdmission({
+          ...admissionIdentity,
+          operation: 'embedding',
+          inputTokens: inputs.reduce(
+            (sum, text) => sum + estimateTokenCount(text, tokenizerProvider).count,
+            0
+          ),
+          signal: operationSignal,
+          maxWaitMs: Math.max(0, deadlineAt - Date.now()),
+        })
+      } catch (error) {
+        if (error instanceof ProviderQuotaExhaustedError)
+          throw new EmbeddingQuotaExhaustedError(providerId, error)
+        throw error
       }
 
       const request = adapter.buildRequest({
@@ -509,82 +547,91 @@ async function callEmbeddingAPI(
         dimensions: requestedDimensions,
       })
 
-      signal?.throwIfAborted()
+      operationSignal?.throwIfAborted()
       const controller = new AbortController()
-      const onAbort = () => controller.abort(signal?.reason)
-      signal?.addEventListener('abort', onAbort, { once: true })
-      if (signal?.aborted) onAbort()
+      const onAbort = () => controller.abort(operationSignal?.reason)
+      operationSignal?.addEventListener('abort', onAbort, { once: true })
+      if (operationSignal?.aborted) onAbort()
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
-      const response = await fetch(request.apiUrl, {
-        method: 'POST',
-        headers: request.headers,
-        body: JSON.stringify(request.body),
-        signal: controller.signal,
-      }).finally(() => {
-        clearTimeout(timeout)
-        signal?.removeEventListener('abort', onAbort)
-      })
-
-      if (!response.ok) {
-        const classificationBody = await readEmbeddingErrorBody(response)
-        const error = new EmbeddingAPIError(
-          `Embedding API failed: ${response.status}`,
-          response.status,
-          isBYOK
-        )
-        error.quotaExhausted =
-          isQuotaExhaustionBody(classificationBody) ||
-          (providerId === 'openrouter' && response.status === 402)
-
-        if (error.quotaExhausted) {
-          await openEmbeddingQuotaCircuit(quotaCircuitIdentity)
-          throw new EmbeddingQuotaExhaustedError(providerId, error)
-        }
-
-        /**
-         * Carry the provider's own answer to "when may I retry" onto the error,
-         * the way `fetchWithRetry` does for connectors. Without it the retry
-         * loop had nothing but blind exponential backoff and would exhaust every
-         * attempt inside a rate-limit window that had not yet reopened.
-         *
-         * The headers travel non-enumerably so the retry condition can re-read
-         * them without the bag reaching a log line.
-         */
-        attachRetryHeaders(error, response.headers)
-        const waitMs = resolveEmbeddingRetryDelayMs(response.headers)
-        if (waitMs !== null) {
-          error.retryAfterMs = waitMs
-        }
-
-        throw error
-      }
-
-      const json = await readResponseJsonWithLimit(response, {
-        maxBytes: MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
-        label: 'Embedding API success response',
-      })
-      let parsedEmbeddings: unknown
       try {
-        parsedEmbeddings = request.parse(json)
-      } catch {
-        throw new EmbeddingResponseValidationError('the vector payload could not be parsed')
-      }
-      const { embeddings, dimensions } = validateEmbeddingBatch(
-        parsedEmbeddings,
-        inputs.length,
-        expectedDimensions
-      )
-      /**
-       * Fallback for a response that carries no usage block. Estimated with the
-       * provider's own tokenizer, which is approximate for every non-OpenAI
-       * model — see {@link hasApproximateTokenCount}.
-       */
-      const totalTokens =
-        request.parseTokens?.(json) ??
-        inputs.reduce((sum, text) => sum + estimateTokenCount(text, tokenizerProvider).count, 0)
+        const response = await fetch(request.apiUrl, {
+          method: 'POST',
+          headers: request.headers,
+          body: JSON.stringify(request.body),
+          signal: controller.signal,
+        })
 
-      return { embeddings, totalTokens, dimensions }
+        if (!response.ok) {
+          const classificationBody = await readEmbeddingErrorBody(response, controller.signal)
+          const error = new EmbeddingAPIError(
+            `Embedding API failed: ${response.status}`,
+            response.status,
+            isBYOK
+          )
+          error.quotaExhausted =
+            isQuotaExhaustionBody(classificationBody) ||
+            (providerId === 'openrouter' && response.status === 402)
+
+          if (error.quotaExhausted) {
+            await openEmbeddingQuotaCircuit(admissionIdentity)
+            throw new EmbeddingQuotaExhaustedError(providerId, error)
+          }
+
+          /**
+           * Carry the provider's own answer to "when may I retry" onto the error,
+           * the way `fetchWithRetry` does for connectors. Without it the retry
+           * loop had nothing but blind exponential backoff and would exhaust every
+           * attempt inside a rate-limit window that had not yet reopened.
+           *
+           * The headers travel non-enumerably so the retry condition can re-read
+           * them without the bag reaching a log line.
+           */
+          attachRetryHeaders(error, response.headers)
+          const waitMs = resolveEmbeddingRetryDelayMs(response.headers)
+          if (waitMs !== null) {
+            error.retryAfterMs = waitMs
+          }
+
+          if (response.status === 429) {
+            await recordProviderCooldown(
+              { ...admissionIdentity, operation: 'embedding' },
+              waitMs ?? 1000
+            )
+          }
+          throw error
+        }
+
+        const json = await readResponseJsonWithLimit(response, {
+          maxBytes: MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
+          label: 'Embedding API success response',
+          signal: controller.signal,
+        })
+        let parsedEmbeddings: unknown
+        try {
+          parsedEmbeddings = request.parse(json)
+        } catch {
+          throw new EmbeddingResponseValidationError('the vector payload could not be parsed')
+        }
+        const { embeddings, dimensions } = validateEmbeddingBatch(
+          parsedEmbeddings,
+          inputs.length,
+          expectedDimensions
+        )
+        /**
+         * Fallback for a response that carries no usage block. Estimated with the
+         * provider's own tokenizer, which is approximate for every non-OpenAI
+         * model — see {@link hasApproximateTokenCount}.
+         */
+        const totalTokens =
+          request.parseTokens?.(json) ??
+          inputs.reduce((sum, text) => sum + estimateTokenCount(text, tokenizerProvider).count, 0)
+
+        return { embeddings, totalTokens, dimensions }
+      } finally {
+        clearTimeout(timeout)
+        operationSignal?.removeEventListener('abort', onAbort)
+      }
     },
     {
       /**
@@ -944,33 +991,18 @@ export async function embedOpenRouter(
 }
 
 type KnowledgeEmbedOptions = Omit<EmbedOptions, 'apiKey' | 'transport'>
+type KnowledgeProviderOptions = Omit<KnowledgeEmbedOptions, 'projectInputs'>
 
 function resolveEnvironmentOpenAIKey(): string {
   if (env.OPENAI_API_KEY) return env.OPENAI_API_KEY
   return getRotatingApiKey('openai')
 }
 
-/** @internal Exported for deterministic hosted/self-hosted routing tests. */
-export async function embedKnowledgeForDeployment(
-  texts: string[],
-  options: KnowledgeEmbedOptions,
-  hosted: boolean
-): Promise<EmbedResult> {
+async function resolveKnowledgeFallback(options: KnowledgeProviderOptions, hosted: boolean) {
   const model = options.model ?? DEFAULT_EMBEDDING_MODEL
   const info = getEmbeddingModelInfo(model)
-  if (hosted || !env.OPENROUTER_API_KEY || info.provider !== 'openai') {
-    return embed(texts, options)
-  }
-
+  if (hosted || !env.OPENROUTER_API_KEY || info.provider !== 'openai') return null
   const dimensions = resolveDimensions(info, options.dimensions)
-  assertEmbeddingAggregateResponseWithinLimit(texts.length, dimensions)
-  const taskType = options.taskType ?? 'document'
-  const boundedInputs = prepareEmbeddingInputs(
-    texts,
-    model,
-    getEmbeddingInputLimits(info),
-    options.projectInputs
-  )
   const workspaceKey = options.workspaceId ? await getBYOKKey(options.workspaceId, 'openai') : null
   const capabilityValues = {
     ...env,
@@ -1057,11 +1089,11 @@ export async function embedKnowledgeForDeployment(
     ollama: () => null,
   } satisfies FallbackFactories<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>
 
-  const fallback = wireFallback<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>({
+  return wireFallback<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>({
     definition: KNOWLEDGE_EMBEDDINGS_CAPABILITY,
     values: capabilityValues,
     factories,
-    shouldFallback: isTransientEmbeddingError,
+    shouldFallback: (error) => !options.signal?.aborted && isTransientEmbeddingError(error),
     onFailure(providerId, error) {
       logger.warn(
         'Knowledge embedding provider failed; continuing fallback chain',
@@ -1071,6 +1103,60 @@ export async function embedKnowledgeForDeployment(
       )
     },
   })
+}
+
+/** @internal Exported for deterministic hosted/self-hosted routing tests. */
+export async function assertKnowledgeEmbeddingCapacityForDeployment(
+  options: KnowledgeProviderOptions,
+  hosted: boolean
+): Promise<void> {
+  options.signal?.throwIfAborted()
+  const fallback = await resolveKnowledgeFallback(options, hosted)
+  const providers = fallback?.providers ?? [
+    await resolveProvider(options.model ?? DEFAULT_EMBEDDING_MODEL, options),
+  ]
+  const errors: EmbeddingQuotaExhaustedError[] = []
+  for (const provider of providers) {
+    options.signal?.throwIfAborted()
+    const exhausted = await isEmbeddingQuotaCircuitOpen(embeddingAdmissionIdentity(provider))
+    options.signal?.throwIfAborted()
+    if (!exhausted) return
+    errors.push(new EmbeddingQuotaExhaustedError(provider.providerId))
+  }
+  if (errors.length === 1) throw errors[0]
+  throw new AggregateError(
+    errors,
+    'Every configured knowledge embedding provider has exhausted quota'
+  )
+}
+
+/** Avoids downloading, parsing, and OCR when every usable provider is already paused for quota. */
+export async function assertKnowledgeEmbeddingCapacity(
+  options: KnowledgeProviderOptions
+): Promise<void> {
+  return assertKnowledgeEmbeddingCapacityForDeployment(options, isHosted)
+}
+
+/** @internal Exported for deterministic hosted/self-hosted routing tests. */
+export async function embedKnowledgeForDeployment(
+  texts: string[],
+  options: KnowledgeEmbedOptions,
+  hosted: boolean
+): Promise<EmbedResult> {
+  options.signal?.throwIfAborted()
+  const fallback = await resolveKnowledgeFallback(options, hosted)
+  if (!fallback) return embed(texts, options)
+  const model = options.model ?? DEFAULT_EMBEDDING_MODEL
+  const info = getEmbeddingModelInfo(model)
+  const dimensions = resolveDimensions(info, options.dimensions)
+  assertEmbeddingAggregateResponseWithinLimit(texts.length, dimensions)
+  const taskType = options.taskType ?? 'document'
+  const boundedInputs = prepareEmbeddingInputs(
+    texts,
+    model,
+    getEmbeddingInputLimits(info),
+    options.projectInputs
+  )
 
   const itemLimits = fallback.providers.flatMap((provider) =>
     provider.adapter.maxItemsPerRequest ? [provider.adapter.maxItemsPerRequest] : []
@@ -1087,6 +1173,7 @@ export async function embedKnowledgeForDeployment(
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
+        options.signal?.throwIfAborted()
         return await fallback.execute(async (provider) => ({
           ...(await callEmbeddingAPI(
             batch,
@@ -1097,7 +1184,8 @@ export async function embedKnowledgeForDeployment(
             provider.quotaCircuitIdentity,
             options.dimensions,
             provider.dimensions,
-            provider.isBYOK
+            provider.isBYOK,
+            options.signal
           )),
           provider,
         }))

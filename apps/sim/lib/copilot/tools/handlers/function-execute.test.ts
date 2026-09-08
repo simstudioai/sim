@@ -191,6 +191,48 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
   })
 
+  it('runs Assistant compute without workspace secrets even if a caller supplies a secret actor', async () => {
+    await executeFunctionExecute(
+      { code: 'return 6 * 7', envVars: { LEAK: 'forged' } },
+      {
+        userId: 'u1',
+        workflowId: '',
+        workspaceId: 'ws_1',
+        requestMode: 'assistant',
+        secretActorUserId: 'u1',
+      }
+    )
+    expect(mockMaterializeCopilotCodeSecrets).not.toHaveBeenCalled()
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({ envVars: {}, mountedSecrets: [] }),
+      expect.anything()
+    )
+  })
+
+  it.each([
+    { secrets: ['API_KEY'] },
+    { inputTables: ['table'] },
+    { inputs: { tables: ['table'] } },
+    { outputTable: { name: 'output' } },
+    { code: 'return {{API_KEY}}' },
+  ])('refuses Assistant table and secret access before executing code: %j', async (params) => {
+    await expect(
+      executeFunctionExecute(
+        { code: 'return 1', ...params },
+        {
+          userId: 'u1',
+          workflowId: '',
+          workspaceId: 'ws_1',
+          requestMode: 'assistant',
+          secretActorUserId: 'u1',
+        }
+      )
+    ).rejects.toThrow()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockMaterializeCopilotCodeSecrets).not.toHaveBeenCalled()
+  })
+
   it('mounts only explicit references and imports active provenance out of band', async () => {
     mockMaterializeCopilotCodeSecrets.mockResolvedValue({
       envVars: { API_KEY: 'secret-value' },

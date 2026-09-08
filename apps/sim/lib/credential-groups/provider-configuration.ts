@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import { credentialGroup } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -10,7 +12,7 @@ const CREDENTIAL_GROUP_PROVIDER_CONFIGURATION_TYPE =
 const CREDENTIAL_GROUP_PROVIDER_CONFIGURATION_VERSION = 1 as const
 
 export interface SlackCredentialGroupConfiguration {
-  slackBotCredentialId: string
+  slackBotCredentialId?: string
   clientId: string
   clientSecret: string
   appId: string
@@ -29,7 +31,8 @@ function isSlackConfiguration(value: unknown): value is SlackCredentialGroupConf
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
   return (
-    typeof candidate.slackBotCredentialId === 'string' &&
+    (candidate.slackBotCredentialId === undefined ||
+      typeof candidate.slackBotCredentialId === 'string') &&
     typeof candidate.clientId === 'string' &&
     typeof candidate.clientSecret === 'string' &&
     typeof candidate.appId === 'string' &&
@@ -90,7 +93,8 @@ export async function decryptCredentialGroupProviderConfiguration(
 }
 
 export async function getSlackCredentialGroupConfiguration(params: {
-  workspaceId: string
+  workspaceId?: string | null
+  organizationId?: string | null
   credentialGroupId: string
   executor?: DbOrTx
 }): Promise<SlackCredentialGroupConfiguration | null> {
@@ -101,7 +105,7 @@ export async function getSlackCredentialGroupConfiguration(params: {
     .where(
       and(
         eq(credentialGroup.id, params.credentialGroupId),
-        eq(credentialGroup.workspaceId, params.workspaceId)
+        resourceScopeCondition(credentialGroup, resourceScopeFromOwner(params))
       )
     )
     .limit(1)
@@ -113,15 +117,16 @@ export async function getSlackCredentialGroupConfiguration(params: {
 }
 
 export async function listSlackCredentialGroupConfigurationsForBot(params: {
-  workspaceId: string
-  slackBotCredentialId: string
+  workspaceId?: string | null
+  organizationId?: string | null
+  slackBotCredentialId?: string
 }): Promise<SlackCredentialGroupConfiguration[]> {
   const rows = await db
     .select({ encryptedProviderConfiguration: credentialGroup.encryptedProviderConfiguration })
     .from(credentialGroup)
     .where(
       and(
-        eq(credentialGroup.workspaceId, params.workspaceId),
+        resourceScopeCondition(credentialGroup, resourceScopeFromOwner(params)),
         sql`${credentialGroup.options} @> ${JSON.stringify([
           { provider: 'slack', slackBotCredentialId: params.slackBotCredentialId },
         ])}::jsonb`

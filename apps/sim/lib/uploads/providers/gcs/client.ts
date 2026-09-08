@@ -151,6 +151,7 @@ function getGcsMultipartStagingIdentity(key: string): GcsMultipartStagingIdentit
  * @param size File size in bytes (required if configOrSize is GcsConfig, optional otherwise)
  * @param preserveKey Preserve the fileName as the storage key without adding timestamp prefix (default: false)
  * @param metadata Optional metadata to store with the file
+ * @param createOnly Reject an existing key instead of replacing its object
  * @returns Object with file information
  */
 export async function uploadToGcs(
@@ -160,7 +161,8 @@ export async function uploadToGcs(
   configOrSize?: GcsConfig | number,
   size?: number,
   preserveKey?: boolean,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  createOnly = false
 ): Promise<FileInfo> {
   let config: GcsConfig
   let fileSize: number
@@ -197,6 +199,7 @@ export async function uploadToGcs(
       contentType,
       resumable: false,
       metadata: { metadata: gcsMetadata },
+      ...(createOnly ? { preconditionOpts: { ifGenerationMatch: 0 } } : {}),
     })
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`

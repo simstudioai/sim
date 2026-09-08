@@ -12,6 +12,8 @@ export const slackOpenViewTool: ToolConfig<SlackOpenViewParams, SlackOpenViewRes
   oauth: {
     required: true,
     provider: 'slack',
+    /** Slack requires a valid token but no named scope for this method. */
+    requiredScopes: [],
   },
 
   params: {

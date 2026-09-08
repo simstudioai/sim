@@ -18,6 +18,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { safeAccountInsert } from '@/lib/oauth/credential-service'
 import {
   parseInstagramLongLivedToken,
@@ -52,7 +53,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return clearOAuthCookies(NextResponse.redirect(`${baseUrl}/workspace?error=unauthorized`))
+      return clearOAuthCookies(
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=unauthorized`)
+      )
     }
 
     const parsed = await parseRequest(instagramCallbackContract, request, {})
@@ -68,7 +71,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error_description,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_access_denied`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_access_denied`)
       )
     }
 
@@ -79,7 +82,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         hasCookieState: Boolean(cookieState),
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_state_mismatch`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_state_mismatch`)
       )
     }
 
@@ -90,7 +93,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!code) {
       logger.error('No authorization code received from Instagram')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_code`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_code`)
       )
     }
 
@@ -123,7 +126,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: errorText,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_token_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_token_error`)
       )
     }
 
@@ -136,7 +139,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!shortLived) {
       logger.error('Instagram short-lived token response was invalid')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_token`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_token`)
       )
     }
 
@@ -160,7 +163,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: errorText,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_exchange_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_exchange_error`)
       )
     }
 
@@ -174,7 +177,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!longLived) {
       logger.error('Instagram long-lived token response was invalid')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_long_lived`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_long_lived`)
       )
     }
 
@@ -199,7 +202,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: errorText,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_profile_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_profile_error`)
       )
     }
 
@@ -212,7 +215,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!profile) {
       logger.error('Instagram profile response was invalid')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_profile_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_profile_error`)
       )
     }
 
@@ -222,7 +225,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!igUserId) {
       logger.error('Instagram profile response missing user_id', { profile })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_user_id`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_user_id`)
       )
     }
 
@@ -311,7 +314,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const returnUrlCookie = request.cookies.get(INSTAGRAM_RETURN_URL_COOKIE)?.value
     const redirectUrl =
-      returnUrlCookie && isSameOrigin(returnUrlCookie) ? returnUrlCookie : `${baseUrl}/workspace`
+      returnUrlCookie && isSameOrigin(returnUrlCookie)
+        ? returnUrlCookie
+        : `${baseUrl}${APP_ENTRY_PATH}`
     const finalUrl = new URL(redirectUrl)
     finalUrl.searchParams.set('instagram_connected', 'true')
 
@@ -322,6 +327,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       error instanceof EnvCapabilityConfigurationError && error.capabilityId === 'oauth'
         ? 'instagram_config_error'
         : 'instagram_callback_error'
-    return clearOAuthCookies(NextResponse.redirect(`${baseUrl}/workspace?error=${errorCode}`))
+    return clearOAuthCookies(
+      NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=${errorCode}`)
+    )
   }
 })

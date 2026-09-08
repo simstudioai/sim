@@ -22,6 +22,7 @@ const workspaceFilesMock = {
   key: 'workspaceFiles.key',
   userId: 'workspaceFiles.userId',
   workspaceId: 'workspaceFiles.workspaceId',
+  organizationId: 'workspaceFiles.organizationId',
   folderId: 'workspaceFiles.folderId',
   context: 'workspaceFiles.context',
   chatId: 'workspaceFiles.chatId',
@@ -140,6 +141,12 @@ const workspaceFileSearchSegmentMock = {
 }
 
 export const schemaMock = {
+  /**
+   * The schema's folded-address expression. Returns the column it wraps so a
+   * predicate built on it still names the column, and assertions on condition
+   * shape keep working.
+   */
+  foldedEmail: (column: unknown) => column,
   user: {
     id: 'user.id',
     name: 'user.name',
@@ -628,6 +635,7 @@ export const schemaMock = {
     tokens: 'rateLimitBucket.tokens',
     lastRefillAt: 'rateLimitBucket.lastRefillAt',
     updatedAt: 'rateLimitBucket.updatedAt',
+    blockedUntil: 'rateLimitBucket.blockedUntil',
   },
   chat: {
     id: 'chat.id',
@@ -817,7 +825,9 @@ export const schemaMock = {
     id: 'knowledgeBase.id',
     userId: 'knowledgeBase.userId',
     workspaceId: 'knowledgeBase.workspaceId',
+    organizationId: 'knowledgeBase.organizationId',
     name: 'knowledgeBase.name',
+    isSearchIndex: 'knowledgeBase.isSearchIndex',
     description: 'knowledgeBase.description',
     tokenCount: 'knowledgeBase.tokenCount',
     embeddingModel: 'knowledgeBase.embeddingModel',
@@ -850,6 +860,9 @@ export const schemaMock = {
     deletedAt: 'document.deletedAt',
     acl: 'document.acl',
     sourceModifiedAt: 'document.sourceModifiedAt',
+    sourceSeenAt: 'document.sourceSeenAt',
+    aclRequirements: 'document.aclRequirements',
+    aclVerifiedAt: 'document.aclVerifiedAt',
     userExcluded: 'document.userExcluded',
     tag1: 'document.tag1',
     tag2: 'document.tag2',
@@ -959,6 +972,7 @@ export const schemaMock = {
     userId: 'copilotChats.userId',
     workflowId: 'copilotChats.workflowId',
     workspaceId: 'copilotChats.workspaceId',
+    organizationId: 'copilotChats.organizationId',
     type: 'copilotChats.type',
     title: 'copilotChats.title',
     messages: 'copilotChats.messages',
@@ -1323,6 +1337,7 @@ export const schemaMock = {
     targetKind: 'scimProjectionGrant.targetKind',
     targetId: 'scimProjectionGrant.targetId',
     permissionType: 'scimProjectionGrant.permissionType',
+    baselinePermission: 'scimProjectionGrant.baselinePermission',
     origin: 'scimProjectionGrant.origin',
     createdAt: 'scimProjectionGrant.createdAt',
     updatedAt: 'scimProjectionGrant.updatedAt',
@@ -1414,6 +1429,7 @@ export const schemaMock = {
   credential: {
     id: 'credential.id',
     workspaceId: 'credential.workspaceId',
+    organizationId: 'credential.organizationId',
     type: 'credential.type',
     displayName: 'credential.displayName',
     description: 'credential.description',
@@ -1450,6 +1466,7 @@ export const schemaMock = {
   credentialGroup: {
     id: 'credentialGroup.id',
     workspaceId: 'credentialGroup.workspaceId',
+    organizationId: 'credentialGroup.organizationId',
     publicId: 'credentialGroup.publicId',
     name: 'credentialGroup.name',
     description: 'credentialGroup.description',
@@ -1507,6 +1524,7 @@ export const schemaMock = {
     id: 'pendingCredentialDraft.id',
     userId: 'pendingCredentialDraft.userId',
     workspaceId: 'pendingCredentialDraft.workspaceId',
+    organizationId: 'pendingCredentialDraft.organizationId',
     providerId: 'pendingCredentialDraft.providerId',
     displayName: 'pendingCredentialDraft.displayName',
     description: 'pendingCredentialDraft.description',
@@ -1558,6 +1576,12 @@ export const schemaMock = {
     metadata: 'asyncJobs.metadata',
     updatedAt: 'asyncJobs.updatedAt',
   },
+  organizationSearchIntegration: {
+    organizationId: 'organizationSearchIntegration.organizationId',
+    connectorType: 'organizationSearchIntegration.connectorType',
+    approved: 'organizationSearchIntegration.approved',
+    updatedAt: 'organizationSearchIntegration.updatedAt',
+  },
   knowledgeConnector: {
     id: 'knowledgeConnector.id',
     knowledgeBaseId: 'knowledgeConnector.knowledgeBaseId',
@@ -1571,6 +1595,8 @@ export const schemaMock = {
     lastSyncAt: 'knowledgeConnector.lastSyncAt',
     lastSyncError: 'knowledgeConnector.lastSyncError',
     lastSyncDocCount: 'knowledgeConnector.lastSyncDocCount',
+    listingCheckpoint: 'knowledgeConnector.listingCheckpoint',
+    directoryCheckpoint: 'knowledgeConnector.directoryCheckpoint',
     nextSyncAt: 'knowledgeConnector.nextSyncAt',
     consecutiveFailures: 'knowledgeConnector.consecutiveFailures',
     syncLockToken: 'knowledgeConnector.syncLockToken',
@@ -1592,6 +1618,7 @@ export const schemaMock = {
     deletedAt: 'knowledgeConnector.deletedAt',
   },
   knowledgeConnectorSyncLog: {
+    listedCount: 'knowledgeConnectorSyncLog.listedCount',
     id: 'knowledgeConnectorSyncLog.id',
     connectorId: 'knowledgeConnectorSyncLog.connectorId',
     status: 'knowledgeConnectorSyncLog.status',
@@ -1604,9 +1631,36 @@ export const schemaMock = {
     docsFailed: 'knowledgeConnectorSyncLog.docsFailed',
     errorMessage: 'knowledgeConnectorSyncLog.errorMessage',
   },
+  knowledgeExternalDirectory: {
+    workspaceId: 'knowledgeExternalDirectory.workspaceId',
+    organizationId: 'knowledgeExternalDirectory.organizationId',
+    providerId: 'knowledgeExternalDirectory.providerId',
+    tenantId: 'knowledgeExternalDirectory.tenantId',
+    syncLockToken: 'knowledgeExternalDirectory.syncLockToken',
+    syncLockLeaseAt: 'knowledgeExternalDirectory.syncLockLeaseAt',
+    lastStartedAt: 'knowledgeExternalDirectory.lastStartedAt',
+    lastCompleteSyncAt: 'knowledgeExternalDirectory.lastCompleteSyncAt',
+  },
+  knowledgeExternalGroup: {
+    id: 'knowledgeExternalGroup.id',
+    workspaceId: 'knowledgeExternalGroup.workspaceId',
+    organizationId: 'knowledgeExternalGroup.organizationId',
+    providerId: 'knowledgeExternalGroup.providerId',
+    tenantId: 'knowledgeExternalGroup.tenantId',
+    externalGroupId: 'knowledgeExternalGroup.externalGroupId',
+    lastSyncedAt: 'knowledgeExternalGroup.lastSyncedAt',
+    createdAt: 'knowledgeExternalGroup.createdAt',
+    updatedAt: 'knowledgeExternalGroup.updatedAt',
+  },
+  knowledgeExternalGroupMember: {
+    groupId: 'knowledgeExternalGroupMember.groupId',
+    subjectToken: 'knowledgeExternalGroupMember.subjectToken',
+    createdAt: 'knowledgeExternalGroupMember.createdAt',
+  },
   knowledgeConnectorMember: {
     id: 'knowledgeConnectorMember.id',
     workspaceId: 'knowledgeConnectorMember.workspaceId',
+    organizationId: 'knowledgeConnectorMember.organizationId',
     connectorId: 'knowledgeConnectorMember.connectorId',
     credentialId: 'knowledgeConnectorMember.credentialId',
     subjectToken: 'knowledgeConnectorMember.subjectToken',
@@ -1618,6 +1672,7 @@ export const schemaMock = {
     lastListedCount: 'knowledgeConnectorMember.lastListedCount',
     lastError: 'knowledgeConnectorMember.lastError',
     memberSyncedThrough: 'knowledgeConnectorMember.memberSyncedThrough',
+    listingCheckpoint: 'knowledgeConnectorMember.listingCheckpoint',
     changeCursor: 'knowledgeConnectorMember.changeCursor',
     suspendedAt: 'knowledgeConnectorMember.suspendedAt',
     createdAt: 'knowledgeConnectorMember.createdAt',

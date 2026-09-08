@@ -71,10 +71,10 @@ export function isUsageLimitDocumentProcessingError(
 /**
  * Maximum vectors and embedding records retained before the atomic index swap.
  *
- * Each knowledge-base vector is 1,536 JavaScript numbers. The old 100,000-chunk
+ * At the supported maximum width, each vector contains 3,072 JavaScript numbers. The old 100,000-chunk
  * ceiling could retain well over a gigabyte before response JSON, array
  * overhead, chunk text, provenance, and insert records. Five thousand bounds
- * raw vector values to roughly 59 MiB while preserving the atomic replacement
+ * raw vector values to roughly 117 MiB while preserving the atomic replacement
  * behavior instead of silently truncating indexed content.
  */
 export const MAX_DOCUMENT_CHUNKS = 5_000

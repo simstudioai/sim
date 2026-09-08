@@ -34,7 +34,7 @@ const v2SegmentCountSchema = z.coerce
   .optional()
   .default(DEFAULT_SEGMENT_COUNT)
   .describe(
-    `Number of equal time buckets to divide the window into, from 1 to ${MAX_STATS_SEGMENT_COUNT}. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.`
+    `Number of time buckets, up to ${MAX_STATS_SEGMENT_COUNT}. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets.`
   )
 
 const v2LogSegmentSchema = z
@@ -142,7 +142,7 @@ export const v2LogStatsQuerySchema = z
     folderPaths: z
       .string()
       .describe(
-        `Comma-separated workflow folder paths to include. At most ${V2_LOG_FOLDER_PATHS_MAX} entries. A path covers its whole subtree. ${V2_FOLDER_FILTER_MISS}`
+        `Comma-separated workflow folder paths, including descendants. Up to ${V2_LOG_FOLDER_PATHS_MAX} paths. ${V2_FOLDER_FILTER_MISS}`
       )
       .optional()
       .transform((value, ctx) => {

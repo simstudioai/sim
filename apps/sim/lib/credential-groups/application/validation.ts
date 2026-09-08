@@ -5,7 +5,6 @@ import {
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
 import type {
-  CreateCredentialGroupInput,
   CredentialGroupOptionInput,
   CredentialGroupOptionUpdateInput,
   UpdateCredentialGroupInput,
@@ -24,7 +23,11 @@ function validateOption(
       `Credential option ${index + 1} requires a label of at most 100 characters`
     )
   }
-  if (option.provider === 'slack' && !option.slackBotCredentialId.trim()) {
+  if (
+    option.provider === 'slack' &&
+    option.slackBotCredentialId !== undefined &&
+    !option.slackBotCredentialId.trim()
+  ) {
     throw new OrchestrationError('validation', 'Select a custom Slack bot')
   }
 }
@@ -64,49 +67,14 @@ function normalizeOption<T extends CredentialGroupOptionInput | CredentialGroupO
   return { ...option, label: option.label.trim() }
 }
 
-export function validateCreateCredentialGroupInput(
-  input: CreateCredentialGroupInput
-): CreateCredentialGroupInput {
-  const name = input.name.trim()
-  if (!name || name.length > 100) {
-    throw new OrchestrationError('validation', 'Name must be between 1 and 100 characters')
-  }
-  const description = input.description?.trim()
-  if (description && description.length > 500) {
-    throw new OrchestrationError('validation', 'Description must be at most 500 characters')
-  }
-  validateOptions(input.options)
-  if (input.options.some((option) => option.provider === 'slack')) {
-    throw new OrchestrationError(
-      'validation',
-      'Create the Credential Group before configuring Slack'
-    )
-  }
-  return {
-    name,
-    ...(description ? { description } : {}),
-    options: input.options.map(normalizeOption),
-  }
-}
-
 export function validateUpdateCredentialGroupInput(
   input: UpdateCredentialGroupInput
 ): UpdateCredentialGroupInput {
-  if (Object.keys(input).length === 0) {
+  if (input.options === undefined && input.status === undefined) {
     throw new OrchestrationError('validation', 'At least one field must be updated')
-  }
-  const name = input.name?.trim()
-  if (input.name !== undefined && (!name || name.length > 100)) {
-    throw new OrchestrationError('validation', 'Name must be between 1 and 100 characters')
-  }
-  const description = input.description?.trim()
-  if (description && description.length > 500) {
-    throw new OrchestrationError('validation', 'Description must be at most 500 characters')
   }
   if (input.options) validateOptions(input.options)
   return {
-    ...(name ? { name } : {}),
-    ...(input.description !== undefined ? { description: description || null } : {}),
     ...(input.options ? { options: input.options.map(normalizeOption) } : {}),
     ...(input.status ? { status: input.status } : {}),
   }

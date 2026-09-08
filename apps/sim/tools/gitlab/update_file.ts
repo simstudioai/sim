@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabUpdateFileTool: ToolConfig<GitLabUpdateFileParams, GitLabUpdateFileResponse> = {
   id: 'gitlab_update_file',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Update File',
   description: 'Update an existing file in a GitLab project repository',
   version: '1.0.0',

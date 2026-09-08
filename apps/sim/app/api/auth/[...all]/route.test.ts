@@ -14,7 +14,6 @@ const handlerMocks = vi.hoisted(() => ({
     user: { id: 'anon' },
     session: { id: 'anon-session' },
   })),
-  oauthEnabled: vi.fn(),
 }))
 
 vi.mock('better-auth/next-js', () => ({
@@ -26,9 +25,6 @@ vi.mock('better-auth/next-js', () => ({
 
 vi.mock('@/lib/auth', () => ({
   auth: { handler: {} },
-}))
-vi.mock('@/lib/auth/oauth-provider-feature', () => ({
-  isOAuthProviderEnabled: handlerMocks.oauthEnabled,
 }))
 
 vi.mock('@/lib/auth/anonymous', () => ({
@@ -67,7 +63,7 @@ vi.mock('@/app/api/credential-groups/oauth-callback', () => ({
 import { GET, POST } from '@/app/api/auth/[...all]/route'
 
 afterAll(resetEnvFlagsMock)
-beforeEach(() => handlerMocks.oauthEnabled.mockResolvedValue(true))
+beforeEach(() => setEnvFlags({ isAuthDisabled: false }))
 
 describe('auth catch-all route managed OAuth callbacks', () => {
   beforeEach(() => {
@@ -103,9 +99,9 @@ describe('auth catch-all route managed OAuth callbacks', () => {
   })
 
   it.each([true, false])(
-    'preserves connector callbacks when the provider is enabled=%s',
-    async (enabled) => {
-      handlerMocks.oauthEnabled.mockResolvedValue(enabled)
+    'preserves connector callbacks with authentication disabled=%s',
+    async (authDisabled) => {
+      setEnvFlags({ isAuthDisabled: authDisabled })
       handlerMocks.betterAuthGET.mockResolvedValueOnce(new Response(null, { status: 204 }))
       const request = createMockRequest(
         'GET',
@@ -119,7 +115,6 @@ describe('auth catch-all route managed OAuth callbacks', () => {
       expect(response.status).toBe(204)
       expect(handlerMocks.betterAuthGET).toHaveBeenCalledWith(request)
       expect(handlerMocks.credentialGroupCallback).not.toHaveBeenCalled()
-      expect(handlerMocks.oauthEnabled).not.toHaveBeenCalled()
     }
   )
 
@@ -372,29 +367,21 @@ describe('OAuth provider client endpoints', () => {
   })
 
   it.each(['oauth2/consent', 'oauth2/continue', 'oauth2/public-client-prelogin'])(
-    'stops serving %s after the runtime flag changes',
+    'requires authentication for %s',
     async (path) => {
-      const request = () =>
-        createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
-      expect((await POST(request())).status).toBe(200)
-      handlerMocks.betterAuthPOST.mockClear()
-
-      handlerMocks.oauthEnabled.mockResolvedValue(false)
-      const disabled = await POST(request())
-      expect(disabled.status).toBe(404)
-      expect(disabled.headers.get('cache-control')).toBe('no-store')
+      setEnvFlags({ isAuthDisabled: true })
+      const request = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+      const response = await POST(request)
+      expect(response.status).toBe(404)
+      expect(response.headers.get('cache-control')).toBe('no-store')
       expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
-
-      handlerMocks.oauthEnabled.mockResolvedValue(true)
-      expect((await POST(request())).status).toBe(200)
-      expect(handlerMocks.betterAuthPOST).toHaveBeenCalledOnce()
     }
   )
 
   it.each([true, false])(
-    'preserves connector POST callbacks when the provider is enabled=%s',
-    async (enabled) => {
-      handlerMocks.oauthEnabled.mockResolvedValue(enabled)
+    'preserves connector POST callbacks with authentication disabled=%s',
+    async (authDisabled) => {
+      setEnvFlags({ isAuthDisabled: authDisabled })
       const request = createMockRequest(
         'POST',
         {},
@@ -403,14 +390,13 @@ describe('OAuth provider client endpoints', () => {
       )
       expect((await POST(request)).status).toBe(200)
       expect(handlerMocks.betterAuthPOST).toHaveBeenCalledExactlyOnceWith(request)
-      expect(handlerMocks.oauthEnabled).not.toHaveBeenCalled()
     }
   )
 
   it.each([true, false])(
-    'preserves authenticated connector linking when the OAuth provider is enabled=%s',
-    async (enabled) => {
-      handlerMocks.oauthEnabled.mockResolvedValue(enabled)
+    'preserves authenticated connector linking with authentication disabled=%s',
+    async (authDisabled) => {
+      setEnvFlags({ isAuthDisabled: authDisabled })
       const request = createMockRequest(
         'POST',
         { providerId: 'google-email', callbackURL: 'http://localhost:3000/workspace' },
@@ -422,7 +408,6 @@ describe('OAuth provider client endpoints', () => {
 
       expect(response.status).toBe(200)
       expect(handlerMocks.betterAuthPOST).toHaveBeenCalledExactlyOnceWith(request)
-      expect(handlerMocks.oauthEnabled).not.toHaveBeenCalled()
     }
   )
 })

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCalculateCost,
@@ -69,7 +69,16 @@ vi.mock('@/providers/utils', () => ({
   calculateCost: mockCalculateCost,
 }))
 
+import * as embeddingClient from '@/lib/embeddings/client'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+
+const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
+beforeEach(() => {
+  mockEmbeddingCapacity.mockReset().mockResolvedValue(undefined)
+  vi.spyOn(embeddingClient, 'assertKnowledgeEmbeddingCapacity').mockImplementation(
+    mockEmbeddingCapacity
+  )
+})
 
 const DOCUMENT_ID = 'document-1'
 const KNOWLEDGE_BASE_ID = 'knowledge-base-1'
@@ -203,6 +212,68 @@ describe('knowledge document indexing usage', () => {
       pricingId: 'text-embedding-3-small',
     })
     mockCalculateCost.mockReturnValue({ total: 0.25 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('aborts a timed-out parse and never embeds its late result', async () => {
+    vi.useFakeTimers()
+    armDocumentReads()
+    let finishParse: ((value: unknown) => void) | undefined
+    mockProcessDocument.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishParse = resolve
+        })
+    )
+    const pending = processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      undefined,
+      'timeout-pass'
+    )
+    const rejected = expect(pending).rejects.toThrow('Document processing timed out')
+    await vi.advanceTimersByTimeAsync(0)
+    const signal = mockProcessDocument.mock.calls[0][6].signal as AbortSignal
+    expect(signal.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(600_001)
+    await rejected
+    expect(signal.aborted).toBe(true)
+    finishParse?.({ chunks: [{ text: 'late text', metadata: {} }], metadata: {} })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    expect(mockRecordUsage).not.toHaveBeenCalled()
+  })
+
+  it('aborts in-flight embeddings when the document deadline expires', async () => {
+    vi.useFakeTimers()
+    armDocumentReads()
+    mockGenerateEmbeddings.mockImplementationOnce(
+      (_texts, _model, _workspace, signal: AbortSignal) =>
+        new Promise((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        )
+    )
+    const pending = processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      undefined,
+      'timeout-pass'
+    )
+    const rejected = expect(pending).rejects.toThrow('Document processing timed out')
+    await vi.advanceTimersByTimeAsync(0)
+    const signal = mockGenerateEmbeddings.mock.calls[0][3] as AbortSignal
+    expect(signal).toBe(mockProcessDocument.mock.calls[0][6].signal)
+    await vi.advanceTimersByTimeAsync(600_001)
+    await rejected
+    expect(signal.aborted).toBe(true)
+    expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
   it('records one embedding charge per indexing pass', async () => {

@@ -21,6 +21,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type WorkspaceSearchFilters,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
+import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
@@ -165,8 +169,9 @@ export interface SendMessageOptions {
    * attempts instead of opening a second chat.
    */
   resumeUserMessageId?: string
-  /** Asked for beyond the default agent turn; `ask` answers from the attached knowledge alone. */
+  /** Assistant searches the workspace and acts through the caller's connected accounts. */
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 /**
@@ -191,6 +196,7 @@ interface StartSendMessageOptions {
    */
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -200,6 +206,7 @@ interface WithdrawnSend {
   contexts?: ChatContext[]
   userMessageId: string
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 export interface UseChatReturn {
@@ -304,13 +311,15 @@ interface DetachedChatResolution {
 interface QueuedSendHandoffState {
   id: string
   chatId?: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   supersededStreamId: string | null
   userMessageId: string
   message: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
   requestedAt: number
   resolveAttempts?: number
 }
@@ -523,7 +532,8 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       typeof parsed.supersededStreamId === 'string' ? parsed.supersededStreamId : null
     if (
       typeof parsed?.id !== 'string' ||
-      typeof parsed.workspaceId !== 'string' ||
+      (typeof parsed.workspaceId !== 'string' && typeof parsed.organizationId !== 'string') ||
+      (typeof parsed.workspaceId === 'string' && typeof parsed.organizationId === 'string') ||
       typeof parsed.userMessageId !== 'string' ||
       typeof parsed.message !== 'string' ||
       typeof parsed.requestedAt !== 'number' ||
@@ -539,10 +549,14 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       return null
     }
 
+    const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
+    if (!assistantSearch.success) return null
+
     return {
       id: parsed.id,
       ...(chatId ? { chatId } : {}),
       workspaceId: parsed.workspaceId,
+      organizationId: parsed.organizationId,
       supersededStreamId,
       userMessageId: parsed.userMessageId,
       message: parsed.message,
@@ -552,6 +566,8 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.contexts)
         ? { contexts: parsed.contexts.filter(isChatContext) }
         : {}),
+      ...(parsed.requestMode === 'assistant' ? { requestMode: 'assistant' } : {}),
+      ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
       requestedAt: parsed.requestedAt,
       ...(typeof parsed.resolveAttempts === 'number' &&
       Number.isFinite(parsed.resolveAttempts) &&
@@ -1334,10 +1350,13 @@ export function getWorkflowCopilotUseChatOptions(
 }
 
 export function useChat(
-  workspaceId: string,
+  owner: string | { organizationId: string },
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
+  const workspaceId = typeof owner === 'string' ? owner : undefined
+  const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
+  const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -1544,10 +1563,10 @@ export function useChat(
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const pendingDesktopScopeIdRef = useRef(
-    desktopChatScopeId(workspaceId, undefined, pendingChatKeyRef.current)
+    desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
   )
   const initialDesktopScopeId = desktopChatScopeId(
-    workspaceId,
+    scopeKey,
     initialChatId,
     pendingChatKeyRef.current
   )
@@ -1686,11 +1705,7 @@ export function useChat(
     chatKeyRef.current = pendingChatKeyRef.current
     setChatKey(pendingChatKeyRef.current)
     clearQueueDispatchState()
-    const pendingDesktopScopeId = desktopChatScopeId(
-      workspaceId,
-      undefined,
-      pendingChatKeyRef.current
-    )
+    const pendingDesktopScopeId = desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
     pendingDesktopScopeIdRef.current = pendingDesktopScopeId
     desktopScopeIdRef.current = pendingDesktopScopeId
     setDesktopScopeId(pendingDesktopScopeId)
@@ -1703,6 +1718,8 @@ export function useChat(
     resetEphemeralPreviewState,
     setTransportIdle,
     workspaceId,
+    organizationId,
+    scopeKey,
   ])
 
   const flushPendingResourceReorder = useCallback(
@@ -1783,7 +1800,7 @@ export function useChat(
           ? activeTurn.pendingChatKey
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
-      const resolvedDesktopScopeId = desktopChatScopeId(workspaceId, chatId)
+      const resolvedDesktopScopeId = desktopChatScopeId(scopeKey, chatId)
       const activeActivityTracker = resourceActivityTrackerRef.current
       if (activeActivityTracker?.generation === streamGenRef.current) {
         if (wasPending) {
@@ -1839,14 +1856,26 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', chatUrl(workspaceId, chatId))
+        window.history.replaceState(
+          null,
+          '',
+          chatUrl(
+            organizationId ? { organizationId } : workspaceId!,
+            chatId,
+            activeTurn?.optimisticUserMessage.requestMode
+          )
+        )
       }
       if (options?.invalidateList) {
-        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+        queryClient.invalidateQueries<readonly unknown[]>({
+          queryKey: organizationId
+            ? mothershipChatKeys.organizationList(organizationId)
+            : mothershipChatKeys.list(workspaceId),
+        })
       }
       flushPendingResources(chatId, pendingChatKey)
     },
-    [flushPendingResources, queryClient, workspaceId]
+    [flushPendingResources, queryClient, workspaceId, organizationId, scopeKey]
   )
 
   const { data: chatHistory, isPending: isChatHistoryPending } =
@@ -1962,6 +1991,7 @@ export function useChat(
    */
   const reconcileHydratedWorkflowResources = useCallback(
     async (chatId: string, workflowResources: MothershipResource[]) => {
+      if (!workspaceId) return
       let existing: WorkflowMetadata[]
       try {
         existing = await getQueryClient().fetchQuery(getWorkflowListQueryOptions(workspaceId))
@@ -1980,7 +2010,7 @@ export function useChat(
         removeResource('workflow', resource.id)
       }
     },
-    [workspaceId, removeResource]
+    [workspaceId, organizationId, scopeKey, removeResource]
   )
 
   const reorderResources = useCallback(
@@ -2000,6 +2030,7 @@ export function useChat(
 
   const ensureWorkflowToolResource = useCallback(
     (toolArgs: Record<string, unknown>): string | undefined => {
+      if (!workspaceId) return undefined
       const targetWorkflowId =
         typeof toolArgs.workflowId === 'string'
           ? toolArgs.workflowId
@@ -2019,7 +2050,7 @@ export function useChat(
 
       return targetWorkflowId
     },
-    [addResource, workspaceId]
+    [addResource, workspaceId, organizationId, scopeKey]
   )
 
   const startClientWorkflowTool = useCallback(
@@ -2043,7 +2074,7 @@ export function useChat(
 
   const startClientLocalFilesystemTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
-      if (!isUserLocalVfsToolCall(toolName, toolArgs)) {
+      if (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs)) {
         return
       }
       if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
@@ -2094,7 +2125,7 @@ export function useChat(
         }
       )
     },
-    [workspaceId]
+    [workspaceId, organizationId, scopeKey]
   )
 
   const openBrowserResource = useCallback(() => {
@@ -2125,7 +2156,7 @@ export function useChat(
         }
       }
       if (targetChatId) {
-        const targetScopeId = desktopChatScopeId(workspaceId, targetChatId)
+        const targetScopeId = desktopChatScopeId(scopeKey, targetChatId)
         if (
           tracker.generation === streamGenRef.current &&
           resourceActivityTrackerRef.current === tracker
@@ -2138,7 +2169,7 @@ export function useChat(
       }
       return tracker
     },
-    [workspaceId]
+    [workspaceId, organizationId, scopeKey]
   )
 
   const clearResourceActivity = useCallback(
@@ -2150,7 +2181,7 @@ export function useChat(
       if (isCurrentBoundary) {
         captureResourceActivityScope(tracker, desktopScopeIdRef.current)
         if (chatIdRef.current) {
-          captureResourceActivityScope(tracker, desktopChatScopeId(workspaceId, chatIdRef.current))
+          captureResourceActivityScope(tracker, desktopChatScopeId(scopeKey, chatIdRef.current))
         }
       }
       const currentTracker = resourceActivityTrackerRef.current
@@ -2167,7 +2198,7 @@ export function useChat(
         resourceActivityTrackerRef.current = null
       }
     },
-    [workspaceId]
+    [workspaceId, organizationId, scopeKey]
   )
 
   const startClientBrowserTool = useCallback(
@@ -2330,7 +2361,11 @@ export function useChat(
             queryClient.invalidateQueries({
               queryKey: mothershipChatKeys.detail(resolvedChatId),
             })
-            queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+            queryClient.invalidateQueries<readonly unknown[]>({
+              queryKey: organizationId
+                ? mothershipChatKeys.organizationList(organizationId)
+                : mothershipChatKeys.list(workspaceId),
+            })
           })()
             .catch((error) => {
               if (detachedResolutionController.signal.aborted) return
@@ -2391,7 +2426,7 @@ export function useChat(
     }
     clearQueueDispatchState()
     const nextDesktopScopeId = desktopChatScopeId(
-      workspaceId,
+      scopeKey,
       initialChatId,
       pendingChatKeyRef.current
     )
@@ -2413,13 +2448,16 @@ export function useChat(
     cancelActiveStreamRecovery,
     cancelActiveStreamReader,
     workspaceId,
+    organizationId,
+    scopeKey,
   ])
 
   useEffect(() => {
+    if (organizationId) return
     initBrowserAgentTransport()
     initTerminalTransport()
     void activateDesktopChatScopes(desktopScopeIdRef.current).catch(() => {})
-  }, [])
+  }, [organizationId])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -2446,7 +2484,7 @@ export function useChat(
       !sendingRef.current &&
       (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
     ) {
-      const hydratedScopeId = desktopChatScopeId(workspaceId, chatHistory.id)
+      const hydratedScopeId = desktopChatScopeId(scopeKey, chatHistory.id)
       clearResourceActivityScope(hydratedScopeId)
       void cancelActiveBrowserTools([hydratedScopeId])
     }
@@ -2671,6 +2709,7 @@ export function useChat(
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
         workspaceId,
+        organizationId,
         queryClient,
         assistantId,
         expectedGen,
@@ -3688,9 +3727,13 @@ export function useChat(
           queryKey: mothershipChatKeys.detail(activeChatId),
         })
       }
-      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+      queryClient.invalidateQueries<readonly unknown[]>({
+        queryKey: organizationId
+          ? mothershipChatKeys.organizationList(organizationId)
+          : mothershipChatKeys.list(workspaceId),
+      })
     },
-    [workspaceId, queryClient]
+    [workspaceId, organizationId, scopeKey, queryClient]
   )
 
   const messagesRef = useRef(messages)
@@ -3729,7 +3772,8 @@ export function useChat(
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
       resumeUserMessageId?: string,
-      requestMode?: ChatRequestMode
+      requestMode?: ChatRequestMode,
+      assistantSearch?: WorkspaceSearchFilters
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3751,6 +3795,7 @@ export function useChat(
         contexts,
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(requestMode ? { requestMode } : {}),
+        ...(assistantSearch ? { assistantSearch } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3805,7 +3850,9 @@ export function useChat(
         void getDesktopBridge()?.settings?.notify({
           title: 'Task complete',
           body: 'Sim finished responding.',
-          route: `/workspace/${workspaceId}/chat/${completedChatId}`,
+          route: organizationId
+            ? `/o/${organizationId}/chat/${completedChatId}`
+            : `/workspace/${workspaceId}/chat/${completedChatId}`,
         })
       }
       reconcileTerminalPreviewSessions()
@@ -3844,7 +3891,7 @@ export function useChat(
       contexts?: ChatContext[],
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
-      if (!message.trim() || !workspaceId) return false
+      if (!message.trim() || !scopeKey) return false
       const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       const pendingStopStreamId = pendingStop
@@ -3887,12 +3934,14 @@ export function useChat(
           id: queuedSendHandoff.id,
           ...(chatId ? { chatId } : {}),
           workspaceId,
+          organizationId,
           supersededStreamId: queuedSendHandoff.supersededStreamId,
           userMessageId,
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
           ...(contexts ? { contexts } : {}),
           ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+          ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
           requestedAt: Date.now(),
         })
       }
@@ -3939,6 +3988,7 @@ export function useChat(
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,
         role: 'user' as const,
+        requestMode: options?.requestMode ?? 'agent',
         content: message,
         timestamp: new Date().toISOString(),
         ...(storedAttachments && { fileAttachments: storedAttachments }),
@@ -3957,6 +4007,7 @@ export function useChat(
       const optimisticUserMessage: ChatMessage = {
         id: userMessageId,
         role: 'user',
+        requestMode: options?.requestMode ?? 'agent',
         content: message,
         attachments: userAttachments,
         ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
@@ -3964,6 +4015,7 @@ export function useChat(
       const optimisticAssistantMessage: ChatMessage = {
         id: assistantId,
         role: 'assistant',
+        requestMode: options?.requestMode ?? 'agent',
         content: '',
         contentBlocks: [],
       }
@@ -4100,27 +4152,39 @@ export function useChat(
         abortControllerRef.current = abortController
         sendAbortSignal = abortController.signal
 
-        const resourceAttachments = buildResourceAttachments(
-          resourcesRef.current,
-          activeResourceIdRef.current,
-          desktopScopeIdRef.current
-        )
-        const desktopChatCapabilities = await getDesktopChatCapabilities(desktopScopeIdRef.current)
+        const resourceAttachments =
+          options?.requestMode === 'assistant'
+            ? undefined
+            : buildResourceAttachments(
+                resourcesRef.current,
+                activeResourceIdRef.current,
+                desktopScopeIdRef.current
+              )
+        const desktopChatCapabilities = organizationId
+          ? {}
+          : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
-            workspaceId,
+            ...(organizationId ? { organizationId } : { workspaceId }),
             userMessageId,
             createNewChat: !requestChatId,
             ...(requestChatId ? { chatId: requestChatId } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
-            ...(options?.requestMode ? { mode: options.requestMode } : {}),
-            ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
+            ...(organizationId
+              ? { mode: 'assistant' }
+              : options?.requestMode
+                ? { mode: options.requestMode }
+                : {}),
+            ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+            ...(options?.requestMode !== 'assistant' && workflowIdRef.current
+              ? { workflowId: workflowIdRef.current }
+              : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
@@ -4297,6 +4361,8 @@ export function useChat(
     },
     [
       workspaceId,
+      organizationId,
+      scopeKey,
       queryClient,
       upsertChatHistory,
       processSSEStream,
@@ -4325,7 +4391,8 @@ export function useChat(
           send.contexts,
           send.fileAttachments,
           send.userMessageId,
-          send.requestMode
+          send.requestMode,
+          send.assistantSearch
         )
       ) {
         return
@@ -4337,11 +4404,12 @@ export function useChat(
           ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
           resumeUserMessageId: send.userMessageId,
           ...(send.requestMode ? { requestMode: send.requestMode } : {}),
+          ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
         },
-        workspaceId
+        organizationId ? { organizationId } : workspaceId!
       )
     },
-    [workspaceId]
+    [workspaceId, organizationId]
   )
 
   const sendMessage = useCallback(
@@ -4351,7 +4419,7 @@ export function useChat(
       contexts?: ChatContext[],
       options?: SendMessageOptions
     ) => {
-      if (!message.trim() || !workspaceId) return
+      if (!message.trim() || !scopeKey) return
 
       const queueStore = useMothershipQueueStore.getState()
       const activeChatKey = chatKeyRef.current
@@ -4367,6 +4435,7 @@ export function useChat(
             fileAttachments,
             contexts,
             requestMode: options?.requestMode,
+            assistantSearch: options?.assistantSearch,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -4399,7 +4468,8 @@ export function useChat(
             fileAttachments,
             contexts,
             options?.resumeUserMessageId,
-            options?.requestMode
+            options?.requestMode,
+            options?.assistantSearch
           )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
@@ -4422,6 +4492,7 @@ export function useChat(
         contexts,
         userMessageId: result.userMessageId,
         ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+        ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -4436,7 +4507,8 @@ export function useChat(
             fileAttachments,
             contexts,
             result.userMessageId,
-            options?.requestMode
+            options?.requestMode,
+            options?.assistantSearch
           )
         )
     },
@@ -4457,11 +4529,16 @@ export function useChat(
     }
   }, [])
   useEffect(() => {
-    if (!workspaceId || sendingRef.current || pendingStopPromiseRef.current) return
+    if (!scopeKey || sendingRef.current || pendingStopPromiseRef.current) return
 
     let cancelled = false
     const handoff = readQueuedSendHandoffState()
-    if (!handoff || handoff.workspaceId !== workspaceId) return
+    if (
+      !handoff ||
+      handoff.workspaceId !== workspaceId ||
+      handoff.organizationId !== organizationId
+    )
+      return
     if (recoveringQueuedSendHandoffRef.current?.id === handoff.id) return
     const claimRetryDelayMs = queuedSendHandoffClaimRetryDelay(handoff.id)
     if (claimRetryDelayMs !== null) {
@@ -4498,6 +4575,7 @@ export function useChat(
         !currentHandoff ||
         currentHandoff.id !== handoff.id ||
         currentHandoff.workspaceId !== workspaceId ||
+        currentHandoff.organizationId !== organizationId ||
         currentHandoff.userMessageId !== handoff.userMessageId ||
         currentHandoff.supersededStreamId !== handoff.supersededStreamId ||
         currentHandoff.chatId ||
@@ -4578,13 +4656,25 @@ export function useChat(
       }
       clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     }
-  }, [workspaceId, queuedHandoffRecoveryEpoch, adoptResolvedChatId, resolveChatIdForStream])
+  }, [
+    workspaceId,
+    organizationId,
+    scopeKey,
+    queuedHandoffRecoveryEpoch,
+    adoptResolvedChatId,
+    resolveChatIdForStream,
+  ])
   useEffect(() => {
-    if (!workspaceId || !chatHistory || sendingRef.current || pendingStopPromiseRef.current) return
+    if (!scopeKey || !chatHistory || sendingRef.current || pendingStopPromiseRef.current) return
 
     const handoff = readQueuedSendHandoffState()
     if (!handoff) return
-    if (handoff.workspaceId !== workspaceId || handoff.chatId !== chatHistory.id) return
+    if (
+      handoff.workspaceId !== workspaceId ||
+      handoff.organizationId !== organizationId ||
+      handoff.chatId !== chatHistory.id
+    )
+      return
     if (recoveringQueuedSendHandoffRef.current?.id === handoff.id) return
     if (readQueuedSendHandoffClaim() === handoff.id) return
 
@@ -4612,6 +4702,7 @@ export function useChat(
     void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
       pendingStop: null,
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -4627,7 +4718,14 @@ export function useChat(
       }
       clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     })
-  }, [workspaceId, chatHistory, queuedHandoffRecoveryEpoch, startSendMessage])
+  }, [
+    workspaceId,
+    organizationId,
+    scopeKey,
+    chatHistory,
+    queuedHandoffRecoveryEpoch,
+    startSendMessage,
+  ])
   const cancelActiveWorkflowExecutions = useCallback(() => {
     const execState = useExecutionStore.getState()
     const consoleStore = useTerminalConsoleStore.getState()
@@ -4744,7 +4842,7 @@ export function useChat(
       if (chatIdRef.current) {
         captureResourceActivityScope(
           stopActivityTracker,
-          desktopChatScopeId(workspaceId, chatIdRef.current)
+          desktopChatScopeId(scopeKey, chatIdRef.current)
         )
       }
       clearResourceActivity(stopActivityTracker, true)
@@ -5035,6 +5133,7 @@ export function useChat(
             fileAttachments: dispatched.fileAttachments,
             contexts: dispatched.contexts,
             ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
+            ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return
@@ -5074,6 +5173,7 @@ export function useChat(
               ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
+            ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
           }
         )
 
@@ -5165,7 +5265,7 @@ export function useChat(
 
       const queuedSendHandoff =
         msg.queuedSendHandoff ??
-        ((sendingRef.current || pendingStopPromiseRef.current) && workspaceId
+        ((sendingRef.current || pendingStopPromiseRef.current) && scopeKey
           ? (() => {
               const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
               const cachedActiveStreamId = handoffChatId
@@ -5197,7 +5297,7 @@ export function useChat(
         queuedSendHandoff,
       })
     },
-    [dispatchQueuedMessage, queryClient, stopGeneration, workspaceId]
+    [dispatchQueuedMessage, queryClient, stopGeneration, workspaceId, organizationId, scopeKey]
   )
 
   const sendNow = useCallback(
@@ -5238,14 +5338,22 @@ export function useChat(
   const chatHistoryReady = chatHistory !== undefined
   const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
   useEffect(() => {
-    if (!workspaceId) return
+    if (!scopeKey) return
     if (messageQueue.length === 0) return
     if (sendingRef.current || pendingStopPromiseRef.current) return
     if (queueDispatchTaskRef.current) return
     if (resolvedChatId && !chatHistoryReady) return
     if (remoteActiveStreamId) return
     void enqueueQueueDispatchRef.current({ type: 'send_head' })
-  }, [workspaceId, messageQueue.length, resolvedChatId, chatHistoryReady, remoteActiveStreamId])
+  }, [
+    workspaceId,
+    organizationId,
+    scopeKey,
+    messageQueue.length,
+    resolvedChatId,
+    chatHistoryReady,
+    remoteActiveStreamId,
+  ])
 
   useEffect(() => {
     return () => {

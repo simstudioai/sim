@@ -10,6 +10,9 @@ export const slackSetTitleTool: ToolConfig<SlackSetTitleParams, SlackSetTitleRes
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['assistant:write'],
+    /** Slack accepts only bot tokens for this app-owned operation. */
+    personalTokenSupported: false,
   },
 
   params: {

@@ -46,12 +46,6 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'oauth-provider': {
-    description:
-      'Enable OAuth authorization, discovery, and API bearer tokens. Global on/off only; ' +
-      'enable after all app instances support the OAuth token-family lifecycle.',
-    fallback: 'OAUTH_PROVIDER_ENABLED',
-  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
@@ -76,20 +70,20 @@ const FEATURE_FLAGS = {
   },
   'credential-groups': {
     description:
-      'Workspace-owned collections that gather managed OAuth credentials from external users. ' +
-      'Gated by workspaceId via AppConfig (or globally); hosted workspaces must also have an ' +
-      'Enterprise subscription. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
+      'Managed connected accounts, including organization account pools and their settings UI. ' +
+      'Uses orgId targeting only; workspace callers resolve their canonical organization. Hosted ' +
+      'owners also require an active Enterprise subscription. Organization Search additionally ' +
+      'requires knowledge-member-access. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
   },
   'knowledge-member-access': {
     description:
-      'Permission-aware knowledge bases: lets a workspace admin sync a connector once per ' +
-      'Credential Group member so each person sees only what their own account can read, and ' +
-      'makes hybrid retrieval with a source-recency boost the default for searches in that ' +
-      'workspace. Gated by workspaceId via AppConfig for members mode, which is judged by the ' +
-      'workspace alone; the adminEnabled clause additionally opens the retrieval default to a ' +
-      'platform admin anywhere. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS. Requires ' +
-      'the credential-groups flag for the connector side to do anything.',
+      'Permission-aware indexing and retrieval. Organization Search UI, MCP, and search APIs ' +
+      'require this flag and credential-groups for the canonical orgId; user/admin/workspace ' +
+      'targeting cannot enable another organization. Workspace member sync uses workspaceId; ' +
+      'workspace retrieval defaults may additionally use user/admin targeting. Source ACL ' +
+      'mirroring remains independent of managed identities. Off-AppConfig falls back to ' +
+      'KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
 } satisfies Record<string, FeatureFlagDefinition>

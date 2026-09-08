@@ -124,6 +124,29 @@ describe('S3 Client', () => {
   })
 
   describe('uploadToS3', () => {
+    it('adds a provider create-only precondition for an immutable upload', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await uploadToS3(
+        Buffer.from('new'),
+        'kb/new.txt',
+        'text/plain',
+        undefined,
+        undefined,
+        true,
+        { uploadId: 'attempt-1' },
+        true
+      )
+
+      expect(mockPutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          Key: 'kb/new.txt',
+          IfNoneMatch: '*',
+          Metadata: expect.objectContaining({ uploadId: 'attempt-1' }),
+        })
+      )
+    })
+
     it('should upload a file to S3 and return file info', async () => {
       mockSend.mockResolvedValueOnce({})
 

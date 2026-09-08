@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({
   decodeAuditLogCursor: vi.fn(),
   queryAuditLogs: vi.fn(),
   recordAudit: vi.fn(),
+  isCapabilityWithheldForUser: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/user-scope.server', () => ({
+  isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
 }))
 
 vi.mock('@/lib/audit-logs/authorization', () => ({
@@ -55,6 +60,7 @@ describe('audit-log application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.isCapabilityWithheldForUser.mockResolvedValue(false)
     mocks.resolveDefaultOrganization.mockResolvedValue({
       kind: 'resolved',
       organizationId: 'organization-1',
@@ -113,6 +119,48 @@ describe('audit-log application use cases', () => {
       includeDeparted: false,
     })
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it.each(['sim-cli', 'partner-app'])(
+    'rechecks the organization OAuth restriction for an existing %s audit token',
+    async (clientId) => {
+      const principal = {
+        kind: 'oauth_access_token',
+        userId: 'admin-1',
+        clientId,
+        tokenId: 'token-1',
+        scopes: ['api:read'],
+        expiresAt: new Date('2099-01-01T00:00:00Z'),
+      } as const
+      await expect(listAuditLogs.execute({ principal, input: listInput })).resolves.toEqual({
+        data: [],
+        nextCursor: undefined,
+      })
+      mocks.queryAuditLogs.mockClear()
+      mocks.isCapabilityWithheldForUser.mockImplementation(
+        async (_userId: string, capability: string) => capability === 'oauth_apps.use'
+      )
+      await expect(
+        listAuditLogs.execute({ principal, input: { ...listInput, organizationId: undefined } })
+      ).rejects.toMatchObject({ capability: 'oauth_apps.use' })
+      expect(mocks.isCapabilityWithheldForUser).toHaveBeenCalledWith('admin-1', 'oauth_apps.use')
+      expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps audit sessions and personal API keys independent of the OAuth app restriction', async () => {
+    mocks.isCapabilityWithheldForUser.mockImplementation(
+      async (_userId: string, capability: string) => capability === 'oauth_apps.use'
+    )
+    await expect(
+      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
+    ).resolves.toBeDefined()
+    await expect(
+      listAuditLogs.execute({
+        principal: { kind: 'personal_api_key', userId: 'admin-1', keyId: 'key-1' },
+        input: listInput,
+      })
+    ).resolves.toBeDefined()
   })
 
   /**

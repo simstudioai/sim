@@ -23,6 +23,7 @@ import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings
 import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
+import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
@@ -82,7 +83,10 @@ export default async function WorkspaceLayout({
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
-                  <WorkspaceChrome initialSidebarCollapsed={initialSidebarCollapsed}>
+                  <WorkspaceChrome
+                    sidebar={<Sidebar />}
+                    initialSidebarCollapsed={initialSidebarCollapsed}
+                  >
                     {children}
                   </WorkspaceChrome>
                 </WorkspacePermissionsProvider>

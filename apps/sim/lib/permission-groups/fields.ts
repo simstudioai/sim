@@ -464,7 +464,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-cli-access',
     label: 'CLI Access',
     category: 'Credentials & Access',
-    hint: "Prevent approving a CLI login, which mints a key for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group.",
+    hint: "Prevent approving a CLI login or using Sim CLI OAuth tokens for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group.",
   }),
   disableWebhookTriggers: booleanRestriction('capability', {
     scope: 'workspace',
@@ -486,6 +486,13 @@ export const PERMISSION_GROUP_FIELDS = {
     label: 'Sandboxes',
     category: 'Modules',
     hint: 'Revoke the Sandboxes module. Members cannot view, create, or change a workspace sandbox.',
+  }),
+  disableOAuthAppAccess: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
+    id: 'disable-oauth-app-access',
+    label: 'OAuth App Access',
+    category: 'Credentials & Access',
+    hint: "Prevent OAuth apps from accessing this group's workspaces. The organization's default group also governs authorizing apps and refreshing their access.",
   }),
 } satisfies Record<string, PermissionGroupField>
 

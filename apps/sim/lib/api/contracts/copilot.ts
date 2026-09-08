@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -150,18 +151,34 @@ export const copilotChatAbortBodySchema = z.object({
 })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
-export const copilotToolExecuteInternalBodySchema = z.object({
-  toolCallId: z.string().min(1, 'toolCallId is required'),
-  toolName: z.string().min(1, 'toolName is required'),
-  params: z.record(z.string(), z.unknown()).default({}),
-  userId: z.string().min(1, 'userId is required'),
-  workflowId: z.string().optional(),
-  workspaceId: z.string().optional(),
-  chatId: z.string().optional(),
-  messageId: z.string().optional(),
-  parentToolCallId: z.string().optional(),
-  userPermission: z.string().optional(),
-})
+export const copilotToolExecuteInternalBodySchema = z
+  .object({
+    requestMode: z.enum(['assistant', 'agent', 'build', 'plan']).optional(),
+    assistantSearch: workspaceSearchFiltersSchema.optional(),
+    toolCallId: z.string().min(1, 'toolCallId is required'),
+    toolName: z.string().min(1, 'toolName is required'),
+    params: z.record(z.string(), z.unknown()).default({}),
+    userId: z.string().min(1, 'userId is required'),
+    workflowId: z.string().optional(),
+    workspaceId: z.string().optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    chatId: z.string().optional(),
+    messageId: z.string().optional(),
+    parentToolCallId: z.string().optional(),
+    userPermission: z.string().optional(),
+  })
+  .refine(
+    (body) =>
+      !body.organizationId ||
+      (!body.workspaceId &&
+        !body.workflowId &&
+        body.requestMode === 'assistant' &&
+        Boolean(body.chatId)),
+    {
+      message:
+        'Organization tools require Assistant mode and a private chat without workspace or workflow scope',
+    }
+  )
 export type CopilotToolExecuteInternalBody = z.input<typeof copilotToolExecuteInternalBodySchema>
 
 export const copilotChatGetQuerySchema = z
@@ -250,18 +267,24 @@ export const validateCopilotApiKeyErrorSchema = z
   .strict()
 export type ValidateCopilotApiKeyError = z.output<typeof validateCopilotApiKeyErrorSchema>
 
-export const validateCopilotApiKeyBodySchema = z.object({
-  userId: z.string().min(1, 'userId is required'),
-  /**
-   * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
-   * immutable payer snapshot. Markerless legacy-v0 resolves a locally known
-   * workspace's current payer for aligned payer-pool and member admission.
-   * For direct-v1 Chat/Copilot API keys it may be a self-hosted local ID and is
-   * never used to select or authorize a hosted payer, so direct-v1 callers may
-   * omit it entirely.
-   */
-  workspaceId: z.string().min(1).optional(),
-})
+export const validateCopilotApiKeyBodySchema = z
+  .object({
+    userId: z.string().min(1, 'userId is required'),
+    /**
+     * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
+     * immutable payer snapshot. Markerless legacy-v0 resolves a locally known
+     * workspace's current payer for aligned payer-pool and member admission.
+     * For direct-v1 Chat/Copilot API keys it may be a self-hosted local ID and is
+     * never used to select or authorize a hosted payer, so direct-v1 callers may
+     * omit it entirely.
+     */
+    workspaceId: z.string().min(1).optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    chatId: z.string().min(1).max(200).optional(),
+  })
+  .refine((body) => !(body.workspaceId && body.organizationId), {
+    message: 'workspaceId and organizationId are mutually exclusive',
+  })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 
 export const validateCopilotApiKeyResponseSchema = z.object({

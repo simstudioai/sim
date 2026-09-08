@@ -1,3 +1,4 @@
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
@@ -23,12 +24,8 @@ export interface FileAttachmentForApi {
   path?: string
 }
 
-/**
- * A request mode a send asks the agent for beyond the default. `ask` is an
- * Assistant turn: an answer drawn from the attached knowledge bases first,
- * with a connected integration reached only when those cannot answer.
- */
-export type ChatRequestMode = 'ask'
+/** Assistant searches as the signed-in person and uses their connected accounts. */
+export type ChatRequestMode = 'assistant'
 
 export interface QueuedMessage {
   id: string
@@ -36,6 +33,7 @@ export interface QueuedMessage {
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 export const ToolCallStatus = {
@@ -183,6 +181,7 @@ export interface ChatMessageContext {
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
+  requestMode?: 'agent' | 'assistant'
   content: string
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]

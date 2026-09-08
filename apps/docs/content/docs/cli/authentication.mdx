@@ -23,9 +23,9 @@ sim login --method oauth
 sim login --method api-key
 ```
 
-`--method oauth` requires OAuth support and never falls back to an API key. The
-server must enable `OAUTH_PROVIDER_ENABLED=true`. Explicit OAuth selection also
-overrides SSH/headless detection; your browser still needs to reach the CLI's
+`--method oauth` requires a server with OAuth support and authentication enabled;
+it never falls back to an API key. Explicit OAuth selection also overrides
+SSH/headless detection; your browser still needs to reach the CLI's
 local callback. `--method api-key` uses pairing-code approval to create a new
 permanent API key. To supply an existing key, set `SIM_API_KEY` instead.
 
@@ -257,13 +257,11 @@ Save it to avoid repeating the flag:
 sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
-A deployment offers OAuth sign-in when its global `oauth-provider` feature flag
-is enabled. With AppConfig, enable it in the existing `feature-flags` document
-using `"oauth-provider": { "enabled": true }`. When AppConfig is disabled or no
-AppConfig document has been loaded, `OAUTH_PROVIDER_ENABLED=true` supplies the fallback.
-With the provider off, the CLI uses the pairing-code handoff; `DISABLE_AUTH=true`
-always forces OAuth off. Operators must apply the database migration and drain
-older app instances before enabling it. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim).
+OAuth sign-in is available by default when server authentication is enabled.
+`DISABLE_AUTH=true` disables OAuth. Older servers without OAuth support use the
+pairing-code handoff. Keep the database schema current and drain app instances
+that predate the OAuth token-family lifecycle before accepting OAuth traffic.
+See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim).
 
 ## Where the login is stored
 

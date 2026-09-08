@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockListWorkflows = vi.hoisted(() => vi.fn())
 const mockFetchOpenRouterEmbeddingModelCatalog = vi.hoisted(() => vi.fn())
+const mockGetWorkspaceOrganizationAccounts = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/credential-groups/application/workspace-organization-accounts', () => ({
+  getWorkspaceOrganizationAccounts: { execute: mockGetWorkspaceOrganizationAccounts },
+}))
 
 vi.mock('@/lib/workflows/application/list-workflows', () => ({
   listWorkflows: { execute: mockListWorkflows },
@@ -33,6 +38,49 @@ function workflowArgs(): ExecuteServerSelectorArgs {
     protectedValues: createSelectorProtectedValues(),
   }
 }
+
+describe.each([
+  {
+    key: 'workspace.credentialGroupProviders',
+    field: 'providers',
+    option: { id: 'google-email', label: 'Gmail' },
+  },
+  {
+    key: 'workspace.organizationMcpProviders',
+    field: 'mcpProviders',
+    option: { id: 'fireflies', label: 'Fireflies' },
+  },
+] as const)('$key selector', ({ key, field, option }) => {
+  beforeEach(() => vi.clearAllMocks())
+  it('uses the authorized organization provider projection', async () => {
+    mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: true, [field]: [option] })
+    const args: ExecuteServerSelectorArgs = { ...workflowArgs(), selectorKey: key }
+    await expect(internalSelectorAttachments[key].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [option],
+    })
+    expect(mockGetWorkspaceOrganizationAccounts).toHaveBeenCalledWith({
+      principal: args.principal,
+      input: { workspaceId: 'workspace-1' },
+    })
+  })
+  it('refuses providers when workspace access is not granted', async () => {
+    mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: false, [field]: [option] })
+    await expect(
+      internalSelectorAttachments[key].execute({ ...workflowArgs(), selectorKey: key })
+    ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+  })
+  it('resolves a selected provider by ID', async () => {
+    mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: true, [field]: [option] })
+    await expect(
+      internalSelectorAttachments[key].execute({
+        ...workflowArgs(),
+        selectorKey: key,
+        request: { kind: 'detail', id: option.id },
+      })
+    ).resolves.toEqual({ kind: 'detail', item: option })
+  })
+})
 
 describe('workspace.secretNames selector', () => {
   beforeEach(() => {

@@ -13,6 +13,8 @@ import type { SearchConnector } from '@/lib/sim-search/connectors'
 interface SourceSetupModalProps {
   connector: SearchConnector
   onClose: () => void
+  isPending?: boolean
+  error?: string | null
   /** Connects the source with the filled-in fields; the caller opens the OAuth tab in this click. */
   onConnect: (sourceConfig: Record<string, string>) => void
 }
@@ -21,15 +23,21 @@ interface SourceSetupModalProps {
  * The few fields a source needs before its first connect, such as a site and
  * a space. Everyone after the first person clicks straight through.
  */
-export function SourceSetupModal({ connector, onClose, onConnect }: SourceSetupModalProps) {
+export function SourceSetupModal({
+  connector,
+  onClose,
+  onConnect,
+  isPending = false,
+  error,
+}: SourceSetupModalProps) {
+  const docsUrl = connector.meta.searchDocsUrl
   const fields = connector.setupFields
   const [values, setValues] = useState<Record<string, string>>({})
   const complete = fields.every((field) => values[field.id]?.trim())
 
   const submit = () => {
-    if (!complete) return
+    if (!complete || isPending) return
     onConnect(Object.fromEntries(fields.map((field) => [field.id, values[field.id]?.trim() ?? ''])))
-    onClose()
   }
 
   return (
@@ -72,10 +80,29 @@ export function SourceSetupModal({ connector, onClose, onConnect }: SourceSetupM
             />
           )
         )}
+        {error && (
+          <p role='alert' className='px-2 text-[var(--text-error)] text-caption'>
+            {error}
+          </p>
+        )}
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
-        primaryAction={{ label: 'Connect', onClick: submit, disabled: !complete }}
+        secondaryActions={
+          docsUrl
+            ? [
+                {
+                  label: 'Setup guide',
+                  onClick: () => window.open(docsUrl, '_blank', 'noopener,noreferrer'),
+                },
+              ]
+            : undefined
+        }
+        primaryAction={{
+          label: isPending ? 'Connecting…' : 'Connect',
+          onClick: submit,
+          disabled: !complete || isPending,
+        }}
       />
     </ChipModal>
   )

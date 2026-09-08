@@ -1,0 +1,113 @@
+---
+title: Gmail
+description: Connect each teammate's Gmail account to search their email in Sim
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Search email threads from your own Gmail account. An organization admin enables the source; each teammate connects their own account. An admin's connection does not make their mailbox available to the team.
+
+Admin setup uses your organization's **Settings → Integrations** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+
+## Set up the source
+
+These steps require a Sim organization admin.
+
+<Steps>
+<Step>
+
+### Add Gmail
+
+Open **Settings → Integrations → Providers**, approve **Gmail**, then select **Set up**. Gmail uses **Member accounts**; there is no domain-wide or service-account crawl in Search.
+
+</Step>
+<Step>
+
+### Choose what to include
+
+Keep the defaults to search all dates and labels, excluding Promotions, Social, Spam, and Trash. Add filters below if your team needs a narrower source.
+
+</Step>
+<Step>
+
+### Create the source
+
+Click **Add source**. Gmail appears in the **Sources** list. Each person, including the admin, then connects their own account.
+
+</Step>
+</Steps>
+
+<Image src="/static/search/gmail-setup.jpg" alt="Gmail Search source configuration" width={1280} height={720} />
+
+## Connect your account
+
+1. Join the Sim organization and verify your Sim email address. Open **Integrations** and click **Connect account** beside Gmail.
+2. Complete the connection in the tab that opens. Choose the Google account whose verified email matches your Sim email, and grant the requested permissions.
+3. Return to Integrations. The source shows its indexing status and the number of documents you can search.
+
+Teammates follow these same steps after joining the organization. Once an admin approves Gmail, the first connection can create its source with default filters. Admins can configure shared filters beforehand.
+
+## Source options
+
+An admin can change these under **Manage** on the Gmail source. Filters apply separately to each connected mailbox.
+
+| Option | Behavior |
+| --- | --- |
+| Labels | Optional comma-separated names or system IDs, such as `Engineering, INBOX`. A thread matching any listed label is included. Leave empty for all labels. Custom IDs such as `Label_7` belong to one mailbox and cannot be used for member setup. |
+| Date Range | All time by default. Choose the last 7, 30, or 90 days, 6 months, or year. |
+| Exclude Promotions / Exclude Social | Both enabled by default. Choose **No** to include either category. |
+| Search Filter | Optional [Gmail query](https://developers.google.com/workspace/gmail/api/guides/filtering), such as `from:team@example.com subject:release`. This filters what is indexed; it is not a Sim Search query. |
+
+**Document details** contains optional metadata tags. Sync frequency and the general knowledge-base **Max Threads** setting are hidden in Search.
+
+## What gets indexed
+
+Sim indexes the message text Gmail returns for each matching thread, plus subjects, senders, dates, and labels. Filters select threads; messages within a selected thread are not filtered again. HTML email is converted to text. Results link back to Gmail.
+
+File attachments and image contents are not indexed. Thread discovery uses Gmail's default exclusion of Spam and Trash. A filter such as `has:attachment` selects the email thread; it does not index the attachment. Gmail API filtering also differs from Gmail's interface for aliases and thread-wide searches. See Google's [thread listing reference](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads/list) and [filtering guide](https://developers.google.com/workspace/gmail/api/guides/filtering).
+
+Search schedules syncs hourly. The first sync and large mailboxes can take longer; results appear as documents are indexed. Updates and removals are reconciled during background sync, rather than fetched live for each search.
+
+## Troubleshooting
+
+| What you see | What to do |
+| --- | --- |
+| A different email is requested | Use the Google account matching your verified Sim email. A separate personal account or alias does not satisfy the match. |
+| No searchable documents | Check the source's labels, date range, category exclusions, and search filter. Allow the first sync to finish. |
+| Finish connecting in the other tab | Complete the Google flow, or use **Open again** while authorization is pending. If the popup was blocked or closed, allow popups and select **Connect account** again. |
+| Reconnect | Click **Reconnect** and authorize the same account again. |
+| Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
+
+## Self-hosted operator setup
+
+Users do not need to create Google Cloud credentials. The deployment operator configures one Google OAuth client for the instance:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), select your project. Open **APIs & Services → Library**, find **Gmail API**, and enable it.
+2. Open **Google Auth platform → Branding**. Select **Get started** if needed, then enter the app name, support email, and contact email. Under **Audience**, use **Internal** only for an app limited to your Google Workspace organization; otherwise use **External** and add test users while testing. Review the app's permissions under **Data Access → Add or remove scopes**, using the current Sim scopes below. Follow Google's [consent and verification guidance](https://developers.google.com/workspace/guides/configure-oauth-consent) for your audience.
+3. Open **Google Auth platform → Clients → Create client**. Choose **Web application**, give the client a name, and add the URI below under **Authorized redirect URIs**. If this instance already has a Google client, add this URI to that client instead. See [Google's credential setup](https://developers.google.com/workspace/guides/create-credentials#web-application).
+4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+
+```text
+https://<your-sim-domain>/api/auth/oauth2/callback/google-email
+```
+
+<Image src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
+
+This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
+
+The current Sim Gmail connection uses these scopes:
+
+```text
+openid
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/gmail.modify
+https://www.googleapis.com/auth/gmail.send
+https://www.googleapis.com/auth/gmail.labels
+```
+
+<Callout type="info">
+  Google's `gmail.readonly` scope is sufficient for Search's email reads. Sim currently shares its Gmail OAuth connection with workflow actions and requires the broader scope set above; do not substitute `gmail.readonly` in this setup. Search does not send or modify email. See [Google's scope descriptions](https://developers.google.com/workspace/gmail/api/auth/scopes).
+</Callout>

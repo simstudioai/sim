@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { createCopilotApplicationAdapter } from '@/lib/copilot/application/application-adapter'
 import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
 import {
@@ -6,9 +6,13 @@ import {
   type CopilotExecutionContext,
   createCopilotApplicationPrincipal,
   createTrustedCopilotPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
   requireTrustedCopilotExecutionContext,
+  requireTrustedOrganizationCopilotContext,
 } from '@/lib/copilot/auth/application-delegation'
+import { authorizeOrganizationChatDelegation } from '@/lib/copilot/chat/organization-chats'
 import type { OperationUseCase } from '@/lib/core/application'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import {
   type KnowledgeOperation,
@@ -83,4 +87,40 @@ export function messageForCopilotKnowledgeError(
   fallback = 'Knowledge operation failed'
 ): string {
   return messageForCopilotApplicationError(error, fallback)
+}
+
+/** Selects the server-owned Search scope, without accepting scope from tool arguments. */
+export function requireCopilotKnowledgeScope(
+  context: CopilotKnowledgeDelegationContext | undefined
+): ResourceScope {
+  if (context?.organizationId) {
+    const trusted = requireTrustedOrganizationCopilotContext(context)
+    return { kind: 'organization', organizationId: trusted.organizationId }
+  }
+  return { kind: 'workspace', workspaceId: requireCopilotKnowledgeWorkspaceId(context) }
+}
+
+/** Uses canonical organization operations after checking the private chat delegation. */
+export async function executeCopilotOrganizationKnowledgeUseCase<I, R>(
+  context: CopilotKnowledgeDelegationContext | undefined,
+  useCase: {
+    operation: KnowledgeOperation
+    execute(args: { principal: OrganizationDelegatedPrincipal; input: I }): Promise<R>
+  },
+  input: I
+): Promise<R> {
+  if (
+    !Object.values(knowledgeOperations).includes(useCase.operation) ||
+    useCase.operation.minimumRole !== 'read' ||
+    !useCase.operation.delegatedServices?.includes('copilot')
+  ) {
+    throw new Error('Organization Assistant requires a registered read operation')
+  }
+  const trusted = requireTrustedOrganizationCopilotContext(context)
+  const principal = createTrustedOrganizationCopilotPrincipal(
+    { ...trusted, delegationId: trusted.toolCallId },
+    knowledgeDelegation
+  )
+  await authorizeOrganizationChatDelegation.execute({ principal })
+  return useCase.execute({ principal, input })
 }

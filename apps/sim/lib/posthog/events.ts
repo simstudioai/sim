@@ -265,7 +265,8 @@ export interface PostHogEventMap {
 
   knowledge_base_connector_added: {
     knowledge_base_id: string
-    workspace_id: string
+    workspace_id?: string
+    organization_id?: string
     connector_type: string
     sync_interval_minutes: number
   }
@@ -279,7 +280,8 @@ export interface PostHogEventMap {
 
   knowledge_base_connector_synced: {
     knowledge_base_id: string
-    workspace_id: string
+    workspace_id?: string
+    organization_id?: string
     connector_type: string
   }
 
@@ -340,6 +342,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -351,6 +354,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -362,6 +366,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     role: 'admin' | 'member'
     workspace_id: string
   }
@@ -373,6 +378,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     workspace_id: string
   }
 
@@ -812,6 +818,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id?: string
   }

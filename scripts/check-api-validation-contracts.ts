@@ -42,6 +42,9 @@ const BOUNDARY_POLICY_BASELINE = {
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
+  /** Shared MCP protocol factory validates the owner and JSON-RPC envelope before SDK dispatch. */
+  'apps/sim/app/api/mcp/search/[workspaceId]/route.ts',
+  'apps/sim/app/api/mcp/search/organizations/[organizationId]/route.ts',
   // SCIM discovery documents (RFC 7644 section 4). Each serves a fixed document
   // describing what this server implements and accepts no params, query, or body,
   // so there is no input to validate and no contract to bind. They are deliberately
@@ -116,6 +119,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
   'apps/sim/app/api/knowledge/connectors/member-sync/route.ts',
+  'apps/sim/app/api/knowledge/connectors/directory-sync/route.ts',
   'apps/sim/app/api/webhooks/outbox/process/route.ts',
   'apps/sim/app/api/webhooks/cleanup/idempotency/route.ts',
   // Shared Slack app event ingest. The body is an opaque, HMAC-verified Slack

@@ -32,6 +32,7 @@ import {
   type OrganizationBillingApiResponse,
 } from '@/lib/api/contracts/subscription'
 import { client } from '@/lib/auth/auth-client'
+import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
@@ -68,6 +69,22 @@ function readNumber(value: unknown): number | undefined {
 export { organizationKeys }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
+
+/** Better Auth owns the authenticated membership-list endpoint. */
+export function useOrganizationList() {
+  return useQuery({
+    queryKey: organizationKeys.lists(),
+    queryFn: async ({ signal }) => {
+      const response = await client.organization.list({ fetchOptions: { signal } })
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to load organizations')
+      }
+      return response.data ?? []
+    },
+    enabled: isOrganizationsEnabled,
+    staleTime: ORGANIZATION_LIST_STALE_TIME,
+  })
+}
 
 async function fetchOrganizationRoster(
   orgId: string,
@@ -143,6 +160,9 @@ async function fetchOrganization(orgId: string, signal?: AbortSignal) {
     query: { organizationId: orgId },
     fetchOptions: { signal },
   })
+  if (response.error) {
+    throw new Error(response.error.message || 'Failed to load organization')
+  }
   return response.data
 }
 

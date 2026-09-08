@@ -7,14 +7,14 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 vi.unmock('@/blocks/registry')
 
-import * as blocksBarrel from '@/blocks'
-import { getBlock as getRealBlock } from '@/blocks/registry'
 import {
   backfillCanonicalModes,
   migrateCanonicalModeIds,
   migrateSubblockIds,
   SUBBLOCK_ID_MIGRATIONS,
-} from './subblock-migrations'
+} from '@/lib/workflows/migrations/subblock-migrations'
+import * as blocksBarrel from '@/blocks'
+import { getBlock as getRealBlock } from '@/blocks/registry'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an
@@ -126,6 +126,32 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it('discards group selectors while preserving connected-account operation settings', () => {
+    const email = { id: 'email', type: 'short-input' as const, value: 'person@example.com' }
+    const operation = { id: 'operation', type: 'dropdown' as const, value: 'list_credentials' }
+    const input = {
+      b1: makeBlock({
+        type: 'credential_group',
+        subBlocks: {
+          credentialGroup: { id: 'credentialGroup', type: 'dropdown', value: 'group-1' },
+          manualCredentialGroup: {
+            id: 'manualCredentialGroup',
+            type: 'short-input',
+            value: '<other-group.id>',
+          },
+          email,
+          operation,
+        },
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks).toEqual({ email, operation })
+    expect(migrateSubblockIds(blocks).migrated).toBe(false)
+  })
+
   it('should preserve Instagram insight metrics after the subblock rename', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({

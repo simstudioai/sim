@@ -29,6 +29,7 @@ export const slackLookupCanvasSectionsTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['canvases:read'],
   },
 
   params: {

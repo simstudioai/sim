@@ -19,45 +19,25 @@ describe('connector access binding contracts', () => {
     expect(parsed.syncIntervalMinutes).toBe(1440)
   })
 
-  it('lets members mode omit the binding, refuses half a binding, and refuses a credential there', () => {
-    /** No binding named: the server provisions a credential group for the connector. */
-    expect(createConnectorBodySchema.safeParse({ ...base, accessMode: 'members' }).success).toBe(
-      true
-    )
-    expect(
-      createConnectorBodySchema.safeParse({
-        ...base,
-        accessMode: 'members',
-        credentialGroupId: 'group-1',
-      }).success
-    ).toBe(false)
-    expect(
-      createConnectorBodySchema.safeParse({
-        ...base,
-        accessMode: 'members',
-        credentialGroupId: 'group-1',
-        credentialGroupOptionId: 'option-1',
-        credentialId: 'cred-1',
-      }).success
-    ).toBe(false)
-    expect(
-      createConnectorBodySchema.safeParse({
-        ...base,
-        accessMode: 'members',
-        credentialGroupId: 'group-1',
-        credentialGroupOptionId: 'option-1',
-      }).success
-    ).toBe(true)
+  it('accepts member access with optional dedicated content credentials', () => {
+    for (const credentialId of [undefined, 'content-credential']) {
+      expect(
+        createConnectorBodySchema.parse({ ...base, accessMode: 'members', credentialId })
+      ).toMatchObject({ accessMode: 'members', credentialId })
+    }
   })
 
-  it('refuses a group binding on a workspace-mode connector', () => {
-    expect(
-      createConnectorBodySchema.safeParse({
-        ...base,
-        credentialId: 'cred-1',
-        credentialGroupId: 'group-1',
-      }).success
-    ).toBe(false)
+  it('does not expose caller-selected account container or option IDs', () => {
+    const binding = {
+      credentialGroupId: 'foreign-group',
+      credentialGroupOptionId: 'foreign-option',
+    }
+    const created = createConnectorBodySchema.parse({ ...base, accessMode: 'members', ...binding })
+    const changed = updateConnectorAccessBodySchema.parse({ accessMode: 'members', ...binding })
+    for (const parsed of [created, changed]) {
+      expect(parsed).not.toHaveProperty('credentialGroupId')
+      expect(parsed).not.toHaveProperty('credentialGroupOptionId')
+    }
   })
 
   it('refuses a mode switch that names no mode', () => {
@@ -67,39 +47,11 @@ describe('connector access binding contracts', () => {
     )
   })
 
-  it('applies the same rules to a mode switch', () => {
-    expect(
-      updateConnectorAccessBodySchema.safeParse({
-        accessMode: 'members',
-        credentialGroupId: 'group-1',
-        credentialGroupOptionId: 'option-1',
-      }).success
-    ).toBe(true)
-    expect(
-      updateConnectorAccessBodySchema.safeParse({
-        accessMode: 'workspace',
-        credentialId: 'cred-1',
-      }).success
-    ).toBe(true)
-    expect(
-      updateConnectorAccessBodySchema.safeParse({
-        accessMode: 'workspace',
-        credentialGroupOptionId: 'option-1',
-      }).success
-    ).toBe(false)
-    expect(
-      updateConnectorAccessBodySchema.safeParse({
-        accessMode: 'members',
-        credentialGroupId: 'group-1',
-        credentialGroupOptionId: 'option-1',
-        credentialId: 'cred-1',
-      }).success
-    ).toBe(false)
-  })
-
-  it('refuses a switch to workspace mode that names no credential', () => {
+  it('leaves source-specific credential requirements to the authorized operation', () => {
     const parsed = updateConnectorAccessBodySchema.safeParse({ accessMode: 'workspace' })
-    expect(parsed.success).toBe(false)
-    expect(parsed.error?.issues.map((issue) => issue.path)).toEqual([['credentialId']])
+    expect(parsed.success).toBe(true)
+    expect(
+      updateConnectorAccessBodySchema.parse({ accessMode: 'members', credentialId: null })
+    ).toMatchObject({ accessMode: 'members', credentialId: null })
   })
 })

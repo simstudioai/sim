@@ -4,10 +4,14 @@ import {
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 
-const CONNECT_MODE_VALUES = [CONNECT_MODE.oauth, CONNECT_MODE.serviceAccount] as const
+const CONNECT_MODE_VALUES = [
+  CONNECT_MODE.oauth,
+  CONNECT_MODE.serviceAccount,
+  CONNECT_MODE.personalToken,
+] as const
 
 /**
- * Typed parser for the ephemeral `?connect=oauth|service-account` deep-link on
+ * Typed parser for the ephemeral connection deep-link on
  * the integration detail page. The param is read once to pre-open the matching
  * connect modal, then stripped from the URL.
  */

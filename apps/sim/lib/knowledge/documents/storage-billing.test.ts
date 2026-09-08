@@ -547,3 +547,64 @@ describe('knowledge document storage attribution', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 })
+
+describe('organization document storage deletion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetFileMetadataByKeys.mockResolvedValue([])
+    mockApplyStorageUsageDeltasInTx.mockResolvedValue(undefined)
+  })
+
+  it.each(['connector-1', null])(
+    'never decrements personal storage for an organization document (connector: %s)',
+    async (connectorId) => {
+      queueTableRows(schemaMock.document, [
+        {
+          id: 'org-doc',
+          knowledgeBaseId: 'org-kb',
+          fileUrl: null,
+          fileSize: 100,
+          uploadedBy: 'creator',
+          connectorId,
+          workspaceId: null,
+          organizationId: 'org-1',
+          kbUserId: 'creator',
+        },
+      ])
+      queueTableRows(schemaMock.knowledgeBase, [
+        { id: 'org-kb', workspaceId: null, organizationId: 'org-1', userId: 'creator' },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'org-doc' }])
+      await expect(hardDeleteDocuments(['org-doc'], 'request-1')).resolves.toBe(1)
+      expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+      expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
+        workspaceDeltas: [],
+        legacyDeltas: [],
+      })
+    }
+  )
+
+  it('refuses a document deletion after its canonical organization changes', async () => {
+    queueTableRows(schemaMock.document, [
+      {
+        id: 'org-doc',
+        knowledgeBaseId: 'org-kb',
+        fileUrl: null,
+        fileSize: 100,
+        uploadedBy: 'creator',
+        connectorId: 'connector-1',
+        workspaceId: null,
+        organizationId: 'org-1',
+        kbUserId: 'creator',
+      },
+    ])
+    queueTableRows(schemaMock.knowledgeBase, [
+      { id: 'org-kb', workspaceId: null, organizationId: 'org-2', userId: 'creator' },
+    ])
+    await expect(hardDeleteDocuments(['org-doc'], 'request-1')).rejects.toThrow(
+      'storage ownership changed'
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+})

@@ -12,6 +12,7 @@ export const slackGetCanvasTool: ToolConfig<SlackGetCanvasParams, SlackGetCanvas
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['files:read'],
   },
 
   params: {

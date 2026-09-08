@@ -565,6 +565,8 @@ const TOOL_TITLES: Record<string, string> = {
   edit_workflow: 'Editing workflow',
   manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',
+  search_workspace: 'Searching documents',
+  read_document: 'Reading document',
   open_resource: 'Opening resource',
 
   ffmpeg: 'Processing media',

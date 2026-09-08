@@ -96,9 +96,6 @@ function conversationTypes(params: SlackListChannelsParams): string {
   if (resolveBooleanParam(params.includePrivate, 'Include private channels', true)) {
     types.push('private_channel')
   }
-  if (params.credentialType === 'managed_oauth') {
-    types.push('im', 'mpim')
-  }
   return types.join(',')
 }
 

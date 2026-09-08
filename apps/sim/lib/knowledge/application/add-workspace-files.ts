@@ -5,6 +5,7 @@ import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attributi
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-enforcement'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -106,6 +107,12 @@ async function prepareWorkspaceFile(
     context: 'workspace',
   })
   if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+    reportDurableSecretProvenanceRefusal({
+      surface: 'knowledge',
+      cause: 'knowledge-workspace-file-source-unavailable',
+      workspaceId: context.workspaceId,
+      resourceId: file.id,
+    })
     throw new OrchestrationError(
       'validation',
       'Workspace file secret provenance prevents knowledge ingestion'

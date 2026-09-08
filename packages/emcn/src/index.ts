@@ -16,6 +16,14 @@ export {
   calculateGutterWidth,
   getCodeEditorProps,
 } from './components/code/code'
+export {
+  SCROLL_FADE_BAND_PX,
+  type ScrollEdges,
+  type ScrollEdgesX,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  scrollFadeXClass,
+} from './components/scroll-fade/scroll-fade'
 /**
  * `Table` exists in BOTH `./components` (data-table element) and `./icons`
  * (glyph). This explicit re-export resolves the ambiguity to the COMPONENT —
@@ -39,6 +47,7 @@ export {
   writeTextToClipboard,
 } from './hooks/use-copy-to-clipboard'
 export { usePrefersReducedMotion } from './hooks/use-prefers-reduced-motion'
+export { useScrollEdges } from './hooks/use-scroll-edges'
 export * from './icons'
 export { cn } from './lib/cn'
 export { handleKeyboardActivation, isKeyboardActivation } from './lib/keyboard'

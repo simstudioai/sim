@@ -1,22 +1,19 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@/app/_shell/desktop-title-bar'
+import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
-import { Sidebar, SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
-
-/** Slide timing for the fullscreen sidebar collapse and content shift. */
-const SLIDE_TRANSITION =
-  '[transition-duration:175ms] [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none'
 
 /**
  * The peek card's floating chrome.
@@ -63,25 +60,28 @@ const PEEK_CARD_EXIT = cn(
   'pointer-events-none animate-out fade-out-0 zoom-out-95 fill-mode-forwards duration-150 ease-out motion-reduce:animate-none'
 )
 
-/** The docked rail: in flow, width-animated by the collapse toggle. */
-const SIDEBAR_SHELL_IN_FLOW = cn('transition-[width]', SLIDE_TRANSITION)
-
 /**
- * The content pane's own chrome, dropped when the pane sits flush to the window.
- *
- * Collapsing the sidebar in the desktop shell takes the surrounding padding to `0`,
- * which puts the pane hard against the window edge — and its border and radius then
- * draw a hairline outline with rounded corners inset from the square window frame.
+ * The divider between the rail and the content pane, dropped when there is no rail
+ * beside it: collapsed to nothing in the desktop shell, where the pane sits hard
+ * against the window edge. A fullscreen route drops it through React state instead,
+ * since that is a navigation rather than a pre-paint attribute.
  *
  * Keyed off the ancestor attributes rather than React state on purpose: the title-bar
- * attribute is written pre-paint, so a state-driven rule would flash the border on
+ * attribute is written pre-paint, so a state-driven rule would flash the line on
  * first paint before hydration settles.
  */
-const CONTENT_PANE_FLUSH =
-  '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:rounded-none [[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:border-0'
+const CONTENT_PANE_DIVIDER =
+  'border-l border-[var(--border)] [[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:border-l-0'
 
 interface WorkspaceChromeProps {
-  children: React.ReactNode
+  children: ReactNode
+  /**
+   * The rail this chrome hosts. Rendered once inside the shell and never re-mounted
+   * across collapse, peek, or fullscreen; it reads collapse and peek state through
+   * {@link useSidebarChrome}. The workspace passes its own `Sidebar`; the organization
+   * surface passes `OrganizationSidebar`.
+   */
+  sidebar: ReactNode
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
   initialSidebarCollapsed?: boolean
 }
@@ -154,24 +154,21 @@ function isFullscreenPath(pathname: string | null): boolean {
 }
 
 /**
- * Renders the workspace chrome as a single persistent tree. The sidebar is
+ * Renders the app chrome as a single persistent tree — the workspace layout and the
+ * organization layout both mount it, each with its own sidebar. The sidebar is
  * always mounted; on a fullscreen route (`/upgrade`) its wrapper collapses to
- * zero width while the inner shell slides off the left edge, revealing the route
- * content. Because this component lives in the workspace layout it persists
- * across navigations, so the pathname-driven class toggle animates smoothly.
+ * zero width, revealing the route content. Because this component lives in the
+ * layout it persists across navigations, so the rail never re-mounts.
  *
- * Leaving a fullscreen route is instant: App Router swaps `children` to the
- * origin page and the fullscreen page is simply unmounted, while the sidebar
- * slides back in. There is no exit fade — the new page just loads in place.
+ * Nothing here animates: collapse, expand, and the fullscreen swap all apply in
+ * one frame. The rail and the pane meet on a single hairline divider with no
+ * gutter, radius, or shift between states.
  *
  * Because the chrome observes every pathname transition, it records the page a
  * fullscreen route was launched from into {@link useFullscreenOriginStore}. The
  * route's Back control reads that origin to return deterministically, so any
  * trigger that merely pushes a fullscreen route gets correct return-to-origin
  * without per-call-site wiring.
- *
- * On a direct load of a fullscreen route the wrapper mounts already collapsed,
- * so no slide plays (CSS transitions don't run on mount).
  *
  * On the macOS desktop shell, where collapsing hides the rail entirely, the same
  * wrapper doubles as the hover-peek card: hovering the title-bar sidebar toggle
@@ -181,10 +178,9 @@ function isFullscreenPath(pathname: string | null): boolean {
  */
 export function WorkspaceChrome({
   children,
+  sidebar,
   initialSidebarCollapsed = false,
 }: WorkspaceChromeProps) {
-  const rafRef = useRef(0)
-
   const pathname = usePathname()
   const isFullscreen = isFullscreenPath(pathname)
 
@@ -227,29 +223,6 @@ export function WorkspaceChrome({
   const peekEnabled = isCollapsed && !isFullscreen && titleBarMode === 'inset'
   const { isPeekActive, isPeekOpen, cardRef, triggerRef, onTriggerEnter, onTriggerLeave } =
     useSidebarPeek(peekEnabled, isSearchModalOpen)
-
-  /**
-   * Suppresses sidebar transitions across the initial hydration window. The
-   * pre-paint script already set the correct `--sidebar-width`, but the store
-   * rehydration below re-applies it a tick later; without this guard that
-   * re-apply animates the rail, reading as a collapse -> expand flash on a
-   * fresh load. Applied before the rehydrate effect so the class is in place
-   * ahead of the width mutation, then lifted after the first paint so
-   * user-driven collapse toggles and the fullscreen slide still animate.
-   */
-  useLayoutEffect(() => {
-    const root = document.documentElement
-    root.classList.add('sidebar-booting')
-    const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(() => root.classList.remove('sidebar-booting'))
-      rafRef.current = raf2
-    })
-    rafRef.current = raf1
-    return () => {
-      cancelAnimationFrame(rafRef.current)
-      root.classList.remove('sidebar-booting')
-    }
-  }, [])
 
   // Hydrate the persisted width before paint (collapse comes from the cookie/prop).
   useLayoutEffect(() => {
@@ -362,7 +335,9 @@ export function WorkspaceChrome({
             ? isPeekOpen
               ? PEEK_CARD_ENTER
               : PEEK_CARD_EXIT
-            : cn(isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]', SIDEBAR_SHELL_IN_FLOW)
+            : isFullscreen
+              ? 'w-0'
+              : 'w-[var(--sidebar-width)]'
         )}
         data-collapsed={isCollapsed || undefined}
         data-peek={isPeekActive || undefined}
@@ -370,23 +345,14 @@ export function WorkspaceChrome({
         aria-hidden={isFullscreen || (isPeekActive && !isPeekOpen) || undefined}
         suppressHydrationWarning
       >
-        <div
-          className={cn(
-            'sidebar-shell-inner h-full w-[var(--sidebar-width)] shrink-0 transition-transform',
-            SLIDE_TRANSITION,
-            isFullscreen && '-translate-x-full'
-          )}
-        >
-          <Sidebar isCollapsed={isCollapsed} isPeeking={isPeekActive} />
+        <div className='sidebar-shell-inner h-full w-[var(--sidebar-width)] shrink-0'>
+          <SidebarChromeProvider isCollapsed={isCollapsed} isPeeking={isPeekActive}>
+            {sidebar}
+          </SidebarChromeProvider>
         </div>
       </div>
       <div
-        className={cn(
-          'workspace-content-shell flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
-          SLIDE_TRANSITION,
-          !isFullscreen && 'pl-0',
-          isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'
-        )}
+        className='workspace-content-shell flex min-w-0 flex-1 flex-col'
         data-sidebar-collapsed={isCollapsed || undefined}
         /* A fullscreen route slides the sidebar away without collapsing it, so the pane
            inherits the traffic-light lane the same way a collapsed sidebar does. */
@@ -394,8 +360,9 @@ export function WorkspaceChrome({
       >
         <div
           className={cn(
-            'flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]',
-            CONTENT_PANE_FLUSH
+            'flex-1 overflow-hidden bg-[var(--bg)]',
+            CONTENT_PANE_DIVIDER,
+            isFullscreen && 'border-l-0'
           )}
         >
           {children}

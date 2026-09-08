@@ -9,6 +9,7 @@ import {
   type EnterpriseOwnerClaimDetails,
 } from '@/lib/api/contracts/enterprise-owner-claims'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useEnterpriseOwnerClaimDetails } from '@/hooks/queries/enterprise-owner-claims'
@@ -265,7 +266,7 @@ export default function EnterpriseOwnerClaim({ registrationDisabled }: Enterpris
                     label: 'Sign in to Enterprise',
                     onClick: async () => {
                       await client.signOut()
-                      router.push(authLink('/login', '/workspace'))
+                      router.push(authLink('/login', APP_ENTRY_PATH))
                     },
                   },
                 ]

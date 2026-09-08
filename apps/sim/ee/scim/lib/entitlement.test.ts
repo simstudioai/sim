@@ -33,12 +33,25 @@ describe('isScimEntitledForOrganization', () => {
     expect(mockEnterprisePlan).not.toHaveBeenCalled()
   })
 
-  it('ships with the enterprise plan on the hosted product, with nothing to switch on', async () => {
+  it('honors the deployment disable flag on the hosted product', async () => {
     setEnvFlags({ isScimEnabled: false, isHosted: true })
+    await expect(isScimEntitledForOrganization('org-1')).resolves.toBe(false)
+    expect(mockEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('requires an enterprise plan when provisioning is enabled on the hosted product', async () => {
+    setEnvFlags({ isScimEnabled: true, isHosted: true })
     mockEnterprisePlan.mockResolvedValue(false)
     await expect(isScimEntitledForOrganization('org-1')).resolves.toBe(false)
     mockEnterprisePlan.mockResolvedValue(true)
     await expect(isScimEntitledForOrganization('org-1')).resolves.toBe(true)
-    expect(mockEnterprisePlan).toHaveBeenCalledWith('org-1')
+    expect(mockEnterprisePlan).toHaveBeenCalledWith('org-1', 'throw', undefined)
+  })
+
+  it('propagates billing read failures instead of treating the organization as unentitled', async () => {
+    setEnvFlags({ isScimEnabled: true, isHosted: true })
+    const failure = new Error('Billing database unavailable')
+    mockEnterprisePlan.mockRejectedValue(failure)
+    await expect(isScimEntitledForOrganization('org-1')).rejects.toBe(failure)
   })
 })

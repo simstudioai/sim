@@ -1,13 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
-import { isSameOrigin } from '@/lib/core/utils/validation'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import {
+  getGitLabDocumentAcls,
+  openGitLabDirectory,
+  validateGitLabPermissionToken,
+} from '@/connectors/gitlab/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  BoundedLines,
   CONNECTOR_MAX_FILE_BYTES,
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  ConnectorFileTooLargeError,
   computeContentHash,
   joinTagArray,
   markSkipped,
@@ -32,16 +41,19 @@ const BINARY_SNIFF_BYTES = 8000
 const WIKI_PREFIX = 'wiki:'
 const ISSUE_PREFIX = 'issue:'
 const FILE_PREFIX = 'file:'
+const MERGE_REQUEST_PREFIX = 'merge_request:'
+const MAX_COMMENT_PAGES = 200
+const MAX_METADATA_RESPONSE_BYTES = 16 * 1024 * 1024
 
 /**
  * Selects which GitLab resources to sync. `repo` = repository files (code/docs),
- * `all` = repo + wiki + issues. `both` is retained for backward compatibility and
+ * `all` = repo + wiki + issues + merge requests. `both` is retained for backward compatibility and
  * means wiki + issues (no repository files).
  */
-type ContentTypeChoice = 'repo' | 'wiki' | 'issues' | 'both' | 'all'
+type ContentTypeChoice = 'repo' | 'wiki' | 'issues' | 'merge_requests' | 'both' | 'all'
 
-/** Listing phases, walked in order: repository files ➜ wiki ➜ issues. */
-type SyncPhase = 'repo' | 'wiki' | 'issues'
+/** Listing phases, walked in order: repository files, wiki, issues, merge requests. */
+type SyncPhase = 'repo' | 'wiki' | 'issues' | 'merge_requests'
 
 interface GitLabTreeEntry {
   id: string
@@ -137,6 +149,7 @@ async function fetchListing(url: string, accessToken: string): Promise<SecureFet
     profile: 'configuredEndpoint',
     method: 'GET',
     headers: authHeaders(accessToken),
+    maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
   })
   if (response.status !== 405) return response
 
@@ -155,6 +168,7 @@ async function fetchListing(url: string, accessToken: string): Promise<SecureFet
     profile: 'configuredEndpoint',
     method: 'GET',
     headers: authHeaders(accessToken),
+    maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
   })
 }
 
@@ -166,6 +180,7 @@ function activePhases(choice: ContentTypeChoice): SyncPhase[] {
   if (choice === 'repo' || choice === 'all') phases.push('repo')
   if (choice === 'wiki' || choice === 'both' || choice === 'all') phases.push('wiki')
   if (choice === 'issues' || choice === 'both' || choice === 'all') phases.push('issues')
+  if (choice === 'merge_requests' || choice === 'all') phases.push('merge_requests')
   return phases
 }
 
@@ -188,6 +203,7 @@ interface GitLabWikiPage {
 }
 
 interface GitLabUser {
+  id?: number
   username?: string
   name?: string
 }
@@ -208,6 +224,7 @@ interface GitLabIssue {
   updated_at?: string
   created_at?: string
   web_url?: string
+  confidential?: boolean
 }
 
 interface GitLabProject {
@@ -269,6 +286,7 @@ function getContentTypeChoice(sourceConfig: Record<string, unknown>): ContentTyp
     value === 'repo' ||
     value === 'wiki' ||
     value === 'issues' ||
+    value === 'merge_requests' ||
     value === 'both' ||
     value === 'all'
   ) {
@@ -287,32 +305,22 @@ function authHeaders(accessToken: string): Record<string, string> {
   }
 }
 
-/**
- * Builds the change-detection hash for a wiki page.
- *
- * GitLab wiki pages expose no version number or `updated_at` timestamp in the
- * REST API, so there is no metadata field that reliably changes when a page is
- * edited. As a last resort we hash the page content itself. To keep the hash
- * identical between the listing stub and getDocument, both paths request the
- * page content (the list endpoint supports `with_content=1`) and feed it through
- * this same function.
- */
+/** Wiki title and body both participate in change detection after deferred hydration. */
 async function buildWikiContentHash(
   projectId: string,
   slug: string,
-  content: string
+  body: string
 ): Promise<string> {
-  const contentDigest = await computeContentHash(content)
-  return `gitlab:wiki:${projectId}:${slug}:${contentDigest}`
+  return `gitlab:wiki:${projectId}:${slug}:${await computeContentHash(body)}`
 }
 
-/**
- * Builds the change-detection hash for an issue. Issues expose `updated_at`,
- * which increments on every edit, comment, or state change — an ideal metadata
- * indicator that requires no content fetch.
- */
-function buildIssueContentHash(projectId: string, iid: number, updatedAt: string): string {
-  return `gitlab:issue:${projectId}:${iid}:${updatedAt}`
+/** A per-run stub hash forces comment refresh without assuming parent timestamp semantics. */
+function listingToken(syncContext?: Record<string, unknown>): string {
+  if (typeof syncContext?.syncRunId === 'string') return syncContext.syncRunId
+  if (typeof syncContext?._gitlabListingToken === 'string') return syncContext._gitlabListingToken
+  const token = generateId()
+  if (syncContext) syncContext._gitlabListingToken = token
+  return token
 }
 
 /**
@@ -473,8 +481,11 @@ async function wikiPageToDocument(
   const title = page.title?.trim() || page.slug
   const body = composeBody(title, content)
   if (!body.trim()) return null
+  if (Buffer.byteLength(body, 'utf8') > CONNECTOR_TEXT_DOCUMENT_MAX_BYTES) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+  }
 
-  const contentHash = await buildWikiContentHash(encodedProject, page.slug, content)
+  const contentHash = await buildWikiContentHash(encodedProject, page.slug, body)
 
   return {
     externalId: `${WIKI_PREFIX}${page.slug}`,
@@ -494,49 +505,211 @@ async function wikiPageToDocument(
   }
 }
 
-/**
- * Builds an issue document from a fetched issue.
- */
-function issueToDocument(
+type WorkItemKind = 'issue' | 'merge_request'
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function readUser(value: unknown): GitLabUser | undefined {
+  if (!isPlainRecord(value)) return undefined
+  return {
+    id: typeof value.id === 'number' ? value.id : undefined,
+    name: optionalString(value.name),
+    username: optionalString(value.username),
+  }
+}
+
+/** Do not let malformed provider collections masquerade as complete empty listings. */
+function readWorkItem(value: unknown): GitLabIssue {
+  if (!isPlainRecord(value) || !Number.isSafeInteger(value.iid) || Number(value.iid) <= 0) {
+    throw new Error('GitLab returned an invalid issue or merge request')
+  }
+  return {
+    iid: Number(value.iid),
+    title: optionalString(value.title),
+    description: optionalString(value.description),
+    state: optionalString(value.state),
+    labels: Array.isArray(value.labels)
+      ? value.labels.filter((label): label is string => typeof label === 'string')
+      : [],
+    author: readUser(value.author),
+    assignees: Array.isArray(value.assignees)
+      ? value.assignees.map(readUser).filter((user): user is GitLabUser => user !== undefined)
+      : [],
+    milestone: isPlainRecord(value.milestone)
+      ? { title: optionalString(value.milestone.title) }
+      : undefined,
+    updated_at: optionalString(value.updated_at),
+    created_at: optionalString(value.created_at),
+    web_url: optionalString(value.web_url),
+    confidential: typeof value.confidential === 'boolean' ? value.confidential : undefined,
+  }
+}
+
+function readWorkItems(value: unknown): GitLabIssue[] {
+  if (!Array.isArray(value) || value.length > PAGE_SIZE) {
+    throw new Error('GitLab returned an invalid work item collection')
+  }
+  return value.map(readWorkItem)
+}
+
+function readWikiPages(value: unknown): GitLabWikiPage[] {
+  if (!Array.isArray(value)) throw new Error('GitLab returned an invalid wiki collection')
+  return value.map((page) => {
+    if (!isPlainRecord(page) || typeof page.slug !== 'string' || !page.slug) {
+      throw new Error('GitLab returned an invalid wiki page')
+    }
+    return {
+      slug: page.slug,
+      title: optionalString(page.title),
+      content: optionalString(page.content),
+    }
+  })
+}
+
+/** Continuations must remain on the same collection before forwarding a PAT. */
+function continuationUrl(candidate: string | undefined, initial: string): string {
+  if (!candidate) return initial
+  const parsed = new URL(candidate)
+  const expected = new URL(initial)
+  if (
+    parsed.origin !== expected.origin ||
+    parsed.pathname !== expected.pathname ||
+    parsed.username ||
+    parsed.password
+  ) {
+    throw new Error('GitLab pagination cursor points to an unexpected collection')
+  }
+  return candidate
+}
+
+function checkedNextLink(response: SecureFetchResponse, current: string): string | undefined {
+  let next = parseNextLink(response.headers.get('link'))
+  const nextPage = response.headers.get('x-next-page')
+  if (!next && nextPage) {
+    if (!/^\d+$/.test(nextPage) || Number(nextPage) <= 0) {
+      throw new Error('GitLab returned an invalid pagination header')
+    }
+    const parsed = new URL(current)
+    parsed.searchParams.set('page', nextPage)
+    next = parsed.toString()
+  }
+  if (!next) return undefined
+  continuationUrl(next, current)
+  if (next === current) throw new Error('GitLab repeated a pagination cursor')
+  return next
+}
+
+/** Parent timestamps cannot prove comments unchanged; hydrated body hashes handle edits and deletions. */
+function workItemToStub(
   encodedProject: string,
   host: string,
   projectPath: string,
-  issue: GitLabIssue
-): ExternalDocument | null {
-  const title = issue.title?.trim() || `Issue #${issue.iid}`
-  const description = typeof issue.description === 'string' ? issue.description : ''
-  const body = composeBody(title, description)
-  if (!body.trim()) return null
-
-  const updatedAt = issue.updated_at ?? issue.created_at ?? ''
-  const createdAt = issue.created_at ?? ''
-  const author = issue.author?.username?.trim() || issue.author?.name?.trim() || ''
-  const labels = Array.isArray(issue.labels) ? issue.labels : []
-  const milestone = issue.milestone?.title?.trim() || ''
-
-  const fallbackUrl = projectPath
-    ? `https://${host}/${projectPath}/-/issues/${issue.iid}`
-    : undefined
-
+  item: GitLabIssue,
+  kind: WorkItemKind,
+  syncContext?: Record<string, unknown>
+): ExternalDocument {
+  const title =
+    item.title?.trim() || `${kind === 'issue' ? 'Issue #' : 'Merge Request !'}${item.iid}`
+  const resource = kind === 'issue' ? 'issues' : 'merge_requests'
   return {
-    externalId: `${ISSUE_PREFIX}${issue.iid}`,
+    externalId: `${kind === 'issue' ? ISSUE_PREFIX : MERGE_REQUEST_PREFIX}${item.iid}`,
     title,
-    content: body,
-    contentDeferred: false,
+    content: '',
+    contentDeferred: true,
+    estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
-    sourceUrl: issue.web_url || fallbackUrl,
-    contentHash: buildIssueContentHash(encodedProject, issue.iid, updatedAt),
+    sourceUrl:
+      item.web_url ||
+      (projectPath ? `https://${host}/${projectPath}/-/${resource}/${item.iid}` : undefined),
+    contentHash: `gitlab:${kind}:listing:v2:${encodedProject}:${item.iid}:${listingToken(syncContext)}`,
     metadata: {
-      contentType: 'issue',
+      contentType: kind,
       title,
-      iid: issue.iid,
-      state: issue.state,
-      author,
-      labels,
-      milestone,
-      createdAt,
-      updatedAt,
+      iid: item.iid,
+      confidential: item.confidential,
+      authorId: item.author?.id,
+      assigneeIds:
+        item.assignees?.map((assignee) => assignee.id).filter((id) => id !== undefined) ?? [],
+      state: item.state,
+      author: item.author?.username?.trim() || item.author?.name?.trim() || '',
+      labels: item.labels ?? [],
+      milestone: item.milestone?.title?.trim() || '',
+      createdAt: item.created_at ?? '',
+      updatedAt: item.updated_at ?? item.created_at ?? '',
     },
+  }
+}
+
+/** Notes share their parent audience only when neither internal nor confidential. */
+async function hydrateWorkItem(
+  accessToken: string,
+  apiBase: string,
+  encodedProject: string,
+  host: string,
+  projectPath: string,
+  item: GitLabIssue,
+  kind: WorkItemKind
+): Promise<ExternalDocument> {
+  const doc = workItemToStub(encodedProject, host, projectPath, item, kind)
+  const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+  if (!lines.push(composeBody(doc.title, item.description ?? ''))) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+  }
+  const resource = kind === 'issue' ? 'issues' : 'merge_requests'
+  let url: string | undefined =
+    `${apiBase}/projects/${encodedProject}/${resource}/${item.iid}/notes?per_page=${PAGE_SIZE}&sort=asc&order_by=created_at`
+  const visited = new Set<string>()
+  const noteIds = new Set<number>()
+  while (url) {
+    if (visited.has(url) || visited.size >= MAX_COMMENT_PAGES) {
+      throw new Error('GitLab comments could not be completely paginated')
+    }
+    visited.add(url)
+    const response = await secureFetchWithRetry(url, {
+      profile: 'configuredEndpoint',
+      method: 'GET',
+      headers: authHeaders(accessToken),
+      maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
+    })
+    if (!response.ok) throw new Error(`Failed to fetch GitLab ${kind} comments: ${response.status}`)
+    const notes: unknown = await response.json()
+    if (!Array.isArray(notes) || notes.length > PAGE_SIZE) {
+      throw new Error('GitLab returned an invalid comment collection')
+    }
+    for (const note of notes) {
+      if (
+        !isPlainRecord(note) ||
+        !Number.isSafeInteger(note.id) ||
+        Number(note.id) <= 0 ||
+        typeof note.body !== 'string' ||
+        typeof note.system !== 'boolean' ||
+        (note.internal !== undefined && typeof note.internal !== 'boolean') ||
+        (note.confidential !== undefined && typeof note.confidential !== 'boolean')
+      ) {
+        throw new Error('GitLab returned an invalid comment')
+      }
+      const noteId = Number(note.id)
+      if (noteIds.has(noteId)) throw new Error('GitLab repeated a comment during pagination')
+      noteIds.add(noteId)
+      if (note.system || note.internal || note.confidential) continue
+      const author = readUser(note.author)
+      const label = author?.name || author?.username || 'Unknown author'
+      const link = doc.sourceUrl ? `${doc.sourceUrl}#note_${noteId}` : `Comment ${noteId}`
+      if (!lines.push('', `${label} (${optionalString(note.created_at) ?? ''})`, link, note.body)) {
+        throw new ConnectorFileTooLargeError(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
+      }
+    }
+    url = checkedNextLink(response, url)
+  }
+  const content = lines.join()
+  return {
+    ...doc,
+    content,
+    contentDeferred: false,
+    estimatedBytes: Buffer.byteLength(content, 'utf8'),
+    contentHash: `gitlab:${kind}:v2:${encodedProject}:${item.iid}:${await computeContentHash(content)}`,
   }
 }
 
@@ -613,6 +786,8 @@ interface CursorState {
   fileNextUrl?: string
   /** Full `rel="next"` URL for the issues keyset page to fetch next. */
   issueNextUrl?: string
+  wikiNextUrl?: string
+  mergeNextUrl?: string
 }
 
 function encodeCursor(state: CursorState): string {
@@ -627,9 +802,14 @@ function decodeCursor(cursor: string | undefined, initialPhase: SyncPhase): Curs
       issuePage: number
       fileNextUrl: string
       issueNextUrl: string
+      wikiNextUrl: string
+      mergeNextUrl: string
     }>
     const phase: SyncPhase =
-      parsed.phase === 'repo' || parsed.phase === 'issues' || parsed.phase === 'wiki'
+      parsed.phase === 'repo' ||
+      parsed.phase === 'issues' ||
+      parsed.phase === 'wiki' ||
+      parsed.phase === 'merge_requests'
         ? parsed.phase
         : initialPhase
     return {
@@ -637,6 +817,8 @@ function decodeCursor(cursor: string | undefined, initialPhase: SyncPhase): Curs
       issuePage: Number(parsed.issuePage) > 0 ? Number(parsed.issuePage) : 1,
       fileNextUrl: typeof parsed.fileNextUrl === 'string' ? parsed.fileNextUrl : undefined,
       issueNextUrl: typeof parsed.issueNextUrl === 'string' ? parsed.issueNextUrl : undefined,
+      wikiNextUrl: typeof parsed.wikiNextUrl === 'string' ? parsed.wikiNextUrl : undefined,
+      mergeNextUrl: typeof parsed.mergeNextUrl === 'string' ? parsed.mergeNextUrl : undefined,
     }
   } catch {
     return { phase: initialPhase, issuePage: 1 }
@@ -700,13 +882,14 @@ function applyMaxItemsCap(
 
 export const gitlabConnector: ConnectorConfig = {
   ...gitlabConnectorMeta,
+  openDirectory: openGitLabDirectory,
+  getDocumentAcls: getGitLabDocumentAcls,
 
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>,
-    lastSyncAt?: Date
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const host = normalizeHost(sourceConfig.host)
     const apiBase = buildApiBase(host)
@@ -746,12 +929,10 @@ export const gitlabConnector: ConnectorConfig = {
         per_page: String(PAGE_SIZE),
         pagination: 'keyset',
       })
-      if (state.fileNextUrl && !isSameOrigin(state.fileNextUrl, apiBase)) {
-        throw new Error('GitLab pagination cursor points to an unexpected host')
-      }
-      const url =
-        state.fileNextUrl ??
+      const url = continuationUrl(
+        state.fileNextUrl,
         `${apiBase}/projects/${encodedProject}/repository/tree?${treeParams.toString()}`
+      )
       logger.info('Listing GitLab repository files', {
         host,
         project: encodedProject,
@@ -804,7 +985,7 @@ export const gitlabConnector: ConnectorConfig = {
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextLink = parseNextLink(response.headers.get('link'))
+      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -817,13 +998,15 @@ export const gitlabConnector: ConnectorConfig = {
     }
 
     if (state.phase === 'wiki') {
-      const url = `${apiBase}/projects/${encodedProject}/wikis?with_content=1`
+      const initialUrl = `${apiBase}/projects/${encodedProject}/wikis?with_content=0`
+      const url = continuationUrl(state.wikiNextUrl, initialUrl)
       logger.info('Listing GitLab wiki pages', { host, project: encodedProject })
 
       const response = await secureFetchWithRetry(url, {
         profile: 'configuredEndpoint',
         method: 'GET',
         headers: authHeaders(accessToken),
+        maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
       })
 
       if (!response.ok) {
@@ -853,12 +1036,23 @@ export const gitlabConnector: ConnectorConfig = {
         throw new Error(`Failed to list GitLab wiki pages: ${response.status}`)
       }
 
-      const pages = (await response.json()) as GitLabWikiPage[]
+      const pages = readWikiPages(await response.json())
       const documents: ExternalDocument[] = []
       for (const page of pages) {
         if (!page.slug) continue
-        const doc = await wikiPageToDocument(apiBase, encodedProject, host, projectPath, page)
-        if (doc) documents.push(doc)
+        documents.push({
+          externalId: `${WIKI_PREFIX}${page.slug}`,
+          title: page.title?.trim() || page.slug,
+          content: '',
+          contentDeferred: true,
+          mimeType: 'text/plain',
+          contentHash: `gitlab:wiki-listing:v2:${encodedProject}:${page.slug}:${listingToken(syncContext)}`,
+          metadata: {
+            contentType: 'wiki',
+            title: page.title?.trim() || page.slug,
+            slug: page.slug,
+          },
+        })
       }
 
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
@@ -871,6 +1065,14 @@ export const gitlabConnector: ConnectorConfig = {
         return { documents: capped, hasMore: false }
       }
 
+      const nextLink = checkedNextLink(response, url)
+      if (nextLink) {
+        return {
+          documents: capped,
+          nextCursor: encodeCursor({ phase: 'wiki', issuePage: 1, wikiNextUrl: nextLink }),
+          hasMore: true,
+        }
+      }
       const adv = advance('wiki')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
@@ -882,7 +1084,6 @@ export const gitlabConnector: ConnectorConfig = {
         sort: 'desc',
         pagination: 'keyset',
       })
-      if (lastSyncAt) params.set('updated_after', lastSyncAt.toISOString())
       const issueState =
         typeof sourceConfig.issueState === 'string' ? sourceConfig.issueState.trim() : ''
       if (issueState && issueState !== 'all') params.set('state', issueState)
@@ -893,16 +1094,14 @@ export const gitlabConnector: ConnectorConfig = {
         typeof sourceConfig.issueMilestone === 'string' ? sourceConfig.issueMilestone.trim() : ''
       if (issueMilestone) params.set('milestone', issueMilestone)
 
-      if (state.issueNextUrl && !isSameOrigin(state.issueNextUrl, apiBase)) {
-        throw new Error('GitLab pagination cursor points to an unexpected host')
-      }
-      const url =
-        state.issueNextUrl ?? `${apiBase}/projects/${encodedProject}/issues?${params.toString()}`
+      const url = continuationUrl(
+        state.issueNextUrl,
+        `${apiBase}/projects/${encodedProject}/issues?${params.toString()}`
+      )
       logger.info('Listing GitLab issues', {
         host,
         project: encodedProject,
         continued: Boolean(state.issueNextUrl),
-        incremental: Boolean(lastSyncAt),
       })
 
       const response = await fetchListing(url, accessToken)
@@ -916,12 +1115,13 @@ export const gitlabConnector: ConnectorConfig = {
         throw new Error(`Failed to list GitLab issues: ${response.status}`)
       }
 
-      const issues = (await response.json()) as GitLabIssue[]
+      const issues = readWorkItems(await response.json())
       const documents: ExternalDocument[] = []
       for (const issue of issues) {
         if (issue.iid == null) continue
-        const doc = issueToDocument(encodedProject, host, projectPath, issue)
-        if (doc) documents.push(doc)
+        documents.push(
+          workItemToStub(encodedProject, host, projectPath, issue, 'issue', syncContext)
+        )
       }
 
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
@@ -931,7 +1131,7 @@ export const gitlabConnector: ConnectorConfig = {
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextLink = parseNextLink(response.headers.get('link'))
+      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -940,7 +1140,29 @@ export const gitlabConnector: ConnectorConfig = {
         }
       }
 
-      return { documents: capped, hasMore: false }
+      const adv = advance('issues')
+      return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
+    }
+
+    if (state.phase === 'merge_requests') {
+      const initialUrl = `${apiBase}/projects/${encodedProject}/merge_requests?scope=all&state=all&per_page=${PAGE_SIZE}&order_by=updated_at&sort=desc`
+      const url = continuationUrl(state.mergeNextUrl, initialUrl)
+      const response = await fetchListing(url, accessToken)
+      if (!response.ok) throw new Error(`Failed to list GitLab merge requests: ${response.status}`)
+      const items = readWorkItems(await response.json())
+      const documents = items.map((item) =>
+        workItemToStub(encodedProject, host, projectPath, item, 'merge_request', syncContext)
+      )
+      const capped = applyMaxItemsCap(documents, maxItems, syncContext)
+      if (capped.capped) return { documents: capped.documents, hasMore: false }
+      const nextLink = checkedNextLink(response, url)
+      return {
+        documents: capped.documents,
+        nextCursor: nextLink
+          ? encodeCursor({ phase: 'merge_requests', issuePage: 1, mergeNextUrl: nextLink })
+          : undefined,
+        hasMore: Boolean(nextLink),
+      }
     }
 
     return { documents: [], hasMore: false }
@@ -981,31 +1203,32 @@ export const gitlabConnector: ConnectorConfig = {
           throw new Error(`Failed to fetch GitLab wiki page: ${response.status}`)
         }
 
-        const page = (await response.json()) as GitLabWikiPage
-        if (!page.slug) return null
+        const page = readWikiPages([await response.json()])[0]
+        if (page.slug !== slug) throw new Error('GitLab returned a different wiki page')
         return wikiPageToDocument(apiBase, encodedProject, host, projectPath, page)
       }
 
-      if (externalId.startsWith(ISSUE_PREFIX)) {
-        const iidStr = externalId.slice(ISSUE_PREFIX.length)
+      if (externalId.startsWith(ISSUE_PREFIX) || externalId.startsWith(MERGE_REQUEST_PREFIX)) {
+        const kind = externalId.startsWith(ISSUE_PREFIX) ? 'issue' : 'merge_request'
+        const prefix = kind === 'issue' ? ISSUE_PREFIX : MERGE_REQUEST_PREFIX
+        const iidStr = externalId.slice(prefix.length)
         const iid = Number(iidStr)
-        if (!iidStr || Number.isNaN(iid)) return null
-
-        const url = `${apiBase}/projects/${encodedProject}/issues/${iid}`
+        if (!/^\d+$/.test(iidStr) || !Number.isSafeInteger(iid) || iid <= 0) return null
+        const resource = kind === 'issue' ? 'issues' : 'merge_requests'
+        const url = `${apiBase}/projects/${encodedProject}/${resource}/${iid}`
         const response = await secureFetchWithRetry(url, {
           profile: 'configuredEndpoint',
           method: 'GET',
           headers: authHeaders(accessToken),
+          maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
         })
-
         if (!response.ok) {
           if (response.status === 404) return null
-          throw new Error(`Failed to fetch GitLab issue: ${response.status}`)
+          throw new Error(`Failed to fetch GitLab ${kind}: ${response.status}`)
         }
-
-        const issue = (await response.json()) as GitLabIssue
-        if (issue.iid == null) return null
-        return issueToDocument(encodedProject, host, projectPath, issue)
+        const item = readWorkItem(await response.json())
+        if (item.iid !== iid) throw new Error('GitLab returned a different issue or merge request')
+        return hydrateWorkItem(accessToken, apiBase, encodedProject, host, projectPath, item, kind)
       }
 
       if (externalId.startsWith(FILE_PREFIX)) {
@@ -1053,7 +1276,8 @@ export const gitlabConnector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const project = (sourceConfig.project as string)?.trim()
     if (!project) {
@@ -1082,6 +1306,9 @@ export const gitlabConnector: ConnectorConfig = {
     const choice = getContentTypeChoice(sourceConfig)
 
     try {
+      if (syncContext?.mirrorsSourceAcls === true) {
+        await validateGitLabPermissionToken(accessToken, sourceConfig)
+      }
       const response = await fetchProject(
         apiBase,
         encodedProject,

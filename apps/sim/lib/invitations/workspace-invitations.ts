@@ -1,10 +1,15 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
-import { type InvitationMembershipIntent, member, permissions, user } from '@sim/db/schema'
+import {
+  foldedEmail,
+  type InvitationMembershipIntent,
+  member,
+  permissions,
+  user,
+} from '@sim/db/schema'
 import { isOrgAdminRole, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import {
   acquireOrganizationMutationLock,
@@ -13,6 +18,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -128,7 +134,7 @@ async function ensureExistingMemberOrganizationRole({
   currentRole: string
   requestedRole: 'admin' | 'member'
   email: string
-  request?: NextRequest
+  request?: OrchestrationRequestContext
 }): Promise<{ role: string; updated: boolean }> {
   if (requestedRole !== 'admin' || isOrgAdminRole(currentRole)) {
     return { role: currentRole, updated: false }
@@ -466,7 +472,7 @@ export async function createWorkspaceInvitation({
   sourceOperationId?: string
   /** Makes invitation/direct-grant audits idempotent for durable callers. */
   auditOperationId?: string
-  request?: NextRequest
+  request?: OrchestrationRequestContext
 }): Promise<WorkspaceInvitationResult> {
   const validPermissions: PermissionType[] = ['admin', 'write', 'read']
   if (!validPermissions.includes(permission as PermissionType)) {
@@ -490,7 +496,7 @@ export async function createWorkspaceInvitation({
           : sql<boolean>`false`,
     })
     .from(user)
-    .where(sql`lower(${user.email}) = ${normalizedEmail}`)
+    .where(eq(foldedEmail(user.email), normalizedEmail))
     .then((rows) => rows[0])
 
   /**

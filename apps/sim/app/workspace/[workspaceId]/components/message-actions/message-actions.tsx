@@ -20,6 +20,7 @@ import {
 } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
@@ -49,7 +50,10 @@ export const MessageActions = memo(function MessageActions({
   messageId,
 }: MessageActionsProps) {
   const router = useRouter()
-  const params = useParams<{ workspaceId: string }>()
+  const params = useParams<{ workspaceId?: string; organizationId?: string }>()
+  const owner = params.organizationId
+    ? { organizationId: params.organizationId }
+    : params.workspaceId
   const { chatId } = useChatSurface()
   const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
@@ -57,7 +61,7 @@ export const MessageActions = memo(function MessageActions({
   const [feedbackText, setFeedbackText] = useState('')
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
-  const forkChat = useForkMothershipChat(params.workspaceId)
+  const forkChat = useForkMothershipChat(owner)
 
   useEffect(() => {
     return () => {
@@ -125,7 +129,7 @@ export const MessageActions = memo(function MessageActions({
   }
 
   const handleFork = async () => {
-    if (!chatId || !messageId || forkChat.isPending) return
+    if (!owner || !chatId || !messageId || forkChat.isPending) return
     try {
       const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
       if (result.failedFileCopies) {
@@ -133,8 +137,12 @@ export const MessageActions = memo(function MessageActions({
           `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
         )
       }
-      useFolderStore.getState().clearChatSelection()
-      router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
+      if (params.organizationId) {
+        router.push(organizationRoutes(params.organizationId).chat(result.id))
+      } else {
+        useFolderStore.getState().clearChatSelection()
+        router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
+      }
     } catch {
       toast.error('Failed to fork chat')
     }
@@ -145,7 +153,7 @@ export const MessageActions = memo(function MessageActions({
   // A live (just-streamed) assistant message carries a synthetic id that the
   // persisted transcript doesn't know — forking it would 400. The button
   // appears once the transcript refetch swaps in the persisted message id.
-  const canFork = Boolean(chatId && messageId && !isLiveAssistantMessageId(messageId))
+  const canFork = Boolean(owner && chatId && messageId && !isLiveAssistantMessageId(messageId))
   if (!canCopyContent && !canSubmitFeedback && !canFork) return null
 
   return (

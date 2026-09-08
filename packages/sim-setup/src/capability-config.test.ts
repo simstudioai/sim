@@ -92,4 +92,11 @@ describe('capability setup configuration', () => {
       )
     }
   })
+
+  it('configures GitHub Search with dedicated App credentials', () => {
+    expect(getOAuthClientSetupFields('github-repositories')).toEqual([
+      { key: 'GITHUB_APP_CLIENT_ID', input: 'text' },
+      { key: 'GITHUB_APP_CLIENT_SECRET', input: 'secret' },
+    ])
+  })
 })

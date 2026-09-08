@@ -113,6 +113,11 @@ function isFieldProjection(value: unknown): boolean {
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
+  /** Connected accounts resolve from the workspace; group selectors have no replacement. */
+  credential_group: [
+    { from: 'credentialGroup', to: '_removed_credentialGroup' },
+    { from: 'manualCredentialGroup', to: '_removed_manualCredentialGroup' },
+  ],
   algolia: [
     { from: 'listPage', to: 'page' },
     { from: 'listHitsPerPage', to: 'hitsPerPage' },

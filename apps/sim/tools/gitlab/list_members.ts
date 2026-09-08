@@ -5,6 +5,7 @@ import type { ToolConfig } from '@/tools/types'
 export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabListMembersResponse> =
   {
     id: 'gitlab_list_members',
+    personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     name: 'GitLab List Members',
     description:
       'List members of a GitLab project or group. Includes members inherited from ancestor groups by default.',

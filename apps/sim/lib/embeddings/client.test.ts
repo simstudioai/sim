@@ -1,9 +1,12 @@
 /**
  * @vitest-environment node
  */
+
 import { resetEnvMock, setEnv } from '@sim/testing'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  assertKnowledgeEmbeddingCapacityForDeployment,
   clampEmbeddingConcurrency,
   EMBEDDING_MAX_RETRIES,
   EmbeddingAPIError,
@@ -17,10 +20,23 @@ import {
   isTransientEmbeddingError,
   MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
 } from '@/lib/embeddings/client'
-import { resetEmbeddingQuotaCircuitsForTesting } from '@/lib/embeddings/quota-circuit'
 
 const { mockGetBYOKKey } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
+}))
+
+const { quotaGates, mockAdmit, mockCooldown, mockQuotaCheck } = vi.hoisted(() => ({
+  quotaGates: new Set<string>(),
+  mockAdmit: vi.fn(),
+  mockCooldown: vi.fn(),
+  mockQuotaCheck: vi.fn(),
+}))
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  waitForProviderAdmission: mockAdmit,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  isProviderQuotaExhausted: mockQuotaCheck,
+  recordProviderCooldown: mockCooldown,
 }))
 
 vi.mock('@/lib/api-key/byok', () => ({
@@ -89,6 +105,19 @@ function oversizedChunkedSuccessResponse(): Response {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  mockQuotaCheck
+    .mockReset()
+    .mockImplementation(async (identity: { credentialFingerprint: string }) =>
+      quotaGates.has(identity.credentialFingerprint)
+    )
+  mockAdmit.mockReset().mockResolvedValue(undefined)
+  mockCooldown.mockReset()
+  mockCooldown.mockImplementation(
+    async (identity: { credentialFingerprint: string }, _waitMs: number, quota: boolean) => {
+      if (quota) quotaGates.add(identity.credentialFingerprint)
+    }
+  )
+
   fetchMock = vi.fn()
   global.fetch = fetchMock as unknown as typeof fetch
   mockGetBYOKKey.mockResolvedValue(null)
@@ -107,11 +136,80 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  resetEmbeddingQuotaCircuitsForTesting()
+  quotaGates.clear()
   global.fetch = originalFetch
   vi.useRealTimers()
   vi.restoreAllMocks()
   resetEnvMock()
+})
+
+describe('embedding cancellation', () => {
+  it('cancels a stalled response body after headers arrive without retrying', async () => {
+    vi.useFakeTimers()
+    const cancelBody = vi.fn()
+    fetchMock.mockResolvedValue(new Response(new ReadableStream({ cancel: cancelBody })))
+    const controller = new AbortController()
+    const pending = embed(['text'], { apiKey: 'key', signal: controller.signal })
+    const rejected = expect(pending).rejects.toThrow('cancelled')
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort(new Error('cancelled'))
+    await rejected
+    expect(cancelBody).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('ends stalled admission at the overall deadline without sending a provider request', async () => {
+    vi.useFakeTimers()
+    mockAdmit.mockImplementationOnce(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const pending = embed(['text'], { apiKey: 'key' })
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    await vi.advanceTimersByTimeAsync(150_000)
+    await rejected
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockAdmit).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('shares the same deadline between admission and a stalled response body', async () => {
+    vi.useFakeTimers()
+    mockAdmit.mockImplementationOnce(() => interruptibleSleep(120_000))
+    const cancelBody = vi.fn()
+    fetchMock.mockResolvedValue(new Response(new ReadableStream({ cancel: cancelBody })))
+    const pending = embed(['text'], { apiKey: 'key' })
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    await vi.advanceTimersByTimeAsync(149_999)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(cancelBody).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+    expect(cancelBody).toHaveBeenCalledOnce()
+    expect(mockAdmit).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not start a fallback provider after cancellation', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-key', OPENROUTER_API_KEY: 'router-key' })
+    fetchMock.mockImplementation(
+      (_url, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+    )
+    const controller = new AbortController()
+    const pending = embedKnowledgeForDeployment(['text'], { signal: controller.signal }, false)
+    const rejected = expect(pending).rejects.toThrow()
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+    await rejected
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
 })
 
 describe('embed', () => {
@@ -1317,6 +1415,27 @@ describe('knowledge embedding transport fallback', () => {
    * A rate limit with the same status must keep its retries — the two are only
    * distinguishable by the body.
    */
+  it('shares hosted pauses across rotated keys while isolating customer keys', async () => {
+    setEnv({ OPENAI_API_KEY: 'hosted-first' })
+    fetchMock.mockResolvedValue(jsonResponse({ error: { type: 'insufficient_quota' } }, 429))
+    await expect(embed(['first'], { model: 'text-embedding-3-small' })).rejects.toBeInstanceOf(
+      EmbeddingQuotaExhaustedError
+    )
+    setEnv({ OPENAI_API_KEY: 'hosted-rotated' })
+    await expect(embed(['second'], { model: 'text-embedding-3-small' })).rejects.toBeInstanceOf(
+      EmbeddingQuotaExhaustedError
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 2)))
+    await embed(['customer'], { apiKey: 'separate-customer-key' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(mockCooldown).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialFingerprint: 'hosted:openai' }),
+      300_000,
+      true
+    )
+  })
+
   it('still retries a 429 that reports a rate limit', async () => {
     vi.useFakeTimers()
     setEnv({ OPENAI_API_KEY: 'openai-test' })
@@ -1464,5 +1583,117 @@ describe('ollama embeddings', () => {
 
     const [, init] = fetchMock.mock.calls[0]
     expect((init as RequestInit).headers).toEqual({ 'Content-Type': 'application/json' })
+  })
+})
+
+describe('knowledge embedding capacity preflight', () => {
+  const options = { model: 'text-embedding-3-small', dimensions: 1536 }
+
+  it('refuses a paused hosted pool without spending provider admission or making requests', async () => {
+    setEnv({ OPENAI_API_KEY: 'platform-key', OPENROUTER_API_KEY: 'fallback-key' })
+    quotaGates.add('hosted:openai')
+
+    await expect(
+      assertKnowledgeEmbeddingCapacityForDeployment(options, true)
+    ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(mockAdmit).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('checks the workspace credential independently of an exhausted hosted pool', async () => {
+    setEnv({ OPENAI_API_KEY: 'platform-key' })
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-key', isBYOK: true })
+    quotaGates.add('hosted:openai')
+
+    await expect(
+      assertKnowledgeEmbeddingCapacityForDeployment(
+        { ...options, workspaceId: 'workspace-1' },
+        true
+      )
+    ).resolves.toBeUndefined()
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('workspace-1', 'openai')
+    const identity = mockQuotaCheck.mock.calls[0][0]
+    expect(identity.credentialFingerprint).not.toBe('hosted:openai')
+    quotaGates.add(identity.credentialFingerprint)
+    await expect(
+      assertKnowledgeEmbeddingCapacityForDeployment(
+        { ...options, workspaceId: 'workspace-1' },
+        true
+      )
+    ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps an available self-hosted fallback eligible when primary quota is exhausted', async () => {
+    setEnv({ OPENAI_API_KEY: 'platform-key', OPENROUTER_API_KEY: 'fallback-key' })
+    quotaGates.add('hosted:openai')
+
+    await expect(
+      assertKnowledgeEmbeddingCapacityForDeployment(options, false)
+    ).resolves.toBeUndefined()
+    expect(mockQuotaCheck.mock.calls.map(([identity]) => identity.providerId)).toEqual([
+      'openai',
+      'openrouter',
+    ])
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    await embedKnowledgeForDeployment(['text'], options, false)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/embeddings')
+  })
+
+  it('defers only when every configured fallback is exhausted', async () => {
+    setEnv({
+      AZURE_OPENAI_API_KEY: 'azure-key',
+      AZURE_OPENAI_ENDPOINT: 'https://example.openai.azure.com',
+      AZURE_OPENAI_API_VERSION: '2024-10-21',
+      OPENAI_API_KEY: 'platform-key',
+      OPENROUTER_API_KEY: 'fallback-key',
+    })
+    for (const provider of ['azure-openai', 'openai', 'openrouter'])
+      quotaGates.add(`hosted:${provider}`)
+    const error = await assertKnowledgeEmbeddingCapacityForDeployment(options, false).catch(
+      (error) => error
+    )
+    expect(error).toBeInstanceOf(AggregateError)
+    expect(isEmbeddingQuotaExhaustion(error)).toBe(true)
+    expect(mockQuotaCheck.mock.calls.map(([identity]) => identity.providerId)).toEqual([
+      'azure-openai',
+      'openai',
+      'openrouter',
+    ])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('propagates admission storage failure instead of treating an alternate as available', async () => {
+    setEnv({ OPENAI_API_KEY: 'platform-key', OPENROUTER_API_KEY: 'fallback-key' })
+    const failure = new Error('Quota storage unavailable')
+    mockQuotaCheck.mockRejectedValueOnce(failure)
+    await expect(assertKnowledgeEmbeddingCapacityForDeployment(options, false)).rejects.toBe(
+      failure
+    )
+    expect(mockQuotaCheck).toHaveBeenCalledOnce()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('honors cancellation before and during a quota read', async () => {
+    setEnv({ OPENAI_API_KEY: 'platform-key' })
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      assertKnowledgeEmbeddingCapacityForDeployment({ ...options, signal: controller.signal }, true)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockQuotaCheck).not.toHaveBeenCalled()
+
+    const duringRead = new AbortController()
+    mockQuotaCheck.mockImplementationOnce(async () => {
+      duringRead.abort()
+      return false
+    })
+    await expect(
+      assertKnowledgeEmbeddingCapacityForDeployment({ ...options, signal: duringRead.signal }, true)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

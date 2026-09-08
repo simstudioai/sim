@@ -2,8 +2,10 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import {
   resolveUserKnowledgeAccessScope,
@@ -151,6 +153,12 @@ export async function verifyFileAccess(
 ): Promise<boolean> {
   const requireWrite = options?.requireWrite ?? false
   try {
+    const keyContext = inferContextFromKey(cloudKey)
+    if (keyContext === 'knowledge-base') {
+      return requireWrite
+        ? verifyKBFileWriteAccess(cloudKey, userId)
+        : verifyKBFileAccess(cloudKey, userId, customConfig, options?.knowledgeAccess)
+    }
     if (context === 'general') {
       return await verifyRegularFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
     }
@@ -188,7 +196,9 @@ export async function verifyFileAccess(
 
     // 4. KB files: kb/filename
     if (inferredContext === 'knowledge-base') {
-      return await verifyKBFileAccess(cloudKey, userId, customConfig, options?.knowledgeAccess)
+      return requireWrite
+        ? verifyKBFileWriteAccess(cloudKey, userId)
+        : verifyKBFileAccess(cloudKey, userId, customConfig, options?.knowledgeAccess)
     }
 
     // 5. Chat files: chat/filename
@@ -310,7 +320,7 @@ async function verifyPublicAssetWriteAccess(
   try {
     if (context === 'workspace-logos') {
       const binding = await getFileMetadataByKey(cloudKey, 'workspace-logos')
-      if (!binding?.workspaceId) {
+      if (!binding?.workspaceId || binding.organizationId || binding.deletedAt) {
         logger.warn('workspace-logos delete denied: no ownership binding', { userId, cloudKey })
         return false
       }
@@ -496,7 +506,7 @@ type ResolvedKnowledgeFileAccess = KnowledgeAccessScope | SystemAccessScope
 
 async function hasActiveKbDocumentForKey(
   cloudKey: string,
-  workspaceId: string,
+  scope: ResourceScope,
   access: ResolvedKnowledgeFileAccess
 ): Promise<boolean> {
   const rows = await db
@@ -505,12 +515,15 @@ async function hasActiveKbDocumentForKey(
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
     .where(
       and(
-        eq(knowledgeBase.workspaceId, workspaceId),
+        resourceScopeCondition(knowledgeBase, scope),
         eq(document.storageKey, cloudKey),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
         isNull(knowledgeBase.deletedAt),
+        access.kind === 'system'
+          ? undefined
+          : or(isNull(document.connectorId), isNotNull(document.contentHash)),
         knowledgeAccessCondition(access)
       )
     )
@@ -572,6 +585,19 @@ async function verifyKBFileAccess(
       logger.warn('KB file access denied for deleted file binding', { userId, cloudKey })
       return false
     }
+    if (binding.organizationId) {
+      if (
+        binding.workspaceId ||
+        typeof knowledgeAccess !== 'object' ||
+        knowledgeAccess.kind !== 'system'
+      )
+        return false
+      return hasActiveKbDocumentForKey(
+        cloudKey,
+        { kind: 'organization', organizationId: binding.organizationId },
+        knowledgeAccess
+      )
+    }
     if (!binding.workspaceId) {
       logger.warn('KB file binding missing workspace owner', { userId, cloudKey })
       return false
@@ -588,7 +614,13 @@ async function verifyKBFileAccess(
     }
 
     const access = await resolveKnowledgeFileAccess(knowledgeAccess, userId, binding.workspaceId)
-    if (!(await hasActiveKbDocumentForKey(cloudKey, binding.workspaceId, access))) {
+    if (
+      !(await hasActiveKbDocumentForKey(
+        cloudKey,
+        { kind: 'workspace', workspaceId: binding.workspaceId },
+        access
+      ))
+    ) {
       logger.warn('KB file access denied: no readable document references the file', {
         userId,
         cloudKey,
@@ -619,7 +651,7 @@ async function verifyKBFileAccess(
 export async function verifyKBFileWriteAccess(cloudKey: string, userId: string): Promise<boolean> {
   try {
     const binding = await getFileMetadataByKey(cloudKey, 'knowledge-base')
-    if (!binding?.workspaceId) {
+    if (!binding?.workspaceId || binding.organizationId || binding.deletedAt) {
       logger.warn('KB file delete denied: no ownership binding', { userId, cloudKey })
       return false
     }

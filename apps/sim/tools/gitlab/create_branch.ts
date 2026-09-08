@@ -7,6 +7,7 @@ export const gitlabCreateBranchTool: ToolConfig<
   GitLabCreateBranchResponse
 > = {
   id: 'gitlab_create_branch',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create Branch',
   description: 'Create a new branch in a GitLab project repository',
   version: '1.0.0',

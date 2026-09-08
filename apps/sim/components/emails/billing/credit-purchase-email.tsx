@@ -3,6 +3,7 @@ import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CreditPurchaseEmailProps {
@@ -47,7 +48,7 @@ export function CreditPurchaseEmail({
         Credits are applied automatically to your workflow executions.
       </Text>
 
-      <EmailButton href={`${baseUrl}/workspace`}>View Dashboard</EmailButton>
+      <EmailButton href={`${baseUrl}${APP_ENTRY_PATH}`}>View Dashboard</EmailButton>
 
       <div style={baseStyles.divider} />
 

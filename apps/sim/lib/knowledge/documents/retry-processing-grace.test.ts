@@ -184,7 +184,15 @@ describe('retryDocumentProcessing requeue guard', () => {
       )
     )
     expect(call).toBeDefined()
-    const guard = flattenMockConditions(call?.[0]).find((node: MockCondition) => node.type === 'or')
+    const guard = flattenMockConditions(call?.[0]).find(
+      (node: MockCondition) =>
+        node.type === 'or' &&
+        hasBranch(
+          node,
+          (branch) =>
+            branch.type === 'inArray' && branch.column === schemaMock.document.processingStatus
+        )
+    )
     expect(guard).toBeDefined()
     return guard as MockCondition
   }

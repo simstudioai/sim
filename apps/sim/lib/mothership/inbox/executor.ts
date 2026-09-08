@@ -240,7 +240,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       await Promise.all([
         fetchAttachments(),
         generateWorkspaceContext(ws.id, userId, { workspaceAccess, secretMountPolicy }),
-        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+        buildIntegrationToolSchemas(userId, undefined, ws.id),
         resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
         computeWorkspaceEntitlements(ws.id, userId),
       ])

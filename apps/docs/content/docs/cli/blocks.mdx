@@ -38,9 +38,9 @@ sim blocks list [options]
 | `--search <value>` | No | Case-insensitive substring match against the block id, name, and description. |
 | `--category <value>` | No | Restrict to one toolbar category. Accepted values: `blocks`, `tools`, `triggers`. |
 | `--capability <value>` | No | Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields. Accepted values: `trigger`. |
-| `--source <value>` | No | Restrict to shipped blocks or to this workspace’s deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--source <value>` | No | Restrict to built-in blocks or this workspace's deployed custom blocks. Accepted values: `builtin`, `custom`. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>

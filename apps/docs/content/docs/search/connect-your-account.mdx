@@ -1,0 +1,72 @@
+---
+title: Connect your account
+description: Join your team's Search sources and finish connecting your own accounts
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Your admin approves the provider and can configure shared source filters. You connect your own account so Sim can establish what you are allowed to search.
+
+<Steps>
+<Step>
+
+### Join your organization
+
+Accept your Sim organization invitation or sign in through your organization's SSO. Use a verified Sim email that matches your account at the source. Organization Search does not require workspace access.
+
+</Step>
+<Step>
+
+### Open Integrations
+
+Open **Integrations**, find the provider or source, and select **Connect account**. Your first connection may ask for required source settings, such as repository or project names. If the provider is missing, ask an organization admin to approve it.
+
+<Image src="/static/search/connect-account.png" alt="Google Drive source row with Connect account" width={1280} height={720} />
+
+</Step>
+<Step>
+
+### Authorize your account
+
+In the new tab, select **Connect** and complete the provider's authorization. Choose the account associated with your verified Sim email. The provider may require your organization's SSO or app approval.
+
+Return to Integrations when the connection completes. If the popup was blocked or closed, allow popups and select **Connect account** again. While authorization is pending, use **Open again**.
+
+</Step>
+<Step>
+
+### Start searching
+
+The source row shows indexing status and how many documents are available to you. Open **Search** in the organization sidebar and search for something you can already open in the source. Use **Home** to ask the assistant about your connected documents. The first sync may take time, especially for large accounts.
+
+</Step>
+</Steps>
+
+For a source configured inside a workspace, join that workspace and use its **Search** page instead. Organization and workspace sources are separate.
+
+## Do I always need to connect?
+
+| Source setup | Your next step |
+| --- | --- |
+| Member accounts | Connect your own account, including when you are the admin. |
+| Confluence admin/service account | Connect Confluence to verify your identity; the administrator's account handles the crawl. |
+| Google Drive delegated service account | No personal connection is needed for that source. Your verified Sim email is matched to Drive permissions. |
+| GitLab instance administrator | No personal connection is needed. Your verified Sim email must match a confirmed GitLab email. |
+
+Connecting one Google service does not connect all of them. Gmail, Calendar, and Drive each have their own Search connection.
+
+## If you get stuck
+
+| Status | What to do |
+| --- | --- |
+| **Connect account** | Complete the connection in the new tab. |
+| **Reconnect** | Authorize the same source account again. |
+| **Finish connecting in the other tab** | Finish authorization, or use **Open again**. Allow popups for Sim. |
+| No results | Check the source's filters and sync status with your admin. Confirm you can open the document at the source. |
+| Needs admin attention | Ask your admin to inspect **Manage** for the source error. |
+
+<Callout type="info">
+  Your Sim role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.
+</Callout>

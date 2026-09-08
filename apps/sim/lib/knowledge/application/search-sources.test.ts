@@ -1,0 +1,391 @@
+/** @vitest-environment node */
+import {
+  document,
+  embedding,
+  knowledgeBase,
+  knowledgeConnector,
+  member,
+  user,
+} from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  context: vi.fn(),
+  permission: vi.fn(),
+  availability: vi.fn(),
+  memberships: vi.fn(),
+  access: vi.fn(),
+  predicate: vi.fn(),
+}))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
+  permissionSatisfies: (actual: string | null) => actual !== null,
+  resolveEffectiveWorkspacePermission: mocks.permission,
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: async () => null,
+}))
+vi.mock('@/lib/knowledge/application/contexts', () => ({
+  resolveKnowledgeOwnerContext: mocks.context,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  resolveKnowledgeAccessAvailability: mocks.availability,
+}))
+vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
+  resolveViewerConnectorMemberships: mocks.memberships,
+}))
+vi.mock('@/lib/knowledge/access/scope', () => ({
+  createKnowledgeAccessProvider: mocks.access,
+}))
+vi.mock('@/lib/knowledge/access/predicate', () => ({
+  knowledgeAccessCondition: mocks.predicate,
+}))
+vi.mock('@/connectors/registry', () => {
+  const registry = {
+    google_drive: { id: 'google_drive', search: true, configFields: [{ id: 'folderId' }] },
+    gitlab: { id: 'gitlab', search: true, configFields: [{ id: 'host' }, { id: 'project' }] },
+    confluence: {
+      id: 'confluence',
+      search: true,
+      requiresMemberIdentity: true,
+      configFields: [{ id: 'domain' }, { id: 'spaceKey' }],
+    },
+    legacy: { id: 'legacy', search: false, configFields: [{ id: 'project' }] },
+    slack: { id: 'slack', search: true, configFields: [{ id: 'channel' }] },
+  }
+  return {
+    CONNECTOR_META_REGISTRY: registry,
+    getConnectorMeta: (id: keyof typeof registry) => registry[id],
+  }
+})
+
+import { searchSourceSummarySchema } from '@/lib/api/contracts/knowledge/connectors'
+import { listSearchSources } from '@/lib/knowledge/application/search-sources'
+
+const principal = { kind: 'session' as const, userId: 'reader', sessionId: 'session' }
+const input = { workspaceId: 'workspace' }
+const access = { kind: 'user', userId: principal.userId, tokens: ['u:reader@example.test'] }
+const ACL = { type: 'viewer-acl' }
+const LAST_SYNC = new Date('2026-09-05T12:00:00.000Z')
+
+function source(id: string, connectorType = 'google_drive', accessMode = 'admin') {
+  return {
+    id,
+    knowledgeBaseId: 'search-index',
+    connectorType,
+    sourceConfig: {
+      folderId: 'handbook',
+      token: 'secret-fixture',
+      adminEmail: 'admin@example.test',
+    },
+    accessMode,
+    status: 'active',
+    memberSyncStatus: 'idle',
+    lastSyncAt: LAST_SYNC as Date | null,
+    lastMemberSyncAt: null as Date | null,
+    credentialGroupId: 'group-secret',
+    credentialGroupOptionId: 'option-secret',
+  }
+}
+
+function seed(rows: ReturnType<typeof source>[], emailVerified = true) {
+  queueTableRows(knowledgeConnector, rows)
+  queueTableRows(user, [{ emailVerified }])
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  resetDbChainMock()
+  mocks.context.mockResolvedValue({
+    workspaceId: input.workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+  })
+  mocks.permission.mockResolvedValue('read')
+  mocks.availability.mockResolvedValue({ sourceMirrored: true, memberScoped: true })
+  mocks.memberships.mockResolvedValue(new Map())
+  mocks.access.mockReturnValue({ get: async () => access })
+  mocks.predicate.mockReturnValue(ACL)
+})
+
+describe('Search source summaries', () => {
+  it.each(['read', 'write', 'admin'])(
+    'allows a current workspace %s without exposing credentials or other members',
+    async (role) => {
+      mocks.permission.mockResolvedValue(role)
+      seed([source('drive')])
+      queueTableRows(document, [{ connectorId: 'drive', count: 4, isIndexing: false }])
+      const result = await listSearchSources.execute({ principal, input })
+      expect(result.sources).toEqual([
+        {
+          knowledgeBaseId: 'search-index',
+          connectorId: 'drive',
+          connectorType: 'google_drive',
+          sourceDescription: 'handbook',
+          accessMode: 'admin',
+          availability: 'available',
+          enabled: true,
+          isSyncing: false,
+          lastSyncAt: LAST_SYNC.toISOString(),
+          hasSyncError: false,
+          viewerDocumentCount: 4,
+          viewerEmailVerified: true,
+          connectionRequired: false,
+          viewerMembership: null,
+        },
+      ])
+      expect(searchSourceSummarySchema.parse(result.sources[0])).toEqual(result.sources[0])
+      expect(JSON.stringify(result)).not.toMatch(
+        /secret-fixture|admin@example|group-secret|option-secret|sourceConfig/
+      )
+      expect(mocks.context).toHaveBeenCalledWith(input)
+      expect(mocks.access).toHaveBeenCalledWith(principal, {
+        workspaceId: 'workspace',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+      })
+      expect(mocks.predicate).toHaveBeenCalledWith(access)
+    }
+  )
+
+  it('lists central, identity and member sources separately, preserving multiple sites', async () => {
+    const first = {
+      ...source('confluence-a', 'confluence'),
+      sourceConfig: { domain: 'one.atlassian.net', spaceKey: 'ENG' },
+    }
+    const second = {
+      ...source('confluence-b', 'confluence'),
+      sourceConfig: { domain: 'two.atlassian.net', spaceKey: 'ENG' },
+    }
+    const slack = {
+      ...source('slack', 'slack', 'members'),
+      lastSyncAt: null,
+      lastMemberSyncAt: LAST_SYNC,
+      memberSyncStatus: 'running',
+    }
+    seed([source('drive'), source('gitlab', 'gitlab'), first, second, slack])
+    mocks.memberships.mockResolvedValue(
+      new Map([
+        ['confluence-a', 'connected'],
+        ['slack', 'invited'],
+      ])
+    )
+    const { sources } = await listSearchSources.execute({ principal, input })
+    expect(
+      sources.map((row) => [row.connectorId, row.connectionRequired, row.viewerMembership])
+    ).toEqual([
+      ['drive', false, null],
+      ['gitlab', false, null],
+      ['confluence-a', true, 'connected'],
+      ['confluence-b', true, null],
+      ['slack', true, 'invited'],
+    ])
+    expect(sources[2].sourceDescription).toBe('one.atlassian.net · ENG')
+    expect(sources[3].sourceDescription).toBe('two.atlassian.net · ENG')
+    expect(sources[4]).toMatchObject({ lastSyncAt: LAST_SYNC.toISOString(), isSyncing: true })
+  })
+
+  it.each([
+    [
+      { sourceMirrored: true, memberScoped: false },
+      ['available', 'available', 'unavailable', 'unavailable'],
+    ],
+    [
+      { sourceMirrored: false, memberScoped: true },
+      ['unavailable', 'unavailable', 'unavailable', 'available'],
+    ],
+    [
+      { sourceMirrored: false, memberScoped: false },
+      ['unavailable', 'unavailable', 'unavailable', 'unavailable'],
+    ],
+  ])(
+    'keeps configured sources visible when independent availability changes: %o',
+    async (availability, expected) => {
+      seed([
+        source('drive'),
+        source('gitlab', 'gitlab'),
+        source('confluence', 'confluence'),
+        source('slack', 'slack', 'members'),
+      ])
+      mocks.availability.mockResolvedValue(availability)
+      mocks.memberships.mockResolvedValue(
+        new Map([
+          ['confluence', 'connected'],
+          ['slack', 'connected'],
+        ])
+      )
+      const { sources } = await listSearchSources.execute({ principal, input })
+      expect(sources.map((row) => row.availability)).toEqual(expected)
+      for (const row of sources.filter((row) => row.availability === 'unavailable')) {
+        expect(row).toMatchObject({
+          enabled: true,
+          isSyncing: false,
+          viewerMembership: null,
+          viewerDocumentCount: 0,
+        })
+      }
+    }
+  )
+
+  it('distinguishes paused, failed, initial and still-indexing sources without raw errors', async () => {
+    seed(
+      [
+        { ...source('paused'), status: 'paused' },
+        { ...source('failed'), status: 'error' },
+        { ...source('initial'), lastSyncAt: null },
+        source('indexing'),
+      ],
+      false
+    )
+    queueTableRows(document, [{ connectorId: 'indexing', count: 2, isIndexing: true }])
+    const { sources } = await listSearchSources.execute({ principal, input })
+    expect(sources[0]).toMatchObject({
+      enabled: false,
+      availability: 'available',
+      isSyncing: false,
+    })
+    expect(sources[1]).toMatchObject({ hasSyncError: true, isSyncing: false })
+    expect(sources[2]).toMatchObject({ lastSyncAt: null, isSyncing: false })
+    expect(sources[3]).toMatchObject({ viewerDocumentCount: 2, isSyncing: true })
+    expect(sources.every((row) => row.viewerEmailVerified === false)).toBe(true)
+  })
+
+  it('preserves legacy configured sources even when they are no longer offered for new Search setup', async () => {
+    seed([source('legacy', 'legacy', 'members'), source('unknown', 'unregistered', 'admin')])
+    const { sources } = await listSearchSources.execute({ principal, input })
+    expect(sources.map((row) => row.connectorId)).toEqual(['legacy', 'unknown'])
+    expect(sources[0]).toMatchObject({ availability: 'available', connectionRequired: true })
+    expect(sources[1]).toMatchObject({ availability: 'unavailable', sourceDescription: '' })
+  })
+
+  it('restricts the source query to this workspace, the Search index, and live configured sources', async () => {
+    seed([])
+    await expect(listSearchSources.execute({ principal, input })).resolves.toEqual({ sources: [] })
+    expect(dbChainMockFns.where.mock.calls[0][0]).toEqual({
+      type: 'and',
+      conditions: expect.arrayContaining([
+        {
+          type: 'and',
+          conditions: [
+            { type: 'eq', left: knowledgeBase.workspaceId, right: 'workspace' },
+            { type: 'isNull', column: knowledgeBase.organizationId },
+          ],
+        },
+        { type: 'eq', left: knowledgeBase.isSearchIndex, right: true },
+        { type: 'isNull', column: knowledgeBase.deletedAt },
+        { type: 'isNull', column: knowledgeConnector.archivedAt },
+        { type: 'isNull', column: knowledgeConnector.deletedAt },
+        { type: 'inArray', column: knowledgeConnector.accessMode, values: ['admin', 'members'] },
+      ]),
+    })
+    expect(mocks.memberships).not.toHaveBeenCalled()
+  })
+
+  it('counts only accessible, enabled, completed documents with enabled chunks, without counting chunks twice', async () => {
+    seed([source('drive')])
+    await listSearchSources.execute({ principal, input })
+    expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
+      type: 'and',
+      conditions: expect.arrayContaining([
+        { type: 'inArray', column: document.connectorId, values: ['drive'] },
+        { type: 'eq', left: document.enabled, right: true },
+        { type: 'eq', left: document.userExcluded, right: false },
+        { type: 'isNull', column: document.archivedAt },
+        { type: 'isNull', column: document.deletedAt },
+        ACL,
+      ]),
+    })
+    const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
+    expect(projection.count.toSQL().sql).toMatch(/count\(\*\) FILTER[\s\S]*'completed'/)
+    expect(projection.count.values).toEqual([
+      document.processingStatus,
+      expect.objectContaining({ type: 'exists' }),
+    ])
+    expect(dbChainMockFns.where.mock.calls).toContainEqual([
+      {
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: embedding.documentId, right: document.id },
+          { type: 'eq', left: embedding.enabled, right: true },
+        ],
+      },
+    ])
+    expect(projection.isIndexing.toSQL().sql).toContain("IN ('pending', 'processing')")
+  })
+
+  it('rejects a former workspace member before querying source data', async () => {
+    mocks.permission.mockResolvedValue(null)
+    await expect(listSearchSources.execute({ principal, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(mocks.memberships).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { kind: 'personal_api_key', userId: 'reader', keyId: 'key' },
+    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    {
+      kind: 'credential_group_enrollment',
+      workspaceId: 'workspace',
+      credentialGroupId: 'group',
+      enrollmentId: 'enrollment',
+      email: 'reader@example.test',
+      invitationTokenHash: 'hash',
+    },
+  ] as const)('refuses $kind before canonical lookup', async (other) => {
+    await expect(listSearchSources.execute({ principal: other, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.context).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('propagates infrastructure failures instead of returning an empty configured-source list', async () => {
+    seed([source('drive')])
+    mocks.availability.mockRejectedValue(new Error('availability backend unavailable'))
+    await expect(listSearchSources.execute({ principal, input })).rejects.toThrow(
+      'availability backend unavailable'
+    )
+  })
+})
+
+describe('organization Search source summaries', () => {
+  it.each(['member', 'admin'])(
+    'returns only the current %s viewer ACL counts without a workspace membership',
+    async (role) => {
+      mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+      queueTableRows(member, [{ role }])
+      seed([source('drive')])
+      queueTableRows(document, [{ connectorId: 'drive', count: 2, isIndexing: false }])
+      const result = await listSearchSources.execute({
+        principal,
+        input: { organizationId: 'org-1' },
+      })
+      expect(result.sources[0]).toMatchObject({
+        connectorId: 'drive',
+        viewerDocumentCount: 2,
+        viewerEmailVerified: true,
+      })
+      expect(mocks.access).toHaveBeenCalledWith(principal, { organizationId: 'org-1' })
+      expect(mocks.predicate).toHaveBeenCalledWith(access)
+      expect(mocks.memberships).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1', userId: 'reader' })
+      )
+      expect(mocks.permission).not.toHaveBeenCalled()
+      expect(JSON.stringify(result)).not.toMatch(
+        /secret-fixture|admin@example|group-secret|option-secret/
+      )
+    }
+  )
+  it('rejects a removed organization member without exposing configured sources', async () => {
+    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+    queueTableRows(member, [])
+    await expect(
+      listSearchSources.execute({ principal, input: { organizationId: 'org-1' } })
+    ).rejects.toThrow('Organization not found')
+    expect(mocks.memberships).not.toHaveBeenCalled()
+    expect(mocks.access).not.toHaveBeenCalled()
+  })
+})

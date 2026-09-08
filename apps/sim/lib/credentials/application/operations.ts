@@ -37,6 +37,40 @@ const HUMAN_AND_COPILOT_PRINCIPALS = {
 } as const
 
 export const credentialOperations = {
+  resolvePersonalToken: defineCredentialOperation(
+    defineWorkspaceOperation({
+      id: 'credentials.personal_tokens.resolve',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
+    }),
+    'member'
+  ),
+  startPersonalConnection: defineWorkspaceOperation({
+    id: 'credentials.personal.connect',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session'],
+  }),
+  listPersonal: defineWorkspaceOperation({
+    id: 'credentials.personal.list',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
+  }),
+  authorizePersonal: defineWorkspaceOperation({
+    id: 'credentials.personal.authorize',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
+  }),
   listInternal: defineWorkspaceOperation({
     id: 'credentials.list',
     minimumRole: 'read',

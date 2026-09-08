@@ -7,43 +7,42 @@ import {
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
+  resourcePolicy,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  credentialGroupWorkflowAccessPolicyCodec,
-  requireDefaultCredentialGroupWorkflowAccessPolicy,
-} from '@/lib/credential-groups/application/workflow-access-policy'
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { decodeCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
-import { retireManagedMcpServersForGroup } from '@/lib/credential-groups/managed-mcp-service'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
-import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { credentialGroupScope } from '@/lib/credential-groups/scope'
+import { resolveSlackManagedUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type {
-  CreateCredentialGroupInput,
   CredentialGroupMcpServer,
   CredentialGroupOptionInput,
   CredentialGroupRecord,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
-import type { DbOrTx } from '@/lib/db/types'
 import {
-  deleteResourcePolicyForResource,
-  requireResourcePolicy,
-} from '@/lib/resource-policies/repository'
+  createOrganizationAccountsGroup,
+  createWorkspaceAccountsGroup,
+} from '@/lib/credential-groups/workspace-accounts'
+import type { DbOrTx } from '@/lib/db/types'
 
-interface CredentialGroupMutationResult {
-  credentialGroup: CredentialGroupRecord
-  retiredMcpConnectionIds: string[]
-}
-
-interface DeleteCredentialGroupResult {
-  deleted: boolean
-  retiredMcpConnectionIds: string[]
-  retiredMcpServerIds: string[]
+type WorkspaceCredentialGroupRecord = CredentialGroupRecord & { workspaceId: string }
+type OrganizationCredentialGroupRecord = CredentialGroupRecord & {
+  workspaceId: null
+  organizationId: string
 }
 
 async function listLinkedMcpServers(
@@ -83,14 +82,14 @@ function scopesEqual(left: string[], right: string[]): boolean {
 }
 
 async function buildOption(
-  workspaceId: string,
+  scope: ResourceScope,
   option: CredentialGroupOptionInput,
   credentialGroupId?: string,
   executor: DbOrTx = db
 ): Promise<CredentialGroupOptionConfig> {
   const providerConfig = await getCredentialGroupProviderAdapter(option.provider).getPolicy(
     option,
-    { workspaceId, credentialGroupId, executor }
+    { ...resourceScopeFields(scope), credentialGroupId, executor }
   )
   return {
     id: generateId(),
@@ -106,7 +105,7 @@ async function buildOption(
 }
 
 async function updateOptions(
-  workspaceId: string,
+  scope: ResourceScope,
   credentialGroupId: string,
   inputs: NonNullable<UpdateCredentialGroupInput['options']>,
   existingOptions: CredentialGroupOptionConfig[],
@@ -115,7 +114,7 @@ async function updateOptions(
   const existingById = new Map(existingOptions.map((option) => [option.id, option]))
   return Promise.all(
     inputs.map(async (input) => {
-      if (!input.id) return buildOption(workspaceId, input, credentialGroupId, executor)
+      if (!input.id) return buildOption(scope, input, credentialGroupId, executor)
       const existing = existingById.get(input.id)
       if (!existing) throw new Error(`Credential group option ${input.id} does not exist`)
       if (input.provider !== existing.provider) {
@@ -123,8 +122,8 @@ async function updateOptions(
       }
 
       const providerConfig = await getCredentialGroupProviderAdapter(input.provider).getPolicy(
-        input,
-        { workspaceId, credentialGroupId, executor }
+        { ...input, requiredScopes: existing.requiredScopes },
+        { ...resourceScopeFields(scope), credentialGroupId, executor }
       )
       return {
         id: existing.id,
@@ -151,6 +150,7 @@ async function toCredentialGroup(
   return {
     id: row.id,
     workspaceId: row.workspaceId,
+    ...(row.organizationId ? { organizationId: row.organizationId } : {}),
     name: row.name,
     description: row.description,
     options: row.options.map((option) => {
@@ -166,20 +166,24 @@ async function toCredentialGroup(
       if (option.provider !== 'slack') {
         return { ...common, provider: option.provider, configurationStatus: 'ready' as const }
       }
-      if (!option.slackBotCredentialId) {
+      if (row.workspaceId && !option.slackBotCredentialId) {
         throw new Error(`Slack credential option ${option.id} has no custom bot`)
       }
       return {
         ...common,
         provider: 'slack' as const,
         slackBotCredentialId: option.slackBotCredentialId,
+        requiredScopes: resolveSlackManagedUserScopes(option.requiredScopes),
         configurationStatus:
           !providerConfiguration.slack ||
-          providerConfiguration.slack.slackBotCredentialId !== option.slackBotCredentialId
+          (row.workspaceId &&
+            providerConfiguration.slack.slackBotCredentialId !== option.slackBotCredentialId)
             ? ('not_configured' as const)
             : option.scopeVersion !==
-                  credentialGroupScopePolicyVersion([...SLACK_MANAGED_USER_SCOPES]) ||
-                !SLACK_MANAGED_USER_SCOPES.every((scope) =>
+                  credentialGroupScopePolicyVersion(
+                    resolveSlackManagedUserScopes(option.requiredScopes)
+                  ) ||
+                !resolveSlackManagedUserScopes(option.requiredScopes).every((scope) =>
                   providerConfiguration.slack?.scopes.includes(scope)
                 )
               ? ('needs_update' as const)
@@ -193,105 +197,196 @@ async function toCredentialGroup(
   }
 }
 
-export async function listCredentialGroups(workspaceId: string): Promise<CredentialGroupRecord[]> {
-  const [rows, serverRows] = await Promise.all([
-    db
-      .select()
-      .from(credentialGroup)
-      .where(eq(credentialGroup.workspaceId, workspaceId))
-      .orderBy(desc(credentialGroup.createdAt)),
-    db
-      .select({
-        id: mcpServers.id,
-        name: mcpServers.name,
-        description: mcpServers.description,
-        authType: mcpServers.authType,
-        enabled: mcpServers.enabled,
-        credentialGroupId: mcpServers.credentialGroupId,
-        managedConnectorId: mcpServers.managedConnectorId,
-      })
-      .from(mcpServers)
-      .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
-      .orderBy(asc(mcpServers.name), asc(mcpServers.id)),
-  ])
-  const serversByGroupId = new Map<string, CredentialGroupMcpServer[]>()
-  for (const server of serverRows) {
-    if (!server.credentialGroupId) continue
-    const summary = {
-      id: server.id,
-      name: server.name,
-      description: server.description,
-      authType: server.authType,
-      enabled: server.enabled,
-      managedConnectorId: getManagedMcpConnector(server.managedConnectorId ?? '').id,
-    }
-    const current = serversByGroupId.get(server.credentialGroupId)
-    if (current) current.push(summary)
-    else serversByGroupId.set(server.credentialGroupId, [summary])
-  }
-  return Promise.all(rows.map((row) => toCredentialGroup(row, serversByGroupId.get(row.id) ?? [])))
-}
-
-export async function getCredentialGroup(
-  workspaceId: string,
-  groupId: string
-): Promise<CredentialGroupRecord | null> {
+export async function getWorkspaceAccountsGroup(
+  workspaceId: string
+): Promise<WorkspaceCredentialGroupRecord | null> {
   const [row] = await db
     .select()
     .from(credentialGroup)
-    .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+    .where(eq(credentialGroup.workspaceId, workspaceId))
+    .limit(1)
+  if (!row?.workspaceId) return null
+  return {
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    workspaceId: row.workspaceId,
+  }
+}
+
+export function getCredentialGroup(
+  scope: Extract<ResourceScope, { kind: 'organization' }>,
+  groupId: string
+): Promise<OrganizationCredentialGroupRecord | null>
+export function getCredentialGroup(
+  workspaceId: string,
+  groupId: string
+): Promise<WorkspaceCredentialGroupRecord | null>
+export function getCredentialGroup(
+  scope: ResourceScope,
+  groupId: string
+): Promise<CredentialGroupRecord | null>
+export async function getCredentialGroup(
+  scopeInput: string | ResourceScope,
+  groupId: string
+): Promise<CredentialGroupRecord | null> {
+  const scope = credentialGroupScope(scopeInput)
+  const [row] = await db
+    .select()
+    .from(credentialGroup)
+    .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
     .limit(1)
   return row ? toCredentialGroup(row, await listLinkedMcpServers(row.id)) : null
 }
 
-export async function createCredentialGroup(
+/**
+ * Settings and Search share the workspace container, provisioned on demand for older workspaces.
+ * Provider policy is resolved before the transaction; only database provisioning holds the lock.
+ */
+export function ensureWorkspaceAccountsGroup(
+  scope: Extract<ResourceScope, { kind: 'organization' }>,
+  userId: string,
+  option?: CredentialGroupOptionInput
+): Promise<OrganizationCredentialGroupRecord & { created: boolean }>
+export function ensureWorkspaceAccountsGroup(
   workspaceId: string,
   userId: string,
-  body: CreateCredentialGroupInput
-): Promise<CredentialGroupRecord> {
-  const now = new Date()
-  const options = await Promise.all(body.options.map((option) => buildOption(workspaceId, option)))
-  return db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(credentialGroup)
-      .values({
-        id: generateId(),
-        workspaceId,
-        publicId: generateId(),
-        name: body.name,
-        description: body.description || null,
-        options,
-        status: 'active',
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-
-    if (!created) throw new Error('Credential group insert returned no row')
-    const policy = await requireResourcePolicy(
-      {
-        workspaceId,
-        resourceType: 'credential_group',
-        resourceId: created.id,
-        codec: credentialGroupWorkflowAccessPolicyCodec,
-      },
-      tx
+  option?: CredentialGroupOptionInput
+): Promise<WorkspaceCredentialGroupRecord & { created: boolean }>
+export function ensureWorkspaceAccountsGroup(
+  scope: ResourceScope,
+  userId: string,
+  option?: CredentialGroupOptionInput
+): Promise<CredentialGroupRecord & { created: boolean }>
+export async function ensureWorkspaceAccountsGroup(
+  scopeInput: string | ResourceScope,
+  userId: string,
+  option?: CredentialGroupOptionInput
+): Promise<CredentialGroupRecord & { created: boolean }> {
+  const scope = credentialGroupScope(scopeInput)
+  if (option?.provider === 'slack') {
+    throw new OrchestrationError('validation', 'Configure Slack sign-in in Connected accounts')
+  }
+  const preparedOption = option ? await buildOption(scope, { ...option, required: false }) : null
+  let wasCreated = false
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`search-accounts:${resourceScopeKey(scope)}`}, 0))`
     )
-    requireDefaultCredentialGroupWorkflowAccessPolicy({
-      revision: policy.revision,
-      document: policy.document,
-      credentialGroupId: created.id,
-    })
-    return toCredentialGroup(created, await listLinkedMcpServers(created.id, tx))
+    const [existing] = await tx
+      .select()
+      .from(credentialGroup)
+      .where(resourceScopeCondition(credentialGroup, scope))
+      .limit(1)
+      .for('update')
+    if (existing) {
+      if (existing.status !== 'active') {
+        throw new OrchestrationError(
+          'validation',
+          'Connected accounts is disabled. Enable it in Settings before connecting a source.'
+        )
+      }
+      if (scope.kind === 'organization') {
+        await requireOrganizationAccountsSetup(scope.organizationId, existing.id, tx)
+      }
+      if (!preparedOption) return existing
+      const matching = existing.options.filter(
+        (candidate) => candidate.provider === preparedOption.provider
+      )
+      if (matching.length > 1) {
+        throw new OrchestrationError(
+          'conflict',
+          `Connected accounts contains duplicate ${preparedOption.provider} settings`
+        )
+      }
+      if (matching[0]) {
+        if (
+          matching[0].status !== 'active' ||
+          matching[0].authorizationAppId !== preparedOption.authorizationAppId ||
+          matching[0].scopeVersion !== preparedOption.scopeVersion ||
+          !scopesEqual(matching[0].requiredScopes, preparedOption.requiredScopes)
+        ) {
+          throw new OrchestrationError(
+            'validation',
+            `Update ${preparedOption.label} in Connected accounts before connecting this source`
+          )
+        }
+        return existing
+      }
+      const [policy] =
+        scope.kind === 'workspace'
+          ? await tx
+              .select({ document: resourcePolicy.document })
+              .from(resourcePolicy)
+              .where(
+                and(
+                  eq(resourcePolicy.resourceType, 'credential_group'),
+                  eq(resourcePolicy.resourceId, existing.id),
+                  eq(resourcePolicy.workspaceId, scope.workspaceId)
+                )
+              )
+              .limit(1)
+              .for('update')
+          : []
+      if (scope.kind === 'workspace' && !policy)
+        throw new Error('Connected accounts has no resource policy')
+      const workflowAccess = policy
+        ? decodeCredentialGroupWorkflowAccessPolicy(policy.document, existing.id)
+        : []
+      const linkedMcpServers = await listLinkedMcpServers(existing.id, tx)
+      if (workflowAccess.length > 0 || linkedMcpServers.length > 0) {
+        throw new OrchestrationError(
+          'validation',
+          `Cannot automatically add ${preparedOption.label}: ${existing.name} has ${workflowAccess.length > 0 ? 'workflow' : 'MCP'} access. Review its grants and add the provider explicitly in Settings.`
+        )
+      }
+      if (
+        existing.options.some(
+          (candidate) => candidate.label.toLowerCase() === preparedOption.label.toLowerCase()
+        )
+      ) {
+        throw new OrchestrationError(
+          'conflict',
+          `An account option already uses the name ${preparedOption.label}. Rename it in Settings.`
+        )
+      }
+      const [updated] = await tx
+        .update(credentialGroup)
+        .set({
+          options: [...existing.options, preparedOption],
+          updatedAt: new Date(),
+        })
+        .where(eq(credentialGroup.id, existing.id))
+        .returning()
+      if (!updated) throw new Error('Search accounts update returned no row')
+      return updated
+    }
+    const created =
+      scope.kind === 'workspace'
+        ? await createWorkspaceAccountsGroup(
+            tx,
+            scope.workspaceId,
+            userId,
+            preparedOption ? [preparedOption] : []
+          )
+        : await createOrganizationAccountsGroup(
+            tx,
+            scope.organizationId,
+            userId,
+            preparedOption ? [preparedOption] : []
+          )
+    wasCreated = true
+    return created
   })
+  return {
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    created: wasCreated,
+  }
 }
 
 /**
- * Refuses to remove a group, or the given options of it, while a knowledge
+ * Refuses to remove account options while a knowledge
  * connector syncs per member through one of them: the connector would be left
  * bound to nothing, and its members' documents dark, without anyone choosing
- * that. `optionIds` null means the whole group.
+ * that.
  *
  * Runs under the caller's `FOR UPDATE` on the group row. Every write that binds
  * a connector row to an option (`lockCredentialGroupOption`) takes that same
@@ -300,11 +395,11 @@ export async function createCredentialGroup(
  */
 async function refuseIfServingMemberConnectors(
   executor: DbOrTx,
-  workspaceId: string,
+  scope: ResourceScope,
   groupId: string,
-  optionIds: readonly string[] | null
+  optionIds: readonly string[]
 ): Promise<void> {
-  if (optionIds !== null && optionIds.length === 0) return
+  if (optionIds.length === 0) return
   const serving = await executor
     .select({
       knowledgeBaseName: knowledgeBase.name,
@@ -314,12 +409,10 @@ async function refuseIfServingMemberConnectors(
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
     .where(
       and(
-        eq(knowledgeBase.workspaceId, workspaceId),
+        resourceScopeCondition(knowledgeBase, scope),
         eq(knowledgeConnector.accessMode, 'members'),
         eq(knowledgeConnector.credentialGroupId, groupId),
-        optionIds === null
-          ? undefined
-          : inArray(knowledgeConnector.credentialGroupOptionId, [...optionIds]),
+        inArray(knowledgeConnector.credentialGroupOptionId, [...optionIds]),
         isNull(knowledgeConnector.deletedAt)
       )
     )
@@ -330,55 +423,36 @@ async function refuseIfServingMemberConnectors(
     .join(', ')
   throw new OrchestrationError(
     'conflict',
-    `${optionIds === null ? 'This Credential Group' : 'An option being removed'} is what ${names} ${serving.length === 1 ? 'syncs' : 'sync'} per member through. Switch ${serving.length === 1 ? 'that connector' : 'those connectors'} to another group first.`
+    `These accounts are used by ${names}. Remove ${serving.length === 1 ? 'that source' : 'those sources'} or change their account access before removing these accounts.`
   )
 }
 
-export async function deleteCredentialGroup(
-  workspaceId: string,
-  groupId: string
-): Promise<DeleteCredentialGroupResult> {
-  return db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select({ id: credentialGroup.id })
-      .from(credentialGroup)
-      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
-      .limit(1)
-      .for('update')
-    if (!existing) {
-      return { deleted: false, retiredMcpConnectionIds: [], retiredMcpServerIds: [] }
-    }
-
-    const retiredMcp = await retireManagedMcpServersForGroup(workspaceId, groupId, tx)
-
-    await refuseIfServingMemberConnectors(tx, workspaceId, groupId, null)
-    await deleteResourcePolicyForResource(
-      { workspaceId, resourceType: 'credential_group', resourceId: groupId },
-      tx
-    )
-    const deleted = await tx
-      .delete(credentialGroup)
-      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
-      .returning({ id: credentialGroup.id })
-    if (deleted.length !== 1) throw new Error('Locked Credential Group delete returned no row')
-    return {
-      deleted: true,
-      retiredMcpConnectionIds: retiredMcp.connectionIds,
-      retiredMcpServerIds: retiredMcp.serverIds,
-    }
-  })
-}
-
-export async function updateCredentialGroup(
+export function updateCredentialGroup(
+  scope: Extract<ResourceScope, { kind: 'organization' }>,
+  groupId: string,
+  body: UpdateCredentialGroupInput
+): Promise<OrganizationCredentialGroupRecord | null>
+export function updateCredentialGroup(
   workspaceId: string,
   groupId: string,
   body: UpdateCredentialGroupInput
-): Promise<CredentialGroupMutationResult | null> {
+): Promise<WorkspaceCredentialGroupRecord | null>
+export function updateCredentialGroup(
+  scope: ResourceScope,
+  groupId: string,
+  body: UpdateCredentialGroupInput
+): Promise<CredentialGroupRecord | null>
+export async function updateCredentialGroup(
+  scopeInput: string | ResourceScope,
+  groupId: string,
+  body: UpdateCredentialGroupInput
+): Promise<CredentialGroupRecord | null> {
+  const scope = credentialGroupScope(scopeInput)
   return db.transaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(credentialGroup)
-      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+      .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
       .limit(1)
       .for('update')
     if (!existing) return null
@@ -387,7 +461,7 @@ export async function updateCredentialGroup(
       const keptOptionIds = new Set(body.options.map((option) => option.id))
       await refuseIfServingMemberConnectors(
         tx,
-        workspaceId,
+        scope,
         groupId,
         existing.options
           .filter((option) => !keptOptionIds.has(option.id))
@@ -396,7 +470,7 @@ export async function updateCredentialGroup(
     }
     const nextOptions =
       body.options !== undefined
-        ? await updateOptions(workspaceId, groupId, body.options, existing.options, tx)
+        ? await updateOptions(scope, groupId, body.options, existing.options, tx)
         : existing.options
     const keepsSlack = nextOptions.some((option) => option.provider === 'slack')
     const encryptedProviderConfiguration = keepsSlack
@@ -419,14 +493,12 @@ export async function updateCredentialGroup(
     const [updated] = await tx
       .update(credentialGroup)
       .set({
-        ...(body.name !== undefined ? { name: body.name } : {}),
-        ...(body.description !== undefined ? { description: body.description || null } : {}),
         ...(body.options !== undefined ? { options: nextOptions } : {}),
         ...(body.options !== undefined ? { encryptedProviderConfiguration } : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+      .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
       .returning()
 
     if (!updated) throw new Error('Credential group update returned no row')
@@ -446,9 +518,24 @@ export async function updateCredentialGroup(
           )
         )
     }
-    return {
-      credentialGroup: await toCredentialGroup(updated, await listLinkedMcpServers(updated.id, tx)),
-      retiredMcpConnectionIds: [],
-    }
+    return toCredentialGroup(updated, await listLinkedMcpServers(updated.id, tx))
   })
+}
+
+/** Reads the single account container belonging to an organization. */
+export async function getOrganizationAccountsGroup(
+  organizationId: string
+): Promise<OrganizationCredentialGroupRecord | null> {
+  const [row] = await db
+    .select()
+    .from(credentialGroup)
+    .where(resourceScopeCondition(credentialGroup, { kind: 'organization', organizationId }))
+    .limit(1)
+  if (!row?.organizationId || row.workspaceId) return null
+  await requireOrganizationAccountsSetup(organizationId, row.id)
+  return {
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    workspaceId: null,
+    organizationId: row.organizationId,
+  }
 }

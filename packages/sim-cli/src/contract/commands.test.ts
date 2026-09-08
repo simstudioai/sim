@@ -479,7 +479,11 @@ describe('list columns', () => {
     })
 
     try {
-      renderPage('table', [dispatch], CLI_CONTRACT.listTableDispatches ?? {})
+      renderPage(
+        'table',
+        { data: [dispatch], nextCursor: null },
+        CLI_CONTRACT.listTableDispatches ?? {}
+      )
     } finally {
       log.mockRestore()
     }

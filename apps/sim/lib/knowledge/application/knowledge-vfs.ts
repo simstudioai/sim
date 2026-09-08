@@ -14,6 +14,7 @@ import {
   type KnowledgeWorkspaceContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
+import { authorizeSearchIndexDeletion } from '@/lib/knowledge/application/knowledge-base-access'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   deleteKnowledgeBase,
@@ -61,7 +62,7 @@ async function resolveKnowledgeBaseByVfsName(
   context: KnowledgeWorkspaceContext,
   sourceName: string,
   sourceSegments?: string[]
-): Promise<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>> {
+): Promise<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>> {
   if (sourceSegments && sourceSegments.length > 1) {
     const row = await resolveResourceRowBySegments(
       knowledgeVfsAdapter,
@@ -139,13 +140,19 @@ export const deleteKnowledgeBaseByVfsPath = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteByVfsPath,
   resolveContext: ({ input }: { input: DeleteKnowledgeBaseByVfsPathInput }) =>
     resolveKnowledgeWorkspaceContext(input),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     const knowledgeBase = await resolveKnowledgeBaseByVfsName(
       context,
       input.sourceName,
       input.sourceSegments
     )
+    const allowSearchIndexDelete = await authorizeSearchIndexDeletion(
+      principal,
+      context,
+      knowledgeBase
+    )
     await deleteKnowledgeBase(knowledgeBase.id, generateRequestId(), {
+      allowSearchIndexDelete,
       assertedWorkspaceId: context.workspaceId,
     })
     return {

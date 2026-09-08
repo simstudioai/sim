@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
   requireCredentialGroupsAvailable: mocks.requireAvailable,
-  resolveCredentialGroupContext: mocks.resolveGroup,
+  resolveWorkspaceAccountsContext: mocks.resolveGroup,
 }))
 
 vi.mock('@/lib/credential-groups/enrollments', () => ({
@@ -47,17 +47,16 @@ const context = {
   options: [],
 }
 
-function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDelegatedPrincipal {
+function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',
     subjectUserId: 'admin-1',
-    workspaceId: 'workspace-1',
+    workspaceId,
     delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId },
     delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
   }
 }
@@ -98,7 +97,7 @@ describe('createCredentialGroupInviteLink', () => {
     await expect(
       createCredentialGroupInviteLink.execute({
         principal,
-        input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+        input: { workspaceId: 'workspace-1', email: 'person@example.com' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.resolveGroup).not.toHaveBeenCalled()
@@ -134,7 +133,7 @@ describe('createCredentialGroupInviteLink', () => {
 
     const result = await createCredentialGroupInviteLink.execute({
       principal: actorless,
-      input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+      input: { workspaceId: 'workspace-1', email: 'person@example.com' },
     })
 
     expect(result.invitationLink).toBe('https://sim.ai/credential-groups/enroll/token-1')
@@ -146,11 +145,11 @@ describe('createCredentialGroupInviteLink', () => {
     )
   })
 
-  it('rejects delegation scoped to another Credential Group', async () => {
+  it('rejects delegation scoped to another workspace', async () => {
     await expect(
       createCredentialGroupInviteLink.execute({
-        principal: executorPrincipal('group-2'),
-        input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+        principal: executorPrincipal('workspace-2'),
+        input: { workspaceId: 'workspace-1', email: 'person@example.com' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.createInvitationLink).not.toHaveBeenCalled()
@@ -162,7 +161,7 @@ describe('createCredentialGroupInviteLink', () => {
     await expect(
       createCredentialGroupInviteLink.execute({
         principal: executorPrincipal(),
-        input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+        input: { workspaceId: 'workspace-1', email: 'person@example.com' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.createInvitationLink).not.toHaveBeenCalled()
@@ -171,7 +170,7 @@ describe('createCredentialGroupInviteLink', () => {
   it('normalizes the recipient and returns the newly issued bearer link', async () => {
     const result = await createCredentialGroupInviteLink.execute({
       principal: executorPrincipal(),
-      input: { credentialGroupId: 'group-1', email: ' Person@Example.COM ' },
+      input: { workspaceId: 'workspace-1', email: ' Person@Example.COM ' },
     })
 
     expect(mocks.requireAvailable).toHaveBeenCalledWith('workspace-1')
@@ -188,7 +187,7 @@ describe('createCredentialGroupInviteLink', () => {
     await expect(
       createCredentialGroupInviteLink.execute({
         principal: executorPrincipal(),
-        input: { credentialGroupId: 'group-1', email: 'not-an-email' },
+        input: { workspaceId: 'workspace-1', email: 'not-an-email' },
       })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.requireAvailable).not.toHaveBeenCalled()

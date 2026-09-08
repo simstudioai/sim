@@ -173,13 +173,14 @@ The **Chat Deployment** row also carries an **auth-mode allowlist** — *Auth mo
 | API Keys | Revokes workspace API keys. Members cannot list, create, or revoke one. |
 | Personal API Keys | Prevents members from using a personal API key against this workspace. |
 | Personal Credentials | Prevents connecting personal credentials, leaving only workspace-shared ones. |
-| CLI Access | Prevents approving a CLI login, which mints a key for the public API. |
+| CLI Access | Prevents approving a CLI login or using Sim CLI OAuth tokens for the public API. Existing API keys retain their own restrictions. |
+| OAuth App Access | Prevents OAuth apps from accessing the group's workspaces. The organization default group also governs authorization, token issuance and refresh, and account-level billing and audit reads. |
 
 ##### Rows read from the organization default group
 
 Two rows — **Workspace Creation** and **Member Directory** — are read only from the organization's **default group**, because the act they govern names no workspace. On any other group the editor renders them inert, tags them **Organization**, and skips them in **Select All**. Set them on the default group.
 
-Five more rows — **Integrations**, **API Keys**, **Invitations**, **Personal API Keys**, and **CLI Access** — apply on the group in front of you for anything scoped to one of its workspaces. The account-level path of the same action falls back to the default group: minting a personal key, an organization-wide invitation, an account-level CLI login. To close one of these completely, set it on the default group as well.
+Six more rows — **Integrations**, **API Keys**, **Invitations**, **Personal API Keys**, **CLI Access**, and **OAuth App Access** — apply on the group in front of you for anything scoped to one of its workspaces. Account-level actions use the organization's default group, including minting a personal key, sending an organization-wide invitation, approving a CLI login, and authorizing or refreshing an OAuth app.
 
 ### 4. Choose who it applies to
 

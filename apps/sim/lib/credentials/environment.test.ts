@@ -3,6 +3,7 @@
  */
 import { credential, permissions, workspace } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -16,10 +17,42 @@ vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
 
 import {
   createWorkspaceEnvCredentials,
+  getEnrolledManagedOAuthCredentials,
   getPersonalEnvKeyRawAccess,
   getWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+
+describe('managed OAuth credential lookup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it.each(['active', 'revoked'] as const)(
+    'bounds lookup and preserves %s binding checks',
+    async (status) => {
+      queueTableRows(credential, [
+        {
+          id: 'mine',
+          providerId: 'slack',
+          displayName: 'Slack',
+          credentialGroupOptionId: 'option',
+          managedOauthStatus: status,
+          enrollmentStatus: 'completed',
+          groupName: 'Connected accounts',
+          groupStatus: 'active',
+          groupOptions: [{ id: 'option', status: 'active' }],
+        },
+      ])
+      const result = await getEnrolledManagedOAuthCredentials('workspace', 'person', 'mine')
+      expect(eq).toHaveBeenCalledWith(credential.id, 'mine')
+      expect(eq).toHaveBeenCalledWith(credential.workspaceId, 'workspace')
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+      expect(result).toHaveLength(status === 'active' ? 1 : 0)
+    }
+  )
+})
 
 describe('getPersonalEnvKeyRawAccess', () => {
   beforeEach(() => {

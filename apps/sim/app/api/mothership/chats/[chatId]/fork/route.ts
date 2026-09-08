@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/chat/fork-chat-files'
 import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
+import { authorizeOrganizationChat } from '@/lib/copilot/chat/organization-chats'
 import {
   rewriteMessageFileRefs,
   rewriteResourceFileRefs,
@@ -32,6 +33,7 @@ import { removeChatResources } from '@/lib/copilot/resources/persistence'
 import { type MothershipResource, sanitizeChatResources } from '@/lib/copilot/resources/types'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -58,7 +60,7 @@ const logger = createLogger('ForkChatAPI')
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+      const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
@@ -76,6 +78,7 @@ export const POST = withRouteHandler(
           userId: copilotChats.userId,
           type: copilotChats.type,
           workspaceId: copilotChats.workspaceId,
+          organizationId: copilotChats.organizationId,
           title: copilotChats.title,
           model: copilotChats.model,
           resources: copilotChats.resources,
@@ -90,6 +93,13 @@ export const POST = withRouteHandler(
         return createNotFoundResponse('Chat not found')
       }
 
+      if (parent.organizationId) {
+        if (!principal) return createUnauthorizedResponse()
+        await authorizeOrganizationChat.execute({
+          principal,
+          input: { organizationId: parent.organizationId },
+        })
+      }
       if (parent.workspaceId) {
         await assertActiveWorkspaceAccess(parent.workspaceId, userId)
       }
@@ -137,6 +147,7 @@ export const POST = withRouteHandler(
             id: newId,
             userId,
             workspaceId: parent.workspaceId,
+            organizationId: parent.organizationId,
             type: parent.type,
             title,
             model: parent.model,
@@ -277,6 +288,9 @@ export const POST = withRouteHandler(
         ...(failed > 0 ? { failedFileCopies: failed } : {}),
       })
     } catch (error) {
+      const code = asOrchestrationError(error)?.code
+      if (code === 'not_found' || code === 'forbidden')
+        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       if (isWorkspaceAccessDeniedError(error)) {
         return createForbiddenResponse('Workspace access denied')
       }

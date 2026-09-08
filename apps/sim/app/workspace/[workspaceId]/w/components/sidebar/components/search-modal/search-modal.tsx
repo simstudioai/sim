@@ -1351,7 +1351,6 @@ function SearchModalContent({
                   rows against an edge the user cannot see. */}
               <CommandFadedList
                 ref={listRef}
-                fade='palette'
                 className={cn(
                   'scrollbar-none max-h-[min(448px,calc(85dvh-26px))] [clip-path:inset(3px_round_13px)]',
                   CMDK_ITEM_GAP_CLASS,

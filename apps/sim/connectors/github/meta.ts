@@ -7,11 +7,20 @@ export const githubConnectorMeta: ConnectorMeta = {
   description: 'Sync files from a GitHub repository',
   version: '1.0.0',
   icon: GithubIcon,
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/github',
+  permissionScopedListing: { capFieldIds: ['maxFiles'] },
+  supportsSeparateContentCredential: true,
+  memberSetupHint:
+    'Install the GitHub App on the repositories you want to search. Each person connects their own GitHub account with a verified email matching their Sim account.',
 
   auth: {
-    mode: 'apiKey',
-    label: 'Personal Access Token',
-    placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    mode: 'oauth',
+    provider: 'github-repositories',
+    apiKey: {
+      label: 'Personal Access Token',
+      placeholder: 'github_pat_…',
+    },
   },
 
   configFields: [
@@ -26,8 +35,10 @@ export const githubConnectorMeta: ConnectorMeta = {
       id: 'branch',
       title: 'Branch',
       type: 'short-input',
-      placeholder: 'main (default)',
+      placeholder: 'e.g. main',
       required: false,
+      description:
+        'Leave blank for the repository’s default branch in member connections, or main in workspace connections.',
     },
     {
       id: 'pathPrefix',

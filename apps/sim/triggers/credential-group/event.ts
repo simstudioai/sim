@@ -8,10 +8,10 @@ import type { TriggerConfig } from '@/triggers/types'
 
 export const credentialGroupEventTrigger: TriggerConfig = {
   id: CREDENTIAL_GROUP_EVENT_TRIGGER_ID,
-  name: 'Credential Group Event',
+  name: 'Connected Account Event',
   provider: CREDENTIAL_GROUP_TRIGGER_PROVIDER,
   description:
-    'Triggers when a credential is added or reconnected, or when a Credential Group form is submitted',
+    'Triggers when a credential is added or reconnected, or when a connected accounts form is submitted',
   version: '1.0.0',
   icon: GridOffset,
 
@@ -23,33 +23,12 @@ export const credentialGroupEventTrigger: TriggerConfig = {
       options: [
         { id: 'credential_added', label: 'Credential Added' },
         { id: 'credential_reconnected', label: 'Credential Reconnected' },
-        { id: 'form_submitted', label: 'Credential Group Form Submitted' },
+        { id: 'form_submitted', label: 'Account Connections Submitted' },
       ],
       defaultValue: 'credential_added',
-      description: 'The Credential Group event to trigger on.',
+      description: 'The connected account event to trigger on.',
       required: true,
       mode: 'trigger',
-    },
-    {
-      id: 'credentialGroup',
-      title: 'Credential Group',
-      type: 'dropdown',
-      selectorKey: 'workspace.credentialGroups',
-      placeholder: 'Select a Credential Group',
-      description: 'The Credential Group to monitor.',
-      required: true,
-      mode: 'trigger',
-      canonicalParamId: 'credentialGroupId',
-    },
-    {
-      id: 'manualCredentialGroup',
-      title: 'Credential Group ID',
-      type: 'short-input',
-      placeholder: 'Enter Credential Group ID',
-      description: 'The Credential Group to monitor.',
-      required: true,
-      mode: 'trigger-advanced',
-      canonicalParamId: 'credentialGroupId',
     },
     {
       id: 'triggerInstructions',
@@ -57,9 +36,8 @@ export const credentialGroupEventTrigger: TriggerConfig = {
       hideFromPreview: true,
       type: 'text',
       defaultValue: [
-        'Select the Credential Group to monitor',
         'Choose whether to trigger on a new credential, a reconnection, or a submitted form',
-        'Grant this workflow access to the Credential Group',
+        'Ask an organization admin to allow this workspace in Connected accounts settings',
         'Deploy the workflow to start receiving events',
       ]
         .map(
@@ -74,7 +52,7 @@ export const credentialGroupEventTrigger: TriggerConfig = {
   outputs: {
     event: {
       type: 'string',
-      description: 'The Credential Group event that fired the trigger',
+      description: 'The account connection event that fired the trigger',
     },
     timestamp: {
       type: 'string',
@@ -82,15 +60,15 @@ export const credentialGroupEventTrigger: TriggerConfig = {
     },
     credentialGroupId: {
       type: 'string',
-      description: 'Credential Group ID',
+      description: 'Organization accounts container ID',
     },
     credentialGroupName: {
       type: 'string',
-      description: 'Credential Group name',
+      description: 'Organization accounts container name',
     },
     enrollmentId: {
       type: 'string',
-      description: 'Credential Group enrollment ID',
+      description: 'Account enrollment ID',
     },
     email: {
       type: 'string',
@@ -107,12 +85,17 @@ export const credentialGroupEventTrigger: TriggerConfig = {
     },
     credentialGroupOptionId: {
       type: 'string',
-      description: 'Credential Group option ID',
+      description: 'Connected account option ID',
+      condition: { field: 'eventType', value: [...CREDENTIAL_GROUP_CREDENTIAL_EVENT_TYPES] },
+    },
+    mcpServerId: {
+      type: 'string',
+      description: 'Managed MCP server configuration ID, or null for an OAuth account',
       condition: { field: 'eventType', value: [...CREDENTIAL_GROUP_CREDENTIAL_EVENT_TYPES] },
     },
     provider: {
       type: 'string',
-      description: 'Credential Group provider',
+      description: 'Account provider',
       condition: { field: 'eventType', value: [...CREDENTIAL_GROUP_CREDENTIAL_EVENT_TYPES] },
     },
     providerId: {

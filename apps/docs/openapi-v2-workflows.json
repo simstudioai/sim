@@ -43,7 +43,7 @@
       "get": {
         "operationId": "listWorkflows",
         "summary": "List Workflows",
-        "description": "List workflows in a workspace with lifecycle scope, folder and deployment filters, search, sorting, and opaque cursor pagination. `scope` defaults to `active`; pass `archived` to list workflows a `DELETE` archived. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List active workflows in a workspace. Use `scope=archived` to find workflows available for restoration. Supports folder and deployment filters, search, sorting, and cursor pagination. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -76,9 +76,9 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to workflows in this folder path. Unknown folder paths contribute no matches.",
             "schema": {
-              "description": "Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to workflows in this folder path. Unknown folder paths contribute no matches.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -204,7 +204,7 @@
       "post": {
         "operationId": "createWorkflowV2",
         "summary": "Create Workflow",
-        "description": "Create a workflow in a workspace root or canonical workflow folder. The response carries the blocks the platform seeded the workflow with, so the start block's id is available without a second request — attach edges to it directly. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Create a workflow at the workspace root or in a workflow folder. The response includes seeded blocks and their IDs for attaching edges. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -281,7 +281,7 @@
       "get": {
         "operationId": "getWorkflowState",
         "summary": "Get Workflow State",
-        "description": "Get the editable draft graph: blocks, edges, derived loop and parallel containers, and variables. This pollable read records no audit event, and `HEAD` mirrors `GET`. The unsanitized payload includes workspace-scoped credential, knowledge-base, and table ids, so it is not portable. Use `export` for a sanitized copy, but not for read-modify-write because credential bindings are removed. Returned keys exactly match what `PUT /workflows/{workflowId}/state` accepts.\n\nOAuth scope: `api:read`.",
+        "description": "Get the editable draft graph, including blocks, edges, loop and parallel containers, and variables. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -347,7 +347,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Atomically replace the editable draft graph. Concurrent writes are row-locked and last-write-wins; no partial state is stored. `loops` and `parallels` are recomputed from `blocks`; omitted `variables` remain unchanged. Foreign ids return `409`. This leaves deployment unchanged and marks the draft for redeployment; lint is advisory. `dryRun=true` runs the same validation, lint, and conflict checks without persistence, audit, or notification; `needsRedeployment` reflects pre-write state. Workspace keys are rejected; use personal keys or OAuth.\n\nOAuth scope: `api:write`.",
+        "description": "Replace the draft graph atomically; concurrent writes are last-write-wins. Recompute containers from blocks and preserve omitted variables. Foreign IDs return `409`; lint is advisory. The live deployment is unchanged. `dryRun=true` validates without saving, auditing, or notifying; `needsRedeployment` describes the pre-write state. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.state.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -448,7 +448,7 @@
       "post": {
         "operationId": "applyWorkflowOperations",
         "summary": "Apply Workflow Operations",
-        "description": "Apply graph edits and optional block enablement atomically. Failed operations appear in `skipped`; `deferred` edges resolve when targets exist and must not be retried. With `atomic`, any skip or dropped input returns `409` with `OPERATIONS_NOT_APPLIED` and persists nothing. Non-UUID labels are minted and same-batch references remapped in `mintedBlockIds`. Lint is advisory. `dryRun=true` runs the same checks without persistence, audit, or notification. This changes only the draft. Workspace keys are rejected; use personal keys or OAuth.\n\nOAuth scope: `api:write`.",
+        "description": "Edit the draft graph and block enablement in one write. Inspect `skipped` for failures; do not retry `deferred` edges. With `atomic=true`, skipped operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. `mintedBlockIds` maps labels to generated IDs. Lint is advisory; `dryRun=true` validates without saving, auditing, or notifying. The live deployment is unchanged. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.operations.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -549,7 +549,7 @@
       "patch": {
         "operationId": "applyWorkflowVariables",
         "summary": "Update Workflow Variables",
-        "description": "Add, edit, and delete a workflow’s variables. Operations are matched by variable `name` and applied in order; a batch that changes nothing answers `200` with `changed: false`. Values are coerced to the declared `type`, and a value that cannot be coerced is stored as supplied. Read the current set from `variables` on `GET /workflows/{workflowId}`.\n\nOAuth scope: `api:write`.",
+        "description": "Add, edit, or delete variables by name, applying operations in order. Values are coerced to their declared type when possible; otherwise they are stored as supplied. A batch with no changes returns `200` with `changed: false`. Read current variables with Get Workflow.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.variables.apply_operations",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -640,7 +640,7 @@
       "post": {
         "operationId": "duplicateWorkflow",
         "summary": "Duplicate Workflow",
-        "description": "Copy a workflow, including its blocks, edges, subflows, and variables, into the same workspace. Omitting `name` reuses the source name; a collision inside the destination folder is deduplicated rather than refused. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Copy a workflow's graph and variables into the same workspace. Omit `name` to reuse the source name; name collisions in the destination folder are resolved automatically. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.duplicate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -731,7 +731,7 @@
       "post": {
         "operationId": "restoreWorkflow",
         "summary": "Restore Workflow",
-        "description": "Bring an archived workflow back, along with the schedules, webhooks, MCP tools, and chats that were archived with it. A workflow that is not archived answers `409`. A workflow whose folder was archived is restored to the workspace root. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Restore an archived workflow and the schedules, webhooks, MCP tools, and chats archived with it. An active workflow returns `409`. If its folder is archived, the workflow returns to the workspace root. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -808,7 +808,7 @@
       "post": {
         "operationId": "moveWorkflows",
         "summary": "Move Workflows",
-        "description": "Relocate up to 100 workflows into one folder. Explicitly best-effort: each workflow moves in its own transaction, and one that is absent from the workspace, archived, or locked lands in `failed` while the rest still move. Duplicate ids are collapsed. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Move up to 100 workflows into one folder. Moves succeed or fail independently; missing, archived, or locked workflows appear in `failed`. Duplicate IDs are ignored. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.bulk.move",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -879,7 +879,7 @@
       "get": {
         "operationId": "getWorkflow",
         "summary": "Get Workflow",
-        "description": "Get a workflow with its variables and deployed API-trigger inputs. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get a workflow with its variables and deployed API-trigger inputs. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -948,7 +948,7 @@
       "patch": {
         "operationId": "updateWorkflowV2",
         "summary": "Update Workflow",
-        "description": "Rename, describe, or move a workflow to a canonical folder path. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Update a workflow's name, description, or folder path. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1037,7 +1037,7 @@
       "delete": {
         "operationId": "deleteWorkflowV2",
         "summary": "Delete Workflow",
-        "description": "Archive a workflow. Despite the verb, this is not an erasure: the workflow, and the schedules, webhooks, MCP tools, and chats attached to it, are stamped archived and stop running, and `POST /workflows/{workflowId}/restore` brings all of them back. An archived workflow disappears from the default list and is reachable with `scope=archived`. The `deleted` field is retained for shipped clients; `archived` states what actually happened.\n\nOAuth scope: `api:write`.",
+        "description": "Archive a workflow and stop its schedules, webhooks, MCP tools, and chats. Use List Workflows with `scope=archived` to find it and Restore Workflow to recover it and its archived resources. Both `deleted` and `archived` acknowledge archival.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1278,7 +1278,7 @@
       "patch": {
         "operationId": "updateWorkflowVersionV2",
         "summary": "Update Workflow Version",
-        "description": "Relabel a deployment version. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the release note. Metadata only — the pinned graph is immutable, and this never changes which version is live. Promote a version with `POST /workflows/{workflowId}/versions/{version}/activate`.\n\nOAuth scope: `api:write`.",
+        "description": "Update a deployment version's name or release note. Omitted fields remain unchanged; `description: null` clears the note. The graph and live version remain unchanged. Use Activate Workflow Version to make this version live.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.versions.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1375,7 +1375,7 @@
       "post": {
         "operationId": "activateWorkflowVersion",
         "summary": "Activate Workflow Version",
-        "description": "Promote an existing deployment version to live. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state. Unlike `rollback`, the target is named by the path and the workflow need not already be deployed. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Asynchronously activate a specific deployment version, including when the workflow is not currently deployed. The draft remains unchanged. Read Get Workflow Deployment for `isDeployed` and `latestDeploymentAttempt`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.versions.activate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1478,7 +1478,7 @@
       "post": {
         "operationId": "revertWorkflowVersion",
         "summary": "Revert Workflow To Version",
-        "description": "Overwrite the editable draft with a deployment version, irreversibly discarding unsaved edits. This does not change the live version; use `activate` or `rollback` for production, both of which leave the draft unchanged. Pass `active` to reset the draft to the live graph. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Replace the editable draft with a deployment version, discarding current draft edits. Use `active` for the live version. The live deployment remains unchanged; Activate Workflow Version or Rollback Workflow changes it. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.versions.revert",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1589,7 +1589,7 @@
       "get": {
         "operationId": "getWorkflowDeployment",
         "summary": "Get Workflow Deployment",
-        "description": "Read the live version, latest deployment attempt and readiness, draft drift (`needsRedeployment`), and `isPublicApi`. When `isPublicApi` is true, anyone with the execution URL can run and consume billed usage without an API key; change it with `PATCH /workflows/{workflowId}/deployment`. `/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.\n\nOAuth scope: `api:read`.",
+        "description": "Get the live version, latest deployment attempt, readiness, draft changes (`needsRedeployment`), and public API access. With `isPublicApi: true`, anyone with the execution URL can run the workflow and consume billed usage without an API key. Hosted chat is managed separately.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -1655,7 +1655,7 @@
       "patch": {
         "operationId": "updateWorkflowPublicApi",
         "summary": "Update Workflow Public API Access",
-        "description": "Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with `403` and `PUBLIC_SHARING_NOT_ALLOWED`. `/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Enable or disable unauthenticated execution of the deployed workflow. Enabling allows anyone with the execution URL to consume billed usage. Organization sharing restrictions return `403` with `PUBLIC_SHARING_NOT_ALLOWED`. Hosted chat is managed separately. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.public_api.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1743,7 +1743,7 @@
       "post": {
         "operationId": "deployWorkflow",
         "summary": "Deploy Workflow",
-        "description": "Create and asynchronously activate a deployment version. Not idempotent: every call mints a new version, so a retry after a timeout creates a second one. A deployment that would conflict with an existing webhook path is a `409`. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. A conflicting webhook path returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.deploy",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1832,7 +1832,7 @@
       "delete": {
         "operationId": "undeployWorkflow",
         "summary": "Undeploy Workflow",
-        "description": "Deactivate the currently serving workflow version. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Deactivate the currently serving workflow version. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.undeploy",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1903,7 +1903,7 @@
       "post": {
         "operationId": "rollbackWorkflow",
         "summary": "Rollback Workflow",
-        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. Use this to step back from the currently live version; to make a specific version live by naming it in the path — including when the workflow is not currently deployed — use `POST /workflows/{workflowId}/versions/{version}/activate`. Neither touches the draft. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Asynchronously activate a previous deployment version, defaulting to the preceding active version. Requires a deployed workflow and leaves the draft unchanged. Use Activate Workflow Version to select a version when the workflow is undeployed. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.versions.activate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1994,7 +1994,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a portable, secret-sanitized workflow; workspace-scoped bindings must be selected again after import. Exporting records an audit event. `HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Export a portable, secret-sanitized workflow; workspace-scoped bindings must be selected again after import. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.export",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -2065,7 +2065,7 @@
       "post": {
         "operationId": "importWorkflow",
         "summary": "Import Workflow",
-        "description": "Create a workflow from a portable export object, bare state, or JSON string. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Create a workflow from a portable export object, bare state, or JSON string. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.import",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2142,7 +2142,7 @@
       "get": {
         "operationId": "listChatDeployments",
         "summary": "List Chat Deployments",
-        "description": "List hosted chats in a workspace with opaque cursor pagination. Filter by `workflowId` to resolve one workflow’s singleton chat. Each item includes its public URL, whose identifier is a path segment, but omits `allowedEmails`, `hasPassword`, and `customizations`; read those through the admin-only singleton endpoint. This list requires workspace read access and accepts workspace API keys. Stored passwords are never returned.\n\nOAuth scope: `api:read`.",
+        "description": "List hosted chats and their public URLs with cursor pagination. Filter by `workflowId` for one workflow's chat. The list requires workspace read access; Get Workflow Chat Deployment requires admin access and includes visitor access settings and customizations. Passwords are never returned.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "chat_deployments.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -2279,7 +2279,7 @@
       "get": {
         "operationId": "getWorkflowChatDeployment",
         "summary": "Get Workflow Chat Deployment",
-        "description": "Read a workflow’s singleton hosted chat, or return `404` when none exists. `/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path. The password is never returned; `hasPassword` reports its presence. Visitor-gate fields (`authType`, `hasPassword`, and `allowedEmails`) require workspace admin access. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Get a workflow's hosted chat and visitor access settings. Requires workspace admin access; a missing chat returns `404`. Passwords are never returned; `hasPassword` indicates whether one is set. Hosted chat and workflow API deployment are managed separately. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "chat_deployments.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -2345,7 +2345,7 @@
       "put": {
         "operationId": "replaceWorkflowChatDeployment",
         "summary": "Create or Replace Workflow Chat Deployment",
-        "description": "Create or replace hosted chat. Omitted fields reset to defaults except per-field `customizations`. `password` is write-only and required for password auth; `allowedEmails` is required and non-empty for email or SSO. This also deploys the draft. A duplicate identifier or pending deployment returns `409`; public auth exposes the URL. `/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path. Workspace keys are rejected; use personal keys or OAuth.\n\nOAuth scope: `api:write`.",
+        "description": "Create or replace a workflow's hosted chat and deploy its draft. Omitted fields reset to defaults except per-field customizations. Password authentication requires `password`; email or SSO requires non-empty `allowedEmails`. Public authentication allows anyone with the chat URL to use it. A duplicate identifier or pending deployment returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "chat_deployments.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2434,7 +2434,7 @@
       "delete": {
         "operationId": "deleteWorkflowChatDeployment",
         "summary": "Delete Workflow Chat Deployment",
-        "description": "Stop serving a workflow's hosted chat. Its URL stops answering and the identifier becomes free again. The workflow's own deployment is untouched and stays executable through the workflow API — to undeploy that, use `DELETE /workflows/{workflowId}/deploy`. Workspace API keys return `403`; use a personal API key or appropriately scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Remove a workflow's hosted chat and release its URL identifier. The workflow API deployment remains active; use Undeploy Workflow to stop it. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "chat_deployments.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2502,7 +2502,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute Workflow",
-        "description": "Execute a deployment or use `run.source: \"manual\"` for draft state. Manual runs require personal or OAuth write access and reject workspace keys, anonymous callers, and async. Start at a trigger or resume from same-workflow `sourceRunId`. Public deployments allow anonymous sync or streaming. Request `application/x-ndjson` for 15-second heartbeats and final resource. Timeouts return `200` with failed status and `TIMEOUT`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.\n\nOAuth scope: `api:write`.",
+        "description": "Execute a deployment or use `run.source: \"manual\"` for the draft. Manual runs require personal or OAuth write access and reject async. Public deployments allow anonymous sync or streaming. Request `application/x-ndjson` for heartbeats and the final result. Timeouts return `200` with failed status and `TIMEOUT`. Supply `X-Run-Id` to prevent duplicate execution; reuse returns `409`, never a replay. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2532,9 +2532,9 @@
             "name": "x-run-id",
             "in": "header",
             "required": false,
-            "description": "Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: \"RUN_ID_CONFLICT\"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.",
+            "description": "Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.",
             "schema": {
-              "description": "Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: \"RUN_ID_CONFLICT\"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.",
+              "description": "Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.",
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
@@ -2555,7 +2555,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Input, workflow-state selection, and execution-mode options. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+          "description": "Input, workflow-state selection, and execution-mode options. Input descriptions specify compatible modes; invalid combinations return `400`.",
           "content": {
             "application/json": {
               "schema": {
@@ -2666,7 +2666,7 @@
       "get": {
         "operationId": "listWorkflowRunsV2",
         "summary": "List Workflow Runs",
-        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.\n\nOAuth scope: `api:read`.",
+        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.runs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -2816,7 +2816,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get Workflow Run",
-        "description": "Get current run state with optional final and block outputs. With `includeOutput`, `files` includes download paths; `includeFileBase64` reads object storage to inline bytes and returns `413` with the download path when one file or the total exceeds 16 MiB. `HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only.\n\nOAuth scope: `api:read`.",
+        "description": "Get current run state with optional final and block outputs. With `includeOutput`, `files` includes download paths; `includeFileBase64` inlines file bytes and returns `413` with the download path when one file or the total exceeds 16 MiB. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -2945,7 +2945,7 @@
       "get": {
         "operationId": "downloadWorkflowRunFileV2",
         "summary": "Download Workflow Run File",
-        "description": "Download one run-produced file by id. Downloads record an audit event. Expired runs are hard-deleted. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. `HEAD` skips the effect but uses `GET` authorization, returning `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "description": "Download one run-produced file by ID. Downloads record an audit event. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.download_run_file",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -3051,7 +3051,7 @@
       "post": {
         "operationId": "resumeWorkflowRunV2",
         "summary": "Resume Workflow Run",
-        "description": "Resume one human-in-the-loop pause context. The resumed attempt receives a new run identifier and may complete synchronously or return a queue receipt.\n\nOAuth scope: `api:write`.",
+        "description": "Resume one human-in-the-loop pause. The resumed attempt receives a new run ID and returns either a synchronous result or a queue receipt.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.resume",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -3182,7 +3182,7 @@
       "post": {
         "operationId": "cancelRunV2",
         "summary": "Cancel Workflow Run",
-        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.\n\nOAuth scope: `api:write`.",
+        "description": "Request cancellation of a running, queued, or paused workflow run. Terminal runs return successfully without changes. A table workflow-group run returns `409` if its cell can no longer accept cancellation.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -3266,7 +3266,7 @@
       "get": {
         "operationId": "listWorkflowsFolders",
         "summary": "List Workflow Folders",
-        "description": "List canonical workflow folders in a workspace. The bounded set is returned in one page; `nextCursor` is always null. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List workflow folders in a workspace. Returns the complete set in one page; `nextCursor` is always null. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -3287,9 +3287,9 @@
             "name": "parentPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.",
             "schema": {
-              "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -3381,7 +3381,7 @@
       "post": {
         "operationId": "createWorkflowsFolder",
         "summary": "Create Workflow Folder",
-        "description": "Create a canonical workflow folder in a workspace. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Create a workflow folder in a workspace. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -3456,7 +3456,7 @@
       "patch": {
         "operationId": "relocateWorkflowsFolder",
         "summary": "Rename or Move Workflow Folder",
-        "description": "Rename or move a workflow folder and its descendants to a canonical path. A workspace folder tree over 10,000 folders is a `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Rename or move a workflow folder and update all descendant paths. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.folders.relocate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -3531,7 +3531,7 @@
       "delete": {
         "operationId": "deleteWorkflowsFolder",
         "summary": "Delete Workflow Folder",
-        "description": "Delete a workflow folder, optionally including its descendants and workflows.\n\nOAuth scope: `api:write`.",
+        "description": "Archive an empty workflow folder, or set `recursive=true` to archive its subfolders and workflows. Use Restore Workflow to recover workflows.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -4139,7 +4139,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction."
+            "description": "Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs."
           },
           "lastRunAt": {
             "anyOf": [
@@ -4311,7 +4311,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction."
+            "description": "Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs."
           },
           "lastRunAt": {
             "anyOf": [
@@ -5996,7 +5996,7 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowSkippedItem"
             },
-            "description": "Forward-referencing edges the engine recorded rather than applied. These are NOT failures: the engine wires each one as soon as its target block exists, in this batch or a later one. Do not re-issue them."
+            "description": "Edges waiting for target blocks. They apply automatically when their targets exist, in this batch or a later one. Do not resubmit them."
           },
           "inputValidationErrors": {
             "type": "array",
@@ -6378,7 +6378,7 @@
             "description": "Catalog block id, such as `cloudwatch` or `slack`. Use the block id, never an underlying tool id."
           },
           "operation": {
-            "description": "Operation id from `GET /api/v2/blocks/{blockId}`. Required when the block exposes multiple operations; it may differ from the underlying tool id.",
+            "description": "Operation ID from Get Block. Required when the block exposes multiple operations; it may differ from the tool ID.",
             "type": "string",
             "minLength": 1,
             "maxLength": 255
@@ -6428,7 +6428,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 255,
-                "description": "Custom tool id returned by `GET /api/v2/custom-tools`."
+                "description": "Custom tool ID from List Custom Tools."
               },
               "usageControl": {
                 "type": "string",
@@ -6511,7 +6511,7 @@
           }
         ],
         "title": "Agent custom tool",
-        "description": "A workspace custom tool. Reference `customToolId` is the preferred shape; the inline declaration is retained for legacy workflow round trips.",
+        "description": "A workspace custom tool. Prefer `customToolId`; inline declarations are also accepted.",
         "examples": [
           {
             "type": "custom-tool",
@@ -7080,7 +7080,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction."
+            "description": "Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs."
           },
           "lastRunAt": {
             "anyOf": [
@@ -7251,7 +7251,7 @@
           "archived": {
             "type": "boolean",
             "const": true,
-            "description": "The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{workflowId}/restore` brings all of them back."
+            "description": "Whether the workflow was archived. Restore Workflow recovers it and the schedules, webhooks, MCP tools, and chats archived with it."
           }
         },
         "required": ["id", "deleted", "archived"],
@@ -7449,7 +7449,7 @@
             "format": "date-time"
           },
           "state": {
-            "description": "Deployed workflow graph snapshot pinned by this version, with credential-bearing values redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata.",
+            "description": "Workflow graph saved with this deployment version. Sensitive values are redacted to null.",
             "$ref": "#/components/schemas/DeployedWorkflowState"
           }
         },
@@ -8048,7 +8048,7 @@
           },
           "isPublicApi": {
             "type": "boolean",
-            "description": "Whether the deployed workflow accepts unauthenticated public API execution. While true, anyone holding the execution URL can run the workflow — and be billed for it — without an API key, so this is the field an audit of what a deployment exposes reads. Changed with `PATCH /workflows/{workflowId}/deployment`."
+            "description": "Whether anyone with the execution URL can run the deployed workflow and consume billed usage without an API key. Change this with Update Workflow Public API Access."
           }
         },
         "required": [
@@ -8238,7 +8238,7 @@
         ],
         "additionalProperties": false,
         "title": "Deploy result",
-        "description": "Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned by every deployment mutation as well as this read. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{workflowId}/versions`."
+        "description": "Deployment attempt accepted for asynchronous activation. `latestDeploymentAttempt` identifies the attempt. Poll Get Workflow Deployment for `isDeployed` and `deployedAt`, or List Workflow Versions for `isActive`."
       },
       "DeployWorkflowResponse": {
         "type": "object",
@@ -9474,7 +9474,7 @@
                           "sourceRunId": {
                             "type": "string",
                             "minLength": 1,
-                            "description": "Exact prior run whose persisted execution snapshot supplies upstream block state."
+                            "description": "Run ID supplying upstream block results when starting from a selected block."
                           }
                         },
                         "required": ["type", "blockId", "sourceRunId"],
@@ -9494,7 +9494,7 @@
             "type": "boolean"
           },
           "executionTimeoutSeconds": {
-            "description": "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
+            "description": "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`.",
             "type": "integer",
             "minimum": 1,
             "maximum": 604800
@@ -9505,7 +9505,7 @@
             "type": "boolean"
           },
           "selectedOutputs": {
-            "description": "Block output references to include in a streamed response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names. Selecting a child workflow applies to every invocation of it. Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.",
+            "description": "Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use `selectedOutputs` with Get Workflow Run to narrow an existing run.",
             "maxItems": 100,
             "type": "array",
             "items": {
@@ -9536,7 +9536,7 @@
         },
         "additionalProperties": false,
         "title": "Execute workflow request",
-        "description": "Input, workflow-state selection, and execution-mode options. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+        "description": "Input, workflow-state selection, and execution-mode options. Input descriptions specify compatible modes; invalid combinations return `400`.",
         "examples": [
           {
             "input": {

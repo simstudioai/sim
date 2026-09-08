@@ -2,6 +2,7 @@ import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 
 /**
  * The workspace integration gate, shared by every catalog that projects
@@ -56,6 +57,17 @@ export async function allowedIntegrationTypes(
     : null
   return intersectAccessControlAllowlists(
     permissionConfig?.allowedIntegrations ?? null,
+    getAllowedIntegrationsFromEnv()
+  )
+}
+
+/** Organization catalogs apply the organization's policy without resolving any workspace. */
+export async function allowedOrganizationIntegrationTypes(
+  organizationId: string
+): Promise<ReadonlySet<string> | null> {
+  const config = await getUserPermissionConfigForOrganization(organizationId)
+  return intersectAccessControlAllowlists(
+    config?.allowedIntegrations ?? null,
     getAllowedIntegrationsFromEnv()
   )
 }
