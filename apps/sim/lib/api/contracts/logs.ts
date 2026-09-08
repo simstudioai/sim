@@ -218,7 +218,7 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
         id: z.string().describe('Trace-span identifier.'),
         name: z.string().describe('Trace-span name.'),
         type: z.string().describe('Trace-span category.'),
-        duration: z.number().describe('Legacy span duration in milliseconds.').optional(),
+        duration: z.number().describe('Span duration in milliseconds.').optional(),
         durationMs: z.number().describe('Span duration in milliseconds.').optional(),
         startTime: z.string().describe('ISO 8601 span start timestamp.').optional(),
         endTime: z.string().describe('ISO 8601 span end timestamp.').optional(),

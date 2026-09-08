@@ -164,7 +164,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved.'
+    'Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({
@@ -599,7 +599,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     folderPaths: z
       .string()
       .describe(
-        `Comma-separated workflow folder paths to include. At most ${V2_LOG_FOLDER_PATHS_MAX} entries. A path covers its whole subtree, so \`/prod\` also selects runs in \`/prod/nested\`. ${V2_FOLDER_FILTER_MISS}`
+        `Comma-separated workflow folder paths, including descendants. Up to ${V2_LOG_FOLDER_PATHS_MAX} paths. ${V2_FOLDER_FILTER_MISS}`
       )
       .optional()
       .transform((value, ctx) => {

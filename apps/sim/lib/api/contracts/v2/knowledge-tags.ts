@@ -183,9 +183,7 @@ export const v2KnowledgeTagUsageSchema = z
   .object({
     id: z
       .string()
-      .describe(
-        'Tag definition identifier. Published for the same reason the vocabulary read publishes it: `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by id, so without it a usage row cannot be acted on without a second read and a slot join.'
-      )
+      .describe('Tag definition ID used by Update Tag and Delete Tag.')
       .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
     tagSlot: z
       .string()

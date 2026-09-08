@@ -173,7 +173,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     deletedAt: v2TimestampSchema
       .nullable()
       .describe(
-        'ISO 8601 timestamp when the knowledge base was archived by `DELETE /knowledge/{knowledgeBaseId}`, or null while the knowledge base is active. Only `GET /knowledge?scope=archived` returns knowledge bases with a non-null value.'
+        'ISO 8601 archive timestamp, or null while active. Use List Knowledge Bases with `scope=archived` to find archived knowledge bases.'
       )
       .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
@@ -281,7 +281,7 @@ export const v2KnowledgeDocumentTagsSchema = z
       .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
   )
   .describe(
-    'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{knowledgeBaseId}/tags.'
+    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.'
   )
   .meta({ examples: [{ category: 'billing', priority: 2 }] })
 
@@ -627,7 +627,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
     scope: v2KnowledgeBaseScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -1188,11 +1188,7 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
  */
 export const v2KnowledgeTagSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
-        'Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read.'
-      ),
+    id: z.string().describe('Tag definition ID used by Update Tag and Delete Tag.'),
     displayName: z
       .string()
       .describe('Display name used by tag filters and by tag values on document reads.')

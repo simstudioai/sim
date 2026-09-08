@@ -1871,7 +1871,7 @@ export const v2EnrichmentProviderOutcomeSchema = z
     status: z
       .string()
       .describe(
-        "How this provider ended: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Declared as a string rather than a closed enum because the value is read back out of a schemaless JSONB blob — a member added by a newer runner must widen a client's switch, not fail its read."
+        'Provider outcome: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Handle unrecognized values, since additional statuses may be returned.'
       ),
     cost: z
       .number()
@@ -2251,7 +2251,7 @@ export const v2TableImportSchema = z
       .int()
       .nonnegative()
       .describe(
-        'Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped.'
+        'Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss.'
       ),
     cellsRejected: z
       .number()

@@ -9627,6 +9627,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Apply Workflow Operations',
+    workspaceKeyUnsupported: true,
     query: {
       dryRun: {
         kind: 'boolean',
@@ -9721,7 +9722,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.',
+          'Comma-separated folder paths whose contents are included recursively. Up to 100 paths; resolved files share the 100-file download limit. Unknown paths are rejected.',
       },
     },
   },
@@ -10387,8 +10388,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['streamable-http'] as const,
         default: 'streamable-http',
-        describe:
-          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+        describe: 'Transport protocol. Defaults to `streamable-http` on creation.',
       },
       url: {
         kind: 'string',
@@ -10410,19 +10410,17 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
-        describe:
-          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+        describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
-        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+        describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
         kind: 'boolean',
         default: true,
-        describe:
-          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+        describe: "Whether workflows can use the server's tools. Defaults to true on creation.",
       },
       oauthClientId: {
         kind: 'string',
@@ -11342,7 +11340,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         default: {},
         describe:
-          'Arguments for the tool, keyed by the parameter ids the tool catalog publishes for it. A parameter whose visibility is `user-only` also accepts an environment-variable reference written as the whole value, `{{VAR_NAME}}`, resolved server-side against the workspace environment; any other value is sent verbatim.',
+          'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.',
       },
       credentialId: {
         kind: 'string',
@@ -11381,7 +11379,7 @@ export const V2_OPERATIONS = {
       executionTimeoutSeconds: {
         kind: 'integer',
         describe:
-          "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
+          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`.",
       },
       stream: {
         kind: 'boolean',
@@ -11392,7 +11390,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names. Selecting a child workflow applies to every invocation of it. Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
+          'Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use the run resource’s `selectedOutputs` to narrow an existing run.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -11420,7 +11418,7 @@ export const V2_OPERATIONS = {
       'x-run-id': {
         kind: 'string',
         describe:
-          'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.',
+          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it when retrying an uncertain request. An already claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying the result; use Get Workflow Run to check progress. A fresh ID or an omitted header can start another run.',
       },
       'x-sim-via': {
         kind: 'string',
@@ -11652,7 +11650,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.',
       },
       triggers: {
         kind: 'string',
@@ -11678,7 +11676,7 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 72,
         describe:
-          'Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+          'Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets.',
       },
     },
   },
@@ -12157,7 +12155,7 @@ export const V2_OPERATIONS = {
       source: {
         kind: 'enum',
         values: ['builtin', 'custom'] as const,
-        describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+        describe: "Restrict to built-in blocks or this workspace's deployed custom blocks.",
       },
       sortBy: {
         kind: 'enum',
@@ -12368,7 +12366,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12433,7 +12431,7 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to files inside this folder — its direct children, or its whole subtree when `recursive` is true. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict files to this folder, including subfolders when `recursive` is true. Unknown folder paths contribute no matches.',
       },
       recursive: {
         kind: 'enum',
@@ -12452,7 +12450,7 @@ export const V2_OPERATIONS = {
           'disabled',
         ] as const,
         describe:
-          'Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+          'Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter.',
       },
       scope: {
         kind: 'enum',
@@ -12508,12 +12506,12 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.',
       },
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to knowledge bases in this folder. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12747,7 +12745,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12917,7 +12915,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.',
       },
     },
   },
@@ -12980,7 +12978,7 @@ export const V2_OPERATIONS = {
       refresh: {
         kind: 'boolean',
         describe:
-          'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.',
+          "Refresh tools using your credentials. Otherwise results may reuse another workspace member's recent discovery and omit newly added tools.",
       },
     },
   },
@@ -13172,7 +13170,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -13242,7 +13240,7 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to tables in this folder. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -13352,7 +13350,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -13498,7 +13496,7 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to workflows in this folder path. Unknown folder paths contribute no matches.',
       },
       deployedOnly: {
         kind: 'boolean',
@@ -13819,6 +13817,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Create or Replace Workflow Chat Deployment',
+    workspaceKeyUnsupported: true,
     body: {
       identifier: {
         kind: 'string',
@@ -13874,6 +13873,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Replace Workflow State',
+    workspaceKeyUnsupported: true,
     query: {
       dryRun: {
         kind: 'boolean',
@@ -14582,8 +14582,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['streamable-http'] as const,
         default: 'streamable-http',
-        describe:
-          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+        describe: 'Transport protocol. Defaults to `streamable-http` on creation.',
       },
       url: {
         kind: 'string',
@@ -14604,19 +14603,17 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
-        describe:
-          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+        describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
-        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+        describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
         kind: 'boolean',
         default: true,
-        describe:
-          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+        describe: "Whether workflows can use the server's tools. Defaults to true on creation.",
       },
       oauthClientId: {
         kind: 'string',
