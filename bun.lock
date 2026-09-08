@@ -803,6 +803,9 @@
     "sharp",
     "isolated-vm",
   ],
+  "patchedDependencies": {
+    "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch",
+  },
   "overrides": {
     "@hono/node-server": "1.19.15",
     "@next/env": "16.3.1",

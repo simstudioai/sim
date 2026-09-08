@@ -184,5 +184,8 @@
   "trustedDependencies": [
     "isolated-vm",
     "sharp"
-  ]
+  ],
+  "patchedDependencies": {
+    "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch"
+  }
 }

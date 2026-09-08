@@ -13,11 +13,13 @@ vi.mock('@sim/db', () => ({ db: { delete: mocks.delete, insert: mocks.insert } }
 vi.mock('@/lib/permission-groups/user-scope.server', () => ({
   isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
 }))
+vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 
 import {
   guardOAuthProviderWrites,
   withOAuthProviderIssuanceCompensation,
 } from '@/lib/auth/oauth-provider-adapter-guard'
+import { bindOAuthIssuedResource, withOAuthResourceIssuance } from '@/lib/auth/oauth-resource'
 
 function adapter() {
   return {
@@ -97,6 +99,48 @@ describe('guardOAuthProviderWrites', () => {
     })
     expect(base.create).toHaveBeenCalledOnce()
     expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
+  it.each(['oauthAccessToken', 'oauthRefreshToken'])(
+    'persists the verified audience on %s and ignores injected resource fields',
+    async (model) => {
+      const resource = 'https://sim.example/api/mcp/search/organizations/one'
+      const base = adapter()
+      const guarded = guardOAuthProviderWrites(base)
+      await withOAuthResourceIssuance(resource, async () => {
+        bindOAuthIssuedResource({
+          verificationValue: { query: { resource } },
+          scopes: ['search:read'],
+        })
+        await guarded.create({
+          model,
+          data: { userId: 'user-1', scopes: ['search:read'], resource: 'injected' },
+        })
+      })
+      expect(base.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { userId: 'user-1', scopes: ['search:read'], resource } })
+      )
+      await guarded.create({
+        model,
+        data: { userId: 'user-1', scopes: ['api:read'], resource },
+      })
+      expect(base.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: { userId: 'user-1', scopes: ['api:read'], resource: null },
+        })
+      )
+    }
+  )
+
+  it('refuses Search token insertion without validated authorization context', async () => {
+    const base = adapter()
+    await expect(
+      guardOAuthProviderWrites(base).create({
+        model: 'oauthAccessToken',
+        data: { userId: 'user-1', scopes: ['search:read'] },
+      })
+    ).rejects.toMatchObject({ body: { error: 'invalid_target' } })
+    expect(base.create).not.toHaveBeenCalled()
   })
 
   it.each(['oauthAccessToken', 'oauthRefreshToken'])(

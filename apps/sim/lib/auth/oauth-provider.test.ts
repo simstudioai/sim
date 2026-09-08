@@ -14,10 +14,20 @@ import {
 } from '@/lib/auth/oauth-provider'
 
 it('exposes only OAuth API authorization scopes', () => {
-  expect(OAUTH_SCOPES).toEqual(['offline_access', 'api:read', 'api:write'])
+  expect(OAUTH_SCOPES).toEqual(['offline_access', 'api:read', 'api:write', 'search:read'])
 })
 
 describe('oauthScopeSatisfies', () => {
+  it('keeps Search grants read-only and preserves existing API access to Search', () => {
+    expect(oauthScopeSatisfies(['search:read'], 'search:read')).toBe(true)
+    expect(oauthScopeSatisfies(['search:read'], 'api:read')).toBe(false)
+    expect(oauthScopeSatisfies(['search:read'], 'api:write')).toBe(false)
+    expect(oauthScopeSatisfies(['api:read'], 'search:read')).toBe(true)
+    expect(oauthScopeSatisfies(['api:write'], 'search:read')).toBe(true)
+    expect(summarizeOAuthAccess(['search:read'])).toBe('Read-only access to Sim Search')
+    expect(visibleOAuthScopes(['api:read', 'search:read'])).toEqual(['api:read'])
+  })
+
   it('treats api:write as a superset of api:read, but never the reverse', () => {
     expect(oauthScopeSatisfies([OAUTH_API_WRITE_SCOPE], OAUTH_API_READ_SCOPE)).toBe(true)
     expect(oauthScopeSatisfies([OAUTH_API_READ_SCOPE], OAUTH_API_WRITE_SCOPE)).toBe(false)

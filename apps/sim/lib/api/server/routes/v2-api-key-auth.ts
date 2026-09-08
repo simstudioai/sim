@@ -156,10 +156,12 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
  * token and per user, on the user's own plan. A client that holds many tokens
  * for one user still shares that user's bucket.
  */
-async function authenticateBearer(token: string): Promise<V2ApiKeyAuthContext> {
+async function authenticateBearer(token: string, resource?: string): Promise<V2ApiKeyAuthContext> {
   let principal: OAuthAccessTokenPrincipal
   try {
-    principal = await verifyOAuthAccessToken(token)
+    principal = resource
+      ? await verifyOAuthAccessToken(token, { resource })
+      : await verifyOAuthAccessToken(token)
   } catch (error) {
     if (error instanceof InvalidOAuthAccessTokenError) {
       logger.warn('Invalid OAuth access token attempted', { reason: error.reason })
@@ -185,7 +187,8 @@ async function authenticateBearer(token: string): Promise<V2ApiKeyAuthContext> {
  * key is offered.
  */
 export async function authenticateV2ApiKey(
-  credential: V2CredentialHeaders
+  credential: V2CredentialHeaders,
+  options: { resource?: string } = {}
 ): Promise<V2ApiKeyAuthContext> {
   if (isAuthDisabled) {
     return {
@@ -201,7 +204,7 @@ export async function authenticateV2ApiKey(
     }
   }
   if (credential.apiKey) return authenticateApiKey(credential.apiKey)
-  if (credential.bearer) return authenticateBearer(credential.bearer)
+  if (credential.bearer) return authenticateBearer(credential.bearer, options.resource)
   if (credential.malformedOAuthBearer) {
     throw new V2ApiKeyUnauthenticatedError('Invalid access token', 'bearer')
   }

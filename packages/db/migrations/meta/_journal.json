@@ -2297,6 +2297,13 @@
       "when": 1788853965914,
       "tag": "0328_organization_connected_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 329,
+      "version": "7",
+      "when": 1788902854629,
+      "tag": "0329_oauth_search_resources",
+      "breakpoints": true
     }
   ]
 }

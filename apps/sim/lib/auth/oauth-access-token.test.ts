@@ -19,6 +19,7 @@ function row(overrides: Record<string, unknown> = {}) {
     userId: 'user-1',
     clientId: 'sim-cli',
     scopes: ['offline_access', 'api:read'],
+    resource: null,
     expiresAt: new Date(Date.now() + 60_000),
     clientDisabled: false,
     userBanned: false,
@@ -122,5 +123,27 @@ describe('verifyOAuthAccessToken', () => {
     dbChainMockFns.limit.mockRejectedValueOnce(failure)
 
     await expect(verifyOAuthAccessToken('sim_oat_x')).rejects.toBe(failure)
+  })
+
+  it('accepts resource tokens only at the exact authenticated resource', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    await expect(verifyOAuthAccessToken('sim_oat_search', { resource })).resolves.toMatchObject({
+      userId: 'user-1',
+      scopes: ['search:read'],
+    })
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource })])
+    expect(await reason('sim_oat_search')).toBe('wrong_resource')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource })])
+    await expect(
+      verifyOAuthAccessToken('sim_oat_search', { resource: `${resource}-other` })
+    ).rejects.toMatchObject({ reason: 'wrong_resource' })
+
+    queueTableRows(schemaMock.oauthAccessToken, [row()])
+    await expect(verifyOAuthAccessToken('sim_oat_api', { resource })).rejects.toMatchObject({
+      reason: 'wrong_resource',
+    })
   })
 })

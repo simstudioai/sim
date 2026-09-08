@@ -34,6 +34,7 @@ export type InvalidOAuthAccessTokenReason =
   | 'client_disabled'
   | 'user_missing'
   | 'user_banned'
+  | 'wrong_resource'
 
 export class InvalidOAuthAccessTokenError extends Error {
   constructor(readonly reason: InvalidOAuthAccessTokenReason) {
@@ -75,7 +76,10 @@ function looksLikeOAuthAccessToken(token: string): boolean {
  * disabled. Nothing about the token is cached; that is what makes revoking an
  * app in settings, or `sim logout`, take effect on the very next request.
  */
-export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccessTokenPrincipal> {
+export async function verifyOAuthAccessToken(
+  token: string,
+  options: { resource?: string } = {}
+): Promise<OAuthAccessTokenPrincipal> {
   if (!looksLikeOAuthAccessToken(token)) throw new InvalidOAuthAccessTokenError('malformed')
   const raw = token.slice(OAUTH_ACCESS_TOKEN_PREFIX.length)
   if (!raw) throw new InvalidOAuthAccessTokenError('malformed')
@@ -86,6 +90,7 @@ export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccess
       userId: oauthAccessToken.userId,
       clientId: oauthAccessToken.clientId,
       scopes: oauthAccessToken.scopes,
+      resource: oauthAccessToken.resource,
       expiresAt: oauthAccessToken.expiresAt,
       clientDisabled: oauthClient.disabled,
       userBanned: user.banned,
@@ -100,6 +105,9 @@ export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccess
     .limit(1)
 
   if (!row) throw new InvalidOAuthAccessTokenError('unknown')
+  if ((row.resource ?? null) !== (options.resource ?? null)) {
+    throw new InvalidOAuthAccessTokenError('wrong_resource')
+  }
   if (row.expiresAt <= new Date()) throw new InvalidOAuthAccessTokenError('expired')
   if (row.clientDisabled) throw new InvalidOAuthAccessTokenError('client_disabled')
   if (!row.userId || !row.userExists) throw new InvalidOAuthAccessTokenError('user_missing')

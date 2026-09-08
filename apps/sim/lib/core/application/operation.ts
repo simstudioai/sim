@@ -81,7 +81,12 @@ export function assertOperationOAuthPolicy(
 ): void {
   const acceptsOAuth = operation.principalKinds.includes('oauth_access_token')
   if (acceptsOAuth) {
-    if (operation.oauthScope === 'api:read' || operation.oauthScope === 'api:write') return
+    if (
+      operation.oauthScope === 'api:read' ||
+      operation.oauthScope === 'api:write' ||
+      operation.oauthScope === 'search:read'
+    )
+      return
     throw new Error(`Operation ${operation.id} must declare its OAuth scope`)
   }
   if (operation.oauthScope !== undefined) {

@@ -243,7 +243,7 @@ export const knowledgeOperations = {
   search: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
@@ -303,7 +303,7 @@ export const knowledgeOperations = {
   readDocument: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.documents.read',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
@@ -379,7 +379,7 @@ export const knowledgeOperations = {
   listChunks: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.chunks.list',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
@@ -671,7 +671,7 @@ export const knowledgeOperations = {
   readSearchIndex: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.index.read',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',

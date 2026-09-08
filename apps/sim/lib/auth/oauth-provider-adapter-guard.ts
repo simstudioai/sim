@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import type { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError } from 'better-auth/api'
 import { inArray } from 'drizzle-orm'
+import { getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
@@ -108,6 +109,11 @@ export function guardOAuthProviderWrites(
             error: 'invalid_grant',
             error_description: capabilityRefusal('oauth_apps.use'),
           })
+        }
+        const scopes = Array.isArray(input.data.scopes) ? input.data.scopes : []
+        input = {
+          ...input,
+          data: { ...input.data, resource: getOAuthIssuedResource(scopes) },
         }
       }
 

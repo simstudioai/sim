@@ -18,10 +18,33 @@ export const OAUTH_REFRESH_TOKEN_PREFIX = 'sim_ort_'
 /** Grants the Sim API: `api:write` implies `api:read`. */
 export const OAUTH_API_READ_SCOPE = 'api:read'
 export const OAUTH_API_WRITE_SCOPE = 'api:write'
+export const OAUTH_SEARCH_READ_SCOPE = 'search:read'
 
-export const OAUTH_SCOPES = ['offline_access', OAUTH_API_READ_SCOPE, OAUTH_API_WRITE_SCOPE] as const
+export const OAUTH_SEARCH_SCOPES = [OAUTH_SEARCH_READ_SCOPE, 'offline_access'] as const
+export const OAUTH_SCOPES = [
+  'offline_access',
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  OAUTH_SEARCH_READ_SCOPE,
+] as const
 
 export type OAuthScope = (typeof OAUTH_SCOPES)[number]
+
+/**
+ * RFC 6749 permits granting fewer scopes than requested. Some MCP clients request
+ * every scope advertised by the shared issuer; a Search resource can only grant
+ * Search access, and the returned scope always reports that narrower grant.
+ */
+export function narrowSearchOAuthScopes(scope: string): string | null {
+  const requested = scope.split(' ').filter(Boolean)
+  if (
+    !requested.includes(OAUTH_SEARCH_READ_SCOPE) ||
+    requested.some((value) => !OAUTH_SCOPES.some((allowed) => allowed === value))
+  ) {
+    return null
+  }
+  return OAUTH_SEARCH_SCOPES.filter((value) => requested.includes(value)).join(' ')
+}
 
 /**
  * Lifetimes in seconds. An hour bounds copied access tokens; refresh families
@@ -33,13 +56,17 @@ export const OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 export const OAUTH_TOKEN_FAMILY_MAX_GENERATION = 1_000
 /** How long an authorization code stays redeemable — the plugin's default. */
 export const OAUTH_CODE_TTL_SECONDS = 10 * 60
-export type OAuthApiScope = typeof OAUTH_API_READ_SCOPE | typeof OAUTH_API_WRITE_SCOPE
+export type OAuthApiScope =
+  | typeof OAUTH_API_READ_SCOPE
+  | typeof OAUTH_API_WRITE_SCOPE
+  | typeof OAUTH_SEARCH_READ_SCOPE
 
 /** One plain-English line per scope, rendered on the consent page. */
 export const OAUTH_SCOPE_DESCRIPTIONS: Record<OAuthScope, string> = {
   offline_access: 'Stay signed in without asking again',
   [OAUTH_API_READ_SCOPE]: 'Read your workspaces, workflows, files, tables, and logs',
   [OAUTH_API_WRITE_SCOPE]: 'Read, create, change, run, and delete resources in your workspaces',
+  [OAUTH_SEARCH_READ_SCOPE]: 'Search and read documents you can access in Sim Search',
 }
 
 /**
@@ -52,13 +79,19 @@ export const OAUTH_SCOPE_DESCRIPTIONS: Record<OAuthScope, string> = {
  */
 export function visibleOAuthScopes(granted: readonly string[]): OAuthScope[] {
   const implied = granted.includes(OAUTH_API_WRITE_SCOPE) ? OAUTH_API_READ_SCOPE : null
-  return OAUTH_SCOPES.filter((scope) => scope !== implied && granted.includes(scope))
+  return OAUTH_SCOPES.filter(
+    (scope) =>
+      scope !== implied &&
+      !(scope === OAUTH_SEARCH_READ_SCOPE && oauthScopeSatisfies(granted, OAUTH_API_READ_SCOPE)) &&
+      granted.includes(scope)
+  )
 }
 
 /** What a grant lets an app reach, as one line for a settings row. */
 export function summarizeOAuthAccess(granted: readonly string[]): string {
   if (granted.includes(OAUTH_API_WRITE_SCOPE)) return 'Full access to your workspaces'
   if (granted.includes(OAUTH_API_READ_SCOPE)) return 'Read-only access to your workspaces'
+  if (granted.includes(OAUTH_SEARCH_READ_SCOPE)) return 'Read-only access to Sim Search'
   return 'No API access'
 }
 
@@ -69,6 +102,9 @@ export function summarizeOAuthAccess(granted: readonly string[]): string {
  */
 export function oauthScopeSatisfies(granted: readonly string[], required: OAuthApiScope): boolean {
   if (granted.includes(required)) return true
+  if (required === OAUTH_SEARCH_READ_SCOPE) {
+    return granted.includes(OAUTH_API_READ_SCOPE) || granted.includes(OAUTH_API_WRITE_SCOPE)
+  }
   return required === OAUTH_API_READ_SCOPE && granted.includes(OAUTH_API_WRITE_SCOPE)
 }
 
