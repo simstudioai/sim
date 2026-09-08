@@ -4,6 +4,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
+import { executeTool } from '@/lib/mothership/tool-executor/executor'
+import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import type { CancelWorkflowRunParams } from '@/lib/mothership/tools/handlers/param-types'
 
 const { mocks } = vi.hoisted(() => ({
@@ -51,10 +53,16 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { apiKeyGenerated: vi.fn() },
 }))
 
+vi.mock('@/lib/mothership/tools/handlers/function-execute', () => ({
+  executeFunctionExecute: vi.fn(),
+}))
+vi.mock('@/lib/mothership/tools/handlers/run-code', () => ({ executeRunCode: vi.fn() }))
+vi.mock('@/lib/mothership/tools/handlers/sim-cli', () => ({ executeSimCli: vi.fn() }))
+vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerToolNames: () => [] }))
+
 import {
   executeCancelWorkflowRun,
   executeCreateWorkflow,
-  executeGenerateApiKey,
   executeMoveWorkflow,
   executeRunBlock,
   executeRunFromBlock,
@@ -448,16 +456,33 @@ describe('workflow mutation Copilot adapters', () => {
       key: { id: 'key-1', name: 'Copilot key', key: 'secret-key' },
     })
 
-    const result = await executeGenerateApiKey({ name: ' Copilot key ' }, context)
+    ensureHandlersRegistered()
+    const result = await executeTool(
+      'generate_api_key',
+      { name: ' Copilot key ' },
+      { ...context, userPermission: 'admin' }
+    )
 
     expect(result.success).toBe(true)
     expect(mocks.apiKey).toHaveBeenCalledWith(
-      context,
+      expect.objectContaining({ userId: context.userId, workspaceId: context.workspaceId }),
       expect.objectContaining({
         operation: expect.objectContaining({ id: 'api_keys.copilot.create' }),
       }),
       { workspaceId: 'workspace-1', name: 'Copilot key' }
     )
+  })
+
+  it('refuses API-key creation before calling the handler when the actor lacks admin access', async () => {
+    ensureHandlersRegistered()
+    const result = await executeTool(
+      'generate_api_key',
+      { name: 'Copilot key' },
+      { ...context, userPermission: 'write' }
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('requires admin access')
+    expect(mocks.apiKey).not.toHaveBeenCalled()
   })
 
   it('logs the full unknown run failure but returns a generic model-visible error', async () => {
