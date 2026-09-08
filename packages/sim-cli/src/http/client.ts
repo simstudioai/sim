@@ -769,25 +769,9 @@ export async function requestAllPages<T>(
   path: string,
   options: RequestAllPagesOptions
 ): Promise<T[]> {
-  return (await requestPages<T>(client, path, options)).items
-}
-
-/**
- * The same walk, also stating whether it stopped short.
- *
- * A caller that prints the rows itself has to say so — `files list` announces
- * "showing the first N" off the surviving cursor and `files ls` did not, so the
- * same capped answer looked complete on one command and incomplete on its
- * neighbour.
- */
-export async function requestPages<T>(
-  client: Pick<SimClient, 'request'>,
-  path: string,
-  options: RequestAllPagesOptions
-): Promise<{ items: T[]; truncated: boolean }> {
   const { query, pageSize, limit: requestedLimit, ...requestOptions } = options
   const limit = requestedLimit ?? Number.POSITIVE_INFINITY
-  if (limit <= 0) return { items: [], truncated: false }
+  if (limit <= 0) return []
 
   const items: T[] = []
   const progress = pageProgress()
@@ -814,7 +798,7 @@ export async function requestPages<T>(
     progress.finish()
   }
 
-  return { items: items.slice(0, limit), truncated: cursor !== null || items.length > limit }
+  return items.slice(0, limit)
 }
 
 /**

@@ -177,6 +177,7 @@ sim workflows runs list [options]
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--order <value>` | No | Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
 
 </CommandTable>
@@ -715,6 +716,7 @@ sim workflows versions list <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -781,7 +783,7 @@ sim workflows list [options]
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `position`, `name`, `createdAt`, `updatedAt`, `runCount`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -975,7 +977,7 @@ sim workflows ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 

@@ -376,6 +376,7 @@ sim tables rows list <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
@@ -406,6 +407,7 @@ sim tables rows query <tableId> [options]
 | `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
@@ -1092,7 +1094,7 @@ sim tables list [options]
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -1260,7 +1262,7 @@ sim tables ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 

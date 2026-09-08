@@ -225,6 +225,7 @@ sim audit-logs list [options]
 | `--include-departed` | No | Include actions by users who have left the organization. |
 | `--no-include-departed` | No | Send --include-departed as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
 | `--actor-email <value>` | No | Filter by actor email address. |
 | `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
@@ -270,6 +271,7 @@ sim billing logs [options]
 | `--start-date <value>` | No | Custom period start (ISO 8601). |
 | `--end-date <value>` | No | Custom period end (ISO 8601). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>
@@ -314,7 +316,7 @@ sim blocks list [options]
 | `--source <value>` | No | Restrict to built-in blocks or this workspace's deployed custom blocks. Accepted values: `builtin`, `custom`. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -339,7 +341,7 @@ sim chat-deployments list [options]
 | `--no-is-active` | No | Send --is-active as false. |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `identifier`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -432,7 +434,7 @@ sim credentials list [options]
 | `--search <value>` | No | Case-insensitive substring match against the credential display name. |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `displayName`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -643,7 +645,7 @@ sim custom-tools list [options]
 | `--search <value>` | No | Case-insensitive substring match against the tool title. |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `title`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -988,7 +990,7 @@ sim files list [options]
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -1252,7 +1254,7 @@ sim files ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -1659,6 +1661,7 @@ sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -1802,6 +1805,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 | `--enabled-filter <value>` | No | Filter by whether documents are enabled for search. Accepted values: `all`, `enabled`, `disabled`. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--tag-filters <value>` | No | A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[&#123;"tagName":"category","operator":"eq","value":"billing"&#125;]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored. |
 
 </CommandTable>
@@ -2021,6 +2025,7 @@ sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options
 | `--include-excluded` | No | Include documents explicitly excluded by a user. |
 | `--no-include-excluded` | No | Send --include-excluded as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -2080,7 +2085,7 @@ sim knowledge connectors list <knowledgeBaseId> [options]
 | --- | --- | --- |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `connectorType`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -2301,7 +2306,7 @@ sim knowledge list [options]
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -2424,7 +2429,7 @@ sim knowledge ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -2530,6 +2535,7 @@ sim logs list [options]
 | `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
 | `--include-job-runs` | No | Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`. |
@@ -2661,7 +2667,7 @@ sim mcp-servers list [options]
 | `--search <value>` | No | Case-insensitive substring match against the server name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -2832,7 +2838,7 @@ sim sandboxes list [options]
 | `--search <value>` | No | Case-insensitive substring match against the sandbox name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -2919,7 +2925,7 @@ sim secrets list [options]
 | `--search <value>` | No | Case-insensitive substring match against the secret name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -3079,7 +3085,7 @@ sim skills editors list <skillId> [options]
 | --- | --- | --- |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `email`, `name`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -3129,7 +3135,7 @@ sim skills list [options]
 | `--search <value>` | No | Case-insensitive substring match against the skill name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -3562,6 +3568,7 @@ sim tables rows list <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
@@ -3594,6 +3601,7 @@ sim tables rows query <tableId> [options]
 | `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
@@ -4342,7 +4350,7 @@ sim tables list [options]
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -4524,7 +4532,7 @@ sim tables ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -4615,7 +4623,7 @@ sim tools list [options]
 | `--oauth-provider <value>` | No | Restrict to tools that authenticate against this OAuth service. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -4783,7 +4791,7 @@ sim workflow-mcp-servers list [options]
 | --- | --- | --- |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -4996,6 +5004,7 @@ sim workflows runs list [options]
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--order <value>` | No | Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
 
 </CommandTable>
@@ -5564,6 +5573,7 @@ sim workflows versions list <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -5636,7 +5646,7 @@ sim workflows list [options]
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `position`, `name`, `createdAt`, `updatedAt`, `runCount`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -5840,7 +5850,7 @@ sim workflows ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -5888,7 +5898,7 @@ sim workspaces members [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -5908,6 +5918,6 @@ sim workspaces list [options]
 | --- | --- | --- |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>

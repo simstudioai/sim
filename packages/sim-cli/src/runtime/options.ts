@@ -12,7 +12,34 @@ import {
 } from './request'
 import type { OperationSpec } from './types'
 
-export const DEFAULT_LIMIT = 100
+export const DEFAULT_PAGE_SIZE = 100
+
+/** Resource inventories fetch all pages; data and history commands retain a bounded default. */
+const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
+  'listBlocks',
+  'listChatDeployments',
+  'listCredentials',
+  'listCustomTools',
+  'listFiles',
+  'listKnowledgeBases',
+  'listKnowledgeConnectors',
+  'listMcpServers',
+  'listSandboxes',
+  'listSecrets',
+  'listSkillEditors',
+  'listSkills',
+  'listTables',
+  'listTools',
+  'listWorkflowMcpServers',
+  'listWorkflows',
+  'listWorkspaceMembers',
+  'listWorkspaces',
+])
+
+/** Zero fetches every page. Unclassified operations keep the bounded default. */
+export function defaultListLimit(operation: V2OperationName): number {
+  return COMPLETE_LIST_OPERATIONS.has(operation) ? 0 : 100
+}
 
 /**
  * Help text for one flag, best source first.
@@ -95,7 +122,14 @@ function addFieldOption(
   paginates: boolean,
   capsAFilter: boolean
 ): void {
-  if (field === PROFILE_INJECTED_FIELD || field === 'cursor') return
+  if (field === PROFILE_INJECTED_FIELD) return
+
+  if (field === 'cursor') {
+    if (paginates && defaultListLimit(operation) > 0) {
+      command.option('--cursor <value>', 'Continue from nextCursor returned by a previous result')
+    }
+    return
+  }
 
   const flag = flagSpecFor(operation, field)
   if (flag.omit) return
@@ -115,7 +149,7 @@ function addFieldOption(
     command.option(
       '--limit <n>',
       'Maximum items to return (0 for everything)',
-      String(DEFAULT_LIMIT)
+      String(defaultListLimit(operation))
     )
     return
   }

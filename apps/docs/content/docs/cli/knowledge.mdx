@@ -388,6 +388,7 @@ List Chunks (OAuth login or personal API key required)
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -525,6 +526,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 | `--enabled-filter <value>` | No | Filter by whether documents are enabled for search. Accepted values: `all`, `enabled`, `disabled`. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--tag-filters <value>` | No | A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[&#123;"tagName":"category","operator":"eq","value":"billing"&#125;]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored. |
 
 </CommandTable>
@@ -740,6 +742,7 @@ List Knowledge Connector Documents (OAuth login or personal API key required)
 | `--include-excluded` | No | Include documents explicitly excluded by a user. |
 | `--no-include-excluded` | No | Send --include-excluded as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -799,7 +802,7 @@ List Knowledge Connectors (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `connectorType`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -1006,7 +1009,7 @@ sim knowledge list [options]
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -1119,7 +1122,7 @@ sim knowledge ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 

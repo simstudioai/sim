@@ -220,9 +220,24 @@ will consume the result, and `text` for tab-separated shell output:
 
 ```bash
 sim workflows list --output json
-sim logs list --output json | jq -r '.[].runId'
+sim logs list --output json | jq -r '.data[].runId'
 SIM_OUTPUT=yaml sim tables get <tableId>
 sim configure --set-output json
+```
+
+Paginated lists return `{ "data": [...], "nextCursor": "..." }` in JSON and YAML.
+`nextCursor` is `null` when no pages remain. Resource lists and directory `ls`
+fetch every page by default; use `--limit N` to cap them. Table rows (including
+queries), logs, audit/billing events, workflow runs/versions, and knowledge
+documents/chunks keep a default limit of 100. Use `--limit 0` to fetch every page
+of those datasets, or pass the returned `nextCursor` to `--cursor` to continue
+with another bounded result. Keep the same resource, filters, and sort order
+when resuming; stop when `nextCursor` is `null`. Results accumulate in memory
+before printing, so large datasets need an explicit limit or filter.
+
+```bash
+sim tables rows list <tableId> --limit 100 --output json
+sim tables rows list <tableId> --limit 100 --cursor "$nextCursor" --output json
 ```
 
 JSON-valued options accept inline JSON, a file prefixed with `@`, or stdin with
