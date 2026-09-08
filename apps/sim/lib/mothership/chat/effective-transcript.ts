@@ -93,7 +93,7 @@ function appendTextBlock(
   })
 }
 
-function buildLiveAssistantMessage(params: {
+export function buildLiveAssistantMessage(params: {
   streamId: string
   events: StreamBatchEvent[]
   status: string | null | undefined
