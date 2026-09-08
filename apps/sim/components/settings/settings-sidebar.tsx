@@ -68,6 +68,7 @@ interface SettingsSidebarProps<Section extends SettingsSection> {
   plane: StandaloneSettingsPlane
   groups: readonly SettingsNavigationGroup[]
   hrefForSection: (section: Section) => string
+  onSectionIntent?: (section: Section) => void
   items: readonly SidebarSettingsItem<Section>[]
   outboundLinks?: readonly SettingsSidebarOutboundLink[]
   isCollapsed?: boolean
@@ -80,6 +81,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
   plane,
   groups,
   hrefForSection,
+  onSectionIntent,
   items,
   outboundLinks = [],
   isCollapsed = false,
@@ -178,6 +180,9 @@ export function SettingsSidebar<Section extends SettingsSection>({
                           replace
                           scroll={false}
                           aria-current={active ? 'page' : undefined}
+                          onIntent={() => {
+                            if (!active) onSectionIntent?.(item.id)
+                          }}
                           className={cn(
                             chipVariants({ active, fullWidth: true }),
                             SIDEBAR_RAIL_CHIP_CLASS

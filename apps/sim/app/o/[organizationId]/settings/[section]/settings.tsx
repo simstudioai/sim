@@ -8,9 +8,22 @@ import {
 } from '@/components/settings/navigation'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { OrganizationIntegrationsSettings } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
-import { OrganizationSearchMcp } from '@/app/o/[organizationId]/settings/components/organization-search-mcp'
-import { OrganizationConnectedAccounts } from '@/ee/credential-groups/components/organization-connected-accounts'
+
+const OrganizationIntegrationsSettings = dynamic(() =>
+  import(
+    '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
+  ).then((m) => m.OrganizationIntegrationsSettings)
+)
+const OrganizationSearchMcp = dynamic(() =>
+  import('@/app/o/[organizationId]/settings/components/organization-search-mcp').then(
+    (m) => m.OrganizationSearchMcp
+  )
+)
+const OrganizationConnectedAccounts = dynamic(() =>
+  import('@/ee/credential-groups/components/organization-connected-accounts').then(
+    (m) => m.OrganizationConnectedAccounts
+  )
+)
 
 const TeamManagement = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management').then(

@@ -2,13 +2,13 @@
  * @vitest-environment node
  */
 import { member, organization } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSearchAccess, mockPermissionConfig, featureFlags } = vi.hoisted(() => ({
+const { mockSearchAccess, mockPermissionConfig, mockEnterprisePlan } = vi.hoisted(() => ({
   mockSearchAccess: vi.fn(),
   mockPermissionConfig: vi.fn(),
-  featureFlags: { invitationsDisabled: false },
+  mockEnterprisePlan: vi.fn(),
 }))
 vi.mock('@/lib/credential-groups/scoped-availability', () => ({
   isScopedCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
@@ -17,10 +17,8 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mockPermissionConfig,
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isInvitationsDisabled() {
-    return featureFlags.invitationsDisabled
-  },
+vi.mock('@/lib/billing/core/subscription', () => ({
+  isOrganizationOnEnterprisePlan: mockEnterprisePlan,
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   resolveKnowledgeAccessAvailability: mockSearchAccess,
@@ -33,6 +31,7 @@ import {
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 afterAll(resetDbChainMock)
+afterAll(resetEnvFlagsMock)
 
 describe('getOrganizationSurfaceContext', () => {
   beforeEach(() => {
@@ -40,7 +39,8 @@ describe('getOrganizationSurfaceContext', () => {
     resetDbChainMock()
     mockSearchAccess.mockResolvedValue({ memberScoped: true, sourceMirrored: false })
     mockPermissionConfig.mockResolvedValue(null)
-    featureFlags.invitationsDisabled = false
+    mockEnterprisePlan.mockResolvedValue(true)
+    setEnvFlags({ isInvitationsDisabled: false, isHosted: true, isBillingEnabled: true })
   })
 
   it('returns the organization and the viewer standing for a member', async () => {
@@ -66,8 +66,14 @@ describe('getOrganizationSurfaceContext', () => {
       },
       connectedAccountsAvailable: true,
       searchAccess: { memberScoped: true, sourceMirrored: false },
+      settingsFeatures: expect.objectContaining({
+        hosted: true,
+        billingEnabled: true,
+        hasEnterprisePlan: true,
+      }),
     })
     expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })
+    expect(mockEnterprisePlan).toHaveBeenCalledWith('org-1')
   })
 
   it('normalizes a missing logo to null', async () => {
@@ -78,7 +84,25 @@ describe('getOrganizationSurfaceContext', () => {
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
       organization: { logo: null },
       viewer: { role: 'member', isAdmin: false },
+      settingsFeatures: expect.objectContaining({ hasEnterprisePlan: false }),
     })
+    expect(mockEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('resolves self-hosted settings from deployment flags without a plan read', async () => {
+    setEnvFlags({ isHosted: false, isBillingEnabled: false, isAuditLogsEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+    queueTableRows(member, [{ memberCount: 1 }])
+
+    await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+      settingsFeatures: {
+        hosted: false,
+        billingEnabled: false,
+        selfHosted: { 'audit-logs': true },
+      },
+    })
+    expect(mockEnterprisePlan).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -92,7 +116,7 @@ describe('getOrganizationSurfaceContext', () => {
       queueTableRows(member, [{ role }])
       queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
       queueTableRows(member, [{ memberCount: 1 }])
-      featureFlags.invitationsDisabled = deploymentDisabled
+      setEnvFlags({ isInvitationsDisabled: deploymentDisabled })
       mockPermissionConfig.mockResolvedValue({
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
         disableInvitations: policyDisabled,
@@ -110,6 +134,7 @@ describe('getOrganizationSurfaceContext', () => {
 
     await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toBeNull()
     expect(mockSearchAccess).not.toHaveBeenCalled()
+    expect(mockEnterprisePlan).not.toHaveBeenCalled()
   })
 
   it('denies a membership whose organization row is gone', async () => {

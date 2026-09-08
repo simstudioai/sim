@@ -2,7 +2,13 @@ import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { asc, count, eq } from 'drizzle-orm'
+import {
+  getOrganizationSettingsFeatures,
+  type OrganizationSettingsFeatures,
+} from '@/components/settings/navigation'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import {
@@ -39,6 +45,7 @@ export interface OrganizationSurfaceContext {
   viewer: OrganizationSurfaceViewer
   connectedAccountsAvailable: boolean
   searchAccess: KnowledgeAccessAvailability
+  settingsFeatures: OrganizationSettingsFeatures
 }
 
 /**
@@ -65,13 +72,20 @@ async function resolveOrganizationSurfaceContext(
     .limit(1)
   if (!row) return null
 
-  const [config, [{ memberCount }]] = await Promise.all([
-    getUserPermissionConfigForOrganization(organizationId),
-    db
-      .select({ memberCount: count() })
-      .from(member)
-      .where(eq(member.organizationId, organizationId)),
-  ])
+  const deployment = getDeploymentShape()
+  const [config, [{ memberCount }], connectedAccountsAvailable, searchAccess, hasEnterprisePlan] =
+    await Promise.all([
+      getUserPermissionConfigForOrganization(organizationId),
+      db
+        .select({ memberCount: count() })
+        .from(member)
+        .where(eq(member.organizationId, organizationId)),
+      isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
+      resolveKnowledgeAccessAvailability({ organizationId }),
+      deployment.hosted && access.isAdmin
+        ? isOrganizationOnEnterprisePlan(organizationId)
+        : Promise.resolve(false),
+    ])
   return {
     organization: {
       id: row.id,
@@ -89,11 +103,9 @@ async function resolveOrganizationSurfaceContext(
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),
     },
-    connectedAccountsAvailable: await isScopedCredentialGroupsAvailable({
-      kind: 'organization',
-      organizationId,
-    }),
-    searchAccess: await resolveKnowledgeAccessAvailability({ organizationId }),
+    connectedAccountsAvailable,
+    searchAccess,
+    settingsFeatures: getOrganizationSettingsFeatures(hasEnterprisePlan, deployment),
   }
 }
 

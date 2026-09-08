@@ -17,13 +17,23 @@ import {
   OverflowText,
   Skeleton,
 } from '@sim/emcn'
-import { BookOpen, Credit, Download, HelpCircle, Settings, Trash, Users } from '@sim/emcn/icons'
+import {
+  BookOpen,
+  Building,
+  Credit,
+  Download,
+  HelpCircle,
+  Settings,
+  Trash,
+  Users,
+} from '@sim/emcn/icons'
 import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getDesktopUpdates } from '@/lib/desktop'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -146,6 +156,10 @@ export function SidebarFooter({
 
   const name = profile ? profile.name?.trim() || profile.email : ''
   const updateAvailable = hasAvailableDesktopUpdate(updateState)
+  const organizationHref =
+    hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember
+      ? organizationRoutes(hostContext.hostOrganizationId).root
+      : null
 
   const handleUpdateSelect = () => {
     const updates = getDesktopUpdates()
@@ -257,6 +271,17 @@ export function SidebarFooter({
         </DropdownMenuTrigger>
       </SidebarTooltip>
       <DropdownMenuContent align='start' side='top' sideOffset={4}>
+        {organizationHref && (
+          <>
+            <DropdownMenuItem asChild>
+              <SettingsIntentLink href={organizationHref}>
+                <Building className='size-[14px]' />
+                <DropdownMenuItemLabel label='Organization' />
+              </SettingsIntentLink>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {menuItems.map(({ section, label, icon: Icon }) => {
           const destination = resolveMenuDestination(section)
           if (!destination) {

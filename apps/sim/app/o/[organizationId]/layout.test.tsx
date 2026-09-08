@@ -32,7 +32,9 @@ vi.mock('next/headers', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  redirect: vi.fn(),
+  redirect: (path: string) => {
+    throw new Error(`redirect:${path}`)
+  },
 }))
 
 vi.mock('@/lib/organizations/surface', () => ({
@@ -64,6 +66,18 @@ describe('OrganizationLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-1' } })
+  })
+
+  it('returns signed-out visitors to the organization entry after sign-in', async () => {
+    mockGetSession.mockResolvedValue(null)
+
+    await expect(
+      OrganizationLayout({
+        children: null,
+        params: Promise.resolve({ organizationId: 'org-1' }),
+      })
+    ).rejects.toThrow('redirect:/login?callbackUrl=%2Fo%2Forg-1')
+    expect(mockGetOrganizationSurfaceContext).not.toHaveBeenCalled()
   })
 
   it('renders the surface for a member and seeds the chrome from the collapse cookie', async () => {

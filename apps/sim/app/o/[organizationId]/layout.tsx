@@ -31,7 +31,7 @@ export default async function OrganizationLayout({
   if (!session?.user) {
     redirect(
       buildAuthCrossLink('/login', {
-        callbackUrl: organizationRoutes(organizationId).home,
+        callbackUrl: organizationRoutes(organizationId).root,
         isInviteFlow: false,
       })
     )

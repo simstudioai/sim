@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { type UseQueryResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -106,12 +112,18 @@ async function fetchOrganizationRoster(
   }
 }
 
+export function organizationRosterQueryOptions(orgId: string) {
+  return queryOptions({
+    queryKey: organizationKeys.roster(orgId),
+    queryFn: ({ signal }) => fetchOrganizationRoster(orgId, signal),
+    staleTime: ORGANIZATION_ROSTER_STALE_TIME,
+  })
+}
+
 export function useOrganizationRoster(orgId: string | undefined | null) {
   return useQuery({
-    queryKey: organizationKeys.roster(orgId ?? ''),
-    queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
+    ...organizationRosterQueryOptions(orgId ?? ''),
     enabled: !!orgId,
-    staleTime: ORGANIZATION_ROSTER_STALE_TIME,
   })
 }
 
@@ -166,15 +178,18 @@ async function fetchOrganization(orgId: string, signal?: AbortSignal) {
   return response.data
 }
 
-/**
- * Hook to fetch a specific organization
- */
-export function useOrganization(orgId: string) {
-  return useQuery({
+export function organizationDetailQueryOptions(orgId: string) {
+  return queryOptions({
     queryKey: organizationKeys.detail(orgId),
     queryFn: ({ signal }) => fetchOrganization(orgId, signal),
-    enabled: !!orgId,
     staleTime: ORGANIZATION_DETAIL_STALE_TIME,
+  })
+}
+
+export function useOrganization(orgId: string) {
+  return useQuery({
+    ...organizationDetailQueryOptions(orgId),
+    enabled: !!orgId,
   })
 }
 
@@ -198,19 +213,22 @@ async function fetchOrganizationBilling(
   }
 }
 
-/**
- * Hook to fetch organization billing data
- */
+export function organizationBillingQueryOptions(orgId: string) {
+  return queryOptions({
+    queryKey: organizationKeys.billing(orgId),
+    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
+    retry: false,
+    staleTime: ORGANIZATION_BILLING_STALE_TIME,
+  })
+}
+
 export function useOrganizationBilling(
   orgId: string,
   options?: { enabled?: boolean }
 ): OrganizationBillingQueryResult {
   return useQuery({
-    queryKey: organizationKeys.billing(orgId),
-    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
+    ...organizationBillingQueryOptions(orgId),
     enabled: !!orgId && (options?.enabled ?? true),
-    retry: false,
-    staleTime: ORGANIZATION_BILLING_STALE_TIME,
   })
 }
 

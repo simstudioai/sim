@@ -45,9 +45,6 @@ export default async function OrganizationSettingsSectionPage({
 }: OrganizationSettingsSectionPageProps) {
   const { organizationId, section } = await params
   const routes = organizationRoutes(organizationId)
-  if (section === 'authorized-apps') {
-    redirect(`${routes.settingsSection('general')}?view=authorized-apps`)
-  }
   const resolved = resolveOrganizationSurfaceSection(section)
   if (!resolved) notFound()
   const session = await getSession()

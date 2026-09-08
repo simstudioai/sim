@@ -6,10 +6,11 @@ import { Users } from '@sim/emcn/icons'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPush, mockReplace, mockNavigate } = vi.hoisted(() => ({
+const { mockPush, mockReplace, mockNavigate, mockSectionIntent } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
   mockNavigate: vi.fn(),
+  mockSectionIntent: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -20,6 +21,7 @@ vi.mock('@/app/(landing)/components/navbar/components', () => ({ SimWordmark: ()
 vi.mock('@/components/settings/settings-intent-link', () => ({
   SettingsIntentLink: ({
     onNavigate,
+    onIntent,
     replace: _replace,
     scroll: _scroll,
     ...props
@@ -27,10 +29,12 @@ vi.mock('@/components/settings/settings-intent-link', () => ({
     replace?: boolean
     scroll?: boolean
     onNavigate?: (event: { preventDefault: () => void }) => void
+    onIntent?: () => void
   }) => (
     <a
       {...props}
       href={props.href}
+      onFocus={onIntent}
       onClick={(event) => {
         event.preventDefault()
         let prevented = false
@@ -78,6 +82,7 @@ function renderSidebar(isCollapsed = false) {
           { id: 'search-mcp', label: 'Search MCP', group: 'organization', icon: Users },
         ]}
         hrefForSection={(section) => `/o/org-a/settings/${section}`}
+        onSectionIntent={mockSectionIntent}
         backHref='/o/org-a/home'
         isCollapsed={isCollapsed}
       />
@@ -94,6 +99,18 @@ function button(label: string): HTMLButtonElement {
 }
 
 describe('SettingsSidebar interactions', () => {
+  it('warms only the destination section on intent, without navigating', () => {
+    renderSidebar()
+    expect(mockSectionIntent).not.toHaveBeenCalled()
+
+    act(() => container.querySelector<HTMLAnchorElement>('a[href$="/members"]')?.focus())
+    expect(mockSectionIntent).not.toHaveBeenCalled()
+
+    act(() => container.querySelector<HTMLAnchorElement>('a[href$="/search-mcp"]')?.focus())
+    expect(mockSectionIntent).toHaveBeenCalledExactlyOnceWith('search-mcp')
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
   it('keeps destinations available in the icon rail after collapsing a section', () => {
     renderSidebar()
     act(() => button('Organization').click())
