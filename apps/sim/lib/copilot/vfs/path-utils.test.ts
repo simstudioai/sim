@@ -59,6 +59,16 @@ describe('canonical resource VFS paths', () => {
     ).toBe('workflows/My%20Folder/Sub%20Folder/My%20Flow')
   })
 
+  it('preserves encoded nested folders in table and knowledge-base pointers', () => {
+    const folderPath = 'Finance%2FLegal/Q4%20100%25'
+    expect(canonicalTableVfsPath('Same name', folderPath)).toBe(
+      'tables/Finance%2FLegal/Q4%20100%25/Same%20name/meta.json'
+    )
+    expect(canonicalKnowledgeBaseVfsDir('Same name', folderPath)).toBe(
+      'knowledgebases/Finance%2FLegal/Q4%20100%25/Same%20name'
+    )
+  })
+
   it('builds table, knowledge base, and block pointers', () => {
     expect(canonicalTableVfsPath('Sales Data')).toBe('tables/Sales%20Data/meta.json')
     expect(canonicalKnowledgeBaseVfsDir('Docs — KB')).toBe('knowledgebases/Docs%20%E2%80%94%20KB')

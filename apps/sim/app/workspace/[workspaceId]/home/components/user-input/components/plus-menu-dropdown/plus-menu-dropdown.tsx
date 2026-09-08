@@ -25,6 +25,7 @@ import {
   buildMentionPreview,
   resourceMentionMatches,
   withDesktopTabMentions,
+  withFolderMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 import type {
   MothershipResource,
@@ -103,6 +104,7 @@ export const PlusMenuDropdown = React.memo(
       isHydrating,
     } = useAvailableResources(workspaceId, {
       enabled: open || !!warm,
+      includeFolderMentions: true,
     })
 
     const doOpen = useCallback(
@@ -121,15 +123,17 @@ export const PlusMenuDropdown = React.memo(
     }, [])
 
     const visibleResources = useMemo(() => {
+      const resources = withFolderMentions(availableResources, structureFolders)
       if (isMention) {
-        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
+        return withDesktopTabMentions(resources, browserTabs, terminalTabs)
       }
-      return availableResources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
-    }, [availableResources, browserTabs, isMention, terminalTabs])
+      return resources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
+    }, [availableResources, structureFolders, browserTabs, isMention, terminalTabs])
 
     const treeSections = useResourceTreeSections({
-      groups: visibleResources,
+      groups: availableResources,
       structureFolders,
+      selectFolders: true,
     })
 
     const filteredItems = useMemo(() => {

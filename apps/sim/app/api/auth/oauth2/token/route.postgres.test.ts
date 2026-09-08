@@ -3,6 +3,7 @@
  */
 import { randomBytes } from 'node:crypto'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +26,230 @@ interface TokenResponseBody {
 }
 
 describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
+  it.each(['http://127.0.0.1:48881/callback', 'cursor://anysphere.cursor-mcp/oauth/callback'])(
+    'persists Search audiences through native PKCE issuance and refresh with %s',
+    async (redirectUri) => {
+      process.env.DATABASE_URL = databaseUrl
+      const authSecret = 'test-secret-that-is-at-least-32-chars-long'
+      process.env.BETTER_AUTH_SECRET = authSecret
+      const [{ db }, schema, { eq, like, sql }, { makeSignature }, { auth }, { POST }, tokenStore] =
+        await Promise.all([
+          import('@sim/db'),
+          import('@sim/db/schema'),
+          import('drizzle-orm'),
+          import('better-auth/crypto'),
+          import('@/lib/auth'),
+          import('@/app/api/auth/oauth2/token/route'),
+          import('@/lib/auth/oauth-access-token'),
+        ])
+      const userId = generateId()
+      const clientId = generateId()
+      const sessionId = generateId()
+      const sessionToken = generateId()
+      const baseUrl = 'https://test.sim.ai'
+      const resource = `${baseUrl}/api/mcp/search/organizations/${generateId()}`
+      const otherResource = `${baseUrl}/api/mcp/search/organizations/${generateId()}`
+      const scopes = ['search:read', 'offline_access']
+      const now = new Date()
+      const signature = await makeSignature(sessionToken, authSecret)
+      const cookie = `__Secure-better-auth.session_token=${encodeURIComponent(`${sessionToken}.${signature}`)}`
+
+      const formRequest = (values: Record<string, string>) =>
+        new NextRequest(`${baseUrl}/api/auth/oauth2/token`, {
+          method: 'POST',
+          body: new URLSearchParams(values).toString(),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        })
+
+      const issueCode = async () => {
+        const verifier = randomBytes(32).toString('base64url')
+        const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+        const url = new URL('/api/auth/oauth2/authorize', baseUrl)
+        url.search = new URLSearchParams({
+          client_id: clientId,
+          response_type: 'code',
+          redirect_uri: redirectUri,
+          scope: scopes.join(' '),
+          code_challenge: Buffer.from(challenge).toString('base64url'),
+          code_challenge_method: 'S256',
+          resource,
+          state: generateId(),
+          prompt: 'consent',
+        }).toString()
+        const response = await auth.handler(new Request(url, { headers: { cookie } }))
+        expect(response.status).toBe(302)
+        const consentLocation = new URL(response.headers.get('location') ?? '', baseUrl)
+        expect(consentLocation.pathname).toBe('/oauth/consent')
+        expect(consentLocation.searchParams.get('resource')).toBe(resource)
+        expect(consentLocation.searchParams.getAll('ba_param')).toContain('resource')
+        expect(consentLocation.searchParams.has('sig')).toBe(true)
+        const signedQuery = consentLocation.search.slice(1)
+        const submitConsent = (query: string) =>
+          auth.handler(
+            new Request(`${baseUrl}/api/auth/oauth2/consent`, {
+              method: 'POST',
+              headers: { cookie, 'content-type': 'application/json', origin: baseUrl },
+              body: JSON.stringify({ accept: true, oauth_query: query }),
+            })
+          )
+        for (const replacement of [null, otherResource]) {
+          const tampered = new URLSearchParams(signedQuery)
+          if (replacement) tampered.set('resource', replacement)
+          else tampered.delete('resource')
+          const rejected = await submitConsent(tampered.toString())
+          expect(rejected.status).toBe(400)
+          await expect(rejected.json()).resolves.toMatchObject({ error: 'invalid_signature' })
+        }
+        const accepted = await submitConsent(signedQuery)
+        expect(accepted.status).toBe(200)
+        const acceptedBody = (await accepted.json()) as { redirect: boolean; url: string }
+        expect(acceptedBody.redirect).toBe(true)
+        const location = new URL(acceptedBody.url, baseUrl)
+        const code = location.searchParams.get('code')
+        expect(code, `Expected authorization code, got ${location.pathname}`).toBeTruthy()
+        return {
+          grant_type: 'authorization_code',
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          code: code!,
+          code_verifier: verifier,
+        }
+      }
+
+      try {
+        await db.insert(schema.user).values({
+          id: userId,
+          name: 'Search OAuth resource test',
+          email: `${userId}@example.com`,
+          emailVerified: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.session).values({
+          id: sessionId,
+          token: sessionToken,
+          userId,
+          expiresAt: new Date(now.getTime() + 86_400_000),
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.oauthClient).values({
+          id: clientId,
+          clientId,
+          name: 'Search OAuth resource test',
+          public: true,
+          type: 'native',
+          requirePKCE: true,
+          tokenEndpointAuthMethod: 'none',
+          grantTypes: ['authorization_code', 'refresh_token'],
+          redirectUris: [redirectUri],
+          scopes,
+        })
+        await db.insert(schema.oauthConsent).values({
+          id: generateId(),
+          clientId,
+          userId,
+          scopes,
+          createdAt: now,
+          updatedAt: now,
+        })
+
+        for (const table of [schema.oauthAccessToken, schema.oauthRefreshToken]) {
+          await expect(
+            db.execute(sql`
+            INSERT INTO ${table} (id, token, client_id, user_id, created_at, expires_at, scopes)
+            VALUES (${generateId()}, ${generateId()}, ${clientId}, ${userId}, now(),
+              now() + interval '1 hour', ARRAY['search:read', 'offline_access']::text[])
+          `)
+          ).rejects.toMatchObject({ cause: { code: '23514' } })
+        }
+        expect(
+          await db
+            .select()
+            .from(schema.oauthTokenFamily)
+            .where(eq(schema.oauthTokenFamily.clientId, clientId))
+        ).toHaveLength(0)
+
+        for (const requestedResource of [undefined, otherResource]) {
+          const response = await POST(
+            formRequest({
+              ...(await issueCode()),
+              ...(requestedResource && { resource: requestedResource }),
+            })
+          )
+          expect(response.status).toBe(400)
+          await expect(response.json()).resolves.toMatchObject({ error: 'invalid_target' })
+        }
+        expect(
+          await db
+            .select()
+            .from(schema.oauthAccessToken)
+            .where(eq(schema.oauthAccessToken.clientId, clientId))
+        ).toHaveLength(0)
+        expect(
+          await db
+            .select()
+            .from(schema.oauthRefreshToken)
+            .where(eq(schema.oauthRefreshToken.clientId, clientId))
+        ).toHaveLength(0)
+
+        const issued = await POST(formRequest({ ...(await issueCode()), resource }))
+        expect(issued.status).toBe(200)
+        const tokens = (await issued.json()) as TokenResponseBody
+        const accessRows = await db
+          .select()
+          .from(schema.oauthAccessToken)
+          .where(eq(schema.oauthAccessToken.clientId, clientId))
+        const refreshRows = await db
+          .select()
+          .from(schema.oauthRefreshToken)
+          .where(eq(schema.oauthRefreshToken.clientId, clientId))
+        expect(accessRows).toHaveLength(1)
+        expect(refreshRows).toHaveLength(1)
+        expect(accessRows[0]?.resource).toBe(resource)
+        expect(refreshRows[0]?.resource).toBe(resource)
+        await expect(
+          tokenStore.verifyOAuthAccessToken(tokens.access_token, { resource })
+        ).resolves.toMatchObject({ userId })
+        await expect(tokenStore.verifyOAuthAccessToken(tokens.access_token)).rejects.toMatchObject({
+          reason: 'wrong_resource',
+        })
+        await expect(
+          tokenStore.verifyOAuthAccessToken(tokens.access_token, { resource: otherResource })
+        ).rejects.toMatchObject({ reason: 'wrong_resource' })
+
+        const refresh = {
+          grant_type: 'refresh_token',
+          client_id: clientId,
+          refresh_token: tokens.refresh_token,
+        }
+        const wrong = await POST(formRequest({ ...refresh, resource: otherResource }))
+        expect(wrong.status).toBe(400)
+        await expect(wrong.json()).resolves.toMatchObject({ error: 'invalid_target' })
+        const renewed = await POST(formRequest(refresh))
+        expect(renewed.status).toBe(200)
+        const next = (await renewed.json()) as TokenResponseBody
+        await expect(
+          tokenStore.verifyOAuthAccessToken(next.access_token, { resource })
+        ).resolves.toMatchObject({ userId })
+        await expect(tokenStore.verifyOAuthAccessToken(next.access_token)).rejects.toMatchObject({
+          reason: 'wrong_resource',
+        })
+
+        const replayed = await POST(formRequest(refresh))
+        expect(replayed.status).toBe(400)
+        await expect(
+          tokenStore.verifyOAuthAccessToken(next.access_token, { resource })
+        ).rejects.toMatchObject({ reason: 'unknown' })
+      } finally {
+        await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
+        await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))
+        await db.delete(schema.user).where(eq(schema.user.id, userId))
+      }
+    },
+    30_000
+  )
+
   it('issues, rotates, contains replay, and revokes a real Better Auth PKCE grant', async () => {
     process.env.DATABASE_URL = databaseUrl
     const authSecret = 'test-secret-that-is-at-least-32-chars-long'

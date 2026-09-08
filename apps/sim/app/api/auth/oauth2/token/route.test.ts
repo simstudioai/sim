@@ -16,6 +16,7 @@ vi.mock('better-auth/next-js', () => ({
   toNextJsHandler: () => ({ POST: mocks.betterAuthPost }),
 }))
 vi.mock('@/lib/auth', () => ({ auth: { handler: vi.fn() } }))
+vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 vi.mock('@/lib/auth/oauth-provider-adapter-guard', () => ({
   withOAuthProviderIssuanceCompensation: (work: () => Promise<Response>) => work(),
 }))
@@ -25,6 +26,7 @@ vi.mock('@/lib/auth/oauth-token-family', () => ({
   validateOAuthClientCredentials: mocks.validateClient,
 }))
 
+import { bindOAuthIssuedResource, getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
 import { POST } from '@/app/api/auth/oauth2/token/route'
 
 function tokenRequest(body: string) {
@@ -302,11 +304,59 @@ describe('OAuth token route', () => {
       )
 
       expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
+      await expect(response.json()).resolves.toMatchObject({ error: 'invalid_target' })
       expect(mocks.betterAuthPost).not.toHaveBeenCalled()
       expect(mocks.rotate).not.toHaveBeenCalled()
     }
   )
+
+  it('binds the verified code resource while keeping native opaque issuance resource-free', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    mocks.betterAuthPost.mockImplementationOnce(async (request: Request) => {
+      const form = new URLSearchParams(await request.text())
+      expect(form.has('resource')).toBe(false)
+      bindOAuthIssuedResource({
+        verificationValue: { query: { resource } },
+        scopes: ['search:read'],
+      })
+      expect(getOAuthIssuedResource(['search:read'])).toBe(resource)
+      return new Response('{}', { status: 200 })
+    })
+    const response = await POST(
+      tokenRequest(
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: 'search-client',
+          code: 'code',
+          resource,
+        }).toString()
+      )
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it('passes a canonical resource to refresh rotation and preserves omission', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    await POST(
+      tokenRequest(
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: 'search-client',
+          refresh_token: 'sim_ort_original',
+          resource,
+        }).toString()
+      )
+    )
+    expect(mocks.rotate).toHaveBeenCalledWith(
+      expect.objectContaining({ resource, refreshToken: 'sim_ort_original' })
+    )
+    await POST(
+      tokenRequest(
+        'grant_type=refresh_token&client_id=search-client&refresh_token=sim_ort_original'
+      )
+    )
+    expect(mocks.rotate.mock.calls[1]?.[0]).not.toHaveProperty('resource')
+  })
 
   it('applies rate admission before parsing and prevents caching a refusal', async () => {
     mocks.rateLimit.mockResolvedValueOnce(new Response('limited', { status: 429 }))

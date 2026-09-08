@@ -9,6 +9,7 @@ import {
   buildMentionPreview,
   resourceMentionMatches,
   withDesktopTabMentions,
+  withFolderMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 
 const groups = [
@@ -170,5 +171,33 @@ describe('byResourceMenuOrder', () => {
     ].sort(byResourceMenuOrder)
 
     expect(ordered.map((group) => group.type)).toEqual(['task', 'workflow', 'log', 'browser'])
+  })
+})
+
+describe('folder mentions', () => {
+  it('includes nested and empty table and knowledge folders without changing the browse groups', () => {
+    const source = [
+      { type: 'folder' as const, items: [{ id: 'workflow-folder', name: 'Planning' }] },
+    ]
+    const result = withFolderMentions(source, {
+      table: [{ id: 'table-folder', name: 'Planning', parentId: 'parent' }],
+      knowledgebase: [{ id: 'kb-folder', name: 'Planning', parentId: null }],
+    })
+    expect(source[0].items).toHaveLength(1)
+    expect(result[0].items.map((item) => item.id)).toEqual([
+      'workflow-folder',
+      'table-folder',
+      'kb-folder',
+    ])
+    expect(
+      result[0].items
+        .filter((item) => resourceMentionMatches(item, 'table folders'))
+        .map((item) => item.id)
+    ).toEqual(['table-folder'])
+    expect(
+      result[0].items
+        .filter((item) => resourceMentionMatches(item, 'knowledge base folders'))
+        .map((item) => item.id)
+    ).toEqual(['kb-folder'])
   })
 })

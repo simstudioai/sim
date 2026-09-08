@@ -15,12 +15,19 @@ export type ScopedKnowledgeOperation<O extends WorkspaceOperation = WorkspaceOpe
   readonly organizationOperation: OrganizationOperation
 }
 
+interface KnowledgeOperationOptions {
+  organizationDelegation?: 'deny'
+}
+
 /** Binds organization policy to the same semantic operation declared for workspace access. */
 function defineKnowledgeOperation<const O extends WorkspaceOperation>(
-  operation: O
+  operation: O,
+  options?: KnowledgeOperationOptions
 ): ScopedKnowledgeOperation<O> {
   const supportsOrganizationDelegation =
-    operation.minimumRole === 'read' && operation.delegatedServices?.includes('copilot')
+    options?.organizationDelegation !== 'deny' &&
+    operation.minimumRole === 'read' &&
+    operation.delegatedServices?.includes('copilot')
   const organizationOperation = defineOrganizationOperation({
     id: operation.id,
     capability: operation.capability,
@@ -243,7 +250,7 @@ export const knowledgeOperations = {
   search: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
@@ -257,8 +264,10 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
-    })
+      ...ALL_PRINCIPAL_POLICY,
+    }),
+    /** Folder mentions resolve workspace folders; organization delegation stays disabled. */
+    { organizationDelegation: 'deny' }
   ),
   createFolder: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -303,7 +312,7 @@ export const knowledgeOperations = {
   readDocument: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.documents.read',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
@@ -379,7 +388,7 @@ export const knowledgeOperations = {
   listChunks: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.chunks.list',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
@@ -671,7 +680,7 @@ export const knowledgeOperations = {
   readSearchIndex: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.index.read',
-      oauthScope: 'api:read',
+      oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',

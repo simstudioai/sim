@@ -16,7 +16,7 @@ Mistral enforces organization limits, including requests and OCR pages per minut
 
 The hosted `MISTRAL_API_KEY` uses a stable shared scope across rotation. Map keys belonging to the same organization to the same group, including the hosted key if it shares quota with mapped BYOK keys. Unmapped BYOK keys are isolated by fingerprint. Separate deployments must use the same backend and group identity to coordinate.
 
-The controller uses the configured Redis backend, or PostgreSQL when Redis is not configured. It fails closed when that backend is unavailable. Deploy migration `0329_provider_capacity_state.sql` before updating the application and Trigger workers; its nullable JSON column is compatible with the previous application.
+The controller uses the configured Redis backend, or PostgreSQL when Redis is not configured. It fails closed when that backend is unavailable. Deploy migration `0330_provider_capacity_state.sql` before updating the application and Trigger workers; its nullable JSON column is compatible with the previous application.
 
 Page tokens, request pacing, cooldown, and expiring concurrency leases are admitted atomically. A rolling page ceiling also prevents idle token credit from exceeding the configured page allowance in any 60-second interval; conservative one-second buckets retain each charge for up to 61 seconds. A 429 honors `Retry-After`, pauses shared traffic, and halves effective page/request throughput (floor 10%). Concurrent rejections during a cooldown extend it without repeatedly halving. Success restores five percentage points at most once a minute. Effective throughput never exceeds configured ceilings. Leases expire after the enforced request deadline if a worker crashes.
 

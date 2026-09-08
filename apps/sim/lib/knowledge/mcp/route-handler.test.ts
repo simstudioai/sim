@@ -73,11 +73,13 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   missingSetupFields: vi.fn(),
 }))
 
+import { V2ApiKeyUnauthenticatedError } from '@/lib/api/server/routes/v2-api-key-auth'
 import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
+const resource = 'http://localhost/api/mcp/search/organizations/org-1'
 const handlers = createKnowledgeMcpHandlers('organization')
 const principal = { kind: 'personal_api_key' as const, userId: 'person-1', keyId: 'key-1' }
 const auth = {
@@ -121,6 +123,40 @@ beforeEach(() => {
 })
 
 describe('organization MCP request admission', () => {
+  it.each(['GET', 'POST', 'DELETE'] as const)(
+    'advertises OAuth discovery on an unauthenticated %s',
+    async (method) => {
+      mocks.authenticate.mockRejectedValue(new V2ApiKeyUnauthenticatedError())
+      const response = await handlers[method](request(), {
+        params: Promise.resolve({ organizationId: 'org-1' }),
+      })
+      expect(response.status).toBe(401)
+      expect(response.headers.get('WWW-Authenticate')).toBe(
+        'Bearer resource_metadata="http://localhost/.well-known/oauth-protected-resource/api/mcp/search/organizations/org-1", scope="search:read offline_access"'
+      )
+      expect(mocks.index).not.toHaveBeenCalled()
+    }
+  )
+
+  it('requests Search scope without exposing the index for insufficient OAuth grants', async () => {
+    mocks.authenticate.mockResolvedValue({
+      ...auth,
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'person-1',
+        clientId: 'client',
+        tokenId: 'token',
+        scopes: ['offline_access'],
+        expiresAt: new Date('2099-01-01'),
+      },
+    })
+    const response = await post()
+    expect(response.status).toBe(403)
+    expect(response.headers.get('WWW-Authenticate')).toContain('error="insufficient_scope"')
+    expect(response.headers.get('WWW-Authenticate')).toContain('scope="search:read offline_access"')
+    expect(mocks.index).not.toHaveBeenCalled()
+  })
+
   it('admits a current personal-key member and binds the canonical organization index', async () => {
     const result = await post()
     expect(result.status).toBe(200)
@@ -131,13 +167,19 @@ describe('organization MCP request admission', () => {
       expect.objectContaining({ auth, organizationId: 'org-1', searchIndexId: 'index-1' })
     )
     expect(mocks.close).toHaveBeenCalledOnce()
-    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: 'personal-key', bearer: null })
+    expect(mocks.authenticate).toHaveBeenCalledWith(
+      { apiKey: 'personal-key', bearer: null },
+      { resource, allowUnboundApiTokens: true }
+    )
   })
   it('preserves API keys supplied in the MCP bearer header', async () => {
     const req = request({ authorization: 'Bearer personal-key' })
     req.headers.delete('x-api-key')
     expect((await post(req)).status).toBe(200)
-    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: 'personal-key', bearer: null })
+    expect(mocks.authenticate).toHaveBeenCalledWith(
+      { apiKey: 'personal-key', bearer: null },
+      { resource, allowUnboundApiTokens: true }
+    )
   })
   it('authenticates OAuth bearer tokens and checks organization membership', async () => {
     const token = `${OAUTH_ACCESS_TOKEN_PREFIX}test-access-token`
@@ -150,13 +192,16 @@ describe('organization MCP request admission', () => {
         userId: 'person-1',
         clientId: 'client',
         tokenId: 'token',
-        scopes: ['api:read'],
+        scopes: ['search:read'],
         expiresAt: new Date('2099-01-01'),
       },
       keyType: 'oauth',
     })
     expect((await post(req)).status).toBe(200)
-    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: null, bearer: token })
+    expect(mocks.authenticate).toHaveBeenCalledWith(
+      { apiKey: null, bearer: token },
+      { resource, allowUnboundApiTokens: true }
+    )
     expect(mocks.index).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
   })
   it('rejects workspace API keys even if the workspace ID matches the organization ID', async () => {

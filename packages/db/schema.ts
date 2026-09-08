@@ -4229,6 +4229,7 @@ export const oauthRefreshToken = pgTable(
     revoked: timestamp('revoked'),
     authTime: timestamp('auth_time'),
     scopes: text('scopes').array().notNull(),
+    resource: text('resource'),
     familyId: text('family_id')
       .notNull()
       .references(() => oauthTokenFamily.id, { onDelete: 'cascade' }),
@@ -4247,6 +4248,11 @@ export const oauthRefreshToken = pgTable(
     generationCheck: check(
       'oauth_refresh_token_generation_check',
       sql`${table.generation} BETWEEN 0 AND 1000`
+    ),
+    /** contract-pending(after #7613 is fully deployed): validate oauth_refresh_token_search_resource_check separately so rollout avoids a token-table scan. */
+    searchResourceCheck: check(
+      'oauth_refresh_token_search_resource_check',
+      sql`NOT ('search:read' = ANY(${table.scopes})) OR ${table.resource} IS NOT NULL`
     ),
   })
 )
@@ -4269,6 +4275,7 @@ export const oauthAccessToken = pgTable(
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').notNull(),
     scopes: text('scopes').array().notNull(),
+    resource: text('resource'),
   },
   (table) => ({
     clientIdIdx: index('oauth_access_token_client_id_idx').on(table.clientId),
@@ -4277,6 +4284,11 @@ export const oauthAccessToken = pgTable(
     userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
     /** Drives the cleanup pass; nothing else reads tokens by expiry. */
     expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
+    /** contract-pending(after #7613 is fully deployed): validate oauth_access_token_search_resource_check separately so rollout avoids a token-table scan. */
+    searchResourceCheck: check(
+      'oauth_access_token_search_resource_check',
+      sql`NOT ('search:read' = ANY(${table.scopes})) OR ${table.resource} IS NOT NULL`
+    ),
   })
 )
 

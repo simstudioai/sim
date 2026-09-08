@@ -13,10 +13,8 @@ const DISCOVERY_HEADERS = {
  * OAuth authorization-server metadata with Sim's registered public-client
  * authentication method included.
  *
- * Better Auth 1.6.27 advertises `none` only when unauthenticated dynamic
- * registration is enabled. Sim deliberately keeps registration closed while
- * still provisioning public clients out of band, so the raw metadata would
- * otherwise contradict the clients the token endpoint accepts.
+ * Public Search clients and the first-party CLI use `none` for token exchange
+ * and revocation. Introspection is not exposed by Sim's protocol routes.
  */
 export async function getOAuthProviderMetadata() {
   const metadata = await auth.api.getOAuthServerConfig()

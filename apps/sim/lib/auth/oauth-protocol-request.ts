@@ -94,6 +94,7 @@ export function isValidOAuthCodeVerifier(value: string): boolean {
 const DELEGATED_OAUTH_ERROR_CODES = new Set([
   'invalid_client',
   'invalid_grant',
+  'invalid_target',
   'invalid_request',
   'invalid_scope',
   'unauthorized_client',

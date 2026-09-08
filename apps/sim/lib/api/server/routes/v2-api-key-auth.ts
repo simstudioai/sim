@@ -11,7 +11,11 @@ import type { V2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
-import { InvalidOAuthAccessTokenError, verifyOAuthAccessToken } from '@/lib/auth/oauth-access-token'
+import {
+  InvalidOAuthAccessTokenError,
+  type OAuthAccessTokenOptions,
+  verifyOAuthAccessToken,
+} from '@/lib/auth/oauth-access-token'
 import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
@@ -156,10 +160,15 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
  * token and per user, on the user's own plan. A client that holds many tokens
  * for one user still shares that user's bucket.
  */
-async function authenticateBearer(token: string): Promise<V2ApiKeyAuthContext> {
+async function authenticateBearer(
+  token: string,
+  options: OAuthAccessTokenOptions
+): Promise<V2ApiKeyAuthContext> {
   let principal: OAuthAccessTokenPrincipal
   try {
-    principal = await verifyOAuthAccessToken(token)
+    principal = options.resource
+      ? await verifyOAuthAccessToken(token, options)
+      : await verifyOAuthAccessToken(token)
   } catch (error) {
     if (error instanceof InvalidOAuthAccessTokenError) {
       logger.warn('Invalid OAuth access token attempted', { reason: error.reason })
@@ -185,7 +194,8 @@ async function authenticateBearer(token: string): Promise<V2ApiKeyAuthContext> {
  * key is offered.
  */
 export async function authenticateV2ApiKey(
-  credential: V2CredentialHeaders
+  credential: V2CredentialHeaders,
+  options: OAuthAccessTokenOptions = {}
 ): Promise<V2ApiKeyAuthContext> {
   if (isAuthDisabled) {
     return {
@@ -201,7 +211,7 @@ export async function authenticateV2ApiKey(
     }
   }
   if (credential.apiKey) return authenticateApiKey(credential.apiKey)
-  if (credential.bearer) return authenticateBearer(credential.bearer)
+  if (credential.bearer) return authenticateBearer(credential.bearer, options)
   if (credential.malformedOAuthBearer) {
     throw new V2ApiKeyUnauthenticatedError('Invalid access token', 'bearer')
   }

@@ -246,7 +246,7 @@ function anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
 }
 
 describe('generated OpenAPI documents', () => {
-  it('documents the same canonical operation and OAuth scope each route admits', async () => {
+  it('documents the canonical operation and its public API OAuth scope', async () => {
     for (const document of DOCUMENTS) {
       for (const route of document.routes) {
         const runtimeOperation = await routeApplicationOperation(
@@ -262,7 +262,10 @@ describe('generated OpenAPI documents', () => {
           route.contract.method.toLowerCase()
         )
         expect(generated['x-sim-operation']).toBe(route.operation.applicationOperation.id)
-        expect(generated['x-oauth-scope']).toBe(route.operation.applicationOperation.oauthScope)
+        const operationScope = route.operation.applicationOperation.oauthScope
+        expect(generated['x-oauth-scope']).toBe(
+          operationScope === 'search:read' ? 'api:read' : operationScope
+        )
       }
     }
   })

@@ -20,6 +20,9 @@ import {
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
   member,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
   organization,
   organizationSearchIntegration,
   user,
@@ -51,6 +54,8 @@ vi.mock('@/lib/embeddings', async () => ({
 }))
 
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
+import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
 import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import {
   createKnowledgeAclFixtureIds,
@@ -63,6 +68,7 @@ import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-sea
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
 import { DELETE, GET, POST } from '@/app/api/mcp/search/organizations/[organizationId]/route'
 
 describe('organization Search MCP with real ingestion and current access', () => {
@@ -87,6 +93,8 @@ describe('organization Search MCP with real ingestion and current access', () =>
     outsider: generateId(),
     workspace: generateId(),
   }
+  const oauthClientId = generateId()
+  const oauthTokens = { alice: generateId(), bob: generateId() }
   const clients: Client[] = []
   const alicePrincipal: Principal = { kind: 'session', userId: aliceId, sessionId: generateId() }
   const bobPrincipal: Principal = { kind: 'session', userId: bobId, sessionId: generateId() }
@@ -97,6 +105,8 @@ describe('organization Search MCP with real ingestion and current access', () =>
   let documentId: string
   let alice: Client
   let bob: Client
+  let aliceOAuth: Client
+  let bobOAuth: Client
 
   async function request(token: string, target = organizationId) {
     return POST(
@@ -257,6 +267,41 @@ describe('organization Search MCP with real ingestion and current access', () =>
         workspaceId: name === 'workspace' ? workspaceId : null,
       }))
     )
+    await db.insert(oauthClient).values({
+      id: oauthClientId,
+      clientId: oauthClientId,
+      name: 'Search MCP OAuth fixture',
+      public: true,
+      requirePKCE: true,
+      redirectUris: ['http://127.0.0.1/callback'],
+      tokenEndpointAuthMethod: 'none',
+      scopes: ['search:read'],
+      grantTypes: ['authorization_code'],
+      responseTypes: ['code'],
+    })
+    for (const [userId, token] of [
+      [aliceId, oauthTokens.alice],
+      [bobId, oauthTokens.bob],
+    ]) {
+      await db.insert(oauthConsent).values({
+        id: generateId(),
+        clientId: oauthClientId,
+        userId,
+        scopes: ['search:read'],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db.insert(oauthAccessToken).values({
+        id: generateId(),
+        clientId: oauthClientId,
+        userId,
+        token: hashOAuthToken(token),
+        scopes: ['search:read'],
+        resource: getSearchMcpUrl('organization', organizationId),
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 3600_000),
+      })
+    }
     const doc = await addDocument(
       knowledgeBaseId,
       connectorId,
@@ -307,10 +352,13 @@ describe('organization Search MCP with real ingestion and current access', () =>
     )
     alice = await connect(tokens.alice)
     bob = await connect(tokens.bob, true)
+    aliceOAuth = await connect(OAUTH_ACCESS_TOKEN_PREFIX + oauthTokens.alice, true)
+    bobOAuth = await connect(OAUTH_ACCESS_TOKEN_PREFIX + oauthTokens.bob, true)
   })
 
   afterAll(async () => {
     await Promise.all(clients.map((client) => client.close()))
+    await db.delete(oauthClient).where(eq(oauthClient.clientId, oauthClientId))
     await db
       .delete(organization)
       .where(inArray(organization.id, [organizationId, otherOrganizationId]))
@@ -367,6 +415,36 @@ describe('organization Search MCP with real ingestion and current access', () =>
     expect(nextPage.pagination).toMatchObject({ limit: 1, offset: 1 })
     await expectDocumentHidden(bob)
     expect(await applicationSearch(bobPrincipal)).toEqual([])
+  })
+
+  it('enforces current document and organization access on Search OAuth clients', async () => {
+    expect((await aliceOAuth.listTools()).tools).toHaveLength(3)
+    expect(await search(aliceOAuth)).toEqual(await search(alice))
+    expect(
+      await value(aliceOAuth, 'read_document', { knowledgeBaseId, documentId })
+    ).toHaveProperty('documentId', documentId)
+    expect(
+      await value(aliceOAuth, 'list_document_chunks', { knowledgeBaseId, documentId })
+    ).toHaveProperty('chunks')
+    await expectDocumentHidden(bobOAuth)
+    await db.insert(knowledgeExternalGroupMember).values(bobSourceMembership)
+    try {
+      expect((await search(bobOAuth)).length).toBeGreaterThan(0)
+      await db.delete(member).where(eq(member.id, bobMembershipId))
+      await expect(bobOAuth.listTools()).rejects.toThrow()
+      await expect(search(bobOAuth)).rejects.toThrow()
+    } finally {
+      await db
+        .insert(member)
+        .values({ id: bobMembershipId, userId: bobId, organizationId, role: 'member' })
+        .onConflictDoNothing()
+      await revokeBobSourceAccess()
+    }
+    await expectDocumentHidden(bobOAuth)
+    await db
+      .delete(oauthAccessToken)
+      .where(eq(oauthAccessToken.token, hashOAuthToken(oauthTokens.bob)))
+    await expect(bobOAuth.listTools()).rejects.toThrow()
   })
 
   it('denies nonmembers, other organizations and same-organization workspace keys before discovery', async () => {

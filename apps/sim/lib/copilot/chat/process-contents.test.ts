@@ -24,6 +24,11 @@ const {
   getTableById,
   getRowsByIds,
   readKnowledgeBase,
+  readTableUseCase,
+  listWorkflowFolders,
+  listTableFolders,
+  listKnowledgeFolders,
+  resolveFileFolderPath,
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
   searchDocsExecute,
@@ -38,6 +43,23 @@ const {
   getTableById: vi.fn(),
   getRowsByIds: vi.fn(),
   readKnowledgeBase: vi.fn(),
+  readTableUseCase: vi.fn(),
+  listWorkflowFolders: vi.fn(
+    async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
+      folders: [],
+    })
+  ),
+  listTableFolders: vi.fn(
+    async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
+      folders: [],
+    })
+  ),
+  listKnowledgeFolders: vi.fn(
+    async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
+      folders: [],
+    })
+  ),
+  resolveFileFolderPath: vi.fn(async (): Promise<{ path: string | null }> => ({ path: null })),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
   searchDocsExecute: vi.fn(),
@@ -60,6 +82,21 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   readKnowledgeBase: { execute: readKnowledgeBase },
 }))
+vi.mock('@/lib/table/application/tables', () => ({
+  readTableUseCase: { execute: readTableUseCase },
+}))
+vi.mock('@/lib/workflows/application/workflow-folders', () => ({
+  listWorkflowFolders: { execute: listWorkflowFolders },
+}))
+vi.mock('@/lib/table/application/folders', () => ({
+  listTableFoldersUseCase: { execute: listTableFolders },
+}))
+vi.mock('@/lib/knowledge/application/folders', () => ({
+  listKnowledgeFolders: { execute: listKnowledgeFolders },
+}))
+vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+  resolveWorkspaceFileFolderPathOperation: { execute: resolveFileFolderPath },
+}))
 vi.mock('@/lib/copilot/tools/server/docs/search-docs', () => ({
   searchDocsServerTool: { execute: searchDocsExecute },
 }))
@@ -69,13 +106,17 @@ vi.mock('@/lib/copilot/tools/server/docs/search-docs', () => ({
  * controllable row data, which the stable `dbChainMockFns.limit` provides.
  */
 
-import { processContextsServer } from './process-contents'
+import {
+  processContextsServer,
+  resolveActiveResourceContext,
+} from '@/lib/copilot/chat/process-contents'
 
 describe('processContextsServer - knowledge contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     readKnowledgeBase.mockResolvedValue({
       knowledgeBase: { id: 'knowledge-1', name: 'Product docs' },
+      folderPath: '/',
     })
   })
 
@@ -1057,5 +1098,199 @@ describe('processContextsServer - table_selection contexts', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].content).toContain(huge)
+  })
+})
+
+describe('folder and foldered-resource chat pointers', () => {
+  const nestedFolders = [
+    { id: 'parent', name: 'Finance/Legal', parentId: null },
+    { id: 'child', name: 'Q4 100%', parentId: 'parent' },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resolveFileFolderPath.mockResolvedValue({ path: null })
+    for (const list of [listWorkflowFolders, listTableFolders, listKnowledgeFolders]) {
+      list.mockResolvedValue({ folders: [] })
+    }
+  })
+
+  it.each([
+    ['workflow', 'workflows', listWorkflowFolders],
+    ['table', 'tables', listTableFolders],
+    ['knowledge', 'knowledgebases', listKnowledgeFolders],
+  ] as const)(
+    'resolves nested %s folders identically for mentions and active resources',
+    async (_kind, root, list) => {
+      list.mockResolvedValue({ folders: nestedFolders })
+      const context: ChatContext = { kind: 'folder', folderId: 'child', label: 'Chosen folder' }
+      const [mention] = await processContextsServer(
+        [context],
+        'user-1',
+        'inspect',
+        'ws-1',
+        'chat-1'
+      )
+      const active = await resolveActiveResourceContext(
+        context.kind,
+        'child',
+        'ws-1',
+        'user-1',
+        'chat-1'
+      )
+      const path = `${root}/Finance%2FLegal/Q4%20100%25`
+      expect(mention).toMatchObject({ type: context.kind, tag: '@Chosen folder', path })
+      expect(mention.content).toBe('')
+      expect(active).toMatchObject({ type: 'folder', tag: '@active_resource', path })
+      expect(list).toHaveBeenCalledWith({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          workspaceId: 'ws-1',
+          resourceScope: { chatId: 'chat-1' },
+        }),
+        input: expect.objectContaining({ workspaceId: 'ws-1' }),
+      })
+    }
+  )
+
+  it('resolves file-folder mentions and active resources through the authorized path query', async () => {
+    resolveFileFolderPath.mockResolvedValue({ path: 'Finance\\/Legal/Q4 100%' })
+    const [result] = await processContextsServer(
+      [{ kind: 'filefolder', fileFolderId: 'child', label: 'Chosen folder' }],
+      'user-1',
+      '',
+      'ws-1',
+      'chat-1'
+    )
+    const active = await resolveActiveResourceContext(
+      'filefolder',
+      'child',
+      'ws-1',
+      'user-1',
+      'chat-1'
+    )
+    expect(result.path).toBe('files/Finance%2FLegal/Q4%20100%25')
+    expect(result.content).toBe('')
+    expect(active).toMatchObject({
+      type: 'filefolder',
+      tag: '@active_resource',
+      path: result.path,
+    })
+    expect(resolveFileFolderPath).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        subjectUserId: 'user-1',
+        workspaceId: 'ws-1',
+        audience: 'sim:workspace-files',
+        resourceScope: { chatId: 'chat-1' },
+      }),
+      input: { workspaceId: 'ws-1', folderId: 'child' },
+    })
+  })
+
+  it('shares folder reads within a turn and re-resolves moves on the next turn', async () => {
+    listTableFolders.mockResolvedValue({ folders: nestedFolders })
+    const contexts: ChatContext[] = [
+      { kind: 'folder', folderId: 'parent', label: 'Parent' },
+      { kind: 'folder', folderId: 'child', label: 'Child' },
+    ]
+    await processContextsServer(contexts, 'user-1', '', 'ws-1')
+    expect(listTableFolders).toHaveBeenCalledTimes(1)
+    listTableFolders.mockResolvedValue({
+      folders: [{ id: 'child', name: 'Moved', parentId: null }],
+    })
+    const [result] = await processContextsServer([contexts[1]], 'user-1', '', 'ws-1')
+    expect(result.path).toBe('tables/Moved')
+    expect(listTableFolders).toHaveBeenCalledTimes(2)
+  })
+
+  it('can resolve an allowed folder when another resource family is forbidden', async () => {
+    listWorkflowFolders.mockRejectedValueOnce(new DelegatedWorkspaceAuthorizationError())
+    listTableFolders.mockResolvedValue({ folders: nestedFolders })
+    const [result] = await processContextsServer(
+      [{ kind: 'folder', folderId: 'child', label: 'Child' }],
+      'user-1',
+      '',
+      'ws-1'
+    )
+    expect(result.path).toBe('tables/Finance%2FLegal/Q4%20100%25')
+  })
+
+  it.each(['missing', 'deleted', 'other-workspace'])(
+    'reports an unresolved %s folder without substituting by name',
+    async (id) => {
+      listTableFolders.mockResolvedValue({ folders: nestedFolders })
+      const [result] = await processContextsServer(
+        [{ kind: 'folder', folderId: id, label: 'Q4 100%' }],
+        'user-1',
+        '',
+        'ws-1'
+      )
+      expect(result.path).toBeUndefined()
+      expect(result.content).toContain('could not be resolved')
+    }
+  )
+
+  it('conceals denied file-folder paths and infrastructure details', async () => {
+    resolveFileFolderPath.mockRejectedValueOnce(new Error('private database host'))
+    const [result] = await processContextsServer(
+      [{ kind: 'filefolder', fileFolderId: 'child', label: 'Child' }],
+      'user-1',
+      '',
+      'ws-1'
+    )
+    expect(result.path).toBeUndefined()
+    expect(result.content).not.toContain('private database host')
+  })
+
+  it.each(['table', 'knowledge'] as const)(
+    'keeps the canonical folder path for a %s mention and active resource',
+    async (kind) => {
+      const folderPath = '/Finance%2FLegal/Q4%20100%25'
+      readTableUseCase.mockResolvedValue({
+        table: { id: 'resource', name: 'Same name' },
+        folderPath,
+      })
+      readKnowledgeBase.mockResolvedValue({
+        knowledgeBase: { id: 'resource', name: 'Same name' },
+        folderPath,
+      })
+      const context: ChatContext =
+        kind === 'table'
+          ? { kind, tableId: 'resource', label: 'Resource' }
+          : { kind, knowledgeId: 'resource', label: 'Resource' }
+      const [result] = await processContextsServer([context], 'user-1', '', 'ws-1')
+      const active = await resolveActiveResourceContext(
+        kind === 'knowledge' ? 'knowledgebase' : kind,
+        'resource',
+        'ws-1',
+        'user-1'
+      )
+      const root = kind === 'table' ? 'tables' : 'knowledgebases'
+      expect(result.path).toBe(`${root}/Finance%2FLegal/Q4%20100%25/Same%20name/meta.json`)
+      expect(active?.path).toBe(result.path)
+    }
+  )
+
+  it('conceals unauthorized table mentions through the application query', async () => {
+    readTableUseCase.mockRejectedValueOnce(new DelegatedWorkspaceAuthorizationError())
+    await expect(
+      processContextsServer(
+        [{ kind: 'table', tableId: 'hidden', label: 'Hidden' }],
+        'user-1',
+        '',
+        'ws-1'
+      )
+    ).resolves.toEqual([])
+    expect(readTableUseCase).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        audience: 'sim:tables',
+        subjectUserId: 'user-1',
+        workspaceId: 'ws-1',
+        resourceScope: { tableId: 'hidden' },
+      }),
+      input: { tableId: 'hidden', workspaceId: 'ws-1' },
+    })
   })
 })

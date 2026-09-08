@@ -13,6 +13,7 @@ import {
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
   ensureWorkspaceFileFolderPath,
+  getWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   loadWorkspaceFileOperationContext,
   relocateWorkspaceFileFolderByPath,
@@ -358,6 +359,16 @@ export const listWorkspaceFileFoldersOperation = defineAuthorizedWorkspaceFileUs
   operation: fileOperations.listFolders,
   resolveContext: (args: { input: ListWorkspaceFileFoldersInput }) => resolveFolderContext(args),
   execute: executeListWorkspaceFileFolders,
+})
+
+/** Resolves one active folder under the folder-list policy without loading the entire tree. */
+export const resolveWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.listFolders,
+  resolveContext: (args: { input: { workspaceId: string; folderId: string } }) =>
+    resolveFolderContext(args),
+  async execute({ input, context }) {
+    return { path: await getWorkspaceFileFolderPath(context.workspaceId, input.folderId) }
+  },
 })
 
 export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({

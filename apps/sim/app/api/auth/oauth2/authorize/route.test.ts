@@ -133,6 +133,54 @@ describe('OAuth2 authorize route', () => {
     mocks.createQuickBooksState.mockReturnValue('signed-state')
   })
 
+  it('forwards a resource-bound Search authorization to the existing provider', async () => {
+    const req = request({
+      client_id: 'mcp-client',
+      response_type: 'code',
+      redirect_uri: 'https://client.example/callback',
+      scope: 'search:read offline_access',
+      resource: `${BASE_URL}/api/mcp/search/organizations/org-1`,
+    })
+    expect((await GET(req)).status).toBe(302)
+    expect(mocks.betterAuthGET).toHaveBeenCalledWith(req)
+    expect(mocks.createConnection).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { scope: 'search:read' },
+    { scope: 'api:read', resource: `${BASE_URL}/api/mcp/search/organizations/org-1` },
+    { scope: 'search:read unknown', resource: `${BASE_URL}/api/mcp/search/organizations/org-1` },
+    { scope: 'search:read', resource: 'https://evil.example/api/mcp/search/org-1' },
+  ])('refuses ambiguous or overly broad Search grants: %o', async (params) => {
+    const response = await GET(
+      request({
+        client_id: 'mcp-client',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        ...params,
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it('narrows issuer-wide scope requests before the provider signs Search consent', async () => {
+    const req = request({
+      client_id: 'mcp-client',
+      response_type: 'code',
+      redirect_uri: 'https://client.example/callback',
+      scope: 'offline_access api:read api:write search:read',
+      resource: `${BASE_URL}/api/mcp/search/organizations/org-1`,
+    })
+    expect((await GET(req)).status).toBe(302)
+    const forwarded: Request = mocks.betterAuthGET.mock.calls[0][0]
+    expect(new URL(forwarded.url).searchParams.get('scope')).toBe('search:read offline_access')
+    expect(new URL(forwarded.url).searchParams.get('resource')).toBe(
+      req.nextUrl.searchParams.get('resource')
+    )
+    expect(req.nextUrl.searchParams.get('scope')).toContain('api:write')
+  })
+
   it('forwards a provider request without entering the connector flow', async () => {
     const providerRequest = request({
       client_id: 'client-1',

@@ -27,11 +27,13 @@ import {
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
+  areContextsEqual,
   escapeRegex,
   filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
+  uniqueContextLabel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
@@ -423,7 +425,14 @@ export function usePromptEditor({
   }, [textareaRef])
 
   const insertResource = useCallback(
-    (resource: MothershipResource) => {
+    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
+      const candidate = mapResourceToContext(resource)
+      const context =
+        candidate.kind === 'folder' || candidate.kind === 'filefolder'
+          ? (selected.find(
+              (current) => current.kind === candidate.kind && areContextsEqual(current, candidate)
+            ) ?? { ...candidate, label: uniqueContextLabel(candidate.label, selected) })
+          : candidate
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
@@ -438,12 +447,12 @@ export function usePromptEditor({
           after = currentValue.slice(range.end)
           const needsSpaceBefore =
             range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
           newPos = before.length + insertText.length
         } else {
           const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
           const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
           before = currentValue.slice(0, insertAt)
           after = currentValue.slice(insertAt)
           newPos = before.length + insertText.length
@@ -459,8 +468,8 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      const context = mapResourceToContext(resource)
       addContextNotified(context)
+      return context
     },
     [textareaRef, addContextNotified]
   )
@@ -471,8 +480,10 @@ export function usePromptEditor({
    */
   const insertResources = useCallback(
     (resources: MothershipResource[]) => {
+      let selected = contextManagementRef.current.selectedContexts
       for (const resource of resources) {
-        insertResource(resource)
+        const context = insertResource(resource, selected)
+        selected = [...selected, context]
       }
       atInsertPosRef.current = null
     },

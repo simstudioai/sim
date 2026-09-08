@@ -6,6 +6,8 @@ import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
 import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
+import { narrowSearchOAuthScopes, OAUTH_SEARCH_READ_SCOPE } from '@/lib/auth/oauth-provider'
+import { InvalidOAuthResourceError, parseOAuthSearchResource } from '@/lib/auth/oauth-resource'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
@@ -103,11 +105,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'The redirect_uri parameter is required.'
       )
     }
-    if (params.has('resource')) {
+    const scopes = (params.get('scope') ?? '').split(' ').filter(Boolean)
+    let resource: string | null
+    try {
+      resource = parseOAuthSearchResource(params.get('resource'))
+    } catch (error) {
+      if (!(error instanceof InvalidOAuthResourceError)) throw error
       return oauthAuthorizationErrorResponse(
         request,
         'invalid_request',
-        'The resource parameter is not supported.'
+        'The resource must be a Sim Search server URL.'
+      )
+    }
+    const searchScope = resource ? narrowSearchOAuthScopes(params.get('scope') ?? '') : null
+    if ((resource && !searchScope) || (!resource && scopes.includes(OAUTH_SEARCH_READ_SCOPE))) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'Sim Search requires its server URL and the search:read scope.'
       )
     }
     if (params.has('request_uri')) {
@@ -136,7 +151,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (pkceError) {
       return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
     }
-    const response = await betterAuthGET(request)
+    let providerRequest: Request = request
+    if (searchScope && params.get('scope') !== searchScope) {
+      const url = new URL(request.url)
+      url.searchParams.set('scope', searchScope)
+      providerRequest = new Request(url, { headers: request.headers })
+    }
+    const response = await betterAuthGET(providerRequest)
     if (response.status === 403) {
       const body: unknown = await response
         .clone()

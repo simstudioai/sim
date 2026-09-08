@@ -7,7 +7,12 @@ import {
 import { eq } from 'drizzle-orm'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/copilot/application/execute-knowledge-use-case'
 import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { createCopilotChatTablePrincipal } from '@/lib/copilot/auth/table-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
+import {
+  type ChatFolderResolver,
+  createChatFolderResolver,
+} from '@/lib/copilot/chat/folder-context'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
   safeBrowserSelectionUrl,
@@ -30,6 +35,7 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { parseFolderPath } from '@/lib/folders/paths'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -47,15 +53,14 @@ import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/integration-allowlist'
+import { readTableUseCase } from '@/lib/table/application/tables'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { escapeRegExp } from '@/executor/constants'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -137,6 +142,9 @@ export async function processContextsServer(
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
+  const folderResolver = currentWorkspaceId
+    ? createChatFolderResolver(userId, currentWorkspaceId, chatId)
+    : undefined
   const tasks = contexts.map(async (ctx) => {
     try {
       if (ctx.kind === 'skill' && ctx.skillId && currentWorkspaceId) {
@@ -256,7 +264,7 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
-        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId)
+        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId, userId, chatId)
         if (!result) return null
         return {
           type: 'table',
@@ -299,27 +307,20 @@ export async function processContextsServer(
           currentWorkspaceId,
           ctx.rowIds,
           ctx.columnIds,
-          ctx.label
+          ctx.label,
+          folderResolver
         )
       }
-      if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId && currentWorkspaceId) {
-        const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
-        if (!result) return null
+      if ((ctx.kind === 'folder' || ctx.kind === 'filefolder') && folderResolver) {
+        const folderId = ctx.kind === 'folder' ? ctx.folderId : ctx.fileFolderId
+        const path = await folderResolver.folderPointer(folderId, ctx.kind === 'filefolder')
         return {
-          type: 'folder',
+          type: ctx.kind,
           tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
-        }
-      }
-      if (ctx.kind === 'filefolder' && ctx.fileFolderId && currentWorkspaceId) {
-        const result = await resolveFileFolderResource(ctx.fileFolderId, currentWorkspaceId)
-        if (!result) return null
-        return {
-          type: 'filefolder',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
+          content: path
+            ? ''
+            : 'The attached folder could not be resolved in this workspace. Do not guess its contents or substitute a similarly named folder.',
+          ...(path ? { path } : {}),
         }
       }
       if (ctx.kind === 'docs') {
@@ -580,7 +581,7 @@ async function processKnowledgeFromDb(
       workspaceId: currentWorkspaceId,
       chatId,
     })
-    const { knowledgeBase: kb } = await readKnowledgeBase.execute({
+    const { knowledgeBase: kb, folderPath } = await readKnowledgeBase.execute({
       principal,
       input: {
         knowledgeBaseId,
@@ -592,7 +593,7 @@ async function processKnowledgeFromDb(
       type: 'knowledge',
       tag,
       content: '',
-      path: `${canonicalKnowledgeBaseVfsDir(kb.name)}/meta.json`,
+      path: `${canonicalKnowledgeBaseVfsDir(kb.name, encodeVfsPathSegments(parseFolderPath(folderPath)))}/meta.json`,
     }
   } catch (error) {
     logger.error('Error processing knowledge context (db)', { knowledgeBaseId, error })
@@ -871,16 +872,18 @@ export async function resolveActiveResourceContext(
         }
       }
       case 'table': {
-        return await resolveTableResource(resourceId, workspaceId)
+        return await resolveTableResource(resourceId, workspaceId, userId, chatId)
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
-      case 'folder': {
-        return await resolveFolderResource(resourceId, workspaceId)
-      }
+      case 'folder':
       case 'filefolder': {
-        return await resolveFileFolderResource(resourceId, workspaceId)
+        const path = await createChatFolderResolver(userId, workspaceId, chatId).folderPointer(
+          resourceId,
+          resourceType === 'filefolder'
+        )
+        return path ? { type: resourceType, tag: '@active_resource', content: '', path } : null
       }
       default:
         return null
@@ -892,16 +895,19 @@ export async function resolveActiveResourceContext(
 }
 async function resolveTableResource(
   tableId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const table = await getTableById(tableId)
-  if (!table) return null
-  if (table.workspaceId !== workspaceId) return null
+  const { table, folderPath } = await readTableUseCase.execute({
+    principal: createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId),
+    input: { tableId, workspaceId },
+  })
   return {
     type: 'active_resource',
     tag: '@active_resource',
     content: '',
-    path: canonicalTableVfsPath(table.name),
+    path: canonicalTableVfsPath(table.name, encodeVfsPathSegments(parseFolderPath(folderPath))),
   }
 }
 
@@ -1008,10 +1014,16 @@ async function resolveTableSelectionResource(
   workspaceId: string,
   rowIds: string[],
   columnIds: string[] | undefined,
-  label: string
+  label: string,
+  folderResolver?: ChatFolderResolver
 ): Promise<AgentContext | null> {
   const table = await getTableById(tableId)
   if (!table || table.workspaceId !== workspaceId) return null
+
+  const folderPath = table.folderId
+    ? await folderResolver?.folderPath(table.folderId, 'table')
+    : null
+  if (table.folderId && !folderPath) return null
 
   const rows = await getRowsByIds(tableId, rowIds, workspaceId)
   if (rows.length === 0) return null
@@ -1069,40 +1081,6 @@ async function resolveTableSelectionResource(
     type: 'table_selection',
     tag: label ? `@${label}` : '@',
     content,
-    path: canonicalTableVfsPath(table.name),
-  }
-}
-
-async function resolveFileFolderResource(
-  folderId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  try {
-    const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
-    if (!rawPath) return null
-    const encoded = encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(rawPath))
-    return {
-      type: 'active_resource',
-      tag: '@active_resource',
-      content: '',
-      path: `files/${encoded}`,
-    }
-  } catch (error) {
-    logger.error('Failed to resolve file folder resource', { folderId, error })
-    return null
-  }
-}
-
-async function resolveFolderResource(
-  folderId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  const folderPath = await resolveWorkflowFolderPath(workspaceId, folderId)
-  if (!folderPath) return null
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: '',
-    path: `workflows/${folderPath}`,
+    path: canonicalTableVfsPath(table.name, folderPath),
   }
 }

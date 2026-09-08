@@ -10,7 +10,18 @@ const fixtures = vi.hoisted(() => ({
   browserAvailable: vi.fn(() => true),
   terminalAvailable: vi.fn(() => true),
   resources: { data: [{ id: 'resource-1', name: 'Example' }], isPending: false },
-  folders: { data: [], isPending: false },
+  folders: {
+    data: [] as { id: string; name: string; parentId: string | null }[],
+    isPending: false,
+  },
+  tableFolders: {
+    data: [] as { id: string; name: string; parentId: string | null }[],
+    isPending: false,
+  },
+  knowledgeFolders: {
+    data: [] as { id: string; name: string; parentId: string | null }[],
+    isPending: false,
+  },
   tabs: [],
   logs: {
     data: {
@@ -32,7 +43,14 @@ vi.mock('@/hooks/queries/workspace-files', () => ({ useWorkspaceFiles: () => fix
 vi.mock('@/hooks/queries/kb/knowledge', () => ({
   useKnowledgeBasesQuery: () => fixtures.resources,
 }))
-vi.mock('@/hooks/queries/folders', () => ({ useFolders: () => fixtures.folders }))
+vi.mock('@/hooks/queries/folders', () => ({
+  useFolders: (_workspaceId: string, options?: { resourceType?: string }) =>
+    options?.resourceType === 'table'
+      ? fixtures.tableFolders
+      : options?.resourceType === 'knowledge_base'
+        ? fixtures.knowledgeFolders
+        : fixtures.folders,
+}))
 vi.mock('@/hooks/queries/workspace-file-folders', () => ({
   useWorkspaceFileFolders: () => fixtures.folders,
 }))
@@ -72,7 +90,7 @@ const PREFERENCES: DesktopPreferences = {
   terminalEnabled: true,
 }
 
-function openMenu(mention = false) {
+function openMenu(mention = false, mentionQuery?: string) {
   const ref = createRef<PlusMenuHandle>()
   const onResourceSelect = vi.fn()
   act(() =>
@@ -80,6 +98,7 @@ function openMenu(mention = false) {
       <PlusMenuDropdown
         ref={ref}
         workspaceId='workspace-1'
+        mentionQuery={mentionQuery}
         onResourceSelect={onResourceSelect}
         onClose={vi.fn()}
         textareaRef={createRef<HTMLTextAreaElement>()}
@@ -120,6 +139,11 @@ describe('PlusMenuDropdown desktop resources', () => {
       }
     )
     vi.clearAllMocks()
+    fixtures.resources.data = [{ id: 'resource-1', name: 'Example' }]
+    for (const folders of [fixtures.folders, fixtures.tableFolders, fixtures.knowledgeFolders]) {
+      folders.data = []
+      folders.isPending = false
+    }
     fixtures.browserAvailable.mockReturnValue(true)
     fixtures.terminalAvailable.mockReturnValue(true)
     setDesktopPreferencesSnapshot(PREFERENCES)
@@ -230,5 +254,43 @@ describe('PlusMenuDropdown desktop resources', () => {
     const names = menuItems().map((item) => item.textContent)
     expect(names).not.toContain('Browser')
     expect(names).not.toContain('Terminal')
+  })
+
+  it.each(['tableFolders', 'knowledgeFolders'] as const)(
+    'selects an empty %s folder by @ mention and preserves its ID',
+    (family) => {
+      fixtures[family].data = [{ id: 'folder-1', name: 'Planning', parentId: null }]
+      const { ref, onResourceSelect } = openMenu(true, 'Planning')
+      act(() => {
+        expect(ref.current?.selectActive()).toBe('selected')
+      })
+      expect(mapResourceToContext(onResourceSelect.mock.calls[0][0])).toEqual({
+        kind: 'folder',
+        folderId: 'folder-1',
+        label: 'Planning',
+      })
+    }
+  )
+
+  it.each(['tableFolders', 'knowledgeFolders'] as const)(
+    'waits for %s hydration before submitting an unresolved mention',
+    (family) => {
+      fixtures[family].isPending = true
+      const { ref, onResourceSelect } = openMenu(true, 'Planning')
+      expect(ref.current?.selectActive()).toBe('hydrating')
+      expect(onResourceSelect).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps empty table and knowledge folder families in the attachment browse menu', () => {
+    fixtures.resources.data = []
+    fixtures.tableFolders.data = [{ id: 'table-folder', name: 'Table Planning', parentId: null }]
+    fixtures.knowledgeFolders.data = [
+      { id: 'kb-folder', name: 'Knowledge Planning', parentId: null },
+    ]
+    openMenu()
+    expect(menuItems().map((item) => item.textContent)).toEqual(
+      expect.arrayContaining(['Tables', 'Knowledge Bases'])
+    )
   })
 })

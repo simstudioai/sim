@@ -53,8 +53,10 @@ import {
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_REFRESH_TOKEN_TTL_SECONDS,
   OAUTH_SCOPES,
+  OAUTH_SEARCH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
+import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
@@ -1274,9 +1276,8 @@ export const auth = betterAuth({
      * stable family for that login, including access tokens issued before an
      * earlier rotation. This is an OAuth API-authorization surface, not an
      * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
-     * ID-token semantics out of the advertised protocol. Clients are DB rows
-     * only (the CLI is seeded by migration, the rest are admin-created), so
-     * both registration paths stay closed.
+     * ID-token semantics out of the advertised protocol. Public registration
+     * is limited to read-only Search clients; other clients are operator-created.
      */
     ...(!isAuthDisabled
       ? [
@@ -1292,16 +1293,15 @@ export const auth = betterAuth({
              * Better Auth verifies `oauth_query` before reading the client.
              */
             allowPublicClientPrelogin: true,
-            allowDynamicClientRegistration: false,
-            allowUnauthenticatedClientRegistration: false,
+            allowDynamicClientRegistration: true,
+            allowUnauthenticatedClientRegistration: true,
+            clientRegistrationAllowedScopes: [...OAUTH_SEARCH_SCOPES],
+            clientRegistrationDefaultScopes: [...OAUTH_SEARCH_SCOPES],
+            customTokenResponseFields: bindOAuthIssuedResource,
             /**
-             * No endpoint may read or change a client row. Clients are created
-             * by an operator running `create-oauth-client.ts`, so every one of
-             * the plugin's client CRUD endpoints — create, read, list, update,
-             * delete, rotate — is refused at the source. The route-level POST
-             * blocklist stays as defence in depth, but this is what closes the
-             * `GET` readers it cannot see, and what keeps a future plugin
-             * version from mounting a seventh endpoint into an open door.
+             * Client-management endpoints remain operator-only. Public registration
+             * has its own bounded Search-only route and cannot inherit a browser
+             * session or request management privileges.
              *
              * The consent page's client lookup is unaffected:
              * `public-client-prelogin` does not consult this hook and instead
@@ -1330,6 +1330,7 @@ export const auth = betterAuth({
             refreshTokenExpiresIn: OAUTH_REFRESH_TOKEN_TTL_SECONDS,
             codeExpiresIn: OAUTH_CODE_TTL_SECONDS,
           }),
+          oauthResourcePlugin(),
         ]
       : []),
     /**

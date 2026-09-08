@@ -1,5 +1,5 @@
 {
-  "id": "7b11ae57-00dd-4949-99a9-025eb561eac9",
+  "id": "c80adf29-b021-4ef4-bdb0-8fb55497b810",
   "prevId": "ab6ad93e-e8d0-4676-a7d2-778834aa0826",
   "version": "7",
   "dialect": "postgresql",
@@ -11392,6 +11392,12 @@
           "type": "text[]",
           "primaryKey": false,
           "notNull": true
+        },
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -11524,7 +11530,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "oauth_access_token_search_resource_check": {
+          "name": "oauth_access_token_search_resource_check",
+          "value": "NOT ('search:read' = ANY(\"oauth_access_token\".\"scopes\")) OR \"oauth_access_token\".\"resource\" IS NOT NULL"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.oauth_client": {
@@ -11919,6 +11930,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "family_id": {
           "name": "family_id",
           "type": "text",
@@ -12056,6 +12073,10 @@
         "oauth_refresh_token_generation_check": {
           "name": "oauth_refresh_token_generation_check",
           "value": "\"oauth_refresh_token\".\"generation\" BETWEEN 0 AND 1000"
+        },
+        "oauth_refresh_token_search_resource_check": {
+          "name": "oauth_refresh_token_search_resource_check",
+          "value": "NOT ('search:read' = ANY(\"oauth_refresh_token\".\"scopes\")) OR \"oauth_refresh_token\".\"resource\" IS NOT NULL"
         }
       },
       "isRLSEnabled": false
@@ -14080,12 +14101,6 @@
         "blocked_until": {
           "name": "blocked_until",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "capacity_state": {
-          "name": "capacity_state",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

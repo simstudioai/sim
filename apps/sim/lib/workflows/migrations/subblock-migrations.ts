@@ -315,6 +315,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * time. Dropped rather than renamed — there is no field for the value to move to.
    */
   vanta: [{ from: 'uploadMimeType', to: '_removed_uploadMimeType' }],
+  /** Parallel's V1 Extract always returns excerpts; the opt-out toggle has no replacement. */
+  parallel_ai: [{ from: 'excerpts', to: '_removed_excerpts' }],
   /**
    * Three unrelated QuickBooks changes land here.
    *

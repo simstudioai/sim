@@ -75,10 +75,8 @@ interface AvailableItemsByType {
 }
 
 /**
- * Folder hierarchies that exist purely to structure the browse menus. Unlike
- * workflow (`folder`) and workspace-file (`filefolder`) folders these are not
- * attachable resources, so they stay out of `groups` — which also feeds the
- * flat search results, where a non-attachable row would be a dead end.
+ * Table and knowledge-base folder hierarchies. Chat also offers these as folder
+ * mentions, while the resource tab picker uses them only for navigation.
  */
 interface StructureFolders {
   table: AvailableItem[]
@@ -97,6 +95,8 @@ interface AvailableResources {
 }
 
 interface UseAvailableResourcesOptions {
+  /** Chat can attach every folder family, so these lists also gate mention hydration. */
+  includeFolderMentions?: boolean
   /**
    * Skips the underlying list queries and the group construction they feed
    * while `false`, returning a stable empty result. Menus pass their own open
@@ -171,16 +171,17 @@ export function useAvailableResources(
     { enabled }
   )
   const { data: folders, isPending: foldersPending } = useFolders(workspaceId, { enabled })
-  // Folder lists exist only to shape their family's submenu, so they skip the
-  // fetch entirely when that family is excluded.
-  const { data: tableFolders } = useFolders(workspaceId, {
+  const { data: tableFolders, isPending: tableFoldersPending } = useFolders(workspaceId, {
     enabled: enabled && !excludeTypes?.includes('table'),
     resourceType: 'table',
   })
-  const { data: knowledgeBaseFolders } = useFolders(workspaceId, {
-    enabled: enabled && !excludeTypes?.includes('knowledgebase'),
-    resourceType: 'knowledge_base',
-  })
+  const { data: knowledgeBaseFolders, isPending: knowledgeBaseFoldersPending } = useFolders(
+    workspaceId,
+    {
+      enabled: enabled && !excludeTypes?.includes('knowledgebase'),
+      resourceType: 'knowledge_base',
+    }
+  )
   const { data: fileFolders, isPending: fileFoldersPending } = useWorkspaceFileFolders(
     workspaceId,
     'active',
@@ -199,10 +200,8 @@ export function useAvailableResources(
    * settles to "not hydrating" — an errored query must not block the caller
    * forever.
    *
-   * Only the lists feeding `groups` count. The table and knowledge-base folder
-   * lists shape submenus but never add candidates, so gating on them would
-   * swallow an `@`-mention Enter behind two round-trips that cannot change the
-   * answer.
+   * Chat includes table and knowledge-base folders as candidates. Its Enter
+   * handling must wait for those lists too, or an unresolved mention can submit.
    */
   const isHydrating =
     enabled &&
@@ -211,6 +210,9 @@ export function useAvailableResources(
       filesPending ||
       knowledgeBasesPending ||
       foldersPending ||
+      (options?.includeFolderMentions &&
+        ((!excludeTypes?.includes('table') && tableFoldersPending) ||
+          (!excludeTypes?.includes('knowledgebase') && knowledgeBaseFoldersPending))) ||
       fileFoldersPending ||
       tasksPending ||
       logsPending)
@@ -371,9 +373,7 @@ interface ResourceFolderTreeItemsProps {
   /** Resource type of the leaf items. */
   type: MothershipResourceType
   /**
-   * Set when the folder is itself an attachable resource (workspace files): the
-   * folder is then offered as the first entry of its own submenu. Omitted for
-   * folders that only provide structure (workflows, tables, knowledge bases).
+   * Offers the folder itself as the first entry of its submenu when selectable.
    */
   folderType?: MothershipResourceType
   onSelect: (resource: MothershipResource) => void
@@ -429,10 +429,6 @@ export function ResourceFolderTreeItems({
 interface FolderedSectionSpec {
   /** Leaf resource type — also supplies the submenu's label and icon. */
   type: MothershipResourceType
-  /**
-   * Where this family's folders come from: another entry in `groups` when the
-   * folders are attachable resources, or `structureFolders` when they are not.
-   */
   folders:
     | { kind: 'group'; type: MothershipResourceType }
     | { kind: 'structure'; key: keyof StructureFolders }
@@ -483,22 +479,25 @@ export interface ResourceTreeSection {
 export function useResourceTreeSections({
   groups,
   structureFolders,
-}: Pick<AvailableResources, 'groups' | 'structureFolders'>): ResourceTreeSection[] {
+  selectFolders = false,
+}: Pick<AvailableResources, 'groups' | 'structureFolders'> & {
+  selectFolders?: boolean
+}): ResourceTreeSection[] {
   return useMemo(() => {
     const itemsOf = (type: MothershipResourceType) =>
       groups.find((group) => group.type === type)?.items ?? []
     return FOLDERED_SECTION_SPECS.map((spec) => ({
       type: spec.type,
-      folderType: spec.folderType,
+      folderType: spec.folderType ?? (selectFolders ? 'folder' : undefined),
       nodes: buildResourceFolderTree(
         itemsOf(spec.type),
         spec.folders.kind === 'group'
           ? itemsOf(spec.folders.type)
           : structureFolders[spec.folders.key],
-        { orderBySortOrder: spec.orderBySortOrder, pruneEmpty: !spec.folderType }
+        { orderBySortOrder: spec.orderBySortOrder, pruneEmpty: !selectFolders && !spec.folderType }
       ),
     })).filter((section) => section.nodes.length > 0)
-  }, [groups, structureFolders])
+  }, [groups, structureFolders, selectFolders])
 }
 
 interface ResourceMenuSectionsProps {

@@ -84,7 +84,11 @@ Organization admins manage source configuration and sync status through **Manage
 
 **Search** in the organization sidebar finds documents directly. The assistant on **Home** can search and read the same sources to answer questions with citations. Conversations are private to their author, including when another organization member is an admin.
 
-To search from an MCP-compatible app, open **Settings → Search MCP**. Generate a personal Sim API key there, or use an existing personal key with the displayed connection details. MCP applies your current organization membership and document access.
+To search from Claude, Codex, Claude Code, or Cursor, open **Settings → Search MCP**, choose your app, and copy its URL, command, or configuration. Connect in that app, sign in to Sim, and approve read-only Search access. No API key is needed. In Claude Team or Enterprise, an owner adds the custom connector before members connect.
+
+For another client, choose **Other** and use the server URL with Streamable HTTP and OAuth. The client must support remote MCP authentication. When adding configuration to an existing file, keep your other MCP servers.
+
+Each person signs in with their own Sim account. MCP applies their current organization membership and document access; connecting an app does not add sources or grant new document permissions. To disconnect an app, open **Settings → General → Authorized apps** and revoke it.
 
 ## Existing workspace Search
 
