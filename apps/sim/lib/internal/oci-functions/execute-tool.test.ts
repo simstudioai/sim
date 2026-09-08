@@ -22,9 +22,13 @@ vi.mock('@/app/api/files/authorization', () => ({ assertToolFileAccess: vi.fn() 
 
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { executeOciFunctionsTool } from '@/lib/internal/oci-functions/execute-tool'
+import { ociFunctionsInputSchemas } from '@/lib/internal/oci-functions/input'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { OciFunctionsBlock } from '@/blocks/blocks/oci_functions'
+import { ociFunctionsCreateApplicationTool } from '@/tools/oci_functions/create_application'
+import { ociFunctionsInvokeTool } from '@/tools/oci_functions/invoke'
 import { ociFunctionsListApplicationsTool } from '@/tools/oci_functions/list_applications'
+import { ociFunctionsUpdateApplicationTool } from '@/tools/oci_functions/update_application'
 
 function request(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -60,6 +64,49 @@ beforeEach(() => {
 })
 
 describe('OCI Functions credential execution boundary', () => {
+  it.each([null, '', undefined])(
+    'normalizes native mutation and invocation defaults (%s)',
+    (blank) => {
+      for (const [tool, operation, configuration] of [
+        [ociFunctionsCreateApplicationTool, 'create_application', blank],
+        [ociFunctionsUpdateApplicationTool, 'update_application', { config: {} }],
+        [ociFunctionsInvokeTool, 'invoke', undefined],
+      ] as const) {
+        const raw = {
+          operation,
+          oauthCredential: 'supplied-pointer',
+          ociRegion: null,
+          compartmentId: 'compartment',
+          applicationId: 'application',
+          functionId: 'function',
+          displayName: 'Synthetic',
+          subnetIds: '["subnet"]',
+          shape: blank,
+          configuration,
+          ifMatch: blank,
+          dryRun: blank,
+          intent: blank,
+          contentType: blank,
+          payloadType: 'json',
+          payload: { nested: null },
+        }
+        const params = { ...raw, ...OciFunctionsBlock.tools.config!.params!(raw) }
+        const input = tool.operation.input(params)
+        const parsed = ociFunctionsInputSchemas[`oci_functions_${operation}`].parse(input)
+        expect('ifMatch' in parsed ? parsed.ifMatch : undefined).toBeUndefined()
+        if (operation === 'invoke') {
+          expect(parsed).toMatchObject({ dryRun: false, payload: { nested: null } })
+        }
+        if (operation === 'create_application') {
+          expect('configuration' in parsed ? parsed.configuration : undefined).toBeUndefined()
+        }
+      }
+      expect(() =>
+        OciFunctionsBlock.tools.config!.params!({ operation: 'invoke', dryRun: 'yes' })
+      ).toThrow('Dry run must be true or false')
+    }
+  )
+
   it.each([null, '', undefined, 'application-name'])(
     'normalizes optional list filters through the native merge (%s)',
     async (displayName) => {

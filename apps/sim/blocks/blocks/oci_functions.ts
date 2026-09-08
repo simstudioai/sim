@@ -67,7 +67,7 @@ function parseJson(value: unknown, label: string): unknown {
 }
 
 function optionalBoolean(value: unknown): boolean | undefined {
-  if (value === undefined || value === '') return undefined
+  if (value === undefined || value === null || value === '') return undefined
   if (value === true || value === 'true') return true
   if (value === false || value === 'false') return false
   throw new Error('Dry run must be true or false')
@@ -607,15 +607,12 @@ export const OciFunctionsBlock: BlockConfig<OciFunctionsResponse> = {
         )
         result.oauthCredential = params.oauthCredential
         result.region =
-          params.ociRegion === 'credential' || params.ociRegion === ''
+          params.ociRegion === 'credential' || params.ociRegion === '' || params.ociRegion === null
             ? undefined
             : params.ociRegion
         for (const key of OPERATION_PARAMS[selected]) {
           result[key] =
-            (params[key] === '' && key !== 'payload') ||
-            (params[key] === null &&
-              (selected === 'list_applications' || selected === 'list_functions') &&
-              ['displayName', 'id', 'lifecycleState', 'page', 'sortBy', 'sortOrder'].includes(key))
+            (params[key] === '' || params[key] === null) && key !== 'payload'
               ? undefined
               : params[key]
         }
@@ -623,7 +620,7 @@ export const OciFunctionsBlock: BlockConfig<OciFunctionsResponse> = {
           'configuration' in result &&
           OPERATION_PARAMS[selected].some((key) => key === 'configuration')
         ) {
-          result.configuration = parseJson(params.configuration, 'Configuration')
+          result.configuration = parseJson(result.configuration, 'Configuration')
         }
         if (selected === 'create_application')
           result.subnetIds = parseJson(params.subnetIds, 'Subnet OCIDs')
