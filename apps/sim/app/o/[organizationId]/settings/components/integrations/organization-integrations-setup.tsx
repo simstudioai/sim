@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalError, Switch } from '@sim/emcn'
-import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { ResourceScope } from '@/lib/core/resource-scope'
@@ -66,7 +65,6 @@ export function OrganizationIntegrationsSetup() {
     searchSetupParam.key,
     searchSetupParam.parser.withOptions({ history: 'replace' })
   )
-  const router = useRouter()
   const membershipQueryKeys = useMemo(
     () => [searchSourceKeys.list({ kind: 'organization', organizationId: organization.id })],
     [organization.id]
@@ -210,11 +208,9 @@ export function OrganizationIntegrationsSetup() {
                     waiting={enrollment.isAwaiting(source.connectorId)}
                     isPending={enrollment.isPending}
                     onConnect={() => enrollment.connect(source.knowledgeBaseId, source.connectorId)}
-                    onManage={() =>
-                      router.push(
-                        organizationRoutes(organization.id).searchSource(source.connectorId)
-                      )
-                    }
+                    manageHref={organizationRoutes(organization.id).searchSource(
+                      source.connectorId
+                    )}
                   />
                 ))}
               </div>

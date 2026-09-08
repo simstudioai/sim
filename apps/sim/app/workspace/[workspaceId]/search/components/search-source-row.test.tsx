@@ -38,7 +38,13 @@ function source(overrides: Partial<SearchSourceSummary> = {}): SearchSourceSumma
 
 async function render(
   data = source(),
-  props: { canAdmin?: boolean; available?: boolean; waiting?: boolean; isPending?: boolean } = {}
+  props: {
+    canAdmin?: boolean
+    available?: boolean
+    waiting?: boolean
+    isPending?: boolean
+    manageHref?: string
+  } = {}
 ) {
   await act(async () =>
     root.render(
@@ -183,6 +189,29 @@ describe('Search source viewer actions', () => {
     await act(async () => button('Manage')!.click())
     expect(manage).toHaveBeenCalledOnce()
     expect(connect).not.toHaveBeenCalled()
+  })
+
+  it('opens source details through a row link while preserving the separate connection action', async () => {
+    const manageHref = '/o/org-1/settings/integrations/sources/source-1'
+    await render(source(), { canAdmin: true, manageHref })
+    const link = container.querySelector('a')
+    expect(link?.getAttribute('href')).toBe(manageHref)
+    expect(link?.getAttribute('aria-label')).toBe('Open engineering.atlassian.net · ENG')
+    expect(button('Manage')).toBeUndefined()
+    expect(button('Confluence source actions')).toBeUndefined()
+    expect(link?.contains(button('Connect account')!)).toBe(false)
+    await act(async () => button('Connect account')!.click())
+    expect(connect).toHaveBeenCalledOnce()
+    expect(manage).not.toHaveBeenCalled()
+  })
+
+  it('does not expose management navigation to a non-admin', async () => {
+    await render(source(), {
+      canAdmin: false,
+      manageHref: '/o/org-1/settings/integrations/sources/source-1',
+    })
+    expect(container.querySelector('a')).toBeNull()
+    expect(button('Connect account')).toBeDefined()
   })
 
   it.each([false, true])(
