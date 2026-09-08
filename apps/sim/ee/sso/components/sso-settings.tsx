@@ -1,7 +1,6 @@
 'use client'
 
-import * as Tabs from '@radix-ui/react-tabs'
-import { Chip } from '@sim/emcn'
+import { ChipModalTabs } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -75,26 +74,20 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   }
 
   return (
-    <Tabs.Root
-      value={tab}
-      onValueChange={(value) => {
-        const next = SETTINGS_TABS.find((entry) => entry.value === value)
-        if (next) void setParams({ tab: next.value })
-      }}
-      activationMode='manual'
-      className='flex flex-col gap-7'
-    >
-      <Tabs.List aria-label='Single sign-on settings' className='flex w-fit gap-1'>
-        {SETTINGS_TABS.filter(
+    <div className='flex flex-col gap-7'>
+      <ChipModalTabs
+        tabs={SETTINGS_TABS.filter(
           (entry) => entry.value !== 'provisioning' || provisioningAvailable
-        ).map((entry) => (
-          <Tabs.Trigger key={entry.value} value={entry.value} asChild>
-            <Chip active={tab === entry.value}>{entry.label}</Chip>
-          </Tabs.Trigger>
-        ))}
-      </Tabs.List>
+        )}
+        value={tab}
+        onChange={(value) => {
+          const next = SETTINGS_TABS.find((entry) => entry.value === value)
+          if (next) void setParams({ tab: next.value })
+        }}
+        aria-label='Single sign-on settings'
+      />
 
-      <Tabs.Content value='sign-in' forceMount hidden={tab !== 'sign-in'}>
+      <div hidden={tab !== 'sign-in'}>
         {providers.isLoading ? (
           <SettingsEmptyState variant='inline'>Loading identity provider...</SettingsEmptyState>
         ) : providers.data === undefined && providers.error ? (
@@ -116,24 +109,24 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             onOpenDomains={() => void setParams({ tab: 'domains' })}
           />
         )}
-      </Tabs.Content>
+      </div>
 
-      <Tabs.Content value='domains'>
+      {tab === 'domains' && (
         <SettingsPanel docsLink={DOCS_LINKS.domains}>
           <VerifiedDomainsSection organizationId={organizationId} />
         </SettingsPanel>
-      </Tabs.Content>
+      )}
 
       {provisioningAvailable && (
-        <Tabs.Content value='provisioning' forceMount hidden={tab !== 'provisioning'}>
+        <div hidden={tab !== 'provisioning'}>
           {tab === 'provisioning' && <SettingsPanel docsLink={DOCS_LINKS.provisioning} />}
           <ScimSection
             active={tab === 'provisioning'}
             organizationId={organizationId}
             onOpenDomains={() => void setParams({ tab: 'domains' })}
           />
-        </Tabs.Content>
+        </div>
       )}
-    </Tabs.Root>
+    </div>
   )
 }

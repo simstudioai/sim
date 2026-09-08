@@ -22,19 +22,18 @@ export const SETTING_TOGGLES = [
     key: 'lockManualMembership',
     label: 'Lock managed membership',
     description:
-      'Refuse invitations, role changes, and manual grants for members the directory provisions. The next sync would revert them anyway.',
+      'Prevent manual invitations, role changes, and access grants for provisioned members.',
   },
   {
     key: 'disableJit',
     label: 'Disable just-in-time provisioning',
     description:
-      'Prevent SSO from creating new organization memberships. Existing members can still sign in, including members added by invitation.',
+      'Prevent SSO from adding new organization members. Existing members can still sign in.',
   },
   {
     key: 'autoMapPermissionGroupsByName',
     label: 'Match permission groups by name',
-    description:
-      'When a pushed group has the same name as one of your permission groups, map them automatically. Nothing is created.',
+    description: 'Map directory groups to existing permission groups with the same name.',
   },
 ] as const
 

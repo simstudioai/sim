@@ -14,6 +14,7 @@ import {
   ChipTag,
   Expandable,
   ExpandableContent,
+  Label,
   Switch,
   toast,
 } from '@sim/emcn'
@@ -32,7 +33,10 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useOrganizationWorkspaces,
@@ -107,8 +111,7 @@ function CredentialRow({ credential, onRevoke }: CredentialRowProps) {
     : 'no expiry'
   return (
     <SettingsResourceRow
-      icon={<Key />}
-      title={<span className='font-mono'>{credential.tokenPrefix}…</span>}
+      title={`${credential.tokenPrefix}…`}
       description={`Last used ${formatRelative(credential.lastUsedAt)} · ${expiry}`}
       trailing={
         <RowActionsMenu
@@ -268,7 +271,7 @@ function GroupMappings({ organizationId, active }: GroupMappingsProps) {
             title={group.displayName}
             description={`${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`}
           />
-          <div className='flex flex-col gap-3 pl-[46px]'>
+          <div className='flex flex-col gap-3'>
             {group.mappings.length > 0 && (
               <div className='flex flex-wrap gap-1.5'>
                 {group.mappings.map((mapping) => (
@@ -341,7 +344,7 @@ function ActivityList({ organizationId, active }: ActivityListProps) {
               <ChipTag variant={failed ? 'gray' : 'mono'} invalid={failed}>
                 {entry.status}
               </ChipTag>
-              <span className='truncate font-mono text-[var(--text-primary)]'>
+              <span className='truncate text-[var(--text-body)]'>
                 {entry.method} {entry.path}
               </span>
               <span className='ml-auto shrink-0 text-[var(--text-muted)]'>
@@ -439,7 +442,6 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
               id='scim-base-url'
               value={connection.baseUrl}
               copyLabel='Copy base URL'
-              inputClassName='font-mono'
             />
           </SettingRow>
 
@@ -463,13 +465,15 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
             {connection.credentials.length === 0 ? (
               <SettingsEmptyState variant='inline'>No tokens yet.</SettingsEmptyState>
             ) : (
-              connection.credentials.map((credential) => (
-                <CredentialRow
-                  key={credential.id}
-                  credential={credential}
-                  onRevoke={(credential) => setPendingRevokeId(credential.id)}
-                />
-              ))
+              <div className={RESOURCE_LIST_STACK}>
+                {connection.credentials.map((credential) => (
+                  <CredentialRow
+                    key={credential.id}
+                    credential={credential}
+                    onRevoke={(credential) => setPendingRevokeId(credential.id)}
+                  />
+                ))}
+              </div>
             )}
             <div className='flex flex-wrap items-center gap-2'>
               <ChipSelect
@@ -510,19 +514,18 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
           <ExpandableContent id='scim-rules'>
             <div className='flex flex-col gap-4.5 pt-4'>
               {SETTING_TOGGLES.map((toggle) => (
-                <SettingRow
-                  key={toggle.key}
-                  label={toggle.label}
-                  description={toggle.description}
-                  htmlFor={`scim-${toggle.key}`}
-                >
+                <div key={toggle.key} className='flex items-center justify-between gap-4'>
+                  <div className='flex flex-col gap-1'>
+                    <Label htmlFor={`scim-${toggle.key}`}>{toggle.label}</Label>
+                    <p className='text-[var(--text-muted)] text-caption'>{toggle.description}</p>
+                  </div>
                   <Switch
                     id={`scim-${toggle.key}`}
                     checked={connection.settings[toggle.key] ?? false}
                     onCheckedChange={(checked) => void handleToggleSetting(toggle.key, checked)}
                     disabled={configure.isPending}
                   />
-                </SettingRow>
+                </div>
               ))}
             </div>
           </ExpandableContent>
@@ -563,17 +566,12 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
-            type='custom'
+            type='copy'
             title='Token'
+            value={issuedSecret ?? ''}
+            copyLabel='Copy token'
             hint='Copy it into your identity provider now. Sim stores only a digest and cannot show it again.'
-          >
-            <ChipCopyInput
-              aria-label='Token'
-              value={issuedSecret ?? ''}
-              copyLabel='Copy token'
-              inputClassName='font-mono'
-            />
-          </ChipModalField>
+          />
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setIssuedSecret(null)}
@@ -646,18 +644,20 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
     <div className='flex flex-col gap-7'>
       <SettingsSection label='Directory provisioning'>
         <div className='flex flex-col gap-4.5'>
-          <SettingRow
-            label='Enable directory provisioning'
-            description='Create, update, and deactivate members from your identity provider with SCIM 2.0.'
-            htmlFor='scim-enabled'
-          >
+          <div className='flex items-center justify-between gap-4'>
+            <div className='flex flex-col gap-1'>
+              <Label htmlFor='scim-enabled'>Enable directory provisioning</Label>
+              <p className='text-[var(--text-muted)] text-caption'>
+                Create, update, and deactivate members from your identity provider with SCIM 2.0.
+              </p>
+            </div>
             <Switch
               id='scim-enabled'
               checked={enabled}
               onCheckedChange={(checked) => void handleToggleEnabled(checked)}
               disabled={isLoading || configure.isPending}
             />
-          </SettingRow>
+          </div>
 
           {!enabled && (
             <div className='flex flex-wrap items-center justify-between gap-2'>

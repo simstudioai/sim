@@ -137,7 +137,7 @@ Mapping a permission group to a directory group switches that permission group t
 
 </Steps>
 
-<Image src="/static/enterprise/scim-provisioning.png" alt="Provisioning tab with an active SCIM connection, tokens, provisioning rules, group mappings, and recent activity" width={832} height={1314} />
+<Image src="/static/enterprise/scim-provisioning.png" alt="Provisioning tab with an active SCIM connection, tokens, provisioning rules, group mappings, and recent activity" width={832} height={1284} />
 
 ## How access is withdrawn
 
@@ -149,7 +149,7 @@ With locking off, access held before the directory mapping is preserved. If some
 
 ## Provisioning and SSO together
 
-A member the directory created can sign in with SSO immediately; the two resolve to the same account through your verified domain.
+An active provisioned member can sign in once SSO is configured for their verified domain. Provisioning and SSO resolve to the same account.
 
 To stop SSO from creating organization memberships, open **Provisioning rules → Manage rules** and enable **Disable just-in-time provisioning**. While the SCIM connection is active and entitled, this overrides **Sign-in → First sign-in → Automatic**. Existing organization members can still sign in, including members added by invitation; the setting does not require every existing member to have been provisioned by SCIM.
 

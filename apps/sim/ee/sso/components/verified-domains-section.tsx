@@ -77,7 +77,6 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
               id={`${domain.id}-challenge-host`}
               value={domain.challengeHost}
               copyLabel='Copy host'
-              inputClassName='font-mono'
             />
           </SettingRow>
 
@@ -86,7 +85,6 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
               id={`${domain.id}-challenge-value`}
               value={domain.txtRecordValue}
               copyLabel='Copy value'
-              inputClassName='font-mono'
             />
           </SettingRow>
 
@@ -172,7 +170,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
 
           {isLoading ? (
             <SettingsEmptyState variant='inline'>Loading domains...</SettingsEmptyState>
-          ) : isError ? (
+          ) : data === undefined && isError ? (
             <SettingsQueryErrorState
               error={error}
               fallback='Failed to load verified domains'

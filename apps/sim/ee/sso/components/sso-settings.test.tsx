@@ -28,7 +28,9 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipCombobox: () => <div />,
-  ChipCopyInput: ({ value }: { value?: string }) => <input readOnly value={value ?? ''} />,
+  ChipCopyInput: ({ value, id }: { value?: string; id?: string }) => (
+    <input id={id} readOnly value={value ?? ''} />
+  ),
   ChipInput: ({
     value,
     onChange,
@@ -41,6 +43,29 @@ vi.mock('@sim/emcn', () => ({
     placeholder?: string
   }) => <input id={id} placeholder={placeholder} value={value ?? ''} onChange={onChange} />,
   ChipSelect: () => <div />,
+  ChipModalTabs: ({
+    tabs,
+    value,
+    onChange,
+  }: {
+    tabs: Array<{ label: string; value: string }>
+    value: string
+    onChange: (value: string) => void
+  }) => (
+    <div role='radiogroup'>
+      {tabs.map((tab) => (
+        <button
+          key={tab.value}
+          type='button'
+          role='radio'
+          aria-checked={tab.value === value}
+          onClick={() => onChange(tab.value)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  ),
   ChipSwitch: ({
     options,
     value,
@@ -474,21 +499,11 @@ describe('SSO settings tabs', () => {
     renderSso('org-a')
     startEditing()
     act(() => findButton('Invite only')?.click())
-    act(() =>
-      findButton('Domains')?.dispatchEvent(
-        new MouseEvent('mousedown', { bubbles: true, button: 0 })
-      )
-    )
+    act(() => findButton('Domains')?.click())
     expect(container).toHaveTextContent('Domain ownership settings')
     expect(findButton('Update')).toBeUndefined()
-    expect(container.querySelector('[role="tabpanel"][data-state="inactive"]')).toHaveAttribute(
-      'hidden'
-    )
-    act(() =>
-      findButton('Sign-in')?.dispatchEvent(
-        new MouseEvent('mousedown', { bubbles: true, button: 0 })
-      )
-    )
+    expect(container.querySelector('form')?.closest('[hidden]')).not.toBeNull()
+    act(() => findButton('Sign-in')?.click())
     expect(findButton('Invite only')).toHaveAttribute('aria-pressed', 'true')
     expect(findButton('Update')).toBeDefined()
   })
@@ -501,7 +516,7 @@ describe('SSO settings tabs', () => {
         </NuqsTestingAdapter>
       )
     )
-    expect(container.querySelector('[role="tab"][aria-selected="true"]')).toHaveTextContent(
+    expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
       'Domains'
     )
     expect(container).toHaveTextContent('Domain ownership settings')
@@ -516,8 +531,54 @@ describe('SSO settings tabs', () => {
         </NuqsTestingAdapter>
       )
     )
-    expect(container.querySelector('[role="tab"][aria-selected="true"]')).toHaveTextContent(
+    expect(container.querySelector('[role="radio"][aria-checked="true"]')).toHaveTextContent(
       'Sign-in'
     )
   })
+})
+
+describe('SAML callback URLs', () => {
+  function renderSaml(samlConfig: string) {
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [{ ...provider('org-a'), providerType: 'saml', samlConfig }] },
+      isLoading: false,
+    })
+    renderSso('org-a')
+  }
+
+  function callbackValue() {
+    return container.querySelector<HTMLInputElement>('#sso-callback-url')?.value
+  }
+
+  it('shows the saved override as the copyable ACS URL', () => {
+    const override = 'https://sso.example.com/acs'
+    renderSaml(JSON.stringify({ callbackUrl: override }))
+    expect(callbackValue()).toBe(override)
+  })
+
+  it('keeps the copyable ACS URL in sync with the draft override and its removal', () => {
+    renderSaml(JSON.stringify({ callbackUrl: 'https://sso.example.com/acs' }))
+    startEditing()
+    const input = container.querySelector<HTMLInputElement>('#sso-callback-override')
+    expect(input).not.toBeNull()
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(input, 'https://sso.example.com/updated-acs')
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(callbackValue()).toBe('https://sso.example.com/updated-acs')
+    act(() => {
+      setter?.call(input, '')
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(callbackValue()).toMatch(/\/api\/auth\/sso\/saml2\/callback\/provider-a$/)
+  })
+
+  it.each(['{}', 'null', 'invalid-json'])(
+    'falls back to the generated ACS URL for stored config %s',
+    (samlConfig) => {
+      renderSaml(samlConfig)
+      expect(callbackValue()).toMatch(/\/api\/auth\/sso\/saml2\/callback\/provider-a$/)
+    }
+  )
 })

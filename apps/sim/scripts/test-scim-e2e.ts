@@ -474,6 +474,16 @@ async function run() {
         .body
       assert.equal(record(excluded.name).givenName, 'Alicia')
       assert(!('familyName' in record(excluded.name)))
+      const nonexistent = new URLSearchParams({
+        attributes: `userName.foo,name.givenName.foo,emails.value.foo,${CUSTOM_SCHEMA}:tag.foo`,
+      })
+      const scalarDescendants = (await scim(token, `/Users/${aliceId}?${nonexistent}`)).body
+      assert.deepEqual(Object.keys(scalarDescendants).sort(), ['id', 'meta', 'schemas'])
+      const projectedList = resources((await scim(token, `/Users?${nonexistent}`)).body)
+      assert.equal(projectedList.length, 2)
+      for (const resource of projectedList) {
+        assert.deepEqual(Object.keys(resource).sort(), ['id', 'meta', 'schemas'])
+      }
     }
   )
 
@@ -553,6 +563,10 @@ async function run() {
       )
       const partial = (await scim(token, `/Groups/${groupId}?attributes=members.value`)).body
       assert.deepEqual(partial.members, [{ value: aliceId }])
+      const scalarDescendants = (
+        await scim(token, `/Groups/${groupId}?attributes=displayName.foo,members.value.foo`)
+      ).body
+      assert.deepEqual(Object.keys(scalarDescendants).sort(), ['id', 'meta', 'schemas'])
       const userGroups = (await scim(token, `/Users/${aliceId}?attributes=groups.value`)).body
       assert.deepEqual(userGroups.groups, [{ value: groupId }])
       const list = (

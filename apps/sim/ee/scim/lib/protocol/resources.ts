@@ -286,11 +286,12 @@ function projectAttribute(
     return undefined
   }
   if (Array.isArray(value)) {
-    return value
+    const projected = value
       .map((entry) => projectAttribute(entry, path, projection, included))
       .filter((entry) => entry !== undefined)
+    return included || projected.length > 0 ? projected : undefined
   }
-  if (!isRecord(value)) return value
+  if (!isRecord(value)) return included ? value : undefined
   const projected: Record<string, unknown> = {}
   for (const [key, nested] of Object.entries(value)) {
     const selected = projectAttribute(

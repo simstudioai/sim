@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
+import * as RadioGroup from '@radix-ui/react-radio-group'
 import { cn } from '../../lib/cn'
 import { chipVariants } from '../chip/chip'
 
@@ -63,8 +64,12 @@ export function ChipSwitch<T extends string>({
   className,
 }: ChipSwitchProps<T>) {
   return (
-    <div
-      role='radiogroup'
+    <RadioGroup.Root
+      value={value}
+      onValueChange={(next) => {
+        const option = options.find((entry) => entry.value === next)
+        if (option) onChange(option.value)
+      }}
       aria-label={ariaLabel}
       className={cn(
         'inline-flex w-fit items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
@@ -75,13 +80,9 @@ export function ChipSwitch<T extends string>({
         const Icon = option.icon
         const isActive = option.value === value
         return (
-          <button
+          <RadioGroup.Item
             key={option.value}
-            type='button'
-            role='radio'
-            aria-checked={isActive}
-            data-state={isActive ? 'on' : 'off'}
-            onClick={() => onChange(option.value)}
+            value={option.value}
             className={cn(
               chipVariants({
                 variant: isActive ? 'border-shadow' : 'default',
@@ -94,9 +95,9 @@ export function ChipSwitch<T extends string>({
           >
             {Icon ? <Icon className='size-[14px] shrink-0' /> : null}
             {option.label}
-          </button>
+          </RadioGroup.Item>
         )
       })}
-    </div>
+    </RadioGroup.Root>
   )
 }

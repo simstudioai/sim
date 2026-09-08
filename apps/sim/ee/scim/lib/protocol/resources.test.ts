@@ -169,6 +169,71 @@ describe('attribute projection', () => {
     expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
   })
 
+  it.each([
+    'userName.foo',
+    'active.foo',
+    'name.givenName.foo',
+    'emails.value.foo',
+    'groups.value.foo',
+    'urn:ietf:params:scim:schemas:core:2.0:User:USERNAME.foo',
+    'urn:okta:sim:2.0:user:custom:costCenter.foo',
+    'urn:okta:sim:2.0:user:custom:tags.foo',
+  ])('does not return scalar values for a nonexistent descendant %s', (attributes) => {
+    const base = userRow()
+    const resource = toUserResource(
+      {
+        ...base,
+        attributes: {
+          ...base.attributes,
+          extra: { 'urn:okta:sim:2.0:user:custom': { costCenter: 'R&D', tags: ['staff'] } },
+        },
+      },
+      BASE_URL
+    )
+    const projected = projectResource(resource, parseAttributeProjection({ attributes }))
+    expect(Object.keys(projected).sort()).toEqual(['id', 'meta', 'schemas'])
+    expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
+  })
+
+  it('omits arrays with no matching sub-attributes while retaining valid selections', () => {
+    const projected = projectResource(
+      toUserResource(userRow(), BASE_URL),
+      parseAttributeProjection({ attributes: 'emails.unknown,name.givenName.foo,name.familyName' })
+    )
+    expect(projected).not.toHaveProperty('emails')
+    expect(projected.name).toEqual({ familyName: 'Lovelace' })
+  })
+
+  it('keeps explicitly selected parents even when nonexistent descendants are also requested', () => {
+    const resource = toUserResource(userRow(), BASE_URL)
+    const projected = projectResource(
+      resource,
+      parseAttributeProjection({
+        attributes: 'userName,userName.foo,name,name.givenName.foo,emails,emails.value.foo',
+      })
+    )
+    expect(projected.userName).toBe(resource.userName)
+    expect(projected.name).toEqual(resource.name)
+    expect(projected.emails).toEqual(resource.emails)
+  })
+
+  it('ignores exclusions of nonexistent scalar descendants', () => {
+    const resource = toUserResource(userRow(), BASE_URL)
+    const projected = projectResource(
+      resource,
+      parseAttributeProjection({
+        excludedAttributes: 'userName.foo,name.givenName.foo,emails.value.foo',
+      })
+    )
+    expect(projected).toEqual(resource)
+  })
+
+  it('keeps an explicitly selected empty multi-valued attribute', () => {
+    const resource = toUserResource({ ...userRow(), groups: [] }, BASE_URL)
+    const projected = projectResource(resource, parseAttributeProjection({ attributes: 'groups' }))
+    expect(projected.groups).toEqual([])
+  })
+
   it('projects each multi-valued entry and still loads requested group sub-attributes', () => {
     const projection = parseAttributeProjection({ attributes: 'emails.value,groups.value' })
     const projected = projectResource(toUserResource(userRow(), BASE_URL), projection)

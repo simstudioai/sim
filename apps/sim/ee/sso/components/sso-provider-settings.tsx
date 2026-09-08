@@ -12,17 +12,20 @@ import {
   ChipTextarea,
   Expandable,
   ExpandableContent,
+  Label,
   Switch,
   toast,
 } from '@sim/emcn'
 import { ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { SsoProviderView, SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -95,7 +98,7 @@ function ClientSecretField({
           id={CLIENT_SECRET_FIELD_ID}
           readOnly
           value={storedHint ? `${CLIENT_SECRET_MASK}${storedHint}` : CLIENT_SECRET_MASK}
-          inputClassName='cursor-default font-mono'
+          inputClassName='cursor-default'
           className='min-w-0 flex-1'
           aria-label={
             storedHint ? `Saved client secret ending ${storedHint}` : 'Saved client secret'
@@ -149,12 +152,15 @@ function ClientSecretField({
   )
 }
 
-/** Reads the display-only hint the API attaches beside the redacted client secret. */
-function readClientSecretHint(oidcConfig?: string | null): string | null {
-  if (!oidcConfig) return null
+/** Reads a string from stored provider JSON, tolerating malformed legacy configurations. */
+function readProviderConfigString(
+  serialized: string | null | undefined,
+  field: string
+): string | null {
+  if (!serialized) return null
   try {
-    const hint = JSON.parse(oidcConfig).clientSecretHint
-    return typeof hint === 'string' ? hint : null
+    const config: unknown = JSON.parse(serialized)
+    return isRecordLike(config) && typeof config[field] === 'string' ? config[field] : null
   } catch {
     return null
   }
@@ -218,7 +224,7 @@ export function SsoProviderSettings({
   const hasStoredClientSecret = isEditing && existingProvider?.providerType === 'oidc'
   /** Last four characters of the saved secret, when the API judged it safe to hint. */
   const storedClientSecretHint = hasStoredClientSecret
-    ? readClientSecretHint(existingProvider?.oidcConfig)
+    ? readProviderConfigString(existingProvider?.oidcConfig, 'clientSecretHint')
     : null
 
   const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
@@ -419,7 +425,9 @@ export function SsoProviderSettings({
 
   const isSaml = formData.providerType === 'saml'
   const mappingDefaults = isSaml ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
-  const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
+  const callbackUrl =
+    (isSaml && formData.callbackUrl) ||
+    `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const handleEdit = () => {
     if (!existingProvider) return
@@ -508,7 +516,10 @@ export function SsoProviderSettings({
   }
 
   if (existingProvider && !isEditing) {
-    const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
+    const providerCallbackUrl =
+      (existingProvider.providerType === 'saml' &&
+        readProviderConfigString(existingProvider.samlConfig, 'callbackUrl')) ||
+      `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
       <div className='flex flex-col gap-7'>
@@ -518,25 +529,14 @@ export function SsoProviderSettings({
 
         <SettingsSection label='Identity provider'>
           <div className='flex flex-col gap-4.5'>
-            <SettingRow label='Provider ID'>
-              <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
-            </SettingRow>
-
-            <SettingRow label='Provider Type'>
-              <p className='text-[var(--text-primary)] text-small'>
-                {(existingProvider.providerType ?? 'oidc').toUpperCase()}
-              </p>
-            </SettingRow>
-
-            <SettingRow label='Domain'>
-              <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
-            </SettingRow>
-
-            <SettingRow label='Issuer URL'>
-              <p className='break-all text-[var(--text-primary)] text-small'>
-                {existingProvider.issuer}
-              </p>
-            </SettingRow>
+            <SettingsField label='Provider ID'>{existingProvider.providerId}</SettingsField>
+            <SettingsField label='Provider type'>
+              {(existingProvider.providerType ?? 'oidc').toUpperCase()}
+            </SettingsField>
+            <SettingsField label='Domain'>{existingProvider.domain}</SettingsField>
+            <SettingsField label='Issuer URL' breakAll>
+              {existingProvider.issuer}
+            </SettingsField>
 
             <SettingRow
               htmlFor='sso-callback-url'
@@ -549,7 +549,7 @@ export function SsoProviderSettings({
                 value={providerCallbackUrl}
                 copyLabel='Copy callback URL'
               />
-              <p className='text-[var(--text-muted)] text-small'>
+              <p className='text-[var(--text-muted)] text-caption'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
@@ -570,7 +570,7 @@ export function SsoProviderSettings({
             <p className='text-[var(--text-body)] text-small'>
               {existingJitProvisioningEnabled ? 'Automatic' : 'Invite only'}
             </p>
-            <p className='text-[var(--text-muted)] text-small'>
+            <p className='text-[var(--text-muted)] text-caption'>
               {existingJitProvisioningEnabled
                 ? 'New users join as Members and use a seat. Grant workspace access separately.'
                 : 'Invite or provision new members before they sign in. Existing members keep their access.'}
@@ -678,7 +678,7 @@ export function SsoProviderSettings({
                   value={formData.providerId}
                   copyLabel='Copy provider ID'
                 />
-                <p className='text-[var(--text-muted)] text-small'>
+                <p className='text-[var(--text-muted)] text-caption'>
                   Cannot be changed after saving.
                 </p>
               </>
@@ -692,9 +692,8 @@ export function SsoProviderSettings({
                   placeholder='Select or enter a provider ID'
                   editable
                 />
-                <p className='text-[var(--text-muted)] text-small'>
-                  Unique across Sim, e.g. <span className='font-mono'>acme-entra</span>. Cannot be
-                  changed later.
+                <p className='text-[var(--text-muted)] text-caption'>
+                  Unique across Sim, e.g. acme-entra. Cannot be changed later.
                 </p>
               </>
             )}
@@ -828,7 +827,7 @@ export function SsoProviderSettings({
                           onChange={(e) => handleInputChange('scopes', e.target.value)}
                           error={showErrors && errors.scopes.length > 0}
                         />
-                        <p className='text-[var(--text-muted)] text-small'>
+                        <p className='text-[var(--text-muted)] text-caption'>
                           Comma-separated list of OIDC scopes to request
                         </p>
                       </SettingRow>
@@ -875,7 +874,7 @@ export function SsoProviderSettings({
                           spellCheck={false}
                           onChange={(e) => handleInputChange('jwksEndpoint', e.target.value)}
                         />
-                        <p className='text-[var(--text-muted)] text-small'>
+                        <p className='text-[var(--text-muted)] text-caption'>
                           Sim reads these from the issuer's discovery document. Set them only if
                           your provider does not publish one.
                         </p>
@@ -972,10 +971,10 @@ export function SsoProviderSettings({
                         />
                       </SettingRow>
 
-                      <SettingRow
-                        label='Require signed SAML assertions'
-                        htmlFor='sso-signed-assertions'
-                      >
+                      <div className='flex items-center justify-between gap-4'>
+                        <Label htmlFor='sso-signed-assertions'>
+                          Require signed SAML assertions
+                        </Label>
                         <Switch
                           id='sso-signed-assertions'
                           checked={formData.wantAssertionsSigned}
@@ -983,7 +982,7 @@ export function SsoProviderSettings({
                             handleInputChange('wantAssertionsSigned', checked)
                           }
                         />
-                      </SettingRow>
+                      </div>
 
                       <SettingRow label='NameID format' optional>
                         <ChipSelect
@@ -1025,7 +1024,7 @@ export function SsoProviderSettings({
               value={callbackUrl}
               copyLabel='Copy callback URL'
             />
-            <p className='text-[var(--text-muted)] text-small'>
+            <p className='text-[var(--text-muted)] text-caption'>
               Configure this in your identity provider
             </p>
           </SettingRow>
@@ -1034,7 +1033,7 @@ export function SsoProviderSettings({
           {isSaml && (
             <SettingRow label='SP Entity ID' htmlFor='sso-entity-id'>
               <ChipCopyInput id='sso-entity-id' value={getBaseUrl()} copyLabel='Copy entity ID' />
-              <p className='text-[var(--text-muted)] text-small'>
+              <p className='text-[var(--text-muted)] text-caption'>
                 Use this as Sim's entity ID in your identity provider.
               </p>
             </SettingRow>
@@ -1063,7 +1062,6 @@ export function SsoProviderSettings({
                       autoComplete='off'
                       autoCapitalize='none'
                       spellCheck={false}
-                      inputClassName='font-mono'
                       onChange={(e) => handleInputChange('mapEmail', e.target.value)}
                     />
                   </SettingRow>
@@ -1077,7 +1075,6 @@ export function SsoProviderSettings({
                       autoComplete='off'
                       autoCapitalize='none'
                       spellCheck={false}
-                      inputClassName='font-mono'
                       onChange={(e) => handleInputChange('mapName', e.target.value)}
                     />
                   </SettingRow>
@@ -1091,10 +1088,9 @@ export function SsoProviderSettings({
                       autoComplete='off'
                       autoCapitalize='none'
                       spellCheck={false}
-                      inputClassName='font-mono'
                       onChange={(e) => handleInputChange('mapId', e.target.value)}
                     />
-                    <p className='text-[var(--text-muted)] text-small'>
+                    <p className='text-[var(--text-muted)] text-caption'>
                       Must be stable and unique per user — changing it later re-links accounts.
                     </p>
                   </SettingRow>
@@ -1119,7 +1115,7 @@ export function SsoProviderSettings({
               { value: 'invite-only', label: 'Invite only' },
             ]}
           />
-          <p className='text-[var(--text-muted)] text-small'>
+          <p className='text-[var(--text-muted)] text-caption'>
             {formData.jitProvisioningEnabled
               ? 'New users join as Members and use a seat. Grant workspace access separately.'
               : 'Invite or provision new members before they sign in. Existing members keep their access.'}
