@@ -2307,7 +2307,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           toolCallId: generateId(),
           copilotToolExecution: true,
           copilotInteractionMode: 'interactive',
-          sandboxProfile: 'mothership',
           userPermission: 'write',
           resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
             userId: 'run-reader',
@@ -2682,7 +2681,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               chatId,
               toolCallId: generateId(),
               copilotToolExecution: true,
-              sandboxProfile: 'mothership',
             }
             const mediaReference = await resolveCopilotWorkspaceFileReference(
               context,
