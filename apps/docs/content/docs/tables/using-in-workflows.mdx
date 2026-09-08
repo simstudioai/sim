@@ -4,16 +4,15 @@ description: How a workflow reads, writes, and updates table rows with the Table
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { WorkflowPreview, OutputBundle, TABLE_ENRICH_WORKFLOW, TABLE_ROUNDTRIP_WORKFLOW } from '@/components/workflow-preview'
+import { WorkflowPreview, OutputBundle, TABLE_ENRICH_WORKFLOW } from '@/components/workflow-preview'
 
 A [table](/tables) is a resource: structured rows your workflows read and write. A [Table block](/integrations/table) is the step that does the reading and writing inside a workflow. You pick an operation on the block (query rows, insert a row, update rows), point it at a table, and its result is remembered under the block's name for later blocks to use.
 
 A workflow uses whichever Table operations its task needs. It might read rows to work on, write rows produced elsewhere, update rows in place, or just look something up mid-run. This page covers the operations and shows a few ways to combine them.
 
-Throughout this page the running example is a `leads` table with columns `company`, `email`, `description`, and `status`. The goal is to find unprocessed leads, have an Agent classify each one, and write the category back.
+Throughout this page the running example is a `leads` table with columns `company`, `email`, `description`, `status`, `category`, and `score`. The goal is to find unprocessed leads, have an Agent classify each one, and write the category back.
 
-<WorkflowPreview workflow={TABLE_ENRICH_WORKFLOW} height={180} />
+<WorkflowPreview workflow={TABLE_ENRICH_WORKFLOW} height={300} />
 
 ## The Table block
 
@@ -110,7 +109,7 @@ To change an existing row you either name it or filter for it.
 
 **Update Row by ID** modifies one row. It takes a `Row ID`, often `<table1.rows[0].id>` from an earlier query, and **Row Data** with only the fields you want to change. Unlisted fields stay as they were.
 
-**Update Rows by Filter** changes every row that matches a filter, which is the right tool when you don't know the IDs. In our example, after the Agent classifies leads, the workflow sets `status` to `qualified` on all rows where `status` is `unprocessed`. The output reports `updatedCount` and the list of `updatedRowIds`.
+**Update Rows by Filter** applies the same update to every matching row. Use it for a bulk change, such as marking a selected batch for review. For a different classification per lead, iterate over the queried rows and use **Update Row by ID** for each result. The filter operation reports `updatedCount` and `updatedRowIds`.
 
 {/* VISUAL: before/after of the leads table. Left shows rows with status "unprocessed" and an empty category column; right shows the same rows with category filled in and status "qualified". */}
 
@@ -121,12 +120,12 @@ To change an existing row you either name it or filter for it.
 One way to combine the operations is to query rows, process them, and write the results back. Here, the workflow classifies unprocessed leads:
 
 1. **Table (Query Rows)** reads `leads` where `status` is `unprocessed`.
-2. **Agent** reads a row's fields, classifies it, and returns a [structured output](/workflows/blocks/agent) like `{ category: "enterprise", score: 0.9 }`.
-3. **Table (Update Rows by Filter)** writes the category back and flips `status` to `qualified`.
+2. Add a **For Each** [Loop](/workflows/blocks/loop) over the returned `rows` array.
+3. Inside the loop, an **Agent** reads the current row and returns a [structured output](/workflows/blocks/agent), such as `{ category: "enterprise", score: 0.9 }`.
+4. **Table (Update Row by ID)** uses the current row's ID to write that result and update its status.
 
 After the run, the table holds the enriched rows. The next run queries them again, and the `status` column keeps the workflow from reprocessing what it already handled. So the table serves as both the queue the workflow pulls from and the record of what it has already done.
 
-<WorkflowPreview workflow={TABLE_ROUNDTRIP_WORKFLOW} height={200} />
 
 ## Variations
 
@@ -139,12 +138,3 @@ After the run, the table holds the enriched rows. The next run queries them agai
 ## Inspecting reads and writes
 
 Every Table block's input and output is recorded in [logs](/logs-debugging). For a Query block, the log shows the filter and order it sent and the rows it received. For an Update or Insert, it shows the row data written and the count affected. When a write does nothing or a query comes back empty, the log is where you check the filter and the data shape before looking anywhere else.
-
-## Next
-
-<Cards>
-  <Card title="Table block reference" href="/integrations/table" description="Every operation, field, and filter operator in full." />
-  <Card title="Tables overview" href="/tables" description="Columns, types, and limits of a table." />
-  <Card title="Workflow columns & active tables" href="/tables/workflow-columns" description="Run a workflow automatically against a table's rows." />
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="Reading earlier outputs by reference." />
-</Cards>

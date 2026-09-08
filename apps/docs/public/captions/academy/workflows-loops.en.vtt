@@ -1,0 +1,78 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.740 --> 00:00:05.360
+Loops are one of the most fundamental
+ideas in programming, a way to repeat the
+
+00:00:05.360 --> 00:00:10.460
+same step across a whole set of items. Sim
+gives you two blocks for this, the loop
+
+00:00:10.460 --> 00:00:15.520
+block and the parallel block. They do the
+same job, running whatever's inside once
+
+00:00:15.520 --> 00:00:20.980
+for every item in a collection, but they
+go about it in very different ways. Let me
+
+00:00:20.980 --> 00:00:25.980
+walk you through how each one works and
+when to reach for one over the other. Some
+
+00:00:25.980 --> 00:00:30.360
+jobs are a list. The same steps need to
+run for every item. For that, Sim has the
+
+00:00:30.360 --> 00:00:34.640
+loop, a block that holds other blocks.
+Whatever you place inside it runs once per
+
+00:00:34.640 --> 00:00:39.660
+item. The loop is configured with a
+collection to iterate over. Three items
+
+00:00:39.660 --> 00:00:42.440
+here, so everything inside will run three
+times.
+
+00:00:43.800 --> 00:00:48.500
+Watch the current item reference. On the
+first pass, it resolves to X, the same
+
+00:00:48.500 --> 00:00:53.240
+steps run again with Y and then Z. A loop
+takes the items strictly in order.
+
+00:00:57.700 --> 00:01:02.700
+After the last pass, the loop exits once.
+Downstream, the loop results value is an
+
+00:01:02.700 --> 00:01:08.020
+array holding every pass's output in
+order. Now swap the container to parallel.
+
+00:01:08.020 --> 00:01:12.900
+The steps inside don't change. Only the
+schedule does. References follow the name
+
+00:01:12.900 --> 00:01:18.360
+so the tags update on their own. A
+parallel block runs one copy of the inside
+
+00:01:18.360 --> 00:01:23.200
+for every item, all at the same time. They
+finish together and the same results array
+
+00:01:23.200 --> 00:01:24.200
+comes out.
+
+00:01:27.360 --> 00:01:32.040
+One shape, two schedules. Use a loop when
+the order matters and parallel when it
+
+00:01:32.040 --> 00:01:33.040
+doesn't.

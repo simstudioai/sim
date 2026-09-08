@@ -10,7 +10,8 @@ import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_INVOICE_INTAKE_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
-<VideoPlaceholder eyebrow="Files" title="Files" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/files-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Files" title="Files" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/files-intro.mp4"
+  captionsSrc="/captions/academy/files-intro.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -49,11 +50,9 @@ Sim has native support for **files**, a way to store, reference, and pass around
 
 </div>
 
-## Why you need files
+## Read a document
 
-Most of the work you'd want to automate touches files somewhere. You receive a PDF and need to extract from it. An email needs an image attached. Audio comes in and has to be transcribed. A user uploads a document to process. These aren't edge cases, workflows reference file types as inputs and outputs all the time, so files are a first-class thing in Sim rather than something you work around.
-
-Here is the machine the video follows: an email's attachment read as a file, an agent extracting its fields, and the result written to a table:
+The video follows an email attachment through a File block and an Agent block, then writes the extracted fields to a database:
 
 <WorkflowPreview workflow={AV_INVOICE_INTAKE_WORKFLOW} />
 
@@ -71,7 +70,7 @@ The point isn't a new concept to learn, it's recognizing that the file-based ope
 - Extract structured fields from a batch of PDFs.
 - Produce a rendered document, chart, or audio file as a workflow's output.
 
-If you're thinking "could I automate the thing that involves *that* document?", the answer is almost always yes. Files are how Sim handles the real assets your processes already run on.
+
 
 <FAQ items={[
   { question: "How do files get into a Sim workspace?", answer: "Upload them in a chat, post them to the API, or pull them off an email as attachments with a trigger. However a document arrives, it becomes the same file object inside the workspace." },

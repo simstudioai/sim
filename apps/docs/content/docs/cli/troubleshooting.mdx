@@ -5,9 +5,10 @@ description: The failures whose cause is not obvious from the error message
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Errors print one line to stderr, prefixed `Error:`, and exit `1` — except
-`sim whoami`, which exits `2` when it could not reach the API to check at all.
-Most say what to do next; the cases below are the ones that do not.
+Most command errors print to stderr and exit `1`. `sim whoami` and
+`sim workflows runs wait` use additional codes to distinguish outcomes; see
+[Exit codes](/cli/scripting#exit-codes). The cases below explain failures whose
+cause may not be obvious from the message.
 
 Start with `sim whoami`. It prints the resolved endpoint, workspace, and output
 format, **and where each came from** — which explains most surprises on its own —
@@ -24,9 +25,10 @@ workspace you configured.
 sim whoami
 ```
 
-Note that `sim login` sets the profile's default workspace to whichever one you
-picked on the approval page. It does **not** limit the key to that workspace —
-use `--workspace` to reach any other workspace the key can access.
+API-key pairing sets the default workspace selected on its approval page.
+After OAuth login, set one with `sim configure --set-workspace <id>`.
+The default target does not restrict your credential: use `--workspace` to reach
+another workspace that credential can access.
 
 ## An error ends in `— run: sim login --profile <name>`
 

@@ -92,7 +92,7 @@ The Knowledge block behaves differently depending on what you provide:
 
 | What you provide | Behaviour |
 |-----------------|-----------|
-| **Tags only** (no search query) | Fetches all documents that match the tag filters — pure tag matching, no vector search |
+| **Tags only** (no search query) | Returns matching chunks up to Number of Results, without vector ranking |
 | **Query only** (no tag filters) | Semantic vector search across all documents in the knowledge base |
 | **Both tags and query** | Tag filters run first to narrow the document set, then vector search runs within that subset |
 
@@ -105,9 +105,5 @@ Connectors can auto-populate tags with metadata from the source. A Notion connec
 You can disable specific metadata tag types during connector setup or in connector settings to free up slots for manual use. See [Connectors](/knowledgebase/connectors) for details.
 
 <FAQ items={[
-  { question: "How many tag slots are available?", answer: "17 total: 7 text, 5 number, 2 date, 3 boolean. These are shared across all documents and connectors in a knowledge base." },
   { question: "Can I rename a tag definition?", answer: "No. Tag definitions cannot be renamed after creation. Delete the old definition and create a new one with the correct name. Deleting will remove the tag value from all documents it was assigned to." },
-  { question: "Is tag matching case-sensitive?", answer: "No. Text tag matching is case-insensitive — 'Engineering' and 'engineering' are treated the same." },
-  { question: "Can tag filter values come from workflow variables?", answer: "Yes. Enter a variable reference like <start.department> as the filter value. It resolves to the actual value at runtime, so a single workflow can filter different documents on each run." },
-  { question: "What happens to tag values when I delete a tag definition?", answer: "Deleting a definition removes the tag value from every document it was assigned to and frees the slot. The modal shows you which documents are affected before you confirm." },
 ]} />

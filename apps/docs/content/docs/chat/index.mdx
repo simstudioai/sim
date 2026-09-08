@@ -3,13 +3,12 @@ title: Chat
 description: Your AI command center. Talk to Sim — build and manage everything in natural language.
 ---
 
-import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
 <Video src="mothership/create-workflow.mp4" width={700} height={450} />
 
-Describe what you want and Sim handles it. Build a workflow, run research, generate a presentation, query a table, schedule a recurring job, send a Slack message — Sim knows your entire workspace and takes action directly.
+Use Chat to build workflows, research a topic, generate files, query tables, schedule jobs, and act through connected integrations. Reference the workspace resources you want Sim to use.
 
 ## What You Can Do
 
@@ -24,7 +23,7 @@ Describe what you want and Sim handles it. Build a workflow, run research, gener
 
 ## How It Works
 
-Sim receives a snapshot of your entire workspace with every message — all workflows, tables, knowledge bases, files, credentials, jobs, and integrations. This is why you can refer to things by name without specifying IDs or paths:
+Sim can find workspace resources by name and inspect the details it needs. Reference a resource explicitly when you want to direct its attention:
 
 - "Run the invoice workflow"
 - "Add a row to the leads table"
@@ -66,8 +65,6 @@ Chat has two panes. On the left: the chat thread, where your messages and Sim's 
 
 <FAQ items={[
   { question: "How is Chat different from working inside a single workflow?", answer: "Inside a workflow, Sim is scoped to that workflow — it helps you build and edit that one thing. In Chat, Sim has access to your entire workspace and can build workflows, manage data, run research, schedule jobs, take actions across integrations, and more." },
-  { question: "What model does Sim use?", answer: "Sim always uses Claude Opus 4.6. There is no model selector." },
-  { question: "How do I reference an existing workflow or table?", answer: "Type @ followed by the name in the input, use the + menu, or drag the item from the sidebar into the chat." },
   { question: "How long can a Chat task run?", answer: "Up to one hour. For tasks that exceed that, set up a scheduled job or break the work into steps." },
   { question: "Can Sim work on multiple things at once?", answer: "Sim processes one message at a time. You can queue messages — they will be processed in order." },
 ]} />

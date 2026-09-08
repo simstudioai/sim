@@ -185,7 +185,7 @@ See `helm/sim/values.yaml` for all options, and the chart's [README](https://git
 
 ## Background jobs
 
-The chart deploys 23 CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, OAuth token cleanup, data drains, and outbox processing. They require `CRON_SECRET`; set `cronjobs.enabled=false` to deploy none.
+The chart deploys CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, OAuth token cleanup, data drains, and outbox processing. They require `CRON_SECRET`; set `cronjobs.enabled=false` to deploy none.
 
 ```bash
 kubectl get cronjobs -n simstudio

@@ -3,7 +3,7 @@ title: Output formats
 description: table, json, yaml, and text — what each is for, and how to select one
 ---
 
-Every command renders through the same four formats.
+Commands that return structured API data support four output formats.
 
 | Format | For |
 | --- | --- |
@@ -68,8 +68,11 @@ sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json | jq '.traceSpan
 
 ## Exceptions
 
-`sim profiles` and `sim configure` always print for humans — they report local
-configuration, not API data.
+`sim profiles` and `sim configure` print local configuration for humans.
+`sim files get` writes the file’s raw content to stdout or `--output-file`.
+
+`sim chat` streams reply text in `table` and `text` modes. In `json` or `yaml`
+mode it waits for the finished result and includes the conversation ID.
 
 `sim workflows export` always emits raw JSON, or YAML when the profile says so,
 so that it round-trips through `import`:

@@ -11,20 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Microsoft Dataverse](https://learn.microsoft.com/en-us/power-apps/maker/data-platform/data-platform-intro) is a powerful cloud data platform for securely storing, managing, and interacting with structured business data. The Microsoft Dataverse integration enables you to programmatically create, read, update, delete, and link records in Dataverse tables as part of your workflow and automation needs.
-
-With Microsoft Dataverse integration, you can:
-
-- **List and query records:** Access lists of records or query with advanced filters to find the data you need from any Dataverse table.
-- **Create and update records:** Add new records or update existing ones in any table for use across Power Platform, Dynamics 365, and custom apps.
-- **Delete and manage records:** Remove records as part of data lifecycle management directly from your automation flows.
-- **Associate and disassociate records:** Link related items together or remove associations using entity relationships and navigation properties—essential for reflecting complex business processes.
-- **Work with any Dataverse environment:** Connect to your organization’s environments, including production, sandbox, or Dynamics 365 tenants, for maximum flexibility.
-- **Integrate with Power Platform and Dynamics 365:** Automate tasks ranging from sales and marketing data updates to custom app workflows—all powered by Dataverse's security and governance.
-
-The Dataverse integration empowers solution builders and business users to automate business processes, maintain accurate and up-to-date information, create system integrations, trigger actions, and drive insights—all with robust security and governance.
-
-Connect Microsoft Dataverse to your automations to unlock sophisticated data management, orchestration, and business logic across your apps, teams, and cloud services.
+Use [Microsoft Dataverse](https://learn.microsoft.com/en-us/power-apps/maker/data-platform/data-platform-intro) to manage records and relationships in Dynamics 365, Power Platform, or custom environments. The block also supports queries, bulk operations, file transfer, metadata lookup, and Dataverse actions and functions.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -44,7 +31,7 @@ Associate two records in Microsoft Dataverse via a navigation property. Creates 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Source entity set name \(e.g., accounts\) |
 | `recordId` | string | Yes | Source record GUID |
 | `navigationProperty` | string | Yes | Navigation property name \(e.g., contact_customer_accounts for collection-valued, or parentcustomerid_account for single-valued\) |
@@ -71,7 +58,7 @@ Create multiple records of the same table type in a single request. Each record 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `entityLogicalName` | string | Yes | Table logical name for @odata.type annotation \(e.g., account, contact\). Used to set Microsoft.Dynamics.CRM.\{entityLogicalName\} on each record. |
 | `records` | object | Yes | Array of record objects to create. Each record should contain column logical names as keys. The @odata.type annotation is added automatically. |
@@ -92,7 +79,7 @@ Create a new record in a Microsoft Dataverse table. Requires the entity set name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `data` | object | Yes | Record data as a JSON object with column names as keys |
 
@@ -112,7 +99,7 @@ Delete a record from a Microsoft Dataverse table by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to delete |
 
@@ -131,7 +118,7 @@ Remove an association between two records in Microsoft Dataverse. For collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Source entity set name \(e.g., accounts\) |
 | `recordId` | string | Yes | Source record GUID |
 | `navigationProperty` | string | Yes | Navigation property name \(e.g., contact_customer_accounts for collection-valued, or parentcustomerid_account for single-valued\) |
@@ -155,7 +142,7 @@ Download a file from a file or image column on a Dataverse record. Stores the fi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | Record GUID to download the file from |
 | `fileColumn` | string | Yes | File or image column logical name \(e.g., entityimage, cr_document\) |
@@ -180,7 +167,7 @@ Execute a bound or unbound Dataverse action. Actions perform operations with sid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `actionName` | string | Yes | Action name \(e.g., Merge, GrantAccess, SendEmail\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound actions. |
 | `entitySetName` | string | No | Entity set name for bound actions \(e.g., accounts\). Leave empty for unbound actions. |
 | `recordId` | string | No | Record GUID for bound actions. Leave empty for unbound or collection-bound actions. |
@@ -201,7 +188,7 @@ Execute a bound or unbound Dataverse function. Functions are read-only operation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `functionName` | string | Yes | Function name \(e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound functions. |
 | `entitySetName` | string | No | Entity set name for bound functions \(e.g., systemusers\). Leave empty for unbound functions. |
 | `recordId` | string | No | Record GUID for bound functions. Leave empty for unbound functions. |
@@ -222,7 +209,7 @@ Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `fetchXml` | string | Yes | FetchXML query string. Must include &lt;fetch&gt; root element and &lt;entity&gt; child element matching the table logical name. |
 
@@ -244,7 +231,7 @@ Retrieve table (entity) and column (attribute) definitions for a Microsoft Datav
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entityLogicalName` | string | Yes | Singular table logical name to look up \(e.g., account, contact\) |
 | `select` | string | No | Comma-separated table metadata properties to return \(OData $select, e.g., LogicalName,DisplayName,EntitySetName,PrimaryIdAttribute\) |
 | `includeAttributes` | string | No | Set to "true" to also return the column \(attribute\) definitions for the table |
@@ -270,7 +257,7 @@ Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to retrieve |
 | `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
@@ -292,7 +279,7 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
 | `filter` | string | No | OData $filter expression \(e.g., statecode eq 0\) |
@@ -319,7 +306,7 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `searchTerm` | string | Yes | Search text \(1-100 chars\). Supports simple syntax: + \(AND\), \| \(OR\), - \(NOT\), * \(wildcard\), "exact phrase" |
 | `entities` | string | No | JSON array of search entity configs. Each object: \{"Name":"account","SelectColumns":\["name"\],"SearchColumns":\["name"\],"Filter":"statecode eq 0"\} |
 | `filter` | string | No | Global OData filter applied across all entities \(e.g., "createdon gt 2024-01-01"\) |
@@ -354,7 +341,7 @@ Update multiple records of the same table type in a single request. Each record 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `entityLogicalName` | string | Yes | Table logical name for @odata.type annotation \(e.g., account, contact\). Used to set Microsoft.Dynamics.CRM.\{entityLogicalName\} on each record. |
 | `records` | object | Yes | Array of record objects to update. Each record must include its primary key \(e.g., accountid\) and only the columns being changed. The @odata.type annotation is added automatically. |
@@ -373,7 +360,7 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to update |
 | `data` | object | Yes | Record data to update as a JSON object with column names as keys |
@@ -393,7 +380,7 @@ Upload a file to a file or image column on a Dataverse record. Supports single-r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | Record GUID to upload the file to |
 | `fileColumn` | string | Yes | File or image column logical name \(e.g., entityimage, cr_document\) |
@@ -417,7 +404,7 @@ Create or update a record in a Microsoft Dataverse table. If a record with the g
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to upsert |
 | `data` | object | Yes | Record data as a JSON object with column names as keys |
@@ -439,7 +426,7 @@ Retrieve the current authenticated user information from Microsoft Dataverse. Us
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 
 #### Output
 

@@ -3,7 +3,6 @@ title: Knowledge bases
 description: Create, populate, and query knowledge bases from Chat.
 ---
 
-import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -49,7 +48,7 @@ For knowledge bases that should stay current automatically, connectors sync cont
 
 Connectors are configured through the knowledge base settings, not through Chat. Once connected, all synced content is immediately searchable by Sim and by any Agent block with the knowledge base attached.
 
-Sim ships with 49 built-in connectors, including Notion, Google Drive, Slack, GitHub, Confluence, HubSpot, Salesforce, Gmail, and more.
+Use a [connector](/knowledgebase/connectors) to sync sources such as Notion, Google Drive, Slack, GitHub, or Confluence.
 
 Examples of what you can sync:
 
@@ -78,8 +77,7 @@ Knowledge bases created in Chat are immediately available to Agent blocks in any
 See [Knowledge Base](/knowledgebase) for full details on document processing settings, search configuration, and connector syncing.
 
 <FAQ items={[
-  { question: "How do I attach a knowledge base to a workflow?", answer: "Open the Agent block in the workflow editor, find the Knowledge Base setting, and select the knowledge base by name. Sim can also do this for you: 'Attach the Product Docs knowledge base to the research agent block in the content pipeline workflow.'" },
+  { question: "How do I attach a knowledge base to a workflow?", answer: "Add a Knowledge search tool to the Agent block and select the knowledge base in that tool, or use a Knowledge block before the Agent and reference its results. You can also ask Chat to configure this for you." },
   { question: "What file types can I add to a knowledge base?", answer: "PDFs, markdown files, plain text, and web pages fetched from URLs. Sim handles the parsing and indexing automatically." },
   { question: "Can I add documents to a knowledge base from a workflow run?", answer: "Yes. The Knowledge Base write tool is available to Agent blocks and can be used to add documents programmatically during a workflow run." },
-  { question: "How do I keep a knowledge base up to date?", answer: "Set up a connector to sync from an external source automatically — see Connectors above. For one-off updates, ask Sim to add or replace the document directly." },
 ]} />

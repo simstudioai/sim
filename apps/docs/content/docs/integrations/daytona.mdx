@@ -11,25 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Daytona](https://www.daytona.io/) is secure, elastic infrastructure for running AI-generated code. Daytona provides isolated sandboxes that spin up in milliseconds, giving your agents a safe place to execute shell commands, run code, work with files, and clone repositories — without ever touching your own machines.
-
-**Why Daytona?**
-- **Built for AI-generated code:** Sandboxes are fully isolated runtimes, so untrusted or generated code can run safely with no risk to your infrastructure.
-- **Fast, elastic sandboxes:** Create a sandbox in under a couple hundred milliseconds, use it for one task or keep it alive across a whole session, and let auto-stop and auto-delete intervals clean up after you.
-- **Complete toolbox:** Execute shell commands, run Python, JavaScript, or TypeScript with a built-in code interpreter, transfer files in and out, and clone Git repositories — all through one API.
-- **Programmatic lifecycle control:** Create, list, start, stop, and delete sandboxes on demand, with snapshots, regions, resource sizing, environment variables, and labels.
-
-**Using Daytona in Sim**
-
-Sim's Daytona integration connects your workflows to Daytona with an API key. Twelve operations cover the full sandbox lifecycle and toolbox: create, list, get, start, stop, and delete sandboxes; run code and execute commands inside them; upload, download, and list files; and clone Git repositories.
-
-**Key benefits of using Daytona in Sim:**
-- **Safe code interpreter for agents:** Let an agent write Python, JavaScript, or TypeScript and execute it in an isolated sandbox, then use the output downstream in your workflow.
-- **Real file handling:** Upload workflow files directly into a sandbox, process them with code or commands, and download the results as files other blocks can consume.
-- **Repository automation:** Clone a repository into a sandbox, run installs, builds, or tests, and report the results — perfect for CI-style checks and repo health monitoring.
-- **Cost-aware lifecycle:** Create sandboxes on demand, stop or delete them when work finishes, and use auto-stop intervals so idle sandboxes never run up your bill.
-
-Whether you're building an AI code interpreter, validating generated code before it ships, analyzing data files in a clean environment, or automating repository checks, Daytona in Sim gives your agents real compute with strong isolation. Configure your API key, pick an operation, and start running code.
+Use [Daytona](https://www.daytona.io/) in Sim to create and manage sandboxes, execute shell commands or Python, JavaScript, and TypeScript code, transfer files, and clone repositories. Authenticate with a Daytona API key. Stop or delete sandboxes when work finishes, and configure auto-stop and auto-delete intervals to manage idle resources.
 {/* MANUAL-CONTENT-END */}
 
 

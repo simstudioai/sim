@@ -22,9 +22,7 @@ With AWS CloudTrail, you can:
 - **Query history with SQL**: Run CloudTrail Lake queries across event data stores for analysis that reaches further back than event lookup
 - **Confirm coverage**: Verify that logging is actually enabled and that multi-region and organization trails are delivering
 
-In Sim, CloudTrail is the audit half of the AWS story. Where IAM and Identity Center answer *who has access*, CloudTrail answers *what they actually did with it* — so an agent can take a suspicious permission change and trace it back to the principal, the source IP, and the moment it happened, then hand a written timeline to whoever needs to act on it.
-
-This block is read-only with one narrow exception: `Cancel Query` stops a running CloudTrail Lake query. It never enables or disables logging, alters trail configuration, or deletes a trail. Every operation it ships is covered by this policy, with no residual write risk:
+The block reads event history and trail configuration. `Start Query` runs a billable CloudTrail Lake query; `Cancel Query` stops one. The block does not alter trails or logging configuration. The following policy covers the listed operations:
 
 ```json
 {

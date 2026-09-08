@@ -11,15 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The Logs block gives agents programmatic access to workflow run history in the current workspace. It queries the same run data shown on the Logs page and can fetch full execution detail for any individual run.
-
-With Logs, you can:
-
-- **Query run history**: Filter runs by workflow, folder, status, trigger type, date range, cost, and duration, with sorting and free-text search
-- **Fetch run details**: Retrieve a specific run's status, trigger, timing, cost, and final output by run ID
-- **Inspect execution traces**: Pull the full trace spans for a run to see how it executed step by step
-
-In Sim, the Logs block allows your agents to search and filter workflow run history using the same filters available on the Logs page, then drill into a specific run to retrieve its status, cost, duration, final output, and full trace spans. This lets agents monitor other workflows, audit past executions, and pull execution details programmatically as part of a larger workflow.
+The Logs block queries workflow run history in the current workspace. **Query Logs** filters runs and returns matching run IDs; **Get Run Details** retrieves one run’s status, trigger, timing, cost, final output, and trace spans. See [Using Logs in Workflows](/workflows/blocks/logs) for a query-and-inspect example.
 {/* MANUAL-CONTENT-END */}
 
 

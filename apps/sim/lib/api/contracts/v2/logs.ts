@@ -594,7 +594,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      * local to this resource.
      */
     sortBy: v2LogSortFieldSchemas.sortBy.describe(
-      'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.'
+      'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.'
     ),
     folderPaths: z
       .string()

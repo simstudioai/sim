@@ -3,7 +3,14 @@
  */
 import { BLOCK_Z_BASE, CONTAINER_CHILD_Z_BASE, getEdgeZIndex } from '@sim/workflow-renderer'
 import { describe, expect, it } from 'vitest'
-import { type PreviewBlock, type PreviewWorkflow, toReactFlowElements } from './workflow-data'
+import * as academyWorkflows from '@/components/workflow-preview/academy-video-workflows'
+import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
+import * as exampleWorkflows from '@/components/workflow-preview/examples'
+import {
+  type PreviewBlock,
+  type PreviewWorkflow,
+  toReactFlowElements,
+} from '@/components/workflow-preview/workflow-data'
 
 const block = (
   overrides: Partial<PreviewBlock> & Pick<PreviewBlock, 'id' | 'type'>
@@ -59,5 +66,43 @@ describe('toReactFlowElements layering', () => {
     expect(nodeById.get('start')?.zIndex).toBe(BLOCK_Z_BASE)
     expect(nodeById.get('agent')?.zIndex).toBe(CONTAINER_CHILD_Z_BASE)
     expect(edgeById.get('loop-agent')?.zIndex).toBe(getEdgeZIndex(0))
+  })
+})
+
+describe('authored canvas presentation', () => {
+  const workflows = [
+    ...Object.values(exampleWorkflows),
+    ...Object.values(academyWorkflows),
+    ...Object.values(BLOCK_DISPLAY_WORKFLOWS),
+  ]
+
+  it('keeps sentence slots connected to example values or named empty states', () => {
+    for (const workflow of workflows) {
+      for (const block of workflow.blocks) {
+        expect(block.typeLabel, `${workflow.id}/${block.id}`).toBeTruthy()
+        if (block.size || block.branches) continue
+        expect(block.sentence?.length, `${workflow.id}/${block.id}`).toBeGreaterThan(0)
+        for (const segment of block.sentence ?? []) {
+          if (typeof segment === 'string') continue
+          expect(
+            Boolean(segment.noun) ||
+              block.rows.some((row) => row.title === segment.subBlockId) ||
+              (segment.subBlockId === 'Tools' && Boolean(block.tools?.length)),
+            `${workflow.id}/${block.id}/${segment.subBlockId}`
+          ).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('renders an error port exactly when the authored workflow connects that output', () => {
+    for (const workflow of workflows) {
+      const { nodes } = toReactFlowElements(workflow)
+      for (const node of nodes.filter((node) => node.type === 'previewBlock')) {
+        expect(node.data.hasErrorConnection).toBe(
+          workflow.edges.some((edge) => edge.source === node.id && edge.sourceHandle === 'error')
+        )
+      }
+    }
   })
 })

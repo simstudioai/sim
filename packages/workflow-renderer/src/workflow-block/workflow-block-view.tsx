@@ -11,7 +11,15 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
+import {
+  Badge,
+  ChipTag,
+  chipIconSlotClass,
+  cn,
+  handleKeyboardActivation,
+  Switch,
+  Tooltip,
+} from '@sim/emcn'
 import { Ban, Lock } from '@sim/emcn/icons'
 import {
   WORKFLOW_SOURCE_HANDLE_ID,
@@ -182,6 +190,93 @@ export const getWorkflowTypeRole = (type: string): WorkflowTypeRole =>
 
 export const getWorkflowTypeAccent = (type: string) =>
   WORKFLOW_ROLE_ACCENTS[getWorkflowTypeRole(type)]
+
+/**
+ * Slot sizes the tile ships in: the 18px detail header, the canvas 16px chip,
+ * or 14px for dense rows.
+ */
+const TILE_SIZE_CLASS = {
+  lg: 'size-[18px]',
+  md: 'size-[16px]',
+  sm: 'size-[14px]',
+} as const
+
+/** Icon drawn inside each slot. Only the header tile takes the larger glyph. */
+const TILE_ICON_SIZE_CLASS = {
+  lg: 'size-[12px]',
+  md: 'size-[10px]',
+  sm: 'size-[10px]',
+} as const
+
+export interface BlockTileViewProps
+  extends Omit<HTMLAttributes<HTMLElement>, 'children' | 'style'> {
+  /**
+   * Block the tile represents; decides whether it takes the canvas role accent.
+   * Omitted by rows that name no block, such as catalog and section headers.
+   */
+  blockType?: string
+  /** Resolved icon from the caller's registry or static catalog. */
+  icon?: ComponentType<{ className?: string }>
+  /** Provider fill, used only when the block takes no accent. */
+  bgColor?: string
+  /** Drawn on the provider tile when there is no icon — usually a name initial. */
+  fallbackLabel?: string
+  useAccent: boolean
+  size?: keyof typeof TILE_SIZE_CLASS
+}
+
+/** Shared block tile; callers resolve registry metadata before rendering. */
+export function BlockTileView({
+  blockType,
+  icon,
+  bgColor,
+  fallbackLabel,
+  size = 'md',
+  useAccent,
+  className,
+  ...props
+}: BlockTileViewProps) {
+  const Icon = icon
+  const sizeClass = cn(TILE_SIZE_CLASS[size], className)
+  const iconSizeClass = TILE_ICON_SIZE_CLASS[size]
+
+  if (blockType && Icon && useAccent) {
+    return (
+      <WorkflowTypeIcon
+        type={blockType}
+        Icon={Icon}
+        className={sizeClass}
+        iconClassName={iconSizeClass}
+        {...props}
+      />
+    )
+  }
+
+  const fill = bgColor
+  const foregroundClass = isLightTileColor(fill) ? 'text-black!' : 'text-white!'
+
+  return (
+    <div
+      className={cn(chipIconSlotClass, 'overflow-hidden rounded-md [&_img]:size-full', sizeClass)}
+      style={{ background: fill }}
+      {...props}
+    >
+      {Icon ? (
+        <Icon
+          className={cn(
+            iconSizeClass,
+            'transition-transform duration-100 group-hover:scale-110',
+            foregroundClass
+          )}
+        />
+      ) : (
+        fallbackLabel && (
+          <span className={cn('font-bold text-micro', foregroundClass)}>{fallbackLabel}</span>
+        )
+      )}
+    </div>
+  )
+}
 
 export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   type: string
@@ -456,7 +551,7 @@ export interface WorkflowBlockViewProps {
   onReactivateWebhook?: () => void
 
   /** Selects this block in the editor panel. */
-  onSelect: () => void
+  onSelect?: () => void
   /** Ref attached to the inner content container. */
   contentRef?: Ref<HTMLDivElement>
   /** Editor-only action bar; omit in read-only / preview contexts. */
@@ -849,10 +944,10 @@ export function WorkflowBlockView({
       )}
       <div
         ref={contentRef}
-        role='button'
-        tabIndex={0}
+        role={onSelect ? 'button' : undefined}
+        tabIndex={onSelect ? 0 : undefined}
         onClick={onSelect}
-        onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
+        onKeyDown={onSelect ? (event) => handleKeyboardActivation(event, onSelect) : undefined}
         className={cn(
           'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-2xl [&:active]:cursor-grabbing'
         )}

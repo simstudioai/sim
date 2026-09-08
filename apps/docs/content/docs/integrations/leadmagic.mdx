@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[LeadMagic](https://leadmagic.io/) is a B2B contact and company data platform for finding and enriching emails, direct mobile numbers, LinkedIn profiles, and firmographics from minimal input.
-
-With LeadMagic, you can:
-
-- **Find and validate work emails:** Resolve verified work emails by name or company, and check the deliverability of an existing address.
-- **Find direct mobile numbers:** Look up mobile phone numbers for a contact.
-- **Enrich and cross-reference profiles:** Enrich a LinkedIn profile, reverse-lookup a profile from an email, or find the email behind a profile.
-- **Research accounts:** Search companies by domain and identify the people holding a given role at an account.
-- **Check your credit balance:** Monitor remaining LeadMagic credits before running large jobs.
-
-In Sim, the LeadMagic integration lets your agents find, verify, and enrich B2B contacts and companies inside a workflow — automating lead generation, account research, and CRM enrichment without leaving Sim.
+Use [LeadMagic](https://leadmagic.io/) to find or verify contact details, enrich profiles and companies, and identify people in a given role. Check the credit balance before running large enrichment jobs.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -124,7 +114,7 @@ Enrich a LinkedIn profile with work history, education, skills, and contact data
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `profile_url` | string | Yes | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe\) |
+| `profile_url` | string | Yes | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe) |
 | `extended_response` | boolean | No | Include additional profile image URL in the response \(default: false\) |
 | `apiKey` | string | Yes | LeadMagic API Key |
 
@@ -160,7 +150,7 @@ Extract a verified work email from a LinkedIn profile URL. Charges 5 credits whe
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `profile_url` | string | Yes | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe\) |
+| `profile_url` | string | Yes | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe) |
 | `apiKey` | string | Yes | LeadMagic API Key |
 
 #### Output
@@ -201,7 +191,7 @@ Enrich company data including firmographics, headcount, funding, and social prof
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `company_domain` | string | No | Company website domain \(e.g., stripe.com\). Provide at least one identifier. |
-| `profile_url` | string | No | LinkedIn company profile URL \(e.g., https://linkedin.com/company/stripe\). Provide at least one identifier. |
+| `profile_url` | string | No | LinkedIn company profile URL \(e.g., https://linkedin.com/company/stripe). Provide at least one identifier. |
 | `company_name` | string | No | Company name \(fallback if domain/URL unavailable\). Provide at least one identifier. |
 | `apiKey` | string | Yes | LeadMagic API Key |
 

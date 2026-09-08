@@ -257,7 +257,7 @@ curl -N -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
 
 The `X-Sim-Stream-Protocol` header is **required** whenever either flag is set — it declares that your client understands agent-event framing. Setting a flag without it returns `400` rather than silently ignoring the flag. The header also switches answer text to live token-by-token delivery that `chunk_reset` can retract.
 
-Both flags default to `false` and the header is optional on its own, so existing integrations keep the exact frames they receive today. Tool frames carry the tool name and status only; arguments and results arrive in the terminal `final` envelope. Not every model exposes thinking. See [Agent stream events](/docs/workflows/deployment/agent-events) for the frame shapes, a reference client, and per-provider support.
+Both flags default to `false` and the header is optional on its own, so existing integrations keep the exact frames they receive today. Tool frames carry the tool name and status only; arguments and results arrive in the terminal `final` envelope. Not every model exposes thinking. See [Agent stream events](/workflows/deployment/agent-events) for the frame shapes, a reference client, and per-provider support.
 
 #### Oversized outputs
 
@@ -356,7 +356,7 @@ curl "https://sim.ai/api/v2/workflows/{workflow-id}/runs/{runId}?includeOutput=t
 | `failed` | Execution failed — `error` field contains the message |
 | `cancelled` | Execution was cancelled |
 
-Poll the `statusUrl` from the initial response until the status is `completed` or `failed`.
+Poll the `statusUrl` from the initial response until the status is `completed`, `failed`, or `cancelled`. A `paused` run is waiting to be resumed.
 
 #### Execution Time Limits
 
@@ -402,12 +402,6 @@ API calls are subject to rate limits based on your plan. Rate limit details are 
 For detailed rate limit information and the logs/webhooks API, see [External API](/api-reference/getting-started).
 
 <FAQ items={[
-  { question: "What is the difference between the General tab and the API tab?", answer: "The General tab manages your deployment lifecycle — deploying, updating, rolling back, and viewing version history. The API tab gives you ready-to-use code samples and lets you configure the endpoint's description and access mode." },
   { question: "Can I deploy the same workflow as both an API and a chat?", answer: "Yes. A workflow can be simultaneously deployed as an API, chat, MCP tool, and more. Each deployment type runs against the same active snapshot." },
-  { question: "How do I choose between sync, streaming, and async?", answer: "Use sync for quick workflows that finish in seconds. Use streaming when you want to show progressive output to users as it's generated. Use async for long-running workflows where holding a connection open isn't practical." },
-  { question: "How do I select multiple outputs for streaming?", answer: "Open the Select outputs dropdown in the API tab and check each output field you want to stream. You can choose fields from multiple blocks. The selected fields are reflected as an array in the selectedOutputs request body parameter." },
-  { question: "Can I stream an Agent block's thinking and tool calls over the API?", answer: "Yes. Set includeThinking and/or includeToolCalls to true in the request body and send the X-Sim-Stream-Protocol: agent-events-v1 header, which declares that your client understands agent-event framing. Setting a flag without the header returns 400 rather than silently ignoring it. Both flags default to false, so existing integrations are unaffected. Thinking arrives as thinking frames and tool lifecycle as tool frames carrying name and status only — tool arguments and results stay in the final envelope." },
-  { question: "How does Promote to live work?", answer: "Promote to live sets an older version as the active deployment without creating a new version. Subsequent API calls immediately run against the promoted snapshot. This is the fastest way to roll back to a previous state." },
-  { question: "How long are async job results available?", answer: "Completed and failed job results are retained for 24 hours. After that, the status endpoint returns 404. Retrieve and store results on your end if you need them longer." },
   { question: "What happens if my API key is compromised?", answer: "Revoke the key immediately in Settings → Sim Keys and generate a new one. Revoked keys stop working instantly." },
 ]} />

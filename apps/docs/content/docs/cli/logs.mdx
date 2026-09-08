@@ -89,7 +89,7 @@ sim logs list [options]
 | `--include-job-runs` | No | Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`. |
 | `--no-include-job-runs` | No | Send --include-job-runs as false. |
 | `--run-id <value>` | No | Exact run identifier to match. |
-| `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
+| `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 

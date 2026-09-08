@@ -46,6 +46,7 @@ export function BlockInfoCard({
 
   return (
     <div
+      aria-hidden='true'
       className='mb-6 flex items-center justify-center overflow-hidden rounded-lg p-8'
       style={{ background: color }}
     >

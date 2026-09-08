@@ -43,7 +43,7 @@ A drain exports exactly one source. To export multiple sources, create multiple 
 
 Each row is delivered as a single line of NDJSON. The shape of each row is part of the public schema and stable across versions; every row carries an `id` field that downstream consumers can use to dedupe.
 
-Drains export each row exactly once based on its creation cursor. Mutable fields on **Chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
+Drains select new rows by their creation cursor and deliver them at least once. A failed run can deliver a row again, so consumers should deduplicate by its `id`. Mutable fields on **Chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
 
 ---
 
@@ -96,7 +96,7 @@ For sovereign clouds, set **Endpoint suffix** to `blob.core.usgovcloudapi.net` (
 Streams each row into a target table via the `tabledata.insertAll` API, with per-row insertId dedup.
 
 - **Project ID** — your GCP project (supports domain-scoped IDs like `example.com:my-project`).
-- **Dataset ID / Table ID** — must already exist; Sim does not create tables. The table schema must accommodate the source's row shape (one column per top-level field, or a single `JSON`/`STRING` column with the rest as `ignoreUnknownValues`).
+- **Dataset ID / Table ID** — must already exist; Sim does not create tables. The table schema must match the source row shape, with a compatible column for each top-level field. Sim sends those fields directly and sets `ignoreUnknownValues` to `false`; it does not wrap the row in a single JSON or STRING column.
 - **Service account JSON key** — needs `roles/bigquery.dataEditor` (insert) and `roles/bigquery.metadataViewer` (for the `tables.get` probe used by "Test connection"). Sim authenticates via OAuth2 service-account JWT.
 
 Each row is sent with an `insertId` of `{drainId}-{runId}-{sequence}-{index}`. BigQuery dedupes inserts with the same `insertId` for ~60 seconds, so retries inside that window won't duplicate. If a chunk reports partial failure (`insertErrors`), the run fails with the offending row indices and an outer-driver retry may duplicate rows that already succeeded — the dispatcher's bounded retry minimizes this risk. Enforced per-request limits: 10 MB body, 50,000 rows.
@@ -222,7 +222,7 @@ After data lands in your bucket or webhook system, archive lifecycle (transition
   },
   {
     question: "What format is the data in?",
-    answer: "NDJSON — newline-delimited JSON, one row per line. Each chunk is a single S3 object or a single POST body."
+    answer: "Object-storage and webhook destinations receive NDJSON, one row per line. BigQuery, Snowflake, and Datadog use the destination-specific payloads described above."
   }
 ]} />
 

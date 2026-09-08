@@ -9,11 +9,13 @@ import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Build visually in the workflow builder, conversationally in **Chat**, or with code through the API. Connect 1,000+ integrations and every major LLM to create agents that automate real work.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Build visually in the workflow builder, conversationally in **Chat**, or with code through the API. Connect the integration catalog and every major LLM to create agents that automate real work.
 
 <div className="mx-auto w-full overflow-hidden rounded-lg my-6">
   <Image
     src="/static/introduction.png"
+    loading="eager"
+    fetchPriority="high"
     alt="Sim workflow editor with an empty canvas, Editor panel, and workspace navigation"
     width={2304}
     height={1600}
@@ -61,7 +63,7 @@ A Sim system is not a single chat response. It is a set of resources that live i
 
 ## Integrations
 
-Sim provides native integrations with 1,000+ services:
+Sim provides native integrations with supported services:
 
 - **AI models.** OpenAI, Anthropic, Google Gemini, Groq, Cerebras, and local models via Ollama or VLLM.
 - **Communication.** Gmail, Slack, Microsoft Teams, Telegram, WhatsApp.
@@ -95,12 +97,6 @@ For anything not built in, [MCP support](/agents/mcp) connects any external serv
 </Cards>
 
 <FAQ items={[
-  { question: "Is Sim free to use?", answer: "Sim offers a free Community plan with 1,000 one-time credits to get started. Paid plans start at $25/month (Pro) with 6,000 monthly credits and go up to $100/month (Max) with 25,000 monthly credits. Annual billing is available at a 15% discount. You can also self-host Sim for free on your own infrastructure." },
   { question: "Is Sim open source?", answer: "Yes. Sim is open source under the Apache 2.0 license. The full source code is available on GitHub and you can self-host it, contribute to development, or modify it for your own needs. Enterprise features (SSO, access control) have a separate license that requires a subscription for production use." },
-  { question: "Which AI models and providers are supported?", answer: "Sim supports 15+ providers including OpenAI, Anthropic, Google Gemini, Groq, Cerebras, DeepSeek, Mistral, xAI, and OpenRouter. You can also run local models through Ollama or VLLM at no API cost. Bring Your Own Key (BYOK) is supported so you can use your own API keys at base provider pricing with no markup." },
-  { question: "Do I need coding experience to use Sim?", answer: "No. You build agents conversationally in Chat, visually by connecting blocks in the workflow builder, or with code. For advanced cases, the Function block runs custom JavaScript, and the full API and SDK are available for programmatic access." },
   { question: "Can I self-host Sim?", answer: "Yes. Sim provides Docker Compose configurations for self-hosted deployments. The stack includes the Sim application, a PostgreSQL database with pgvector, and a realtime collaboration server. You can also integrate local AI models via Ollama for a fully offline setup." },
-  { question: "Is there a limit on how many workflows I can create?", answer: "There is no limit on the number of workflows you can create on any plan. Usage limits apply to execution credits, rate limits, and file storage, which vary by plan tier." },
-  { question: "What integrations are available?", answer: "Sim offers 1,000+ native integrations across categories including AI models, communication tools (Gmail, Slack, Teams, Telegram), productivity apps (Notion, Google Workspace, Airtable), development tools (GitHub, Jira, Linear), search services (Google Search, Perplexity, Exa), and databases (PostgreSQL, Supabase, Pinecone). For anything not built in, you can use the MCP (Model Context Protocol) support to connect custom services." },
-  { question: "How does Sim compare to other AI agent builders?", answer: "Sim is an AI workspace. Chat, the visual workflow builder, knowledge bases, tables, and full observability live in one environment, so teams build agents visually, conversationally, or with code. Then they deploy and manage those agents with enterprise governance, real-time collaboration, and staging-to-production workflows." },
 ]} />

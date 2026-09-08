@@ -936,7 +936,7 @@ export const v2KnowledgeSearchBodySchema = z
       .max(100, 'topK cannot exceed 100')
       .default(10)
       .describe(
-        'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
+        'Maximum number of search results to return. Must be a whole number between 1 and 100.'
       ),
     tagFilters: z
       .array(v2KnowledgeSearchTagFilterSchema)

@@ -8,7 +8,7 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { FAQ } from '@/components/ui/faq'
 
 <Callout type="warn">
-  **On a self-hosted deployment, integrations do not work until you register your own OAuth application with each service.** Sim's hosted platform ships credentials for every integration; a self-hosted instance ships none. Users will see the connector in the UI, click "Connect", and get an error from the provider until the corresponding `*_CLIENT_ID` and `*_CLIENT_SECRET` are set.
+  **OAuth integrations need your own provider application on a self-hosted deployment.** Configure the OAuth services your team uses; API-key integrations can instead use keys supplied in their blocks. Users will see the connector in the UI, click "Connect", and get an error from the provider until the corresponding `*_CLIENT_ID` and `*_CLIENT_SECRET` are set.
 </Callout>
 
 You only need to register the services your team actually uses. One OAuth app covers every Sim connector that shares its credential — a single Google app serves Gmail, Drive, Sheets, Calendar, Docs, Forms, BigQuery, and more.
@@ -213,7 +213,7 @@ When enabling the native Sim Slack trigger, configure all three variables togeth
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 
 <FAQ items={[
-  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for the integrations your team uses. Nothing breaks if a provider's credentials are unset — that connector simply cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 9, so most deployments need only a handful of registrations."},
+  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for OAuth integrations your team uses. API-key integrations do not require an OAuth application. If an OAuth provider's credentials are unset, its connector cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 9, so most deployments need only a handful of registrations."},
   { question: "Users get a redirect_uri_mismatch error. What is wrong?", answer: "Almost always NEXT_PUBLIC_APP_URL does not match the URI registered with the provider. Check for http vs https, a trailing slash, an apex-vs-www difference, or a port. The URI Sim sends is built from NEXT_PUBLIC_APP_URL at request time."},
   { question: "Can I use the same OAuth app for staging and production?", answer: "Yes, if the provider allows multiple redirect URIs on one app — register both hosts. Providers that allow only one URI need a separate app per environment."},
   { question: "Why does the Instagram integration need cloud storage?", answer: "Meta fetches media from a public HTTPS URL rather than accepting an upload, so published files must live in S3, Azure Blob, or GCS. Local-disk storage cannot serve them. Gmail attachments and other integrations do not have this constraint." },

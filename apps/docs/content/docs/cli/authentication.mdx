@@ -186,8 +186,8 @@ disk but does **not** revoke it. Revoke keys under **Settings → API keys**.
 
 ## Authenticating CI
 
-Set an API key and workspace in the environment; the CLI never reads or writes
-a config file, and an explicit key outranks any stored login:
+Set an API key and workspace in the environment; no saved login is required,
+and the environment key overrides any stored login:
 
 ```bash
 export SIM_API_KEY="sim_…"
@@ -258,10 +258,10 @@ sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
 OAuth sign-in is available by default when server authentication is enabled.
-`DISABLE_AUTH=true` disables OAuth. Older servers without OAuth support use the
-pairing-code handoff. Keep the database schema current and drain app instances
-that predate the OAuth token-family lifecycle before accepting OAuth traffic.
-See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim).
+`DISABLE_AUTH=true` disables OAuth. Servers without OAuth use the pairing-code
+handoff when they support platform API keys. See
+[Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for
+server configuration and upgrade requirements.
 
 ## Where the login is stored
 

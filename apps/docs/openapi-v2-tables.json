@@ -10583,7 +10583,32 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Bulk delete tables response",
-        "description": "Per-item outcome of a bulk table and folder delete."
+        "description": "Per-item outcome of a bulk table and folder delete.",
+        "examples": [
+          {
+            "data": {
+              "deleted": [
+                {
+                  "kind": "table",
+                  "id": "tbl_7c9e6679742540de944be07fc1f90ae7",
+                  "name": "Leads"
+                },
+                {
+                  "kind": "folder",
+                  "id": "/Sales/Archive",
+                  "name": "/Sales/Archive"
+                }
+              ],
+              "skipped": [],
+              "notFound": [],
+              "failed": [],
+              "deletedItems": {
+                "tables": 1,
+                "folders": 1
+              }
+            }
+          }
+        ]
       },
       "BulkDeleteTablesRequest": {
         "type": "object",

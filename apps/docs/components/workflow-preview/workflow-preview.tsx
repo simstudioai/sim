@@ -1,16 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Chip } from '@sim/emcn'
 import { Expand, X } from '@sim/emcn/icons'
 import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import {
-  applyEdgeChanges,
   applyNodeChanges,
   type EdgeProps,
   type EdgeTypes,
   getSmoothStepPath,
   type NodeTypes,
-  type OnEdgesChange,
   type OnNodesChange,
   ReactFlow,
   ReactFlowProvider,
@@ -22,6 +21,7 @@ import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
 import { FitViewAfterInit } from '@/components/workflow-preview/fit-view-after-init'
+import { PreviewSelectionContext } from '@/components/workflow-preview/preview-selection-context'
 import {
   EASE_OUT,
   type PreviewBlock,
@@ -98,8 +98,8 @@ const NODE_TYPES = {
 } satisfies NodeTypes
 const EDGE_TYPES = { previewEdge: PreviewEdge } satisfies EdgeTypes
 const PRO_OPTIONS = { hideAttribution: true }
-const FIT_VIEW_OPTIONS = { padding: 0.25, maxZoom: 1 } as const
-const LIGHTBOX_FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1.4 } as const
+const FIT_VIEW_OPTIONS = { padding: 0.25 } as const
+const LIGHTBOX_FIT_VIEW_OPTIONS = { padding: 0.3 } as const
 
 /** Field titles rendered as multiline text in the inspector. */
 const TEXTAREA_TITLES = new Set(['Messages', 'Prompt', 'Code', 'Data', 'Body', 'Display'])
@@ -181,48 +181,38 @@ function PreviewFlow({
 
   const colorMode = useCanvasColorMode()
 
-  const [nodes, setNodes] = useState<PreviewNode[]>(initialNodes)
-  const [edges, setEdges] = useState<PreviewFlowEdge[]>(initialEdges)
+  const [nodeState, setNodeState] = useState<PreviewNode[]>(initialNodes)
 
-  /**
-   * Apply data changes (highlight/selection) without discarding positions the
-   * viewer has dragged — only a different workflow should relayout the canvas.
-   */
-  useEffect(() => {
-    setNodes((prev) => {
-      const positions = new Map(prev.map((node) => [node.id, node.position]))
-      return initialNodes.map((node) => {
-        const position = positions.get(node.id)
-        return position ? { ...node, position } : node
-      })
+  const nodes = useMemo(() => {
+    const nodesById = new Map(nodeState.map((node) => [node.id, node]))
+    return initialNodes.map((node) => {
+      const stored = nodesById.get(node.id)
+      return stored ? { ...stored, ...node, position: stored.position } : node
     })
-    setEdges(initialEdges)
-  }, [initialNodes, initialEdges])
+  }, [initialNodes, nodeState])
 
   const onNodesChange: OnNodesChange<PreviewNode> = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  )
-  const onEdgesChange: OnEdgesChange<PreviewFlowEdge> = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+    (changes) => setNodeState((current) => applyNodeChanges(changes, current)),
     []
   )
 
   return (
-    <>
+    <PreviewSelectionContext value={onNodeClick}>
       <ReactFlow<PreviewNode, PreviewFlowEdge>
         colorMode={colorMode}
         zIndexMode={CANVAS_Z_INDEX_MODE}
         nodes={nodes}
-        edges={edges}
+        edges={initialEdges}
         onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
         onPaneClick={onPaneClick}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         defaultEdgeOptions={{ type: 'previewEdge' }}
         elementsSelectable={false}
+        nodesFocusable={false}
+        edgesFocusable={false}
+        disableKeyboardA11y
         nodesDraggable
         nodesConnectable={false}
         zoomOnScroll={interactive}
@@ -234,10 +224,11 @@ function PreviewFlow({
         autoPanOnNodeDrag={false}
         proOptions={PRO_OPTIONS}
         minZoom={0.1}
-        className='h-full w-full [--xy-background-color:var(--bg)]'
-      />
-      <FitViewAfterInit options={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS} />
-    </>
+        className='h-full w-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
+      >
+        <FitViewAfterInit options={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS} />
+      </ReactFlow>
+    </PreviewSelectionContext>
   )
 }
 
@@ -262,24 +253,22 @@ export function WorkflowPreview({
   const [expanded, setExpanded] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    if (!expanded) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpanded(false)
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (!expanded) {
+      dialog.close()
+      return
     }
-    document.addEventListener('keydown', onKey)
     const previousOverflow = document.body.style.overflow
-    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
     document.body.style.overflow = 'hidden'
-    document.body.classList.add('wp-lightbox-open')
+    dialog.showModal()
     closeButtonRef.current?.focus()
     return () => {
-      document.removeEventListener('keydown', onKey)
+      dialog.close()
       document.body.style.overflow = previousOverflow
-      document.body.classList.remove('wp-lightbox-open')
-      previouslyFocusedRef.current?.focus()
     }
   }, [expanded])
 
@@ -310,28 +299,38 @@ export function WorkflowPreview({
         </ReactFlowProvider>
         <button
           type='button'
-          aria-label='Expand workflow preview'
+          aria-label={`Expand ${workflow.name} workflow preview`}
           onClick={() => openWith(null)}
-          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--text-primary)] group-hover:opacity-100'
+          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-2 group-hover:opacity-100'
         >
           <Expand className='size-[13px]' />
         </button>
       </div>
 
-      {expanded && (
-        <div
-          className='fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm'
-          onClick={() => setExpanded(false)}
-          onKeyDown={() => {}}
-          role='presentation'
-        >
-          <div
-            className='relative flex h-[86vh] w-[92vw] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={() => {}}
-            role='presentation'
-          >
-            <div className='relative min-w-0 flex-1'>
+      <dialog
+        ref={dialogRef}
+        aria-label={`${workflow.name} workflow preview`}
+        onCancel={(event) => {
+          event.preventDefault()
+          setExpanded(false)
+        }}
+        onClose={() => setExpanded(false)}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) return
+          const bounds = event.currentTarget.getBoundingClientRect()
+          if (
+            event.clientX < bounds.left ||
+            event.clientX > bounds.right ||
+            event.clientY < bounds.top ||
+            event.clientY > bounds.bottom
+          )
+            setExpanded(false)
+        }}
+        className='fixed inset-0 m-auto h-[86dvh] max-h-none w-[92vw] max-w-none overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] p-0 text-[var(--text-body)] backdrop:bg-black/70 backdrop:backdrop-blur-sm'
+      >
+        {expanded && (
+          <div className='relative flex h-full w-full flex-col sm:flex-row'>
+            <div className='relative min-h-0 min-w-0 flex-1'>
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
                 <span className='text-[var(--text-muted)] text-small'>{workflow.name}</span>
                 <button
@@ -357,13 +356,31 @@ export function WorkflowPreview({
               </ReactFlowProvider>
             </div>
 
-            <div className='w-[340px] flex-shrink-0 border-[var(--border)] border-l'>
+            <div className='flex max-h-[50%] min-h-0 w-full flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-t sm:max-h-none sm:w-[340px] sm:border-t-0 sm:border-l'>
+              <div
+                role='group'
+                aria-label='Inspect a block'
+                className='flex shrink-0 flex-wrap gap-1 border-[var(--border)] border-b p-3'
+              >
+                {workflow.blocks.map((block) => (
+                  <Chip
+                    key={block.id}
+                    active={selectedId === block.id}
+                    aria-pressed={selectedId === block.id}
+                    onClick={() => setSelectedId(block.id)}
+                  >
+                    {block.name}
+                  </Chip>
+                ))}
+              </div>
               {selectedBlock ? (
                 <BlockInspector
                   embedded
                   name={selectedBlock.name}
                   type={selectedBlock.type}
                   color={selectedBlock.bgColor}
+                  isIntegration={selectedBlock.isIntegration}
+                  triggerMode={selectedBlock.triggerMode}
                   fields={inspectorFieldsFor(selectedBlock)}
                   tools={selectedBlock.tools}
                 />
@@ -374,8 +391,8 @@ export function WorkflowPreview({
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </dialog>
     </LazyMotion>
   )
 }

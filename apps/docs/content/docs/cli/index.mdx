@@ -7,9 +7,10 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 `sim` is the command line for Sim. Sign in once, then run workflows, query tables,
-move files, search knowledge bases, and read run logs from the terminal. Every
-command has a `--output json` mode, so results pipe cleanly into `jq`, cron jobs,
-CI pipelines, and any other tool you already use.
+move files, search knowledge bases, and read run logs from the terminal. Use
+`--output json` for structured results that pipe into `jq`, cron jobs, and CI
+pipelines. See [Output formats](/cli/output) for commands that emit raw content
+or local configuration.
 
 ## Install
 
@@ -50,9 +51,10 @@ and [Python](/api-reference/python) SDKs, or the
 sim login
 ```
 
-The terminal prints a pairing code and a URL. Approve it in the browser and pick
-a workspace. There is no loopback listener, so this works over SSH and in
-containers.
+The CLI opens your browser for approval. Local sign-in prefers OAuth; remote
+terminals use API-key pairing. After OAuth sign-in, choose a default workspace
+with `sim configure --set-workspace <id>`. For SSH and containers, use
+`sim login --method api-key --no-browser` and approve the pairing code.
 
 See [Authentication](/cli/authentication) for CI keys, multiple accounts, and
 self-hosted deployments.
@@ -90,8 +92,9 @@ b8c0d247-9e13-4a86-97f5-2ad4e1638c09  Weekly digest  /Reporting no        18    
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"ticketId":"T-4821"}'
 ```
 
-A workflow must be deployed before it can be run. Deploy from the editor, or
-with `sim workflows deploy <id>`.
+This command runs the active deployment. Deploy from the editor or with
+`sim workflows deploy <id>`. To run the current saved workflow state instead,
+use `sim workflows run <id> --manual`.
 </Step>
 
 </Steps>
@@ -110,9 +113,9 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 50
 sim knowledge documents upload 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 ./handbook.pdf
 ```
 
-Resource groups are plural, and each also accepts its singular spelling —
-`sim workflow get` and `sim workflows get` are the same command. `knowledge`
-also answers to `kb`.
+Some resource groups also accept a singular alias: `sim workflow get` and
+`sim workflows get` are the same command. `knowledge` also answers to `kb`.
+Each group’s reference lists its supported aliases.
 
 Every command accepts `--help`, at any depth:
 
@@ -132,6 +135,7 @@ sim tables rows query --help
 | [`files`](/cli/files) | Upload, download, share, and organize workspace files |
 | [`knowledge`](/cli/knowledge) | Search knowledge bases and manage their documents and tags |
 | [`skills`](/cli/skills) | Manage agent skills |
+| [`sandboxes`](/cli/sandboxes) | Manage sandbox dependencies, managed CLIs, and system packages |
 | [`mcp-servers`](/cli/mcp-servers) | Manage MCP server connections and their tools |
 | [`custom-tools`](/cli/custom-tools) | Manage custom tool definitions |
 | [`credentials`](/cli/credentials) | Connect, reconnect, and disconnect integration credentials |
@@ -140,7 +144,7 @@ sim tables rows query --help
 | [`audit-logs`](/cli/audit-logs) | Read organization audit logs |
 | [`workspaces`](/cli/workspaces) | Inspect the active workspace and its members |
 | [`blocks`](/cli/blocks) | Browse the block catalog and read one block's configuration fields |
-| [`tools`](/cli/tools) | Browse the tool catalog |
+| [`tools`](/cli/tools) | Browse and execute built-in tools |
 | [`connector-types`](/cli/connector-types) | Browse knowledge-base connector types and their config fields |
 | [`chat-deployments`](/cli/chat-deployments) | List the hosted chats a workspace serves |
 | [`workflow-mcp-servers`](/cli/workflow-mcp-servers) | Publish workflows as MCP tools for outside agents |
@@ -158,5 +162,3 @@ itself.
 - [Output formats](/cli/output) — `table`, `json`, `yaml`, and `text`, and when to use each
 - [Scripting](/cli/scripting) — piping, file inputs, exit codes, and automation recipes
 - [Troubleshooting](/cli/troubleshooting) — what each error means, and how to resolve it
-- [Command overview](/cli/commands) — global options, the command groups, and the commands that take no resource
-- [Complete reference](/cli/reference) — every command, argument, and flag on a single page

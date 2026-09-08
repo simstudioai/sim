@@ -5,7 +5,7 @@ description: File and stdin inputs, list flags, pagination, exit codes, and auto
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Everything below applies to every command.
+Use these patterns to pass inputs, page through results, and handle command outcomes.
 
 ## Reading input from files and stdin
 
@@ -38,8 +38,8 @@ is written `@@`. Only the leading `@` is dropped, and every `@`-aware flag
 accepts the escape:
 
 ```bash
-sim files share set wf_3Qm8ZtLpR2yVnKd7BsXwC --allowed-emails @@example.org
-sim secrets set API_HOST --value @@internal
+sim files share set wf_3Qm8ZtLpR2yVnKd7BsXwC --is-active true --auth-type email --allowed-emails @@example.org
+sim secrets set API_HOST --scope workspace --value @@internal
 ```
 
 Without it, `--allowed-emails @example.org` can only be read as a request to
@@ -137,8 +137,11 @@ number of 1 or more to cap the blast radius, or omit the flag deliberately.
 | Code | Meaning |
 | --- | --- |
 | `0` | Success |
-| `1` | Anything else — API error, bad configuration, invalid arguments, or a missing `--yes` |
-| `2` | `sim whoami` only: the check could not be made at all |
+| `1` | API/configuration/argument failure, or a failed workflow when using `workflows runs wait` |
+| `2` | `whoami`: no verification verdict; `workflows runs wait`: the run was cancelled |
+| `3` | `workflows runs wait`: the run is paused for human input |
+| `4` | `workflows runs wait`: the wait timed out |
+| `130` | Interactive secret entry was cancelled with Ctrl-C |
 
 Errors print one line to stderr, prefixed `Error:`, plus the API's error code and
 validation details when it supplies them. Failures are safe to branch on:
@@ -190,22 +193,19 @@ sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8
 
 ## Polling a long run
 
-Start the run asynchronously, then poll its status:
+Start the run asynchronously, then use the CLI’s wait command:
 
 ```bash
 run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -r '.runId')
-
-until sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json \
-  | jq -e '.status | IN("completed","failed","cancelled")' > /dev/null; do
-  sleep 5
-done
-
-sim logs get "$run_id" --trace
+sim workflows runs wait "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --wait-timeout 3600 --output json
 ```
 
-`workflows runs get` is the lightweight status check; `logs get` is the full
-diagnostic. For a paused run, the status includes the context ID that
-`sim workflows runs resume` needs.
+The command polls until the run completes, fails, is cancelled, or pauses for
+human input. Time-based pauses continue waiting. Its exit code identifies the
+outcome; `--wait-timeout 0` waits indefinitely.
+
+Use `sim logs get "$run_id" --trace` for full diagnostics. A run paused for human
+input includes the context ID needed by `sim workflows runs resume`.
 
 ## Working with folders
 

@@ -1,10 +1,10 @@
 ---
-title: Overview
+title: Agents
 description: An agent is a workflow that reasons and acts, built around Agent blocks and the features you give them.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Card } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, BUILD_AGENT_WORKFLOW } from '@/components/workflow-preview'
 
 An **agent** is a [workflow](/workflows) that reasons and acts on its own. It reads an input, decides what to do, and carries it out, calling tools and using your data along the way. You build a custom agent in Sim by composing a workflow whose thinking runs through one or more [Agent blocks](/workflows/blocks/agent).
@@ -50,7 +50,7 @@ To let an agent answer from your own content, connect a [knowledge base](/knowle
 
 ### Remember across runs: memory
 
-To let an agent reuse information from one run to the next, give it [memory](/integrations/memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent in a chat carries what was said earlier into later messages.
+To let an agent reuse information from one run to the next, give it [memory](/workflows/blocks/agent#memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent in a chat carries what was said earlier into later messages.
 
 ### Return a usable result: structured output
 
@@ -61,12 +61,3 @@ To make an agent's result something later blocks can act on, give it a **structu
 Start with one Agent block and a prompt, then add only what the task needs: a tool when the agent should act, a skill when it needs written guidance, a knowledge base when it should answer from your documents, memory when it should remember, and a structured output when a later block has to read its result.
 
 <Card title="Choosing what to use" href="/agents/choosing" description="A side-by-side guide to tools, skills, knowledge, and the rest, with one worked example." />
-
-## Next
-
-<Cards>
-  <Card title="Agent block reference" href="/workflows/blocks/agent" description="Every model, setting, and output field of the Agent block." />
-  <Card title="Choosing what to use" href="/agents/choosing" description="Pick the right feature for each task." />
-  <Card title="Custom tools" href="/agents/custom-tools" description="Define a reusable tool with a schema and code." />
-  <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />
-</Cards>

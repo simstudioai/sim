@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Sim automatically calculates the cost of every workflow run from AI model usage plus a base run charge.
+Sim calculates workflow usage from the base run charge, billable model usage, and hosted tool usage.
 
 ## Credits
 
@@ -16,18 +16,21 @@ All plan limits, usage meters, and billing thresholds are displayed in credits t
 
 ## How Costs Are Calculated
 
-Every workflow run includes two cost components:
+Workflow runs can include these cost components:
 
 **Base Run Charge**: 1 credit ($0.005) per run
 
-**AI Model Usage**: Variable cost based on token consumption
-```javascript
+**AI Model Usage**: Variable cost based on token consumption.
+
+**Hosted Tool Usage**: Per-operation charges for tools using Sim-provided keys.
+
+```text
 modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
-totalCredits = baseRunCharge + modelCost × 200
+totalCredits = baseRunCharge + (billableModelCost + hostedToolCost) × 200
 ```
 
 <Callout type="info">
-  AI model prices are per million tokens. Workflows without AI blocks incur only the base run charge.
+  AI model prices are per million tokens. A workflow with no billable model usage or hosted tool usage incurs only the base run charge.
 </Callout>
 
 ## Model Breakdown in Logs
@@ -52,63 +55,7 @@ The model breakdown shows:
 
 ## Pricing Options
 
-<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
-  <Tab>
-    **Hosted Models** - Sim provides API keys with a 1.1x pricing multiplier for Agent blocks:
-
-    **OpenAI**
-    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
-    |-------|---------------------------|----------------------------|
-    | GPT-5.1 | $1.25 / $10.00 | $1.38 / $11.00 |
-    | GPT-5 | $1.25 / $10.00 | $1.38 / $11.00 |
-    | GPT-5 Mini | $0.25 / $2.00 | $0.28 / $2.20 |
-    | GPT-5 Nano | $0.05 / $0.40 | $0.06 / $0.44 |
-    | GPT-4o | $2.50 / $10.00 | $2.75 / $11.00 |
-    | GPT-4.1 | $2.00 / $8.00 | $2.20 / $8.80 |
-    | GPT-4.1 Mini | $0.40 / $1.60 | $0.44 / $1.76 |
-    | GPT-4.1 Nano | $0.10 / $0.40 | $0.11 / $0.44 |
-    | o1 | $15.00 / $60.00 | $16.50 / $66.00 |
-    | o3 | $2.00 / $8.00 | $2.20 / $8.80 |
-    | o4 Mini | $1.10 / $4.40 | $1.21 / $4.84 |
-
-    **Anthropic**
-    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
-    |-------|---------------------------|----------------------------|
-    | Claude Opus 4.5 | $5.00 / $25.00 | $5.50 / $27.50 |
-    | Claude Opus 4.1 | $15.00 / $75.00 | $16.50 / $82.50 |
-    | Claude Sonnet 4.5 | $3.00 / $15.00 | $3.30 / $16.50 |
-    | Claude Sonnet 4.0 | $3.00 / $15.00 | $3.30 / $16.50 |
-    | Claude Haiku 4.5 | $1.00 / $5.00 | $1.10 / $5.50 |
-
-    **Google**
-    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
-    |-------|---------------------------|----------------------------|
-    | Gemini 3 Pro Preview | $2.00 / $12.00 | $2.20 / $13.20 |
-    | Gemini 2.5 Pro | $1.25 / $10.00 | $1.38 / $11.00 |
-    | Gemini 2.5 Flash | $0.30 / $2.50 | $0.33 / $2.75 |
-
-    *The 1.1x multiplier covers infrastructure and API management costs.*
-  </Tab>
-
-  <Tab>
-    **Your Own API Keys** - Use any model at base pricing:
-
-    | Provider | Example Models | Input / Output |
-    |----------|----------------|----------------|
-    | Deepseek | V3, R1 | $0.75 / $1.00 |
-    | xAI | Grok 4 Latest, Grok 3 | $3.00 / $15.00 |
-    | Groq | Llama 4 Scout, Llama 3.3 70B | $0.11 / $0.34 |
-    | Cerebras | Llama 4 Scout, Llama 3.3 70B | $0.11 / $0.34 |
-    | Ollama | Local models | Free |
-    | VLLM | Local models | Free |
-
-    *Pay providers directly with no markup*
-  </Tab>
-</Tabs>
-
-<Callout type="warning">
-  Pricing shown reflects rates as of September 10, 2025. Check provider documentation for current pricing.
-</Callout>
+With Sim-provided model keys, model usage is billed through Sim. With your own keys, you pay the provider directly; the workflow base charge still applies. Check the provider's current pricing when estimating a run, and use the run's recorded usage to compare configurations.
 
 ## Hosted Tool Pricing
 
@@ -258,7 +205,7 @@ The BYOK settings page groups providers the same way.
     | Prospeo | Person and company enrichment and search |
     | Wiza | Prospect search, individual reveal, and company enrichment |
     | Datagma | Email, phone, person, and company enrichment |
-    | Dropcontact | GDPR-compliant contact enrichment and email finding |
+    | Dropcontact | Contact enrichment and email finding |
     | LeadMagic | Email finding, validation, and B2B profile enrichment |
     | Icypeas | Email finding and verification |
     | Enrow | Email finding and verification |
@@ -340,7 +287,7 @@ Sim has two paid plan tiers - **Pro** and **Max**. Either can be used individual
 
 To use Pro or Max with a team, select **Get For Team** in subscription settings and choose the tier and number of seats. Credits are pooled across the organization at the per-seat rate (e.g. Max for Teams with 3 seats = 75,000 credits/mo pooled).
 
-Internal organization members use seats and contribute to the team's pooled credit allocation. External workspace members do not join your organization, do not appear in the organization roster, and do not count toward your seat total.
+Internal organization members use seats and contribute to the team's pooled credit allocation. External workspace members do not join your organization or count toward its seat total. They appear in the roster with an External label.
 
 ### Weekly Refresh Credits
 
@@ -571,7 +518,7 @@ Pro and Team plan users can buy additional credits at any time in **Settings →
 import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
-  { question: "How much does a single workflow run cost?", answer: "Every run incurs a base charge of 1 credit ($0.005). On top of that, any AI model usage is billed based on token consumption. Workflows that do not use AI blocks only pay the base run charge." },
+  { question: "How much does a single workflow run cost?", answer: "Every run incurs a base charge of 1 credit ($0.005), plus billable model usage and hosted tool usage. Runs without either metered component pay only the base charge." },
   { question: "What is the credit-to-dollar conversion rate?", answer: "1 credit equals $0.005. All plan limits, usage meters, and billing thresholds in the Sim UI are displayed in credits." },
   { question: "Do unused weekly refresh credits carry over?", answer: "No. Weekly refresh credits reset every 7 days and do not accumulate. If you do not use them within the week, they are lost." },
   { question: "What happens when I exceed my plan's credit limit?", answer: "By default, your usage is capped at your plan's included credits and runs will stop. If you enable on-demand billing or manually raise your usage limit in Settings, you can continue running workflows and pay for the overage at the end of the billing period." },

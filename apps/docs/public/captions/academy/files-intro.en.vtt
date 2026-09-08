@@ -1,0 +1,111 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.620 --> 00:00:04.720
+Workflows don't just pass around text and
+numbers. They can also work with real
+
+00:00:04.720 --> 00:00:10.800
+documents, PDFs, reports, images, even
+video. Files are how your workspace
+
+00:00:10.800 --> 00:00:16.040
+holds onto those. Some you upload, others
+your workflows can generate. And any block
+
+00:00:16.040 --> 00:00:21.800
+can read a file in as a single object or
+write a new one back out. If your process
+
+00:00:21.800 --> 00:00:26.100
+involves managing content, it'll probably
+run through files. Let's see an example.
+
+00:00:28.300 --> 00:00:33.800
+A lot of the work your team handles starts
+as a document, an invoice, a report, notes
+
+00:00:33.800 --> 00:00:39.800
+from a call. In Sim, those documents live
+in your workspace as files. A file can
+
+00:00:39.800 --> 00:00:44.540
+arrive in several ways. You can upload one
+in a chat, post one to the API, or pull
+
+00:00:44.540 --> 00:00:49.600
+one off an email as an attachment. However
+it arrived, inside the workspace, every
+
+00:00:49.600 --> 00:00:54.860
+document becomes the same thing. A file
+object with an ID, a name, a URL, a size,
+
+00:00:54.980 --> 00:00:59.680
+and a type. Here's a workflow that
+processes them. A Gmail trigger hands its
+
+00:00:59.680 --> 00:01:05.640
+attachment to a file block. An agent reads
+it, and Supabase stores the result. When
+
+00:01:05.640 --> 00:01:10.340
+an email arrives, the trigger starts a
+run. It downloads the invoice and makes it
+
+00:01:10.340 --> 00:01:15.520
+available as an output that any block can
+reference. The file block points at the
+
+00:01:15.520 --> 00:01:19.560
+trigger's first attachment. And when the
+run reaches it, that reference resolves
+
+00:01:19.560 --> 00:01:24.960
+into the invoice itself. The agent reads
+the document directly and extracts the
+
+00:01:24.960 --> 00:01:28.860
+fields you asked for. The vendor, the
+total, and the date. You can see them in
+
+00:01:28.860 --> 00:01:29.860
+the run's output.
+
+00:01:31.520 --> 00:01:35.940
+Supabase writes those fields into the
+invoices table as a new row. From here,
+
+00:01:36.080 --> 00:01:41.300
+they're data that any of your tools can
+query. Files go out the same ways they
+
+00:01:41.300 --> 00:01:45.700
+come in. A run can email a document,
+upload one to drive, or write a new file
+
+00:01:45.700 --> 00:01:51.260
+back into the workspace. That was one
+document. The trigger fires for every
+
+00:01:51.260 --> 00:01:55.540
+email that arrives during the day. And
+each invoice is read and written to the
+
+00:01:55.540 --> 00:02:01.340
+table the same way. After the run, the
+document is still in your workspace as a
+
+00:02:01.340 --> 00:02:05.320
+file. And the values it carried are rows
+in the table. You can go back to either
+
+00:02:05.320 --> 00:02:10.700
+one. That's files in Sim. Documents come
+in, workflows read them, and the results
+
+00:02:10.700 --> 00:02:13.220
+land where the rest of your tools can use
+them.

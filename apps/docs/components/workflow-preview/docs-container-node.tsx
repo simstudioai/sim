@@ -1,14 +1,16 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useContext } from 'react'
 import { type SubflowNodeData, SubflowNodeView } from '@sim/workflow-renderer'
 import type { Node, NodeProps } from '@xyflow/react'
+import { PreviewSelectionContext } from '@/components/workflow-preview/preview-selection-context'
 
 export interface DocsContainerData extends Record<string, unknown> {
   name: string
   blockType: string
   size?: { width: number; height: number }
   parentId?: string
+  isHighlighted?: boolean
 }
 
 export type DocsContainerNodeType = Node<DocsContainerData, 'previewContainer'>
@@ -22,6 +24,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
   id,
   data,
 }: NodeProps<DocsContainerNodeType>) {
+  const selectBlock = useContext(PreviewSelectionContext)
   const subflowData: SubflowNodeData = {
     kind: data.blockType === 'parallel' ? 'parallel' : 'loop',
     name: data.name,
@@ -29,6 +32,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
     height: data.size?.height,
     parentId: data.parentId,
     isPreview: true,
+    isPreviewSelected: data.isHighlighted,
   }
 
   return (
@@ -40,7 +44,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
       isFocused={false}
       nestingLevel={0}
       canEditWorkflow={false}
-      onSelect={() => {}}
+      onSelect={() => selectBlock?.(id)}
     />
   )
 })

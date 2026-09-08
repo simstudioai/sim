@@ -11,19 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Jina AI](https://jina.ai/) is a powerful content extraction tool that seamlessly integrates with Sim to transform web content into clean, readable text. This integration allows developers to easily incorporate web content processing capabilities into their agentic workflows.
-
-Jina AI Reader specializes in extracting the most relevant content from web pages, removing clutter, advertisements, and formatting issues to produce clean, structured text that's optimized for language models and other text processing tasks.
-
-With the Jina AI integration in Sim, you can:
-
-- **Extract clean content** from any web page by simply providing a URL
-- **Process complex web layouts** into structured, readable text
-- **Maintain important context** while removing unnecessary elements
-- **Prepare web content** for further processing in your agent workflows
-- **Streamline research tasks** by quickly converting web information into usable data
-
-This integration is particularly valuable for building agents that need to gather and process information from the web, conduct research, or analyze online content as part of their workflow.
+Use [Jina AI](https://jina.ai/) Reader to extract content from a URL, or Search to retrieve web results. Configure the parsing and output-format options for the content your downstream blocks need.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -43,7 +31,7 @@ Extract and process web content into clean, LLM-friendly text using Jina AI Read
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The URL to read and convert to markdown \(e.g., "https://example.com/page"\) |
+| `url` | string | Yes | The URL to read and convert to markdown \(e.g., "https://example.com/page") |
 | `useReaderLMv2` | boolean | No | Whether to use ReaderLM-v2 for better quality \(3x token cost\) |
 | `gatherLinks` | boolean | No | Whether to gather all links at the end |
 | `jsonResponse` | boolean | No | Whether to return response in JSON format |

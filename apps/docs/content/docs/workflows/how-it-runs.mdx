@@ -4,7 +4,6 @@ description: How Sim orders the blocks, runs independent ones in parallel, and f
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import {
   COMBINATION_WORKFLOW,
   CONCURRENCY_WORKFLOW,
@@ -60,12 +59,3 @@ A synchronous run is capped at **5 minutes on the free plan** and **50 minutes o
 ## Watching a run
 
 While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
-
-## Next
-
-<Cards>
-  <Card title="Blocks" href="/workflows#blocks" description="The catalog of block types." />
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="How a block reads an earlier block's output." />
-  <Card title="Triggers" href="/workflows#triggers" description="The ways a workflow can start." />
-  <Card title="Logs & debugging" href="/logs-debugging" description="Inspect and debug a run." />
-</Cards>

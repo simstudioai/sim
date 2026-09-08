@@ -12906,7 +12906,7 @@ export const V2_OPERATIONS = {
         values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
         default: 'startedAt',
         describe:
-          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
+          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
       },
       sortOrder: {
         kind: 'enum',
@@ -14141,7 +14141,7 @@ export const V2_OPERATIONS = {
         kind: 'number',
         default: 10,
         describe:
-          'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.',
+          'Maximum number of search results to return. Must be a whole number between 1 and 100.',
       },
       tagFilters: {
         kind: 'array',

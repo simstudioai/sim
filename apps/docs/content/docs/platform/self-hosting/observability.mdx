@@ -45,7 +45,7 @@ app:
 Both services log structured JSON to stdout. Collect them with whatever you already run — Fluent Bit, Vector, Datadog Agent, Loki.
 
 <Callout type="warn">
-  In production builds the logger defaults to `ERROR`, and the Helm chart does not set `LOG_LEVEL` for the app or realtime. Until you raise it, the only thing in the logs is errors — which is why a healthy-looking deployment can appear to log nothing at all. Set `LOG_LEVEL: "info"` while commissioning a deployment or debugging.
+  In production builds the logger defaults to `ERROR`, and the Helm chart does not set `LOG_LEVEL` for the app or realtime. Until you raise it, the only thing in the logs is errors — which is why a healthy-looking deployment can appear to log nothing at all. Set `LOG_LEVEL: "INFO"` while commissioning a deployment or debugging.
 </Callout>
 
 ```bash
@@ -176,7 +176,7 @@ Sim's hosted-key metrics recorder arms itself whenever `AWS_ACCESS_KEY_ID` is pr
 | Alert | Why it matters |
 |---|---|
 | App pod restart loop / OOMKilled | Memory is the constraining resource; OOMKills mean executions are dying mid-run |
-| A CronJob has not succeeded within ~3× its own schedule interval | Scheduled workflows and polling triggers are silently dead. Threshold per job — the per-minute jobs justify ~15 minutes; the hourly, twice-daily, and daily jobs need proportionally longer windows |
+| A CronJob has not succeeded within its expected interval plus a chosen grace period | Scheduled workflows and polling triggers may have stopped. Choose a threshold for each job based on its schedule and expected runtime |
 | Ingress 5xx rate above baseline | Broad user impact |
 | Postgres connections above 80% of `max_connections` | Next replica or traffic spike will start failing |
 | Postgres disk above 80% | Knowledge base embeddings grow steadily |

@@ -126,7 +126,7 @@ Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_A
 ## Integration Credentials
 
 <Callout type="warn">
-  Integrations do not work on a self-hosted deployment until you register your own OAuth app with each service and set its `*_CLIENT_ID` / `*_CLIENT_SECRET`. There are around 27 of them covering 50 connectors. The full table, redirect-URI format, and setup steps are in [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+  OAuth integrations require a provider application and its credentials on a self-hosted deployment. API-key integrations use the keys supplied in their blocks. The full table, redirect-URI format, and setup steps are in [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
 </Callout>
 
 ## Access Control
@@ -159,10 +159,10 @@ Without a remote provider, user code runs in an in-process V8 isolate inside the
 | `API_MAX_JSON_BODY_BYTES` | 50 MB | Max JSON body on contract-validated API routes |
 | `CHAT_MAX_REQUEST_BYTES` | 220 MB | Max body on the public deployed-chat endpoint |
 | `WEBHOOK_MAX_REQUEST_BYTES` | 10 MB | Max body on public webhook receiver endpoints |
-| `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT` | `75` | Workflow executions in parallel |
-| `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Webhook-triggered executions in parallel |
-| `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled executions in parallel |
-| `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Resumed executions in parallel |
+| `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev workflow task concurrency |
+| `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev webhook task concurrency |
+| `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled executions per app instance |
+| `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Trigger.dev resume task concurrency |
 | `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
 | `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
 | `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |

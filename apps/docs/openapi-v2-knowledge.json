@@ -6280,7 +6280,7 @@
           },
           "topK": {
             "default": 10,
-            "description": "Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.",
+            "description": "Maximum number of search results to return. Must be a whole number between 1 and 100.",
             "type": "number",
             "minimum": 1,
             "maximum": 100

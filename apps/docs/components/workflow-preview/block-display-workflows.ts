@@ -9,8 +9,8 @@ import type { PreviewWorkflow } from '@/components/workflow-preview/workflow-dat
  * {@link WorkflowBlockView} (via `DocsBlockNode`), so the hero stays pixel-faithful
  * to the canvas. Authoring notes:
  *
- * - `rows` are the visible sub-block rows; use `'-'` for an empty/unset field (the
- *   canvas shows a dash), or a representative value where the field has a default.
+ * - `rows` retain configuration values for inspection. `sentence` describes the
+ *   canvas card with slots keyed to row titles; `noun` supplies an empty-state label.
  * - `branches` render one output handle per entry (Condition's if/else-if/else,
  *   Router's routes). The View regenerates handle topology, so the label doubles as
  *   the branch id.
@@ -28,6 +28,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'agent',
         name: 'Agent',
         type: 'agent',
+        typeLabel: 'Agent',
+        sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
         bgColor: '#33C482',
         position: { x: 0, y: 0 },
         rows: [
@@ -52,6 +54,13 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'api',
         name: 'API',
         type: 'api',
+        typeLabel: 'API',
+        sentence: [
+          'Send',
+          { subBlockId: 'Method', noun: 'method' },
+          'request to',
+          { subBlockId: 'URL', noun: 'URL' },
+        ],
         bgColor: '#2F55FF',
         position: { x: 0, y: 0 },
         rows: [
@@ -73,6 +82,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'condition',
         name: 'Condition',
         type: 'condition',
+        typeLabel: 'Condition',
         bgColor: '#FF752F',
         position: { x: 0, y: 0 },
         rows: [],
@@ -93,6 +103,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'credential',
         name: 'Credential',
         type: 'credential',
+        typeLabel: 'Credential',
+        sentence: ['Select an OAuth credential'],
         bgColor: '#6366F1',
         position: { x: 0, y: 0 },
         rows: [
@@ -111,6 +123,13 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'evaluator',
         name: 'Evaluator',
         type: 'evaluator',
+        typeLabel: 'Evaluator',
+        sentence: [
+          'Score',
+          { subBlockId: 'Content', noun: 'content' },
+          'against',
+          { subBlockId: 'Evaluation Metrics', noun: 'metrics' },
+        ],
         bgColor: '#4D5FFF',
         position: { x: 0, y: 0 },
         rows: [
@@ -130,6 +149,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'function',
         name: 'Function',
         type: 'function',
+        typeLabel: 'Function',
+        sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
         bgColor: '#FF402F',
         position: { x: 0, y: 0 },
         rows: [
@@ -148,6 +169,11 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'guardrails',
         name: 'Guardrails',
         type: 'guardrails',
+        typeLabel: 'Guardrails',
+        sentence: [
+          'Validate content using',
+          { subBlockId: 'Validation Type', noun: 'validation type' },
+        ],
         bgColor: '#3D642D',
         position: { x: 0, y: 0 },
         rows: [
@@ -166,6 +192,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'response',
         name: 'Response',
         type: 'response',
+        typeLabel: 'Response',
+        sentence: ['Return', { subBlockId: 'Response Structure', noun: 'response' }],
         bgColor: '#2F55FF',
         position: { x: 0, y: 0 },
         rows: [
@@ -186,6 +214,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'router',
         name: 'Router',
         type: 'router',
+        typeLabel: 'Router',
         bgColor: '#28C43F',
         position: { x: 0, y: 0 },
         rows: [
@@ -205,6 +234,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'variables',
         name: 'Variables',
         type: 'variables',
+        typeLabel: 'Variables',
+        sentence: ['Set', { subBlockId: 'Variable Assignments', noun: 'variables' }],
         bgColor: '#8B5CF6',
         position: { x: 0, y: 0 },
         rows: [{ title: 'Variable Assignments', value: '-' }],
@@ -220,6 +251,12 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'wait',
         name: 'Wait',
         type: 'wait',
+        typeLabel: 'Wait',
+        sentence: [
+          'Pause for',
+          { subBlockId: 'Wait Amount', noun: 'amount' },
+          { subBlockId: 'Unit' },
+        ],
         bgColor: '#F59E0B',
         position: { x: 0, y: 0 },
         rows: [
@@ -239,6 +276,13 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'webhook',
         name: 'Webhook',
         type: 'webhook',
+        typeLabel: 'Webhook',
+        sentence: [
+          'Post',
+          { subBlockId: 'Payload', noun: 'payload' },
+          'to',
+          { subBlockId: 'Webhook URL', noun: 'URL' },
+        ],
         bgColor: '#10B981',
         position: { x: 0, y: 0 },
         rows: [
@@ -259,6 +303,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'workflow',
         name: 'Workflow',
         type: 'workflow',
+        typeLabel: 'Workflow',
+        sentence: ['Run', { subBlockId: 'Select Workflow', noun: 'workflow' }],
         bgColor: '#6366F1',
         position: { x: 0, y: 0 },
         rows: [
@@ -277,6 +323,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'human_in_the_loop',
         name: 'Human in the Loop',
         type: 'human_in_the_loop',
+        typeLabel: 'Human',
+        sentence: ['Pause execution until a human responds'],
         bgColor: '#10B981',
         position: { x: 0, y: 0 },
         rows: [
@@ -296,6 +344,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'schedule',
         name: 'Schedule',
         type: 'schedule',
+        typeLabel: 'Schedule',
+        sentence: ['Run daily at', { subBlockId: 'Time', noun: 'time' }],
         bgColor: '#6366F1',
         position: { x: 0, y: 0 },
         hideTargetHandle: true,
@@ -316,6 +366,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'rss',
         name: 'RSS Feed',
         type: 'rss',
+        typeLabel: 'RSS Feed',
+        sentence: ['Run on new RSS feed items'],
         bgColor: '#F97316',
         position: { x: 0, y: 0 },
         hideTargetHandle: true,
@@ -332,6 +384,9 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'webhook_trigger',
         name: 'Webhook Trigger',
         type: 'webhook',
+        triggerMode: true,
+        typeLabel: 'Webhook',
+        sentence: ['Run on an incoming HTTP request'],
         bgColor: '#10B981',
         position: { x: 0, y: 0 },
         hideTargetHandle: true,
@@ -357,6 +412,13 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         id: 'table_v2',
         name: 'Table',
         type: 'table_v2',
+        typeLabel: 'Table',
+        sentence: [
+          'Run on',
+          { subBlockId: 'Event type', noun: 'event' },
+          'in',
+          { subBlockId: 'Table', noun: 'table' },
+        ],
         bgColor: '#10B981',
         position: { x: 0, y: 0 },
         hideTargetHandle: true,

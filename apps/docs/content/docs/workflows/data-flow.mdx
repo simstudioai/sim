@@ -4,10 +4,9 @@ description: What a block's output is, how blocks reference earlier outputs, and
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, OutputBundle, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
 
-Most blocks need a value that an earlier block produced. A block gets it by referencing that block's output by name. This page covers three things: what an output is and where it lives, how a block references one, and the types of values you'll find inside.
+Most blocks need a value that an earlier block produced. A block gets it by referencing that block's output by name.
 
 <WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} />
 
@@ -41,7 +40,7 @@ An output is usually a set of named values, not a single thing. You read one by 
 Different blocks produce different values. An [Agent](/workflows/blocks/agent) keeps its `content`; an [API](/workflows/blocks/api) keeps the `data` it received; a Table block keeps a `rowCount` and the rows it read, reached with `<table1.rowCount>`.
 
 <Callout type="info">
-A block's output is not the same as the **workflow's** output. Every block has its own, kept under its own name. The workflow's output is simply one of them: whatever the last block produced.
+A block's output is not the same as the **workflow's** output. Every block has its own, kept under its own name. By default, the workflow returns its last block's output. A [Response block](/workflows/blocks/response) or a deployment's selected outputs can shape what the caller receives.
 </Callout>
 
 ## How a block references an output
@@ -67,11 +66,4 @@ Each value inside an output has a type, shown next to it in the output panel. Th
 
 A file shows up as an `object` carrying the file's details, like its name and URL. When a value isn't the type the next step needs, reshape it in a [Function](/workflows/blocks/function) block, which runs a short snippet of code and stores the result as its own output.
 
-## Next
-
-<Cards>
-  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, and branches." />
-  <Card title="Connection tags" href="/workflows/connections" description="The reference syntax in full." />
-  <Card title="Blocks" href="/workflows#blocks" description="What each block outputs." />
-  <Card title="Logs & debugging" href="/logs-debugging" description="Inspect what every block received and returned." />
-</Cards>
+See [connection tags](/workflows/connections) for reference syntax, and [Logs](/logs-debugging) to inspect the values a block received.

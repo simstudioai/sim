@@ -1,17 +1,19 @@
 import { createElement, Fragment } from 'react'
 import { loader, multiple } from 'fumadocs-core/source'
 import type { DocData, DocMethods } from 'fumadocs-mdx/runtime/types'
+import { integrationNavigationPlugin } from '@/lib/integration-navigation'
+import { createApiReferenceSource } from '@/lib/openapi-source'
+import { cn } from '@/lib/utils'
 import { docs } from '@/.source/server'
-import { createApiReferenceSource } from './openapi-source'
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: 'text-green-600 dark:text-green-400',
-  HEAD: 'text-green-600 dark:text-green-400',
-  OPTIONS: 'text-green-600 dark:text-green-400',
-  POST: 'text-blue-600 dark:text-blue-400',
-  PUT: 'text-yellow-600 dark:text-yellow-400',
-  PATCH: 'text-orange-600 dark:text-orange-400',
-  DELETE: 'text-red-600 dark:text-red-400',
+  GET: 'text-green-800 dark:text-green-400',
+  HEAD: 'text-green-800 dark:text-green-400',
+  OPTIONS: 'text-green-800 dark:text-green-400',
+  POST: 'text-blue-800 dark:text-blue-300',
+  PUT: 'text-yellow-800 dark:text-yellow-400',
+  PATCH: 'text-orange-800 dark:text-orange-300',
+  DELETE: 'text-red-800 dark:text-red-400',
 }
 
 /**
@@ -61,7 +63,10 @@ function openapiPluginBadgeLeft() {
             createElement(
               'span',
               {
-                className: `font-mono font-medium me-1.5 text-[10px] text-nowrap ${colorClass}`,
+                className: cn(
+                  'inline-flex shrink-0 items-center justify-center rounded-md px-1 py-0.5 font-mono font-medium me-1.5 text-[10px] text-nowrap',
+                  colorClass
+                ),
                 'data-method': method.toLowerCase(),
               },
               method
@@ -82,7 +87,7 @@ export const source = loader(
   }),
   {
     baseUrl: '/',
-    plugins: [openapiPluginBadgeLeft() as never],
+    plugins: [openapiPluginBadgeLeft() as never, integrationNavigationPlugin()],
   }
 )
 

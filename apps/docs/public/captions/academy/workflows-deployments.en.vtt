@@ -1,0 +1,87 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.240
+So far, your workflow runs only when you
+run it inside the editor. Deploying
+
+00:00:05.240 --> 00:00:09.800
+changes that. It gives your workflow a
+real address so the outside world can
+
+00:00:09.800 --> 00:00:15.580
+reach it. As an API, other systems can
+call, a chat people can talk to, or a tool
+
+00:00:15.580 --> 00:00:20.760
+other AI agents can use. The same
+workflow, now live and running on demand.
+
+00:00:21.260 --> 00:00:27.040
+Let's show how to ship one. This is your
+working workflow. You type, I want a
+
+00:00:27.040 --> 00:00:31.800
+refund. It lands on the start block, the
+agent classifies it, and the response
+
+00:00:31.800 --> 00:00:35.900
+comes back, billing. But it only runs when
+you run it right here in the editor.
+
+00:00:36.940 --> 00:00:40.580
+Deploying publishes that workflow and
+gives it an address. Nothing inside
+
+00:00:40.580 --> 00:00:45.480
+changes, the same blocks, the same start.
+Now an external request can reach that
+
+00:00:45.480 --> 00:00:51.320
+address and flow straight into the start
+block, and the workflow runs. A request
+
+00:00:51.320 --> 00:00:57.540
+comes in from somewhere else, a refund
+from customer 4821. It lands on the same
+
+00:00:57.540 --> 00:01:02.060
+input row. The agent runs, the answer
+comes back billing, and the reply goes
+
+00:01:02.060 --> 00:01:07.820
+back out. An external call is just a run.
+The only difference is where it came from.
+
+00:01:08.560 --> 00:01:13.500
+You can also deploy the same workflow as a
+chat. Deploying as a chat gives it a chat
+
+00:01:13.500 --> 00:01:17.840
+page, and anyone who opens it gets a
+conversation. Each message they send flows
+
+00:01:17.840 --> 00:01:22.320
+into the same start block as its input.
+The agent thinks, and the reply that comes
+
+00:01:22.320 --> 00:01:28.640
+back is whatever output you selected.
+Here, billing. Underneath the
+
+00:01:28.640 --> 00:01:35.100
+conversation, it's the same ordinary run.
+Every time. That's a deployment. The
+
+00:01:35.100 --> 00:01:40.020
+same workflow you built, now running as an
+operational system. A call arrives, the
+
+00:01:40.020 --> 00:01:44.040
+chain settles in order, and the reply goes
+back out whenever they call it, with no
+
+00:01:44.040 --> 00:01:45.040
+one in the editor.

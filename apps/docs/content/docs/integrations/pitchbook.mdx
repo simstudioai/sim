@@ -11,25 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[PitchBook](https://pitchbook.com/) is a private capital market database covering companies, deals, investors, funds, limited partners, and the people behind them. The PitchBook API is a separate, contracted add-on to a platform subscription — every call spends credits from a purchased balance.
+[PitchBook](https://pitchbook.com/) provides private-market company, deal, investor, fund, limited-partner, and people data. Its API is a separate contracted add-on to a platform subscription, and calls spend purchased credits.
 
-With the PitchBook integration in Sim, you can:
+Search for entity IDs, retrieve their datasets, inspect changed datasets for incremental sync, and check credit usage. The action reference lists the available company, deal, fund, investor, news, and related datasets.
 
-- **Search every entity type**: Resolve a name, website, or ticker to a PitchBook ID, or run a filtered search across companies, deals, investors, people, funds, limited partners, and service providers
-- **Profile companies**: Pull firmographics, industries and verticals, the full investor list, complete deal history, latest financing and debt financing, reported financials, similar companies, VC exit predictions, and web/social growth metrics
-- **Dig into deals**: Read deal summaries and full detail, valuations and multiples, participating investors and exiters, share terms, cap table history, funding tranches, and debt with its lenders
-- **Track investors and funds**: Fetch investor profiles, holdings, managed funds, board seats, and stated investment preferences, plus fund performance, peer benchmarks, cash flows, commitments, and team
-- **Map limited partners**: Retrieve commitment history and totals by fund type, commitment preferences, and actual versus target asset allocations
-- **Research people and patents**: Look up biographies, contact details, education and work history, and search a company's patent portfolio
-- **Follow credit markets**: Search PitchBook credit analysis news, or pull single and bulk articles in full
-- **Sync incrementally**: Ask any entity which of its datasets changed in a window, so a scheduled workflow only refetches what actually moved
-- **Watch your spend**: Report credit usage, contract balances, per-endpoint call costs, and the lookup-table codes the search filters expect
-
-### Authentication
+## Authentication
 
 PitchBook uses an API key sent as `Authorization: PB-Token {key}`, not a bearer token. Keys are issued by your PitchBook account team alongside a credit balance; a sandbox key is available for testing, and the **List Sandbox Entities** operation returns the IDs that key is allowed to query.
 
-### Working with filters
+## Working with filters
 
 PitchBook range filters carry their operator inside the value rather than as a separate parameter:
 
@@ -42,8 +32,6 @@ PitchBook range filters carry their operator inside the value rather than as a s
 | `10^100` | between 10 and 100 |
 
 Amounts are in millions. Codes such as industries, verticals, and deal types are not free text — use **List Lookup Tables** to find the right table, then **Get Lookup Table Codes** to read its values. Any documented filter without a dedicated field can be passed through **Additional Filters** as a JSON object.
-
-In Sim, the PitchBook integration lets agents research private markets as part of an automated workflow — resolving a company to its PitchBook ID, assembling a diligence brief, screening investors against an ideal profile, or posting a scheduled deal-flow digest to the team.
 {/* MANUAL-CONTENT-END */}
 
 

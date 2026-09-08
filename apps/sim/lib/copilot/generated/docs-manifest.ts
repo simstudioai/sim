@@ -246,7 +246,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/okta.mdx',
   'integrations/onedrive.mdx',
   'integrations/onepassword.mdx',
-  'integrations/openai.mdx',
   'integrations/outlook.mdx',
   'integrations/pagerduty.mdx',
   'integrations/parallel_ai.mdx',

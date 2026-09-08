@@ -4,7 +4,6 @@ description: Protocol for streaming thinking and tool lifecycle from Agent block
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 Agent blocks can emit more than answer text while they run: **provider-exposed thinking** (or reasoning summaries) and a **tool-call lifecycle** (name + status). Sim delivers those as typed events on an opt-in stream protocol.
 
@@ -21,7 +20,7 @@ Agent events are governed by two things that do not depend on each other.
 | Surface | Policy source |
 |---------|---------------|
 | Deployed chat (`/api/chat/{identifier}`) | The chat deployment's **Thinking** and **Tool calls** toggles |
-| Workflow API (`/api/workflows/{id}/execute`) | Per-request `includeThinking` / `includeToolCalls` in the body |
+| Workflow API (`/api/v2/workflows/{id}/execute`) | Per-request `includeThinking` / `includeToolCalls` in the body |
 
 **The header declares the protocol version.** Sending it says the client understands v1 framing:
 
@@ -31,7 +30,7 @@ X-Sim-Stream-Protocol: agent-events-v1
 
 It does two things. It switches answer text to live token-by-token `chunk` frames that `chunk_reset` can retract, and it is **required** for any `thinking` or `tool` frame — a client that never declared a version has no contract for their shape, so it keeps the text-only stream it already understands.
 
-Omitting the header is always valid and always safe: you get settled final-turn text and no agent-event frames, which is what every pre-existing integration receives. The response echoes the header back when the protocol was negotiated.
+When both event flags are false, you can omit the header to receive settled final-turn text without agent-event frames. The response echoes the header back when the protocol was negotiated.
 
 The header alone exposes nothing, so a chat with both policies off still streams token by token.
 
@@ -42,7 +41,7 @@ On the workflow API, setting `includeThinking` or `includeToolCalls` **without**
 ### Workflow API
 
 ```bash
-curl -N https://sim.ai/api/workflows/{id}/execute \
+curl -N https://sim.ai/api/v2/workflows/{id}/execute \
   -H "X-API-Key: $SIM_API_KEY" \
   -H "Content-Type: application/json" \
   -H "X-Sim-Stream-Protocol: agent-events-v1" \
@@ -107,9 +106,9 @@ In **Deploy → Chat**, enable **Include thinking** for provider-exposed thinkin
 
 Tool arguments and results are never exposed to a public chat — not in lifecycle frames, and not through the terminal `final` envelope, where the block's own tool calls are reduced to the same name-and-lifecycle shape. The authenticated workflow API still returns full tool results. Redeploy or update the chat after changing Agent models or tools.
 
-## Capability honesty (high level)
+## Provider support
 
-Per-model support is generated from the model registry on the [Agent block page](/docs/workflows/blocks/agent#streamed-thinking-and-tool-calls); the table below summarizes by provider family.
+Per-model support is generated from the model registry on the [Agent block page](/workflows/blocks/agent#streamed-thinking-and-tool-calls); the table below summarizes by provider family.
 
 | Family | Thinking | Live tools |
 |--------|----------|------------|
@@ -133,7 +132,7 @@ A conforming client owes the stream four things:
 ```ts
 type Frame = Record<string, unknown>
 
-async function consume(response: Response) {
+async function consume(response: Response, renderToolChip: (frame: Frame) => void) {
   const reader = response.body!.getReader()
   const decoder = new TextDecoder()
   const answers = new Map<string, string>()
@@ -155,6 +154,7 @@ async function consume(response: Response) {
 
       const frame = JSON.parse(payload) as Frame | string
       if (frame === '[DONE]') return { answers, thinking }
+      if (typeof frame === 'string') continue
 
       const { blockId, event } = frame as { blockId?: string; event?: string }
 
@@ -183,15 +183,11 @@ Unknown `event` values should be ignored rather than treated as errors — that 
 
 ## Example (public chat)
 
-<Tabs items={['cURL']}>
-  <Tab value="cURL">
 ```bash
 curl -N -X POST 'http://localhost:3000/api/chat/your-slug' \
   -H 'Content-Type: application/json' \
   -H 'X-Sim-Stream-Protocol: agent-events-v1' \
   -d '{"input":"Think briefly, then say hi"}'
 ```
-  </Tab>
-</Tabs>
 
-See also [Chat deployment](/docs/workflows/deployment/chat) for access control and the event settings.
+See also [Chat deployment](/workflows/deployment/chat) for access control and the event settings.

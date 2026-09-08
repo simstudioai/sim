@@ -1,0 +1,91 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.100
+Tables become much more useful when
+workflows can act on them directly. Maybe
+
+00:00:05.100 --> 00:00:10.440
+you need to find every new lead, add a row
+when something happens, update a status
+
+00:00:10.440 --> 00:00:15.200
+after an agent finishes, or clean up
+records you no longer need. The table
+
+00:00:15.200 --> 00:00:20.020
+block is what connects those structured
+records to the rest of your workload, so
+
+00:00:20.020 --> 00:00:24.460
+data can move in and out of tables as the
+process runs. Let me show you how the
+
+00:00:24.460 --> 00:00:25.480
+table block works.
+
+00:00:27.180 --> 00:00:31.980
+The table block works across two surfaces.
+A panel where you describe the operation
+
+00:00:31.980 --> 00:00:33.960
+and the live table that answers it.
+
+00:00:35.540 --> 00:00:39.840
+Everything the block can do to a table
+starts from the operation dropdown, and it
+
+00:00:39.840 --> 00:00:40.900
+opens on query rows.
+
+00:00:43.220 --> 00:00:47.940
+A query is shaped by its filter, so we
+build one condition, priority equals high.
+
+00:00:52.280 --> 00:00:56.980
+Run it, and three rows match. The table
+itself is untouched because a query only
+
+00:00:56.980 --> 00:00:57.980
+reads.
+
+00:00:59.240 --> 00:01:03.380
+Now change just the operator to not
+equals, and the same run selects the
+
+00:01:03.380 --> 00:01:04.380
+opposite rows.
+
+00:01:07.500 --> 00:01:12.020
+Conditions stack, so adding status equals
+open narrows the match to a single ticket.
+
+00:01:15.420 --> 00:01:20.240
+Delete rows by filter takes the same
+shape, one filter, and the matching row
+
+00:01:20.240 --> 00:01:21.240
+leaves the table.
+
+00:01:23.420 --> 00:01:28.520
+Insert row swaps the filter for row data,
+and every key in the payload lands as a
+
+00:01:28.520 --> 00:01:29.600
+cell in the new row.
+
+00:01:33.420 --> 00:01:38.060
+Update rows by filter combines both. The
+filter picks the open tickets, and the row
+
+00:01:38.060 --> 00:01:39.880
+data flips each one to resolved.
+
+00:01:43.820 --> 00:01:47.800
+Each operation follows the same shape. You
+describe it in the panel, run the block,
+
+00:01:48.020 --> 00:01:49.220
+and read the result in the table.

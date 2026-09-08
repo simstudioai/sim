@@ -1,12 +1,16 @@
 import type { ReactNode } from 'react'
-import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
-import type { WorkflowSearchRange } from '@/lib/workflows/search-replace/types'
-import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
-import { normalizeName, REFERENCE } from '@/executor/constants'
-import { createCombinedPattern } from '@/executor/utils/reference-validation'
+import { splitWorkflowReferenceSegment } from '@sim/utils/workflow-references'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+
+interface WorkflowTextRange {
+  start: number
+  end: number
+}
+
+const WORKFLOW_SEARCH_HIGHLIGHT_CLASS = 'rounded-sm bg-orange-400 font-normal text-inherit'
 
 export interface WorkflowSearchTextHighlight {
-  range?: WorkflowSearchRange
+  range?: WorkflowTextRange
   rawValue?: string
 }
 
@@ -22,7 +26,7 @@ const SYSTEM_PREFIXES = new Set(['loop', 'parallel', 'variable'])
 export function getValidWorkflowSearchRange(
   text: string,
   highlight?: WorkflowSearchTextHighlight | null
-): WorkflowSearchRange | null {
+): WorkflowTextRange | null {
   const range = highlight?.range
   if (!range || !highlight?.rawValue) return null
   if (range.start < 0 || range.end <= range.start || range.end > text.length) return null
@@ -79,7 +83,7 @@ function formatDisplayTextInternal(
 
     const inner = reference.slice(1, -1)
     const [prefix] = inner.split('.')
-    const normalizedPrefix = normalizeName(prefix)
+    const normalizedPrefix = normalizeWorkflowBlockName(prefix)
 
     if (SYSTEM_PREFIXES.has(normalizedPrefix)) {
       return true
@@ -103,7 +107,7 @@ function formatDisplayTextInternal(
   }
 
   const nodes: ReactNode[] = []
-  const regex = createCombinedPattern()
+  const regex = /<[^<>]+>|\{\{[^}]+\}\}/g
   let lastIndex = 0
   let key = 0
 
@@ -121,7 +125,7 @@ function formatDisplayTextInternal(
       pushPlainText(text.slice(lastIndex, index))
     }
 
-    if (matchText.startsWith(REFERENCE.ENV_VAR_START)) {
+    if (matchText.startsWith('{{')) {
       const varName = matchText.slice(2, -2).trim()
       if (shouldHighlightEnvVar(varName)) {
         nodes.push(
@@ -133,7 +137,7 @@ function formatDisplayTextInternal(
         nodes.push(<span key={`${keyPrefix}${key++}`}>{matchText}</span>)
       }
     } else {
-      const split = splitReferenceSegment(matchText)
+      const split = splitWorkflowReferenceSegment(matchText)
 
       if (split && shouldHighlightReference(split.reference)) {
         pushPlainText(split.leading)

@@ -11,7 +11,6 @@ import {
   RESPONSE_ERROR_WORKFLOW,
   RESPONSE_WEBHOOK_WORKFLOW,
 } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
 The **Response block** ends a workflow and returns a structured HTTP response to the caller. Use it with an [API deployment](/workflows/deployment/api) to control the exact body, status code, and headers that come back.
 
@@ -69,11 +68,9 @@ Don't place a Response block in [parallel](/workflows/blocks/parallel) with bloc
 
 The Response block reads `<agent.content>` into its body and returns `200` to the API caller.
 
-### Acknowledge a webhook
-
-<WorkflowPreview workflow={RESPONSE_WEBHOOK_WORKFLOW} />
-
-After processing the payload, the Response block returns a small confirmation so the sender knows the event was received.
+<Callout type="info">
+A [Webhook trigger](/workflows/triggers/webhook) acknowledges the request after queueing the run. Configure that trigger's response to customize the acknowledgement; a downstream Response block does not change it.
+</Callout>
 
 ### Return a different status per branch
 
@@ -87,11 +84,3 @@ A Condition routes valid requests to a `200` Response and invalid ones to a `400
 - **Keep a consistent response shape** across your endpoints so callers can rely on it.
 - **Return a different response per outcome.** Put a Response on each branch after a Condition or Router.
 - **Check your references resolve.** A connection tag pointing at a block that did not run comes back empty, so set fields on the branch that produces them.
-
-<FAQ items={[
-  { question: "Can I have multiple Response blocks in a workflow?", answer: "Yes. Place them on different branches (after a Router or Condition). The first Response block to run determines the API response and ends the workflow — for example a 200 on the success branch and a 500 on the error branch." },
-  { question: "What triggers require a Response block?", answer: "It is designed for the API trigger. When the workflow is invoked over the API, the Response block sends the structured HTTP response back to the caller. Other triggers like webhooks or schedules don't require one." },
-  { question: "What is the difference between Builder and Editor mode?", answer: "Builder mode is a visual interface for constructing the response structure with fields and types. Editor mode is a raw JSON editor where you write the response body directly. Builder mode suits most cases." },
-  { question: "What is the default status code?", answer: "If you don't set one, the Response block returns 200 (OK). You can set any valid HTTP status code, including error codes like 400, 404, or 500." },
-  { question: "Can the Response block connect to downstream blocks?", answer: "No. Response blocks are exit points — they end execution and send the HTTP response, so no block runs after one." },
-]} />

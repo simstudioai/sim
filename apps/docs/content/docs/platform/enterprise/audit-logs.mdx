@@ -6,7 +6,7 @@ description: Track every action taken across your organization's workspaces
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Audit logs give your organization a tamper-evident record of every significant action taken across workspaces — who did what, when, and on which resource. Use them for security reviews, compliance investigations, and incident response.
+Audit logs record configuration and security events across your organization, including the actor, time, and affected resource. Use them to investigate changes and incidents.
 
 ---
 
@@ -105,7 +105,7 @@ Audit log events follow a `resource.action` naming pattern. The table below list
 | **Credentials** | `credential.created`, `credential.deleted`, `oauth.disconnected` |
 | **Organization** | `organization.updated`, `org_member.added`, `org_member.role_changed` |
 
-Workspace invitation events include whether the invite is for an internal organization member or an external workspace member in their metadata. External workspace members can appear as actors on workspace-scoped events, but they are not organization members and do not appear in the organization roster.
+Workspace invitation events include whether the invite is for an internal organization member or an external workspace member in their metadata. External workspace members can appear as actors on workspace-scoped events, and appear in the roster with an External label without becoming organization members.
 
 ---
 

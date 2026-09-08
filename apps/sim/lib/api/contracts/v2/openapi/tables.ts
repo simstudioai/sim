@@ -1947,7 +1947,21 @@ const declaredRoutes = [
         v2BulkDeleteTablesContract.response.schema,
         'V2BulkDeleteTablesResponse',
         'Bulk delete tables response',
-        'Per-item outcome of a bulk table and folder delete.'
+        'Per-item outcome of a bulk table and folder delete.',
+        [
+          {
+            data: {
+              deleted: [
+                { kind: 'table', id: TABLE_ID, name: 'Leads' },
+                { kind: 'folder', id: '/Sales/Archive', name: '/Sales/Archive' },
+              ],
+              skipped: [],
+              notFound: [],
+              failed: [],
+              deletedItems: { tables: 1, folders: 1 },
+            },
+          },
+        ]
       ),
     }
   ),

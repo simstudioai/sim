@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-07",
+  "updatedAt": "2026-09-08",
   "integrations": [
     {
       "type": "onepassword",
@@ -8322,7 +8322,7 @@
       "slug": "github",
       "name": "GitHub",
       "description": "Interact with GitHub or trigger workflows from GitHub events",
-      "longDescription": "Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.",
+      "longDescription": "Read and update GitHub repositories, pull requests, issues, and related records. Use trigger mode to start workflows from GitHub events.",
       "bgColor": "#181C1E",
       "iconName": "GithubIcon",
       "docsUrl": "https://docs.sim.ai/integrations/github",
@@ -20341,7 +20341,7 @@
       "slug": "sailpoint",
       "name": "SailPoint",
       "description": "Govern identities and access in SailPoint Identity Security Cloud",
-      "longDescription": "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes include sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:access-request-config:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally use idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation and entitlement request configuration, idn:campaign:manage for certification decisions and sign-off, the access-request scopes listed by SailPoint for request submission, idn:access-request:create for account-selection discovery, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
+      "longDescription": "Connect SailPoint Identity Security Cloud with a Personal Access Token to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.",
       "bgColor": "#FFFFFF",
       "iconName": "SailPointIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
@@ -21030,7 +21030,7 @@
       "slug": "sap-s4hana",
       "name": "SAP S4HANA",
       "description": "Read and write SAP S4HANA Cloud business data via OData",
-      "longDescription": "Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.",
+      "longDescription": "Connect SAP S4HANA Cloud Public Edition, Cloud Private Edition, or an on-premise tenant using the deployment and authentication settings for that tenant. Read and manage business records through the listed OData operations.",
       "bgColor": "#FFFFFF",
       "iconName": "SapS4HanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sap_s4hana",

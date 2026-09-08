@@ -1,0 +1,116 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.700
+Agentic workflows often need to build on
+what happened earlier. A support agent may
+
+00:00:05.700 --> 00:00:10.520
+need the last few messages before it
+replies, or a research agent may need to
+
+00:00:10.520 --> 00:00:15.120
+remember what it already found before the
+next step. But agent blocks don't
+
+00:00:15.120 --> 00:00:20.640
+automatically carry that context from one
+run to the next. Memory is what gives the
+
+00:00:20.640 --> 00:00:24.920
+workflow a place to keep the relevant
+history so that the agent can continue
+
+00:00:24.920 --> 00:00:29.200
+with the right context instead of starting
+from scratch. Let's see how to add memory
+
+00:00:29.200 --> 00:00:34.140
+to an agent. Here's a support agent in the
+middle of a conversation, and the customer
+
+00:00:34.140 --> 00:00:40.140
+has just explained who she is, what plan
+she's on, and what's going wrong. By
+
+00:00:40.140 --> 00:00:45.680
+default, the agent keeps none of this.
+Every run starts completely fresh. So when
+
+00:00:45.680 --> 00:00:51.320
+she follows up the next day, the agent has
+to ask for everything all over again. The
+
+00:00:51.320 --> 00:00:55.360
+fix is one setting on the agent block,
+open memory, and choose conversation.
+
+00:00:56.820 --> 00:01:01.820
+Then give it a conversation ID, a key you
+choose, and everything said under that key
+
+00:01:01.820 --> 00:01:08.020
+is kept. Now the conversation runs exactly
+as before, but as each turn lands, it's
+
+00:01:08.020 --> 00:01:09.160
+saved under the key.
+
+00:01:11.160 --> 00:01:15.880
+The next morning, run the same agent twice
+side by side, once with no memory, and
+
+00:01:15.880 --> 00:01:20.700
+once with the key. Before the model even
+sees the new message, everything stored
+
+00:01:20.700 --> 00:01:25.640
+under the key is loaded back into the
+conversation. Then the same question
+
+00:01:25.640 --> 00:01:26.640
+arrives in both.
+
+00:01:29.520 --> 00:01:34.020
+Without the key, the agent starts from
+zero, and with it, it answers like no time
+
+00:01:34.020 --> 00:01:35.020
+has passed.
+
+00:01:37.420 --> 00:01:41.980
+Each conversation ID is its own separate
+thread, so one agent can hold a different
+
+00:01:41.980 --> 00:01:46.880
+conversation with every customer at the
+same time. From here, the thread just
+
+00:01:46.880 --> 00:01:50.380
+keeps going, every run picking up exactly
+where the last one stopped.
+
+00:01:52.300 --> 00:01:56.420
+Memory can also be a sliding window,
+keeping the most recent messages, while
+
+00:01:56.420 --> 00:02:02.440
+the oldest quietly fall away. Here is that
+window on the stored transcript itself.
+
+00:02:02.440 --> 00:02:07.560
+The older turns are still there, but only
+the last 10 messages ride into the model,
+
+00:02:07.720 --> 00:02:13.980
+or if you prefer, the most recent tokens.
+So that's agent memory. One setting and a
+
+00:02:13.980 --> 00:02:17.880
+key, the agent remembers each turn,
+recalls the whole thread, and every
+
+00:02:17.880 --> 00:02:20.000
+conversation picks up where it left off.

@@ -1,13 +1,15 @@
 import type React from 'react'
+import { Children, cloneElement, isValidElement } from 'react'
 import { highlight } from 'fumadocs-core/highlight'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
 import { createAPIPage } from 'fumadocs-openapi/ui'
 import { Pre } from 'fumadocs-ui/components/codeblock'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
-import { DocsBody, DocsPage, DocsTitle } from 'fumadocs-ui/page'
+import { DocsBody, DocsPage } from 'fumadocs-ui/page'
 import { notFound } from 'next/navigation'
 import { PageFooter } from '@/components/docs-layout/page-footer'
+import { PageHeader } from '@/components/docs-layout/page-header'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
@@ -51,6 +53,24 @@ async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
   )
 }
 
+interface ApiSlotElementProps extends React.HTMLAttributes<HTMLElement> {
+  items?: unknown[]
+}
+
+/** Labels Fumadocs auth selectors while retaining their selection state and content. */
+function labelAuthSelectors(node: React.ReactNode): React.ReactNode {
+  if (!isValidElement<ApiSlotElementProps>(node)) return node
+
+  const props = node.props
+  const children =
+    props.children === undefined ? undefined : Children.map(props.children, labelAuthSelectors)
+
+  if (Array.isArray(props.items)) {
+    return cloneElement(node, { 'aria-label': 'Authentication method' }, children)
+  }
+  return children === undefined ? node : cloneElement(node, undefined, children)
+}
+
 const APIPage = createAPIPage(openapi, {
   renderCodeBlock: (props) => <ApiCodeBlock {...props} />,
   playground: { enabled: false },
@@ -68,12 +88,14 @@ const APIPage = createAPIPage(openapi, {
   content: {
     renderOperationLayout: (slots) => {
       return (
-        <div className='flex @4xl:flex-row flex-col @4xl:items-start gap-x-6 gap-y-4'>
+        <div className='flex @4xl:flex-row flex-col @4xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:#854d0e] [--badge-blue-text:#1e40af] [--badge-error-text:#991b1b] [--badge-orange-text:#9a3412] [--badge-success-text:#166534] dark:[--badge-amber-text:#fcd34d] dark:[--badge-blue-text:#93c5fd] dark:[--badge-error-text:#fca5a5] dark:[--badge-orange-text:#fdba74] dark:[--badge-success-text:#86efac] [&_button[aria-haspopup=dialog]]:min-h-6'>
           <div className='min-w-0 flex-1'>
             {slots.header}
             {slots.description}
             {slots.apiPlayground}
-            {slots.authSchemes && <div className='api-section-divider'>{slots.authSchemes}</div>}
+            {slots.authSchemes && (
+              <div className='api-section-divider'>{labelAuthSelectors(slots.authSchemes)}</div>
+            )}
             {slots.parameters}
             {slots.body && <div className='api-section-divider'>{slots.body}</div>}
             <ResponseSection>{slots.responses}</ResponseSection>
@@ -179,6 +201,8 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           breadcrumb={breadcrumbs}
         />
         <DocsPage
+          role='main'
+          tabIndex={-1}
           toc={data.toc.filter(isContentHeading)}
           breadcrumb={{
             enabled: false,
@@ -196,15 +220,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
             component: footer,
           }}
         >
-          <div className='api-page-header relative mt-6 sm:mt-0'>
-            <div className='absolute top-1 right-0 flex items-center gap-2'>
-              <div className='hidden sm:flex'>
-                <LLMCopyButton content={apiPageContent} />
-              </div>
-              <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
+          <PageHeader title={data.title} className='api-page-header'>
+            <div className='hidden sm:flex'>
+              <LLMCopyButton content={apiPageContent} />
             </div>
-            <DocsTitle className='mb-2'>{data.title}</DocsTitle>
-          </div>
+            <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
+          </PageHeader>
           <DocsBody>
             <APIPage {...apiProps} />
           </DocsBody>
@@ -225,6 +246,8 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         breadcrumb={breadcrumbs}
       />
       <DocsPage
+        role='main'
+        tabIndex={-1}
         toc={data.toc.filter(isContentHeading)}
         full={data.full || isAcademy}
         breadcrumb={{
@@ -244,15 +267,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           component: footer,
         }}
       >
-        <div className='relative mt-6 sm:mt-0'>
-          <div className='absolute top-1 right-0 flex items-center gap-2'>
-            <div className='hidden sm:flex'>
-              <LLMCopyButton content={markdownContent} />
-            </div>
-            <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
+        <PageHeader title={data.title}>
+          <div className='hidden sm:flex'>
+            <LLMCopyButton content={markdownContent} />
           </div>
-          <DocsTitle className='mb-2'>{data.title}</DocsTitle>
-        </div>
+          <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
+        </PageHeader>
         <DocsBody>
           <MDX
             components={{

@@ -11,18 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS Systems Manager](https://aws.amazon.com/systems-manager/) is the operations hub for AWS. It gives you a single place to run commands across fleets of managed nodes, store configuration and secrets, track patch and compliance state, and execute runbooks — without opening SSH, managing bastion hosts, or distributing long-lived credentials.
+Use [AWS Systems Manager](https://aws.amazon.com/systems-manager/) to run commands on managed nodes, read and write Parameter Store values, inspect inventory and compliance, and manage Automation runbooks.
 
-With AWS Systems Manager, you can:
-
-- **Run commands remotely**: Execute shell or PowerShell across a fleet by instance ID or tag-based targets, with concurrency and error thresholds you control
-- **Store configuration and secrets**: Keep parameters in Parameter Store as plain strings, string lists, or KMS-encrypted SecureStrings
-- **Inspect your fleet**: List managed nodes with their platform, agent version, and last ping time
-- **Track patch state**: Read per-instance patch installations and summary compliance counts
-- **Audit compliance**: Query compliance items and summaries across your managed nodes
-- **Automate runbooks**: Start, monitor, and stop Automation executions built on SSM documents
-
-In Sim, the Systems Manager integration is what lets an agent act on infrastructure rather than only report on it. Paired with CloudWatch or CloudTrail for detection, a workflow can investigate an alert, run a diagnostic command against the affected nodes, read the configuration behind the failure from Parameter Store, and kick off an Automation runbook to remediate — end to end, with every step logged in your run history.
+The following notes explain how secret values appear in workflow inputs, outputs, and run logs.
 
 Parameter Store decryption is opt-in: `Get Parameter`, `Get Parameters`, and `Get Parameters By Path` leave `WithDecryption` off unless you explicitly enable it, so a SecureString stays encrypted by default.
 

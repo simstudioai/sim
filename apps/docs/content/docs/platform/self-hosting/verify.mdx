@@ -1,11 +1,11 @@
 ---
 title: Verify Your Install
-description: A smoke test that exercises every subsystem in about ten minutes
+description: Smoke-test the app, authentication, workflows, storage, and scheduled jobs
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Run this after a first install, after an upgrade, and after a restore. Each step exercises a different subsystem, so a failure tells you exactly where to look.
+Run this after a first install, an upgrade, or a restore. These checks cover the core deployment; also verify any optional features you enabled, such as SSO, SCIM, data drains, and remote sandboxes.
 
 ## `sim-setup doctor`
 

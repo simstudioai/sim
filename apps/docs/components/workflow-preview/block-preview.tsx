@@ -7,7 +7,6 @@ import { domAnimation, LazyMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
-import { FitViewAfterInit } from '@/components/workflow-preview/fit-view-after-init'
 import { toReactFlowElements } from '@/components/workflow-preview/workflow-data'
 
 /** The hero mounts the same node type the canvas uses, so it can never drift. */
@@ -38,10 +37,7 @@ export function BlockPreview({ type }: BlockPreviewProps) {
   if (!workflow || !elements) return null
 
   return (
-    <div
-      className='not-prose my-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
-      style={{ height: 400 }}
-    >
+    <div className='not-prose my-6 h-[280px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'>
       <LazyMotion features={domAnimation}>
         <ReactFlowProvider>
           <ReactFlow
@@ -51,10 +47,15 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             edges={elements.edges}
             nodeTypes={NODE_TYPES}
             proOptions={PRO_OPTIONS}
+            fitView
+            fitViewOptions={FIT_VIEW_OPTIONS}
             minZoom={0.2}
             maxZoom={1.3}
             nodesDraggable={false}
             nodesConnectable={false}
+            nodesFocusable={false}
+            edgesFocusable={false}
+            disableKeyboardA11y
             elementsSelectable={false}
             zoomOnScroll={false}
             zoomOnDoubleClick={false}
@@ -62,9 +63,8 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             panOnDrag={false}
             panOnScroll={false}
             preventScrolling={false}
-            className='h-full w-full [--xy-background-color:var(--bg)]'
+            className='h-full w-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
           />
-          <FitViewAfterInit options={FIT_VIEW_OPTIONS} />
         </ReactFlowProvider>
       </LazyMotion>
     </div>

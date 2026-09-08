@@ -11,16 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[ServiceNow](https://www.servicenow.com/) is a powerful cloud platform designed to streamline and automate IT service management (ITSM), workflows, and business processes across your organization. ServiceNow enables you to manage incidents, requests, tasks, users, and more using its extensive API.
-
-With ServiceNow, you can:
-
-- **Automate IT workflows**: Create, read, update, and delete records in any ServiceNow table, such as incidents, tasks, change requests, and users.
-- **Integrate systems**: Connect ServiceNow with your other tools and processes for seamless automation.
-- **Maintain a single source of truth**: Keep all your service and operations data organized and accessible.
-- **Drive operational efficiency**: Reduce manual work and improve service quality with customizable workflows and automation.
-
-In Sim, the ServiceNow integration enables your agents to interact directly with your ServiceNow instance as part of their workflows. Agents can create, read, update, or delete records in any ServiceNow table and leverage ticket or user data for sophisticated automation and decision-making. This integration bridges your workflow automation and IT operations, empowering your agents to manage service requests, incidents, users, and assets without manual intervention. By connecting Sim with ServiceNow, you can automate service management tasks, improve response times, and ensure consistent, secure access to your organization's vital service data.
+Use [ServiceNow](https://www.servicenow.com/) in Sim to create, read, update, and delete records in your ServiceNow instance. Operations accept a table name, such as an incident, task, change-request, or user table, and the fields required by that operation.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -40,7 +31,7 @@ Create a new record in a ServiceNow table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user\) |
@@ -61,7 +52,7 @@ Read records from a ServiceNow table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
@@ -88,7 +79,7 @@ Update an existing record in a ServiceNow table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
@@ -110,7 +101,7 @@ Delete a record from a ServiceNow table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
@@ -131,7 +122,7 @@ Compute aggregate statistics (count, sum, average, min, max, group by) over a Se
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table name \(e.g., incident, change_request, task\) |
@@ -161,7 +152,7 @@ List the attachments on a ServiceNow record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
@@ -188,7 +179,7 @@ Download an attachment file from ServiceNow by its sys_id
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `attachmentSysId` | string | Yes | sys_id of the attachment to download \(from List Attachments\) |
@@ -208,7 +199,7 @@ Attach a file to a ServiceNow record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
@@ -231,7 +222,7 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `shortDescription` | string | Yes | Short description — the one-line summary of the incident. |
@@ -295,7 +286,7 @@ Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | No | Record sys_id. Provide either this or the record number. |
@@ -343,7 +334,7 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `searchText` | string | No | Text to match against the incident short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
@@ -399,7 +390,7 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
@@ -461,7 +452,7 @@ Move a ServiceNow incident to Resolved (state 6) with a resolution code and reso
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
@@ -513,7 +504,7 @@ Move a ServiceNow incident to Closed (state 7) with a resolution code and resolu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
@@ -565,7 +556,7 @@ Append an internal work note or a customer-visible additional comment to a Servi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
@@ -615,7 +606,7 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `shortDescription` | string | Yes | Short description — the one-line summary of the change. |
@@ -680,7 +671,7 @@ Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | No | Record sys_id. Provide either this or the record number. |
@@ -728,7 +719,7 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `searchText` | string | No | Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
@@ -784,7 +775,7 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
@@ -846,7 +837,7 @@ Move a ServiceNow change request to another state. Base-system change model stat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
@@ -899,7 +890,7 @@ List the change tasks belonging to a ServiceNow change request, via the Change M
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `changeSysId` | string | Yes | sys_id of the change request whose tasks should be listed. |
@@ -924,7 +915,7 @@ Read the states a ServiceNow change request can actually move to next, with the 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `changeSysId` | string | Yes | sys_id of the change request. Use Get ServiceNow Change Request to resolve a CHG number to its sys_id. |
@@ -957,7 +948,7 @@ Browse or search the ServiceNow service catalog. Returns each item with its sys_
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `searchText` | string | No | Text to search for in the catalog items \(e.g., "iPhone"\). |
@@ -999,7 +990,7 @@ Submit a service catalog request for a catalog item using the Service Catalog AP
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `catalogItemSysId` | string | Yes | sys_id of the catalog item to order. Use List ServiceNow Catalog Items to find it. |
@@ -1025,7 +1016,7 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `requestSysId` | string | No | sys_id of the parent request \(sc_request\) whose items should be listed. |
@@ -1077,7 +1068,7 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `sysId` | string | No | Record sys_id. Provide either this or the record number. |
@@ -1125,7 +1116,7 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `approverSysId` | string | No | sys_id of the approver \(sys_user\) whose approvals should be listed. Use Find ServiceNow User to resolve an email address to a sys_id. |
@@ -1177,7 +1168,7 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `approvalSysId` | string | Yes | sys_id of the approval record on the sysapproval_approver table. Use List ServiceNow Approvals to find it. |
@@ -1227,7 +1218,7 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to cmdb_ci, which covers every CI class. |
@@ -1279,7 +1270,7 @@ Retrieve a configuration item and its CMDB relationships through the CMDB Instan
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `ciClass` | string | Yes | CMDB class \(table\) the CI belongs to, e.g., cmdb_ci_linux_server. Read it from the sys_class_name field returned by Search ServiceNow Configuration Items. |
@@ -1310,7 +1301,7 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `ciSysId` | string | Yes | sys_id of the configuration item whose relationships should be listed. |
@@ -1361,7 +1352,7 @@ Search ServiceNow knowledge base articles through the Knowledge Management API. 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `query` | string | No | Text to search for across knowledge articles. |
@@ -1397,7 +1388,7 @@ Retrieve the full content of a ServiceNow knowledge article by sys_id or KB numb
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `articleId` | string | Yes | sys_id or KB number of the knowledge article \(e.g., KB0000011\). |
@@ -1428,7 +1419,7 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `email` | string | No | Exact email address to match. |
@@ -1481,7 +1472,7 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `groupSysId` | string | No | sys_id of the sys_user_group whose members should be listed. |

@@ -4,6 +4,10 @@ import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
 import type { ToolOutputProperty } from '../apps/sim/tools/types'
@@ -74,38 +78,20 @@ function blockConfigsForFile(filePath: string): ReturnType<typeof extractAllBloc
 // actions (one block per integration: actions + an optional Trigger).
 const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
 
+const integrationNavigation = JSON.parse(
+  fs.readFileSync(path.join(rootDir, 'apps/docs/content/integration-navigation.json'), 'utf-8')
+) as { guides: Record<string, unknown>; redirects: Record<string, string> }
+
 /**
  * Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must
- * never clobber. Every hand-authored `*-service-account` credential guide has
- * to be listed here — these pages carry no `MANUAL-CONTENT` markers and no
+ * never clobber. Hand-authored credential guides are registered in the shared
+ * docs navigation file — these pages carry no `MANUAL-CONTENT` markers and no
  * backing block, so the stale-doc cleanup deletes any that go unregistered.
  */
 const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'index',
   'a2a',
-  'airtable-service-account',
-  'asana-service-account',
-  'atlassian-service-account',
-  'attio-service-account',
-  'box-service-account',
-  'calcom-service-account',
-  'clickup-service-account',
-  'google-service-account',
-  'hubspot-service-account',
-  'hubspot-setup',
-  'linear-service-account',
-  'monday-service-account',
-  'netsuite-service-account',
-  'notion-service-account',
-  'pipedrive-service-account',
-  'salesforce-service-account',
-  'shopify-service-account',
-  'snowflake-service-account',
-  'trello-service-account',
-  'wealthbox-service-account',
-  'webflow-service-account',
-  'zoho-desk-service-account',
-  'zoom-service-account',
+  ...Object.keys(integrationNavigation.guides),
 ])
 
 /**
@@ -565,15 +551,17 @@ async function addTriggerProviderIcons(
  * Docs need hidden historical version keys so old BlockInfoCard references and
  * versioned docs links still render icons, while landing only needs visible blocks.
  */
-async function generateIconMappings(): Promise<{
+export async function generateIconMappings(): Promise<{
   docs: Record<string, IconRef>
   visible: Record<string, IconRef>
+  coreBlockTypes: string[]
 }> {
   try {
     console.log('Generating icon mapping from block definitions...')
 
     const docs: Record<string, IconRef> = {}
     const visible: Record<string, IconRef> = {}
+    const coreBlockTypes = new Set<string>()
     const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
@@ -615,6 +603,18 @@ async function generateIconMappings(): Promise<{
             continue
           }
 
+          const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
+          const iconRef = {
+            name: iconName,
+            source: resolveIconSource(fileContent, iconName),
+          }
+          /** Core reference previews share the registry's glyphs without entering the integration catalog. */
+          const inheritedCategory = extractInheritedBlockCategory(blockContent, fileContent)
+          if (inheritedCategory === 'blocks' || inheritedCategory === 'triggers') {
+            docs[blockType] = iconRef
+            coreBlockTypes.add(blockType)
+          }
+
           if (
             blockType.includes('_trigger') ||
             blockType.includes('_webhook') ||
@@ -622,8 +622,6 @@ async function generateIconMappings(): Promise<{
           ) {
             continue
           }
-
-          const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
 
           // Exclude first-party `blocks`-category primitives (except the native
           // resource blocks that still get a generated docs page) and
@@ -647,10 +645,6 @@ async function generateIconMappings(): Promise<{
            * hidden versioned block. Without this it renders as a text tile.
            */
           const isSunsetBlockType = /sunset\s*:\s*\{/.test(stripSourceComments(blockContent))
-          const iconRef = {
-            name: iconName,
-            source: resolveIconSource(fileContent, iconName),
-          }
           if (!hideFromToolbar) {
             docs[blockType] = iconRef
             visible[blockType] = iconRef
@@ -667,10 +661,10 @@ async function generateIconMappings(): Promise<{
       `✓ Generated icon mappings for ${Object.keys(docs).length} docs blocks and ` +
         `${Object.keys(visible).length} visible blocks`
     )
-    return { docs, visible }
+    return { docs, visible, coreBlockTypes: [...coreBlockTypes].sort() }
   } catch (error) {
     console.error('Error generating icon mapping:', error)
-    return { docs: {}, visible: {} }
+    return { docs: {}, visible: {}, coreBlockTypes: [] }
   }
 }
 
@@ -693,7 +687,7 @@ function biomeSortCompare(a: string, b: string): number {
   return a.length - b.length
 }
 
-function writeIconMapping(iconMapping: Record<string, IconRef>): void {
+function writeIconMapping(iconMapping: Record<string, IconRef>, coreBlockTypes: string[]): void {
   try {
     const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
 
@@ -708,6 +702,7 @@ function writeIconMapping(iconMapping: Record<string, IconRef>): void {
     }
 
     const imports = renderIconImports(Object.values(withAliases))
+    const coreTypeEntries = coreBlockTypes.map((type) => `  '${type}',`).join('\n')
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
     const mappingEntries = Object.entries(withAliases)
@@ -727,6 +722,10 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 export const blockTypeToIconMap: Record<string, IconComponent> = {
 ${mappingEntries}
 }
+
+export const coreBlockTypes = new Set([
+${coreTypeEntries}
+])
 `
 
     emitGeneratedFile(iconMappingPath, content)
@@ -2096,6 +2095,30 @@ export function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
 function extractSpreadBase(blockContent: string): string | null {
   const spreadMatch = blockContent.match(/^\s*\.\.\.(\w+Block)\s*,/m)
   return spreadMatch ? spreadMatch[1] : null
+}
+
+/** Resolves a block's category through local spread ancestry without loading its registry. */
+export function extractInheritedBlockCategory(
+  blockContent: string,
+  fileContent: string
+): string | null {
+  const visited = new Set<string>()
+  let current = blockContent
+  while (true) {
+    const category = extractStringPropertyFromContent(current, 'category', true)
+    if (category) return category
+    const base = extractSpreadBase(current)
+    if (!base || visited.has(base)) return null
+    visited.add(base)
+    const declaration = new RegExp(
+      `export\\s+const\\s+${base}\\s*:\\s*BlockConfig[^=]*=\\s*\\{`
+    ).exec(fileContent)
+    if (!declaration) return null
+    const start = declaration.index + declaration[0].length - 1
+    const end = findMatchingClose(fileContent, start)
+    if (end === -1) return null
+    current = fileContent.substring(start, end)
+  }
 }
 
 /**
@@ -4450,9 +4473,6 @@ function formatTriggerProviderName(provider: string): string {
 }
 
 /**
- * Escape text for use inside an MDX table cell.
- */
-/**
  * Escapes MDX-hostile characters in text emitted as a paragraph rather than a table cell.
  *
  * MDX reads `{` as an expression and `<` as the start of a JSX tag, so a tool description
@@ -4469,8 +4489,11 @@ function escapeMdxProse(text: string): string {
     .replace(/>/g, '&gt;')
 }
 
-function escapeMdxCell(text: string): string {
-  return text
+const markdownCellParser = unified().use(remarkParse).use(remarkGfm)
+
+/** Escape literal reference text without inserting backslashes into GFM autolinks. */
+export function escapeMdxCell(text: string): string {
+  const escaped = text
     .replace(/\|/g, '\\|')
     .replace(/\{/g, '\\{')
     .replace(/\}/g, '\\}')
@@ -4480,6 +4503,23 @@ function escapeMdxCell(text: string): string {
     .replace(/\]/g, '\\]')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+
+  if (!/(?:https?:\/\/|www\.)/i.test(escaped) || !/\\[()[\]]/.test(escaped)) {
+    return escaped
+  }
+
+  const autolinkRanges: Array<{ start: number; end: number }> = []
+  visit(markdownCellParser.parse(escaped), 'link', ({ position }) => {
+    const start = position?.start.offset
+    const end = position?.end.offset
+    if (start !== undefined && end !== undefined) autolinkRanges.push({ start, end })
+  })
+
+  return escaped.replace(/\\[()[\]]/g, (escapedCharacter: string, offset: number) =>
+    autolinkRanges.some(({ start, end }) => offset >= start && offset < end)
+      ? escapedCharacter.slice(1)
+      : escapedCharacter
+  )
 }
 
 /**
@@ -5014,8 +5054,12 @@ async function generateAllBlockDocs() {
 
     copyIconsFile()
 
-    const { docs: docsIconMapping, visible: visibleIconMapping } = await generateIconMappings()
-    writeIconMapping(docsIconMapping)
+    const {
+      docs: docsIconMapping,
+      visible: visibleIconMapping,
+      coreBlockTypes,
+    } = await generateIconMappings()
+    writeIconMapping(docsIconMapping, coreBlockTypes)
 
     await writeIntegrationsJson(visibleIconMapping)
     writeIntegrationsIconMapping(visibleIconMapping)
@@ -5050,10 +5094,10 @@ function updateMetaJson() {
     .filter((file: string) => file.endsWith('.mdx'))
     .map((file: string) => path.basename(file, '.mdx'))
 
-  const items = [
-    ...(blockFiles.includes('index') ? ['index'] : []),
-    ...blockFiles.filter((file: string) => file !== 'index').sort(),
-  ]
+  /** Fumadocs uses an unlisted index as the folder link; listing it creates a duplicate child. */
+  const items = blockFiles
+    .filter((file: string) => file !== 'index' && !(file in integrationNavigation.redirects))
+    .sort()
 
   const metaJson = {
     pages: items,

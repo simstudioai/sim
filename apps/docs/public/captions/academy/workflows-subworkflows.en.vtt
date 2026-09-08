@@ -1,0 +1,69 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:04.060
+Once you've built a workflow that does
+something well, you don't want to rebuild
+
+00:00:04.060 --> 00:00:09.020
+it every time you need it. In Sim, any
+workflow can become a block inside another
+
+00:00:09.020 --> 00:00:13.600
+one. You build it once, then call it from
+anywhere, the same way you'd call a
+
+00:00:13.600 --> 00:00:18.460
+function in code. It's how small, focused
+workflows compose into bigger systems
+
+00:00:18.460 --> 00:00:23.800
+without turning into a mess. Let me show
+you what I mean. This is a workflow you've
+
+00:00:23.800 --> 00:00:27.940
+already built. It classifies customer
+messages end -to -end on its own.
+
+00:00:30.280 --> 00:00:35.700
+That whole workflow can fold into a single
+block inside another one. You pick which
+
+00:00:35.700 --> 00:00:39.320
+workflow it calls and what input it
+receives, and then you build around it
+
+00:00:39.320 --> 00:00:44.020
+like any other block. When the run reaches
+the workflow block, it hands over the
+
+00:00:44.020 --> 00:00:46.060
+value, and then it waits for the answer.
+
+00:00:47.920 --> 00:00:52.600
+The call holds at the top, while the child
+workflow runs underneath. The value the
+
+00:00:52.600 --> 00:00:56.680
+parent passed in is the child's start
+input, and the child runs end -to -end
+
+00:00:56.680 --> 00:00:58.700
+with it, the same way it runs on its own.
+
+00:01:01.900 --> 00:01:06.420
+When the child finishes, its answer comes
+back as the block's result, and the parent
+
+00:01:06.420 --> 00:01:08.520
+continues with it like any other value.
+
+00:01:11.800 --> 00:01:17.160
+And the parent can become a block inside
+something bigger. Keeping workflows small
+
+00:01:17.160 --> 00:01:20.920
+and calling them from each other is how
+large systems stay manageable.

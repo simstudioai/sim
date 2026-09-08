@@ -4,7 +4,6 @@ description: Read a file's contents in a workflow, pass a file to a block that n
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, FILE_SUMMARY_WORKFLOW } from '@/components/workflow-preview'
 
 A file is a document, image, spreadsheet, or PDF in your workspace. A workflow can read a file to act on its contents, pass a file to a block or tool that needs one (attach a PDF to an email, send an image to a vision model), or produce a new file and save it. The [File](/integrations/file) block is how a file enters or leaves a workflow; the work in between is done by whatever block the task calls for.
@@ -97,13 +96,3 @@ Write creates a new workspace file and returns its `id`, `name`, `size`, and `ur
 Each block references the previous one by name, so you compose only the steps a task needs. A contract read by an Agent that returns a verdict stops at processing, and an uploaded image described by a vision model never touches Write, while a fetched CSV cleaned by a Function and saved as a new file uses all three. Reading a file in is common, and writing one out is only for when the result is itself a file.
 
 For the file-object schema in full, base64 access, and how files move across API and chat triggers, see [Passing files](/files/passing-files).
-
-## Next
-
-<Cards>
-  <Card title="Passing files" href="/files/passing-files" description="The file object in full: properties, base64, and references across blocks." />
-  <Card title="Generating & storing files" href="/files/generating" description="Produce files from a run and save them to your workspace." />
-  <Card title="File block reference" href="/integrations/file" description="Every operation, input, and output in detail." />
-  <Card title="Agent block" href="/workflows/blocks/agent" description="Give an agent files to read, summarize, or analyze." />
-  <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write structured rows the same way you read and write files." />
-</Cards>

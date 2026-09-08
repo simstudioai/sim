@@ -3,77 +3,22 @@ title: Enterprise
 description: Enterprise features for business organizations
 ---
 
-Sim Enterprise adds permission groups, SSO, audit logs, usage tracking, data retention and drains, white-labeling, and workspace forks on top of Team plans.
+Sim Enterprise adds organization controls for access, provisioning, operations, and branding. Organization owners and admins configure these features in Settings.
 
----
-
-## Permission groups
-
-Define permission groups to control what features, models, blocks, and integrations your members can use. A permission group belongs to an **organization**. The organization's single **default group** governs everyone org-wide; every other group targets a specific set of workspaces and, by default, governs all members of those workspaces — or only named members once you add them. A user is governed by exactly one group in any given workspace.
-
-External workspace members can be governed by permission groups just like internal organization members, but they remain outside the organization roster and do not consume seats.
-
-### What a group controls
-
-- **Model providers** - Restrict which AI providers members can use, and deny individual models within an allowed provider
-- **Blocks** - Control which workflow blocks are available, and deny individual tools within an allowed integration
-- **Platform** - Revoke modules (Chat, Knowledge Base, Tables, Files, Sim Mailer), deployment surfaces, tool types, log detail, collaboration actions, and credential access
-
-### Setup
-
-1. Navigate to **Settings → Organization → Permission groups** from any workspace in your organization
-2. Create a permission group with your desired restrictions
-3. Scope it to workspaces, and optionally add named members
-
-Only organization owners and admins can manage permission groups. Users not governed by any group have full access. Restrictions are enforced at both UI and execution time, based on the organization that owns the workflow's workspace.
-
-See the [Access Control guide](/platform/enterprise/access-control) for full details.
-
----
-
-## Single Sign-On (SSO)
-
-Enterprise authentication with SAML 2.0 and OIDC support. Works with Okta, Azure AD (Entra ID), Google Workspace, ADFS, and any standard OIDC or SAML 2.0 provider.
-
-See the [SSO setup guide](/platform/enterprise/sso) for step-by-step instructions and provider-specific configuration.
-
----
-
-## White-labeling
-
-Replace Sim's default branding — logos, wordmark, product name, and theme colors — with your own. Instance-wide branding environment variables additionally cover the favicon and custom CSS. `NEXT_PUBLIC_BRAND_BACKGROUND_COLOR` is not a background — it only tells Sim whether your brand ground is dark, which it uses to pick contrasting text. See the [white-labeling guide](/platform/enterprise/whitelabeling).
-
----
-
-## Audit Logs
-
-Track configuration and security-relevant actions across your organization for compliance and monitoring. See the [audit logs guide](/platform/enterprise/audit-logs).
-
----
-
-## Usage Tracking
-
-See where your organization's credits go — by member, workspace, model, and platform feature. See the [usage tracking guide](/platform/enterprise/usage-tracking).
-
----
-
-## Data Retention
-
-Configure how long execution logs, soft-deleted resources, and Chat data are kept before permanent deletion. See the [data retention guide](/platform/enterprise/data-retention).
-
----
-
-## Data Drains
-
-Continuously export workflow logs, audit logs, and Chat data to a destination you control — object storage, a data warehouse, Datadog, or an HTTPS webhook — on a schedule. See the [data drains guide](/platform/enterprise/data-drains).
-
----
-
-## Workspace Forks
-
-Clone a workspace into a linked child, then push or pull **deployed** workflow changes between them. Deploy is like a commit; sync is a force push or force pull. See the [workspace forks guide](/platform/enterprise/forks).
-
----
+| Feature | Use it to |
+|---|---|
+| [Permission groups](/platform/enterprise/access-control) | Restrict features, models, blocks, and tools by workspace and member |
+| [Single sign-on](/platform/enterprise/sso) | Connect a SAML or OIDC identity provider |
+| [Verified domains](/platform/enterprise/verified-domains) | Prove domain ownership for SSO and provisioning |
+| [Directory provisioning](/platform/enterprise/scim) | Sync users and group-based access from your directory |
+| [Session policies](/platform/enterprise/session-policies) | Set session lifetimes and revoke member sessions |
+| [Audit logs](/platform/enterprise/audit-logs) | Investigate configuration and security events |
+| [Usage tracking](/platform/enterprise/usage-tracking) | Review usage by member, workspace, model, and source |
+| [Data retention](/platform/enterprise/data-retention) | Set retention windows and configure PII redaction |
+| [Data drains](/platform/enterprise/data-drains) | Export logs and Chat records to your own destination |
+| [Custom blocks](/platform/enterprise/custom-blocks) | Share a workflow as a block across the organization |
+| [Workspace forks](/platform/enterprise/forks) | Copy a workspace and sync deployed workflow changes |
+| [White-labeling](/platform/enterprise/whitelabeling) | Configure organization branding |
 
 ## Self-hosted setup
 

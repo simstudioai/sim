@@ -53,7 +53,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   description: 'Interact with GitHub or trigger workflows from GitHub events',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.',
+    'Read and update GitHub repositories, pull requests, issues, and related records. Use trigger mode to start workflows from GitHub events.',
   docsLink: 'https://docs.sim.ai/integrations/github',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

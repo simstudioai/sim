@@ -1,0 +1,81 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.640 --> 00:00:05.940
+Building a workflow usually starts with a
+blank canvas, but sometimes the idea is
+
+00:00:05.940 --> 00:00:10.920
+clearer in your head than on the screen.
+Chat gives you a different starting point.
+
+00:00:11.100 --> 00:00:15.660
+You describe the system you want in plain
+language, and Sim can turn that into
+
+00:00:15.660 --> 00:00:21.460
+blocks, test the result, fix what breaks,
+and keep refining it with you. It's a more
+
+00:00:21.460 --> 00:00:26.160
+conversational way to get from idea to
+working automation. Let me show you how it
+
+00:00:26.160 --> 00:00:30.720
+works. You can build a whole workflow
+without dragging a single block. You just
+
+00:00:30.720 --> 00:00:35.840
+open a chat and describe what you want.
+Say you want an agent that turns an idea
+
+00:00:35.840 --> 00:00:40.360
+into a finished post, a written draft, a
+hero image, a slide deck, and a voiceover.
+
+00:00:40.520 --> 00:00:46.580
+You ask for it, and the whole thing builds
+itself, every block wired up. Before you
+
+00:00:46.580 --> 00:00:50.200
+even ask, it runs the whole thing itself
+just to see if it holds together.
+
+00:00:52.760 --> 00:00:57.900
+The image step fails. It was missing an
+aspect ratio. It catches that on its own,
+
+00:00:58.040 --> 00:00:59.640
+fixes it, and runs again. Clean.
+
+00:01:04.900 --> 00:01:09.780
+Then it shows you what it made. Every step
+that ran. The draft, the image, the deck,
+
+00:01:10.000 --> 00:01:12.580
+the audio, so you can check it before you
+trust it.
+
+00:01:14.880 --> 00:01:19.260
+You hand it a real idea, and it drafts a
+few versions at once, scores each one, and
+
+00:01:19.260 --> 00:01:20.260
+keeps the best.
+
+00:01:22.800 --> 00:01:27.260
+One more message, and it's deployed. A
+live endpoint ready for whatever you send
+
+00:01:27.260 --> 00:01:28.260
+it.
+
+00:01:30.800 --> 00:01:35.220
+You went from a blank canvas to a working
+system without leaving the conversation.
+
+00:01:35.400 --> 00:01:37.220
+Open a new chat and see what you can
+build.

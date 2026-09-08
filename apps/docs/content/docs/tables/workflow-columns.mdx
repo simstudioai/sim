@@ -4,7 +4,6 @@ description: A column backed by a workflow that runs once per row, reading chose
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
 
 A [table](/tables) is a grid of typed columns. Usually you type a column's values in. A **workflow column** is different: its values come from a [workflow](/workflows) that runs once per row. For each row, the workflow reads the columns you choose as input, runs its blocks, and writes its results back into columns on that same row.
@@ -47,7 +46,7 @@ The unit you configure is a **group**: something that runs once per row, fed by 
 
 ### Enrichments
 
-An **enrichment** is a built-in lookup that Sim provides and maintains — browse the **Enrichments** panel for what's available. Pick one, bind its inputs to columns, and name the columns its outputs should fill; there's no workflow to build. Under the hood an enrichment tries a cascade of data providers in order, which is why a cell can come back **Not found**: every provider ran and none had the answer.
+An **enrichment** is a built-in lookup that Sim provides and maintains — browse the **Enrichments** panel for what's available. Pick one, bind its inputs to columns, and name the columns its outputs should fill; there's no workflow to build. Under the hood an enrichment tries a cascade of data providers in order, which is why a cell can come back **Not found**: none of the available providers returned a match.
 
 ### Workflow groups
 
@@ -149,12 +148,3 @@ Because a group can run after another group's output column, you can chain group
 Reach for a workflow column when you have a row-by-row job: enrich each record, classify each entry, score each lead. The work is the same shape on every row, and you want the results to live next to the source data.
 
 Use a [workflow on its own](/workflows) instead when the job isn't per-row: a one-off transform, an aggregation across many rows, or a real-time decision tied to a single request. To pull table data into a workflow rather than push workflow results into a table, see [using tables in workflows](/tables/using-in-workflows).
-
-## Next
-
-<Cards>
-  <Card title="Tables overview" href="/tables" description="Typed columns, schemas, filtering, and the Tables API." />
-  <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write table rows from inside a workflow." />
-  <Card title="Workflows" href="/workflows" description="What a workflow is and the blocks it's built from." />
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="Outputs, references, and the values a workflow produces." />
-</Cards>

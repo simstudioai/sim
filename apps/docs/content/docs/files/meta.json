@@ -1,4 +1,4 @@
 {
   "title": "Files",
-  "pages": ["index", "editor", "using-in-workflows", "generating", "passing-files"]
+  "pages": ["editor", "using-in-workflows", "generating", "passing-files"]
 }

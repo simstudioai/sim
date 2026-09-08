@@ -1,7 +1,6 @@
 {
   "title": "Enterprise",
   "pages": [
-    "index",
     "self-hosted",
     "sso",
     "scim",

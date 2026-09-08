@@ -28,6 +28,10 @@
     "./note-content": {
       "types": "./src/note/note-content.ts",
       "default": "./src/note/note-content.ts"
+    },
+    "./formatted-text": {
+      "types": "./src/formatted-text.tsx",
+      "default": "./src/formatted-text.tsx"
     }
   },
   "scripts": {

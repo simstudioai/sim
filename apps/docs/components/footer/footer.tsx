@@ -12,7 +12,7 @@ import { SIM_SITE_URL } from '@/lib/urls'
  */
 
 const LINK_CLASS =
-  'text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
+  'text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]'
 
 interface FooterItem {
   label: string
@@ -23,7 +23,7 @@ interface FooterItem {
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Enterprise', href: `${SIM_SITE_URL}/enterprise`, external: true },
   { label: 'Chat', href: '/chat' },
-  { label: 'Workflows', href: '/introduction' },
+  { label: 'Workflows', href: '/workflows' },
   { label: 'Knowledge Base', href: '/knowledgebase' },
   { label: 'Tables', href: '/tables' },
   { label: 'MCP', href: '/agents/mcp' },
@@ -107,7 +107,7 @@ const LEGAL_LINKS: FooterItem[] = [
 function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {
   return (
     <div>
-      <h3 className='mb-4 text-[var(--text-primary)] text-sm'>{title}</h3>
+      <h2 className='mb-4 text-[var(--text-primary)] text-sm'>{title}</h2>
       <div className='flex flex-col gap-2.5'>
         {items.map(({ label, href, external }) =>
           external ? (
@@ -169,7 +169,9 @@ export function Footer() {
           <FooterColumn title='Legal' items={LEGAL_LINKS} />
         </nav>
 
-        <p className='mt-16 text-[var(--text-muted)] text-sm'>© 2026 Sim. All rights reserved.</p>
+        <p className='mt-16 text-[var(--text-secondary)] text-sm'>
+          © 2026 Sim. All rights reserved.
+        </p>
       </div>
     </footer>
   )

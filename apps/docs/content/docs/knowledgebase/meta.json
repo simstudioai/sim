@@ -1,7 +1,6 @@
 {
   "title": "Knowledge Base",
   "pages": [
-    "index",
     "using-in-workflows",
     "connectors",
     "tags",

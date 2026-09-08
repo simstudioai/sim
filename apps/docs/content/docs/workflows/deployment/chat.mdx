@@ -32,7 +32,7 @@ Configure the following fields, then click **Launch Chat**:
 | **Output** | Output fields from your workflow blocks returned as the chat response. At least one must be selected. |
 | **Welcome Message** | Greeting shown before the user sends their first message. Defaults to `"Hi there! How can I help you today?"`. |
 | **Access Control** | Controls who can access the chat. See [Access Control](#access-control) below. |
-| **Include thinking** | When enabled, the hosted chat can show provider-exposed thinking. Requires the chat client to send `X-Sim-Stream-Protocol: agent-events-v1` (the hosted UI always does). Default is off. See [Agent stream events](/docs/workflows/deployment/agent-events). |
+| **Include thinking** | When enabled, the hosted chat can show provider-exposed thinking. Requires the chat client to send `X-Sim-Stream-Protocol: agent-events-v1` (the hosted UI always does). Default is off. See [Agent stream events](/workflows/deployment/agent-events). |
 | **Include tool calls** | When enabled, the hosted chat can show tool names and lifecycle status independently of thinking. Tool arguments and results are never exposed. Requires the same stream protocol header and defaults to off. |
 
 ### Output Selection
@@ -111,7 +111,7 @@ const decoder = new TextDecoder();
 while (true) {
   const { done, value } = await reader!.read();
   if (done) break;
-  console.log(decoder.decode(value));
+  console.log(decoder.decode(value, { stream: true }));
 }
 ```
   </Tab>
@@ -177,10 +177,6 @@ curl -X POST https://www.sim.ai/api/chat/your-slug \
 **Responses not updating after workflow changes** — Chat uses the active deployment snapshot. Publish a new deployment from the Deploy modal to pick up your latest changes.
 
 <FAQ items={[
-  { question: "How is chat different from API deployment?", answer: "API deployment exposes your workflow as a REST endpoint for programmatic use. Chat wraps the workflow in a hosted conversational UI with streaming, file uploads, voice input, and access control — no application code required to use it." },
-  { question: "Which output field should I select?", answer: "For workflows built around Agent blocks, select the content field from the final Agent block — this streams the agent's text response to the user. You can select multiple fields if your workflow produces structured output you want to expose." },
-  { question: "How does conversation history work?", answer: "Each message triggers a new workflow execution. The full conversation history — all prior user messages and assistant responses — is passed as context so your workflow can maintain continuity across turns." },
   { question: "How does email OTP authentication work?", answer: "When a user opens an email-protected chat, they enter their email address. If it matches the allowed list, Sim sends a 6-digit OTP to that address. The user enters the code, and a session cookie is set for the duration of their visit." },
-  { question: "Is there a message length limit?", answer: "There is no hard limit on message length. Very long messages may impact response time depending on your workflow's model context window." },
-  { question: "Can I use chat with any workflow?", answer: "Yes, any workflow can be deployed as a chat. The chat sends the user's message as the workflow input and streams the selected block outputs back as the response." },
+  { question: "Is there a message length limit?", answer: "The chat API accepts up to 1,000,000 characters in a message. The selected model's context window may impose a smaller practical limit." },
 ]} />

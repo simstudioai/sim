@@ -7,7 +7,6 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { WorkflowPreview, PARALLEL_WORKFLOW } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
 The **Parallel block** is a container that runs the block inside it concurrently — once per item in a collection, or a fixed number of times. It is the concurrent counterpart to a [Loop](/workflows/blocks/loop): reach for it when the work is independent and order doesn't matter.
 
@@ -42,7 +41,7 @@ Set the parallel type, then the value it needs:
 
 References differ inside the parallel and after it.
 
-<Tabs items={['Inside the parallel', 'After the parallel']}>
+<Tabs items={['Inside parallel', 'After parallel']}>
   <Tab>
     Inside, read this instance's context with `<parallel.*>`:
 
@@ -79,10 +78,11 @@ A collection-based Parallel calls an endpoint for each task at the same time, an
 
 ## Parallel vs Loop
 
-| | Parallel | Loop |
+| Feature | Parallel | Loop |
 | --- | --- | --- |
 | **Execution** | Concurrent | Sequential |
-| **Order** | Not guaranteed | Preserved |
+| **Completion order** | Not guaranteed | Sequential |
+| **Result order** | Input/instance order | Iteration order |
 | **Best for** | Independent work | Dependent steps |
 | **Resource use** | Higher | Lower |
 
@@ -99,14 +99,4 @@ A Parallel runs up to **20 branches at a time**. Larger counts or collections ru
 - **Use it for independent work only.** Instances can't share state, so each one must stand alone.
 - **Mind rate limits.** Lower the batch size, or add a [Wait](/workflows/blocks/wait), for API-heavy work.
 - **Handle errors per instance.** One failure won't stop the others, so each instance should handle its own.
-- **Add an identifier if order matters.** Results aren't guaranteed to match input order — include an index or id in each instance's output.
-
-<FAQ items={[
-  { question: "What is the maximum number of concurrent instances?", answer: "Twenty at a time. The limit prevents resource exhaustion and keeps execution stable; larger counts run in serial batches." },
-  { question: "Can parallel instances share state with each other?", answer: "No. Each instance runs in isolation with its own variable scope, and one instance cannot read or write another's data during execution." },
-  { question: "What happens if one parallel instance fails?", answer: "Only that instance fails. The others run independently and continue normally." },
-  { question: "Can I nest Parallel blocks inside other Parallel or Loop blocks?", answer: "Yes. Parallels and Loops support nesting in any combination, so you can build multi-dimensional workflows." },
-  { question: "How do I access results after the Parallel block completes?", answer: "Use <blockname.results>, where blockname is the normalized name of the Parallel block (lowercase, no spaces). It returns an array of results from all instances." },
-  { question: "Is the order of results guaranteed?", answer: "No. Because instances run concurrently, result order isn't guaranteed to match input order. If order matters, include an index or identifier in each instance's output." },
-  { question: "What is the difference between count-based and collection-based parallel?", answer: "Count-based runs a fixed number of identical instances. Collection-based distributes items from an array or object, one per instance. Use count-based for repeated work and collection-based for batch processing." },
-]} />
+- **Separate result order from completion order.** Results retain input/instance order even when branches finish out of order. Use Loop when the work itself must happen sequentially.

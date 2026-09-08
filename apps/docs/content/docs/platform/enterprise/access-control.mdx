@@ -226,7 +226,7 @@ When a user opens Chat, their permission group is read before any block or tool 
   },
   {
     question: "Does Chat respect the same restrictions as the executor?",
-    answer: "Yes. Sim reads the user's permission group for the workspace's organization before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
+    answer: "Sim uses the permission group governing the workflow's workspace. Disallowed blocks are filtered from the block picker. Generated workflows can still reference a restricted tool type; execution rejects it with an error naming the restriction."
   },
   {
     question: "Can I apply different restrictions to different people or workspaces?",

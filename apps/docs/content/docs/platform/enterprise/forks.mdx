@@ -193,7 +193,7 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 
 Only **deployed** workflows move. Deploy is the commit; sync is the force push/pull of those commits. Workflows marked [excluded](#excluded-workflows) never move in either direction.
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Each deployed workflow becomes a **draft** in the child. Run history is not copied. Only folders that contain a copied workflow are kept. |
 | **Sync** | The change list shows what will be updated, created, or archived. The target is overwritten for those workflows. |
@@ -204,7 +204,7 @@ Only **deployed** workflows move. Deploy is the commit; sync is the force push/p
 
 ### Files
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Listed under **Copy resources** (default on). A copied file keeps its containing folder structure. Folder scopes referenced by copied workflows are mirrored with their ancestors even when they are empty; mirroring a scope does not implicitly copy every file inside it. Deselect a file → that file field clears. |
 | **Sync** | Map to a file that already exists on the target, or copy. Files used by the sync’s workflows default to selected. Selected workspace file-folder scopes are mapped separately by canonical path. The same path is suggested automatically when it exists on both sides; otherwise create or choose the intended target folder before syncing. |
@@ -217,7 +217,7 @@ Only concrete, active workspace folder selections participate in this mapping. L
 
 ### Tables
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Optional copy (default on). Rows may finish copying in the background after the fork is created. Deselect → table fields clear. |
 | **Sync** | Map if both sides should keep pointing at “the same” logical table through the mapping, or copy for an independent dataset on the target. |
@@ -228,7 +228,7 @@ Only concrete, active workspace folder selections participate in this mapping. L
 
 ### Knowledge bases and documents
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Optional copy (default on). Tag definitions come with the knowledge base, along with every **uploaded** document in it. Deselect → knowledge base / document fields clear. |
 | **Sync** | Map or copy the knowledge base. Documents are not mapped by themselves — they follow the knowledge base (copied with it, or re-picked when you map to an existing one). |
@@ -256,7 +256,7 @@ A document whose connector was **deleted** in the source is no longer connector-
 
 ### Custom tools
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Optional copy (default on). The tool definition comes along so agent / tool picks keep working. |
 | **Sync** | Map when both sides already maintain the same tool; copy when the target should receive the source’s definition as a new tool. |
@@ -267,7 +267,7 @@ A document whose connector was **deleted** in the source is no longer connector-
 
 ### Skills
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Optional copy (default on). Skill content comes along. Links inside the skill to files or other Sim resources are updated when those resources were also copied. Deselect → skill fields on agents clear. |
 | **Sync** | Map or copy, same idea as custom tools. |
@@ -280,7 +280,7 @@ A document whose connector was **deleted** in the source is no longer connector-
 
 Servers you connect to an external MCP endpoint (not “publish this workflow as MCP”).
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Optional copy (default on). **Connection settings** (URL, headers, transport) copy. **Sign-in / OAuth is not copied** — OAuth servers show up disconnected until someone signs in again in the child. Tool picks on MCP and agent blocks follow the new server. |
 | **Sync** | Map or copy under the same rules. Mapping is typical when each workspace has its own server aimed at the same upstream system. |
@@ -293,7 +293,7 @@ Servers you connect to an external MCP endpoint (not “publish this workflow as
 
 Servers that **publish workflows as MCP tools**.
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Optional under **Copy resources**. You get matching server shells in the child. When the workflow was also forked, its tool attachment on that server is carried over. |
 | **Sync** | These are not shown in the mapping list. Attachments stay aligned as you sync — tools are added, updated, or removed to match the source. |
@@ -304,7 +304,7 @@ Servers that **publish workflows as MCP tools**.
 
 ### Deployed chats
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Live chat deployments on copied workflows come along with a **new chat URL**. Conversation history is not copied — only the chat setup (including which blocks feed the chat). |
 | **Sync** | If the target workflow has **no** chat yet, the source’s live chat is created there (again with a new URL). Existing chats on the target are left alone. Workflows that are not ready to deploy do not get a chat. |
@@ -315,7 +315,7 @@ Servers that **publish workflows as MCP tools**.
 
 ### Credentials
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | **Never copied.** Credential fields in workflows are cleared. Connect or pick credentials in the child. |
 | **Sync** | **Map only.** Every credential used by the synced workflows must be mapped to a credential on the target (same kind of integration). Sync stays blocked until that is done. Then re-pick dependents (labels, calendars, channels, …). |
@@ -326,7 +326,7 @@ Servers that **publish workflows as MCP tools**.
 
 ### Secrets (environment variables)
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | **Values never leave the source.** Workflow text still contains `{{KEY}}` names. Create matching secrets (or the names you will map to) under the child’s **Secrets**. |
 | **Sync** | Map source key names to target key names. Values stay in each workspace. Unmapped required secrets block Sync. |
@@ -339,7 +339,7 @@ Notes are documentation: a `{{KEY}}` that appears only inside a Note block never
 
 ### Public API
 
-| | Behavior |
+| Feature | Behavior |
 |---|----------|
 | **Fork** | Child workflows start **private** — not exposed as public API endpoints, even if the parent was. |
 | **Sync** | The source workflow’s public API setting is carried. Push a public endpoint and the target becomes public too. |

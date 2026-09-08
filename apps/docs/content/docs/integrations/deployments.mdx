@@ -11,13 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Deployments is Sim's built-in system for taking a workflow's draft state live for API execution and managing its version history. Every deploy creates a new version, and past versions stay available for review or rollback.
+Use the Deployments block to manage other workflows in the current workspace. Deploy creates a new version; Promote Version to Live makes an existing version live without creating another. Undeploy takes a workflow offline and removes its triggers, webhooks, and schedules.
 
-- **Deploy and undeploy**: Push the current draft live as a new version, or take a live workflow offline and remove its triggers, webhooks, and schedules
-- **Promote or roll back**: Make any past version the live one without creating a new version, including re-deploying an undeployed workflow at a known-good version
-- **Inspect version history**: List every deployment version with its metadata, or fetch the full workflow state snapshot for a specific version
-
-In Sim, the Deployments block allows your agents to deploy and undeploy workflows, promote a specific version to live for rollbacks, list all deployment versions of a workflow, and retrieve the deployed state snapshot of any past version—all programmatically as part of another workflow.
+For the deployment UI and execution model, see [Workflow Deployment](/workflows/deployment).
 {/* MANUAL-CONTENT-END */}
 
 

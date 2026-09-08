@@ -40,7 +40,7 @@ Start a new workflow execution on a Temporal cluster.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Unique workflow ID for the new execution \(e.g., order-1234\) |
@@ -71,7 +71,7 @@ Send a signal to a running Temporal workflow execution.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to signal |
@@ -94,7 +94,7 @@ Atomically signal a Temporal workflow, starting it first if it is not already ru
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID to signal, or to start and signal \(e.g., order-1234\) |
@@ -127,7 +127,7 @@ Run a synchronous query against the state of a Temporal workflow execution and r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to query |
@@ -151,7 +151,7 @@ Invoke an update handler on a running Temporal workflow and wait for its result.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to update |
@@ -175,7 +175,7 @@ Get the current state of a Temporal workflow execution, including status, timing
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to describe |
@@ -211,7 +211,7 @@ List workflow executions in a Temporal namespace, optionally filtered with a vis
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `query` | string | No | Visibility list filter, e.g. WorkflowType = "OrderWorkflow" AND ExecutionStatus = "Running" \(empty lists all executions\) |
@@ -242,7 +242,7 @@ Count workflow executions in a Temporal namespace matching a visibility query, w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `query` | string | No | Visibility count filter, e.g. ExecutionStatus = "Running" or ... GROUP BY ExecutionStatus \(empty counts all executions\) |
@@ -264,7 +264,7 @@ Fetch the event history of a Temporal workflow execution, optionally filtered to
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution |
@@ -292,7 +292,7 @@ Request cooperative cancellation of a running Temporal workflow execution. The w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to cancel |
@@ -313,7 +313,7 @@ Forcefully terminate a Temporal workflow execution immediately, without giving t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to terminate |
@@ -334,7 +334,7 @@ Reset a Temporal workflow execution to a past workflow task, terminating the cur
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `workflowId` | string | Yes | Workflow ID of the execution to reset |
@@ -357,7 +357,7 @@ List the workers currently polling a Temporal task queue, to check whether a wor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `taskQueue` | string | Yes | Name of the task queue to describe \(e.g., orders\) |
@@ -381,7 +381,7 @@ Create a Temporal schedule that starts a workflow on a cron or interval cadence.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `scheduleId` | string | Yes | Unique ID for the new schedule \(e.g., nightly-report\) |
@@ -410,7 +410,7 @@ List schedules in a Temporal namespace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `query` | string | No | Visibility filter over schedules, e.g. TemporalSchedulePaused = false \(empty lists all schedules\) |
@@ -437,7 +437,7 @@ Get the configuration and current state of a Temporal schedule, including its sp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `scheduleId` | string | Yes | ID of the schedule to describe |
@@ -468,7 +468,7 @@ Pause a Temporal schedule so it stops taking actions until unpaused.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `scheduleId` | string | Yes | ID of the schedule to pause |
@@ -488,7 +488,7 @@ Unpause a Temporal schedule so it resumes taking actions.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `scheduleId` | string | Yes | ID of the schedule to unpause |
@@ -508,7 +508,7 @@ Trigger an immediate action of a Temporal schedule, outside its normal spec.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `scheduleId` | string | Yes | ID of the schedule to trigger |
@@ -528,7 +528,7 @@ Delete a Temporal schedule. Workflows already started by the schedule keep runni
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243) |
 | `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
 | `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
 | `scheduleId` | string | Yes | ID of the schedule to delete |

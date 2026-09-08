@@ -87,7 +87,7 @@ When calling a workflow via API that expects file input, include files in your r
 <Tabs items={['Base64', 'URL']}>
   <Tab value="Base64">
     ```bash
-    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+    curl -X POST "https://sim.ai/api/v2/workflows/YOUR_WORKFLOW_ID/execute" \
       -H "Content-Type: application/json" \
       -H "x-api-key: YOUR_API_KEY" \
       -d '{
@@ -101,7 +101,7 @@ When calling a workflow via API that expects file input, include files in your r
   </Tab>
   <Tab value="URL">
     ```bash
-    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+    curl -X POST "https://sim.ai/api/v2/workflows/YOUR_WORKFLOW_ID/execute" \
       -H "Content-Type: application/json" \
       -H "x-api-key: YOUR_API_KEY" \
       -d '{
@@ -173,9 +173,6 @@ Use `url` for direct downloads or `base64` for inline processing.
 import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
-  { question: "What is the maximum file size for uploads?", answer: "The maximum file size for files processed during a workflow run is 20 MB. Files exceeding this limit will be rejected with an error indicating the actual file size. For larger files, use storage blocks like S3 or Supabase for intermediate storage." },
-  { question: "What file input formats are supported via the API?", answer: "When triggering a workflow via API, you can send files as base64-encoded data (using a data URI with the format 'data:{mime};base64,{data}') or as a URL pointing to a publicly accessible file. In both cases, include the file name and MIME type in the request." },
-  { question: "How are files passed between blocks internally?", answer: "Files are represented as standardized UserFile objects with name, url, base64, type, and size properties. Most blocks accept the full file object and extract what they need automatically, so you typically pass the entire object rather than individual properties." },
-  { question: "Do I need to extract base64 or URL from file objects manually?", answer: "No. Most blocks accept the full file object and handle the format conversion automatically. Simply pass the entire file reference (e.g., <gmail.attachments[0]>) and the receiving block will extract the data it needs." },
-  { question: "How do file fields work in the Start block's input format?", answer: "When you define a field with type 'file[]' in the Start block's input format, the engine automatically processes incoming file data (base64 or URL) and uploads it to storage, converting it into UserFile objects before the workflow runs." },
+  { question: "What is the maximum file size for uploads?", answer: "There is no single limit for every file path. Workspace storage, workflow uploads, Function mounts, and external tools have separate limits. Check the receiving operation before passing a large file; Function sandbox mounts currently limit each inline file to 10 MB." },
+  { question: "How do file fields work in the Start block's input format?", answer: "When you define a field with type 'files' in the Start block's input format, the engine automatically processes incoming file data (base64 or URL) and uploads it to storage, converting it into UserFile objects before the workflow runs." },
 ]} />

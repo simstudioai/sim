@@ -1043,7 +1043,7 @@ sim knowledge search [options]
 | --- | --- | --- |
 | `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--query <value>` | No | Text to search for. |
-| `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search. |
+| `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100. |
 | `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
 | `--search-mode <value>` | No | Search algorithm. Accepted values: `vector`, `hybrid`. |
 | `--reranker-enabled` | No | Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response. |

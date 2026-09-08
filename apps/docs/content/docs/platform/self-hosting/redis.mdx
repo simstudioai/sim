@@ -17,7 +17,7 @@ Sim uses Redis as a message bus and shared cache. Both deployments ship it by de
 | Idempotency store | Falls back to PostgreSQL |
 | Execution progress markers | Falls back to PostgreSQL |
 | Distributed execution limits | Enforced per-pod instead of per-deployment |
-| CLI auth approval store | **No fallback** — CLI authentication requires Redis regardless of replica count |
+| CLI pairing-code approval store | **No fallback** — API-key login through pairing requires Redis regardless of replica count; OAuth login uses a separate path |
 | Collaborative document store (realtime) | Falls back to in-process state |
 
 <Callout type="error">

@@ -1,6 +1,6 @@
 ---
 title: Loops & Parallel
-description: "Repeat the same steps over a collection: the Loop block runs them one item at a time, the Parallel block runs every item at once."
+description: "Repeat the same steps over a collection: the Loop block runs them one item at a time, the Parallel block runs items in concurrent batches."
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
@@ -9,7 +9,8 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, LOOP_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Workflows" title="Loops & Parallel" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-loops.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Workflows" title="Loops & Parallel" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-loops.mp4"
+  captionsSrc="/captions/academy/workflows-loops.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -27,8 +28,8 @@ Repeating the same steps across a whole collection is one of the most fundamenta
       body: 'The Loop block iterates sequentially, item by item in order, when each step can depend on the last.',
     },
     {
-      title: 'Parallel runs all at once',
-      body: 'The Parallel block runs every item concurrently, far faster when the items are independent.',
+      title: 'Parallel runs concurrent batches',
+      body: 'The Parallel block runs independent items concurrently, using a configurable batch size.',
     },
   ]}
 />
@@ -62,19 +63,17 @@ Here's the shape of it: a container wrapping the blocks it repeats over the coll
 
 Inside the container, every iteration gets the **current item** to work on (and its index). That's how one lane of blocks becomes a run per lead, per row, or per file: the steps stay the same, the data changes each pass.
 
-## One at a time, or all at once
+## Sequential or concurrent
 
-This is the whole difference between the two blocks:
-
-- **Loop** runs the items **sequentially**, one finishes before the next begins. Reach for it when each step builds on the last, or when you need to respect order or rate limits.
-- **Parallel** runs them **all at once**, every item concurrently. Reach for it when the items are independent; it's dramatically faster across a large collection.
+- **Loop** runs items sequentially: one finishes before the next begins. Use it when an iteration depends on the previous one or the calls need to stay in order.
+- **Parallel** runs independent items in concurrent batches. Set **Batch Size** from 1 to 20; larger collections run in successive batches. Choose a size that fits the service you are calling.
 
 ## Swapping the container
 
 Because the two blocks share the same shape, you can **swap a Loop for a Parallel** (or back) without rewiring anything inside. Same logic, different execution, sequential or concurrent, chosen by which container you wrap it in.
 
 <FAQ items={[
-  { question: "What is the difference between Loop and Parallel?", answer: "Both repeat the blocks inside them over a collection. The Loop runs one item at a time in order; the Parallel block runs every item at once. The results collect the same way in both." },
+  { question: "What is the difference between Loop and Parallel?", answer: "Both repeat the blocks inside them over a collection. The Loop runs one item at a time in order; the Parallel block runs items concurrently in batches. The results collect the same way in both." },
   { question: "How do the blocks inside know which item they are on?", answer: "Through the container's references, such as the current item tag: each pass sees its own item, and downstream blocks read the collected results when the container finishes." },
   { question: "When should I prefer a sequential Loop?", answer: "When passes depend on each other, when order matters, or when you want to control the pace of calls to an external service. Reach for Parallel when items are independent and speed matters." },
 ]} />

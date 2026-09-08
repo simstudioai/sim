@@ -47,7 +47,7 @@ export const updateFormPropertiesTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Properties to set, e.g. {"thankurl":"https://example.com/thanks","activeRedirect":"thankurl","formWidth":"650"}',
+        'Properties to set, e.g. { "thankurl": "https://example.com/thanks", "activeRedirect": "thankurl", "formWidth": "650" }',
     },
   },
 

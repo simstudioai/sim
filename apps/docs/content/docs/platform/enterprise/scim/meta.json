@@ -1,5 +1,5 @@
 {
   "title": "Directory provisioning",
-  "pages": ["index", "okta", "entra"],
+  "pages": ["okta", "entra"],
   "defaultOpen": false
 }

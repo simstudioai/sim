@@ -81,9 +81,6 @@ A Function reads the account, and the Condition sends enterprise accounts throug
 - **Guard missing values.** Use optional chaining (`?.`) or a null check so an absent field does not throw.
 
 <FAQ items={[
-  { question: "Does the Condition block use an LLM?", answer: "No. It evaluates boolean expressions using JavaScript syntax directly, with no model call. That makes it fast, deterministic, and free of API cost. For AI-powered routing, use the Router block instead." },
   { question: "What happens if no condition matches?", answer: "The workflow follows the else branch. If the else branch is not connected to a downstream block, that path ends gracefully without an error. Add a final condition of simply true to guarantee a match." },
-  { question: "In what order are conditions evaluated?", answer: "Top to bottom, in the order they are defined. The first branch that evaluates to true determines the path, and later branches are not checked after a match. Place more specific conditions before general ones." },
   { question: "What JavaScript features can I use in condition expressions?", answer: "Standard operators and methods: comparisons (===, !==, >, <), logical operators (&&, ||, !), string methods (.includes(), .endsWith(), .toLowerCase()), array methods (.includes(), .length), math, and Date comparisons. Reference block outputs with <blockName.output> syntax." },
-  { question: "How does the Condition block handle null or undefined values?", answer: "If an expression references an undefined variable or throws at runtime, the block errors and the run fails, or follows the error path if one is connected. Use optional chaining (?.) or explicit null checks to handle missing values safely." },
 ]} />

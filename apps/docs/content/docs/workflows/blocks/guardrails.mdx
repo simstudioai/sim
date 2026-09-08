@@ -106,7 +106,7 @@ Hallucination adds `<guardrails.score>` and `<guardrails.reasoning>`; PII adds `
 
 Check the Agent's output is valid JSON, then branch on `<guardrails.passed>` before a Function parses it.
 
-### Prevent hallucinations
+### Check answer grounding
 
 <WorkflowPreview workflow={GUARDRAILS_HALLUCINATION_WORKFLOW} />
 
@@ -124,7 +124,7 @@ Detect PII in the input and branch on `<guardrails.passed>` to process clean inp
 - **Validate JSON before you parse it.** A check upstream is cheaper than a parse error in a Function block.
 - **Pick only the PII types you need.** Selecting fewer entity types keeps detection fast and focused.
 - **Tune the hallucination threshold.** Raise the confidence floor for stricter grounding, lower it to allow more latitude.
-- **Mask when you log.** Use Mask mode for content you store or log, so PII never lands in plain text.
+- **Use the masked output downstream.** In Mask mode, pass `<guardrails.maskedText>` to downstream storage or messaging. The original content remains available separately as `<guardrails.input>`.
 - **Chain checks.** One block runs one type, so place several in sequence to validate format and then scan for PII.
 
 <Callout type="info">
@@ -132,11 +132,7 @@ Guardrails runs synchronously in the workflow. For hallucination checks where la
 </Callout>
 
 <FAQ items={[
-  { question: "Can I run multiple validation types on the same content?", answer: "Each Guardrails block runs one validation type. To apply several, chain Guardrails blocks in sequence — for example validate JSON, then scan for PII." },
-  { question: "What does the hallucination confidence score mean?", answer: "It ranges from 0 to 10. A 0 means the content is completely ungrounded (full hallucination), and a 10 means it is fully supported by the knowledge base. Validation passes when the score meets or exceeds your threshold (default 3)." },
   { question: "How many knowledge base chunks are retrieved for hallucination detection?", answer: "Five by default. You can raise it up to 20 in Advanced settings. More chunks give broader context but add latency and tokens." },
-  { question: "What PII detection engine is used?", answer: "Microsoft Presidio. It supports over 30 entity types across the US, UK, Spain, Italy, Poland, Singapore, Australia, and India." },
-  { question: "What is the difference between Block and Mask modes for PII?", answer: "Block fails the validation (passed = false) when any selected PII is detected. Mask also detects it but replaces it with masked values in the output, so the content is safe to use downstream. Both return the list of detected entities." },
   { question: "Which languages does PII detection support?", answer: "English, Spanish, Italian, Polish, and Finnish. The language setting selects the NLP models used for entity recognition, so matching it to your content improves accuracy." },
   { question: "Does JSON validation check schema structure or just syntax?", answer: "Just syntax — it confirms the content parses as valid JSON, not that it matches a particular schema. For schema validation, use a Function block after the check." },
 ]} />

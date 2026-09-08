@@ -53,6 +53,7 @@ Point cron at an **internal** address where possible (the in-cluster Service, or
 | Workspace events poll | `/api/workspace-events/poll` | `*/15 * * * *` | Workspace event triggers |
 | Table row TTL cleanup | `/api/cron/cleanup-table-row-ttl` | `*/15 * * * *` | Deletes table rows whose TTL column has expired |
 | OAuth token cleanup | `/api/cron/cleanup-oauth-tokens` | `0 * * * *` | Deletes access and refresh tokens after the retention tail |
+| SCIM reconciliation | `/api/cron/scim-reconcile` | `17 * * * *` | Re-applies directory group mappings |
 | Data drains | `/api/cron/run-data-drains` | `0 * * * *` | Enterprise data drains |
 | Renew subscriptions | `/api/cron/renew-subscriptions` | `0 */12 * * *` | Renews Microsoft Teams chat subscriptions (Graph caps them at ~3 days) |
 | Billing cycle close | `/api/cron/billing-cycle-close` | `0 */6 * * *` | Billing only — final overage collection and per-period tracker reset |

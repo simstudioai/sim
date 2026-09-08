@@ -109,7 +109,7 @@ export const updateAccessApplicationTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. {"auth_type":"saml","consumer_service_url":"https://example.com/acs","sp_entity_id":"https://example.com"}; OIDC, e.g. {"auth_type":"oidc","client_id":"...","redirect_uris":["https://example.com/callback"]}',
+        'JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. { "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" }; OIDC, e.g. { "auth_type": "oidc", "client_id": "...", "redirect_uris": [ "https://example.com/callback" ] }',
     },
     targetCriteria: {
       type: 'string',

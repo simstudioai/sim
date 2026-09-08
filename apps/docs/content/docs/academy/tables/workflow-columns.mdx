@@ -8,22 +8,23 @@ import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 
-<VideoPlaceholder eyebrow="Tables" title="Workflow Columns" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/tables-workflow-columns.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Tables" title="Workflow Columns" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/tables-workflow-columns.mp4"
+  captionsSrc="/captions/academy/tables-workflow-columns.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-A workflow column doesn't hold typed-in values, it holds the **output of a workflow**, run once per row. Attach the workflow, bind its input to a column and its output to the column it fills, and the table starts doing the work itself: one run for every row, cascading through stages, updating as new rows arrive.
+A workflow column stores a workflow output for each row. Configure a workflow group to map row values to inputs and select one or more output columns. Run rows manually, or enable **Auto-run workflow** to process new and changed rows.
 
 <WhatYouWillLearn
   items={[
     {
       title: 'Attach, bind, run',
-      body: "A workflow column is defined in one panel: which workflow runs, which column feeds its input, and which column receives its output: one run per row, one cell per run.",
+      body: "Configure the workflow, map input columns, and select its output columns. One row run can fill several output columns.",
     },
     {
       title: 'Stages cascade',
-      body: 'Columns can read columns that other workflow columns fill. Add a scorer that reads the domain column, and a new row flows through the whole pipeline without a click.',
+      body: 'A workflow group can read outputs from another group. Enable auto-run and configure Run after dependencies to process the stages in order.',
     },
     {
       title: 'Every cell is a run',
@@ -58,9 +59,11 @@ A workflow column doesn't hold typed-in values, it holds the **output of a workf
 
 </div>
 
-## How a workflow column is defined
+## Configure a workflow group
 
-Everything that defines a workflow column lives in one panel: the workflow that runs, the column bound to its input, and the column that receives its output. On every row, the workflow reads that row's values and writes one cell back, right beside its source. Attach a second stage that reads what the first one filled, and rows flow through the pipeline in order.
+Select the workflow, map row values to its inputs, and choose the columns that receive its outputs. A single row run can write several columns. If a later group depends on those outputs, configure **Run after** and enable **Auto-run workflow** for the stages that should run automatically.
+
+![Configure workflow dialog with three output columns selected, Auto-run enabled, and Run after dependencies](/static/tables/workflow-columns/configure-workflow.png)
 
 ## Watching it run
 
@@ -68,11 +71,11 @@ Run a single row and the cell reports the run as it moves, queued, then running,
 
 ## Every cell records its run
 
-Take one value: a lead score of 75. The cell remembers the run that wrote it: open its menu and view the execution, a real trace where every block is a span, with its timing and cost. That's true all the way down the column: every cell is its own run. When a row fails, the cell says so, its trace shows which block failed and why, and re-running the cell re-runs the workflow for just that row.
+Take one value: a lead score of 75. The cell remembers the run that wrote it: open its menu and view the execution, a real trace where every block is a span, with its timing and cost. Output cells from the same workflow group can share a row run. When a row fails, the cell says so, its trace shows which block failed and why, and re-running the cell re-runs the workflow for just that row.
 
 <FAQ items={[
-  { question: "What is a workflow column?", answer: "A table column whose values are produced by a workflow instead of typed in. You attach one of your workflows, bind its input to a column and its output to the column it fills, and it runs once per row." },
-  { question: "Can workflow columns depend on each other?", answer: "Yes. A column can read a column another workflow fills, so stages cascade: a new row gets its domain first, then its score, without a click." },
+  { question: "What is a workflow column?", answer: "A table column filled by a workflow output. Configure a workflow group with input mappings and one or more output columns; the workflow runs for each row you process." },
+  { question: "Can workflow columns depend on each other?", answer: "Yes. Map the earlier output as an input, configure Run after dependencies, and enable auto-run for stages that should run automatically." },
   { question: "What happens when a row's run fails?", answer: "The cell shows the error, and its trace records exactly which block failed and why. Re-running the cell runs the workflow again for just that row." },
   { question: "Can I see why a cell has the value it does?", answer: "Every cell in a workflow column keeps the full trace of the run that wrote it: every block as a span, with timing and cost. Open the cell's menu and view the execution." },
 ]} />

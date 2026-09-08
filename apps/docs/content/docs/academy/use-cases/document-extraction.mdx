@@ -3,41 +3,27 @@ title: Document Intake & Extraction
 description: A pipeline that takes incoming documents, extracts the fields you care about, and writes structured rows you can act on.
 ---
 
-import { VideoPlaceholder } from '@/components/ui/video-placeholder'
-import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
-import { VideoChapters } from '@/components/ui/video-chapters'
+Build an invoice intake workflow that reads a file, extracts a fixed set of fields, and writes a row to a table. Start with one document before adding batch processing.
 
-<VideoPlaceholder eyebrow="Use case" title="Document Intake & Extraction" className="mt-2" />
+## Prepare the inputs
 
-<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
-<div>
+Create a table with columns for `source_file`, `invoice_number`, `vendor`, `invoice_date`, `total`, and `review_status`. Choose column types that match the values you want to store. Keep the source file reference so you can check an extraction against the original.
 
-Turn a pile of unstructured documents, invoices, contracts, forms, into structured data. The workflow reads each file, extracts the fields that matter, and writes them as rows you can query and process.
+## Build the workflow
 
-<WhatYouWillLearn
-  items={[
-    { title: 'Read real files', body: 'Take a PDF or image in and pull its contents into the workflow.' },
-    { title: 'Extract with an agent', body: 'Use a structured output so the agent returns clean, predictable fields.' },
-    { title: 'Persist the result', body: 'Write each extraction as a row in a table for downstream work.' },
-  ]}
-/>
+1. Pass an invoice into the workflow through an upload or an integration attachment. Use the [File block](/files/using-in-workflows) to read it, or pass it to an Agent model that supports the file type.
+2. Configure an [Agent block](/workflows/blocks/agent) to extract the table fields. Define a structured output and instruct it to leave missing fields empty instead of inferring a value.
+3. Add a [Condition](/workflows/blocks/condition) to check required fields before writing. Route incomplete results to a review path.
+4. Use the [Table block](/tables/using-in-workflows) to insert the extracted values, source reference, and review status.
 
-</div>
+## Check the result
 
-<VideoChapters
-  chapters={[
-    { title: 'The problem', time: '0:00' },
-    { title: 'Bring a file in', time: '0:35' },
-    { title: 'Extract structured fields', time: '1:20' },
-    { title: 'Write rows to a table', time: '2:15' },
-    { title: 'Run it on a batch', time: '3:00' },
-  ]}
-/>
+Run one complete invoice and compare the stored values with the original. Then test a document missing its invoice number and a document the reader cannot parse. Confirm that those cases reach the review path instead of creating a complete-looking row.
 
-</div>
+Once the single-file workflow behaves as expected, use a [Loop or Parallel block](/academy/workflows/loops) to process a collection. Inspect the [logs](/logs-debugging) for each document.
 
-## What you'll build
+## Continue learning
 
-A **file** comes in, an **Agent** block extracts the fields into a [structured output](/academy/agents/intro) so the shape is predictable, and a **Table** block writes the row. Run it across a batch and a folder of documents becomes a queryable table.
-
-This composes [files](/academy/files/intro), [agents](/academy/agents/intro), and [tables](/academy/tables/intro).
+- [Passing files between blocks](/files/passing-files)
+- [The File Object](/academy/files/object)
+- [Table Operations](/academy/tables/operations)

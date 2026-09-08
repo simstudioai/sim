@@ -39,7 +39,7 @@ List files, notebooks, and subdirectories at a path on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | No | Directory path to list, relative to the server root. Leave blank for root. |
 
@@ -67,7 +67,7 @@ Read a file or notebook from a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | Yes | Path of the file or notebook to read, relative to the server root |
 
@@ -89,7 +89,7 @@ Create a file, notebook, or directory on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | Yes | Path to create, relative to the server root |
 | `type` | string | Yes | Type of entry to create: file, notebook, or directory |
@@ -113,7 +113,7 @@ Upload a file to a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `directory` | string | No | Destination directory, relative to the server root. Leave blank to upload to the root directory. |
 | `file` | file | No | The file to upload \(UserFile object\) |
@@ -136,7 +136,7 @@ Rename or move a file, notebook, or directory on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | Yes | Current path of the entry, relative to the server root |
 | `newPath` | string | Yes | New path for the entry, relative to the server root |
@@ -157,7 +157,7 @@ Delete a file, notebook, or directory on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | Yes | Path of the entry to delete, relative to the server root |
 
@@ -176,7 +176,7 @@ Duplicate a file or notebook into a directory on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | Yes | Destination directory path, relative to the server root |
 | `copyFromPath` | string | Yes | Path of the file or notebook to copy, relative to the server root |
@@ -197,7 +197,7 @@ List running kernels on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 
 #### Output
@@ -219,7 +219,7 @@ Start a new kernel on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `kernelName` | string | No | Kernel spec name to start \(e.g. python3\). Defaults to the server default. |
 
@@ -241,7 +241,7 @@ Shut down a running kernel on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `kernelId` | string | Yes | ID of the kernel to shut down |
 
@@ -260,7 +260,7 @@ Restart a running kernel on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `kernelId` | string | Yes | ID of the kernel to restart |
 
@@ -282,7 +282,7 @@ Interrupt a running kernel on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `kernelId` | string | Yes | ID of the kernel to interrupt |
 
@@ -301,7 +301,7 @@ List available kernel specs (languages/runtimes) on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 
 #### Output
@@ -324,7 +324,7 @@ List active sessions (notebook-to-kernel bindings) on a Jupyter server
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 
 #### Output
@@ -351,7 +351,7 @@ Create a session that binds a notebook path to a (new or existing) kernel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `path` | string | Yes | Notebook path to bind the session to, relative to the server root |
 | `kernelName` | string | No | Kernel spec name to start for this session \(e.g. python3\) |
@@ -381,7 +381,7 @@ Delete a session on a Jupyter server (does not shut down its kernel)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888) |
 | `token` | string | Yes | Jupyter server authentication token |
 | `sessionId` | string | Yes | ID of the session to delete |
 

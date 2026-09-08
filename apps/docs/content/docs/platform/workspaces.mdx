@@ -6,9 +6,7 @@ description: A workspace holds your workflows and resources and decides who can 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A **workspace** holds one set of AI systems: the workflows you build and the resources they use — tables, files, knowledge bases, integrations, and secrets. It also decides who sees them. Every resource belongs to exactly one workspace, and only that workspace's members can access it. A workflow in one workspace cannot read a table in another.
-
-Think of a workspace as a project folder for AI systems. Open it and everything one team needs is in one place: the procedures, the data, the connected accounts, the run history, and the settings.
+A **workspace** groups workflows and the resources they use, including tables, files, knowledge bases, integrations, and secrets. Workspace roles control access, with additional permissions for resources such as credentials. Deployments and explicit sharing can expose selected resources outside the workspace.
 
 {/* VISUAL: nesting diagram. Outer ring: user or organization. Middle ring: workspace. Inside: workflows, tables, files, knowledge bases, integrations, secrets. Members with permission levels attached at the workspace ring. */}
 
@@ -54,9 +52,9 @@ A **log** is the execution trace of one workflow run: the trigger, the blocks th
 
 Everything is scoped to the workspace, so access, settings, and isolation work the same way:
 
-- **Access.** Membership is per workspace. A member sees every resource in it, at the level their permission allows.
+- **Access.** Workspace roles determine what members can do. Credential grants and permission groups can restrict particular resources or features.
 - **Settings.** Each workspace has its own configuration: integrations, secrets, access control, API keys, and more. The Settings page lists the full menu.
-- **Isolation.** Resources never span workspaces. To reuse a workflow elsewhere, move or copy it into that workspace.
+- **Ownership.** Workflows, tables, files, and knowledge bases belong to a workspace. To edit a workflow in another workspace, move or copy it there; deployments and sharing determine how others can use it.
 
 Members join with one of three **permission levels**: **Read**, **Write**, or **Admin** (the creator is **Owner**). Read can view, Write can build and run, Admin can also manage members and settings. See [Roles and permissions](/platform/permissions) for the full breakdown.
 

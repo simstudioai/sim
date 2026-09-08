@@ -61,6 +61,7 @@ const GROUP_TITLES: Record<string, string> = {
   'audit-logs': 'Audit Logs',
   'custom-tools': 'Custom Tools',
   'mcp-servers': 'MCP Servers',
+  'workflow-mcp-servers': 'Workflow MCP Servers',
   cli: 'CLI',
 }
 
@@ -509,16 +510,16 @@ function renderIndexPage(
   globals: DocumentedCommand[]
 ): string {
   const lines = [
-    ...frontmatter('Overview', 'Global options, and every sim command group'),
+    ...frontmatter('CLI Commands', 'Global options, and every sim command group'),
     'Every `sim` command follows the same shape:',
     '',
     '```bash',
     'sim <resource> [sub-resource] <verb> [arguments] [options]',
     '```',
     '',
-    'Resource groups are plural, and each one also accepts its singular spelling —',
-    '`sim workflow get` and `sim workflows get` are the same command. `knowledge`',
-    'additionally answers to `kb`.',
+    'Some resource groups also accept a singular alias: `sim workflow get` and',
+    '`sim workflows get` are the same command. `knowledge` also answers to `kb`.',
+    'Each group’s reference lists its supported aliases.',
     '',
     '## Global options',
     '',

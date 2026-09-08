@@ -70,7 +70,7 @@ A **source** is the part of the platform that consumed the credits. Every charge
 
 These follow from how charges are recorded, and they explain most questions about why a number looks the way it does.
 
-**Workflow covers the whole run, not just the base charge.** A workflow row includes three things: the models it called on Sim's hosted keys, any hosted-key tool calls, and the per-run base charge. Model usage typically dominates, but the per-run charge is not negligible — across a high-volume organization it commonly accounts for around a fifth of workflow spend, because it applies to every run whether or not the workflow calls a model.
+**Workflow covers the whole run, not just the base charge.** A workflow row includes three things: the models it called on Sim's hosted keys, any hosted-key tool calls, and the per-run base charge. The base charge applies to every run, including runs with no model calls.
 
 **Agent block is billed separately from the workflow that contains it.** An Agent block runs inside a workflow but is metered on its own, so its credits appear under **Agent block** rather than **Workflow**. Nothing is counted twice — but it also means Workflow alone understates what your workflows cost. Read the two lines together.
 
@@ -133,7 +133,7 @@ Very large exports are capped. When that happens the download still succeeds and
   },
   {
     question: "Is there an API for usage data?",
-    answer: "Not currently. Usage tracking is a settings surface; use the CSV export to move the data into your own systems."
+    answer: "The billing API exposes billing status and usage events; the [Billing CLI](/cli/billing) provides commands for those reads. Use this page's CSV export for the organization report shown in Settings."
   },
   {
     question: "Why does a period show partial days at each end?",

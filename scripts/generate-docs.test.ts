@@ -1,15 +1,53 @@
 import fs from 'fs'
 import path from 'path'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 import {
+  escapeMdxCell,
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
+  extractInheritedBlockCategory,
   extractToolInfo,
   extractUserSettableParamIds,
+  generateIconMappings,
   getToolInfo,
   parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
+
+describe('documentation editor icon metadata', () => {
+  it('keeps core icons and inherited categories out of the integration catalog', async () => {
+    const { docs, visible, coreBlockTypes } = await generateIconMappings()
+    expect(docs.wait.name).toBe('CirclePause')
+    expect(docs.schedule.name).toBe('Clock')
+    expect(docs.generic_webhook.name).toBe('Webhook')
+    expect(coreBlockTypes).toEqual(
+      expect.arrayContaining(['agent', 'file_v5', 'human_in_the_loop_v2'])
+    )
+    expect(visible.agent).toBeUndefined()
+    expect(visible.wait).toBeUndefined()
+    expect(visible.generic_webhook).toBeUndefined()
+  })
+
+  it('resolves nested inheritance, honors overrides, and stops at cycles', () => {
+    const source = `
+      export const BaseBlock: BlockConfig = { category: 'blocks' }
+      export const NextBlock: BlockConfig = {
+        ...BaseBlock,
+      }
+      export const CycleBlock: BlockConfig = {
+        ...CycleBlock,
+      }
+    `
+    expect(extractInheritedBlockCategory('{\n ...NextBlock,\n}', source)).toBe('blocks')
+    expect(extractInheritedBlockCategory("{\n ...NextBlock,\n category: 'tools'\n}", source)).toBe(
+      'tools'
+    )
+    expect(extractInheritedBlockCategory('{\n ...CycleBlock,\n}', source)).toBeNull()
+  })
+})
 
 describe('documentation tool metadata', () => {
   it('uses evaluated outputs for factory-defined tools', async () => {
@@ -941,5 +979,88 @@ describe('template interpolation is lexed rather than brace-counted', () => {
     )
 
     expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('generated reference Markdown', () => {
+  it('renders example URLs without adding punctuation or escape characters to their destinations', () => {
+    const description = escapeMdxCell(
+      'Use a URL (e.g., https://example.com/file) or [https://example.com/other].'
+    )
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    const links = table.children[1].children[0].children.filter((node) => node.type === 'link')
+    expect(links.map((link) => link.url)).toEqual([
+      'https://example.com/file',
+      'https://example.com/other',
+    ])
+  })
+
+  it('retains one table cell for descriptions containing pipes and MDX expressions', () => {
+    const description = escapeMdxCell('Use {value} with <file> and a | b.')
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    expect(table.children[1].children).toHaveLength(1)
+    expect(table.children[1].children[0].children).toMatchObject([
+      { type: 'text', value: 'Use {value} with <file> and a | b.' },
+    ])
+  })
+  it('keeps Markdown link examples literal while preserving their automatic URL links', () => {
+    const input = 'Use [label](https://example.com/file) and ![image](https://example.com/image).'
+    const description = escapeMdxCell(input)
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    const children = table.children[1].children[0].children
+    expect(children).toMatchObject([
+      { type: 'text', value: 'Use [label](' },
+      {
+        type: 'link',
+        url: 'https://example.com/file',
+        children: [{ type: 'text', value: 'https://example.com/file' }],
+      },
+      { type: 'text', value: ') and ![image](' },
+      {
+        type: 'link',
+        url: 'https://example.com/image',
+        children: [{ type: 'text', value: 'https://example.com/image' }],
+      },
+      { type: 'text', value: ').' },
+    ])
+  })
+
+  it('preserves balanced parentheses in HTTP and www destinations', () => {
+    const description = escapeMdxCell('Use (https://example.com/a(b)) or www.example.com/a(b).')
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    const links = table.children[1].children[0].children.filter((node) => node.type === 'link')
+    expect(links.map((link) => link.url)).toEqual([
+      'https://example.com/a(b)',
+      'http://www.example.com/a(b)',
+    ])
+  })
+
+  it('retains existing escaping outside automatic URLs', () => {
+    expect(escapeMdxCell('Keep [field], field[0], and fn(arg).')).toBe(
+      'Keep \\[field\\], field\\[0\\], and fn\\(arg\\).'
+    )
+    expect(escapeMdxCell('Keep [field] and fn(arg) beside (https://example.com/file).')).toBe(
+      'Keep \\[field\\] and fn\\(arg\\) beside \\(https://example.com/file).'
+    )
   })
 })
