@@ -3,105 +3,124 @@ slug: agentic-ai-coding-tools-what-they-are-and-how-the-top-options-compare
 title: 'Agentic AI Coding Tools: What They Are and How the Top Options Compare'
 description: 'Compare agentic AI coding tools, including Cursor, GitHub Copilot, Claude Code, Replit Agent, Sim, Gumloop, and n8n. Learn when to choose an in-IDE coding agent versus an agent-workflow platform.'
 date: 2026-08-01
-updated: 2026-08-01
+updated: 2026-09-08
 authors:
   - andrew
-readingTime: 7
+readingTime: 6
 tags: [AI Agents, Coding Tools, Developer Tools, Sim]
 ogImage: /library/agentic-ai-coding-tools-what-they-are-and-how-the-top-options-compare/cover.jpg
 canonical: https://www.sim.ai/library/agentic-ai-coding-tools-what-they-are-and-how-the-top-options-compare
 draft: false
 faq:
   - q: "What's the difference between agentic AI coding tools and regular AI code completion?"
-    a: "Regular AI code completion suggests the next line or block as a developer types. Agentic AI coding tools can plan and execute multi-step changes across a codebase, run commands, and revise their approach after errors without line-by-line approval."
+    a: "Regular AI code completion predicts code as a developer types, while an agentic coding tool plans and executes a sequence of actions. Sim complements agentic coding tools by coordinating code-related actions with external tools and data. Developers can use each category for the work it handles best without expecting a workflow platform to replace an IDE."
   - q: "Is Cursor an agentic AI coding tool?"
-    a: "Yes. Cursor is an AI-native code editor with an agent mode for working across a project, rather than only offering inline completion."
+    a: "Cursor is an agentic AI coding tool because its agent mode can work across a project instead of only suggesting inline completions. Sim can connect workflows and data to compatible coding agents while Cursor handles repository work. Using both lets developers keep code changes in the editor and automate surrounding processes separately."
   - q: "Is GitHub Copilot agentic?"
-    a: "GitHub Copilot includes an agent mode in supported IDEs in addition to its original code-completion experience."
+    a: "GitHub Copilot is agentic when its agent mode plans and carries out multi-step work in a supported IDE. Sim serves a different role by coordinating workflows across tools and data sources. That separation lets developers use GitHub Copilot for repository changes and Sim for the automation around them."
   - q: "What is the cheapest agentic AI coding tool?"
-    a: "Several major tools have free tiers or limited free usage. For sustained use, compare each vendor's current plan, included usage, and overage model because those terms can change."
+    a: "Several agentic tools offer free tiers, so no single product has the lowest entry price. Sim offers a free workflow-automation plan, while Cursor, GitHub Copilot, and Replit Agent also provide free access with product-specific limits. Compare included usage, paid-plan prices, and overage charges against your expected workload."
   - q: "Can an agentic coding tool work inside a larger business workflow, not just an IDE?"
-    a: "Yes. A coding agent can write code in a project, while an agent-workflow platform can connect that output to other systems such as deployment, tracking, or team notifications."
+    a: "An agentic coding tool can participate in a larger workflow when another system connects its output to external applications. Sim can coordinate those surrounding steps while the coding agent handles repository changes. You can therefore automate supported notifications and related processes while keeping code editing in the development environment."
   - q: "Does Sim replace Cursor or GitHub Copilot?"
-    a: "No. Sim is an agent-workflow platform rather than an IDE. It fits work where a code step belongs in a broader automated system that also uses other tools, data, and deployment surfaces."
+    a: "Sim is an agent-workflow platform, while Cursor and GitHub Copilot are coding tools built for repository work. Sim coordinates automated processes that can include code execution, external tools, and data. Using the products for their distinct roles gives developers IDE-based coding assistance and workflow automation without treating them as interchangeable."
 ---
 
 ## TL;DR
 
-Agentic AI coding tools plan and execute multi-step coding tasks rather than suggesting one line at a time. A developer can give one a goal such as “add OAuth login to this app”; the tool can inspect relevant files, edit code across the project, run checks, and use the output to revise its approach.
+Agentic AI coding tools plan and execute multi-step coding tasks rather than suggesting one line at a time. You can give the tool a goal such as “add OAuth login to this app.” It can then inspect relevant files, edit code across the project, run checks, and revise its approach based on the results.
 
-The category contains two groups that are often treated as one:
+Agentic AI tools in this guide fall into two distinct groups.
 
-- **In-IDE coding agents** such as [Cursor](https://cursor.com/), [GitHub Copilot](https://github.com/features/copilot), [Claude Code](https://claude.com/product/claude-code), [Windsurf](https://windsurf.com/), and [Replit Agent](https://replit.com/agent) are designed for writing, refactoring, and shipping code from an editor or terminal.
-- **Agent-workflow platforms** such as [Gumloop](https://www.gumloop.com/), [n8n](https://n8n.io/), [Zapier](https://zapier.com/), and [Sim](https://www.sim.ai/) build broader automations. They can include a code-writing step in a process that also gathers data, sends a message, or updates another system.
+- **In-IDE coding agents**, such as [Cursor](https://cursor.com/), [GitHub Copilot](https://github.com/features/copilot), [Claude Code](https://claude.com/product/claude-code), [Windsurf](https://windsurf.com/), and [Replit Agent](https://replit.com/agent), work primarily within an editor, terminal, or hosted development environment. They help you write and modify code within a project.
+- **Agent-workflow platforms**, such as [Gumloop](https://www.gumloop.com/), [n8n](https://n8n.io/), [Zapier](https://zapier.com/), and [Sim](https://www.sim.ai/), coordinate automated processes across applications and data sources. These processes can include a code-execution step.
 
-That distinction changes the choice. A developer shipping a SaaS product will usually want an in-IDE agent. An operations team automating a multi-app process will usually want a workflow platform. This guide covers both groups and where the line between them sits.
+Choose the category based on where the work happens. If you are shipping a SaaS product, you will usually want an in-IDE agent. If you are automating a process across several applications, you will usually want a workflow platform. This guide compares both categories and explains where their capabilities overlap.
 
 ## What makes an AI coding tool agentic?
 
-An AI coding tool is agentic when it can plan a multi-step task, take actions across a codebase, and correct mistakes without a human approving every line. That differs from traditional autocomplete, which predicts the next few tokens as a developer types, or from pasting a question into a chat window.
+An AI coding tool is agentic when it can plan a multi-step task, take actions across a codebase, and correct mistakes without a human approving every line. Traditional autocomplete instead predicts the next few tokens as you type, while a standard chat response does not independently act on a codebase.
 
-Three capabilities separate an agentic tool from autocomplete:
+- **Multi-step planning.**
+   The tool breaks a goal into file edits, terminal commands, and checks rather than completing one line.
+- **Tool use.**
+   The agent can run terminal commands, execute tests, browse documentation, or call APIs instead of only generating text.
+- **Self-correction.**
+   When a test fails or a command errors, the agent can read the output and revise its approach instead of waiting for a human to diagnose it.
 
-- **Multi-step planning.** The tool breaks a goal into file edits, terminal commands, and checks rather than completing one line.
-- **Tool use.** The agent can run terminal commands, execute tests, browse documentation, or call APIs instead of only generating text.
-- **Self-correction.** When a test fails or a command errors, the agent can read the output and revise its approach instead of waiting for a human to diagnose it.
-
-For a broader definition beyond coding, see Sim’s guide to [what an AI agent is](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples).
+Sim's guide to [AI agents](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples) explains how the concept applies beyond coding.
 
 ## What's the difference between an AI coding agent and an agent-workflow platform?
 
 An AI coding agent writes and modifies code in a specific project. An agent-workflow platform builds agents that can use code as one action in a larger automated process spanning apps and data sources.
 
-[Cursor](https://cursor.com/), [Claude Code](https://claude.com/product/claude-code), and [GitHub Copilot](https://github.com/features/copilot) are coding agents built around repository work. [Gumloop](https://www.gumloop.com/), [n8n](https://n8n.io/), and Sim are workflow platforms that can connect a code-writing action to a destination such as Slack, a CRM, or a database.
+[Cursor](https://cursor.com/), [Claude Code](https://claude.com/product/claude-code), and [GitHub Copilot](https://github.com/features/copilot) are coding agents built around repository work. [Gumloop](https://www.gumloop.com/), [n8n](https://n8n.io/), and Sim are workflow platforms that can connect code execution to applications such as Slack, a CRM, or a database.
 
-The overlap is real. Sim includes a Function block for custom JavaScript in a workflow, and [Mothership](https://docs.sim.ai/mothership) lets users describe workflows in natural language. But Sim is not a replacement for an in-IDE coding agent when the job is writing and shipping a codebase. It fits when a code-executing step needs to participate in a larger agent that also uses other tools and data. For the distinction between agent-style automation and older rule-based systems, see [AI agents vs. RPA](https://www.sim.ai/library/ai-agents-vs-rpa).
+The categories overlap when a workflow executes custom code or exposes tools to a coding agent. Sim includes a [Function block for custom JavaScript](https://docs.sim.ai/workflows/blocks/function), while [Mothership](https://docs.sim.ai/mothership) lets you describe workflows in natural language.
 
-## What are the best agentic AI coding tools right now?
+Sim does not replace an in-IDE coding agent for writing and shipping a codebase. It supports workflows in which code execution is one step in an automated process involving external tools or data. Sim's guide to [AI agents and RPA](https://www.sim.ai/library/ai-agents-vs-rpa) explains how agent-based automation differs from rule-based automation.
 
-The right pick depends on whether the work is writing code in a particular codebase or orchestrating code generation as part of a broader workflow.
+## Which agentic AI coding tools fit each use case?
+
+Choose an in-IDE agent for work inside a codebase and an agent-workflow platform for processes that coordinate code execution with other applications or data.
 
 ### In-IDE coding agents
 
-- [**Cursor**](https://cursor.com/) is an AI-native code editor built on VS Code, with an agent mode that edits across files, runs terminal commands, and works from markdown-based project instructions. It can use models from OpenAI, Anthropic, and Google depending on the task. Pricing starts with a free Hobby tier; [Pro is $20 per month](https://cursor.com/pricing) with extended agent usage, and Teams is [$40 per seat per month billed monthly or $32 annually](https://cursor.com/blog/teams-pricing-june-2026).
-- [**GitHub Copilot**](https://github.com/features/copilot) added agent mode inside VS Code and other IDEs, letting it plan changes, edit multiple files, and iterate. [GitHub’s pricing page](https://github.com/features/copilot/plans) lists Pro at $10 per user per month and Pro+ at $39 per user per month; [GitHub’s billing documentation](https://docs.github.com/copilot/reference/copilot-billing/models-and-pricing) explains its usage-based billing and states that one AI credit equals $0.01.
-- [**Claude Code**](https://claude.com/product/claude-code) is Anthropic’s terminal-based coding agent, included with Claude’s paid plans rather than sold separately. [Anthropic’s pricing page](https://claude.com/pricing) lists Claude Pro at $17 per month billed annually or $20 per month billed monthly, with Claude Code access; Max plans start at $100 per month for heavier usage.
-- **Windsurf** pricing is no longer independently verifiable on a vendor-owned Windsurf price page. [Cognition’s Devin pricing](https://cognition.com/blog/new-self-serve-plans-for-devin), where the product now sits, lists Free, Pro ($20 per month), Max ($200 per month), and Team ($80 per month plus $40 per seat) tiers.
-- [**Replit Agent**](https://replit.com/agent) builds and deploys applications from a prompt in Replit’s browser-based environment. [Replit’s pricing page](https://replit.com/pricing) lists a free Starter plan with daily Agent credits; Core is $20 per month billed annually ($25 month-to-month), includes $25 of monthly credits, and permits up to two agents in parallel. Pro is $95 per month billed annually ($100 month-to-month), includes $100 of monthly credits, and permits up to 10 parallel agents. Enterprise is custom.
+- **[Cursor](https://cursor.com/)**
+   is an AI-native code editor built on VS Code, with an [agent mode that edits files and runs terminal commands](https://cursor.com/docs/agent/overview), and works from [markdown-based project instructions](https://cursor.com/docs/rules). It can use models from OpenAI, Anthropic, and Google depending on the task. Cursor offers a free Hobby tier. [Cursor Pro costs $20 per month](https://cursor.com/pricing), while [Teams costs $40 per seat with monthly billing](https://cursor.com/blog/teams-pricing-june-2026).
+- **[GitHub Copilot](https://github.com/features/copilot)**
+   added [agent mode inside supported IDEs](https://docs.github.com/copilot/using-github-copilot/asking-github-copilot-questions-in-your-ide), letting it plan changes, edit multiple files, and iterate.
+   [GitHub's Copilot plans](https://github.com/features/copilot/plans) list Pro at $10 per user per month and Pro+ at $39 per user per month. [GitHub's billing documentation](https://docs.github.com/copilot/reference/copilot-billing/models-and-pricing) describes usage-based charges and values one AI credit at $0.01.
+- **[Claude Code](https://claude.com/product/claude-code)**
+   is [Anthropic’s terminal-based coding agent](https://docs.anthropic.com/en/docs/claude-code), included with Claude’s paid plans rather than sold separately.
+   [Anthropic's Claude pricing](https://claude.com/pricing) lists Claude Pro at $17 per month with annual billing or $20 with monthly billing, including Claude Code access. Max plans start at $100 per month and include higher usage limits.
+- **[Windsurf](https://windsurf.com/)** is an AI coding environment that supports [repository-aware editing and agent-based development workflows](https://docs.windsurf.com/windsurf/getting-started). Check Windsurf's official site for current plan details.
+- **[Replit Agent](https://replit.com/agent)**
+   builds and deploys applications from a prompt in Replit’s browser-based environment.
+   [Replit’s pricing page](https://replit.com/pricing) lists a free Starter plan alongside paid Core, Pro, and Enterprise options. Check the official page for current prices and included usage.
 
 ### Agent-workflow platforms that can run a coding step
 
-- **Sim** is an Apache 2.0-licensed AI workspace where a code-writing step is one block in a larger workflow. A team can describe a workflow to [Mothership](https://docs.sim.ai/mothership) in natural language, add a Function block for custom code, and deploy the finished workflow as a REST API, hosted chat experience, or MCP server. A workflow built once can be exposed as an MCP tool that a compatible coding agent calls, connecting IDE-based agents to a team’s own automations and data.
-- [**Gumloop**](https://www.gumloop.com/) is a hosted, no-code automation platform. Its own [agentic AI tools roundup](https://www.gumloop.com/blog/agentic-ai-tools) groups Cursor alongside workflow tools such as itself, n8n, and Zapier, illustrating why the category needs a clearer split. That page lists a free tier and paid plans starting at $37 per month.
-- [**n8n**](https://n8n.io/) is a fair-code, self-hostable workflow platform with a visual canvas and its own code step. [n8n’s pricing page](https://n8n.io/pricing) lists cloud Starter at €20 per month billed annually for 2,500 workflow executions and one shared project, Pro at €50 per month billed annually for 10,000 executions, and Business at €667 per month billed annually. Its Business plan includes self-hosting, SSO/SAML/LDAP, and Git-based version control; Enterprise is custom. The self-hosted Community Edition is free under [n8n’s Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/).
+- **[Sim](https://www.sim.ai/)** is an [Apache 2.0-licensed](https://github.com/simstudioai/sim) agent-workflow platform in which custom code can run as one step in a larger process. You can describe a workflow with [Mothership](https://docs.sim.ai/mothership) and add custom JavaScript through a [Function block](https://docs.sim.ai/workflows/blocks/function).
+- **[Gumloop](https://www.gumloop.com/)** is a hosted, no-code automation platform. Gumloop's [agentic AI tools roundup](https://www.gumloop.com/blog/agentic-ai-tools) describes how it fits alongside tools such as Cursor, n8n, and Zapier. Check Gumloop's official site for current pricing.
+- **[n8n](https://n8n.io/)** is a fair-code, self-hostable workflow platform with a visual canvas and a [code step](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.code). [n8n's pricing page](https://n8n.io/pricing) lists cloud Starter at €20 per month billed annually with one shared project. Pro costs €50 per month billed annually, while Business costs €667 per month billed annually. Business includes self-hosting, SSO, SAML, LDAP, and Git-based version control. Enterprise pricing is custom. The self-hosted Community Edition is free under [n8n's Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/).
 
-## How do the top agentic AI coding tools compare?
+### Agentic coding tools by use case
 
-| Tool | Category | Build model | License / hosting | Deployment surface | Starting price |
+- **Code review:** [Cursor](https://cursor.com/docs/agent/overview), [GitHub Copilot](https://docs.github.com/copilot/using-github-copilot/asking-github-copilot-questions-in-your-ide), and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) can review changes with repository context.
+- **Debugging:** [Cursor](https://cursor.com/docs/agent/overview) can investigate problems, run terminal commands, and revise code in the editor.
+- **Test generation:** [Cursor](https://cursor.com/docs/agent/overview) and [GitHub Copilot](https://docs.github.com/copilot/using-github-copilot/asking-github-copilot-questions-in-your-ide) can create tests within an IDE-based coding workflow.
+- **Refactoring:** [Cursor](https://cursor.com/docs/agent/overview), [GitHub Copilot](https://docs.github.com/copilot/using-github-copilot/asking-github-copilot-questions-in-your-ide), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and [Windsurf](https://docs.windsurf.com/windsurf/getting-started) can modify code across multiple files.
+
+These groupings describe supported use cases rather than relative performance. Compare the tools with the same repository, task, model settings, and review criteria before choosing one.
+
+## How do these agentic AI tools compare?
+
+| Tool | Category | Interaction model | License and hosting | Primary interface | Starting price |
 | --- | --- | --- | --- | --- | --- |
-| Cursor | In-IDE coding agent | Chat + agent mode in editor | Proprietary, local app | Local IDE | Free (Hobby); [$20/mo Pro](https://cursor.com/pricing) |
-| GitHub Copilot | In-IDE coding agent | Agent mode in IDE | Proprietary, cloud | IDE plugin | Free tier; [$10/mo Pro](https://github.com/features/copilot/plans) |
-| Claude Code | In-IDE/terminal coding agent | Terminal-based agent | Proprietary, cloud | CLI / terminal | [$17–20/mo](https://claude.com/pricing) via Claude Pro |
-| Windsurf / Cognition | In-IDE coding agent | Local + cloud agents in one IDE | Proprietary, local app | Local IDE | See [Cognition’s Devin pricing](https://cognition.com/blog/new-self-serve-plans-for-devin) |
-| Replit Agent | App-building agent | Prompt-to-deployed-app | Proprietary, cloud | Hosted app | Free (Starter); [$20/mo Core](https://replit.com/pricing), billed annually |
-| Sim | Agent-workflow platform | Natural language, visual canvas, or API | Apache 2.0, self-host or cloud | API, hosted chat, or MCP server | Free; [$25/user/mo Pro](https://www.sim.ai/pricing) |
-| Gumloop | Agent-workflow platform | Natural language + visual canvas | Proprietary, hosted | API, Slack, hosted agent pages | Free; [$37/mo Pro](https://www.gumloop.com/blog/agentic-ai-tools) |
-| n8n | Agent-workflow platform | Visual canvas + code step | Fair-code, self-host or cloud | API, webhook, self-hosted | Self-host free; [€20/mo Starter cloud](https://n8n.io/pricing), billed annually |
+| Cursor | In-IDE coding agent | Chat and agent mode | Proprietary local app with cloud services | IDE | Free Hobby tier; [Pro costs $20 per month](https://cursor.com/pricing) |
+| GitHub Copilot | In-IDE coding agent | Agent mode in supported IDEs | Proprietary cloud service | IDE extension | Free tier; [Pro costs $10 per month](https://github.com/features/copilot/plans) |
+| Claude Code | Terminal coding agent | Terminal-based agent | Proprietary cloud service | CLI | [Claude Pro costs $17 to $20 per month](https://claude.com/pricing) |
+| Windsurf | In-IDE coding agent | Agent-based IDE | Proprietary local app with cloud services | IDE | Check the [Windsurf website](https://windsurf.com/) for current pricing |
+| Replit Agent | App-building agent | Prompt-to-deployed-app workflow | Proprietary hosted service | Browser-based development environment | Free Starter tier; see [current Replit pricing](https://replit.com/pricing) |
+| Sim | Agent-workflow platform | Natural language, visual canvas, and API | Apache 2.0; self-hosted or cloud | Workflow builder and API | Free tier; [Pro costs $25 per user per month](https://www.sim.ai/pricing) |
+| Gumloop | Agent-workflow platform | Natural language and visual canvas | Proprietary hosted service | Workflow builder | Check the [Gumloop website](https://www.gumloop.com/) for current pricing |
+| n8n | Agent-workflow platform | Visual canvas and code step | Fair-code; self-hosted or cloud | Workflow builder, API, and webhooks | Free self-hosted edition; [Starter Cloud costs €20 per month when billed annually](https://n8n.io/pricing) |
 
 ## Can an agent-workflow platform replace an in-IDE coding agent?
 
-No—not for writing and shipping a codebase. In-IDE agents are designed around codebase context, git workflows, and terminal access that a general workflow platform does not try to replicate.
+An agent-workflow platform does not replace an in-IDE agent for writing and shipping a codebase. In-IDE agents work with codebase context, Git workflows, and terminal access. General workflow platforms instead coordinate actions across applications and data sources.
 
-A workflow platform adds value by connecting a coding agent’s output to the rest of a business process. A Sim workflow can place a completed code change alongside test execution, a Slack notification, and run-level tracing. The actual code work can still happen in an IDE; the workflow coordinates the systems around it. Teams deciding whether they need an agent or a simpler conversational interface can also read [AI agent vs. chatbot](https://www.sim.ai/library/ai-agent-vs-chatbot).
+A workflow platform can connect a coding agent's output to a broader process. The coding agent still modifies the codebase in its development environment, while Sim coordinates supported actions involving other tools and data. If you are deciding between an agent and a conversational interface, read Sim's comparison of an [AI agent and a chatbot](https://www.sim.ai/library/ai-agent-vs-chatbot).
 
 ## Are there open-source agentic AI coding tools?
 
-Yes, though “open source” means different things depending on the tool. Many prominent in-IDE coding agents, including Cursor, Windsurf, and Claude Code, are proprietary applications.
+Yes, but the tools in this article use different license models, including proprietary, source-available, and open-source licenses. Many prominent in-IDE coding agents, including Cursor, Windsurf, and Claude Code, are proprietary applications.
 
-Among workflow platforms that can run a coding step, licensing varies more. n8n uses its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which is source-available but has commercial restrictions. Sim’s core is [licensed under Apache 2.0](https://github.com/simstudioai/sim), a permissive open-source license, and Sim provides [self-hosting guidance](https://docs.sim.ai/self-hosting). For a wider comparison of licensing and deployment models, see [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+Licensing varies more among workflow platforms that can run code. n8n uses its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which is source-available and includes commercial restrictions. Sim's core uses the permissive [Apache License 2.0](https://github.com/simstudioai/sim), and our documentation provides [self-hosting guidance](https://docs.sim.ai/self-hosting). Sim's comparison of [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) covers additional licensing and deployment models.
 
 ## Do agentic coding tools support MCP?
 
-The [Model Context Protocol](https://modelcontextprotocol.io/) gives AI clients a standard way to connect to external tools and context. [Claude Code’s documentation](https://docs.anthropic.com/en/docs/claude-code/mcp) and [Cursor’s MCP documentation](https://docs.cursor.com/context/model-context-protocol) describe connecting to external MCP servers for additional tools and context.
+The [Model Context Protocol](https://modelcontextprotocol.io/) gives AI clients a standard way to connect to external tools and context. [Claude Code's MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp) and [Cursor's MCP documentation](https://cursor.com/docs/mcp) explain how each product connects to external MCP servers.
 
-Sim supports MCP in both directions: it can connect external MCP servers as tools in a workflow and publish deployed workflows as MCP tools that compatible clients can call. For a full explanation of the protocol, see [what an MCP server is](https://www.sim.ai/library/what-is-an-mcp-server).
+Sim can [connect external MCP servers](https://docs.sim.ai/agents/mcp) to a workflow and [publish deployed workflows as MCP tools](https://docs.sim.ai/workflows/deployment/mcp) for compatible clients. Sim's guide to [MCP servers](https://www.sim.ai/library/what-is-an-mcp-server) explains the protocol and its role in tool connections.
