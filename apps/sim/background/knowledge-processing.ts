@@ -12,8 +12,8 @@ import {
   isUsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 import {
+  assertDocumentProcessingBillingContext,
   assertDocumentProcessingPayload,
-  type DocumentProcessingBillingContext,
   type DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
 import {
@@ -34,19 +34,7 @@ export async function runDocumentProcessing(
   const startedAt = Date.now()
   const payload = assertDocumentProcessingPayload(rawPayload)
   const { knowledgeBaseId, documentId, docData, processingOptions, requestId } = payload
-  const billingContext: DocumentProcessingBillingContext =
-    payload.billingScope === 'workspace'
-      ? {
-          billingScope: 'workspace',
-          actorUserId: payload.actorUserId,
-          workspaceId: payload.workspaceId,
-          billingAttribution: payload.billingAttribution,
-        }
-      : {
-          billingScope: 'non-workspace',
-          actorUserId: payload.actorUserId,
-          workspaceId: null,
-        }
+  const billingContext = assertDocumentProcessingBillingContext(payload)
   const canScheduleQuotaContinuation = canScheduleDocumentProcessingQuotaContinuation(payload)
 
   logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
