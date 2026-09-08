@@ -14,7 +14,6 @@ export const ENTERPRISE_SEO_DESCRIPTION =
   'Build and govern enterprise AI agents in Sim. Manage team access, workspace permissions, and usage limits, with visibility into every run.'
 
 const ENTERPRISE_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Enterprise',
   path: '/enterprise',
   seoDescription: ENTERPRISE_SEO_DESCRIPTION,

@@ -54,7 +54,6 @@ describe('SolutionsStructuredData', () => {
   it('derives product-page features from the visible stories and keeps the free tier', () => {
     const config: SolutionsProductPageConfig = {
       ...IDENTITY,
-      layout: 'product',
       features: ['Connect sources', 'Retrieve context'].map((title, index) => ({
         id: `feature-${index}`,
         label: title,

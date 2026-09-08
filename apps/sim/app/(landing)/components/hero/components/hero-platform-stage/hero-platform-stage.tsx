@@ -30,7 +30,7 @@ export function HeroPlatformStage() {
           fetchPriority='high'
           quality={90}
           sizes='(max-width: 1727px) 100vw, 1648px'
-          className='object-cover grayscale dark:brightness-[0.28]'
+          className='object-cover dark:brightness-[0.28]'
         />
       </div>
 

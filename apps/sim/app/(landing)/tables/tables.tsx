@@ -12,7 +12,6 @@ export const TABLES_PAGE_DESCRIPTION =
   'Give AI agents structured data with Sim Tables. Organize records, enrich rows, run workflows from columns, and read or write data between agent runs.'
 
 const TABLES_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Tables',
   path: '/tables',
   seoDescription: TABLES_PAGE_DESCRIPTION,

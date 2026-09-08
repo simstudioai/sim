@@ -147,8 +147,6 @@ export interface SolutionsProductFeatureConfig {
 }
 
 /** Product pages lead with an interactive demo and two supporting visual cards. */
-export interface SolutionsProductPageConfig extends Omit<SolutionsPageConfig, 'rows' | 'hero'> {
-  layout: 'product'
-  hero: SolutionsHeroConfig
+export interface SolutionsProductPageConfig extends Omit<SolutionsPageConfig, 'rows'> {
   features: readonly SolutionsProductFeatureConfig[]
 }

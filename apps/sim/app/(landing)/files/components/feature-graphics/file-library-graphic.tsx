@@ -1,20 +1,12 @@
 import type { ComponentType } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
 import { DocxIcon, PdfIcon } from '@/components/icons/document-icons'
-import {
-  FeatureGraphicShell,
-  type FeatureGraphicVariant,
-} from '@/app/(landing)/enterprise/components/feature-graphics'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/files/components/feature-graphics/file-library-graphic.module.css'
-
-interface FileLibraryGraphicProps {
-  variant?: FeatureGraphicVariant
-}
 
 interface LibraryFolderProps {
   name: string
   count: string
-  compact: boolean
   className: string
 }
 
@@ -26,7 +18,6 @@ interface LibraryDocument {
 
 interface LibraryDocumentCardProps {
   document: LibraryDocument
-  compact: boolean
   className: string
 }
 
@@ -38,7 +29,7 @@ const DOCUMENTS: readonly LibraryDocument[] = [
 const DOCUMENT_STEPS = [styles.item2, styles.item3] as const
 
 /** A tabbed folder with two loose pages tucked behind its front cover. */
-function LibraryFolder({ name, count, compact, className }: LibraryFolderProps) {
+function LibraryFolder({ name, count, className }: LibraryFolderProps) {
   return (
     <div className={cn('relative min-h-0 min-w-0', className)}>
       <svg className='absolute inset-0 size-full' viewBox='0 0 160 150' preserveAspectRatio='none'>
@@ -62,7 +53,7 @@ function LibraryFolder({ name, count, compact, className }: LibraryFolderProps) 
           vectorEffect='non-scaling-stroke'
         />
       </svg>
-      <div className={cn('absolute inset-x-4', compact ? 'bottom-3' : 'bottom-5')}>
+      <div className='absolute inset-x-4 bottom-5'>
         <span className='block truncate text-[13px] text-[var(--text-primary)] leading-5'>
           {name}
         </span>
@@ -73,34 +64,24 @@ function LibraryFolder({ name, count, compact, className }: LibraryFolderProps) 
 }
 
 /** An individual file card with its native type glyph and a small content preview. */
-function LibraryDocumentCard({ document, compact, className }: LibraryDocumentCardProps) {
+function LibraryDocumentCard({ document, className }: LibraryDocumentCardProps) {
   const Icon = document.icon
 
   return (
     <div
       className={cn(
-        'flex aspect-[9/11] w-full min-w-0 flex-col rounded-lg border border-[var(--border-1)] bg-[var(--bg)] shadow-xs',
-        compact ? 'gap-2 p-2.5' : 'gap-3 p-3',
+        'flex aspect-[9/11] w-full min-w-0 flex-col gap-3 rounded-lg border border-[var(--border-1)] bg-[var(--bg)] p-3 shadow-xs',
         className
       )}
     >
-      <Icon
-        className={cn('shrink-0 text-[var(--text-icon)]', compact ? 'size-[18px]' : 'size-6')}
-      />
-      {!compact && (
-        <div className='flex min-h-0 flex-1 flex-col gap-2 pt-2'>
-          <span className='h-px w-full bg-[var(--border)]' />
-          <span className='h-px w-4/5 bg-[var(--border)]' />
-          <span className='h-px w-3/5 bg-[var(--border)]' />
-        </div>
-      )}
+      <Icon className='size-6 shrink-0 text-[var(--text-icon)]' />
+      <div className='flex min-h-0 flex-1 flex-col gap-2 pt-2'>
+        <span className='h-px w-full bg-[var(--border)]' />
+        <span className='h-px w-4/5 bg-[var(--border)]' />
+        <span className='h-px w-3/5 bg-[var(--border)]' />
+      </div>
       <div className='mt-auto min-w-0'>
-        <span
-          className={cn(
-            'block whitespace-nowrap text-[var(--text-body)] leading-5',
-            compact ? 'text-[11px]' : 'text-[13px] [@container(max-width:320px)]:text-[11px]'
-          )}
-        >
+        <span className='block whitespace-nowrap text-[13px] text-[var(--text-body)] leading-5 [@container(max-width:320px)]:text-[11px]'>
           {document.name}
         </span>
         <span className='block text-[11px] text-[var(--text-muted)] leading-4'>
@@ -114,59 +95,30 @@ function LibraryDocumentCard({ document, compact, className }: LibraryDocumentCa
 /**
  * Two folders and two paper-proportioned documents make the shared library tangible.
  * Documents retain their shape while the folder row fills the remaining space.
- * Compact tiles cap the paper width to preserve room for the folders above.
  * The four items settle in once, with a static frame under reduced motion.
  */
-export function FileLibraryGraphic({ variant = 'tile' }: FileLibraryGraphicProps) {
-  const portrait = variant === 'portrait'
-
+export function FileLibraryGraphic() {
   return (
-    <FeatureGraphicShell variant={variant}>
+    <FeatureGraphicShell variant='portrait'>
       <div
         aria-hidden='true'
         data-feature-graphic='files'
-        className={cn(
-          'absolute inset-0 flex justify-center',
-          portrait ? 'p-5' : 'items-center pr-8 max-lg:pr-6'
-        )}
+        className='absolute inset-0 flex justify-center p-5'
       >
-        <div
-          className={cn(
-            'flex min-h-0 w-full flex-col [container-type:inline-size]',
-            portrait
-              ? 'gap-5'
-              : 'h-[244px] max-w-[312px] gap-4 sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'
-          )}
-        >
+        <div className='flex min-h-0 w-full flex-col gap-5 [container-type:inline-size]'>
           <div className='flex shrink-0 items-center justify-between'>
             <span className='text-[var(--text-primary)] text-base'>Files</span>
             <ChipTag variant='mono'>Shared</ChipTag>
           </div>
-          <div className={cn('grid min-h-0 flex-1 grid-cols-2', portrait ? 'gap-5' : 'gap-4')}>
-            <LibraryFolder
-              name='Brand assets'
-              count='12 files'
-              compact={!portrait}
-              className={styles.item0}
-            />
-            <LibraryFolder
-              name='Reports'
-              count='8 files'
-              compact={!portrait}
-              className={styles.item1}
-            />
+          <div className='grid min-h-0 flex-1 grid-cols-2 gap-5'>
+            <LibraryFolder name='Brand assets' count='12 files' className={styles.item0} />
+            <LibraryFolder name='Reports' count='8 files' className={styles.item1} />
           </div>
-          <div
-            className={cn(
-              'grid shrink-0',
-              portrait ? 'grid-cols-2 gap-5' : 'grid-cols-[repeat(2,82px)] justify-center gap-3'
-            )}
-          >
+          <div className='grid shrink-0 grid-cols-2 gap-5'>
             {DOCUMENTS.map((document, index) => (
               <LibraryDocumentCard
                 key={document.name}
                 document={document}
-                compact={!portrait}
                 className={DOCUMENT_STEPS[index]}
               />
             ))}

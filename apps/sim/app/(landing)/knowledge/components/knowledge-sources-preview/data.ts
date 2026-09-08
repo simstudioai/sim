@@ -20,7 +20,6 @@ export const KNOWLEDGE_PREVIEW_SOURCES = [
     id: 'notion',
     name: 'Notion',
     label: 'Notion',
-    collection: 'Product documentation',
     icon: NotionIcon,
     documents: [
       {
@@ -76,7 +75,6 @@ export const KNOWLEDGE_PREVIEW_SOURCES = [
     id: 'drive',
     name: 'Google Drive',
     label: 'Drive',
-    collection: 'Customer support',
     icon: GoogleDriveIcon,
     documents: [
       {
@@ -132,7 +130,6 @@ export const KNOWLEDGE_PREVIEW_SOURCES = [
     id: 'confluence',
     name: 'Confluence',
     label: 'Confluence',
-    collection: 'Engineering wiki',
     icon: ConfluenceIcon,
     documents: [
       {
@@ -185,5 +182,3 @@ export const KNOWLEDGE_PREVIEW_SOURCES = [
     ],
   },
 ] as const
-
-export type KnowledgePreviewSource = (typeof KNOWLEDGE_PREVIEW_SOURCES)[number]

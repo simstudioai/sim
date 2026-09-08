@@ -13,7 +13,6 @@ export const KNOWLEDGE_PAGE_DESCRIPTION =
   'Give AI agents trusted company knowledge in Sim. Connect sources, manage indexed documents, and retrieve relevant passages with source references in your workflows.'
 
 const KNOWLEDGE_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Knowledge Base',
   path: '/knowledge',
   seoDescription: KNOWLEDGE_PAGE_DESCRIPTION,

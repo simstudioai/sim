@@ -320,7 +320,7 @@ function ComposerPass({ width, scale, onSend, onReplyHold }: ComposerPassProps) 
   useEffect(() => {
     if (!opening) return
     const blur = blurRef.current
-    if (!blur || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    if (!blur) return
     setGooLive(true)
     const start = performance.now()
     let frame = requestAnimationFrame(function tick(now) {

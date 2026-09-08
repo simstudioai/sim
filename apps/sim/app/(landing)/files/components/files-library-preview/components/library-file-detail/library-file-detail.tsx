@@ -1,11 +1,10 @@
+import { noop } from '@sim/utils/helpers'
 import type { LibraryFile } from '@/app/(landing)/files/components/files-library-preview/data'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 
 interface LibraryFileDetailProps {
   file: LibraryFile
 }
-
-const NOOP = () => {}
 
 /** The document replaces the resource list, matching the actual Files viewer. */
 export function LibraryFileDetail({ file }: LibraryFileDetailProps) {
@@ -18,11 +17,11 @@ export function LibraryFileDetail({ file }: LibraryFileDetailProps) {
       {file.type === 'PDF' && (
         <div aria-hidden='true' inert>
           <PreviewToolbar
-            navigation={{ current: 1, total: 1, label: 'page', onPrevious: NOOP, onNext: NOOP }}
+            navigation={{ current: 1, total: 1, label: 'page', onPrevious: noop, onNext: noop }}
             zoom={{
               label: '100%',
-              onZoomOut: NOOP,
-              onZoomIn: NOOP,
+              onZoomOut: noop,
+              onZoomIn: noop,
               canZoomOut: false,
               canZoomIn: false,
             }}

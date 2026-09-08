@@ -12,7 +12,6 @@ export const FILES_PAGE_DESCRIPTION =
   'Keep team uploads and agent outputs together in Sim Files. Organize folders, preview documents, edit markdown, and read or write files from workflows.'
 
 const FILES_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Files',
   path: '/files',
   seoDescription: FILES_PAGE_DESCRIPTION,

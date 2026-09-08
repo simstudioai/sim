@@ -62,17 +62,6 @@ function MarkSvg({ className, viewBox, children }: MarkSvgProps) {
   )
 }
 
-export function ComplianceMark({ className }: SecurityMarkProps) {
-  return (
-    <MarkSvg className={className} viewBox='0 0 64 64'>
-      <rect x='18' y='12' width='28' height='40' rx='3' {...FEATURE_STROKE} />
-      <path d='M24 20h16M24 26h12' {...FEATURE_STROKE} />
-      <circle cx='32' cy='40' r='6' {...FEATURE_STROKE} />
-      <path d='M29.5 40.5 31.5 42.5 35.5 37.5' {...FEATURE_STROKE} />
-    </MarkSvg>
-  )
-}
-
 export function SsoMark({ className }: SecurityMarkProps) {
   return (
     <MarkSvg className={className} viewBox={flushLeftBox(14)}>

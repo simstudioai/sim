@@ -1,14 +1,7 @@
 import { ChipTag, cn } from '@sim/emcn'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
-import {
-  FeatureGraphicShell,
-  type FeatureGraphicVariant,
-} from '@/app/(landing)/enterprise/components/feature-graphics'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/workflows/components/feature-graphics/workflow-canvas-graphic.module.css'
-
-interface WorkflowCanvasGraphicProps {
-  variant?: FeatureGraphicVariant
-}
 
 interface WorkflowCanvasLayout {
   width: number
@@ -20,29 +13,11 @@ interface WorkflowCanvasLayout {
   outputs: readonly [{ label: string; leftClass: string }, { label: string; leftClass: string }]
 }
 
-/** Feature-tile crop: a compact landscape graph centered in the bleed slot. */
-const TILE_LAYOUT: WorkflowCanvasLayout = {
-  width: 320,
-  height: 250,
-  edges: [
-    'M 160 50 L 160 102',
-    'M 160 144 C 160 172 80 168 80 196',
-    'M 160 144 C 160 172 240 168 240 196',
-  ],
-  trigger: { topClass: 'top-[14px]', leftClass: 'left-[160px]' },
-  agent: { topClass: 'top-[102px]', leftClass: 'left-[160px]' },
-  outputTopClass: 'top-[196px]',
-  outputs: [
-    { label: 'Slack', leftClass: 'left-[80px]' },
-    { label: 'Sheets', leftClass: 'left-[240px]' },
-  ],
-}
-
 /**
- * Homepage portrait crop: the same three-tier graph stretched vertically so
- * it fills a tall bloc instead of floating as a small landscape island.
+ * Homepage portrait crop: the three-tier graph stretched vertically so it
+ * fills a tall bloc instead of floating as a small landscape island.
  */
-const PORTRAIT_LAYOUT: WorkflowCanvasLayout = {
+const LAYOUT: WorkflowCanvasLayout = {
   width: 280,
   height: 400,
   edges: [
@@ -82,47 +57,27 @@ const EDGE_DRAW_CLASSES = [styles.edgeDraw0, styles.edgeDraw1, styles.edgeDraw2]
  * family's shared ring pulse as the fan-out lands. Under
  * `prefers-reduced-motion` the graph renders fully drawn and static.
  *
- * The feature tile's visual slot bleeds `2rem` right (`1.5rem` under
- * `max-lg`) but not left, so this centered vignette adds matching right
- * padding to land on the tile's visible center instead of the bled
- * slot's center. The fixed-size canvas is `shrink-0` so it keeps its
- * geometry; narrow grid columns are handled by the feature tile itself,
- * which zooms its whole design-space canvas down proportionally (see
- * `SOLUTIONS_VISUAL`), so the outer blocks are never cropped — the
- * access tile's sizing strategy exactly.
- *
- * Homepage portrait blocs use a taller canvas and scale it to the stage
- * so the graph fills the tall crop instead of sitting as a small island.
+ * The fixed-size canvas is `shrink-0` so it keeps its geometry and is
+ * scaled to the portrait bloc as a whole, so the outer blocks are never
+ * cropped and the graph fills the tall crop instead of sitting as a small
+ * island.
  */
-export function WorkflowCanvasGraphic({ variant = 'tile' }: WorkflowCanvasGraphicProps) {
-  const portrait = variant === 'portrait'
-  const layout = portrait ? PORTRAIT_LAYOUT : TILE_LAYOUT
-
+export function WorkflowCanvasGraphic() {
   return (
-    <FeatureGraphicShell variant={variant}>
+    <FeatureGraphicShell variant='portrait'>
       <div
         aria-hidden='true'
-        className={cn(
-          'absolute inset-0 flex items-center justify-center',
-          portrait ? 'p-3 [container-type:size]' : 'pr-8 max-lg:pr-6'
-        )}
+        className='absolute inset-0 flex items-center justify-center p-3 [container-type:size]'
       >
-        <div
-          className={cn(
-            'relative shrink-0',
-            portrait
-              ? 'h-[400px] w-[280px] [scale:min(tan(atan2(100cqw,280px)),tan(atan2(100cqh,400px)))]'
-              : 'h-[250px] w-[320px]'
-          )}
-        >
+        <div className='relative h-[400px] w-[280px] shrink-0 [scale:min(tan(atan2(100cqw,280px)),tan(atan2(100cqh,400px)))]'>
           <svg
             className='absolute inset-0'
             fill='none'
-            viewBox={`0 0 ${layout.width} ${layout.height}`}
-            width={layout.width}
-            height={layout.height}
+            viewBox={`0 0 ${LAYOUT.width} ${LAYOUT.height}`}
+            width={LAYOUT.width}
+            height={LAYOUT.height}
           >
-            {layout.edges.map((path, index) => (
+            {LAYOUT.edges.map((path, index) => (
               <path
                 key={path}
                 d={path}
@@ -140,8 +95,8 @@ export function WorkflowCanvasGraphic({ variant = 'tile' }: WorkflowCanvasGraphi
           <div
             className={cn(
               '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs dark:bg-[var(--surface-4)]',
-              layout.trigger.topClass,
-              layout.trigger.leftClass
+              LAYOUT.trigger.topClass,
+              LAYOUT.trigger.leftClass
             )}
           >
             <span className='size-2 shrink-0 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
@@ -153,8 +108,8 @@ export function WorkflowCanvasGraphic({ variant = 'tile' }: WorkflowCanvasGraphi
           <div
             className={cn(
               '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]',
-              layout.agent.topClass,
-              layout.agent.leftClass
+              LAYOUT.agent.topClass,
+              LAYOUT.agent.leftClass
             )}
           >
             <span
@@ -169,12 +124,12 @@ export function WorkflowCanvasGraphic({ variant = 'tile' }: WorkflowCanvasGraphi
             <ChipTag variant='solid'>Agent</ChipTag>
           </div>
 
-          {layout.outputs.map((block) => (
+          {LAYOUT.outputs.map((block) => (
             <div
               key={block.label}
               className={cn(
                 '-translate-x-1/2 absolute flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs dark:bg-[var(--surface-4)]',
-                layout.outputTopClass,
+                LAYOUT.outputTopClass,
                 block.leftClass
               )}
             >

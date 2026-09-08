@@ -12,7 +12,6 @@ export const LOGS_PAGE_DESCRIPTION =
   'Inspect AI workflow runs in Sim. Filter run history, trace block inputs and outputs, and open the workflow snapshot behind each execution.'
 
 const LOGS_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Logs',
   path: '/logs',
   seoDescription: LOGS_PAGE_DESCRIPTION,

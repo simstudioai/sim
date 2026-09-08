@@ -11,7 +11,6 @@ export const PLATFORM_PAGE_DESCRIPTION =
   'Build, deploy, and manage AI agents in Sim. Workflows, Knowledge Base, Files, Tables, and Logs share one AI workspace with controls for your team.'
 
 const PLATFORM_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Platform',
   path: '/platform',
   seoDescription: PLATFORM_PAGE_DESCRIPTION,

@@ -29,18 +29,12 @@ interface NavbarProps {
    * navbar without a stars fetch (the GitHub chip is hidden when absent).
    */
   stars?: string
-  /**
-   * Render only the Sim wordmark - no nav menus, GitHub chip, auth chips, or
-   * mobile sheet. Used by non-marketing shells (resume, public-file auth) that
-   * want the brand header without the full marketing navigation.
-   */
-  logoOnly?: boolean
 }
 
-export function Navbar({ stars, logoOnly = false }: NavbarProps) {
+export function Navbar({ stars }: NavbarProps) {
   return (
     <NavbarShell>
-      {!logoOnly && <AnnouncementBanner />}
+      <AnnouncementBanner />
       <nav
         aria-label='Primary navigation'
         itemScope
@@ -65,28 +59,24 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
           </LogoMark>
         </Link>
 
-        {!logoOnly && (
-          <>
-            <div className='absolute inset-x-0 hidden items-center justify-center gap-1 xl:flex'>
-              <NavMenuCluster menus={NAV_MENUS} />
-              <div className='relative z-10 flex items-center gap-1'>
-                <ChipLink href='/pricing' itemProp='url' className='rounded-full px-3'>
-                  Pricing
-                </ChipLink>
-                {stars !== undefined && <GitHubChip stars={stars} />}
-              </div>
-            </div>
+        <div className='absolute inset-x-0 hidden items-center justify-center gap-1 xl:flex'>
+          <NavMenuCluster menus={NAV_MENUS} />
+          <div className='relative z-10 flex items-center gap-1'>
+            <ChipLink href='/pricing' itemProp='url' className='rounded-full px-3'>
+              Pricing
+            </ChipLink>
+            {stars !== undefined && <GitHubChip stars={stars} />}
+          </div>
+        </div>
 
-            <div className='relative z-10 hidden shrink-0 items-center gap-2 xl:flex'>
-              <NavbarAuthPill />
-              <LandingCtaLink href={DEMO_HREF} size='compact' withArrow>
-                Request a demo
-              </LandingCtaLink>
-            </div>
+        <div className='relative z-10 hidden shrink-0 items-center gap-2 xl:flex'>
+          <NavbarAuthPill />
+          <LandingCtaLink href={DEMO_HREF} size='compact' withArrow>
+            Request a demo
+          </LandingCtaLink>
+        </div>
 
-            <MobileNav stars={stars ?? '0'} />
-          </>
-        )}
+        <MobileNav stars={stars ?? '0'} />
       </nav>
     </NavbarShell>
   )

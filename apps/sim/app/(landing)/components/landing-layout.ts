@@ -21,15 +21,6 @@ export const LANDING_HERO_TOP_PADDING = 'pt-[112px] max-sm:pt-12 max-xl:pt-20'
 export const LANDING_SECTION_RHYTHM = 'gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'
 
 /**
- * A section that fits the screen: the viewport minus the sticky navbar (the
- * 30px announcement row plus the 58px bar), so scrolling the section's top
- * under the navbar shows the whole band at once. A min-height, so a band still
- * grows when its content needs more. Mirrors the navbar's real height rather
- * than deriving it, so a navbar change must update this.
- */
-export const LANDING_VIEWPORT_FIT = 'min-h-[calc(100svh-88px)]'
-
-/**
  * Homepage-only rhythm. The marketing pages that share
  * {@link LANDING_SECTION_RHYTHM} stay on the original 120px beat; the homepage
  * uses 144 / 96 / 80px between major sections. Related sections are grouped
@@ -43,12 +34,6 @@ export const HOME_SECTION_RHYTHM = 'gap-36 max-sm:gap-20 max-lg:gap-24'
  * preview share this measure so their leading and trailing edges align.
  */
 export const HOME_INSET = 'w-full lg:mx-auto lg:w-[83.333%]'
-
-/**
- * Harvey's hero screenshot aspect (3296×1796 → 1648×898 at the 1728 cap).
- * Full content width, not a 16/10 inset card.
- */
-export const HOME_STAGE_ASPECT = 'aspect-[1648/898] max-sm:aspect-[4/3]'
 
 /** Shared chrome for an elevated product window on the homepage. */
 export const LANDING_WINDOW_SHADOW =
@@ -82,15 +67,11 @@ export const LANDING_HERO_CTA_GAP = 'mt-3'
 export const LANDING_TYPE = {
   /** The page's single `<h1>`. */
   h1: 'text-[76px] leading-[1.0] tracking-[-0.03em] max-sm:text-[38px] max-xl:text-[56px]',
-  /** Section `<h2>` - the beat headline. */
-  h2: 'text-[44px] leading-[1.05] tracking-[-0.025em] max-sm:text-[30px] max-xl:text-[36px]',
   /**
-   * Homepage proof claim. Harvey's post-hero H2 is 40px; section `h2` (44px)
-   * still dominates this band. Same Season tracking family, one step quieter.
+   * Homepage proof claim. Harvey's post-hero H2 is 40px, one step quieter
+   * than a section headline in the same Season tracking family.
    */
   proof: 'text-[40px] leading-[1.1] tracking-[-0.02em] max-sm:text-[28px] max-xl:text-[34px]',
-  /** A beat's `<h3>` inside a section. */
-  h3: 'text-[24px] leading-[1.2] tracking-[-0.015em] max-sm:text-[20px]',
   /** Primary supporting copy - hero description, section descriptions. */
   lead: 'text-[20px] leading-[1.4] max-sm:text-[17px]',
   /** Secondary copy - sub-feature definitions, list-row descriptions. */
@@ -114,9 +95,6 @@ export const HOME_TYPE = {
   h2: LANDING_TYPE.proof,
   /** Card titles on the two-window platform row. */
   h3: 'text-[32px] leading-[1.15] tracking-[-0.015em] max-sm:text-[24px]',
-  /** Product-index names - Harvey `text-body-0` (24px). */
-  index: 'text-[24px] leading-[1.3] max-sm:text-[20px]',
-  proof: LANDING_TYPE.proof,
   lead: LANDING_TYPE.lead,
   body: LANDING_TYPE.body,
   meta: LANDING_TYPE.meta,

@@ -12,10 +12,10 @@ import {
   Switch,
 } from '@sim/emcn'
 import { ArrowLeft, X } from '@sim/emcn/icons'
+import { noop } from '@sim/utils/helpers'
 
 const OUTPUTS = ['employee count', 'description'] as const
 const DOMAIN_COLUMN = [{ label: 'Domain', value: 'domain' }]
-const NOOP = () => {}
 
 /** The shipped Company Info enrichment's native input and output configuration. */
 export function TablesEnrichmentPreview() {
@@ -48,14 +48,14 @@ export function TablesEnrichmentPreview() {
               </Badge>
             }
             collapsed={false}
-            onToggleCollapse={NOOP}
+            onToggleCollapse={noop}
           >
             <Label className='text-small'>Column</Label>
             <ChipCombobox
               className='w-full'
               options={DOMAIN_COLUMN}
               value='domain'
-              onChange={NOOP}
+              onChange={noop}
               searchable
               searchPlaceholder='Search columns…'
               dropdownWidth='trigger'
@@ -76,7 +76,7 @@ export function TablesEnrichmentPreview() {
                   </Badge>
                 }
                 collapsed={false}
-                onToggleCollapse={NOOP}
+                onToggleCollapse={noop}
               >
                 <Label className='text-small'>Column name</Label>
                 <ChipInput value={name} readOnly />

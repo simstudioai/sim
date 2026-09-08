@@ -1,8 +1,12 @@
 'use client'
 import { Chip, cn, Loader } from '@sim/emcn'
-import { useRouter } from 'next/navigation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
+
+/** A document navigation, so the marketing surface initializes its own theme store. */
+function returnHome(): void {
+  window.location.href = '/'
+}
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
@@ -28,8 +32,6 @@ export function InviteStatusCard({
   actions = EMPTY_ACTIONS,
   isExpiredError = false,
 }: InviteStatusCardProps) {
-  const router = useRouter()
-
   if (type === 'loading') {
     return (
       <>
@@ -53,7 +55,7 @@ export function InviteStatusCard({
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {isExpiredError && (
-          <AuthSubmitButton type='button' onClick={() => router.push('/')} loadingLabel=''>
+          <AuthSubmitButton type='button' onClick={returnHome} loadingLabel=''>
             Request New Invitation
           </AuthSubmitButton>
         )}

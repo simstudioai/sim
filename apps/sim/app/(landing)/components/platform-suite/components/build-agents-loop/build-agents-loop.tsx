@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@sim/emcn'
+import { noop } from '@sim/utils/helpers'
 import {
   HeroChatLoop,
   type HeroChatPhase,
@@ -29,8 +30,6 @@ const REPLY_AT =
 const HOLD_MS = 3_600
 
 const OPEN_RESOURCES = ['workflow'] as const
-
-function noop() {}
 
 /**
  * The platform suite's "Build agents" preview: Sim's real chat presentation

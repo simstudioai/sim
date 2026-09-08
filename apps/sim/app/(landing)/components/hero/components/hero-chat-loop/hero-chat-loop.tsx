@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
 import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn/icons'
 import { HeroChatWelcome } from '@/app/(landing)/components/hero/components/hero-chat-welcome'
 import { HERO_TOOLTIP_OFFSET } from '@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots'
+import { useElapsedReveal } from '@/app/(landing)/hooks/use-elapsed-reveal'
 import {
   AgentGroup,
   type AgentGroupItem,
@@ -150,44 +151,8 @@ export function HeroChatLoop({
   const showBuilding = phase === 'building'
   const showReply = phase === 'reply'
   const replyWordCount = replyMessage.trim().split(/\s+/).length
-  const [revealedWords, setRevealedWords] = useState(0)
+  const revealedWords = useElapsedReveal(showReply, STREAM_WORD_MS, replyWordCount)
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!showReply) {
-      setRevealedWords(0)
-      return
-    }
-
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let interval: ReturnType<typeof setInterval> | null = null
-
-    const stream = () => {
-      const startedAt = performance.now()
-      interval = setInterval(() => {
-        const elapsed = performance.now() - startedAt
-        const n = Math.min(Math.floor(elapsed / STREAM_WORD_MS) + 1, replyWordCount)
-        setRevealedWords(n)
-        if (n >= replyWordCount && interval) clearInterval(interval)
-      }, STREAM_WORD_MS)
-    }
-
-    const syncMotionPreference = () => {
-      if (interval) clearInterval(interval)
-      if (media.matches) {
-        setRevealedWords(replyWordCount)
-        return
-      }
-      stream()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      if (interval) clearInterval(interval)
-    }
-  }, [replyWordCount, showReply])
 
   const replyComplete = revealedWords >= replyWordCount
   const canSubmit = composerValue.trim().length > 0 || attachedFileName !== null

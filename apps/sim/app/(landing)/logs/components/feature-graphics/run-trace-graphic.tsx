@@ -1,19 +1,7 @@
 import { cn, Library } from '@sim/emcn'
 import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
-import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
-import {
-  FeatureGraphicShell,
-  type FeatureGraphicVariant,
-} from '@/app/(landing)/enterprise/components/feature-graphics'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/logs/components/feature-graphics/run-trace-graphic.module.css'
-
-/** Window palette: the Logs page's dark feature tile, or the homepage rail's light card. */
-type RunTraceGraphicTone = 'dark' | 'light'
-
-interface RunTraceGraphicProps {
-  variant?: FeatureGraphicVariant
-  tone?: RunTraceGraphicTone
-}
 
 interface TraceSpanRow {
   /** Block name in the trace tree. */
@@ -72,55 +60,29 @@ const TRACE_SPANS: readonly TraceSpanRow[] = [
 const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2, styles.row3, styles.row4] as const
 
 /**
- * The window's palette in both tones. `dark` is the Logs page's dark
- * feature tile - inverse inks over the tile's charcoal showing through an
- * outlined shell. `light` is the homepage rail's card, wearing the same
- * chrome the sibling product graphics use (`--white` fill, 1px
- * `--border-1` hairline, `shadow-xs`) so the trace reads as the
- * workspace's own run view. Both keep the two-step parent/child ramp, so
- * nested spans stay quieter than the blocks they hang under.
+ * The window's palette: the homepage rail's card, wearing the same chrome the
+ * sibling product graphics use (`--white` fill, 1px `--border-1` hairline,
+ * `shadow-xs`) so the trace reads as the workspace's own run view, with a
+ * two-step parent/child ramp so nested spans stay quieter than the blocks
+ * they hang under.
  */
-const TONE_STYLES = {
-  dark: {
-    outline: colorMixFallbacks.inverseBorder45,
-    surface: '',
-    icon: 'text-[var(--text-muted-inverse)]',
-    title: 'text-[var(--text-inverse)]',
-    duration: 'text-[var(--text-muted-inverse)]',
-    name: {
-      parent: 'text-[var(--text-inverse)]',
-      child: 'text-[var(--text-muted-inverse)]',
-    },
-    bar: {
-      parent: 'bg-[var(--text-inverse)] opacity-80',
-      child: 'bg-[var(--text-inverse)] opacity-40',
-    },
+const PALETTE = {
+  name: {
+    parent: 'text-[var(--text-primary)]',
+    child: 'text-[var(--text-muted)]',
   },
-  light: {
-    outline: 'border-[var(--border-1)]',
-    surface: 'bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
-    icon: 'text-[var(--text-icon)]',
-    title: 'text-[var(--text-primary)]',
-    duration: 'text-[var(--text-muted)]',
-    name: {
-      parent: 'text-[var(--text-primary)]',
-      child: 'text-[var(--text-muted)]',
-    },
-    bar: {
-      parent: 'bg-[var(--text-secondary)]',
-      child: 'bg-[var(--text-muted)]',
-    },
+  bar: {
+    parent: 'bg-[var(--text-secondary)]',
+    child: 'bg-[var(--text-muted)]',
   },
 } as const
 
 /**
- * A run's block-by-block trace told inside the agent-code tile's outlined
- * window: the window keeps that tile's exact slot geometry (`top-5`,
- * `left-0`, bleeding off the right and bottom edges, `rounded-tl-xl`) and
- * takes its hairlines, fill, and inks from {@link TONE_STYLES}. Its `h-12`
- * title bar pairs the Library icon (in an outlined `size-6` icon box, the
- * agent-code header's treatment) with the run's workflow name and the
- * run's total duration in mono on the right.
+ * A run's block-by-block trace told inside an outlined window inset on all
+ * sides with the landing stage radius, so the trace does not clip the tall
+ * card's corners. Its `h-12` title bar pairs the Library icon (in an outlined
+ * `size-6` icon box) with the run's workflow name and the run's total
+ * duration in mono on the right.
  *
  * Inside, the workspace trace view's vocabulary at tile scale: each span
  * is a row with its block name (children indented and quieter, the real
@@ -129,46 +91,28 @@ const TONE_STYLES = {
  * rows stamp in top to bottom once (from `run-trace-graphic.module.css`,
  * the agent-code tile's one-shot settle); under `prefers-reduced-motion`
  * the trace renders fully settled.
- *
- * Homepage portrait blocs inset the window on all sides with the landing
- * stage radius so the trace does not clip the tall card's corners, and
- * pass {@link RunTraceGraphicTone} `light` so the trace sits on the same
- * white window chrome as the rail's other product cards. The Logs page's
- * dark feature tile keeps the default `dark` palette.
  */
-export function RunTraceGraphic({ variant = 'tile', tone = 'dark' }: RunTraceGraphicProps) {
-  const portrait = variant === 'portrait'
-  const palette = TONE_STYLES[tone]
-
+export function RunTraceGraphic() {
   return (
-    <FeatureGraphicShell variant={variant}>
+    <FeatureGraphicShell variant='portrait'>
       <div
         aria-hidden='true'
         className={cn(
-          'absolute flex flex-col',
-          portrait
-            ? cn('inset-[10px] overflow-hidden border', LANDING_STAGE_WINDOW_RADIUS)
-            : 'top-5 right-0 bottom-0 left-0 rounded-tl-xl border-t border-l',
-          palette.outline,
-          palette.surface
+          'absolute inset-[10px] flex flex-col overflow-hidden border border-[var(--border-1)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
+          LANDING_STAGE_WINDOW_RADIUS
         )}
       >
-        <div className={cn('flex h-12 shrink-0 items-center gap-2 border-b px-4', palette.outline)}>
-          <span
-            className={cn(
-              'flex size-6 items-center justify-center rounded-md border',
-              palette.outline
-            )}
-          >
-            <Library className={cn('size-[14px]', palette.icon)} />
+        <div className='flex h-12 shrink-0 items-center gap-2 border-[var(--border-1)] border-b px-4'>
+          <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>
+            <Library className='size-[14px] text-[var(--text-icon)]' />
           </span>
-          <span className={cn('min-w-0 flex-1 truncate text-base', palette.title)}>
+          <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-base'>
             Support ticket routing
           </span>
-          <span className={cn('shrink-0 font-mono text-caption', palette.duration)}>1.86s</span>
+          <span className='shrink-0 font-mono text-[var(--text-muted)] text-caption'>1.86s</span>
         </div>
 
-        <div className={cn('flex flex-col p-4', portrait && 'min-h-0 flex-1 justify-evenly py-5')}>
+        <div className='flex min-h-0 flex-1 flex-col justify-evenly p-4 py-5'>
           {TRACE_SPANS.map((span, index) => (
             <div
               key={span.name}
@@ -177,7 +121,7 @@ export function RunTraceGraphic({ variant = 'tile', tone = 'dark' }: RunTraceGra
               <span
                 className={cn(
                   'w-[38%] shrink-0 truncate text-caption',
-                  palette.name[span.barTone],
+                  PALETTE.name[span.barTone],
                   span.indentClass
                 )}
               >
@@ -187,14 +131,12 @@ export function RunTraceGraphic({ variant = 'tile', tone = 'dark' }: RunTraceGra
                 <span
                   className={cn(
                     '-translate-y-1/2 absolute top-1/2 h-[6px] rounded-full',
-                    palette.bar[span.barTone],
+                    PALETTE.bar[span.barTone],
                     span.barClass
                   )}
                 />
               </span>
-              <span
-                className={cn('w-11 shrink-0 text-right font-mono text-caption', palette.duration)}
-              >
+              <span className='w-11 shrink-0 text-right font-mono text-[var(--text-muted)] text-caption'>
                 {span.duration}
               </span>
             </div>

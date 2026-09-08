@@ -12,7 +12,6 @@ export const WORKFLOWS_PAGE_DESCRIPTION =
   'Build AI workflows in Sim with visual blocks, models, and integrations. Run on a schedule or event, then deploy as an API, chat, or MCP tool.'
 
 const WORKFLOWS_CONFIG: SolutionsProductPageConfig = {
-  layout: 'product',
   module: 'Workflows',
   path: '/workflows',
   seoDescription: WORKFLOWS_PAGE_DESCRIPTION,
