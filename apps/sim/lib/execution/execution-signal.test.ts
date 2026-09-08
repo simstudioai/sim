@@ -124,29 +124,111 @@ describe('ExecutionSignalHub', () => {
     expect(mockSubscribe).toHaveBeenCalledWith('execution:signal:execution-new', 'execution:cancel')
   })
 
-  it.each(['error', 'end'])(
-    'rejects readiness waiters on %s and allows a fresh attempt',
-    async (event) => {
-      connection.status = 'connect'
-      const hub = getExecutionSignalHub()
-      const handler = vi.fn()
-      const subscription = hub.subscribe('execution-1', handler)
-      const rejected = expect(subscription).rejects.toThrow('Execution signal subscription failed:')
+  it('keeps waiting through recoverable connection errors', async () => {
+    connection.status = 'connecting'
+    const hub = getExecutionSignalHub()
+    const handler = vi.fn()
+    const subscription = hub.subscribe('execution-1', handler)
+    const settled = vi.fn()
+    void subscription.then(settled, settled)
 
-      connection.status = 'end'
-      connection.client?.emit(event, new Error('connection failed'))
-      await rejected
-      expect(mockSubscribe).not.toHaveBeenCalled()
-      expect(connection.client?.listenerCount('ready')).toBe(1)
-      expect(connection.client?.listenerCount('error')).toBe(1)
-      expect(connection.client?.listenerCount('end')).toBe(0)
+    connection.client?.emit('error', new Error('ECONNREFUSED'))
+    connection.status = 'reconnecting'
+    connection.client?.emit('close')
+    await Promise.resolve()
+    expect(settled).not.toHaveBeenCalled()
+    expect(mockSubscribe).not.toHaveBeenCalled()
 
-      connection.status = 'ready'
-      connection.client?.emit('ready')
-      await hub.subscribe('execution-1', handler)
-      expect(mockSubscribe).toHaveBeenCalledOnce()
-    }
-  )
+    connection.status = 'ready'
+    connection.client?.emit('ready')
+    await subscription
+    expect(mockSubscribe).toHaveBeenCalledOnce()
+    connection.client?.emit('message', 'execution:signal:execution-1', 'cancelled')
+    expect(handler).toHaveBeenCalledWith('cancelled')
+  })
+
+  it('rejects readiness waiters when the subscriber stops reconnecting', async () => {
+    connection.status = 'connect'
+    const hub = getExecutionSignalHub()
+    const subscription = hub.subscribe('execution-1', vi.fn())
+    const rejected = expect(subscription).rejects.toThrow('Redis subscriber connection ended')
+
+    connection.status = 'end'
+    connection.client?.emit('end')
+    await rejected
+    expect(mockSubscribe).not.toHaveBeenCalled()
+    expect(connection.client?.listenerCount('ready')).toBe(1)
+    expect(connection.client?.listenerCount('error')).toBe(1)
+    expect(connection.client?.listenerCount('end')).toBe(0)
+  })
+
+  it('keeps a new channel independent of an existing channel reconnect failure', async () => {
+    const hub = getExecutionSignalHub()
+    connection.client?.emit('ready')
+    const existingHandler = vi.fn()
+    await hub.subscribe('execution-existing', existingHandler)
+    mockSubscribe.mockClear()
+    connection.status = 'reconnecting'
+    connection.client?.emit('close')
+    const newHandler = vi.fn()
+    const subscription = hub.subscribe('execution-new', newHandler)
+    let rejectReconnect!: (error: Error) => void
+    let acknowledgeNew!: (count: number) => void
+    mockSubscribe.mockReturnValueOnce(
+      new Promise<number>((_resolve, reject) => {
+        rejectReconnect = reject
+      })
+    )
+    mockSubscribe.mockReturnValueOnce(
+      new Promise<number>((resolve) => {
+        acknowledgeNew = resolve
+      })
+    )
+
+    connection.status = 'ready'
+    connection.client?.emit('ready')
+    await vi.waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(2))
+    expect(mockSubscribe).toHaveBeenNthCalledWith(
+      1,
+      'execution:signal:execution-existing',
+      'execution:cancel'
+    )
+    expect(mockSubscribe).toHaveBeenNthCalledWith(
+      2,
+      'execution:signal:execution-new',
+      'execution:cancel'
+    )
+
+    rejectReconnect(new Error('Command timed out'))
+    await vi.waitFor(() => expect(existingHandler).toHaveBeenCalledWith('unavailable'))
+    expect(newHandler).not.toHaveBeenCalled()
+    acknowledgeNew(3)
+    await subscription
+    connection.client?.emit('message', 'execution:signal:execution-new', 'cancelled')
+    expect(newHandler).toHaveBeenCalledExactlyOnceWith('cancelled')
+  })
+
+  it('preserves the pending acknowledgement when Redis reconnects before it arrives', async () => {
+    const hub = getExecutionSignalHub()
+    connection.client?.emit('ready')
+    let acknowledge!: (count: number) => void
+    mockSubscribe.mockReturnValueOnce(
+      new Promise<number>((resolve) => {
+        acknowledge = resolve
+      })
+    )
+    const handler = vi.fn()
+    const subscription = hub.subscribe('execution-new', handler)
+    connection.status = 'reconnecting'
+    connection.client?.emit('close')
+    connection.status = 'ready'
+    connection.client?.emit('ready')
+
+    expect(mockSubscribe).toHaveBeenCalledOnce()
+    acknowledge(2)
+    await subscription
+    expect(handler).not.toHaveBeenCalled()
+  })
 
   it('bounds the readiness wait and removes failed handlers before a later ready event', async () => {
     vi.useFakeTimers()
@@ -159,7 +241,11 @@ describe('ExecutionSignalHub', () => {
         'Timed out waiting for Redis subscriber readiness'
       )
 
-      await Promise.all([rejected, vi.advanceTimersByTimeAsync(5000)])
+      const timeout = vi.advanceTimersByTimeAsync(4000).then(() => {
+        connection.client?.emit('error', new Error('ECONNREFUSED'))
+        return vi.advanceTimersByTimeAsync(1000)
+      })
+      await Promise.all([rejected, timeout])
       expect(mockSubscribe).not.toHaveBeenCalled()
       expect(connection.client?.listenerCount('ready')).toBe(1)
       expect(connection.client?.listenerCount('error')).toBe(1)

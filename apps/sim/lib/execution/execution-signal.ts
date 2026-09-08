@@ -12,6 +12,11 @@ export const LEGACY_EXECUTION_CANCEL_CHANNEL = 'execution:cancel'
 export type ExecutionSignalReason = 'event' | 'cancelled' | 'reconnected' | 'unavailable'
 export type ExecutionSignalHandler = (reason: ExecutionSignalReason) => void
 
+interface ChannelSubscription {
+  ready: Promise<void>
+  acknowledged: boolean
+}
+
 export interface ExecutionSignalHub {
   subscribe(executionId: string, handler: ExecutionSignalHandler): Promise<() => void>
 }
@@ -23,7 +28,7 @@ export function getExecutionSignalChannel(executionId: string): string {
 class RedisExecutionSignalHub implements ExecutionSignalHub {
   private readonly subscriber: Redis
   private readonly handlers = new Map<string, Set<ExecutionSignalHandler>>()
-  private readonly subscriptionReady = new Map<string, Promise<void>>()
+  private readonly subscriptions = new Map<string, ChannelSubscription>()
   private connectionReady: Promise<void> | undefined
   private connectedOnce = false
 
@@ -70,16 +75,16 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     }
     channelHandlers.add(handler)
 
-    let ready = this.subscriptionReady.get(channel)
-    if (!ready) {
-      ready = this.subscribeChannels(channel, LEGACY_EXECUTION_CANCEL_CHANNEL)
-      this.subscriptionReady.set(channel, ready)
+    let subscription = this.subscriptions.get(channel)
+    if (!subscription) {
+      subscription = this.createSubscription([channel])
+      this.subscriptions.set(channel, subscription)
     }
     try {
-      await ready
+      await subscription.ready
     } catch (error) {
-      if (this.subscriptionReady.get(channel) === ready) {
-        this.subscriptionReady.delete(channel)
+      if (this.subscriptions.get(channel) === subscription) {
+        this.subscriptions.delete(channel)
       }
       channelHandlers.delete(handler)
       if (channelHandlers.size === 0) this.handlers.delete(channel)
@@ -94,7 +99,7 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
       current.delete(handler)
       if (current.size > 0) return
       this.handlers.delete(channel)
-      this.subscriptionReady.delete(channel)
+      this.subscriptions.delete(channel)
       void this.subscriber.unsubscribe(channel).catch((error) => {
         logger.warn('Execution signal unsubscribe failed', {
           channel,
@@ -102,6 +107,16 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
         })
       })
     }
+  }
+
+  private createSubscription(channels: string[]): ChannelSubscription {
+    const subscription: ChannelSubscription = {
+      acknowledged: false,
+      ready: this.subscribeChannels(...channels, LEGACY_EXECUTION_CANCEL_CHANNEL).then(() => {
+        subscription.acknowledged = true
+      }),
+    }
+    return subscription
   }
 
   /**
@@ -126,24 +141,22 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
       const cleanup = () => {
         clearTimeout(timeout)
         this.subscriber.removeListener('ready', onReady)
-        this.subscriber.removeListener('error', onError)
         this.subscriber.removeListener('end', onEnd)
       }
       const onReady = () => {
         cleanup()
         resolve()
       }
-      const onError = (error: Error) => {
+      const fail = (error: Error) => {
         cleanup()
         reject(error)
       }
-      const onEnd = () => onError(new Error('Redis subscriber connection ended'))
+      const onEnd = () => fail(new Error('Redis subscriber connection ended'))
       const timeout = setTimeout(
-        () => onError(new Error('Timed out waiting for Redis subscriber readiness')),
+        () => fail(new Error('Timed out waiting for Redis subscriber readiness')),
         SUBSCRIBER_TIMEOUT_MS
       )
       this.subscriber.once('ready', onReady)
-      this.subscriber.once('error', onError)
       this.subscriber.once('end', onEnd)
     }).finally(() => {
       this.connectionReady = undefined
@@ -156,15 +169,18 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     this.connectedOnce = true
     if (!reconnect || this.handlers.size === 0) return
 
-    const channels = [...this.handlers.keys()]
-    const ready = this.subscribeChannels(...channels, LEGACY_EXECUTION_CANCEL_CHANNEL)
+    const channels = [...this.handlers.keys()].filter(
+      (channel) => this.subscriptions.get(channel)?.acknowledged
+    )
+    if (channels.length === 0) return
+    const subscription = this.createSubscription(channels)
     for (const channel of channels) {
-      if (this.handlers.has(channel)) this.subscriptionReady.set(channel, ready)
+      if (this.handlers.has(channel)) this.subscriptions.set(channel, subscription)
     }
     try {
-      await ready
+      await subscription.ready
       for (const channel of channels) {
-        if (this.handlers.has(channel) && this.subscriptionReady.get(channel) === ready) {
+        if (this.handlers.has(channel) && this.subscriptions.get(channel) === subscription) {
           this.dispatch(channel, 'reconnected')
         } else if (!this.handlers.has(channel)) {
           void this.subscriber.unsubscribe(channel)
@@ -173,8 +189,8 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     } catch (error) {
       logger.error('Execution signal resubscription failed', { error: toError(error).message })
       for (const channel of channels) {
-        if (this.subscriptionReady.get(channel) !== ready) continue
-        this.subscriptionReady.delete(channel)
+        if (this.subscriptions.get(channel) !== subscription) continue
+        this.subscriptions.delete(channel)
         this.dispatch(channel, 'unavailable')
       }
     }
