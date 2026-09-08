@@ -202,6 +202,58 @@ describe('durable fair document admission', () => {
     }
   })
 
+  it('prunes idle owners in bounded batches while retaining delayed and outstanding work', async () => {
+    const idleOwners = Array.from({ length: 1001 }, () => `organization:${generateId()}`)
+    fixtureOwners.push(...idleOwners)
+    await db
+      .insert(knowledgeDocumentDispatchOwner)
+      .values(idleOwners.map((ownerKey) => ({ ownerKey })))
+    const delayed = await createSource()
+    const active = await createSource()
+    const [delayedPayload] = await createDocuments(delayed, 1)
+    const [activePayload] = await createDocuments(active, 1)
+    await enqueueDocumentProcessingDispatch([delayedPayload, activePayload])
+    await db
+      .update(knowledgeDocumentDispatch)
+      .set({ availableAt: new Date(Date.now() + 60_000) })
+      .where(eq(knowledgeDocumentDispatch.documentId, delayedPayload.documentId))
+
+    await claimDocumentProcessingDispatches()
+    const retained = await db.select().from(knowledgeDocumentDispatchOwner)
+    expect(retained.filter((owner) => idleOwners.includes(owner.ownerKey))).toHaveLength(1)
+    expect(retained.map((owner) => owner.ownerKey)).toEqual(
+      expect.arrayContaining([delayed.ownerKey, active.ownerKey])
+    )
+    await claimDocumentProcessingDispatches()
+    expect(await db.select().from(knowledgeDocumentDispatchOwner)).toHaveLength(2)
+
+    await completeDocumentProcessingDispatch(activePayload)
+    await claimDocumentProcessingDispatches()
+    expect(
+      (await db.select().from(knowledgeDocumentDispatchOwner)).map((owner) => owner.ownerKey)
+    ).toEqual([delayed.ownerKey])
+  })
+
+  it('keeps every persisted intent discoverable when idle pruning races with enqueues', async () => {
+    const sources = await Promise.all(Array.from({ length: 12 }, () => createSource()))
+    await db
+      .insert(knowledgeDocumentDispatchOwner)
+      .values(sources.map(({ ownerKey }) => ({ ownerKey })))
+    const payloads = await Promise.all(sources.map((source) => createDocuments(source, 1)))
+    const results = await Promise.allSettled([
+      ...payloads.map((batch) => enqueueDocumentProcessingDispatch(batch)),
+      ...Array.from({ length: 6 }, () => claimDocumentProcessingDispatches()),
+    ])
+    expect(results.every((result) => result.status === 'fulfilled')).toBe(true)
+    const owners = new Set(
+      (await db.select().from(knowledgeDocumentDispatchOwner)).map((owner) => owner.ownerKey)
+    )
+    const intents = await db.select().from(knowledgeDocumentDispatch)
+    expect(intents).toHaveLength(sources.length)
+    expect(intents.every((intent) => owners.has(intent.ownerKey))).toBe(true)
+    expect(await claimDocumentProcessingDispatches()).toHaveLength(sources.length)
+  })
+
   it('lets one owner use available workers without queuing its entire corpus ahead of a newcomer', async () => {
     const large = await createSource()
     await enqueueDocumentProcessingDispatch(await createDocuments(large, 10_000))

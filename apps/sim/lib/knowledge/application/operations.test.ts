@@ -58,6 +58,8 @@ describe('knowledge operation registry', () => {
       'knowledge.connectors.update',
       'knowledge.connectors.access.update',
       'knowledge.search.sources.list',
+      'knowledge.search.sources.overview',
+      'knowledge.search.sources.progress',
       'knowledge.search.integrations.list',
       'knowledge.search.integrations.approve',
       'knowledge.connectors.members.list',
