@@ -521,6 +521,7 @@ jobs:
           bun --eval '
           const { execFileSync } = require("node:child_process")
           const { readdirSync, readFileSync } = require("node:fs")
+          const { join, normalize } = require("node:path")
           const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean)
           const directory = "apps/sim/.next"
           function sources(map) {
@@ -528,7 +529,10 @@ jobs:
           }
           for (const file of readdirSync(directory).filter(name => /^[0-9a-f]{16}\.map$/.test(name))) {
             const map = JSON.parse(readFileSync(`${directory}/${file}`, "utf8"))
-            const paths = sources(map).map(source => source.split("?")[0].replace(/ \[.*$/, ""))
+            const paths = sources(map).flatMap(source => {
+              const path = source.split("?")[0].replace(/ \[.*$/, "")
+              return [path, normalize(join(directory, "server/chunks", path)), normalize(join(directory, "server/chunks/ssr", path))]
+            })
             const matched = tracked.filter(path => paths.some(source => source === path || source.endsWith(`/${path}`)))
             process.stdout.write(JSON.stringify({ diagnostic: file, trackedFiles: matched }) + "\n")
           }
