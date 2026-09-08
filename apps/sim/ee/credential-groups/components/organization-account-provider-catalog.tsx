@@ -84,7 +84,7 @@ export function OrganizationAccountProviderCatalog({
       <ChipModalHeader onClose={onClose} closeDisabled={pending}>
         Add provider
       </ChipModalHeader>
-      <ChipModalBody className='h-[480px] max-h-[70dvh] overflow-hidden'>
+      <ChipModalBody className='h-[480px] max-h-[70dvh] flex-none overflow-hidden'>
         <ChipModalField
           type='custom'
           title='Find a provider'

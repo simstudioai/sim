@@ -88,7 +88,7 @@ function PersonalTokenForm({
           type='custom'
           title='Personal access token'
           required
-          hint='Use a token with the api scope. This connection is private to you and available across your organization.'
+          hint='Only you can use this connection.'
         >
           <SecretInput
             value={token}
