@@ -3,7 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv } = vi.hoisted(() => ({
+const { mockEnv, mockRedisClient } = vi.hoisted(() => ({
+  mockRedisClient: { current: null as { eval: ReturnType<typeof vi.fn> } | null },
   mockEnv: {
     REDIS_URL: undefined as string | undefined,
     REDIS_TLS_SERVERNAME: undefined as string | undefined,
@@ -11,7 +12,7 @@ const { mockEnv } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
+vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => mockRedisClient.current }))
 
 import {
   appendEvent,
@@ -28,7 +29,13 @@ interface TestEntry extends EventLogEntry {
   value: string
 }
 
-const config: EventLogConfig = { prefix: 'test:stream:', ttlSeconds: 3600, cap: 3, readChunk: 500 }
+const config: EventLogConfig = {
+  prefix: 'test:stream:',
+  ttlSeconds: 3600,
+  cap: 3,
+  maxBytes: 0,
+  readChunk: 500,
+}
 
 function serializerFor(streamId: string, value: string) {
   return {
@@ -42,6 +49,7 @@ describe('event-log (memory fallback)', () => {
   beforeEach(() => {
     mockEnv.REDIS_URL = undefined
     mockEnv.REDIS_TLS_SERVERNAME = undefined
+    mockRedisClient.current = null
     resetEventLogMemoryForTesting()
   })
 
@@ -111,5 +119,72 @@ describe('event-log (memory fallback)', () => {
     await expect(appendEvent(config, 's1', serializerFor('s1', 'a'))).rejects.toThrow(
       /valid redis:\/\/ or rediss:\/\/ URL/
     )
+  })
+})
+
+describe('event-log byte ceiling', () => {
+  beforeEach(() => {
+    mockEnv.REDIS_URL = undefined
+    mockEnv.REDIS_TLS_SERVERNAME = undefined
+    mockRedisClient.current = null
+    resetEventLogMemoryForTesting()
+  })
+
+  /**
+   * The entry cap is what let one writer hold hundreds of megabytes: `cap` bounds how
+   * many entries a stream keeps and nothing about how large each one is.
+   */
+  it('drops oldest entries once the buffer exceeds maxBytes, under the entry cap', async () => {
+    const bounded: EventLogConfig = { ...config, cap: 1000, maxBytes: 400 }
+    const big = 'x'.repeat(150)
+
+    for (let i = 0; i < 6; i++) {
+      await appendEvent(bounded, 's1', serializerFor('s1', big))
+    }
+
+    const fromStart = await readEventsSince<TestEntry>(bounded, 's1', 0)
+    expect(fromStart.status).toBe('pruned')
+    const earliest = fromStart.status === 'pruned' ? fromStart.earliestEventId : undefined
+    expect(earliest).toBeGreaterThan(1)
+
+    const retained = await readEventsSince<TestEntry>(bounded, 's1', (earliest as number) - 1)
+    expect(retained.status).toBe('ok')
+    const events = retained.status === 'ok' ? retained.events : []
+    expect(events.at(-1)?.eventId).toBe(6)
+    const bytes = events.reduce((total, e) => total + JSON.stringify(e).length, 0)
+    expect(bytes).toBeLessThanOrEqual(400)
+  })
+
+  it('keeps the newest entry even when it alone exceeds maxBytes', async () => {
+    const bounded: EventLogConfig = { ...config, cap: 1000, maxBytes: 10 }
+    await appendEvent(bounded, 's1', serializerFor('s1', 'a'))
+    await appendEvent(bounded, 's1', serializerFor('s1', 'b'.repeat(500)))
+
+    const result = await readEventsSince<TestEntry>(bounded, 's1', 1)
+    expect(result.status).toBe('ok')
+    const events = result.status === 'ok' ? result.events : []
+    expect(events).toHaveLength(1)
+    expect(events[0]?.eventId).toBe(2)
+  })
+
+  it('leaves the buffer unbounded by bytes when maxBytes is 0', async () => {
+    const unbounded: EventLogConfig = { ...config, cap: 1000, maxBytes: 0 }
+    for (let i = 0; i < 5; i++) {
+      await appendEvent(unbounded, 's1', serializerFor('s1', 'x'.repeat(500)))
+    }
+    const result = await readEventsSince<TestEntry>(unbounded, 's1', 0)
+    expect(result.status).toBe('ok')
+    expect(result.status === 'ok' ? result.events : []).toHaveLength(5)
+  })
+
+  it('passes the ceiling to the Redis script', async () => {
+    const evalFn = vi.fn().mockResolvedValue(1)
+    mockRedisClient.current = { eval: evalFn }
+    mockEnv.REDIS_URL = 'redis://localhost:6379'
+
+    await appendEvent({ ...config, maxBytes: 4096 }, 's1', serializerFor('s1', 'a'))
+
+    expect(evalFn).toHaveBeenCalledTimes(1)
+    expect(evalFn.mock.calls[0]?.at(-1)).toBe(4096)
   })
 })

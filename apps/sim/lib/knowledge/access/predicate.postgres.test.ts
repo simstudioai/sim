@@ -149,8 +149,8 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       [`${alice},${bob}`]
     )
     await connection.unsafe(
-      `INSERT INTO knowledge_connector_member(id, connector_id, subject_token, status, member_synced_through) VALUES
-      ('alice', 'members', $1, 'active', NULL), ('bob', 'members', $2, 'active', NULL)`,
+      `INSERT INTO knowledge_connector_member(id, workspace_id, connector_id, subject_token, status, member_synced_through) VALUES
+      ('alice', 'workspace', 'members', $1, 'active', NULL), ('bob', 'workspace', 'members', $2, 'active', NULL)`,
       [alice, bob]
     )
     await connection.unsafe(`INSERT INTO knowledge_document_observation VALUES
@@ -220,8 +220,8 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
         ('paused', 'admin', 'paused', 1440, statement_timestamp() + interval '1 day'),
         ('workspace', 'workspace', 'active', 1440, statement_timestamp() + interval '1 day'),
         ('overdue', 'admin', 'active', 1440, statement_timestamp() - interval '1 day');
-      INSERT INTO knowledge_connector_member(id, connector_id, subject_token, status, next_attempt_at)
-      SELECT 'member-' || n, 'batch-1', 'subject-' || n, 'active', statement_timestamp() + interval '1 day'
+      INSERT INTO knowledge_connector_member(id, workspace_id, connector_id, subject_token, status, next_attempt_at)
+      SELECT 'member-' || n, 'workspace', 'batch-1', 'subject-' || n, 'active', statement_timestamp() + interval '1 day'
       FROM generate_series(1, 1001) AS n;
       CREATE TEMP TABLE original_schedules AS SELECT id, next_sync_at, next_member_sync_at FROM knowledge_connector;
     `)

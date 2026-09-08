@@ -10,6 +10,7 @@ import {
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
 import { admitV2Request, v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
+import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -25,7 +26,12 @@ const mcpApiKeyAuth = {
     if ((authorization && !bearer) || (apiKey && bearer && apiKey !== bearer)) {
       throw new V2ApiKeyUnauthenticatedError('Provide one valid API key')
     }
-    return authenticateV2ApiKey(apiKey ?? bearer ?? null)
+    /** MCP clients also send existing Sim API keys as bearer credentials. */
+    const oauthBearer = bearer?.startsWith(OAUTH_ACCESS_TOKEN_PREFIX) ? bearer : null
+    return authenticateV2ApiKey({
+      apiKey: apiKey ?? (oauthBearer ? null : (bearer ?? null)),
+      bearer: oauthBearer,
+    })
   },
 }
 

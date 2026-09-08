@@ -1,10 +1,17 @@
-import type { Principal } from '@sim/auth/principal'
+import {
+  isUserCredentialPrincipal,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
+  type Principal,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { organizationRoleSchema } from '@/lib/api/contracts/primitives'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
 import type { OrganizationOperation } from '@/lib/core/application/organization-operation'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
@@ -29,7 +36,7 @@ export async function requireOrganizationMembership(
   minimumRole: 'member' | 'admin' = 'member',
   capability: OperationDeclarableCapability | 'none' = 'none'
 ): Promise<OrganizationMembershipContext> {
-  if (principal.kind !== 'session' && principal.kind !== 'personal_api_key') {
+  if (principal.kind !== 'session' && !isUserCredentialPrincipal(principal)) {
     throw new PrincipalKindAuthorizationError(principal.kind, 'organization.membership')
   }
   return requireOrganizationSubjectMembership(
@@ -37,7 +44,7 @@ export async function requireOrganizationMembership(
     organizationId,
     minimumRole,
     capability,
-    principal.kind === 'personal_api_key'
+    isUserCredentialPrincipal(principal) ? principal : undefined
   )
 }
 
@@ -46,7 +53,7 @@ async function requireOrganizationSubjectMembership(
   organizationId: string,
   minimumRole: 'member' | 'admin',
   capability: OperationDeclarableCapability | 'none',
-  personalApiKey: boolean
+  userCredential?: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal
 ): Promise<OrganizationMembershipContext> {
   const [membership] = await db
     .select({ role: member.role })
@@ -59,8 +66,14 @@ async function requireOrganizationSubjectMembership(
     throw new OrchestrationError('forbidden', 'Organization administrator access is required')
   }
   const config = await getUserPermissionConfigForOrganization(organizationId)
-  if (personalApiKey && capabilityDeniedBy('personal_api_key.use', config))
+  if (userCredential && capabilityDeniedBy('personal_api_key.use', config))
     refuseCapability('personal_api_key.use')
+  if (
+    userCredential?.kind === 'oauth_access_token' &&
+    userCredential.clientId === SIM_CLI_CLIENT_ID &&
+    capabilityDeniedBy('cli.use', config)
+  )
+    refuseCapability('cli.use')
   if (capability !== 'none' && capabilityDeniedBy(capability, config)) refuseCapability(capability)
   return { organizationId, userId, role: parsedRole.data }
 }
@@ -73,6 +86,7 @@ export async function authorizeOrganizationOperation(
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
+  requireOAuthOperationScope(principal, operation)
   if (principal.kind === 'organization_delegated') {
     const now = Date.now()
     if (
@@ -90,8 +104,7 @@ export async function authorizeOrganizationOperation(
       principal.subjectUserId,
       context.organizationId,
       operation.minimumRole,
-      operation.capability,
-      false
+      operation.capability
     )
   }
   return requireOrganizationMembership(

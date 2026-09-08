@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import {
   assertOperationPrincipal,
   defineOperation,
+  ForbiddenOperationError,
   type OperationUseCase,
 } from '@/lib/core/application'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
@@ -153,7 +154,8 @@ export const sendInvitationBatch: OperationUseCase<
       } catch (error) {
         if (
           error instanceof WorkspaceInvitationError ||
-          error instanceof InvitationsNotAllowedError
+          error instanceof InvitationsNotAllowedError ||
+          error instanceof ForbiddenOperationError
         ) {
           result.failed.push({
             email:

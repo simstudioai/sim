@@ -1,5 +1,6 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
+  isUserCredentialPrincipal,
   type Principal,
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
@@ -117,6 +118,7 @@ export interface UploadSessionAuthBinding {
   principal:
     | { kind: 'session'; userId: string; sessionId: string }
     | { kind: 'personal_api_key'; userId: string; keyId: string }
+    | { kind: 'oauth_access_token'; userId: string; clientId: string }
     | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
     | {
         kind: 'delegated'
@@ -436,6 +438,12 @@ export function createUploadSessionAuthBinding(
         workspaceId,
         principal: { kind: principal.kind, userId: principal.userId, keyId: principal.keyId },
       }
+    case 'oauth_access_token':
+      return {
+        version: 1,
+        workspaceId,
+        principal: { kind: principal.kind, userId: principal.userId, clientId: principal.clientId },
+      }
     case 'workspace_api_key':
       if (principal.workspaceId !== workspaceId) {
         throw new UploadSessionError('forbidden', 'Workspace API key cannot access this workspace')
@@ -475,6 +483,11 @@ export function createUploadSessionAuthBinding(
         'forbidden',
         'Credential Group enrollment principals cannot create uploads'
       )
+    case 'scim_connection':
+      throw new UploadSessionError(
+        'forbidden',
+        'Directory provisioning credentials cannot create uploads'
+      )
     case 'system':
       throw new UploadSessionError('forbidden', 'System principals cannot create uploads')
   }
@@ -505,16 +518,20 @@ export function assertUploadSessionAuthBinding(
         ? principal.kind === 'personal_api_key' &&
           bound.userId === principal.userId &&
           bound.keyId === principal.keyId
-        : bound.kind === 'workspace_api_key'
-          ? principal.kind === 'workspace_api_key' &&
-            bound.workspaceId === principal.workspaceId &&
-            bound.keyId === principal.keyId
-          : isExecutorWorkflowExecutionPrincipal(principal) &&
-            principal.workspaceId === session.workspaceId &&
-            principal.subjectUserId === bound.subjectUserId &&
-            principal.audience === bound.audience &&
-            principal.delegationContext.workflowId === bound.workflowId &&
-            principal.delegationContext.executionId === bound.executionId)
+        : bound.kind === 'oauth_access_token'
+          ? principal.kind === 'oauth_access_token' &&
+            bound.userId === principal.userId &&
+            bound.clientId === principal.clientId
+          : bound.kind === 'workspace_api_key'
+            ? principal.kind === 'workspace_api_key' &&
+              bound.workspaceId === principal.workspaceId &&
+              bound.keyId === principal.keyId
+            : isExecutorWorkflowExecutionPrincipal(principal) &&
+              principal.workspaceId === session.workspaceId &&
+              principal.subjectUserId === bound.subjectUserId &&
+              principal.audience === bound.audience &&
+              principal.delegationContext.workflowId === bound.workflowId &&
+              principal.delegationContext.executionId === bound.executionId)
   if (!matches) throw uploadNotFound()
 }
 
@@ -529,7 +546,7 @@ function assertLegacyUploadSessionOwner(session: UploadSessionRecord, principal:
   const matches =
     principal.kind === 'workspace_api_key'
       ? principal.workspaceId === session.workspaceId
-      : (principal.kind === 'session' || principal.kind === 'personal_api_key') &&
+      : (principal.kind === 'session' || isUserCredentialPrincipal(principal)) &&
         principal.userId === session.userId
   if (!matches) throw uploadNotFound()
 }
@@ -1288,6 +1305,9 @@ function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthB
   }
   if (principal.kind === 'personal_api_key') {
     return typeof principal.userId === 'string' && typeof principal.keyId === 'string'
+  }
+  if (principal.kind === 'oauth_access_token') {
+    return typeof principal.userId === 'string' && typeof principal.clientId === 'string'
   }
   if (principal.kind === 'delegated') {
     return (

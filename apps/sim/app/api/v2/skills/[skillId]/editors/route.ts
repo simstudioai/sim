@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   type V2SkillEditor,
   v2GrantSkillEditorContract,
@@ -88,7 +89,7 @@ export const POST = defineV2JsonRoute({
   }),
   useCase: grantSkillEditorUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (!result.created || principal.kind !== 'personal_api_key') return
+    if (!result.created || !isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'skill_shared',
@@ -113,7 +114,7 @@ export const DELETE = defineV2JsonRoute({
   }),
   useCase: revokeSkillEditorUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (principal.kind !== 'personal_api_key') return
+    if (!isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'skill_unshared',

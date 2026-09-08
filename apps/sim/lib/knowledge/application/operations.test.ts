@@ -110,7 +110,9 @@ describe('knowledge operation registry', () => {
       expect(operation.organizationOperation.principalKinds).toEqual([
         'session',
         'personal_api_key',
+        'oauth_access_token',
       ])
+      expect(operation.organizationOperation.oauthScope).toBe('api:write')
       expect(operation.organizationOperation.delegationAudience).toBeUndefined()
     }
     for (const operation of [

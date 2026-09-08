@@ -111,6 +111,25 @@ const workspacePrincipal = {
 }
 
 describe('billing application use cases', () => {
+  it('rejects an OAuth grant without API access before loading billing or workspace state', async () => {
+    vi.clearAllMocks()
+    const principal = {
+      kind: 'oauth_access_token',
+      userId: 'user-1',
+      clientId: 'client-1',
+      tokenId: 'token-1',
+      scopes: ['offline_access'],
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    } as const
+
+    await expect(
+      getBillingStatus.execute({ principal, input: { workspaceId: 'workspace-1' } })
+    ).rejects.toMatchObject({ requiredScope: 'api:read' })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.resolveAttribution).not.toHaveBeenCalled()
+    expect(mocks.resolveSystemAttribution).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetPermissionGroupScopeMock()

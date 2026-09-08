@@ -39,7 +39,13 @@ describe('workflow operation registry', () => {
       id: 'workflows.variables.apply_operations',
       minimumRole: 'write',
       workspaceApiKey: 'allow',
-      principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+      principalKinds: [
+        'session',
+        'personal_api_key',
+        'oauth_access_token',
+        'workspace_api_key',
+        'delegated',
+      ],
       delegatedServices: ['copilot'],
     })
     expect(Object.isFrozen(workflowOperations.applyVariableOperations)).toBe(true)
@@ -50,7 +56,13 @@ describe('workflow operation registry', () => {
       id: 'workflows.bulk.move',
       minimumRole: 'write',
       workspaceApiKey: 'allow',
-      principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+      principalKinds: [
+        'session',
+        'personal_api_key',
+        'oauth_access_token',
+        'workspace_api_key',
+        'delegated',
+      ],
       delegatedServices: ['copilot'],
     })
     expect(Object.isFrozen(workflowOperations.moveBulk)).toBe(true)
@@ -65,7 +77,7 @@ describe('workflow operation registry', () => {
       expect(operation).toMatchObject({
         minimumRole: 'admin',
         workspaceApiKey: 'deny',
-        principalKinds: ['session', 'personal_api_key', 'delegated'],
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
         delegatedServices: ['copilot', 'executor'],
       })
     }
@@ -74,7 +86,13 @@ describe('workflow operation registry', () => {
       expect(operation).toMatchObject({
         minimumRole: 'read',
         workspaceApiKey: 'allow',
-        principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+        principalKinds: [
+          'session',
+          'personal_api_key',
+          'oauth_access_token',
+          'workspace_api_key',
+          'delegated',
+        ],
         delegatedServices: ['copilot', 'executor'],
       })
     }
@@ -95,7 +113,7 @@ describe('workflow operation registry', () => {
       id: 'workflows.public_api.update',
       minimumRole: 'admin',
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
     })
     expect(workflowOperations.updatePublicApi.principalKinds).not.toContain('workspace_api_key')
     expect(workflowOperations.updatePublicApi.principalKinds).not.toContain('delegated')
@@ -115,7 +133,7 @@ describe('workflow operation registry', () => {
       id: 'workflows.operations.apply',
       minimumRole: 'write',
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key', 'delegated'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
       delegatedServices: ['copilot'],
     })
     expect(workflowOperations.applyOperations.principalKinds).not.toContain('workspace_api_key')
@@ -129,7 +147,7 @@ describe('workflow operation registry', () => {
       expect(operation).toMatchObject({
         minimumRole: 'write',
         workspaceApiKey: 'deny',
-        principalKinds: ['personal_api_key'],
+        principalKinds: ['personal_api_key', 'oauth_access_token'],
       })
       expect(operation.id).toMatch(/^workflows\.manual\.execute/)
     }
@@ -140,7 +158,13 @@ describe('workflow operation registry', () => {
       id: 'workflows.paused_executions.read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
-      principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+      principalKinds: [
+        'session',
+        'personal_api_key',
+        'oauth_access_token',
+        'workspace_api_key',
+        'delegated',
+      ],
       delegatedServices: ['copilot'],
     })
   })

@@ -89,6 +89,7 @@ const ROSTER_A: { success: true; data: OrganizationRoster } = {
         name: 'Member A',
         email: 'member-a@example.com',
         image: null,
+        suspendedAt: null,
         workspaces: [],
       },
     ],

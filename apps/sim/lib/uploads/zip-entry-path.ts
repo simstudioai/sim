@@ -1,3 +1,4 @@
+import { ensureFileNameExtension } from '@/lib/uploads/utils/file-utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Characters that are illegal in file names on common desktop platforms. */
@@ -9,6 +10,8 @@ export interface ZipEntrySource {
   name: string
   /** Workspace-root-relative folder path holding the file, or null when it sits at the root. */
   folderPath?: string | null
+  /** Stored content type; supplies the extension when the name carries none. */
+  contentType?: string | null
 }
 
 export interface BuildZipEntryPathsOptions {
@@ -109,7 +112,7 @@ export function buildZipEntryPaths(
   const usedPaths = new Set<string>()
 
   return sources.map((source) => {
-    const leafName = toLeafName(source.name)
+    const leafName = ensureFileNameExtension(toLeafName(source.name), source.contentType)
     const folderSegments = toSegments(source.folderPath).slice(rebaseLength)
     const basePath = safeEntryPath([...folderSegments, leafName]) || leafName
 

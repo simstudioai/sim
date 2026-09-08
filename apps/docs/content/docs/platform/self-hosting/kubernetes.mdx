@@ -185,7 +185,7 @@ See `helm/sim/values.yaml` for all options, and the chart's [README](https://git
 
 ## Background jobs
 
-The chart deploys 22 CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, data drains, and outbox processing. They require `CRON_SECRET`; set `cronjobs.enabled=false` to deploy none.
+The chart deploys 23 CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, OAuth token cleanup, data drains, and outbox processing. They require `CRON_SECRET`; set `cronjobs.enabled=false` to deploy none.
 
 ```bash
 kubectl get cronjobs -n simstudio
@@ -242,4 +242,3 @@ helm uninstall sim --namespace simstudio
 <FAQ items={[
   { question: "How do I manage secrets securely in Kubernetes?", answer: "The Helm chart supports pre-existing Kubernetes secrets via app.secrets.existingSecret. Set enabled to true and provide the secret name. This integrates with External Secrets Operator, HashiCorp Vault, Azure Key Vault, and similar tools. The secret must use the standard key names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET, API_ENCRYPTION_KEY, CRON_SECRET, ...) — it is consumed wholesale, so key remapping is not supported."},
 ]} />
-

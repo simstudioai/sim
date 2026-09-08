@@ -275,6 +275,8 @@ export const rosterMemberSchema = z.object({
   name: z.string(),
   email: z.string(),
   image: z.string().nullable(),
+  /** Set while a directory deactivation blocks the member's sign-in; access is otherwise intact. */
+  suspendedAt: z.string().nullable(),
   workspaces: z.array(rosterWorkspaceAccessSchema),
 })
 

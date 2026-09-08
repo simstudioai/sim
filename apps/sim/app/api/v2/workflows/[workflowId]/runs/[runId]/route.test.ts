@@ -336,7 +336,7 @@ describe('v2 run detail and cancel adapters', () => {
 
   it('rejects missing API keys before reading the run', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
+      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
     )
 
     const response = await callStatus()

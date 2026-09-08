@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import type { CreateInternalFileUploadBody } from '@/lib/api/contracts/upload-sessions'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -384,7 +384,7 @@ export const abortWorkspaceFileUploadOperation = {
 } as const
 
 function principalUserId(principal: Principal): string {
-  if (principal.kind === 'session' || principal.kind === 'personal_api_key') {
+  if (principal.kind === 'session' || isUserCredentialPrincipal(principal)) {
     return principal.userId
   }
   throw new Error('Workspace upload attribution must be resolved from the current workspace owner')

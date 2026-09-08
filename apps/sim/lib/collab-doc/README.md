@@ -1,53 +1,57 @@
-# `@/lib/collab-doc` — server-side collaborative-document conversion
+# Server-side collaborative documents
 
-Server-side conversion between a file's **markdown** (the durable source of truth) and its
-collaborative **Yjs document**, so the server can own the doc: seed it, project it back to
-markdown, and let the agent write into it while a user is typing.
+This module converts workspace Markdown files to and from the shared TipTap/Yjs document.
+Markdown is the durable file content; the persisted Yjs binary retains the causal identities and
+deletion history needed to reconnect existing clients. Equal Markdown does not imply equal history.
 
-## Why this exists
+## Persistence and seeding
 
-Collaborative file editing had two writers with no shared CRDT: copilot `edit_content` wrote
-markdown straight to the file while the user typed into an ephemeral, client-seeded Yjs doc. They
-couldn't reconcile — the agent's edit didn't stream into the editor, and last-writer clobbered. The
-fix is a **server-authoritative Yjs doc** both sides write into, with markdown as a projection.
+- Convert with the same editor extensions and Markdown pipeline used by the client.
+- Preserve native Yjs snapshots. Normalize the Markdown projection, not a detached shared tree:
+  deleting an empty paragraph in a saved snapshot can delete text a disconnected peer types there later.
+- Persist the relay's native full snapshot. Reject a different document identity; stale content
+  writes also require a throwaway merge proving that the candidate does not omit durable content.
+- Commit the prepared binary and Markdown pointer in the same file-row transaction. The content
+  version and exact cached binary/source hashes must still match their preparation inputs.
+- Cache-only saves and seeds use the same file-row lock and revision check. Unchanged snapshots
+  validate their revision without rewriting the row. Simultaneous cold seeds adopt the winning identity.
+- Keep conversion and blob I/O outside the transaction. Bound loaded and prepared binary states to
+  12 MiB; oversized or unavailable cache reads fail rather than masquerading as an absent document.
+- Retry content/cache conflicts a bounded number of times from fresh reads. Infrastructure errors
+  propagate so callers can retry without acknowledging an uncommitted snapshot.
 
-## What Stage A (this module) provides
+External Markdown writes reconcile through `applyMarkdownToYDoc`, using the existing
+`updateYFragment` binding. Equivalent normalized bodies leave the native tree untouched; actual
+content changes apply a diff. This preserves unaffected identities, but is not a guarantee that
+arbitrary structural rewrites retain every concurrent edit.
 
-| Function | Purpose |
-|---|---|
-| `markdownToYDoc(md)` | Cold-start seed: file markdown → a fresh `Y.Doc`. |
-| `yDocToMarkdown(ydoc)` | Projection: `Y.Doc` → the file's canonical markdown. |
-| `applyMarkdownToYDoc(ydoc, md)` | Agent write: merge new content into a live `Y.Doc` as a minimal CRDT diff (no clobber). |
+## Compatibility and limits
 
-### Design decisions (why it's not hacky)
+All cache writers must use the shared transaction/revision protocol. Drain older application writers
+before relying on its guarantees; an old unconditional writer does not participate in the fence.
+This change does not alter the document schema or migrate existing documents.
 
-- **Parity by construction.** The markdown↔ProseMirror step reuses the *exact* client engine
-  (`parseMarkdownToDoc` / `serializeDocToMarkdown`, `@tiptap/markdown` on the shared extension set) —
-  not a second markdown implementation — so the server can never diverge from what the editor
-  renders. The custom-fidelity constructs (tables, footnotes, raw HTML, `sim:` mentions) are covered
-  by the same code that covers them in the browser; the round-trip test asserts equivalence.
-- **Same Yjs binding as the browser.** ProseMirror↔Yjs uses `@tiptap/y-tiptap` (what TipTap's
-  Collaboration extension uses), pinned to the same version and sharing the same `prosemirror-model`
-  / `yjs` instances (peer deps) — so the structure the server produces is byte-compatible with the
-  client, targeting the same `'default'` fragment.
-- **Merge, not replace.** `applyMarkdownToYDoc` uses `updateYFragment` (the primitive `ySyncPlugin`
-  runs on every keystroke) to apply only the diff, so Yjs reconciles the agent's write with in-flight
-  remote edits. The test proves an agent write and a concurrent remote edit both survive.
-- **Server-only, DOM via jsdom.** The markdown engine builds a (never-mounted) TipTap editor that
-  needs a DOM; on the server it's backed by a single lazily-created `jsdom` window. Lazy-required so
-  the client bundle never pulls jsdom in.
+Legacy caches can contain private normalization deletions that the live relay never received.
+Unconditionally merging those caches into snapshots can delete delayed edits or prevent saving.
+The relay remains the snapshot owner, as before; this change does not solve retention of extra
+cache-only operations invisible in Markdown. Safely unifying all historical state requires an
+explicit legacy compatibility plan, not a hash check or a guess at deletion provenance.
 
-## Server-authoritative seeding (shipped alongside this module)
+Native nested-list reparenting can lose concurrent edits to moved content in the current binding.
+A stable-parent list representation requires a separately tested schema and offline-update migration;
+rebuilding a Y.Doc or changing its identity is not a safe migration.
 
-The realtime relay seeds each room's document from this module over an internal endpoint
-(`buildFileDocSeed` → `POST /api/internal/file-doc/seed` → `ensureServerSeed`), which let the entire
-client-seeder subsystem (election / deadlines / `triedSeeders` / `MAX_SEED_ROUNDS` / the
-`SEED_REQUEST` handshake) be deleted. The client's connect-deadline offline fallback is deliberately
-**kept** — it is unrelated to seeding. No feature flag: the cutover is all-at-once.
+Conversion is server-side and uses a lazily initialized jsdom window for TipTap. It must not enter
+a client bundle.
 
-## Remaining stages (future PRs)
+## Precedent
 
-- **Durable persistence.** A DB column for the Yjs binary + debounced snapshotting, so a document
-  survives with no collaborators connected instead of being re-seeded from markdown on cold open.
-- **Copilot into the doc + projection.** `edit_content` calls `applyMarkdownToYDoc` when a doc is
-  live; a debounced `yDocToMarkdown` projection keeps the file's markdown current.
+- [Yjs document updates](https://docs.yjs.dev/api/document-updates): native update merging and encoded state.
+- [Hocuspocus persistence](https://tiptap.dev/docs/hocuspocus/guides/persistence): preserve Yjs binary
+  rather than recreating it from JSON on reconnect.
+- [PostgreSQL row locking](https://www.postgresql.org/docs/current/explicit-locking.html): serialize
+  conflicting commits under the existing file-row lock.
+
+The repository tests cover conversion, native-history preservation, cache conflicts, seed races,
+and file-manager transaction wiring. Real PostgreSQL concurrency and live collaboration require
+integration validation in addition to those unit tests.

@@ -36,6 +36,7 @@ import {
   getWorkspaceWithOwner,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
+import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('InvitationDirectGrant')
 
@@ -137,6 +138,12 @@ export async function grantWorkspaceAccessDirectly(
         await acquireOrganizationUserMutationLocks(tx, {
           userId: input.userId,
           organizationIds: [input.organizationId],
+        })
+        /** A member the directory manages gets workspace access from the directory, not by hand. */
+        await assertMembershipNotScimManaged({
+          organizationId: input.organizationId,
+          userId: input.userId,
+          executor: tx,
         })
 
         const currentInvitationIds = await getPendingWorkspaceInvitationIds(

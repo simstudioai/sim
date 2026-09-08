@@ -15,6 +15,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { directGrantOutboxHandlers } from '@/lib/invitations/direct-grant'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
+import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
@@ -36,6 +37,7 @@ const handlers = {
   ...directGrantOutboxHandlers,
   ...knowledgeDocumentProcessingOutboxHandlers,
   ...organizationResourceCleanupOutboxHandlers,
+  ...workspaceFileLiveDocOutboxHandlers,
   ...workspaceFileStorageCleanupOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
 } as const

@@ -26,8 +26,8 @@ import {
  * demotes a workspace-scoped question to account scope and answers 200 about a
  * different payer than the caller asked about. It is a wrong answer, not a cross-tenant
  * read: `resolveBillingReadScope` still pins a workspace API key to its own workspace
- * whatever the query says, so the reachable case is a personal key being told about its
- * own account when it asked about a workspace. Rejecting the unknown key turns that
+ * whatever the query says, so the reachable case is a user-held credential being told
+ * about its own account when it asked about a workspace. Rejecting the unknown key turns that
  * wrong answer about money into a 400.
  */
 export const v2BillingStatusQuerySchema = z
@@ -172,7 +172,7 @@ export const v2BillingLogsQuerySchema = z
     workspaceId: workspaceIdSchema
       .optional()
       .describe(
-        "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers."
+        "Narrow the ledger to one workspace. An OAuth token or personal API key reports only its user's events; a workspace API key reports every member's events in its bound workspace. The response `scope` identifies which view was returned. A workspace key asking for another workspace receives the same `404 Workspace not found` as an unknown id."
       ),
     period: usageLogPeriodSchema
       .optional()
@@ -287,12 +287,12 @@ export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>
  * indistinguishable on the wire. The same workspace, window, and filters return
  * a strict subset of the rows on `user` scope that they return on `workspace`
  * scope, and nothing else in the response says which set arrived — a caller
- * auditing a workspace's spend with a personal key would silently undercount.
+ * auditing a workspace's spend with a user-held credential would silently undercount.
  */
 export const v2BillingLogsScopeSchema = z
   .enum(['user', 'workspace'])
   .describe(
-    "Whose usage this page reports. `user` — the events of the person whose personal API key made the request, narrowed by `workspaceId` when one was given; this omits other members' usage. `workspace` — every member's events for the workspace a workspace API key is pinned to."
+    "Whose usage this page reports. `user` contains only the OAuth or personal-key user's events, optionally narrowed by `workspaceId`; it omits other members. `workspace` contains every member's events for the workspace API key's bound workspace."
   )
 
 export const v2ListBillingLogsContract = defineRouteContract({

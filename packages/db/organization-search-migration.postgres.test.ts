@@ -20,7 +20,7 @@ async function createMigrationFixture() {
 
   const schema = `organization_migration_${generateId().replaceAll('-', '')}`
   const migration = await readFile(
-    new URL('./migrations/0327_organization_search_scope.sql', import.meta.url),
+    new URL('./migrations/0325_enterprise_organization_search.sql', import.meta.url),
     'utf8'
   )
   const statements = migration
@@ -46,29 +46,64 @@ async function createMigrationFixture() {
     await sql.unsafe(`CREATE SCHEMA "${schema}"`)
     await sql.unsafe(`SET search_path TO "${schema}"`)
     await sql.unsafe(`
+
+      CREATE TYPE credential_type AS ENUM ('oauth', 'env_personal', 'env_workspace', 'managed_oauth', 'service_account');
       CREATE TABLE organization (id text PRIMARY KEY);
+      CREATE TABLE workspace (id text PRIMARY KEY);
+      CREATE TABLE "user" (id text PRIMARY KEY, email text, email_verified boolean);
       CREATE TABLE credential (
-        id text PRIMARY KEY, workspace_id text NOT NULL, type text, account_id text,
-        created_by text, provider_id text, provider_tenant_id text, provider_subject_id text
+        id text PRIMARY KEY, workspace_id text NOT NULL, type credential_type, account_id text,
+        created_by text, provider_id text, provider_tenant_id text, provider_subject_id text,
+        granted_scopes text[], env_key text, env_owner_user_id text, authorization_app_id text,
+        encrypted_oauth_token_set text, encrypted_service_account_key text, unredacted boolean DEFAULT false,
+        managed_oauth_status text, granted_at timestamp, credential_group_enrollment_id text,
+        CONSTRAINT credential_managed_oauth_source_check CHECK (type::text <> 'managed_oauth' OR (
+          account_id IS NULL AND provider_id IS NOT NULL AND authorization_app_id IS NOT NULL
+          AND provider_subject_id IS NOT NULL AND managed_oauth_status IS NOT NULL
+          AND granted_scopes IS NOT NULL AND cardinality(granted_scopes) > 0
+          AND encrypted_oauth_token_set IS NOT NULL AND granted_at IS NOT NULL
+        ))
       );
       CREATE TABLE credential_group (
-        id text PRIMARY KEY, workspace_id text NOT NULL, created_by text
+        id text PRIMARY KEY, workspace_id text NOT NULL, created_by text, name text, status text
+      );
+      CREATE UNIQUE INDEX credential_group_workspace_name_unique ON credential_group (workspace_id, name);
+      CREATE INDEX credential_group_workspace_status_idx ON credential_group (workspace_id, status);
+      CREATE TABLE credential_group_enrollment (
+        id text PRIMARY KEY, credential_group_id text, email text, status text,
+        invitation_token_hash text, invitation_expires_at timestamp, invited_at timestamp,
+        created_at timestamp, updated_at timestamp, revoked_at timestamp,
+        UNIQUE (credential_group_id, email)
       );
       CREATE TABLE copilot_chats (
         id text PRIMARY KEY, workspace_id text, workflow_id text, user_id text, created_at timestamp
       );
       CREATE TABLE knowledge_base (
-        id text PRIMARY KEY, workspace_id text, folder_id text, name text,
-        is_search_index boolean, deleted_at timestamp
+        id text PRIMARY KEY, workspace_id text, folder_id text, name text, deleted_at timestamp
       );
-      CREATE TABLE knowledge_connector_member (id text PRIMARY KEY, workspace_id text NOT NULL);
-      CREATE TABLE knowledge_external_directory (
-        workspace_id text NOT NULL, provider_id text NOT NULL, tenant_id text NOT NULL,
-        CONSTRAINT ked_identity_pk PRIMARY KEY (workspace_id, provider_id, tenant_id)
+      CREATE TABLE knowledge_connector (
+        id text PRIMARY KEY, access_mode text, sync_interval_minutes integer, status text,
+        member_sync_status text, next_sync_at timestamp, next_member_sync_at timestamp,
+        archived_at timestamp, deleted_at timestamp
       );
-      CREATE TABLE knowledge_external_group (
-        workspace_id text NOT NULL, provider_id text, tenant_id text,
-        external_group_id text, last_synced_at timestamp
+      CREATE TABLE knowledge_connector_member (
+        id text PRIMARY KEY, workspace_id text NOT NULL, connector_id text, status text,
+        next_attempt_at timestamp
+      );
+      CREATE TABLE knowledge_connector_sync_log (id text PRIMARY KEY);
+      CREATE TABLE knowledge_connector_member_sync_log (
+        id text PRIMARY KEY, status text,
+        CONSTRAINT kcmsl_status_check CHECK (status IN ('started', 'completed', 'failed'))
+      );
+      CREATE TABLE document (
+        id text PRIMARY KEY, knowledge_base_id text, connector_id text, external_id text,
+        user_excluded boolean DEFAULT false, archived_at timestamp,
+        tag1 text, tag2 text, tag3 text, tag4 text, tag5 text, tag6 text, tag7 text
+      );
+      CREATE INDEX doc_connector_id_idx ON document (connector_id);
+      CREATE TABLE embedding (
+        id text PRIMARY KEY, knowledge_base_id text,
+        tag1 text, tag2 text, tag3 text, tag4 text, tag5 text, tag6 text, tag7 text
       );
       CREATE TABLE pending_credential_draft (
         id text PRIMARY KEY, workspace_id text NOT NULL, user_id text, provider_id text
@@ -76,6 +111,7 @@ async function createMigrationFixture() {
       CREATE TABLE workspace_files (
         id text PRIMARY KEY, workspace_id text, context text, folder_id text, chat_id text
       );
+      CREATE TABLE rate_limit_bucket (id text PRIMARY KEY);
       CREATE TABLE resource_policy (
         id text PRIMARY KEY, workspace_id text NOT NULL, resource_type text, resource_id text,
         revision integer, document jsonb, created_by text, updated_by text
@@ -84,8 +120,13 @@ async function createMigrationFixture() {
         id text CONSTRAINT credential_owner_check CHECK (id IS NOT NULL)
       );
       INSERT INTO organization VALUES ('org-a'), ('org-b');
+      INSERT INTO workspace VALUES ('workspace-a'), ('workspace-b');
       INSERT INTO credential (id, workspace_id, type) VALUES ('legacy', 'workspace-a', 'oauth');
-      INSERT INTO knowledge_external_directory VALUES ('workspace-a', 'google-drive', 'tenant-a');
+      INSERT INTO knowledge_base (id, workspace_id, name)
+      VALUES ('search-index', 'workspace-a', 'Sim Search'), ('ordinary-kb', 'workspace-b', 'Guides');
+      INSERT INTO knowledge_connector (id, access_mode, sync_interval_minutes, status, next_sync_at)
+      VALUES ('automatic', 'admin', 60, 'active', now() + interval '1 day'),
+        ('manual', 'admin', 0, 'active', now() + interval '1 day');
     `)
   } catch (error) {
     await cleanup()
@@ -106,72 +147,36 @@ async function createMigrationFixture() {
 }
 
 describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay', () => {
-  it('keeps the legacy primary key when a failed concurrent replacement build is skipped on replay', async () => {
+  it('preserves old uniqueness and data when a concurrent replacement fails, then replays after repair', async () => {
     const fixture = await createMigrationFixture()
     const { sql, schema } = fixture
     try {
-      const commit = fixture.statements.findIndex((statement) => statement === 'COMMIT;')
-      expect(commit).toBeGreaterThan(0)
-      await sql.unsafe('BEGIN')
-      for (const statement of fixture.statements.slice(0, commit + 1)) {
-        await sql.unsafe(statement)
-      }
-
-      await sql`
-        INSERT INTO knowledge_external_directory (workspace_id, provider_id, tenant_id)
-        VALUES ('workspace-b', 'google-drive', 'tenant-b')
-      `
-      /** A duplicate provider makes a real concurrent build fail while the composite primary key remains valid. */
-      await expect(
-        sql.unsafe(`
-        CREATE UNIQUE INDEX CONCURRENTLY ked_workspace_identity_unique
-        ON knowledge_external_directory (provider_id)
-      `)
-      ).rejects.toMatchObject({ code: '23505' })
+      await sql`INSERT INTO credential_group (id, workspace_id, name)
+        VALUES ('first', 'workspace-a', 'First'), ('duplicate', 'workspace-a', 'Second')`
+      await expect(fixture.migrate()).rejects.toMatchObject({ code: '23505' })
       expect(
-        await sql`
-        SELECT indisvalid FROM pg_index
-        WHERE indexrelid = ${`"${schema}"."ked_workspace_identity_unique"`}::regclass
-      `
+        await sql`SELECT indisvalid FROM pg_index
+        WHERE indexrelid = ${`"${schema}"."credential_group_workspace_unique"`}::regclass`
       ).toEqual([{ indisvalid: false }])
-
       await expect(fixture.migrate()).rejects.toMatchObject({
         code: 'P0001',
-        message: expect.stringContaining('ked_workspace_identity_unique'),
+        message: expect.stringContaining('credential_group_workspace_unique'),
         hint: expect.stringContaining('Repair the listed indexes'),
       })
-      await sql.unsafe('ROLLBACK')
-      expect(
-        await sql`
-        SELECT conname FROM pg_constraint
-        WHERE conrelid = ${`"${schema}"."knowledge_external_directory"`}::regclass
-          AND conname = 'ked_identity_pk'
-      `
-      ).toHaveLength(1)
-      await expect(sql`
-        INSERT INTO knowledge_external_directory (workspace_id, provider_id, tenant_id)
-        VALUES ('workspace-a', 'google-drive', 'tenant-a')
-      `).rejects.toMatchObject({ code: '23505', constraint_name: 'ked_identity_pk' })
-
-      await sql.unsafe('DROP INDEX CONCURRENTLY ked_workspace_identity_unique')
+      expect(await sql`SELECT id FROM credential_group`).toHaveLength(2)
+      await expect(sql`INSERT INTO credential_group (id, workspace_id, name)
+        VALUES ('third', 'workspace-a', 'First')`).rejects.toMatchObject({
+        code: '23505',
+        constraint_name: 'credential_group_workspace_name_unique',
+      })
+      await sql`DELETE FROM credential_group WHERE id = 'duplicate'`
+      await sql.unsafe('DROP INDEX CONCURRENTLY credential_group_workspace_unique')
       await fixture.migrate()
-      expect(
-        await sql`
-        SELECT indisvalid, indisunique FROM pg_index
-        WHERE indexrelid = ${`"${schema}"."ked_workspace_identity_unique"`}::regclass
-      `
-      ).toEqual([{ indisvalid: true, indisunique: true }])
-      expect(
-        await sql`
-        SELECT conname FROM pg_constraint
-        WHERE conrelid = ${`"${schema}"."knowledge_external_directory"`}::regclass
-          AND conname = 'ked_identity_pk'
-      `
-      ).toHaveLength(0)
-      await expect(sql`
-        INSERT INTO knowledge_external_directory (workspace_id, provider_id, tenant_id)
-        VALUES ('workspace-a', 'google-drive', 'tenant-a')
-      `).rejects.toMatchObject({ code: '23505', constraint_name: 'ked_workspace_identity_unique' })
+      await expect(sql`INSERT INTO credential_group (id, workspace_id, name)
+        VALUES ('third', 'workspace-a', 'Different')`).rejects.toMatchObject({
+        code: '23505',
+        constraint_name: 'credential_group_workspace_unique',
+      })
     } finally {
       await fixture.cleanup()
     }
@@ -186,7 +191,9 @@ describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay',
         if (interruption === 'complete migration') {
           await fixture.migrate()
         } else {
-          const commit = fixture.statements.findIndex((statement) => statement === 'COMMIT;')
+          const commit = fixture.statements.findIndex(
+            (statement) => statement === 'SET lock_timeout = 0;'
+          )
           expect(commit).toBeGreaterThan(0)
           await sql.unsafe('BEGIN')
           for (const statement of fixture.statements.slice(0, commit + 1)) {
@@ -232,6 +239,30 @@ describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay',
           await sql`SELECT workspace_id, organization_id FROM credential WHERE id = 'legacy'`
         ).toEqual([{ workspace_id: 'workspace-a', organization_id: null }])
 
+        expect(await sql`SELECT id, is_search_index FROM knowledge_base ORDER BY id`).toEqual([
+          { id: 'ordinary-kb', is_search_index: false },
+          { id: 'search-index', is_search_index: true },
+        ])
+        expect(
+          await sql`SELECT id, next_sync_at <= now() + interval '61 minutes' AS rearmed
+          FROM knowledge_connector ORDER BY id`
+        ).toEqual([
+          { id: 'automatic', rearmed: true },
+          { id: 'manual', rearmed: false },
+        ])
+        await sql`INSERT INTO knowledge_connector_member_sync_log VALUES ('partial-sync', 'partial')`
+        await sql`INSERT INTO document (id) VALUES ('new-document')`
+        expect(await sql`SELECT acl_requirements, acl_verified_at FROM document`).toEqual([
+          { acl_requirements: [], acl_verified_at: null },
+        ])
+        await expect(sql`INSERT INTO credential (id, workspace_id, type)
+          VALUES ('invalid-token', 'workspace-a', 'personal_token')`).rejects.toMatchObject({
+          code: '23514',
+          constraint_name: 'credential_personal_token_source_check',
+        })
+        await sql`INSERT INTO credential (id, workspace_id, type, provider_id, authorization_app_id,
+          provider_subject_id, managed_oauth_status, granted_scopes, encrypted_oauth_token_set, granted_at)
+          VALUES ('github', 'workspace-a', 'managed_oauth', 'github', 'app', 'subject', 'active', '{}', 'encrypted-test-token', now())`
         await sql`
           INSERT INTO knowledge_external_directory (workspace_id, provider_id, tenant_id)
           VALUES ('workspace-a', 'google-drive', 'tenant-a')

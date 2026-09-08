@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({
+  cn: (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(' '),
   Button: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
     <button type='button' {...props}>
       {children}
@@ -29,6 +30,7 @@ vi.mock('@sim/emcn', () => ({
 
 vi.mock('@sim/emcn/icons', () => ({
   ChevronDown: () => <span data-icon='chevron-down' />,
+  ChevronRight: () => <span data-icon='chevron-right' />,
   ChevronUp: () => <span data-icon='chevron-up' />,
   Loader: () => <span data-icon='loader' />,
   Search: () => <span data-icon='search' />,
@@ -44,6 +46,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   container = document.createElement('div')
   document.body.appendChild(container)
   act(() => {
@@ -54,6 +57,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.unstubAllGlobals()
 })
 
 function render(overrides: Partial<FindBarProps> = {}) {
@@ -180,6 +184,65 @@ describe('FindBar keyboard', () => {
     expect(props.onClose).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['Next match', 'Previous match', 'Clear search', 'Close find'])(
+    'handles Escape from the focused %s button',
+    (label) => {
+      const props = render({ query: 'a', count: 3 })
+      const button = buttonByLabel(label)
+      button.focus()
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      })
+      const parentKeyDown = vi.fn()
+      document.body.addEventListener('keydown', parentKeyDown)
+      act(() => button.dispatchEvent(event))
+      document.body.removeEventListener('keydown', parentKeyDown)
+      expect(props.onClose).toHaveBeenCalledOnce()
+      expect(event.defaultPrevented).toBe(true)
+      expect(parentKeyDown).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([{ isComposing: true }, { keyCode: 229 }])(
+    'does not close while Escape belongs to composition (%j)',
+    (init) => {
+      const props = render({ query: 'a', count: 3 })
+      press('Escape', init)
+      expect(props.onClose).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['Replace', 'All'])('retains focus after %s disables the last match', (label) => {
+    const replace = {
+      value: 'beta',
+      onChange: vi.fn(),
+      onReplace: vi.fn(),
+      onReplaceAll: vi.fn(),
+      canReplace: true,
+      canReplaceAll: true,
+    }
+    const props = render({ query: 'alpha', count: 1, replace })
+    act(() => buttonByLabel('Show replace').click())
+    const button = Array.from(container.querySelectorAll('button')).find(
+      (candidate) => candidate.textContent === label
+    )!
+    button.focus()
+    act(() => button.click())
+    render({
+      ...props,
+      count: 0,
+      replace: { ...replace, canReplace: false, canReplaceAll: false },
+    })
+    const replacement = container.querySelector('input[aria-label="Replace in document"]')
+    expect(document.activeElement).toBe(replacement)
+    act(() =>
+      replacement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    )
+    expect(props.onClose).toHaveBeenCalledOnce()
+  })
+
   // Mid-debounce the visible matches still belong to the previous term, so
   // stepping through them would land on a cell the box no longer describes.
   it('commits instead of stepping while the results are stale', () => {
@@ -220,5 +283,47 @@ describe('FindBar controls', () => {
     render({ query: 'a', count: 2 })
     expect(buttonByLabel('Next match').disabled).toBe(false)
     expect(buttonByLabel('Previous match').disabled).toBe(false)
+  })
+
+  it('reveals bounded replace controls without changing find-only surfaces', () => {
+    render()
+    expect(container.querySelector('input[aria-label="Replace in document"]')).toBeNull()
+
+    const onReplace = vi.fn()
+    const onReplaceAll = vi.fn()
+    render({
+      query: 'alpha',
+      count: 2,
+      replace: {
+        value: 'beta',
+        onChange: vi.fn(),
+        onReplace,
+        onReplaceAll,
+        canReplace: true,
+        canReplaceAll: true,
+      },
+    })
+    act(() => buttonByLabel('Show replace').click())
+    const replaceInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Replace in document"]'
+    )
+    expect(replaceInput?.value).toBe('beta')
+    act(() =>
+      replaceInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true })
+      )
+    )
+    expect(onReplace).not.toHaveBeenCalled()
+    act(() =>
+      replaceInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(onReplace).toHaveBeenCalledTimes(1)
+    act(() => {
+      const all = Array.from(container.querySelectorAll('button')).find(
+        (candidate) => candidate.textContent === 'All'
+      )
+      all?.click()
+    })
+    expect(onReplaceAll).toHaveBeenCalledTimes(1)
   })
 })

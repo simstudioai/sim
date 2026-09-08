@@ -1,4 +1,5 @@
 import { useContext } from 'react'
+import { oauthProviderClient } from '@better-auth/oauth-provider/client'
 import { ssoClient } from '@better-auth/sso/client'
 import { stripeClient } from '@better-auth/stripe/client'
 import {
@@ -24,6 +25,12 @@ export const client = createAuthClient({
     adminClient(),
     emailOTPClient(),
     genericOAuthClient(),
+    /**
+     * Types the `/oauth2/*` endpoints and forwards the signed authorize query
+     * from the consent page's URL as `oauth_query` on the consent call. Inert on
+     * every other page, so it does not need the deployment gate.
+     */
+    oauthProviderClient(),
     customSessionClient<typeof auth>(),
     ...(isBillingEnabled
       ? [

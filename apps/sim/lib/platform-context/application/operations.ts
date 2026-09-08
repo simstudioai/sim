@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const LIVE_PLATFORM_CONTEXT_PRINCIPAL_POLICY = {
   principalKinds: ['delegated'],

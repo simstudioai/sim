@@ -325,6 +325,19 @@ export const isSsoEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Is SCIM directory provisioning enabled.
+ *
+ * Gates the settings section, the admin API, and the provisioning endpoints
+ * alike. A connection whose organization loses the entitlement stops
+ * authenticating rather than continuing to accept directory writes.
+ */
+export const isScimEnabled = enterpriseFeatureEnabled(
+  'scim',
+  env.SCIM_ENABLED,
+  'NEXT_PUBLIC_SCIM_ENABLED'
+)
+
+/**
  * Is organization usage monitoring enabled.
  *
  * Gates the settings section and the API that backs it, so nav and server always

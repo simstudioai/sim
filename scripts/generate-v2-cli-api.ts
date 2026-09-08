@@ -72,7 +72,7 @@ export interface OperationDoc {
    * Carried so `--help` can say so before the request goes out; without it the
    * caller learns the restriction from a `403` after the fact.
    */
-  personalKeyOnly?: true
+  workspaceKeyUnsupported?: true
 }
 
 /**
@@ -84,7 +84,7 @@ export interface OperationDoc {
  * resolves through the `@/` alias, which exists under `bun` but not under the
  * root `vitest` that imports this file's pure helpers.
  */
-export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
+export async function loadWorkspaceKeyDenialMarkers(): Promise<readonly string[]> {
   const shared: Record<string, unknown> = await import(
     path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/shared.ts')
   )
@@ -108,7 +108,9 @@ export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
  * `description` is read for the same reason — it is where the workspace-key
  * denial is already stated.
  */
-export function loadSummaries(personalKeyMarkers: readonly string[]): Map<string, OperationDoc> {
+export function loadSummaries(
+  workspaceKeyDenialMarkers: readonly string[]
+): Map<string, OperationDoc> {
   const docs = new Map<string, OperationDoc>()
 
   for (const file of specFiles()) {
@@ -128,11 +130,11 @@ export function loadSummaries(personalKeyMarkers: readonly string[]): Map<string
         const description = operation?.description
         if (
           typeof description === 'string' &&
-          personalKeyMarkers.some((marker) => description.includes(marker))
+          workspaceKeyDenialMarkers.some((marker) => description.includes(marker))
         ) {
-          doc.personalKeyOnly = true
+          doc.workspaceKeyUnsupported = true
         }
-        if (doc.summary || doc.personalKeyOnly) {
+        if (doc.summary || doc.workspaceKeyUnsupported) {
           docs.set(`${method.toUpperCase()} ${specPath}`, doc)
         }
       }
@@ -571,7 +573,7 @@ function render(operations: Operation[], docs: Map<string, OperationDoc>): strin
   out.push(" * `summary` is the operation's one-line description, lifted from the OpenAPI")
   out.push(' * specs so `--help` reuses prose that is already written and already checked.')
   out.push(' *')
-  out.push(' * `personalKeyOnly` marks an operation whose spec description says a workspace')
+  out.push(' * `workspaceKeyUnsupported` marks an operation whose spec says a workspace')
   out.push(' * API key is rejected, so `--help` can say so before the request is sent.')
   out.push(' */')
   out.push('export const V2_OPERATIONS = {')
@@ -595,7 +597,7 @@ function render(operations: Operation[], docs: Map<string, OperationDoc>): strin
       `${op.contract.method} ${op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
     )
     if (doc?.summary) out.push(`    summary: ${JSON.stringify(doc.summary)},`)
-    if (doc?.personalKeyOnly) out.push(`    personalKeyOnly: true,`)
+    if (doc?.workspaceKeyUnsupported) out.push(`    workspaceKeyUnsupported: true,`)
     for (const slot of ['query', 'body'] as const) {
       const map = renderSlotMap(op.contract[slot], '    ')
       if (map) out.push(`    ${slot}: ${map},`)
@@ -656,7 +658,7 @@ async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
 
-  const generated = format(render(operations, loadSummaries(await loadPersonalKeyMarkers())))
+  const generated = format(render(operations, loadSummaries(await loadWorkspaceKeyDenialMarkers())))
 
   if (args.has('--check')) {
     let current = ''

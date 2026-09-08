@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import type { BrowserPageState } from '@sim/browser-protocol'
+import type {
+  BrowserKnownSessionsState,
+  BrowserOmniboxFocusMode,
+  BrowserPageState,
+} from '@sim/browser-protocol'
 import type { BrowserToolbarCommand } from '@sim/desktop-bridge'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,14 +29,16 @@ const { desktop, navigateToSettings, removeResource } = vi.hoisted(() => ({
       setPanelFocused: vi.fn(),
       setPanelOccluded: vi.fn(async () => true),
       capturePanelSnapshot: vi.fn(async () => null),
-      getKnownSessions: vi.fn(async () => ({ sessions: [] })),
+      getKnownSessions: vi.fn(async (): Promise<BrowserKnownSessionsState> => ({ sessions: [] })),
       getDownloadsState: vi.fn(async () => ({ downloads: [] })),
       onAppearanceThemeChanged: vi.fn(() => () => {}),
       onToolbarCommand: vi.fn(
         (_callback: (command: BrowserToolbarCommand, scopeId: string) => void) => () => {}
       ),
       onAddToChat: vi.fn(() => () => {}),
-      onFocusOmnibox: vi.fn(() => () => {}),
+      onFocusOmnibox: vi.fn(
+        (_callback: (mode: BrowserOmniboxFocusMode, scopeId: string) => void) => () => {}
+      ),
       onOpenFind: vi.fn(() => () => {}),
       onCloseFind: vi.fn(() => () => {}),
       onDownloadsState: vi.fn(() => () => {}),
@@ -105,6 +111,86 @@ afterEach(() => {
   container.remove()
   vi.useRealTimers()
   vi.restoreAllMocks()
+})
+
+describe('browser omnibox focus', () => {
+  beforeEach(() => {
+    desktop.browserAgent.getKnownSessions.mockResolvedValueOnce({
+      sessions: [{ hostname: 'example.com', evidence: 'cookies', lastObservedAt: '' }],
+    })
+  })
+
+  it('keeps focus when clicking a blank omnibox opens suggestions before focus arrives', async () => {
+    await render({ ...PAGE, url: '' })
+    const input = container.querySelector<HTMLInputElement>('input')!
+
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    await act(async () => input.focus())
+    await act(async () => vi.advanceTimersByTime(20))
+
+    expect(document.activeElement === input).toBe(true)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    expect(document.querySelector('[role="option"]')?.textContent).toContain('example.com')
+  })
+
+  it('opens suggestions after another new tab clears an already focused omnibox', async () => {
+    await render({ ...PAGE, url: '' })
+    const input = container.querySelector<HTMLInputElement>('input')!
+    const focusOmnibox = desktop.browserAgent.onFocusOmnibox.mock.calls[0][0]
+
+    for (let index = 0; index < 2; index++) {
+      await act(async () => focusOmnibox('clear', PAGE.scopeId))
+      await act(async () => vi.advanceTimersByTime(20))
+      expect(document.activeElement === input).toBe(true)
+      expect(input.getAttribute('aria-expanded')).toBe('false')
+    }
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+
+    expect(document.activeElement === input).toBe(true)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('preserves the caret on repeated clicks and dismisses on an outside click', async () => {
+    await render({
+      ...PAGE,
+      url: 'https://example.com',
+      issue: {
+        kind: 'load-error',
+        url: 'https://example.com',
+        code: -105,
+        description: 'ERR_NAME_NOT_RESOLVED',
+      },
+    })
+    const input = container.querySelector<HTMLInputElement>('input')!
+    await act(async () => input.focus())
+    await act(async () => vi.advanceTimersByTime(20))
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+    await act(async () => vi.advanceTimersByTime(20))
+    input.setSelectionRange(9, 9)
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      input.click()
+    })
+
+    expect(document.activeElement === input).toBe(true)
+    expect(input.selectionStart).toBe(9)
+    expect(input.selectionEnd).toBe(9)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+
+    await act(async () => {
+      document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      document.body.click()
+    })
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement === input).toBe(false)
+  })
 })
 
 describe('browser empty state and in-place import', () => {

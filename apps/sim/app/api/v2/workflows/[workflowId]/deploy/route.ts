@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   v2DeployWorkflowContract,
   v2UndeployWorkflowContract,
@@ -67,7 +68,7 @@ export const DELETE = defineV2JsonRoute({
    * would report a succeeded undeploy as a 500 rather than catching anything.
    */
   onSuccess: ({ principal, result }) => {
-    if (principal.kind !== 'personal_api_key') return
+    if (!isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'workflow_undeployed',

@@ -2,8 +2,33 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { InsufficientScopeError } from '@/lib/core/application'
 import { HttpError } from '@/lib/core/utils/http-error'
-import { v2Error, v2HttpError, v2RateLimitError } from '@/app/api/v2/lib/response'
+import {
+  v2CaughtOrchestrationError,
+  v2Error,
+  v2HttpError,
+  v2RateLimitError,
+} from '@/app/api/v2/lib/response'
+
+describe('v2 403 insufficient_scope challenge', () => {
+  /**
+   * RFC 6750 §3.1: a token that authenticated but lacks the scope gets a 403
+   * whose challenge names the scope to ask for, alongside the closed detail
+   * code so a client can branch without parsing prose.
+   */
+  it('names the missing scope in WWW-Authenticate and the detail code', async () => {
+    const response = v2CaughtOrchestrationError(new InsufficientScopeError('api:write'))
+
+    expect(response?.status).toBe(403)
+    expect(response?.headers.get('WWW-Authenticate')).toBe(
+      'Bearer realm="Sim API", error="insufficient_scope", scope="api:write"'
+    )
+    await expect(response?.json()).resolves.toMatchObject({
+      error: { code: 'FORBIDDEN', details: { code: 'INSUFFICIENT_SCOPE' } },
+    })
+  })
+})
 
 describe('v2Error retry guidance', () => {
   it('sends Retry-After on 503 so a client does not retry a degraded dependency immediately', () => {
@@ -62,16 +87,35 @@ describe('v2 401 authentication challenge', () => {
    * without a test noticing. The reachability tests below stay loose on purpose
    * — they pin that the header arrives down each path, not its value twice.
    */
-  const EXPECTED_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key"'
+  const EXPECTED_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key", Bearer realm="Sim API"'
 
   const challenge = () =>
-    v2Error('UNAUTHORIZED', 'API key required').headers.get('WWW-Authenticate')
+    v2Error('UNAUTHORIZED', 'API key or OAuth access token required').headers.get(
+      'WWW-Authenticate'
+    )
 
   it('sends a challenge on 401', () => {
     const response = v2Error('UNAUTHORIZED', 'Invalid API key')
 
     expect(response.status).toBe(401)
     expect(response.headers.get('WWW-Authenticate')).toBe(EXPECTED_CHALLENGE)
+  })
+
+  /**
+   * RFC 6750 §3.1: `error="invalid_token"` only when a bearer token was
+   * presented and refused. A caller that sent nothing is told what would work,
+   * and the scheme it tried leads the list.
+   */
+  it('leads with an invalid_token bearer challenge when a bearer token was refused', () => {
+    const response = v2Error('UNAUTHORIZED', 'Invalid access token', { authChallenge: 'bearer' })
+
+    expect(response.headers.get('WWW-Authenticate')).toBe(
+      'Bearer realm="Sim API", error="invalid_token", SimApiKey realm="Sim API", header="x-api-key"'
+    )
+  })
+
+  it('never marks a bearer token invalid when none was presented', () => {
+    expect(challenge()).not.toContain('invalid_token')
   })
 
   it('names the x-api-key header, the only channel v2 actually reads', () => {

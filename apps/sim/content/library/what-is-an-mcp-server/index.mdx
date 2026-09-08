@@ -3,7 +3,7 @@ slug: what-is-an-mcp-server
 title: 'What Is an MCP Server?'
 description: 'Learn what an MCP server is, how Model Context Protocol tools, resources, and prompts work, and how Sim acts as both an MCP client and server.'
 date: 2026-07-24
-updated: 2026-08-27
+updated: 2026-09-07
 authors:
   - andrew
 readingTime: 7
@@ -13,15 +13,15 @@ canonical: https://www.sim.ai/library/what-is-an-mcp-server
 draft: false
 faq:
   - q: "What does MCP server mean?"
-    a: "An MCP server is a program that gives AI applications standardized access to tools, data, and reusable prompts. With Sim, you can connect to external MCP servers and publish Sim workflows through our MCP server. This lets you add external capabilities to workflows or publish a complete workflow as one reusable tool."
+    a: "An MCP server is a program that gives AI applications standardized access to tools and data through the Model Context Protocol. It can also provide reusable prompts, as defined by the official MCP specification. With Sim, you can connect to external MCP servers and publish Sim workflows through our MCP server. Sim lets you add external capabilities to workflows or publish a complete workflow as one reusable tool."
   - q: "Where can I find the official Model Context Protocol documentation?"
     a: "The official Model Context Protocol documentation is the primary source for the specification and implementation guides. At Sim, we follow this protocol when connecting to external MCP servers and publishing workflows as MCP tools. Use the documentation to verify compatibility and technical requirements before you configure a connection."
   - q: "Is an MCP server a real server?"
     a: "An MCP server is a software component that can run as a local process or a remote network service. At Sim, we act as an MCP client when connecting to these servers and as an MCP server when publishing workflows. Running an MCP server locally or remotely lets you choose a setup that can reach the required tools and data."
-  - q: "How does an MCP server differ from a microservice?"
-    a: "An MCP server exposes capabilities through a standard interface for AI clients, while a microservice usually exposes application functions through an API. In Sim, a workflow can call services through their APIs, and you can publish the workflow as a single MCP tool. This lets AI clients use multi-step service logic without integrating separately with every underlying API."
+  - q: "MCP server vs. microservice: What is the difference?"
+    a: "An MCP server exposes discoverable tools, resources, or prompts to AI clients, while a microservice typically exposes application functions through an API. In Sim, a workflow can call one or more microservices and be published as a single MCP tool. Compatible AI clients can then use the workflow without integrating separately with every underlying API."
   - q: "Does MCP replace APIs?"
-    a: "MCP is a standard interface for discovering and invoking capabilities that may rely on APIs, not a replacement for those APIs. A Sim workflow can combine multiple API calls and expose the result as an MCP tool. This approach lets you reuse existing APIs while giving compatible AI clients one callable interface."
+    a: "MCP is a standard interface for discovering and invoking capabilities that may rely on APIs, not a replacement for those APIs. A Sim workflow can combine multiple API calls and expose the result as an MCP tool. A Sim workflow can reuse existing APIs while giving compatible AI clients one callable interface."
   - q: "Can Sim act as both an MCP client and an MCP server?"
     a: "An MCP client consumes server capabilities, while an MCP server exposes capabilities to compatible clients. At Sim, we support both roles by connecting workflows to external MCP servers and publishing workflows as MCP tools. Supporting both roles lets you consume external capabilities and distribute reusable workflows through the same protocol."
 ---
@@ -35,9 +35,9 @@ faq:
 
 ## What is an MCP server?
 
-An MCP server is a program that gives AI applications standardized access to tools and data through the Model Context Protocol. The server can also provide reusable prompts.
+An MCP server is a program that gives AI applications standardized access to tools and data through the Model Context Protocol. It can also provide reusable prompts, consistent with the server capabilities defined in the [official MCP specification](https://modelcontextprotocol.io/specification/latest).
 
-MCP connects an AI host to each server through a client. The host is an AI application, such as a chatbot that supports coding or workflow building. Inside the host, the MCP client establishes the server connection and discovers its capabilities. The client sends requests to the server and relays the server's responses to the host. To understand how these hosts differ, see this comparison of [AI agents and chatbots](https://www.sim.ai/library/ai-agent-vs-chatbot).
+MCP connects an AI host to each server through a client. The host is an AI application, such as a chatbot that supports coding or workflow building. Inside the host, the MCP client establishes the server connection and discovers its capabilities. The client sends requests to the server and relays the server's responses to the host. For more context on AI application types, see our comparison of [AI agents and chatbots](https://www.sim.ai/library/ai-agent-vs-chatbot).
 
 An MCP server can expose tools that perform actions and resources that provide context. The server can also supply reusable prompts. For example, a server might offer a tool for creating a GitHub issue or a resource for reading a repository file. The host controls which capabilities the model can access and when a request requires user approval.
 
@@ -45,27 +45,27 @@ The word server describes the program's role rather than a specific type of comp
 
 ## What is the Model Context Protocol?
 
-The Model Context Protocol, or MCP, is an open standard that defines how AI applications connect to external data sources and software tools. [Anthropic's November 2024 announcement](https://www.anthropic.com/news/model-context-protocol) introduced MCP as a shared protocol for connecting AI assistants to systems where information and actions already live.
+The Model Context Protocol, or MCP, is an open standard that defines how AI applications connect to external data sources and software tools. [Anthropic's November 2024 MCP announcement](https://www.anthropic.com/news/model-context-protocol) introduced it as a shared protocol for connecting AI assistants to systems where information and actions already live.
 
-MCP replaces service-specific connection logic with a consistent interface for discovering and using capabilities. A compatible MCP server can therefore work with different AI applications without requiring a separate interface for each one.
+MCP gives AI applications a consistent interface for discovering and using capabilities, while each MCP server handles the service-specific integration. A compatible MCP server can therefore work with different AI applications without requiring a separate interface for each one.
 
-The [official MCP specification](https://modelcontextprotocol.io/specification/latest) defines an architecture in which a client connects a host to a server. For each server connection, the AI host creates a client that exchanges structured messages with the MCP server. MCP standardizes that exchange, but the host application still controls access to underlying systems and asks for user consent when needed.
+The [official Model Context Protocol specification](https://modelcontextprotocol.io/specification/latest) defines an architecture in which a client connects a host to a server. For each server connection, the AI host creates a client that exchanges structured messages with the MCP server. MCP standardizes that exchange, but the host application still controls which server capabilities it exposes to the model.
 
-MCP does not replace the APIs or databases behind an integration. An MCP implementation translates those existing capabilities into a common interface that an AI application can inspect and use. You can continue using the underlying service without building a separate AI-specific integration for every model or application.
+MCP does not replace the APIs or databases behind an integration. An MCP implementation translates those existing capabilities into a common interface that an AI application can inspect and use. You can expose an existing service through one MCP implementation instead of building a separate integration for every compatible AI application.
 
 ## How an MCP server works
 
-An MCP server exposes selected capabilities to an AI application through a structured connection. After opening a session and confirming the protocol version, the MCP client discovers the capabilities that the server makes available. Both sides exchange JSON-RPC messages over a supported local or remote transport.
+An MCP server exposes selected capabilities to an AI application through a structured connection. During initialization, the client and server negotiate a protocol version and declare the capability groups they support. The client can then list the tools, resources, or prompts available through that connection. The client and server exchange JSON-RPC messages through a supported transport, such as standard input and output for local processes or Streamable HTTP for remote connections.
 
 The [official MCP specification](https://modelcontextprotocol.io/specification/latest) groups server capabilities into tools, resources, and prompts. Each capability has a different purpose and uses its own discovery and request methods. A server can expose any subset of these capabilities.
 
-Tools let a model perform an action. Each tool includes a name and description. Its input schema tells the client which arguments the tool accepts. The client discovers available actions with `tools/list` and invokes one with `tools/call`, such as `create_issue` with a repository name and the issue details.
+Tools expose actions that the host can make available to a model. Each tool has a name, description, and input schema that defines its accepted arguments. The client discovers available tools with `tools/list` and invokes one with `tools/call`. For example, a `create_issue` tool might accept a repository name and issue details.
 
-Resources give the client readable context without asking the model to execute an action. A resource has a URI and metadata describing its contents. The client can discover resources with `resources/list` and retrieve one with `resources/read`, such as reading a configuration file or database schema.
+Resources provide readable context rather than actions. Each resource has a URI and can include metadata describing its contents. The client discovers available resources with `resources/list` and retrieves one with `resources/read`, such as a configuration file or database schema.
 
-Prompts provide reusable message templates for common tasks. The client discovers them with `prompts/list` and requests a selected template with `prompts/get`. A prompt can accept arguments, such as a repository name for a code review template, before the host sends the completed messages to the model.
+Prompts provide reusable message templates for common tasks. The client discovers them with `prompts/list` and retrieves a selected template with `prompts/get`. A prompt can accept arguments, such as a repository name for a code review template, before the host sends the completed messages to the model.
 
-The MCP client controls the connection and routes each request to the server. After validating a request, the server runs the relevant operation and returns structured content or an error. The host application decides whether to add the result to the model's context or present it to the user. The host can require user approval before allowing a protected action to run.
+The MCP client controls the connection and routes each request to the server. After validating a request, the server handles it and returns structured content or an error. The host application decides whether to add the result to the model's context or present it to the user. The host can require user approval before allowing a protected action to run.
 
 ## MCP server examples: GitHub, filesystems, and databases
 
@@ -73,21 +73,21 @@ MCP servers can wrap familiar systems, including GitHub and local data stores. E
 
 ### GitHub MCP server
 
-[GitHub's official MCP server](https://github.com/github/github-mcp-server) gives an AI assistant controlled access to repository content and lets it manage issues or pull requests within granted permissions. The server can also provide repository data as resources and offer prompts for tasks such as summarizing a pull request.
+[GitHub's official MCP server](https://github.com/github/github-mcp-server) exposes tools that let an AI assistant work with repositories, including their issues and pull requests within the permissions of its configured credentials.
 
-For example, you ask an AI assistant to find open authentication bugs in a repository. The MCP client calls the issue search tool with the repository name and relevant filters. The server queries GitHub using your authorized account and returns structured issue data for the model to summarize.
+For example, you can ask an AI assistant to find open authentication bugs in a repository. The client discovers an issue search tool with `tools/list`, invokes it through `tools/call` with the repository name and relevant filters, and receives issue data for the model to summarize.
 
 ### Filesystem MCP server
 
-The [filesystem MCP server reference implementation](https://github.com/modelcontextprotocol/servers) limits an assistant's access to configured directories while supporting file search and reading. The server can also allow approved writes and provide file metadata as resources. Reusable prompts can guide tasks such as comparing documents within the permitted directories.
+The [filesystem MCP server reference implementation](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) exposes file operations within configured directories. Depending on its configuration, a client can use its tools to read files, inspect metadata, search permitted paths, and perform allowed writes.
 
-A filesystem MCP server lets an assistant compare two reports stored in a project folder. The client calls the file-reading tool for each approved path, and the server returns the contents. The model can then identify differences without receiving access to files outside the configured folder.
+A filesystem MCP server can help an assistant compare two reports stored in a project folder. The client calls the server's file tools to read each report from an allowed directory, and the model identifies the differences. If the server configuration permits writes, another tool call can save the summary within an allowed path.
 
 ### Database query MCP server
 
-The MCP project maintains [database reference implementations](https://github.com/modelcontextprotocol/servers) that give an AI assistant controlled access to database structure and permitted queries. The server can provide schema details and saved query definitions as resources. Reusable prompts can instruct the model to write read-only queries that follow the database's conventions.
+A database MCP server can expose selected schema information and query tools to an AI assistant. The server's database permissions and query restrictions determine which data the assistant can access. The [Model Context Protocol servers repository](https://github.com/modelcontextprotocol/servers) lists reference and community server implementations.
 
-A database MCP server can help an assistant identify which products generated the most revenue last month. The client first retrieves the relevant schema, then asks the server to execute a read-only query. The server applies its credentials and access rules before returning structured rows that the model can explain.
+A database MCP server can help an assistant identify which products generated the most revenue last month. The client obtains the permitted schema information and invokes a query tool through `tools/call`. Depending on the server's design, the request may contain validated query parameters or a generated statement. The server authenticates with its configured credentials and enforces its access rules. It then returns the permitted results for the model to explain.
 
 ## MCP server vs. traditional API integration vs. a Sim workflow as an MCP tool
 
@@ -96,7 +96,7 @@ A direct API integration connects an application to one service-specific interfa
 | Approach | Connection model | What the model can access | Maintenance |
 | --- | --- | --- | --- |
 | Traditional API integration | You write service-specific authentication and request-handling logic. | The model can use only the functions your integration defines. | You update custom code when an API or application changes. |
-| MCP server | An MCP client discovers and calls capabilities through a shared protocol. | The model can access the capabilities the server exposes. | The server owner maintains the implementation behind the MCP interface. |
+| MCP server | An MCP client discovers and calls capabilities through a shared protocol. | The model can access the capabilities the server exposes. | The server operator maintains the service-specific implementation behind the MCP interface. |
 | Sim workflow as MCP tool | Sim publishes a workflow through an MCP server. | The model can call the complete workflow as a reusable tool. | You update the workflow in Sim without rebuilding the client integration. |
 
 ## Using Sim as an MCP client and MCP server
@@ -105,8 +105,6 @@ In Sim, you can connect a workflow to an external MCP server and call its tools.
 
 You can also publish a Sim workflow as a callable MCP tool. External MCP clients can discover and run the tool with the expected inputs, then receive the workflow's output. One MCP tool can contain several workflow steps behind a single interface. For a broader workflow tutorial, learn [how to create an AI agent with Sim](https://www.sim.ai/library/how-to-create-an-ai-agent).
 
-You can [explore Sim's MCP integration](https://sim.ai) by connecting a workflow to an existing MCP server or publishing a workflow for other MCP clients to call.
-
 ## Getting started with MCP and Sim
 
-MCP gives AI applications a shared way to connect to external tools. At Sim, we support both MCP client and server roles. You can use external MCP servers inside Sim workflows, then expose those workflows as MCP tools for other compatible clients. Supporting both roles lets you build and publish integrations through the same platform rather than maintaining separate connection methods. Teams evaluating deployment options can also compare [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms). You can explore the [Sim workflow builder](https://sim.ai) to connect an MCP server or prepare a workflow for MCP access.
+Use the [Sim workflow builder](https://sim.ai) to connect an external MCP server or publish a Sim workflow as an MCP tool. If you are still evaluating how to deploy your workflows, compare [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).

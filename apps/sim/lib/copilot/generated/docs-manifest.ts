@@ -375,6 +375,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/enterprise/data-drains.mdx',
   'platform/enterprise/data-retention.mdx',
   'platform/enterprise/forks.mdx',
+  'platform/enterprise/scim.mdx',
   'platform/enterprise/self-hosted.mdx',
   'platform/enterprise/session-policies.mdx',
   'platform/enterprise/sso.mdx',

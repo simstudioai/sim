@@ -1,5 +1,9 @@
 /** @vitest-environment node */
-import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import type {
+  OAuthAccessTokenPrincipal,
+  OrganizationDelegatedPrincipal,
+  SessionPrincipal,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,14 +12,17 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mocks.config,
 }))
 
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const principal: SessionPrincipal = { kind: 'session', userId: 'member', sessionId: 'session' }
 const operation = defineOrganizationOperation({
   id: 'search.read',
   minimumRole: 'member',
-  principalKinds: ['session', 'personal_api_key', 'organization_delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
+  oauthScope: 'api:read',
   delegationAudience: 'sim:knowledge',
   capability: 'knowledge.use',
 })
@@ -30,6 +37,14 @@ const delegated: OrganizationDelegatedPrincipal = {
   expiresAt: new Date('2099-01-01'),
   resourceScope: { chatId: 'chat' },
 }
+const oauth: OAuthAccessTokenPrincipal = {
+  kind: 'oauth_access_token',
+  userId: 'member',
+  tokenId: 'token',
+  clientId: 'client',
+  scopes: ['api:read'],
+  expiresAt: new Date('2099-01-01'),
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -42,6 +57,58 @@ beforeEach(() => {
 })
 
 describe('organization operation authorization', () => {
+  it('requires consent and current membership for OAuth organization reads', async () => {
+    await expect(
+      authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: 'member', role: 'member' })
+    mocks.membership.mockResolvedValue([])
+    await expect(
+      authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })
+    ).rejects.toThrow('Organization not found')
+  })
+  it.each([{ scopes: [] }, { expiresAt: new Date('2020-01-01') }])(
+    'refuses insufficient or expired OAuth grants before membership lookup',
+    async (override) => {
+      await expect(
+        authorizeOrganizationOperation({ ...oauth, ...override }, operation, {
+          organizationId: 'org',
+        })
+      ).rejects.toThrow()
+      expect(mocks.membership).not.toHaveBeenCalled()
+    }
+  )
+  it('applies the organization personal-key policy to OAuth clients too', async () => {
+    mocks.config.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+    await expect(
+      authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })
+    ).rejects.toThrow()
+  })
+  it('applies the CLI restriction to CLI tokens without refusing unrelated OAuth clients', async () => {
+    mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, disableCliAccess: true })
+    await expect(
+      authorizeOrganizationOperation({ ...oauth, clientId: SIM_CLI_CLIENT_ID }, operation, {
+        organizationId: 'org',
+      })
+    ).rejects.toThrow()
+    await expect(
+      authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: 'member' })
+  })
+  it('does not let read-only OAuth consent perform an administrator write', async () => {
+    mocks.membership.mockResolvedValue([{ role: 'admin' }])
+    const write = defineOrganizationOperation({
+      ...operation,
+      oauthScope: 'api:write',
+      minimumRole: 'admin',
+    })
+    await expect(
+      authorizeOrganizationOperation(oauth, write, { organizationId: 'org' })
+    ).rejects.toThrow('api:write')
+    expect(mocks.membership).not.toHaveBeenCalled()
+  })
   it('allows a current organization member without a workspace lookup', async () => {
     await expect(
       authorizeOrganizationOperation(principal, operation, { organizationId: 'org' })

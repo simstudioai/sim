@@ -19,6 +19,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   vector,
@@ -80,6 +81,24 @@ export const user = pgTable(
     banned: boolean('banned').default(false),
     banReason: text('ban_reason'),
     banExpires: timestamp('ban_expires'),
+    /**
+     * When set, the account is suspended: sign-in is refused and API keys stop
+     * authenticating, while every resource the user owns is left untouched.
+     *
+     * Deliberately not `banned`. A ban is a platform-admin action whose
+     * `user.update.after` hook runs `disableUserResources`, archiving every
+     * workspace the user owns and deleting their API keys, and Sim has no
+     * server-side unban to reverse it. SCIM `active: false` is a reversible
+     * organization-level suspension that must preserve ownership for a later
+     * reactivation, so it needs a state of its own.
+     */
+    suspendedAt: timestamp('suspended_at'),
+    /**
+     * Who suspended the account. Only `scim` exists today; a source only ever
+     * lifts its own suspension, so a later source cannot have its suspensions
+     * undone by a directory sync.
+     */
+    suspensionSource: text('suspension_source'),
   },
   (table) => ({
     /**
@@ -797,9 +816,8 @@ export const secretUsage = pgTable(
      *
      * Empty string rather than null because both this and `actorUserId` sit inside the unique
      * key below, and Postgres treats nulls as distinct — two Copilot rows would never collide,
-     * so the upsert would insert forever instead of incrementing. `NULLS NOT DISTINCT` fixes
-     * that but requires Postgres 15, and this is self-hosted software that must not raise its
-     * database floor for one table. A sentinel keeps the key null-free on every version.
+     * so the upsert would insert forever instead of incrementing. A sentinel keeps the upsert
+     * identity explicit and null-free rather than relying on nullable uniqueness semantics.
      *
      * Deliberately not a foreign key, and neither is `actorUserId`. An `onDelete: 'set null'`
      * would rewrite a key column, so two rows differing only by the deleted id would collide
@@ -4055,6 +4073,182 @@ export const ssoDomain = pgTable(
 )
 
 /**
+ * OAuth 2.0 provider tables (Better Auth `@better-auth/oauth-provider`).
+ *
+ * Sim is the authorization server: a registered client (the Sim CLI, or an
+ * admin-created third-party app) sends a user through `/api/auth/oauth2/authorize`,
+ * the user consents, and the client redeems a code for an opaque access token and
+ * a rotating refresh token. Tokens are stored hashed; the plaintext exists only in
+ * the client. Column keys follow the plugin's model fields so the Better Auth
+ * drizzle adapter maps them without a per-field `fieldName` override.
+ */
+export const oauthClient = pgTable(
+  'oauth_client',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    disabled: boolean('disabled').notNull().default(false),
+    skipConsent: boolean('skip_consent'),
+    enableEndSession: boolean('enable_end_session'),
+    subjectType: text('subject_type'),
+    scopes: text('scopes').array(),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at'),
+    updatedAt: timestamp('updated_at'),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts').array(),
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    grantTypes: text('grant_types').array(),
+    responseTypes: text('response_types').array(),
+    public: boolean('public'),
+    type: text('type'),
+    requirePKCE: boolean('require_pkce'),
+    referenceId: text('reference_id'),
+    metadata: jsonb('metadata'),
+  },
+  (table) => ({
+    userIdIdx: index('oauth_client_user_id_idx').on(table.userId),
+  })
+)
+
+/** The scopes a user has granted a client; deleted when the user revokes the app. */
+export const oauthConsent = pgTable(
+  'oauth_consent',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    scopes: text('scopes').array().notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_consent_client_id_idx').on(table.clientId),
+    /** One grant per user, client, and reference, including nullable dimensions. */
+    userClientUnique: unique('oauth_consent_user_client_reference_unique')
+      .on(table.userId, table.clientId, table.referenceId)
+      .nullsNotDistinct(),
+  })
+)
+
+/**
+ * One independently revocable login. Every rotating refresh token belongs to
+ * a stable family so replay and logout can atomically remove all descendants.
+ */
+export const oauthTokenFamily = pgTable(
+  'oauth_token_family',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    consentId: text('consent_id').references(() => oauthConsent.id, { onDelete: 'cascade' }),
+    currentGeneration: integer('current_generation').notNull().default(0),
+    createdAt: timestamp('created_at').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_token_family_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_token_family_session_id_idx').on(table.sessionId),
+    userClientIdx: index('oauth_token_family_user_client_idx').on(table.userId, table.clientId),
+    consentIdIdx: index('oauth_token_family_consent_id_idx').on(table.consentId),
+    expiresAtIdx: index('oauth_token_family_expires_at_idx').on(table.expiresAt),
+    generationCheck: check(
+      'oauth_token_family_generation_check',
+      sql`${table.currentGeneration} BETWEEN 0 AND 1000`
+    ),
+  })
+)
+
+/** A member of a rotating refresh-token family. */
+export const oauthRefreshToken = pgTable(
+  'oauth_refresh_token',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    revoked: timestamp('revoked'),
+    authTime: timestamp('auth_time'),
+    scopes: text('scopes').array().notNull(),
+    familyId: text('family_id')
+      .notNull()
+      .references(() => oauthTokenFamily.id, { onDelete: 'cascade' }),
+    generation: integer('generation').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_refresh_token_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_refresh_token_session_id_idx').on(table.sessionId),
+    userClientIdx: index('oauth_refresh_token_user_client_idx').on(table.userId, table.clientId),
+    /** Drives the cleanup pass; nothing else reads tokens by expiry. */
+    expiresAtIdx: index('oauth_refresh_token_expires_at_idx').on(table.expiresAt),
+    familyGenerationUnique: unique('oauth_refresh_token_family_generation_unique').on(
+      table.familyId,
+      table.generation
+    ),
+    generationCheck: check(
+      'oauth_refresh_token_generation_check',
+      sql`${table.generation} BETWEEN 0 AND 1000`
+    ),
+  })
+)
+
+/** An opaque access token, looked up by hash on every bearer-authenticated request. */
+export const oauthAccessToken = pgTable(
+  'oauth_access_token',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    refreshId: text('refresh_id').references(() => oauthRefreshToken.id, {
+      onDelete: 'cascade',
+    }),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_access_token_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_access_token_session_id_idx').on(table.sessionId),
+    refreshIdIdx: index('oauth_access_token_refresh_id_idx').on(table.refreshId),
+    userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
+    /** Drives the cleanup pass; nothing else reads tokens by expiry. */
+    expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+/**
  * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
  * These servers are accessible by external MCP clients via API key authentication,
  * or publicly if isPublic is set to true.
@@ -4782,6 +4976,20 @@ export const permissionGroup = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     isDefault: boolean('is_default').notNull().default(false),
+    /**
+     * How an empty non-default group behaves.
+     *
+     * `inherit` (the default, and every pre-existing group) keeps the member
+     * invariant above: no member rows means the group governs every member of
+     * its workspaces. `explicit` means the group governs exactly its member
+     * rows and therefore governs nobody when empty.
+     *
+     * Directory-managed groups must be `explicit`. Under `inherit`, an identity
+     * provider removing the last member would silently widen the group from
+     * "these three people" to "everyone in these workspaces" — the opposite of
+     * what the administrator asked for.
+     */
+    membershipMode: text('membership_mode').notNull().default('inherit'),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
@@ -6128,5 +6336,404 @@ export const sandboxImage = pgTable(
     ),
     statusIdx: index('sandbox_image_status_idx').on(table.status),
     lastUsedIdx: index('sandbox_image_last_used_idx').on(table.lastUsedAt),
+  })
+)
+
+/** Operations a SCIM bearer credential is allowed to perform. */
+export type ScimScope = 'users:read' | 'users:write' | 'groups:read' | 'groups:write'
+
+export const SCIM_SCOPES: readonly ScimScope[] = [
+  'users:read',
+  'users:write',
+  'groups:read',
+  'groups:write',
+]
+
+/** Administrator-controlled behavior of one organization's SCIM connection. */
+export interface ScimConnectionSettings {
+  /**
+   * Refuse manual invitations, workspace grants, and role edits for users the
+   * identity provider manages; removals stay possible so an administrator can
+   * always act in an emergency. Out-of-band edits desync the directory, so this
+   * defaults to on for a new connection and an owner may turn it off.
+   */
+  lockManualMembership?: boolean
+  /**
+   * Turn off SSO just-in-time provisioning while the connection is active, so
+   * the directory is the only way into the organization.
+   */
+  disableJit?: boolean
+  /** Map a pushed group to an existing permission group of the same name. Nothing is created. */
+  autoMapPermissionGroupsByName?: boolean
+}
+
+/** One email address as the identity provider supplied it. */
+export interface ScimUserEmail {
+  value: string
+  type?: string
+  primary: boolean
+}
+
+/**
+ * The last User resource a connection sent, canonicalized. Stored whole so a
+ * `GET` returns what the provider wrote and a `PATCH` applies to the provider's
+ * own view rather than to a lossy projection of it.
+ */
+export interface ScimUserAttributes {
+  userName: string
+  externalId?: string
+  active: boolean
+  displayName: string
+  name: {
+    formatted: string
+    givenName?: string
+    familyName?: string
+  }
+  emails: ScimUserEmail[]
+  enterprise?: {
+    department?: string
+    employeeNumber?: string
+    costCenter?: string
+    division?: string
+    organization?: string
+    manager?: { value?: string; displayName?: string }
+  }
+  /** Attributes Sim does not model, preserved so responses round-trip them. */
+  extra?: Record<string, unknown>
+}
+
+/**
+ * One directory-provisioning connection per organization.
+ *
+ * The bearer credential an identity provider presents resolves to this row, and
+ * that row is the entire authorization scope: no SCIM request names an
+ * organization, so no request can reach another tenant's users.
+ */
+export const scimConnection = pgTable(
+  'scim_connection',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** `active` or `disabled`. Disabling refuses every credential immediately. */
+    status: text('status').notNull().default('active'),
+    settings: jsonb('settings').$type<ScimConnectionSettings>().notNull().default({}),
+    lastRequestAt: timestamp('last_request_at'),
+    /** Reconcile-job lease, in the shape the connector member sync already uses. */
+    reconcileLockToken: text('reconcile_lock_token'),
+    reconcileLeaseAt: timestamp('reconcile_lease_at'),
+    reconciledAt: timestamp('reconciled_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationUnique: uniqueIndex('scim_connection_organization_unique').on(table.organizationId),
+    reconcileDueIdx: index('scim_connection_reconcile_due_idx').on(table.reconciledAt),
+  })
+)
+
+/**
+ * A bearer credential for one connection.
+ *
+ * Only the SHA-256 digest is stored, so a database read cannot recover a live
+ * token. Two credentials may be active at once, which is what lets an
+ * administrator rotate without a window where the directory cannot authenticate.
+ */
+export const scimCredential = pgTable(
+  'scim_credential',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    /** Leading characters of the token, for identifying it in the settings list. */
+    tokenPrefix: text('token_prefix').notNull(),
+    scopes: jsonb('scopes').$type<ScimScope[]>().notNull(),
+    expiresAt: timestamp('expires_at'),
+    revokedAt: timestamp('revoked_at'),
+    revokedBy: text('revoked_by').references(() => user.id, { onDelete: 'set null' }),
+    lastUsedAt: timestamp('last_used_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex('scim_credential_token_hash_unique').on(table.tokenHash),
+    connectionIdx: index('scim_credential_connection_idx').on(table.connectionId),
+  })
+)
+
+/**
+ * The User resource one connection provisioned, and its link to a Sim account.
+ *
+ * `id` is the SCIM resource id the provider stores and addresses; it is never a
+ * Sim user id, so a provider cannot reach an account it did not provision by
+ * guessing one.
+ */
+export const scimUser = pgTable(
+  'scim_user',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    externalId: text('external_id'),
+    /** Lower-cased `userName`; the uniqueness and lookup key within a connection. */
+    userName: text('user_name').notNull(),
+    active: boolean('active').notNull().default(true),
+    attributes: jsonb('attributes').$type<ScimUserAttributes>().notNull(),
+    /**
+     * Stable ascending sort key for pagination. A provider pages with
+     * `startIndex`, so the order must not shift between pages the way
+     * `created_at` alone can when rows share a timestamp.
+     */
+    orderKey: text('order_key').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionUserUnique: uniqueIndex('scim_user_connection_user_unique').on(
+      table.connectionId,
+      table.userId
+    ),
+    connectionUserNameUnique: uniqueIndex('scim_user_connection_user_name_unique').on(
+      table.connectionId,
+      table.userName
+    ),
+    connectionExternalIdUnique: uniqueIndex('scim_user_connection_external_id_unique')
+      .on(table.connectionId, table.externalId)
+      .where(sql`external_id is not null`),
+    connectionOrderIdx: index('scim_user_connection_order_idx').on(
+      table.connectionId,
+      table.orderKey
+    ),
+    userIdx: index('scim_user_user_idx').on(table.userId),
+  })
+)
+
+/**
+ * Remembers which Sim account a deleted external identity belonged to.
+ *
+ * Directories delete and recreate a person for an ordinary rename or rehire. The
+ * tombstone makes the recreated resource relink to the same account instead of
+ * creating a second one, which is what would otherwise strand the original.
+ */
+export const scimUserTombstone = pgTable(
+  'scim_user_tombstone',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    externalId: text('external_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    deletedAt: timestamp('deleted_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionExternalIdUnique: uniqueIndex('scim_user_tombstone_connection_external_id_unique').on(
+      table.connectionId,
+      table.externalId
+    ),
+    userIdx: index('scim_user_tombstone_user_idx').on(table.userId),
+  })
+)
+
+/** A Group resource one connection provisioned. */
+export const scimGroup = pgTable(
+  'scim_group',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    externalId: text('external_id'),
+    displayName: text('display_name').notNull(),
+    /**
+     * Lower-cased `displayName`. Uniqueness is case-insensitive because
+     * Microsoft Entra treats a group name as its match key and will otherwise
+     * create a duplicate whose only difference is capitalization.
+     */
+    displayNameKey: text('display_name_key').notNull(),
+    orderKey: text('order_key').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionDisplayNameUnique: uniqueIndex('scim_group_connection_display_name_unique').on(
+      table.connectionId,
+      table.displayNameKey
+    ),
+    connectionExternalIdUnique: uniqueIndex('scim_group_connection_external_id_unique')
+      .on(table.connectionId, table.externalId)
+      .where(sql`external_id is not null`),
+    connectionOrderIdx: index('scim_group_connection_order_idx').on(
+      table.connectionId,
+      table.orderKey
+    ),
+  })
+)
+
+/** Membership of a provisioned group. */
+export const scimGroupMember = pgTable(
+  'scim_group_member',
+  {
+    id: text('id').primaryKey(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => scimGroup.id, { onDelete: 'cascade' }),
+    scimUserId: text('scim_user_id')
+      .notNull()
+      .references(() => scimUser.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupUserUnique: uniqueIndex('scim_group_member_group_user_unique').on(
+      table.groupId,
+      table.scimUserId
+    ),
+    scimUserIdx: index('scim_group_member_scim_user_idx').on(table.scimUserId),
+  })
+)
+
+/**
+ * What a directory group means inside Sim, as an administrator configured it.
+ *
+ * A group may carry several mappings — a permission group, one or more
+ * workspaces, and the organization admin role are independent targets.
+ */
+export const scimGroupMapping = pgTable(
+  'scim_group_mapping',
+  {
+    id: text('id').primaryKey(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => scimGroup.id, { onDelete: 'cascade' }),
+    /** `permission_group`, `workspace`, or `org_role`. */
+    targetKind: text('target_kind').notNull(),
+    permissionGroupId: text('permission_group_id').references(() => permissionGroup.id, {
+      onDelete: 'cascade',
+    }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Permission granted on `workspaceId`, for workspace targets. */
+    permissionType: permissionTypeEnum('permission_type'),
+    /** Organization role granted, for `org_role` targets. Only `admin` is accepted. */
+    role: text('role'),
+    /**
+     * `automatic` mappings were made by name matching and are replaced when the
+     * group is renamed; `manual` ones were made by an administrator and are
+     * never removed by a sync. Kept apart from `createdBy`, which goes null when
+     * its author's account is deleted.
+     */
+    source: text('source').notNull().default('manual'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupIdx: index('scim_group_mapping_group_idx').on(table.groupId),
+    permissionGroupIdx: index('scim_group_mapping_permission_group_idx').on(
+      table.permissionGroupId
+    ),
+    workspaceIdx: index('scim_group_mapping_workspace_idx').on(table.workspaceId),
+    /**
+     * One mapping per group and target. `coalesce` collapses the three mutually
+     * exclusive target columns into the single value that identifies the target,
+     * so a group cannot carry the same workspace twice at two permissions.
+     */
+    groupTargetUnique: uniqueIndex('scim_group_mapping_group_target_unique').on(
+      table.groupId,
+      table.targetKind,
+      sql`coalesce(${table.permissionGroupId}, ${table.workspaceId}, ${table.role})`
+    ),
+    /** Exactly the columns belonging to `target_kind` are populated. */
+    targetShape: check(
+      'scim_group_mapping_target_shape',
+      sql`(
+        (${table.targetKind} = 'permission_group' AND ${table.permissionGroupId} IS NOT NULL AND ${table.workspaceId} IS NULL AND ${table.permissionType} IS NULL AND ${table.role} IS NULL)
+        OR (${table.targetKind} = 'workspace' AND ${table.workspaceId} IS NOT NULL AND ${table.permissionType} IS NOT NULL AND ${table.permissionGroupId} IS NULL AND ${table.role} IS NULL)
+        OR (${table.targetKind} = 'org_role' AND ${table.role} IS NOT NULL AND ${table.permissionGroupId} IS NULL AND ${table.workspaceId} IS NULL AND ${table.permissionType} IS NULL)
+      )`
+    ),
+  })
+)
+
+/**
+ * Provenance for every access SCIM granted.
+ *
+ * Without it, withdrawing a group's access could not tell an access the
+ * directory granted from one a workspace administrator granted by hand, and a
+ * routine group change would revoke the administrator's work.
+ */
+export const scimProjectionGrant = pgTable(
+  'scim_projection_grant',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    scimUserId: text('scim_user_id')
+      .notNull()
+      .references(() => scimUser.id, { onDelete: 'cascade' }),
+    targetKind: text('target_kind').notNull(),
+    /** Permission group id, workspace id, or the granted organization role. */
+    targetId: text('target_id').notNull(),
+    /** The permission SCIM set, so a later manual upgrade stays detectable. */
+    permissionType: permissionTypeEnum('permission_type'),
+    /**
+     * `directory` when the directory created the access; `adopted` when the
+     * person already held it by hand and a mapping merely covers it. Adopted
+     * access is left in place when the mapping goes away, unless the directory
+     * is the organization's source of truth.
+     */
+    origin: text('origin').notNull().default('directory'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userTargetUnique: uniqueIndex('scim_projection_grant_user_target_unique').on(
+      table.scimUserId,
+      table.targetKind,
+      table.targetId
+    ),
+    connectionIdx: index('scim_projection_grant_connection_idx').on(table.connectionId),
+  })
+)
+
+/**
+ * Recent provisioning requests, for the settings activity view.
+ *
+ * Microsoft Entra reports a failed sync without saying what it sent, so an
+ * administrator debugging a connection has no other way to see the request that
+ * failed. Pruned by the reconcile job.
+ */
+export const scimRequestLog = pgTable(
+  'scim_request_log',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id'),
+    method: text('method').notNull(),
+    /** Resource path only. Query strings can carry directory attribute values. */
+    path: text('path').notNull(),
+    status: integer('status').notNull(),
+    scimType: text('scim_type'),
+    detail: text('detail'),
+    userAgent: text('user_agent'),
+    durationMs: integer('duration_ms').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionCreatedIdx: index('scim_request_log_connection_created_idx').on(
+      table.connectionId,
+      table.createdAt
+    ),
   })
 )

@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
  * Workspace admins configure connected accounts. Copilot can read configuration

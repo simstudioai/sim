@@ -237,6 +237,7 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
   switch (principal.kind) {
     case 'session':
     case 'personal_api_key':
+    case 'oauth_access_token':
       return principal.userId
     case 'workspace_api_key':
       if (!workspaceId || principal.workspaceId !== workspaceId) {
@@ -258,6 +259,11 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
       throw new UploadSessionError(
         'forbidden',
         'Credential Group enrollment principals cannot create uploads'
+      )
+    case 'scim_connection':
+      throw new UploadSessionError(
+        'forbidden',
+        'Directory provisioning credentials cannot create uploads'
       )
   }
 }

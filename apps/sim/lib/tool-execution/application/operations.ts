@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
  * Semantic operation for running one code-defined tool directly.
@@ -31,9 +31,10 @@ export const toolExecutionOperations = {
   // permission-group-exempt: declares capability: 'none' because no static capability names running one built-in tool — the per-tool denial is the deniedTools key, applied inside @/tools against the resolved id, and the per-integration denial is the parameterized allowedIntegrations key, which the funnel cannot apply because it never sees which integration a tool id reaches. That decision is enforced from the use case by the owning-block-type check in executeToolForCaller, ahead of dispatch.
   execute: defineWorkspaceOperation({
     id: 'tools.execute',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
     capability: 'none',
   }),
 } as const

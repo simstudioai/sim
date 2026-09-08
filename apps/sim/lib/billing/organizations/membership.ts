@@ -26,7 +26,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
-import { invalidateMembershipCache } from '@/lib/auth/security-policy'
+import {
+  invalidateMembershipCache,
+  invalidateSecurityPolicyVersionCache,
+} from '@/lib/auth/security-policy'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
@@ -49,11 +52,16 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import {
+  revokePersonalApiKeysTx,
+  revokeUserSessionsTx,
+} from '@/lib/organizations/members/revocation'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
 } from '@/lib/workspaces/utils'
+import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
@@ -464,6 +472,15 @@ export interface RemoveMemberParams {
   memberId: string
   /** Skip departed usage capture and Pro restoration (default: false) */
   skipBillingLogic?: boolean
+  /**
+   * Also delete the member's personal API keys. Off by default: personal keys
+   * are the person's own and outlive one organization. Directory
+   * deprovisioning turns it on, because there the person is leaving Sim as far
+   * as the organization is concerned.
+   */
+  revokePersonalApiKeys?: boolean
+  /** The caller's own session token, kept alive when a member removes themselves. */
+  spareSessionToken?: string
   /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
@@ -1260,6 +1277,8 @@ export async function removeUserFromOrganization(
     memberId,
     skipBillingLogic = false,
     requireNoOrgWorkspaceAccess = false,
+    revokePersonalApiKeys = false,
+    spareSessionToken,
   } = params
 
   const billingActions = {
@@ -1361,6 +1380,20 @@ export async function removeUserFromOrganization(
           organizationId,
           workspaceIds,
         })
+        /**
+         * Leaving ends live access at once: sessions go with the membership
+         * rather than lingering until a cookie cache lapses, and any directory
+         * row that described this membership is replaced by its tombstone in the
+         * same commit, so the directory and the organization can never disagree
+         * about who is a member.
+         */
+        await revokeUserSessionsTx(tx, {
+          userId,
+          organizationId,
+          ...(spareSessionToken ? { spareSessionToken } : {}),
+        })
+        if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
+        await endDirectoryMembershipTx(tx, { userId, organizationId })
 
         if (workspaceIds.length === 0) {
           return {
@@ -1428,6 +1461,7 @@ export async function removeUserFromOrganization(
     // The departed member's cookie-version/hook-clamp fallbacks must stop
     // resolving to this org immediately, not after the membership-cache TTL.
     invalidateMembershipCache(userId)
+    invalidateSecurityPolicyVersionCache(organizationId)
 
     logger.info('Removed member from organization', {
       organizationId,

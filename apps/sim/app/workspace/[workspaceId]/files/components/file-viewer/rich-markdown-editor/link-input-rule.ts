@@ -1,12 +1,14 @@
 import { Extension, InputRule } from '@tiptap/core'
-import { normalizeLinkHref } from './markdown-fidelity'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { createTextInputRulePlugins } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/text-input-rule'
 
 /**
  * Typed markdown link: `[text](url)` or `[text](url "title")`, completed by the closing `)`. The URL
  * is space-free (markdown requires `<url>` for spaces, which this intentionally skips). StarterKit's
  * Link ships no input rule — only paste/autolink — so without this, typed link syntax stays literal.
+ * A preceding bang belongs to the image input rule, which must receive the complete syntax.
  */
-const LINK_INPUT_RULE = /\[([^\]]+)]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/
+const LINK_INPUT_RULE = /(?<!!)\[([^\]]+)]\(([^)\s]+)(?:\s+"([^"]*)")?\)(?![\s\S])/
 
 /**
  * Converts a typed markdown link into a real link mark on the closing `)`. The visible text is the
@@ -18,12 +20,13 @@ const LINK_INPUT_RULE = /\[([^\]]+)]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/
 export const MarkdownLinkInputRule = Extension.create({
   name: 'markdownLinkInputRule',
 
-  addInputRules() {
-    return [
+  addProseMirrorPlugins() {
+    return createTextInputRulePlugins(
+      this.editor,
+      this.name,
       new InputRule({
         find: LINK_INPUT_RULE,
         handler: ({ state, range, match }) => {
-          if (state.selection.$from.parent.type.spec.code) return null
           const linkType = state.schema.marks.link
           if (!linkType) return null
           const [fullMatch, text, rawHref, title] = match
@@ -33,13 +36,12 @@ export const MarkdownLinkInputRule = Extension.create({
           const { tr } = state
           const textStart = range.from + fullMatch.indexOf(text)
           const textEnd = textStart + text.length
-          if (textEnd < range.to) tr.delete(textEnd, range.to)
-          if (textStart > range.from) tr.delete(range.from, textStart)
+          tr.replaceWith(range.from, range.to, tr.doc.slice(textStart, textEnd).content)
           const markEnd = range.from + text.length
           tr.addMark(range.from, markEnd, linkType.create({ href, title: title || null }))
           tr.removeStoredMark(linkType)
         },
-      }),
-    ]
+      })
+    )
   },
 })

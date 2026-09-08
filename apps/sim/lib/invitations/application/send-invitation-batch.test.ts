@@ -5,6 +5,7 @@ import { user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { batchWorkspaceInvitationBodySchema } from '@/lib/api/contracts/invitations'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
 const mocks = vi.hoisted(() => ({
   orgContext: vi.fn(),
@@ -169,5 +170,26 @@ describe('invitation batch application boundary', () => {
       },
     ])
     expect(mocks.orgSend).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports directory-managed refusals and continues the workspace invitation batch', async () => {
+    const message = 'This person is provisioned by the organization’s identity provider.'
+    mocks.workspaceSend.mockRejectedValueOnce(
+      new ForbiddenOperationError('SCIM_MANAGED_MEMBERSHIP', message)
+    )
+    const result = await sendInvitationBatch.execute({
+      principal,
+      input: {
+        ...orgInput,
+        workspaceIds: ['workspace'],
+        emails: ['managed@example.com', 'person@example.com'],
+      },
+    })
+    expect(result).toMatchObject({
+      success: false,
+      successful: ['person@example.com'],
+      failed: [{ email: 'managed@example.com', error: message }],
+    })
+    expect(mocks.workspaceSend).toHaveBeenCalledTimes(2)
   })
 })

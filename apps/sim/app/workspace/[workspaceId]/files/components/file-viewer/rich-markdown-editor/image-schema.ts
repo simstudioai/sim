@@ -1,5 +1,7 @@
-import type { JSONContent } from '@tiptap/core'
-import { Image } from '@tiptap/extension-image'
+import { InputRule, type JSONContent } from '@tiptap/core'
+import { Image, inputRegex } from '@tiptap/extension-image'
+import { Lexer, Tokenizer } from 'marked'
+import { createTextInputRulePlugins } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/text-input-rule'
 
 /**
  * React-free schema half of the image node. Lives apart from {@link ./image} (its React resize node
@@ -16,9 +18,6 @@ import { Image } from '@tiptap/extension-image'
  * the whole construct ourselves and hang the link target on the image node's `href` attribute, so it
  * round-trips losslessly (and the file stays editable rather than opening read-only).
  */
-const LINKED_IMAGE_RE =
-  /^\[!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/
-
 /** Escape a value for safe interpolation into a double-quoted HTML attribute. */
 function escapeAttr(value: string): string {
   return value
@@ -28,16 +27,27 @@ function escapeAttr(value: string): string {
     .replace(/>/g, '&gt;')
 }
 
+function decodeAttr(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+function imageAttrsFromHtml(raw: string): Record<string, string> | null {
+  if (!/^<img\s/i.test(raw)) return null
+  const attrs: Record<string, string> = {}
+  const attributePattern = /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g
+  for (const match of raw.matchAll(attributePattern)) {
+    attrs[match[1].toLowerCase()] = decodeAttr(match[2] ?? match[3] ?? match[4] ?? '')
+  }
+  return typeof attrs.src === 'string' ? attrs : null
+}
+
 /**
- * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
- * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
- * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
- * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
- *
- * A *sized **and** linked* image is the one case markdown can't represent: the linked-image tokenizer
- * only recognizes `[![alt](src)](href)`, so emitting `[<img …>](href)` would silently drop the link on
- * reparse (and the round-trip-safety probe wouldn't catch it). We keep the link and fall back to the
- * unsized `[![alt](src)](href)` form — the link matters more than the exact dimensions for a badge.
+ * Markdown has no image dimensions, so sized images use HTML. Links wrap either representation:
+ * `[![alt](src)](href)` or `[<img …>](href)`.
  */
 function imageMarkdown(node: JSONContent): string {
   const attrs = node.attrs ?? {}
@@ -49,9 +59,8 @@ function imageMarkdown(node: JSONContent): string {
   const width = attrs.width
   const height = attrs.height
   let image: string
-  if ((width || height) && !href) {
-    const parts = [`src="${escapeAttr(src)}"`]
-    if (alt) parts.push(`alt="${escapeAttr(alt)}"`)
+  if (width || height) {
+    const parts = [`src="${escapeAttr(src)}"`, `alt="${escapeAttr(alt)}"`]
     if (title) parts.push(`title="${escapeAttr(title)}"`)
     if (width) parts.push(`width="${escapeAttr(String(width))}"`)
     if (height) parts.push(`height="${escapeAttr(String(height))}"`)
@@ -67,7 +76,8 @@ function imageMarkdown(node: JSONContent): string {
   // Escape `"`/`\` so an href title can't break out of the `[…](href "title")` syntax (mirrors the
   // image title escaping above).
   const hrefTitlePart = hrefTitle ? ` "${hrefTitle.replace(/["\\]/g, '\\$&')}"` : ''
-  return `[${image}](${href}${hrefTitlePart})`
+  const safeHref = /[\s()]/.test(href) ? `<${href}>` : href
+  return `[${image}](${safeHref}${hrefTitlePart})`
 }
 
 interface MarkdownImageToken {
@@ -78,6 +88,8 @@ interface MarkdownImageToken {
   /** Built-in image token holds the source URL here; our linked token holds the link target. */
   href?: string
   hrefTitle?: string | null
+  width?: string | null
+  height?: string | null
   /** Built-in image token holds the alt text here. */
   text?: string
 }
@@ -94,6 +106,8 @@ function parseImageToken(token: MarkdownImageToken): JSONContent {
           title: token.title ?? null,
           href: token.href ?? null,
           hrefTitle: token.hrefTitle ?? null,
+          width: token.width ?? null,
+          height: token.height ?? null,
         }
       : {
           src: token.href ?? '',
@@ -101,6 +115,8 @@ function parseImageToken(token: MarkdownImageToken): JSONContent {
           title: token.title ?? null,
           href: null,
           hrefTitle: null,
+          width: null,
+          height: null,
         },
   }
 }
@@ -129,6 +145,26 @@ const hrefTitleAttr = { default: null, rendered: false }
  * round-trip path (no node view) and the live {@link ResizableImage}.
  */
 export const MarkdownImage = Image.extend({
+  addInputRules: () => [],
+  addProseMirrorPlugins() {
+    return createTextInputRulePlugins(
+      this.editor,
+      this.name,
+      new InputRule({
+        find: new RegExp(`${inputRegex.source}(?![\\s\\S])`),
+        handler: ({ state, range, match }) => {
+          const [, syntax, alt, src, title] = match
+          state.tr
+            .replaceRangeWith(
+              range.from + match[0].indexOf(syntax),
+              range.to,
+              this.type.create({ alt, src, title: title ?? null })
+            )
+            .scrollIntoView()
+        },
+      })
+    )
+  },
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -141,18 +177,44 @@ export const MarkdownImage = Image.extend({
   markdownTokenizer: {
     name: 'image',
     level: 'inline',
-    start: (src: string) => src.indexOf('[!['),
+    start: (src: string) => {
+      const markdown = src.indexOf('[![')
+      const html = src.search(/\[<img\s/i)
+      if (markdown === -1) return html
+      if (html === -1) return markdown
+      return Math.min(markdown, html)
+    },
     tokenize: (src: string): (MarkdownImageToken & { type: string; raw: string }) | undefined => {
-      const match = LINKED_IMAGE_RE.exec(src)
-      if (!match) return undefined
+      if (!src.startsWith('[![') && !/^\[<img\s/i.test(src)) return undefined
+      /** Native first-token parsing avoids recursively lexing the entire remaining document. */
+      const tokenizer = new Tokenizer()
+      new Lexer({ gfm: true, tokenizer })
+      const inner = src.startsWith('[![')
+        ? tokenizer.link(src.slice(1))
+        : tokenizer.tag(src.slice(1))
+      const innerRaw = inner?.raw
+      if (!inner || !innerRaw || (inner.type !== 'image' && inner.type !== 'html')) return undefined
+      if (inner.type === 'image' && !innerRaw.trimEnd().endsWith(')')) return undefined
+      const suffix = src.slice(1 + innerRaw.length)
+      if (!suffix.startsWith(']')) return undefined
+      const outer = tokenizer.link(`[x${suffix}`)
+      if (outer?.type !== 'link' || typeof outer.raw !== 'string' || !outer.raw.startsWith('[x]')) {
+        return undefined
+      }
+      if (!outer.raw.trimEnd().endsWith(')')) return undefined
+      const raw = `[${innerRaw}${outer.raw.slice(2)}`
+      const htmlAttrs = inner.type === 'html' ? imageAttrsFromHtml(innerRaw) : null
+      if (inner.type === 'html' && !htmlAttrs) return undefined
       return {
         type: 'image',
-        raw: match[0],
-        alt: match[1] ?? '',
-        src: match[2],
-        title: match[3] ?? null,
-        href: match[4],
-        hrefTitle: match[5] ?? null,
+        raw,
+        alt: inner.type === 'image' ? inner.text : (htmlAttrs?.alt ?? ''),
+        src: inner.type === 'image' ? inner.href : htmlAttrs?.src,
+        title: inner.type === 'image' ? inner.title : (htmlAttrs?.title ?? null),
+        width: htmlAttrs?.width ?? null,
+        height: htmlAttrs?.height ?? null,
+        href: outer.href,
+        hrefTitle: outer.title ?? null,
       }
     },
   },

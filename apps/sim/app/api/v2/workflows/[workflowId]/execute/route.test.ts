@@ -218,6 +218,14 @@ function callPublicExecute(body: Record<string, unknown>, headers: Record<string
   return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
 }
 
+function callOAuthExecute(body: Record<string, unknown>) {
+  const req = createMockRequest('POST', body, {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer sim_oat_token',
+  })
+  return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+}
+
 /**
  * Queues the two reads the anonymous public path makes, in order: the workflow's
  * public-API eligibility, then the workspace billing account it runs as. Keeping
@@ -466,6 +474,32 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       })
     )
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('dispatches an OAuth manual trigger run through the same manual operation', async () => {
+    mockAuthenticateV2ApiKey.mockResolvedValue({
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'actor-1',
+        clientId: 'sim-cli',
+        tokenId: 'token-1',
+        scopes: ['api:write'],
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      rateLimitSubjectIds: ['oauth-token:token-1', 'user:actor-1'],
+      rateLimitSubscription: null,
+      keyType: 'oauth_access_token',
+      keyExpiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    })
+
+    const response = await callOAuthExecute({ run: { source: 'manual' } })
+
+    expect(response.status).toBe(200)
+    expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ kind: 'oauth_access_token', clientId: 'sim-cli' }),
+      })
+    )
   })
 
   it('returns the typed workspace-key denial for manual execution', async () => {
@@ -826,7 +860,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
     expect(response.status).toBe(401)
     expect((await response.json()).error.message).toBe(
-      'Manual execution requires a personal API key'
+      'Manual execution requires an OAuth access token or personal API key'
     )
     expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })

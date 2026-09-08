@@ -1,0 +1,198 @@
+---
+title: Directory provisioning (SCIM)
+description: Create, update, and deactivate Sim members automatically from your identity provider
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { FAQ } from '@/components/ui/faq'
+
+Directory provisioning connects your identity provider to Sim over SCIM 2.0. Your provider creates members when someone joins, updates them when their details change, and deactivates them the moment they leave — without anyone touching Sim.
+
+It pairs with [SSO](/platform/enterprise/sso). SSO proves who someone is when they sign in. Directory provisioning decides who exists and what they can reach, before and after that.
+
+<Callout type="info">
+  Included with Enterprise plans. Requires [SSO](/platform/enterprise/sso) to be enabled, because provisioning is configured from the SSO settings page, and at least one [verified domain](/platform/enterprise/verified-domains) for your organization. Self-hosted deployments get it with the other enterprise features through `ENTERPRISE_ENABLED=true`, or turn just this feature on or off with `SCIM_ENABLED` and `NEXT_PUBLIC_SCIM_ENABLED`, alongside the [SSO variables](/platform/enterprise/sso#self-hosted-setup).
+</Callout>
+
+## What it does
+
+| Your provider does this | Sim does this |
+| --- | --- |
+| Assigns a person to the Sim app | Creates their account and adds them to your organization as a Member |
+| Updates their name or email | Updates the Sim account, and ends their sessions if the address changed |
+| Deactivates them | Blocks sign-in and stops their personal API keys. Everything they own, and every grant they hold, is left untouched; shared workspace keys keep working |
+| Reactivates them | Restores access exactly as it was |
+| Removes them from the app | Removes their organization membership, ends their sessions, deletes their personal API keys, and reassigns what they owned |
+| Adds them to a group | Grants whatever that group maps to |
+
+Deactivation is reversible and never destructive. Someone on leave keeps their workflows, their credentials, and their workspace history; they simply cannot sign in.
+
+## Turn it on
+
+<Steps>
+
+<Step>
+### Verify your domain
+
+Sim only provisions people whose email is in a domain your organization has verified. See [Verified domains](/platform/enterprise/verified-domains).
+
+This is what stops another tenant's directory from claiming an address it does not own.
+</Step>
+
+<Step>
+### Enable directory provisioning
+
+In **Settings → SSO → Directory provisioning**, turn it on. Sim shows your SCIM base URL:
+
+```
+https://<your-sim-domain>/api/scim/v2
+```
+</Step>
+
+<Step>
+### Issue a token
+
+Choose whether the token expires (never, 90 days, or a year) and select **Issue token**. It appears once — copy it straight into your provider.
+
+Two tokens can be active at a time, so you can rotate without downtime: issue the new one, update your provider, confirm a sync succeeds, then revoke the old one.
+</Step>
+
+<Step>
+### Configure your provider
+
+<Tabs items={['Okta', 'Microsoft Entra ID', 'OneLogin', 'JumpCloud']}>
+<Tab value="Okta">
+
+In your Okta app, open **Provisioning → Integration** and select **Configure API Integration**.
+
+- **SCIM connector base URL**: `https://<your-sim-domain>/api/scim/v2`
+- **Unique identifier field for users**: `userName`
+- **Supported provisioning actions**: Push New Users, Push Profile Updates, Push Groups
+- **Authentication Mode**: HTTP Header, with your Sim token
+
+Select **Test API Credentials**, then save. Under **Provisioning → To App**, enable Create Users, Update User Attributes, and Deactivate Users.
+
+Okta never deletes users over SCIM. Unassigning someone, or deactivating them in Okta, sends a deactivation — which Sim applies as a suspension.
+
+</Tab>
+<Tab value="Microsoft Entra ID">
+
+In your enterprise application, open **Provisioning** and set Provisioning Mode to **Automatic**.
+
+- **Tenant URL**: `https://<your-sim-domain>/api/scim/v2`
+- **Secret Token**: your Sim token
+
+Select **Test Connection**, then save and start provisioning.
+
+Entra runs an initial cycle over everyone in scope, then incremental cycles roughly every 40 minutes. Removing someone from the app sends a deactivation; a permanent delete in Entra sends a removal about 30 days later.
+
+</Tab>
+<Tab value="OneLogin">
+
+Add a **SCIM Provisioner with SAML** app.
+
+- **SCIM Base URL**: `https://<your-sim-domain>/api/scim/v2`
+- **SCIM Bearer Token**: your Sim token
+
+Enable provisioning and choose what happens when a user is removed. Suspend maps to a Sim suspension; Delete removes their membership.
+
+</Tab>
+<Tab value="JumpCloud">
+
+Add a **Custom SCIM** identity management integration.
+
+- **Base URL**: `https://<your-sim-domain>/api/scim/v2`
+- **Token Key**: your Sim token
+
+Enable group sync if you plan to map groups.
+
+</Tab>
+</Tabs>
+</Step>
+
+<Step>
+### Map your groups
+
+Groups mean nothing to Sim until you say what they stand for. In **Settings → SSO → Directory provisioning → Group mappings**, point each pushed group at one or more of:
+
+- a **permission group**, which governs models, integrations, and capabilities
+- a **workspace**, at Read, Write, or Admin
+- the **organization admin role**
+
+A group can carry several mappings. When two groups grant the same workspace at different levels, the stronger one wins. The organization's default permission group cannot be a target: it governs by having no members.
+
+Turning on **Match permission groups by name** maps a pushed group to an existing permission group of the same name automatically, and remaps it when the group is renamed. Nothing is created.
+
+Mapping a permission group to a directory group switches that permission group to explicit membership permanently: it governs exactly the people in it, and an empty group governs nobody. A permission group that governed everyone in its workspaces stops doing so the moment it is mapped, so map groups you created for the directory rather than your organization-wide ones.
+
+</Step>
+
+</Steps>
+
+## How access is withdrawn
+
+Sim records every grant it makes on your behalf. When someone leaves a group, what the directory granted is taken back.
+
+**Managed membership locking**, on by default, makes the directory the source of truth for provisioned members: Sim refuses invitations, workspace grants, workspace role changes, and organization role changes for them, because the next sync would revert them anyway. Access a member already held by hand when a mapping started covering it counts as directory access from then on, so it is withdrawn with the mapping. Removals stay possible so an administrator can always act in an emergency.
+
+With locking off, manual access layers on top of directory access: access granted by hand stays when a group is left, and a workspace role raised by hand above what the directory set is left alone.
+
+## Provisioning and SSO together
+
+A member the directory created can sign in with SSO immediately; the two resolve to the same account through your verified domain.
+
+If you want the directory to be the only way in, enable **Disable just-in-time provisioning** in the connection settings. Sim then refuses to create membership for someone signing in who was never provisioned.
+
+## Watching a sync
+
+**Settings → SSO → Directory provisioning → Activity** lists recent authenticated requests with their status and, for a failure, what was wrong. Providers report a failed cycle without saying what they sent, so this is usually the fastest way to see the cause. A request that fails to authenticate has no connection to log against, so a wrong or revoked token shows up only as your provider's own authentication error.
+
+Sim also re-applies every group mapping once an hour, so drift cannot persist. You can run it on demand with **Reconcile now**, which is also how a change to the connection settings reaches members before the next sync.
+
+## Reference
+
+- Base URL: `https://<your-sim-domain>/api/scim/v2`
+- Authentication: `Authorization: Bearer <token>`
+- Resources: `/Users`, `/Groups`, plus `/ServiceProviderConfig`, `/ResourceTypes`, and `/Schemas`
+- Filters: `eq` only, up to ten terms joined with `and`. Users: `id`, `userName`, `externalId`, `emails.value` (also `emails[type eq "work"].value`), `active`. Groups: `id`, `displayName`, `externalId`
+- Limits: 1,500 requests per minute per connection, 1 MB per request, 5,000 members per group
+- `userName` is stored and returned lower-cased; top-level attributes and schema extensions Sim does not model (custom attributes included) are kept and returned as sent, and a PUT preserves ones it omits
+- Group display names are unique within a connection, ignoring case
+- Page size: up to 100 per request
+
+<FAQ items={[
+  {
+    question: "What happens to someone's workflows when they are deactivated?",
+    answer: "Nothing. A deactivation blocks sign-in and stops their personal API keys, and leaves every workspace, workflow, and credential they own exactly as it was. Reactivating them restores access. Only a removal — which your provider sends explicitly — reassigns what they owned. A deactivated member also keeps their seat until they are removed."
+  },
+  {
+    question: "Can the directory provision someone outside our verified domains?",
+    answer: "No. Sim refuses to create or move an account to an address whose domain your organization has not verified. This is what prevents one tenant's directory from claiming an account it does not own."
+  },
+  {
+    question: "What if the email already belongs to a Sim account?",
+    answer: "If the account is in your organization, or in none, Sim attaches to it. If it belongs to a different organization, Sim returns a conflict — a Sim account can belong to only one organization, so someone has to be removed there first."
+  },
+  {
+    question: "Can the directory remove our organization owner?",
+    answer: "No. Sim refuses, because it would leave nobody able to administer billing or transfer ownership. Transfer ownership in Sim first."
+  },
+  {
+    question: "What happens when we run out of seats?",
+    answer: "Sim refuses the new member with a message your provider shows to its administrator. Add seats in Sim and the next sync will pick them up. Team plans grow their seat count automatically; fixed-seat plans do not."
+  },
+  {
+    question: "Does a deactivation sign someone out immediately?",
+    answer: "Their sessions are deleted at once and their personal API keys stop authenticating immediately. The organization's security version changes at the same time, so a browser still holding a cached session cookie is re-checked on its next request and refused."
+  },
+  {
+    question: "What happens to deactivated members if we turn provisioning off?",
+    answer: "They stay deactivated. Disabling the connection stops the directory from making changes; it does not undo the ones it made. To restore someone without the directory, remove them from the organization and invite them again."
+  },
+  {
+    question: "Can we still invite people manually?",
+    answer: "Only with managed membership locking turned off. With it on, Sim refuses manual changes for provisioned members, because the directory would revert them on its next sync."
+  }
+]} />

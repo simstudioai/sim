@@ -14,11 +14,11 @@ export interface OperationSpec {
   opaqueBody?: boolean
   summary?: string
   /**
-   * The operation rejects a workspace API key; only a personal one works.
+   * The operation rejects a workspace API key; an OAuth login or personal key works.
    *
    * Emitted by `scripts/generate-v2-cli-api.ts` from the OpenAPI description so
    * `--help` states the restriction the caller would otherwise meet as a `403`.
    */
-  personalKeyOnly?: true
+  workspaceKeyUnsupported?: true
   responseMode?: 'json' | 'binary' | 'stream'
 }

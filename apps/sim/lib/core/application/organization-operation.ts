@@ -1,10 +1,13 @@
 import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
-import { assertOperationCapability } from '@/lib/core/application/operation'
+import {
+  assertOperationCapability,
+  assertOperationOAuthPolicy,
+} from '@/lib/core/application/operation'
 
 export type OrganizationPrincipal = Extract<
   Principal,
-  { kind: 'session' | 'personal_api_key' | 'organization_delegated' }
+  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' | 'organization_delegated' }
 >
 
 export interface OrganizationOperation extends ApplicationOperation {
@@ -32,6 +35,7 @@ export function defineOrganizationOperation<const O extends OrganizationOperatio
     )
   }
   assertOperationCapability(operation)
+  assertOperationOAuthPolicy(operation)
   Object.freeze(operation.principalKinds)
   return Object.freeze(operation)
 }

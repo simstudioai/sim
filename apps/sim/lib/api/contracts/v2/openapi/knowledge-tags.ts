@@ -19,6 +19,7 @@ import {
   WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 /**
  * Tag-definition write operations of the knowledge OpenAPI document.
@@ -29,16 +30,14 @@ import { defineOpenApiRoute } from '@/lib/api/openapi/types'
  * first place.
  */
 
-const TAG_LOOP =
-  'Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`, then filter by its `displayName` on the document list or on search.'
-
 export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeTagContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.createTag,
       operationId: 'createKnowledgeTag',
       summary: 'Create Tag',
-      description: `Define one tag on a knowledge base; use \`PUT\` on this path to declare several at once. ${TAG_LOOP} Omit \`tagSlot\` to take the next free slot for the field type; a field type with no free slot left is a \`400\` naming it, since the remedy is a different type or a deleted definition rather than a retry. A \`tagSlot\` already taken, or a \`displayName\` already defined on this knowledge base, is a \`409\` naming which of the two to change. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Define one tag; use \`PUT\` on this path for several. Write its \`tagSlot\` on documents, then filter by \`displayName\`. Omitting \`tagSlot\` selects the next free slot; exhaustion returns \`400\`. An occupied slot or duplicate display name returns \`409\` naming the conflict. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The created tag definition.' },
     }),
@@ -68,9 +67,10 @@ export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeTagContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.updateTag,
       operationId: 'updateKnowledgeTag',
       summary: 'Update Tag',
-      description: `Rename a tag, or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A tag's slot is fixed for its lifetime and each slot holds one kind of value, so \`fieldType\` can only change to another type valid for the slot the tag already occupies — anything else is a \`400\`, and the way to get a tag of that type is to create one. A name another tag on this knowledge base already holds is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a tag or change its slot-compatible \`fieldType\`. Renaming changes read and filter names without moving the slot or its values. Slots are fixed for a tag's lifetime; an incompatible type returns \`400\` and requires creating a new tag. A duplicate display name returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated tag definition.' },
     }),
@@ -100,6 +100,7 @@ export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeTagContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteTag,
       operationId: 'deleteKnowledgeTag',
       summary: 'Delete Tag',
       description: `Remove a tag definition and clear its slot across every document and chunk in the knowledge base. Without a definition the slot has no meaning, so leaving the values would strand them under a raw slot name — this is not recoverable. ${WORKSPACE_API_KEY_DENIED}`,
@@ -130,6 +131,7 @@ export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2GetNextKnowledgeTagSlotContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.readNextTagSlot,
       operationId: 'getNextKnowledgeTagSlot',
       summary: 'Get Next Tag Slot',
       description: `Report which slot a create would take for a field type, and how many are left. Advisory rather than a claim: nothing is reserved, and \`POST /api/v2/knowledge/{knowledgeBaseId}/tags\` assigns the same slot when \`tagSlot\` is omitted. ${WORKSPACE_API_KEY_DENIED}`,
@@ -160,6 +162,7 @@ export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeTagUsageContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.readTagUsage,
       operationId: 'listKnowledgeTagUsage',
       summary: 'List Tag Usage',
       description: `Report how many documents and chunks carry a value for each defined tag, so a caller can tell a tag that is actually populated from one that was only declared. ${FULL_SET_LIST} ${WORKSPACE_API_KEY_DENIED}`,
@@ -190,9 +193,10 @@ export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2BulkSaveKnowledgeTagDefinitionsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.saveDocumentTagDefinitions,
       operationId: 'bulkSaveKnowledgeTagDefinitions',
       summary: 'Bulk Save Tag Definitions',
-      description: `Declare, in one request, several of the knowledge base's tag definitions. \`POST\` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in \`originalDisplayName\`; that is the only form that edits one in place. Without it the entry is a create, and a requested \`tagSlot\` another name already holds is refused in \`errors\` — it is neither overwritten nor relocated to a different slot, so an explicitly requested slot always means that slot or an error. A create whose \`displayName\` already exists is refused in \`errors\`. Per-definition failures are reported in \`errors\` and still answer \`200\`. This writes the vocabulary, not one document's tag values — set those with \`PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Declare multiple tag definitions while leaving unspecified slots unchanged. Updating requires the current name in \`originalDisplayName\`; otherwise the entry creates a tag. Occupied explicit slots and duplicate display names appear in per-definition \`errors\`, never overwrite or relocate data, and still return \`200\`. This writes the vocabulary, not document tag values; set those through the document update endpoint. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Definitions created and updated by the save.' },
     }),
@@ -227,9 +231,10 @@ export const knowledgeTagOpenApiRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeTagDefinitionsContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteDocumentTagDefinitions,
       operationId: 'deleteKnowledgeTagDefinitions',
       summary: 'Delete Tag Definitions',
-      description: `Remove tag definitions from the knowledge base. \`unused\` defaults to \`true\`, which removes only the definitions no document still carries a value for — the recoverable half, since a definition with nothing behind it can simply be redefined. Pass \`unused=false\` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. Delete one definition at a time with \`DELETE /api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Remove tag definitions. \`unused\` defaults to \`true\`, deleting only definitions with no document values, which can be recreated safely. \`unused=false\` deletes every definition and irreversibly clears its slot from all documents and chunks. Use \`DELETE /api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}\` to delete one definition. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Number of tag definitions removed.' },
     }),

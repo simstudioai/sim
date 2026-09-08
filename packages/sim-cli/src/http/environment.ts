@@ -91,8 +91,8 @@ function isLoopback(hostname: string): boolean {
  * the documented case; anything else means the key is on the wire in the clear,
  * which is worth one line.
  */
-export function warnIfKeyOverCleartext(endpoint: string, hasApiKey: boolean): void {
-  if (!hasApiKey) return
+export function warnIfCredentialOverCleartext(endpoint: string, hasCredential: boolean): void {
+  if (!hasCredential) return
 
   let url: URL
   try {
@@ -104,6 +104,6 @@ export function warnIfKeyOverCleartext(endpoint: string, hasApiKey: boolean): vo
 
   once(
     'cleartext',
-    `sending your API key to ${url.host} over http. Anything on the path can read it — use https unless this network is trusted.`
+    `sending your Sim credentials to ${url.host} over http. Anything on the path can read them — use https unless this network is trusted.`
   )
 }

@@ -4,8 +4,10 @@
 import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
+  ensureFileNameExtension,
   extractStorageKey,
   extractWorkspaceIdFromStorageKey,
+  getExtensionFromMimeType,
   getMimeTypeFromExtension,
   inferContextFromKey,
   isAbortError,
@@ -309,5 +311,27 @@ describe('resolveMediaMimeType', () => {
   it('falls back to the kind default when nothing names a media format', () => {
     expect(resolveMediaMimeType('application/zip', 'weird.bin', 'audio')).toBe('audio/mpeg')
     expect(resolveMediaMimeType(null, 'weird.bin', 'video')).toBe('video/mp4')
+  })
+})
+
+describe('getExtensionFromMimeType', () => {
+  it('ignores content-type parameters', () => {
+    expect(getExtensionFromMimeType('image/png')).toBe('png')
+    expect(getExtensionFromMimeType('text/html; charset=utf-8')).toBe('html')
+    expect(getExtensionFromMimeType('application/octet-stream')).toBeNull()
+  })
+})
+
+describe('ensureFileNameExtension', () => {
+  it('appends the content-type extension only when the name has none', () => {
+    expect(ensureFileNameExtension('navbar_2', 'image/png')).toBe('navbar_2.png')
+    expect(ensureFileNameExtension('download (641)', 'image/jpeg; charset=binary')).toBe(
+      'download (641).jpg'
+    )
+    expect(ensureFileNameExtension('hero.png', 'image/jpeg')).toBe('hero.png')
+    expect(ensureFileNameExtension('site.webmanifest', 'application/json')).toBe('site.webmanifest')
+    expect(ensureFileNameExtension('Sim.ai <> RVTech', 'text/html')).toBe('Sim.ai <> RVTech.html')
+    expect(ensureFileNameExtension('blob', 'application/octet-stream')).toBe('blob')
+    expect(ensureFileNameExtension('blob', null)).toBe('blob')
   })
 })

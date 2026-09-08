@@ -1,4 +1,4 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /**
  * Chat is a user-actor surface: the run is attributed to a person, reads their
@@ -9,9 +9,10 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 export const chatOperations = {
   send: defineWorkspaceOperation({
     id: 'chat.send',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
-    principalKinds: ['personal_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token'],
   }),
 } as const

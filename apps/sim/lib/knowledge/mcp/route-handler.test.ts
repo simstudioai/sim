@@ -71,6 +71,7 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   missingSetupFields: vi.fn(),
 }))
 
+import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
 import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
@@ -125,6 +126,33 @@ describe('organization MCP request admission', () => {
       expect.objectContaining({ auth, organizationId: 'org-1', searchIndexId: 'index-1' })
     )
     expect(mocks.close).toHaveBeenCalledOnce()
+    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: 'personal-key', bearer: null })
+  })
+  it('preserves API keys supplied in the MCP bearer header', async () => {
+    const req = request({ authorization: 'Bearer personal-key' })
+    req.headers.delete('x-api-key')
+    expect((await post(req)).status).toBe(200)
+    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: 'personal-key', bearer: null })
+  })
+  it('authenticates OAuth bearer tokens and checks organization membership', async () => {
+    const token = `${OAUTH_ACCESS_TOKEN_PREFIX}test-access-token`
+    const req = request({ authorization: `Bearer ${token}` })
+    req.headers.delete('x-api-key')
+    mocks.authenticate.mockResolvedValue({
+      ...auth,
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'person-1',
+        clientId: 'client',
+        tokenId: 'token',
+        scopes: ['api:read'],
+        expiresAt: new Date('2099-01-01'),
+      },
+      keyType: 'oauth',
+    })
+    expect((await post(req)).status).toBe(200)
+    expect(mocks.authenticate).toHaveBeenCalledWith({ apiKey: null, bearer: token })
+    expect(mocks.index).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
   })
   it('rejects workspace API keys even if the workspace ID matches the organization ID', async () => {
     mocks.authenticate.mockResolvedValue({

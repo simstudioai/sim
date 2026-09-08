@@ -123,6 +123,12 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).
 
+## Sign in with Sim
+
+| Variable | Description |
+| --- | --- |
+| `OAUTH_PROVIDER_ENABLED` | Fallback for the global `oauth-provider` feature flag when AppConfig is disabled or no AppConfig document has been loaded. Set to `true` only after the migration is applied and every older app instance is drained. With AppConfig, use `"oauth-provider": { "enabled": true }` in the existing `feature-flags` document instead. `DISABLE_AUTH=true` always forces it off. See [Authentication](/platform/self-hosting/authentication#sign-in-with-sim) |
+
 ## Integration Credentials
 
 <Callout type="warn">
@@ -245,6 +251,7 @@ Enterprise features are unlocked by configuration rather than billing on self-ho
 |----------|-------------|
 | `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
 | `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
 | `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |

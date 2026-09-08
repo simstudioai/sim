@@ -16,8 +16,42 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
   await client.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await client.unsafe(`SET search_path TO "${schemaName}"`)
   await client.unsafe(`
+    CREATE TYPE credential_type AS ENUM ('oauth', 'env_personal', 'env_workspace', 'managed_oauth', 'service_account');
+    CREATE TABLE organization (id text PRIMARY KEY);
+    CREATE TABLE credential (
+        id text PRIMARY KEY, workspace_id text NOT NULL, type credential_type, account_id text,
+        created_by text, provider_id text, provider_tenant_id text, provider_subject_id text,
+        granted_scopes text[], env_key text, env_owner_user_id text, authorization_app_id text,
+        encrypted_oauth_token_set text, encrypted_service_account_key text, unredacted boolean DEFAULT false,
+        managed_oauth_status text, granted_at timestamp, credential_group_enrollment_id text,
+        CONSTRAINT credential_managed_oauth_source_check CHECK (type::text <> 'managed_oauth' OR (
+          account_id IS NULL AND provider_id IS NOT NULL AND authorization_app_id IS NOT NULL
+          AND provider_subject_id IS NOT NULL AND managed_oauth_status IS NOT NULL
+          AND granted_scopes IS NOT NULL AND cardinality(granted_scopes) > 0
+          AND encrypted_oauth_token_set IS NOT NULL AND granted_at IS NOT NULL
+        ))
+      );
+    CREATE TABLE credential_group_enrollment (
+        id text PRIMARY KEY, credential_group_id text, email text, status text,
+        invitation_token_hash text, invitation_expires_at timestamp, invited_at timestamp,
+        created_at timestamp, updated_at timestamp, revoked_at timestamp,
+        UNIQUE (credential_group_id, email)
+      );
+    CREATE TABLE copilot_chats (
+        id text PRIMARY KEY, workspace_id text, workflow_id text, user_id text, created_at timestamp
+      );
+    CREATE TABLE pending_credential_draft (
+        id text PRIMARY KEY, workspace_id text NOT NULL, user_id text, provider_id text
+      );
+    CREATE TABLE workspace_files (
+        id text PRIMARY KEY, workspace_id text, context text, folder_id text, chat_id text
+      );
+    CREATE TABLE resource_policy (
+        id text PRIMARY KEY, workspace_id text NOT NULL, resource_type text, resource_id text,
+        revision integer, document jsonb, created_by text, updated_by text
+      );
     CREATE TABLE workspace (id text PRIMARY KEY);
-    CREATE TABLE "user" (id text PRIMARY KEY, email text NOT NULL);
+    CREATE TABLE "user" (id text PRIMARY KEY, email text NOT NULL, email_verified boolean);
     CREATE TABLE rate_limit_bucket (id text PRIMARY KEY);
     CREATE TABLE document (
       id text PRIMARY KEY, external_id text, connector_id text, knowledge_base_id text,
@@ -32,7 +66,7 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
       next_sync_at timestamp, next_member_sync_at timestamp, archived_at timestamp, deleted_at timestamp
     );
     CREATE TABLE knowledge_connector_member (
-      id text PRIMARY KEY, connector_id text, subject_token text, status text DEFAULT 'active',
+      id text PRIMARY KEY, workspace_id text NOT NULL, connector_id text, subject_token text, status text DEFAULT 'active',
       member_synced_through timestamp, next_attempt_at timestamp
     );
     CREATE TABLE knowledge_connector_sync_log (id text PRIMARY KEY);
@@ -41,10 +75,10 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
       CONSTRAINT kcmsl_status_check CHECK (status IN ('started', 'completed', 'failed'))
     );
     CREATE TABLE knowledge_base (
-      id text PRIMARY KEY, workspace_id text, name text NOT NULL, deleted_at timestamp
+      id text PRIMARY KEY, workspace_id text, folder_id text, name text NOT NULL, deleted_at timestamp
     );
     CREATE TABLE credential_group (
-      id text PRIMARY KEY, workspace_id text NOT NULL, name text NOT NULL, status text DEFAULT 'active'
+      id text PRIMARY KEY, workspace_id text NOT NULL, name text NOT NULL, status text DEFAULT 'active', created_by text
     );
     CREATE UNIQUE INDEX credential_group_workspace_name_unique ON credential_group(workspace_id, name);
     CREATE INDEX credential_group_workspace_status_idx ON credential_group(workspace_id, status);
@@ -66,12 +100,18 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
     }
   }
   const migration = await readFile(
-    new URL('../../../../../packages/db/migrations/0323_enterprise_search.sql', import.meta.url),
+    new URL(
+      '../../../../../packages/db/migrations/0325_enterprise_organization_search.sql',
+      import.meta.url
+    ),
     'utf8'
   )
   const statements = migration
-    .replaceAll('"public"."workspace"', `"${schemaName}"."workspace"`)
-    .replaceAll('"public"."knowledge_external_group"', `"${schemaName}"."knowledge_external_group"`)
+    .replaceAll('"public".', `"${schemaName}".`)
+    .replaceAll(
+      'SET search_path = pg_catalog, public',
+      `SET search_path = pg_catalog, "${schemaName}"`
+    )
     .split('--> statement-breakpoint')
     .filter((statement) => statement.trim())
   return {

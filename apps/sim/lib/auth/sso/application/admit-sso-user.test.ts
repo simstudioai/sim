@@ -48,6 +48,13 @@ vi.mock('@/lib/billing/core/usage', () => ({
   syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
 }))
 
+const { mockIsScimEntitledForOrganization } = vi.hoisted(() => ({
+  mockIsScimEntitledForOrganization: vi.fn(),
+}))
+vi.mock('@/ee/scim/lib/entitlement', () => ({
+  isScimEntitledForOrganization: mockIsScimEntitledForOrganization,
+}))
+
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))
@@ -82,6 +89,11 @@ function queueIdentity({
   ])
   queueTableRows(schemaMock.user, [{ id: 'user-1', email, name: 'Person' }])
   queueTableRows(schemaMock.account, accountLinked ? [{ id: 'account-1' }] : [])
+}
+
+/** The directory-only read runs after the identity reads and before the membership lookup. */
+function queueDirectoryOnly(directoryOnly: boolean) {
+  queueTableRows(schemaMock.scimConnection, directoryOnly ? [{ id: 'scim-1' }] : [])
 }
 
 async function execute() {
@@ -177,6 +189,29 @@ describe('SSO JIT admission', () => {
       organizationIds: ['org-1'],
     })
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+  })
+
+  it('leaves admission to the directory when a connection has disabled JIT', async () => {
+    queueIdentity()
+    queueDirectoryOnly(true)
+    mockIsScimEntitledForOrganization.mockResolvedValue(true)
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'provisioning-disabled',
+      organizationId: 'org-1',
+    })
+    expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+  })
+
+  it('admits by JIT again once the directory can no longer sync', async () => {
+    queueIdentity()
+    queueDirectoryOnly(true)
+    mockIsScimEntitledForOrganization.mockResolvedValue(false)
+
+    const outcome = await execute()
+
+    expect(outcome.kind).toBe('provisioned')
+    expect(mockEnsureUserInOrganizationTx).toHaveBeenCalled()
   })
 
   it('keeps an existing member active when new provisioning is invite-only', async () => {
