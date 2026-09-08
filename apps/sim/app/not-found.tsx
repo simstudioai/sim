@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { StatusPageContent } from '@/components/status-page'
 import { ReturnHomeLink } from '@/components/status-page/return-home-link'
-import { LogoShell } from '@/app/(landing)/components/logo-shell/logo-shell'
+import { LogoShell } from '@/app/(landing)/components/logo-shell'
 
 export const metadata: Metadata = {
   title: 'Page Not Found',

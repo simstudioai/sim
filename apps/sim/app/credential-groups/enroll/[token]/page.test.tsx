@@ -42,7 +42,7 @@ vi.mock('@/app/(auth)/components', () => ({
   ),
   SupportFooter: () => null,
 }))
-vi.mock('@/app/(landing)/components/logo-shell/logo-shell', () => ({
+vi.mock('@/app/(landing)/components/logo-shell', () => ({
   LogoShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }))
 vi.mock('@/app/credential-groups/enroll/[token]/oauth-toast', () => ({
