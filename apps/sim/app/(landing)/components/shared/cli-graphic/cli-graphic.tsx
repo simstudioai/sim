@@ -1,72 +1,128 @@
-import { cn } from '@sim/emcn'
-import { ArrowUp, FolderCode, TerminalWindow } from '@sim/emcn/icons'
-import styles from '@/app/(landing)/components/shared/cli-graphic/cli-graphic.module.css'
-import type { CodeSegment } from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
-import { FeaturePlatformPanel } from '@/app/(landing)/enterprise/components/feature-graphics/feature-platform-panel'
+'use client'
 
-const CODE_LINES: readonly (readonly CodeSegment[])[] = [
-  [{ text: 'sim workflows list' }],
-  [{ text: 'sim workflows run \\' }],
-  [{ text: '  "$WORKFLOW_ID" --manual \\', tone: 'muted' }],
-  [{ text: '  --input ', tone: 'muted' }, { text: '@ticket.json \\' }],
-  [{ text: '  --follow', tone: 'muted' }],
-  [{ text: 'sim logs list ' }, { text: '--limit 5', tone: 'muted' }],
+import { cn } from '@sim/emcn'
+import { TerminalWindow } from '@sim/emcn/icons'
+import { ThinkingLoader } from '@/components/ui/thinking-loader'
+import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
+import { STAGE_BLOCKS } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'
+import {
+  horizontalHandleAnchors,
+  smoothStep,
+} from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import styles from '@/app/(landing)/components/shared/cli-graphic/cli-graphic.module.css'
+import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
+
+const WORKFLOW_BLOCKS = [
+  {
+    ...STAGE_BLOCKS[0],
+    id: 'cli-start',
+    name: 'Start',
+    x: 30,
+    y: 145,
+    position: 'left-[30px] top-[145px]',
+  },
+  {
+    ...STAGE_BLOCKS[1],
+    id: 'cli-agent',
+    name: 'Support agent',
+    x: 325,
+    y: 65,
+    position: 'left-[325px] top-[65px]',
+    sentence: {
+      segments: ['Prompt', { subBlockId: 'model', noun: 'model' }],
+      values: { model: 'Claude Sonnet' },
+    },
+  },
+  {
+    ...STAGE_BLOCKS[2],
+    id: 'cli-output',
+    name: 'Format reply',
+    x: 620,
+    y: 135,
+    position: 'left-[620px] top-[135px]',
+  },
 ]
 
-/** The original editor-and-composer composition, with supported CLI commands in a shell script. */
+/** A CLI run streams a sample reply while its support-agent node is thinking. */
 export function CliGraphic() {
   return (
     <FeatureGraphicShell variant='portrait'>
-      <div className='absolute inset-[10px]'>
-        <FeaturePlatformPanel framed icon={FolderCode} title='support-agent.sh'>
-          <div className='space-y-2 overflow-hidden p-5 font-mono text-caption leading-[1.7] max-sm:space-y-1 max-sm:p-4 max-sm:text-[11px] max-sm:leading-[1.5]'>
-            {CODE_LINES.map((line, index) => (
-              <div
-                key={index}
-                className={cn(
-                  'flex gap-3 whitespace-pre',
-                  styles.codeLine,
-                  (index === 1 || index === 5) && 'sm:pt-4'
-                )}
-              >
-                <span className='w-3 shrink-0 select-none text-right text-[var(--text-muted)]'>
-                  {index + 1}
-                </span>
-                <code>
-                  {line.map((segment, segmentIndex) => (
-                    <span
-                      key={segmentIndex}
-                      className={
-                        segment.tone === 'muted'
-                          ? 'text-[var(--text-secondary)]'
-                          : 'text-[var(--text-primary)]'
-                      }
-                    >
-                      {segment.text}
-                    </span>
-                  ))}
-                </code>
+      <div aria-hidden='true' className={styles.scene}>
+        <div className={styles.canvas}>
+          <div className={styles.graph}>
+            <svg
+              className='absolute inset-0 size-full overflow-visible'
+              viewBox='0 0 900 280'
+              fill='none'
+            >
+              {WORKFLOW_BLOCKS.slice(1).map((block, index) => {
+                const source = horizontalHandleAnchors(WORKFLOW_BLOCKS[index]).out
+                const target = horizontalHandleAnchors(block).in
+                return (
+                  <path
+                    key={block.id}
+                    d={smoothStep(source.x, source.y, target.x, target.y)}
+                    stroke='var(--text-secondary)'
+                    strokeWidth={1.5}
+                  />
+                )
+              })}
+            </svg>
+            {WORKFLOW_BLOCKS.map((block, index) => (
+              <div key={block.id} className={cn('absolute', block.position)}>
+                <StageBlockCard
+                  block={block}
+                  orientation='horizontal'
+                  selected={index === 1}
+                  decorative
+                  decorativeRunIcon={
+                    index === 1 ? (
+                      <span className={styles.runIcon}>
+                        <ThinkingLoader variant='thinking' size={22} tone='inherit' />
+                      </span>
+                    ) : undefined
+                  }
+                />
               </div>
             ))}
           </div>
-        </FeaturePlatformPanel>
-        <div
-          aria-hidden='true'
-          className={cn(
-            'absolute right-4 bottom-4 left-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 shadow-xs dark:bg-[var(--surface-4)]',
-            styles.composer
-          )}
-        >
-          <p className='px-1 text-[var(--text-primary)] text-caption leading-[1.5]'>
-            Run my support agent in Sim.
-          </p>
-          <div className='mt-3 flex items-center gap-2 px-1 text-[var(--text-secondary)] text-caption'>
-            <TerminalWindow className='size-[14px] text-[var(--text-icon)]' />
-            <span>Claude Code · Sim CLI</span>
-            <span className='ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)]'>
-              <ArrowUp className='size-[14px] text-[var(--text-inverse)]' />
+          <EdgeFade ground='surface' edges={['top', 'left', 'right', 'bottom']} depth='preview' />
+        </div>
+
+        <div className={styles.terminal}>
+          <div className={styles.titlebar}>
+            <span className={styles.windowDots}>
+              <i />
+              <i />
+              <i />
             </span>
+            <span className='flex items-center gap-2 text-[var(--text-secondary)] text-caption'>
+              <TerminalWindow className='size-[14px]' />
+              Terminal
+            </span>
+            <span aria-hidden='true' />
+          </div>
+          <div className={styles.transcript}>
+            <div className='mb-3 flex gap-2 text-[var(--text-primary)]'>
+              <span className='text-[var(--text-muted)]'>❯</span>
+              <span>Draft a reply to this ticket.</span>
+            </div>
+            <div className='flex gap-2 text-[var(--text-primary)]'>
+              <span className='text-[var(--text-muted)]'>$</span>
+              <code className={styles.command}>sim workflows run \</code>
+            </div>
+            <div className='pl-4 text-[var(--text-secondary)]'>
+              <code className={styles.arguments}>&quot;$WORKFLOW_ID&quot; --follow \</code>
+            </div>
+            <div className={styles.inputFlag}>
+              <code>--input @ticket.json</code>
+            </div>
+            <div className={styles.response}>
+              <span className={styles.started}>Hi Alex, happy to help.</span>
+              <span className={styles.running}>Open Settings → Security,</span>
+              <span className={styles.completed}>then select Reset password.</span>
+            </div>
           </div>
         </div>
       </div>

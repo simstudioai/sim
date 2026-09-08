@@ -31,12 +31,6 @@ const CONTROL_QUIET = 'text-[var(--text-secondary)]'
  */
 const CONTROL_COPY = 'text-[15px] leading-[1.45]'
 
-/**
- * The rail and controls share a group in `Landing`. Its positive gap provides
- * breathing room above this inset rule; the padding balances the space below.
- */
-const CONTROL_RULE = 'border-[var(--border)] border-t pt-16 max-sm:pt-12 max-lg:pt-14'
-
 interface Control {
   title: string
   description: string
@@ -76,14 +70,7 @@ const CONTROLS: readonly Control[] = [
   },
 ] as const
 
-/**
- * Operational controls as a heading-less white spec grid on the page measure,
- * six items over two even rows. It reads as the plain-language index of the
- * feature rail it follows, so it carries no title of its own: the section is
- * named by `aria-label`, and the items stay `h3` under the rail's `h2` rather
- * than becoming six competing section headings. Certifications and the
- * governance intro live in `Security`, a separate beat further down the page.
- */
+/** Six workspace capabilities grouped in a shared panel below the product rail. */
 export function WorkspaceControls() {
   return (
     <section
@@ -91,11 +78,14 @@ export function WorkspaceControls() {
       aria-label='Workspace controls'
       className={cn('flex w-full flex-col', LANDING_CONTENT_WIDTH, LANDING_GUTTER)}
     >
-      <div className={cn(HOME_INSET, CONTROL_RULE)}>
-        <ul className='grid grid-cols-3 gap-x-16 gap-y-20 max-sm:grid-cols-1 max-sm:gap-y-12 max-lg:grid-cols-2 max-lg:gap-y-16'>
+      <div className={cn(HOME_INSET, 'pt-12 max-sm:pt-8')}>
+        <ul className='grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] max-sm:grid-cols-1 max-lg:grid-cols-2'>
           {CONTROLS.map(({ title, description, Mark }) => (
-            <li key={title} className='flex flex-col items-start gap-3'>
-              <Mark className={cn('size-[56px] max-sm:size-[48px]', CONTROL_QUIET)} />
+            <li
+              key={title}
+              className='flex flex-col items-start gap-3 bg-[var(--surface-2)] p-7 max-sm:p-6'
+            >
+              <Mark className={cn('size-[56px]', CONTROL_QUIET)} />
               <div>
                 <h3 className={cn('text-[var(--text-primary)]', HOME_TYPE.body)}>{title}</h3>
                 <p className={cn('mt-1.5 max-w-[30ch] text-pretty', CONTROL_QUIET, CONTROL_COPY)}>

@@ -248,7 +248,8 @@ export const CUSTOMERS_MENU: NavMenu = {
             imageAlt: 'eXp Realty',
             aspect: 1.84,
             height: 44,
-            tone: 'light',
+            tone: 'dark',
+            background: { src: '/landing/customers/exp-beach-house.jpg' },
           },
           preview: {
             kind: 'resource',

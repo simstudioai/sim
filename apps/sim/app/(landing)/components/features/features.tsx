@@ -53,6 +53,7 @@ const CORE_FEATURES = [
     href: '/files',
     tone: 'mid',
     visual: <FileLibraryGraphic />,
+    interactiveVisual: true,
   },
   {
     title: 'Logs',

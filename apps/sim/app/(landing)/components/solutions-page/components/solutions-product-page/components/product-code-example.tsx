@@ -1,15 +1,15 @@
 import { cn } from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import { HOME_INSET, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { CodeWindowGraphic } from '@/app/(landing)/components/shared/code-window-graphic'
+import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
 import type { SolutionsProductCodeExampleConfig } from '@/app/(landing)/components/solutions-page/types'
 
 interface ProductCodeExampleProps {
   example: SolutionsProductCodeExampleConfig
 }
 
-/** Server-rendered code keeps the original editor graphic without another interactive island. */
+/** Shared terminal presentation for each product’s documented CLI commands. */
 export function ProductCodeExample({ example }: ProductCodeExampleProps) {
   return (
     <section aria-labelledby='cli-heading' className={LANDING_GUTTER}>
@@ -36,12 +36,11 @@ export function ProductCodeExample({ example }: ProductCodeExampleProps) {
             </LandingCtaLink>
           </div>
         </div>
-        <div className='min-w-0 overflow-hidden rounded-xl bg-[var(--text-secondary)] pt-8 pl-8 max-sm:pt-5 max-sm:pl-5 dark:bg-[var(--surface-3)]'>
-          <CodeWindowGraphic
-            icon={<TerminalWindow className='size-[14px] text-[var(--text-muted-inverse)]' />}
-            filename={example.filename}
-            lines={example.commands.map((command) => [{ text: command, tone: 'primary' }])}
-          />
+        <div className='relative h-[340px] min-w-0 overflow-hidden rounded-2xl bg-[var(--surface-3)] pt-8 pl-8 max-sm:h-[300px] max-sm:pt-5 max-sm:pl-5'>
+          <div className='w-[calc(100%+96px)]'>
+            <CodeWindowGraphic filename={example.filename} commands={example.commands} />
+          </div>
+          <EdgeFade ground='surface' edges={['right', 'bottom']} depth='preview' />
         </div>
       </div>
     </section>

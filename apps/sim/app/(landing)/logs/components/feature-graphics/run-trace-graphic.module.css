@@ -1,54 +1,230 @@
-/**
- * The RunTraceGraphic's motion: the trace rows stamp in top to bottom
- * one after another — a one-shot settle, never
- * re-played. Under prefers-reduced-motion the rows render fully settled.
- */
-
-.row0,
-.row1,
-.row2,
-.row3,
-.row4 {
-  animation: run-trace-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+.window {
+  font-size: 12px;
+  line-height: 1.4;
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  container-type: size;
 }
-
-.row0 {
-  animation-delay: 0.35s;
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
-
-.row1 {
-  animation-delay: 0.5s;
+.activeTab {
+  border-radius: 8px;
+  background: var(--surface-5);
+  padding: 5px 10px;
+  color: var(--text-primary);
 }
-
-.row2 {
-  animation-delay: 0.65s;
+.overviewHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
 }
-
-.row3 {
-  animation-delay: 0.8s;
+.overview {
+  padding: 10px 12px 8px;
 }
-
-.row4 {
-  animation-delay: 0.95s;
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
-
-@keyframes run-trace-row-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
+.stat {
+  display: grid;
+  gap: 3px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.stat > span {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.stat strong {
+  font-size: 15px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.chart {
+  height: 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin: 10px 0 5px;
+}
+.bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: var(--text-secondary);
+}
+.runsHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 7px;
+  font-size: 10px;
+  border-top: 1px solid var(--border);
+}
+.runs {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: repeat(3, minmax(44px, 1fr));
+}
+.run {
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.selected {
+  background: var(--surface-4);
+  box-shadow: inset 2px 0 var(--text-secondary);
+}
+.runName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.runMeta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.detail {
+  padding: 6px 12px 8px;
+}
+.detailTabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.traceRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.track {
+  height: 5px;
+  border-radius: 10px;
+  background: var(--surface-5);
+}
+.track > span {
+  display: block;
+  width: 66%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-secondary);
+}
+@container (max-height: 380px) {
+  .toolbar {
+    padding-top: 7px;
+    gap: 10px;
+    font-size: 10px;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .overviewHeading {
+    padding-block: 6px;
+  }
+  .stat {
+    padding: 4px 6px;
+  }
+  .stat strong {
+    font-size: 13px;
+  }
+  .chart {
+    height: 24px;
+    margin-top: 6px;
+  }
+  .runsHeading {
+    padding-block: 6px;
+  }
+  .runs {
+    grid-template-rows: repeat(3, minmax(38px, 1fr));
+  }
+  .run {
+    padding-block: 5px;
+  }
+  .detail {
+    display: none;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .row0,
-  .row1,
-  .row2,
-  .row3,
-  .row4 {
-    animation: none;
+.stat > span {
+  line-height: 14px;
+}
+.stat strong {
+  line-height: 20px;
+}
+.runs {
+  flex: none;
+  grid-template-rows: repeat(3, 44px);
+}
+.detail {
+  flex-shrink: 0;
+}
+.runName {
+  line-height: 15px;
+}
+.runMeta {
+  line-height: 12px;
+}
+@container (max-height: 380px) {
+  .runs {
+    grid-template-rows: repeat(3, 38px);
+  }
+  .stat > span {
+    line-height: 12px;
+  }
+  .stat strong {
+    line-height: 16px;
+  }
+}
+@container (max-height: 380px) {
+  .stat:nth-child(n + 3) {
+    display: none;
+  }
+  .toolbar {
+    padding-top: 4px;
+  }
+  .activeTab {
+    padding: 3px 8px;
+  }
+  .overviewHeading {
+    padding-block: 4px;
+  }
+  .overview {
+    padding-block: 6px;
+  }
+  .chart {
+    height: 20px;
+  }
+  .runsHeading {
+    padding-block: 4px;
   }
 }

@@ -8,6 +8,7 @@ interface CoreFeatureCardProps {
   description: string
   href: string
   visual: ReactNode
+  interactiveVisual?: boolean
   tone?: 'light' | 'mid' | 'dark'
 }
 
@@ -33,35 +34,39 @@ const SCROLL_THROUGH = 'overscroll-x-auto [&_*]:overscroll-x-auto'
 
 /**
  * One homepage product module: a tall product-UI stage followed by a compact,
- * independently quotable title and description. The whole module is a real
- * route link, while the illustration remains decorative and non-interactive.
+ * independently quotable title and description. Interactive illustrations sit outside the route link;
+ * decorative illustrations remain part of the linked module.
  */
 export function CoreFeatureCard({
   title,
   description,
   href,
   visual,
+  interactiveVisual = false,
   tone = 'light',
 }: CoreFeatureCardProps) {
+  const graphic = (
+    <div
+      aria-hidden={interactiveVisual ? undefined : true}
+      className={cn(
+        'relative aspect-[5/6] overflow-hidden border border-[var(--border)] transition-colors duration-300 group-hover:border-[var(--border)] motion-reduce:transition-none',
+        LANDING_STAGE_RADIUS,
+        SCROLL_THROUGH,
+        TONE_CLASSES[tone]
+      )}
+    >
+      <div className='absolute inset-0'>{visual}</div>
+    </div>
+  )
   return (
     <article className='min-w-0'>
+      {interactiveVisual ? graphic : null}
       <Link
         href={href}
         rel={href.startsWith('https://') ? 'noopener noreferrer' : undefined}
         className='group block outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--border)] focus-visible:outline-offset-4'
       >
-        <div
-          aria-hidden='true'
-          className={cn(
-            'relative aspect-[5/6] overflow-hidden border border-[var(--border)] transition-colors duration-300 group-hover:border-[var(--border)] motion-reduce:transition-none',
-            LANDING_STAGE_RADIUS,
-            SCROLL_THROUGH,
-            TONE_CLASSES[tone]
-          )}
-        >
-          <div className='absolute inset-0'>{visual}</div>
-        </div>
-
+        {interactiveVisual ? null : graphic}
         <h3 className='mt-5 text-[20px] text-[var(--text-primary)] leading-[1.25] tracking-[-0.01em]'>
           {title}
         </h3>

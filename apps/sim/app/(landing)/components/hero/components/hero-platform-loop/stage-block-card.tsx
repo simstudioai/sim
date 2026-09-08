@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   Button,
   Check,
@@ -35,6 +35,8 @@ interface StageBlockCardProps {
   selected?: boolean
   /** Keeps the production selection toolbar visible in a noninteractive graphic. */
   decorative?: boolean
+  /** Optional animated run glyph for a decorative, synchronized scene. */
+  decorativeRunIcon?: ReactNode
   runStatus?: 'idle' | 'running' | 'complete'
   onSelect?: (blockId: string) => void
   onRunToggle?: (blockId: string) => void
@@ -201,6 +203,7 @@ export function StageBlockCard({
   orientation = 'vertical',
   selected = false,
   decorative = false,
+  decorativeRunIcon,
   runStatus = 'idle',
   onSelect,
   onRunToggle,
@@ -291,7 +294,9 @@ export function StageBlockCard({
                     onRunToggle?.(block.id)
                   }}
                 >
-                  {running ? (
+                  {decorative && decorativeRunIcon ? (
+                    decorativeRunIcon
+                  ) : running ? (
                     <RunningActionIcon />
                   ) : complete ? (
                     <Check className='size-[14px]' />
@@ -315,18 +320,18 @@ export function StageBlockCard({
                       type='button'
                       variant='ghost'
                       size={null}
-                      disabled={!decorative}
-                      aria-label={`${label} unavailable in preview`}
-                      className={cn(
-                        'pointer-events-none',
-                        getActionButtonClassName(label === 'Delete' ? 'last' : 'middle', selected)
+                      aria-label={label}
+                      onClick={(event) => event.stopPropagation()}
+                      className={getActionButtonClassName(
+                        label === 'Delete' ? 'last' : 'middle',
+                        selected
                       )}
                     >
                       <Icon className='size-[14px]' />
                     </Button>
                   </span>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>{label} is unavailable in preview</Tooltip.Content>
+                <Tooltip.Content side='top'>{label}</Tooltip.Content>
               </Tooltip.Root>
             ))}
           </div>

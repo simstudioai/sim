@@ -41,3 +41,92 @@
     animation: none;
   }
 }
+
+.folderButton {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: 12px;
+  outline-offset: 4px;
+}
+.folderButton:focus-visible {
+  outline: 2px solid var(--text-primary);
+}
+.folderScene {
+  position: absolute;
+  width: 321px;
+  height: 270px;
+  left: 50%;
+  bottom: 12px;
+  margin-left: -160.5px;
+  perspective: 800px;
+  transform-origin: bottom center;
+  scale: min(tan(atan2(100cqw, 350px)), tan(atan2(100cqh, 340px)));
+}
+.folderBack {
+  position: absolute;
+  inset: -20px 0 0;
+  border-radius: 25px;
+  background: color-mix(in srgb, var(--surface-6) 85%, #000);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.folderPaper {
+  position: absolute;
+  width: 164px;
+  height: 214px;
+  left: 78.5px;
+  top: 28px;
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-subtle);
+  padding: 26px 16px;
+}
+.paperTitle {
+  display: block;
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--border);
+}
+.paperLines {
+  display: block;
+  height: 128px;
+  margin-top: 20px;
+  background: repeating-linear-gradient(to bottom, var(--border) 0 3px, transparent 3px 14px);
+}
+.folderFlap {
+  position: absolute;
+  width: 321px;
+  height: 241px;
+  left: 0;
+  bottom: 0;
+  transform-origin: bottom center;
+  transform-style: preserve-3d;
+}
+.folderLabel {
+  position: absolute;
+  left: 25px;
+  right: 25px;
+  bottom: 30px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 24px;
+  line-height: 30px;
+}
+.folderLabel > span:last-child {
+  font-size: 20px;
+  color: var(--text-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .folderPaper,
+  .folderFlap {
+    transition: none;
+  }
+}

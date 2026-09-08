@@ -33,7 +33,7 @@ export function CustomerStoryPage({ story, post, nextStory }: CustomerStoryPageP
           </h1>
         </header>
 
-        <CustomerStoryMedia story={story} priority />
+        <CustomerStoryMedia story={story} priority playable />
 
         <div className='grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.7fr)] items-start gap-20 pt-16 max-md:grid-cols-1 max-md:gap-10 max-md:pt-10 max-lg:gap-12'>
           <aside

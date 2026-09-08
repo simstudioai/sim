@@ -19,16 +19,14 @@ describe('navbar customers menu', () => {
     ])
     expect(CUSTOMERS_MENU.sections[0].items.map((item) => item.card?.tone)).toEqual([
       'dark',
-      'light',
+      'dark',
     ])
-    expect(CUSTOMERS_MENU.sections[0].items[0].card?.background?.src).toMatch(
-      /^\/landing\/customers\/.+\.jpg$/
-    )
     expect(CUSTOMERS_MENU.sections[0].items.map((item) => item.href)).toEqual([
       '/customers/rivian',
       '/customers/exp-realty',
     ])
     for (const item of CUSTOMERS_MENU.sections[0].items) {
+      expect(item.card?.background?.src).toMatch(/^\/landing\/customers\/.+\.jpg$/)
       expect(item.card?.imageSrc).toMatch(/^\/landing\/logos\/.+\.svg$/)
       expect(item.card?.aspect).toBeGreaterThan(0)
     }

@@ -4,16 +4,32 @@ import type { CustomerStory } from '@/lib/customers/data'
 interface CustomerStoryMediaProps {
   story: CustomerStory
   priority?: boolean
+  playable?: boolean
 }
 
-/** Landscape customer artwork; customers without a photo use their own wordmark. */
-export function CustomerStoryMedia({ story, priority = false }: CustomerStoryMediaProps) {
+/** Customer artwork, with on-demand playback on story detail pages. */
+export function CustomerStoryMedia({
+  story,
+  priority = false,
+  playable = false,
+}: CustomerStoryMediaProps) {
   return (
     <div
       data-customer-story-media={story.slug}
       className='relative aspect-[16/9] w-full overflow-hidden rounded-[12px] bg-[var(--surface-4)]'
     >
-      {story.heroImage ? (
+      {playable && story.heroVideo ? (
+        <video
+          aria-label={story.heroVideo.label}
+          controls
+          muted
+          playsInline
+          preload='none'
+          poster={story.heroVideo.poster}
+          src={story.heroVideo.src}
+          className='absolute inset-0 size-full rounded-[inherit] bg-black object-cover'
+        />
+      ) : story.heroImage ? (
         <Image
           src={story.heroImage}
           alt={story.heroAlt}

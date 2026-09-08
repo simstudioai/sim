@@ -82,7 +82,7 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
     <article
       aria-hidden={!active}
       className={cn(
-        'relative isolate size-full overflow-hidden [clip-path:border-box]',
+        'relative isolate size-full overflow-hidden [clip-path:inset(0_round_12px)]',
         isFilm ? 'bg-black' : 'bg-[var(--surface-4)]',
         LANDING_STAGE_RADIUS
       )}
@@ -95,7 +95,7 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
             fill
             sizes='(max-width: 640px) 100vw, 1728px'
             quality={90}
-            className='object-cover'
+            className='rounded-[inherit] object-cover'
           />
           <video
             ref={videoRef}
@@ -106,9 +106,9 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
             preload='none'
             src={story.media.src}
             tabIndex={-1}
-            className='pointer-events-none absolute inset-0 size-full object-cover motion-reduce:hidden'
+            className='pointer-events-none absolute inset-0 size-full rounded-[inherit] object-cover motion-reduce:hidden'
           />
-          <div className='absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.3)_36%,rgba(0,0,0,0.08)_70%)]' />
+          <div className='pointer-events-none absolute inset-0 rounded-[inherit] bg-[linear-gradient(135deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.3)_36%,rgba(0,0,0,0.08)_70%)]' />
         </>
       )}
 

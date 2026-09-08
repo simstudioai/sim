@@ -4,6 +4,8 @@ export interface CustomerStory {
   industry: string
   focus: readonly string[]
   heroImage?: string
+  /** Optional silent visual preview, played on demand on the customer story page. */
+  heroVideo?: { src: string; poster: string; label: string }
   heroAlt: string
   logo: { src: string; alt: string; width: number; height: number }
 }
@@ -30,6 +32,11 @@ export const CUSTOMER_STORIES: readonly CustomerStory[] = [
     industry: 'Real estate',
     focus: ['Real estate operations', 'AI workflows', 'Governance'],
     heroAlt: 'eXp Realty',
+    heroVideo: {
+      src: '/landing/customer-stories/exp-house-color-loop.mp4',
+      poster: '/landing/customer-stories/exp-house-color-poster.jpg',
+      label: 'eXp Realty home preview',
+    },
     logo: {
       src: '/landing/logos/exp-realty.svg',
       alt: 'eXp Realty',
