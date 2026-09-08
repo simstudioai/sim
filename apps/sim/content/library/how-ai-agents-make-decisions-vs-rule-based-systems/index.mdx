@@ -19,7 +19,7 @@ faq:
   - q: "What happens when an agent's tool call fails?"
     a: "A workflow should treat a failed tool call as an observable result and follow a defined retry, fallback, or escalation path. Sim run logs record each block's execution for later review. You can diagnose the failure without relying on the model's final response alone."
   - q: "How is human-in-the-loop different from a simple approval step in RPA?"
-    a: "Human-in-the-loop review pauses an agent after it has assembled context and proposed an action. Sim can wait indefinitely, notify a reviewer through supported channels, and resume through the portal, API, or webhook. The reviewer evaluates the context, evidence, and proposed action for that specific case rather than approving a fixed procedural checkpoint."
+    a: "Human-in-the-loop review pauses an agent after it has assembled context and proposed an action. Sim can wait indefinitely, notify a reviewer through supported channels, and resume through the portal or an authenticated REST API. The reviewer evaluates the context, evidence, and proposed action for that specific case rather than approving a fixed procedural checkpoint."
 ---
 
 ## TL;DR
@@ -70,7 +70,7 @@ Sim separates these controls into Guardrails, Evaluator, and Human in the Loop b
 
 An Evaluator block acts as a scoring step when a binary rule cannot capture the requirement. You can assess an output against defined criteria, then use the resulting scores to route weak outputs for revision or review. The agent retains discretion within the acceptable range, but the surrounding workflow prevents low-quality decisions from reaching the next action.
 
-Human in the Loop adds explicit approval for decisions with financial, legal, or operational consequences. Sim's block pauses a workflow indefinitely by default while it waits for a response. Sim can send requests through Slack, Gmail, Microsoft Teams, SMS, or webhooks. Reviewers can approve through the Sim portal, a REST API, or a webhook. The guide to [human-in-the-loop AI agents](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents) covers these review paths and the block's default pause behavior.
+Human in the Loop adds explicit approval for decisions with financial, legal, or operational consequences. Sim's block pauses a workflow indefinitely by default while it waits for a response. Sim can send requests through Slack, Gmail, Microsoft Teams, SMS, or webhooks. Reviewers can approve through the Sim portal or a REST API. The guide to [human-in-the-loop AI agents](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents) covers these review paths and the block's default pause behavior.
 
 Run logs provide accountability after the workflow finishes. Sim records execution block by block, so you can inspect the agent's proposed action, the checks applied, the reviewer's response, and the path the workflow followed. The run log helps you investigate failures and adjust approval thresholds without replacing the agent's decision logic with a fixed RPA script. Learn how this fits into [AI agent observability](https://www.sim.ai/library/ai-agent-observability).
 
