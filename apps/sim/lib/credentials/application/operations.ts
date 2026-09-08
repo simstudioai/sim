@@ -127,7 +127,7 @@ export const credentialOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
   }),
   read: defineCredentialOperation(
     defineWorkspaceOperation({
