@@ -259,6 +259,27 @@ export const selectorManifest = {
     listMode: 'paginated',
     detail: true,
   }),
+  'oci_logging.logGroups': providerSelector(['region', 'compartmentId'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    sourceFields: { oauthCredential: ['ociCredential'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_logging.logs': providerSelector(['region', 'logGroupId'], {
+    readiness: { all: ['oauthCredential', 'logGroupId'] },
+    sourceFields: { oauthCredential: ['ociCredential'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_logging.customLogs': providerSelector(['region', 'logGroupId'], {
+    readiness: { all: ['oauthCredential', 'logGroupId'] },
+    sourceFields: { oauthCredential: ['ociCredential'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'onedrive.files': providerSelector(['mimeType'], { listMode: 'paginated', detail: true }),
   'onedrive.folders': providerSelector(['driveId'], { listMode: 'paginated', detail: true }),
   'sharepoint.sites': providerSelector([], {

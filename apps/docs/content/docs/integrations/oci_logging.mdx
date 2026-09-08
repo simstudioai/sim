@@ -1,0 +1,513 @@
+---
+title: OCI Logging
+description: Manage, search, and ingest Oracle Cloud Infrastructure logs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_logging"
+  color="#C74634"
+/>
+
+## Usage Instructions
+
+Use native OCI Logging to manage log groups and logs, run bounded native queries, ingest custom log batches, inspect asynchronous work requests, and retrieve saved searches. Reuses stored OCI API signing-key service accounts. Management writes return work-request acceptance; ingestion returns acceptance without per-entry results. Put Logs, Update, and Delete make one provider attempt per execution; leave whole-block retries disabled to avoid replaying these writes. Logging Analytics, Audit API operations, and Monitoring are separate products.
+
+
+
+## Actions
+
+### OCI Logging List Log Groups
+
+List one page of OCI Logging log groups. Filtered empty pages can still have continuation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. |
+| `isCompartmentIdInSubtree` | boolean | No | Include descendant compartments; Oracle defaults to false. |
+| `displayName` | string | No | Display name, 1–255 characters. |
+| `limit` | number | No | Maximum items for this page, 1–1000; default 100. |
+| `page` | string | No | Opaque nextPage token from the preceding response. Preserve the same filters and time window. |
+| `sortBy` | string | No | Sort by timeCreated or displayName. |
+| `sortOrder` | string | No | ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque continuation token. Repeat the same filters and time window with this token; an empty page can still have a continuation. |
+| `logGroups` | array | Resources on this page. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state. |
+|   ↳ `timeCreated` | string | Creation time in RFC3339 format. |
+|   ↳ `timeLastModified` | string | Last modification time in RFC3339 format. |
+|   ↳ `freeformTags` | json | User-defined string tag map. |
+|   ↳ `definedTags` | json | String tags grouped by namespace. |
+|   ↳ `systemTags` | json | Oracle system tags grouped by namespace. |
+|   ↳ `displayName` | string | Log group display name. |
+|   ↳ `description` | string | Log group description. |
+
+### OCI Logging Get Log Group
+
+Get OCI Logging log group details and its ETag.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `etag` | string | Resource version for optimistic concurrency with ifMatch. |
+| `logGroup` | json | Resource details. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state. |
+|   ↳ `timeCreated` | string | Creation time in RFC3339 format. |
+|   ↳ `timeLastModified` | string | Last modification time in RFC3339 format. |
+|   ↳ `freeformTags` | json | User-defined string tag map. |
+|   ↳ `definedTags` | json | String tags grouped by namespace. |
+|   ↳ `systemTags` | json | Oracle system tags grouped by namespace. |
+|   ↳ `displayName` | string | Log group display name. |
+|   ↳ `description` | string | Log group description. |
+
+### OCI Logging Create Log Group
+
+Create an OCI Logging log group and return asynchronous acceptance with a work request OCID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. |
+| `displayName` | string | Yes | Display name, 1–255 characters. |
+| `description` | string | No | Description, 1–400 characters. |
+| `freeformTags` | json | No | String tag map, for example \{"Department":"Finance"\}. |
+| `definedTags` | json | No | String tags grouped by namespace, for example \{"Operations":\{"CostCenter":"42"\}\}. |
+| `retryToken` | string | No | Optional stable retry token, 1–64 characters. Oracle retains tokens for up to 24 hours, subject to invalidation. Reuse for the same create request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the asynchronous operation. This does not indicate completion. |
+| `workRequestId` | string | Work request OCID for tracking completion and errors. |
+
+### OCI Logging Update Log Group
+
+Update an OCI Logging log group. Omitted fields are preserved; completion is tracked by work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `displayName` | string | No | Display name, 1–255 characters. |
+| `description` | string | No | Description, 1–400 characters. |
+| `freeformTags` | json | No | String tag map, for example \{"Department":"Finance"\}. |
+| `definedTags` | json | No | String tags grouped by namespace, for example \{"Operations":\{"CostCenter":"42"\}\}. |
+| `ifMatch` | string | No | Optional ETag from Get for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the asynchronous operation. This does not indicate completion. |
+| `workRequestId` | string | Work request OCID for tracking completion and errors. |
+
+### OCI Logging Delete Log Group
+
+Delete an OCI Logging log group asynchronously. Track the returned work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `ifMatch` | string | No | Optional ETag from Get for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the asynchronous operation. This does not indicate completion. |
+| `workRequestId` | string | Work request OCID for tracking completion and errors. |
+
+### OCI Logging List Logs
+
+List one page of logs in an OCI Logging log group, optionally filtered by CUSTOM or SERVICE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `logType` | string | No | CUSTOM or SERVICE. |
+| `sourceService` | string | No | Filter by emitting OCI service. |
+| `sourceResource` | string | No | Filter by emitting resource identifier. |
+| `displayName` | string | No | Display name, 1–255 characters. |
+| `lifecycleState` | string | No | CREATING, ACTIVE, UPDATING, INACTIVE, DELETING, or FAILED. |
+| `limit` | number | No | Maximum items for this page, 1–1000; default 100. |
+| `page` | string | No | Opaque nextPage token from the preceding response. Preserve the same filters and time window. |
+| `sortBy` | string | No | Sort by timeCreated or displayName. |
+| `sortOrder` | string | No | ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque continuation token. Repeat the same filters and time window with this token; an empty page can still have a continuation. |
+| `logs` | array | Resources on this page. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `lifecycleState` | string | Current log lifecycle state. |
+|   ↳ `timeCreated` | string | Creation time in RFC3339 format. |
+|   ↳ `timeLastModified` | string | Last modification time in RFC3339 format. |
+|   ↳ `freeformTags` | json | User-defined string tag map. |
+|   ↳ `definedTags` | json | String tags grouped by namespace. |
+|   ↳ `systemTags` | json | Oracle system tags grouped by namespace. |
+|   ↳ `displayName` | string | Log display name. |
+|   ↳ `logGroupId` | string | Parent log group OCID. |
+|   ↳ `logType` | string | CUSTOM or SERVICE. |
+|   ↳ `tenancyId` | string | Tenancy OCID, when returned by GetLog. |
+|   ↳ `isEnabled` | boolean | Whether this log is enabled. |
+|   ↳ `retentionDuration` | number | Retention duration in days. |
+|   ↳ `configuration` | json | OCI service log configuration. |
+|     ↳ `compartmentId` | string | Source resource compartment OCID. |
+|     ↳ `source` | object | OCI service source. |
+|       ↳ `sourceType` | string | OCISERVICE. |
+|       ↳ `service` | string | Emitting service. |
+|       ↳ `resource` | string | Emitting resource identifier. |
+|       ↳ `category` | string | Log category. |
+|       ↳ `parameters` | json | Service-specific string parameters. |
+|     ↳ `archiving` | object | Deprecated OCI archiving configuration. |
+|       ↳ `isEnabled` | boolean | Deprecated archiving flag. |
+
+### OCI Logging Get Log
+
+Get an OCI log, its source configuration, retention, enablement, and ETag.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `logId` | string | Yes | Log OCID. Put Logs requires a CUSTOM log. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `etag` | string | Resource version for optimistic concurrency with ifMatch. |
+| `log` | json | Resource details. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `lifecycleState` | string | Current log lifecycle state. |
+|   ↳ `timeCreated` | string | Creation time in RFC3339 format. |
+|   ↳ `timeLastModified` | string | Last modification time in RFC3339 format. |
+|   ↳ `freeformTags` | json | User-defined string tag map. |
+|   ↳ `definedTags` | json | String tags grouped by namespace. |
+|   ↳ `systemTags` | json | Oracle system tags grouped by namespace. |
+|   ↳ `displayName` | string | Log display name. |
+|   ↳ `logGroupId` | string | Parent log group OCID. |
+|   ↳ `logType` | string | CUSTOM or SERVICE. |
+|   ↳ `tenancyId` | string | Tenancy OCID, when returned by GetLog. |
+|   ↳ `isEnabled` | boolean | Whether this log is enabled. |
+|   ↳ `retentionDuration` | number | Retention duration in days. |
+|   ↳ `configuration` | json | OCI service log configuration. |
+|     ↳ `compartmentId` | string | Source resource compartment OCID. |
+|     ↳ `source` | object | OCI service source. |
+|       ↳ `sourceType` | string | OCISERVICE. |
+|       ↳ `service` | string | Emitting service. |
+|       ↳ `resource` | string | Emitting resource identifier. |
+|       ↳ `category` | string | Log category. |
+|       ↳ `parameters` | json | Service-specific string parameters. |
+|     ↳ `archiving` | object | Deprecated OCI archiving configuration. |
+|       ↳ `isEnabled` | boolean | Deprecated archiving flag. |
+
+### OCI Logging Create Log
+
+Create a CUSTOM or SERVICE log asynchronously. Service logs use the emitting service resource configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `displayName` | string | Yes | Display name, 1–255 characters. |
+| `logType` | string | Yes | CUSTOM or SERVICE. |
+| `isEnabled` | boolean | No | Whether the log is enabled. Omit to preserve the existing setting on update. |
+| `retentionDuration` | number | No | Retention in days: 30, 60, 90, 120, 150, or 180. |
+| `configuration` | json | No | Service log configuration: source with sourceType OCISERVICE, service, resource, category and optional string parameters; optional compartmentId and deprecated archiving.isEnabled. |
+| `freeformTags` | json | No | String tag map, for example \{"Department":"Finance"\}. |
+| `definedTags` | json | No | String tags grouped by namespace, for example \{"Operations":\{"CostCenter":"42"\}\}. |
+| `retryToken` | string | No | Optional stable retry token, 1–64 characters. Oracle retains tokens for up to 24 hours, subject to invalidation. Reuse for the same create request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the asynchronous operation. This does not indicate completion. |
+| `workRequestId` | string | Work request OCID for tracking completion and errors. |
+
+### OCI Logging Update Log
+
+Update a log asynchronously. Explicit false disables it; omission preserves settings. Source updates accept parameters only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `logId` | string | Yes | Log OCID. Put Logs requires a CUSTOM log. |
+| `displayName` | string | No | Display name, 1–255 characters. |
+| `isEnabled` | boolean | No | Whether the log is enabled. Omit to preserve the existing setting on update. |
+| `retentionDuration` | number | No | Retention in days: 30, 60, 90, 120, 150, or 180. |
+| `configuration` | json | No | Update configuration with required source: \{parameters?: string map\} and optional deprecated archiving: \{isEnabled?: boolean\}. Source service, resource, category and sourceType cannot be updated. |
+| `freeformTags` | json | No | String tag map, for example \{"Department":"Finance"\}. |
+| `definedTags` | json | No | String tags grouped by namespace, for example \{"Operations":\{"CostCenter":"42"\}\}. |
+| `ifMatch` | string | No | Optional ETag from Get for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the asynchronous operation. This does not indicate completion. |
+| `workRequestId` | string | Work request OCID for tracking completion and errors. |
+
+### OCI Logging Delete Log
+
+Delete an OCI log asynchronously and return the tracking work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logGroupId` | string | Yes | Log group OCID. |
+| `logId` | string | Yes | Log OCID. Put Logs requires a CUSTOM log. |
+| `ifMatch` | string | No | Optional ETag from Get for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the asynchronous operation. This does not indicate completion. |
+| `workRequestId` | string | Work request OCID for tracking completion and errors. |
+
+### OCI Logging Search Logs
+
+Search OCI Logging using an unchanged native query and an explicit window of at most 14 days. Return one bounded page of dynamic projected records and continuation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `searchQuery` | string | Yes | Full native OCI Logging query, for example search "&lt;compartment&gt;/&lt;group&gt;/&lt;log&gt;" \| sort by datetime desc. Sent unchanged. |
+| `timeStart` | string | Yes | Explicit RFC3339 start timestamp, including timezone. |
+| `timeEnd` | string | Yes | Explicit RFC3339 end timestamp after timeStart, at most 14 days later. |
+| `isReturnFieldInfo` | boolean | No | Return projected field names and types. |
+| `limit` | number | No | Maximum items for this page, 1–1000; default 100. |
+| `page` | string | No | Opaque nextPage token from the preceding response. Preserve the same filters and time window. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque continuation token. Repeat the same filters and time window with this token; an empty page can still have a continuation. |
+| `results` | array | Projected records on this page. |
+|   ↳ `data` | json | Dynamic fields selected or aggregated by the native query. |
+| `fields` | array | Field schema when requested and returned. |
+|   ↳ `fieldName` | string | Projected field name. |
+|   ↳ `fieldType` | string | STRING, NUMBER, BOOLEAN, or ARRAY. |
+| `summary` | json | Oracle search result summary; not a count of all matching records across pages. |
+|   ↳ `resultCount` | number | Provider result count. |
+|   ↳ `fieldCount` | number | Provider field count. |
+
+### OCI Logging Put Logs
+
+Ingest custom log batches with one provider attempt per execution. Leave whole-block retries disabled to avoid replay. Returns acceptance only, without per-entry results or indexing guarantees. Cancellation after submission does not undo ingestion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logId` | string | Yes | Log OCID. Put Logs requires a CUSTOM log. |
+| `logEntryBatches` | array | Yes | Nonempty batches with source, type, defaultlogentrytime and entries; optional subject. Each entry has data \(string\), a stable caller-supplied id \(1–255 characters\), and optional time. Timestamps use RFC3339 with milliseconds. Each serialized entry must be smaller than 1 MB. Oracle may truncate oversized data fields during ingestion; acceptance is not indexing completion. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `accepted` | boolean | Oracle accepted the request. No per-entry outcome or indexing completion is reported. |
+
+### OCI Logging Get Work Request
+
+Get status, progress and resources for an asynchronous Logging work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `workRequestId` | string | Yes | Logging work request OCID returned by a management mutation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `etag` | string | Resource version for optimistic concurrency with ifMatch. |
+| `retryAfter` | number | Seconds Oracle recommends waiting before polling again. |
+| `workRequest` | json | Asynchronous work request. |
+|   ↳ `id` | string | Work request OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `operationType` | string | Management operation being processed. |
+|   ↳ `status` | string | ACCEPTED, IN_PROGRESS, FAILED, SUCCEEDED, CANCELLING, or CANCELED. |
+|   ↳ `percentComplete` | number | Completion percentage. |
+|   ↳ `timeAccepted` | string | Acceptance timestamp. |
+|   ↳ `timeStarted` | string | Start timestamp. |
+|   ↳ `timeFinished` | string | Completion timestamp. |
+|   ↳ `resources` | array | Affected resources. |
+|     ↳ `actionType` | string | CREATED, UPDATED, DELETED, IN_PROGRESS, or RELATED. |
+|     ↳ `entityType` | string | Resource type. |
+|     ↳ `identifier` | string | Resource identifier. |
+|     ↳ `entityUri` | string | Resource URI path. |
+
+### OCI Logging List Work Request Errors
+
+List one page of documented error entries for a Logging work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `workRequestId` | string | Yes | Logging work request OCID returned by a management mutation. |
+| `limit` | number | No | Maximum items for this page, 1–1000; default 100. |
+| `page` | string | No | Opaque nextPage token from the preceding response. Preserve the same filters and time window. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque continuation token. Repeat the same filters and time window with this token; an empty page can still have a continuation. |
+| `errors` | array | Work request errors on this page. |
+|   ↳ `code` | string | Error code. |
+|   ↳ `message` | string | Work request error message. |
+|   ↳ `timestamp` | string | Error timestamp in RFC3339 format. |
+
+### OCI Logging List Saved Searches
+
+List one page of Logging saved searches. Use Get Saved Search to retrieve a query for Search Logs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. |
+| `logSavedSearchId` | string | No | Logging saved search OCID. |
+| `name` | string | No | Filter by saved search name. |
+| `limit` | number | No | Maximum items for this page, 1–1000; default 100. |
+| `page` | string | No | Opaque nextPage token from the preceding response. Preserve the same filters and time window. |
+| `sortBy` | string | No | Sort by timeCreated or displayName. |
+| `sortOrder` | string | No | ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque continuation token. Repeat the same filters and time window with this token; an empty page can still have a continuation. |
+| `savedSearches` | array | Resources on this page. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state. |
+|   ↳ `timeCreated` | string | Creation time in RFC3339 format. |
+|   ↳ `timeLastModified` | string | Last modification time in RFC3339 format. |
+|   ↳ `freeformTags` | json | User-defined string tag map. |
+|   ↳ `definedTags` | json | String tags grouped by namespace. |
+|   ↳ `systemTags` | json | Oracle system tags grouped by namespace. |
+|   ↳ `name` | string | Saved search name. |
+|   ↳ `description` | string | Saved search description. |
+|   ↳ `query` | string | Stored native query. Pass it to Search Logs with explicit start and end times. |
+
+### OCI Logging Get Saved Search
+
+Get a Logging saved search and its stored query. Execute the query using Search Logs with explicit timestamps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ociCredential` | string | Yes | Stored OCI API signing-key service account credential ID. |
+| `region` | string | No | Optional OCI region override within the credential tenancy realm. Defaults to the credential region. |
+| `logSavedSearchId` | string | Yes | Logging saved search OCID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID. |
+| `etag` | string | Resource version for optimistic concurrency with ifMatch. |
+| `savedSearch` | json | Resource details. |
+|   ↳ `id` | string | Resource OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `lifecycleState` | string | Current resource lifecycle state. |
+|   ↳ `timeCreated` | string | Creation time in RFC3339 format. |
+|   ↳ `timeLastModified` | string | Last modification time in RFC3339 format. |
+|   ↳ `freeformTags` | json | User-defined string tag map. |
+|   ↳ `definedTags` | json | String tags grouped by namespace. |
+|   ↳ `systemTags` | json | Oracle system tags grouped by namespace. |
+|   ↳ `name` | string | Saved search name. |
+|   ↳ `description` | string | Saved search description. |
+|   ↳ `query` | string | Stored native query. Pass it to Search Logs with explicit start and end times. |
+
+
