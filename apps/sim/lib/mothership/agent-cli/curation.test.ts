@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { V2BlockDetail } from '@/lib/api/contracts/v2/catalog'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 
 const { permissionConfig, denied } = vi.hoisted(() => ({
@@ -21,14 +22,39 @@ vi.mock('@/lib/mothership/integration-tool-projection', () => ({
 
 const viewer = { workspaceId: 'ws', userId: 'user' }
 
-function blockDetail() {
+function blockDetail(): V2BlockDetail {
   return {
-    type: 'slack',
+    id: 'slack',
+    name: 'Slack',
+    description: 'Messaging',
+    category: 'tools',
+    source: 'builtin',
+    triggerAllowed: false,
+    triggerCapable: false,
+    triggerIds: [],
+    triggers: [],
+    tags: [],
+    preview: false,
+    operationIds: ['send', 'canvas'],
+    toolIds: ['slack_send', 'slack_canvas'],
+    inputSchema: [
+      { id: 'operation', type: 'dropdown', options: [{ id: 'send' }, { id: 'canvas' }] },
+    ],
+    operationInputSchema: { send: [], canvas: [] },
+    inputDefinitions: {},
+    outputs: {},
     operations: {
-      send: { toolId: 'slack_send' },
-      canvas: { toolId: 'slack_canvas' },
+      send: { toolId: 'slack_send', inputs: {}, outputs: {}, inputSchema: [] },
+      canvas: { toolId: 'slack_canvas', inputs: {}, outputs: {}, inputSchema: [] },
     },
-    tools: [{ id: 'slack_send' }, { id: 'slack_canvas' }],
+    tools: ['slack_send', 'slack_canvas'].map((id) => ({
+      id,
+      name: id,
+      description: '',
+      hostedApiKey: 'none',
+      params: {},
+      outputs: {},
+    })),
   }
 }
 
@@ -63,7 +89,11 @@ describe('curateBlockDetail', () => {
     expect(result.exitCode).toBe(0)
     const curated = JSON.parse(result.stdout)
     expect(Object.keys(curated.operations)).toEqual(['send'])
-    expect(curated.tools).toEqual([{ id: 'slack_send' }])
+    expect(curated.tools.map((tool: { id: string }) => tool.id)).toEqual(['slack_send'])
+    expect(curated.operationIds).toEqual(['send'])
+    expect(curated.operationInputSchema).toEqual({ send: [] })
+    expect(curated.inputSchema[0].options).toEqual([{ id: 'send' }])
+    expect(curated.toolIds).toEqual(['slack_send'])
   })
 
   it('refuses a fully denied block', async () => {
