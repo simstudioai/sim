@@ -34,7 +34,6 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
       OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
       BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
-      OAUTH_PROVIDER_ENABLED: 'true'
       NEXT_PUBLIC_APP_URL: https://test.sim.ai
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 

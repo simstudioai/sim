@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMockRequest,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -20,7 +27,6 @@ const mocks = vi.hoisted(() => ({
   decryptQuickBooksClientConfig: vi.fn(),
   createQuickBooksState: vi.fn(),
   getCanonicalScopes: vi.fn(),
-  oauthEnabled: vi.fn(),
 }))
 
 vi.mock('better-auth/next-js', () => ({
@@ -30,9 +36,6 @@ vi.mock('better-auth/next-js', () => ({
 vi.mock('@/lib/auth/auth', () => ({
   getSession: mocks.getSession,
   auth: { handler: {}, api: { oAuth2LinkAccount: mocks.linkAccount } },
-}))
-vi.mock('@/lib/auth/oauth-provider-feature', () => ({
-  isOAuthProviderEnabled: mocks.oauthEnabled,
 }))
 vi.mock('@/lib/core/utils/urls', () => ({
   SITE_URL: 'https://www.sim.ai',
@@ -88,11 +91,13 @@ function linkResponse(url = 'https://provider.example/authorize') {
   })
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('OAuth2 authorize route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.oauthEnabled.mockResolvedValue(true)
+    setEnvFlags({ isAuthDisabled: false })
     mocks.getBaseUrl.mockReturnValue(BASE_URL)
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -149,26 +154,113 @@ describe('OAuth2 authorize route', () => {
     expect(mocks.createConnection).not.toHaveBeenCalled()
   })
 
-  it('applies a runtime flag change to the next authorization request', async () => {
-    const providerRequest = () =>
+  it.each([
+    ['https://client.example/callback', 'https://client.example/callback'],
+    ['http://127.0.0.1/callback', 'http://127.0.0.1:43123/callback'],
+  ])('returns permission denials to registered callback %s', async (registered, redirectUri) => {
+    queueTableRows(schemaMock.oauthClient, [{ disabled: false, redirectUris: [registered] }])
+    mocks.betterAuthGET.mockResolvedValue(
+      Response.json(
+        {
+          error: 'access_denied',
+          error_description: 'OAuth apps are restricted for your account.',
+        },
+        { status: 403 }
+      )
+    )
+
+    const response = await GET(
+      request({
+        client_id: 'client-1',
+        response_type: 'code',
+        redirect_uri: redirectUri,
+        state: 'state-1',
+      })
+    )
+    const location = new URL(response.headers.get('location') ?? '')
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(`${location.origin}${location.pathname}`).toBe(redirectUri)
+    expect(location.searchParams.get('error')).toBe('access_denied')
+    expect(location.searchParams.get('error_description')).toBe(
+      'OAuth apps are restricted for your account.'
+    )
+    expect(location.searchParams.get('state')).toBe('state-1')
+    expect(location.searchParams.get('iss')).toBe(`${BASE_URL}/api/auth`)
+    expect(location.searchParams.has('code')).toBe(false)
+    expect(mocks.getSession).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing client', undefined],
+    ['disabled client', { disabled: true, redirectUris: ['https://client.example/callback'] }],
+    ['unregistered callback', { disabled: false, redirectUris: ['https://client.example/other'] }],
+  ])('does not redirect a permission denial for a %s', async (_case, client) => {
+    if (client) queueTableRows(schemaMock.oauthClient, [client])
+    mocks.betterAuthGET.mockResolvedValue(
+      Response.json({ error: 'access_denied' }, { status: 403 })
+    )
+
+    const response = await GET(
+      request({
+        client_id: 'client-1',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        state: 'state-1',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.headers.has('location')).toBe(false)
+    await expect(response.json()).resolves.toEqual({
+      error: 'access_denied',
+      error_description: 'Access denied.',
+    })
+  })
+
+  it.each([
+    [403, '{"error":"invalid_request"}'],
+    [403, '<html>Forbidden</html>'],
+    [400, '{"error":"access_denied"}'],
+  ])('preserves delegated status %s and body %s', async (status, body) => {
+    mocks.betterAuthGET.mockResolvedValue(new Response(body, { status }))
+
+    const response = await GET(
       request({
         client_id: 'client-1',
         response_type: 'code',
         redirect_uri: 'https://client.example/callback',
       })
-    expect((await GET(providerRequest())).status).toBe(302)
-    mocks.betterAuthGET.mockClear()
+    )
 
-    mocks.oauthEnabled.mockResolvedValue(false)
-    const disabled = await GET(providerRequest())
-    expect(disabled.status).toBe(404)
-    expect(disabled.headers.get('cache-control')).toBe('no-store')
+    expect(response.status).toBe(status)
+    expect(response.headers.has('location')).toBe(false)
+    await expect(response.text()).resolves.toBe(body)
+  })
+
+  it('requires authentication for provider authorization', async () => {
+    setEnvFlags({ isAuthDisabled: true })
+    const response = await GET(
+      request({
+        client_id: 'client-1',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+      })
+    )
+    expect(response.status).toBe(404)
+    expect(response.headers.get('cache-control')).toBe('no-store')
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
     expect(mocks.getSession).not.toHaveBeenCalled()
+  })
 
-    mocks.oauthEnabled.mockResolvedValue(true)
-    expect((await GET(providerRequest())).status).toBe(302)
-    expect(mocks.betterAuthGET).toHaveBeenCalledOnce()
+  it('preserves connector authorization when user authentication is disabled', async () => {
+    setEnvFlags({ isAuthDisabled: true })
+    const response = await GET(request({ draftId: 'draft-1' }))
+    expect(response.status).toBe(307)
+    expect(mocks.launchConnection).toHaveBeenCalled()
+    expect(mocks.linkAccount).toHaveBeenCalled()
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
 
   it('keeps an OAuth request missing client_id out of the connector flow', async () => {
@@ -318,9 +410,9 @@ describe('OAuth2 authorize route', () => {
   })
 
   it.each([true, false])(
-    'preserves legacy connector linking when the provider is enabled=%s',
-    async (enabled) => {
-      mocks.oauthEnabled.mockResolvedValue(enabled)
+    'preserves legacy connector linking with authentication disabled=%s',
+    async (authDisabled) => {
+      setEnvFlags({ isAuthDisabled: authDisabled })
       const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
 
       expect(response.headers.get('location')).toBe('https://provider.example/authorize')
@@ -338,7 +430,6 @@ describe('OAuth2 authorize route', () => {
           }),
         })
       )
-      expect(mocks.oauthEnabled).not.toHaveBeenCalled()
     }
   )
 

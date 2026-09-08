@@ -253,24 +253,8 @@ export async function requireCliAccessAllowed(
 }
 
 /**
- * Refuses a personal API key the caller's permission group withholds.
- *
- * Separate from {@link requireCapability} because it is not a property of the
- * operation: no operation opts into it, and every operation a personal key can
- * reach is subject to it.
- *
- * Exported for the one authorization path that does not run through
- * {@link authorizeWorkspaceOperation} — the billing reads, which resolve their
- * own workspace scope. One copy, or the same key the funnel refuses keeps
- * working somewhere.
- */
-/**
- * Both capability gates a user-held credential passes, in one call.
- *
- * The funnel runs these as part of its sequence, but three surfaces authorize
- * themselves — billing reads, audit-log reads, and `/api/v2/meta` — and each
- * has to repeat them. Repeating two separate calls is how one of them ends up
- * with only the first: `cli.use` was missing from all three until this existed.
+ * Enforces credential-wide restrictions after current workspace membership is established.
+ * Shared by the authorization funnel and workspace billing/chat reads.
  */
 export async function requireUserCredentialCapabilities(
   principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
@@ -278,6 +262,15 @@ export async function requireUserCredentialCapabilities(
 ): Promise<void> {
   await requirePersonalApiKeysAllowed(principal.userId, context)
   if (principal.kind === 'oauth_access_token') {
+    /** permission-group-enforced: oauth_apps.use — applies to every OAuth principal after the role check. */
+    if (context.workspaceOrganizationId !== null) {
+      await assertWorkspaceCapability(
+        principal.userId,
+        context.workspaceId,
+        'oauth_apps.use',
+        context.workspaceOrganizationId
+      )
+    }
     await requireCliAccessAllowed(principal.clientId, principal.userId, context)
   }
 }

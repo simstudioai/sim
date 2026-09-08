@@ -6,9 +6,9 @@ import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
 import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
@@ -73,7 +73,7 @@ function isOAuthProviderAuthorize(request: NextRequest): boolean {
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isOAuthProviderAuthorize(request)) {
-    if (!(await isOAuthProviderEnabled())) {
+    if (isAuthDisabled) {
       return NextResponse.json(
         { error: 'OAuth provider is not enabled' },
         { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
@@ -135,7 +135,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (pkceError) {
       return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
     }
-    return betterAuthGET(request)
+    const response = await betterAuthGET(request)
+    if (response.status === 403) {
+      const body: unknown = await response
+        .clone()
+        .json()
+        .catch(() => null)
+      if (body && typeof body === 'object' && 'error' in body && body.error === 'access_denied') {
+        const description =
+          'error_description' in body && typeof body.error_description === 'string'
+            ? body.error_description
+            : 'Access denied.'
+        return oauthAuthorizationErrorResponse(request, 'access_denied', description)
+      }
+    }
+    return response
   }
 
   const baseUrl = getBaseUrl()

@@ -55,7 +55,6 @@ import {
   OAUTH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
@@ -893,13 +892,13 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      /** Keep direct plugin calls behind the runtime gate without blocking connector OAuth. */
+      /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
       if (
         ((ctx.path.startsWith('/oauth2/') &&
           ctx.path !== '/oauth2/link' &&
           !ctx.path.startsWith('/oauth2/callback/')) ||
           ctx.path === '/.well-known/oauth-authorization-server') &&
-        !(await isOAuthProviderEnabled())
+        isAuthDisabled
       ) {
         throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
       }
@@ -932,27 +931,34 @@ export const auth = betterAuth({
       }
 
       /**
-       * A user consenting to the Sim CLI is the one moment a human is present
-       * in a CLI login, so `cli.use` is checked here to refuse the grant
-       * outright. `requireCliAccessAllowed` checks it again on every bearer
-       * request, because a consent already on file lets later authorizations
-       * skip this endpoint entirely — neither check makes the other redundant.
-       *
-       * The client id is read from the signed authorize query the consent page
-       * forwards. The gate fires if `sim-cli` appears anywhere in it, which is
-       * strictly more conservative than the plugin's own first-value read.
-       *
-       * permission-group-enforced: cli.use — gates OAuth consent for the
-       * first-party CLI client, which owns no workspace resource for the
-       * authorization funnel to authorize.
+       * permission-group-enforced: oauth_apps.use, cli.use — account-level
+       * authorization uses the default group; token issuance rechecks it later.
+       * Explicit denial remains available even when access has been withheld.
        */
-      if (ctx.path === '/oauth2/consent') {
-        if (consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)) {
-          const session = await getSessionFromCtx(ctx)
-          const userId = session?.user?.id
-          if (userId && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
-            logger.warn('CLI OAuth consent blocked by permission group', { userId })
-            throw new APIError('FORBIDDEN', { message: capabilityRefusal('cli.use') })
+      if (
+        ctx.path === '/oauth2/authorize' ||
+        (ctx.path === '/oauth2/consent' && ctx.body?.accept === true)
+      ) {
+        const session = await getSessionFromCtx(ctx)
+        const userId = session?.user?.id
+        if (userId) {
+          if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('oauth_apps.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('oauth_apps.use'),
+            })
+          }
+          const isCli =
+            ctx.path === '/oauth2/authorize'
+              ? ctx.query?.client_id === SIM_CLI_CLIENT_ID
+              : consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)
+          if (isCli && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('cli.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('cli.use'),
+            })
           }
         }
       }
@@ -1270,9 +1276,6 @@ export const auth = betterAuth({
      * ID-token semantics out of the advertised protocol. Clients are DB rows
      * only (the CLI is seeded by migration, the rest are admin-created), so
      * both registration paths stay closed.
-     *
-     * Register once; request-time gates let AppConfig change availability
-     * without a restart.
      */
     ...(!isAuthDisabled
       ? [

@@ -7,8 +7,8 @@ import {
   oauthRevocationSuccessResponse,
   parseOAuthFormRequest,
 } from '@/lib/auth/oauth-protocol-request'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { revokeOAuthToken } from '@/lib/auth/oauth-token-family'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -24,7 +24,7 @@ const REVOKE_RATE_LIMIT: TokenBucketConfig = {
 
 /** Revokes one opaque access token or the complete family named by a refresh token. */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  if (!(await isOAuthProviderEnabled())) {
+  if (isAuthDisabled) {
     return NextResponse.json(
       { error: 'OAuth provider is not enabled' },
       { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }

@@ -23,6 +23,8 @@ import {
   OAUTH_TOKEN_FAMILY_MAX_GENERATION,
 } from '@/lib/auth/oauth-provider'
 import { env } from '@/lib/core/config/env'
+import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
 const logger = createLogger('OAuthTokenFamily')
 
@@ -266,6 +268,10 @@ export async function rotateOAuthRefreshToken(
     return protocolError('invalid_grant', 'Refresh token is invalid.')
   }
 
+  const oauthAccessWithheld = await isCapabilityWithheldForUser(
+    provisionalToken.userId,
+    'oauth_apps.use'
+  )
   const nextRefreshBody = generateSecureToken(32)
   const nextAccessBody = generateSecureToken(32)
   const nextRefreshId = generateId()
@@ -381,6 +387,11 @@ export async function rotateOAuthRefreshToken(
     if (family.currentGeneration >= OAUTH_TOKEN_FAMILY_MAX_GENERATION) {
       await tx.delete(oauthTokenFamily).where(eq(oauthTokenFamily.id, family.id))
       return protocolError('invalid_grant', 'Refresh token grant reached its rotation limit.')
+    }
+
+    /** permission-group-enforced: oauth_apps.use — refresh cannot renew a withheld account-level grant. */
+    if (oauthAccessWithheld) {
+      return protocolError('invalid_grant', capabilityRefusal('oauth_apps.use'))
     }
 
     const scopes = validateScopes(currentToken.scopes, lockedClient.scopes, input.requestedScopes)

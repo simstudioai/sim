@@ -101,16 +101,17 @@ describe('assertOperationCapability', () => {
     )
   })
 
-  it('refuses the principal-wide capability the funnel applies to every operation', () => {
-    expect(() =>
-      defineOperation({
-        id: 'meta.principal_wide',
-        // @ts-expect-error personal_api_key.use is not an OperationDeclarableCapability
-        capability: 'personal_api_key.use',
-        principalKinds: ['session'],
-      })
-    ).toThrow(
-      "Operation meta.principal_wide declares principal-wide capability personal_api_key.use; the authorization funnel's personal-key branch already applies it to every operation"
-    )
-  })
+  it.each(['personal_api_key.use', 'oauth_apps.use'] as const)(
+    'refuses principal-wide capability %s as an operation capability',
+    (capability) => {
+      expect(() =>
+        defineOperation({
+          id: 'meta.principal_wide',
+          // @ts-expect-error principal-wide capabilities are not OperationDeclarableCapability
+          capability,
+          principalKinds: ['session'],
+        })
+      ).toThrow(`Operation meta.principal_wide declares principal-wide capability ${capability}`)
+    }
+  )
 })

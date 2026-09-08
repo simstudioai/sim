@@ -4,7 +4,6 @@ import { sharedCredentialGroupOAuthCallbackContract } from '@/lib/api/contracts/
 import { parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isCredentialGroupOAuthState } from '@/lib/credential-groups/oauth-state'
@@ -187,7 +186,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  if (OAUTH_PROVIDER_PROTOCOL_POST_PATHS.has(path) && !(await isOAuthProviderEnabled())) {
+  if (OAUTH_PROVIDER_PROTOCOL_POST_PATHS.has(path) && isAuthDisabled) {
     return NextResponse.json(
       { error: 'OAuth provider is not enabled' },
       { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }

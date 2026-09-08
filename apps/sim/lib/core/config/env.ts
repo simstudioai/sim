@@ -621,8 +621,6 @@ export const env = createEnv({
     /** Comma-separated proxy IPs/CIDRs skipped while resolving the forwarded client chain. */
     AUTH_TRUSTED_PROXIES:                  z.string().optional(),
 
-    /** Fallback for the global oauth-provider feature flag when AppConfig has no document. */
-    OAUTH_PROVIDER_ENABLED:                z.boolean().optional(),
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
