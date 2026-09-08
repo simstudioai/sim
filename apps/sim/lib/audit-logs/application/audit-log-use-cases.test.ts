@@ -82,6 +82,24 @@ describe('audit-log application use cases', () => {
     expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
   })
 
+  it('rejects an OAuth grant without API access before organization membership is loaded', async () => {
+    const principal = {
+      kind: 'oauth_access_token',
+      userId: 'admin-1',
+      clientId: 'client-1',
+      tokenId: 'token-1',
+      scopes: ['offline_access'],
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    } as const
+
+    await expect(listAuditLogs.execute({ principal, input: listInput })).rejects.toMatchObject({
+      requiredScope: 'api:read',
+    })
+    expect(mocks.resolveAccess).not.toHaveBeenCalled()
+    expect(mocks.resolveDefaultOrganization).not.toHaveBeenCalled()
+    expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
+  })
+
   it('authorizes the requested organization and scopes the query canonically', async () => {
     await expect(
       listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })

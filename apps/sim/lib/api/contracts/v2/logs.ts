@@ -542,7 +542,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      */
     triggers: v2CommaListSchema(
       'triggers',
-      'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.',
+      'Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values.',
       V2_LOG_TRIGGERS_MAX
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
@@ -550,7 +550,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     workflowName: v2WorkflowNameFilterSchema.optional(),
     includeJobRuns: booleanQueryFlagSchema
       .describe(
-        'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.'
+        'Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`.'
       )
       .optional()
       .default(false),

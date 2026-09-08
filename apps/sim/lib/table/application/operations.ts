@@ -1,8 +1,14 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
 import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const COPILOT_PRINCIPAL_POLICY = {
@@ -11,18 +17,31 @@ const COPILOT_PRINCIPAL_POLICY = {
 } as const
 
 const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 
 const INTERNAL_EXECUTOR_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['executor'],
 } as const
 
 function readOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'tables.use',
@@ -33,6 +52,7 @@ function readOperation<const Id extends string>(id: Id) {
 function writeOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'tables.use',
@@ -55,6 +75,7 @@ function toolWriteOperation<const Id extends string>(
 ) {
   return defineWorkspaceOperation({
     id,
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability,
@@ -65,6 +86,7 @@ function toolWriteOperation<const Id extends string>(
 function toolReadOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'tables.use',
@@ -74,10 +96,12 @@ function toolReadOperation<const Id extends string>(id: Id) {
 
 function internalExecutorReadOperation<const Id extends string>(
   id: Id,
-  capability: OperationDeclarableCapability
+  capability: OperationDeclarableCapability,
+  oauthScope: 'api:read' | 'api:write'
 ) {
   return defineWorkspaceOperation({
     id,
+    oauthScope,
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability,
@@ -88,6 +112,7 @@ function internalExecutorReadOperation<const Id extends string>(
 function internalExecutorWriteOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'tables.use',
@@ -177,7 +202,7 @@ export const tableOperations = {
     'tables.create'
   ),
   importWorkspaceFile: delegatedWriteOperation('tables.imports.workspace_file', 'tables.use'),
-  readImport: internalExecutorReadOperation('tables.imports.read', 'tables.use'),
+  readImport: internalExecutorReadOperation('tables.imports.read', 'tables.use', 'api:read'),
   createImportParts: internalExecutorWriteOperation('tables.imports.create_parts'),
   completeImport: internalExecutorWriteOperation('tables.imports.complete'),
   cancelImport: internalExecutorWriteOperation('tables.imports.cancel'),
@@ -187,10 +212,18 @@ export const tableOperations = {
    * rather than performing it — gating either would strand a member with an
    * export they can neither watch nor stop after the group changed.
    */
-  createExport: internalExecutorReadOperation('tables.exports.create', 'tables.export'),
-  readExport: internalExecutorReadOperation('tables.exports.read', 'tables.use'),
-  cancelExport: internalExecutorReadOperation('tables.exports.cancel', 'tables.use'),
-  downloadExport: internalExecutorReadOperation('tables.exports.download', 'tables.export'),
+  createExport: internalExecutorReadOperation(
+    'tables.exports.create',
+    'tables.export',
+    'api:write'
+  ),
+  readExport: internalExecutorReadOperation('tables.exports.read', 'tables.use', 'api:read'),
+  cancelExport: internalExecutorReadOperation('tables.exports.cancel', 'tables.use', 'api:write'),
+  downloadExport: internalExecutorReadOperation(
+    'tables.exports.download',
+    'tables.export',
+    'api:read'
+  ),
 } as const
 
 export type TableOperation = (typeof tableOperations)[keyof typeof tableOperations]

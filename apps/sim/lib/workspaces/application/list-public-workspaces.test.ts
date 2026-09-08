@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,12 +21,15 @@ vi.mock('@/lib/workspaces/public-queries', () => ({
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadContext,
 }))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { listPublicWorkspaces } from '@/lib/workspaces/application/list-public-workspaces'
 
 const workspace = (id: string, name: string, allowPersonalApiKeys: boolean, day: number) => ({
   id,
   name,
+  organizationId: 'org-1',
   allowPersonalApiKeys,
   createdAt: new Date(`2026-01-${String(day).padStart(2, '0')}T00:00:00Z`),
   updatedAt: new Date(`2026-02-${String(day).padStart(2, '0')}T00:00:00Z`),
@@ -34,6 +38,7 @@ const workspace = (id: string, name: string, allowPersonalApiKeys: boolean, day:
 describe('listPublicWorkspaces', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
     mocks.getDetail.mockImplementation(async (id: string) => ({
       id,
       name: id,
@@ -119,6 +124,70 @@ describe('listPublicWorkspaces', () => {
     expect(mocks.getDetails).toHaveBeenCalledWith(['workspace-c', 'workspace-b'])
   })
 
+  it('filters workspace-specific personal-credential restrictions before pagination', async () => {
+    mocks.listAccessible.mockResolvedValue([
+      {
+        workspace: workspace('workspace-a', 'Alpha', true, 1),
+        permissionType: 'read',
+        viaOrgAdmin: false,
+      },
+      {
+        workspace: workspace('workspace-b', 'Beta', true, 2),
+        permissionType: 'read',
+        viaOrgAdmin: false,
+      },
+    ])
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockImplementation(
+      async (_userId: string, workspaceId: string) =>
+        workspaceId === 'workspace-a'
+          ? { ...DEFAULT_PERMISSION_GROUP_CONFIG, disablePersonalApiKeys: true }
+          : DEFAULT_PERMISSION_GROUP_CONFIG
+    )
+
+    const result = await listPublicWorkspaces.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: { sortBy: 'name', sortOrder: 'asc', limit: 1, offset: 0 },
+    })
+
+    expect(result.workspaces.map(({ id }) => id)).toEqual(['workspace-b'])
+    expect(result.hasMore).toBe(false)
+  })
+
+  it('filters the Sim CLI by each workspace cli capability', async () => {
+    mocks.listAccessible.mockResolvedValue([
+      {
+        workspace: workspace('workspace-a', 'Alpha', true, 1),
+        permissionType: 'read',
+        viaOrgAdmin: false,
+      },
+      {
+        workspace: workspace('workspace-b', 'Beta', true, 2),
+        permissionType: 'read',
+        viaOrgAdmin: false,
+      },
+    ])
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockImplementation(
+      async (_userId: string, workspaceId: string) =>
+        workspaceId === 'workspace-a'
+          ? { ...DEFAULT_PERMISSION_GROUP_CONFIG, disableCliAccess: true }
+          : DEFAULT_PERMISSION_GROUP_CONFIG
+    )
+
+    const result = await listPublicWorkspaces.execute({
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        clientId: 'sim-cli',
+        tokenId: 'token-1',
+        scopes: ['api:read'],
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      input: { sortBy: 'name', sortOrder: 'asc', limit: 10, offset: 0 },
+    })
+
+    expect(result.workspaces.map(({ id }) => id)).toEqual(['workspace-b'])
+  })
+
   it('fails when an accessible workspace disappears during batch hydration', async () => {
     mocks.listAccessible.mockResolvedValue([
       {
@@ -131,7 +200,11 @@ describe('listPublicWorkspaces', () => {
 
     await expect(
       listPublicWorkspaces.execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: {
+          kind: 'personal_api_key',
+          userId: 'user-1',
+          keyId: 'key-1',
+        },
         input: { sortBy: 'name', sortOrder: 'asc', limit: 10, offset: 0 },
       })
     ).rejects.toThrow('Accessible workspace workspace-a disappeared during listing')

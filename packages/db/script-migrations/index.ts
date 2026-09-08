@@ -1,3 +1,4 @@
+import { reconcileOAuthProviderLifecycleMigration } from '@sim/db/script-migrations/0012_reconcile_oauth_provider_lifecycle'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -31,6 +32,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   backfillWelResidualCostTotalMigration,
   backfillCredentialGroupResourcePolicies,
   remapLegacyKnowledgeConnectorCredentialsMigration,
+  reconcileOAuthProviderLifecycleMigration,
 ]
 
 /**

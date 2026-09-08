@@ -40,6 +40,14 @@ export const BILLING_CALLBACK_OUTCOME = {
     code: 'BILLING_CONTEXT_MISMATCH',
     message: 'Idempotency key is already bound to a different billing context',
   },
+  billingPeriodElapsed: {
+    code: 'BILLING_PERIOD_ELAPSED',
+    message: 'Billing period has elapsed; reconciliation required',
+  },
+  billingUserNotFound: {
+    code: 'BILLING_USER_NOT_FOUND',
+    message: 'Billing user no longer exists; reconciliation required',
+  },
   duplicateBillingEvent: {
     code: 'DUPLICATE_BILLING_EVENT',
     message: 'Duplicate request: cumulative cost already recorded',

@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import { v2CompleteKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v2/knowledge'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -22,7 +23,7 @@ export const POST = defineV2JsonRoute({
   }),
   useCase: completeKnowledgeDocumentUpload,
   onSuccess: ({ principal, result }) => {
-    if (result.value.created && principal.kind === 'personal_api_key') {
+    if (result.value.created && isUserCredentialPrincipal(principal)) {
       captureServerEvent(
         principal.userId,
         'knowledge_base_document_uploaded',

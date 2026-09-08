@@ -4,11 +4,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { AnyApiRouteContract, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { type ParsedRequest, parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
-import { isScimEnabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ScimConnectionAuthenticator } from '@/ee/scim/lib/authenticate'
 import { scimBaseUrl } from '@/ee/scim/lib/base-url'
+import { isScimDeploymentEnabled } from '@/ee/scim/lib/entitlement'
 import {
   SCIM_ACCEPTED_MEDIA_TYPES,
   SCIM_MAX_BODY_BYTES,
@@ -154,7 +154,7 @@ export function createScimRouteBuilder(dependencies: ScimRouteDependencies) {
 
         try {
           /** A deployment without the feature exposes no provisioning surface at all. */
-          if (!isScimEnabled) throw new ScimError(404, undefined, 'Not found')
+          if (!isScimDeploymentEnabled()) throw new ScimError(404, undefined, 'Not found')
           if (request.method !== options.contract.method) {
             throw new ScimError(405, undefined, `${request.method} is not supported here`)
           }
@@ -287,7 +287,7 @@ export function defineScimDiscoveryRoute(
     async (request, context) => {
       try {
         /** A deployment without the feature exposes no provisioning surface, discovery included. */
-        if (!isScimEnabled) throw new ScimError(404, undefined, 'Not found')
+        if (!isScimDeploymentEnabled()) throw new ScimError(404, undefined, 'Not found')
         if (request.method !== 'GET') {
           throw new ScimError(405, undefined, `${request.method} is not supported here`)
         }

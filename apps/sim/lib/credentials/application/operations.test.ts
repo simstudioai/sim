@@ -15,7 +15,7 @@ describe('credential operations', () => {
       minimumRole: 'read',
       minimumCredentialRole: 'admin',
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key', 'delegated'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
       delegatedServices: ['copilot'],
     })
     expect(Object.isFrozen(credentialOperations.delete)).toBe(true)
@@ -32,7 +32,7 @@ describe('credential operations', () => {
       minimumRole: 'read',
       minimumCredentialRole: 'admin',
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key', 'delegated'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
       delegatedServices: ['copilot'],
     })
     expect(credentialOperations.update.principalKinds).not.toContain('workspace_api_key')

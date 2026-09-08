@@ -13,7 +13,7 @@ Directory provisioning connects your identity provider to Sim over SCIM 2.0. You
 It pairs with [SSO](/platform/enterprise/sso). SSO proves who someone is when they sign in. Directory provisioning decides who exists and what they can reach, before and after that.
 
 <Callout type="info">
-  Enterprise plans. Requires [SSO](/platform/enterprise/sso) to be enabled, because provisioning is configured from the SSO settings page, and at least one [verified domain](/platform/enterprise/verified-domains) for your organization. Self-hosted deployments turn it on with `SCIM_ENABLED=true` (the server) and `NEXT_PUBLIC_SCIM_ENABLED=true` (the settings page), alongside the [SSO variables](/platform/enterprise/sso#self-hosted-setup).
+  Included with Enterprise plans. Requires [SSO](/platform/enterprise/sso) to be enabled, because provisioning is configured from the SSO settings page, and at least one [verified domain](/platform/enterprise/verified-domains) for your organization. Self-hosted deployments get it with the other enterprise features through `ENTERPRISE_ENABLED=true`, or turn just this feature on or off with `SCIM_ENABLED` and `NEXT_PUBLIC_SCIM_ENABLED`, alongside the [SSO variables](/platform/enterprise/sso#self-hosted-setup).
 </Callout>
 
 ## What it does

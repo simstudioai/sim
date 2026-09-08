@@ -19,4 +19,4 @@ Production deployment requires an active Enterprise subscription.
 
 Enterprise features are imported directly throughout the codebase. The `ee/` directory
 is required at build time. Feature visibility is controlled at runtime via environment
-variables (e.g., `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `SCIM_ENABLED` with `NEXT_PUBLIC_SCIM_ENABLED`).
+variables (e.g., `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED`), or all at once with `ENTERPRISE_ENABLED`.

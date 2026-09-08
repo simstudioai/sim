@@ -49,6 +49,7 @@ interface ThresholdBillingPeriod {
 }
 
 export type ThresholdSettlementErrorCode =
+  | 'billing_period_elapsed'
   | 'billing_period_mismatch'
   | 'concurrent_state_change'
   | 'provider_failure'
@@ -74,7 +75,9 @@ export type ThresholdSettlementOutcome =
     }
 
 export class ThresholdSettlementError extends Error {
-  readonly retryable = true
+  get retryable(): boolean {
+    return this.code !== 'billing_period_elapsed'
+  }
 
   constructor(
     readonly code: ThresholdSettlementErrorCode,
@@ -188,7 +191,9 @@ function assertExpectedBillingPeriod(
       resolvedPeriodEnd: periodEnd.toISOString(),
     })
     throw new ThresholdSettlementError(
-      'billing_period_mismatch',
+      expected.end.getTime() <= periodStart.getTime()
+        ? 'billing_period_elapsed'
+        : 'billing_period_mismatch',
       'Frozen billing period is no longer the active subscription period'
     )
   }
@@ -206,7 +211,8 @@ function normalizeSettlementError(error: unknown, options: ThresholdBillingOptio
 function shouldThrowSettlementError(error: unknown, options: ThresholdBillingOptions): boolean {
   return (
     options.onError === 'throw' ||
-    (error instanceof ThresholdSettlementError && error.code === 'billing_period_mismatch')
+    (error instanceof ThresholdSettlementError &&
+      (error.code === 'billing_period_mismatch' || error.code === 'billing_period_elapsed'))
   )
 }
 

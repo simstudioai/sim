@@ -1,10 +1,11 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
-const HUMAN_API_PRINCIPAL_KINDS = ['session', 'personal_api_key'] as const
+const HUMAN_API_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'oauth_access_token'] as const
 
 export const secretOperations = {
   list: defineWorkspaceOperation({
     id: 'secrets.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
@@ -12,6 +13,7 @@ export const secretOperations = {
   }),
   set: defineWorkspaceOperation({
     id: 'secrets.set',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
@@ -19,6 +21,7 @@ export const secretOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'secrets.delete',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
@@ -30,6 +33,7 @@ export const secretOperations = {
    */
   usage: defineWorkspaceOperation({
     id: 'secrets.usage',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
@@ -42,6 +46,7 @@ export const secretOperations = {
    */
   references: defineWorkspaceOperation({
     id: 'secrets.references',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',

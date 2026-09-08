@@ -297,3 +297,85 @@ describe('auth catch-all route SSO provider mutations', () => {
     expect(await res.json()).toEqual({ data: { url: 'https://idp.example.com' } })
   })
 })
+
+describe('OAuth provider client endpoints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    handlerMocks.betterAuthPOST.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    )
+  })
+
+  it.each(['.well-known/openid-configuration', 'oauth2/end-session', 'oauth2/userinfo'])(
+    'does not expose the OIDC-only %s endpoint',
+    async (path) => {
+      const getResponse = await GET(
+        createMockRequest('GET', undefined, {}, `http://localhost:3000/api/auth/${path}`)
+      )
+      const postResponse = await POST(
+        createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+      )
+
+      expect(getResponse.status).toBe(404)
+      expect(postResponse.status).toBe(404)
+      expect(getResponse.headers.get('cache-control')).toBe('no-store')
+      expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
+      expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+    }
+  )
+
+  /**
+   * The plugin gates client creation on a session alone, so without this any
+   * signed-in user could register a client with arbitrary redirect URIs and
+   * the full scope set. Nothing must reach the plugin.
+   */
+  it.each([
+    'oauth2/create-client',
+    'oauth2/update-client',
+    'oauth2/delete-client',
+    'oauth2/client/rotate-secret',
+    'oauth2/register',
+    'oauth2/introspect',
+    'oauth2/token',
+    'oauth2/revoke',
+    'oauth2/anything-a-future-version-adds',
+  ])('refuses POST /%s without reaching Better Auth', async (path) => {
+    const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+
+    const res = await POST(req)
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'oauth2/consent',
+    'oauth2/continue',
+    'oauth2/public-client-prelogin',
+    'oauth2/callback/jira',
+  ])('lets the protocol endpoint %s through', async (path) => {
+    const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+
+    await POST(req)
+
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([true, false])(
+    'preserves authenticated connector linking when the OAuth provider is enabled=%s',
+    async (enabled) => {
+      setEnvFlags({ isOAuthProviderEnabled: enabled })
+      const request = createMockRequest(
+        'POST',
+        { providerId: 'google-email', callbackURL: 'http://localhost:3000/workspace' },
+        { cookie: 'better-auth.session_token=existing-session' },
+        'http://localhost:3000/api/auth/oauth2/link'
+      )
+
+      const response = await POST(request)
+
+      expect(response.status).toBe(200)
+      expect(handlerMocks.betterAuthPOST).toHaveBeenCalledExactlyOnceWith(request)
+    }
+  )
+})

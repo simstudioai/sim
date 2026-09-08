@@ -42,6 +42,7 @@
     "check:actorless-executor-operations": "bun run scripts/check-actorless-executor-operations.ts",
     "check:permission-group-enforcement": "bun run scripts/check-permission-group-enforcement.ts",
     "check:capability-subject": "bun run scripts/check-capability-subject.ts",
+    "check:principal-kind-parity": "bun run scripts/check-principal-kind-parity.ts",
     "check:application-graph": "bun run scripts/check-application-graph.ts",
     "generate:block-successors": "bun run scripts/generate-block-successors.ts",
     "check:block-successors": "bun run scripts/generate-block-successors.ts --check",

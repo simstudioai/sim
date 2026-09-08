@@ -20,8 +20,8 @@ describe('isScimEntitledForOrganization', () => {
     mockEnterprisePlan.mockResolvedValue(true)
   })
 
-  it('is false whenever the deployment flag is off, whatever the plan says', async () => {
-    setEnvFlags({ isScimEnabled: false, isHosted: true })
+  it('is off on a self-hosted deployment that has not turned it on', async () => {
+    setEnvFlags({ isScimEnabled: false, isHosted: false })
     await expect(isScimEntitledForOrganization('org-1')).resolves.toBe(false)
     expect(mockEnterprisePlan).not.toHaveBeenCalled()
   })
@@ -33,8 +33,8 @@ describe('isScimEntitledForOrganization', () => {
     expect(mockEnterprisePlan).not.toHaveBeenCalled()
   })
 
-  it('requires the enterprise plan on the hosted product', async () => {
-    setEnvFlags({ isScimEnabled: true, isHosted: true })
+  it('ships with the enterprise plan on the hosted product, with nothing to switch on', async () => {
+    setEnvFlags({ isScimEnabled: false, isHosted: true })
     mockEnterprisePlan.mockResolvedValue(false)
     await expect(isScimEntitledForOrganization('org-1')).resolves.toBe(false)
     mockEnterprisePlan.mockResolvedValue(true)

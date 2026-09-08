@@ -9,6 +9,7 @@ import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const logger = createLogger('V2FilesBulkDownloadAPI')
 
@@ -43,7 +44,7 @@ export const GET = defineV2BinaryRoute({
   contract: v2BulkDownloadFilesContract,
   auth: v2ApiKeyAuth,
   headSafe: false,
-  operation: downloadWorkspaceFileItems.operation,
+  operation: fileOperations.download,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ query }) => ({
@@ -58,6 +59,7 @@ export const GET = defineV2BinaryRoute({
       filesToZip.map((file) => ({
         name: file.name,
         folderPath: file.folderId ? folderPaths.get(file.folderId) : null,
+        contentType: file.type,
       }))
     )
     const archive = new ZipArchive({ store: true })

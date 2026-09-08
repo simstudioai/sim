@@ -65,6 +65,7 @@
     "@aws-sdk/s3-request-presigner": "3.1117.0",
     "@azure/communication-email": "1.1.0",
     "@azure/storage-blob": "12.27.0",
+    "@better-auth/oauth-provider": "1.6.27",
     "@better-auth/sso": "1.6.27",
     "@better-auth/stripe": "1.6.27",
     "@browserbasehq/stagehand": "^3.2.1",

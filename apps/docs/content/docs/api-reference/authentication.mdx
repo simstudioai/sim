@@ -1,12 +1,14 @@
 ---
 title: Authentication
-description: API key types, generation, and how to authenticate requests
+description: Authenticate with API keys or delegated OAuth access tokens
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-To access the Sim API, you need an API key. Sim supports two types of API keys — **personal keys** and **workspace keys** — each with different billing and access behaviors.
+The Sim API accepts API keys and, when enabled by your deployment, OAuth access tokens. API keys support automation and the SDKs. OAuth lets the CLI and registered applications act on your behalf with permissions you approve.
+
+Sim supports two types of API keys — **personal keys** and **workspace keys** — each with different billing and access behaviors.
 
 ## Key Types
 
@@ -86,6 +88,27 @@ API keys authenticate access to:
 - **Logs API** — query workflow execution logs and metrics
 - **MCP servers** — authenticate connections to deployed MCP servers
 - **SDKs** — the [Python](/api-reference/python) and [TypeScript](/api-reference/typescript) SDKs use API keys for all operations
+
+## OAuth access tokens
+
+Use `sim login` to authorize the CLI in your browser, or `sim login --read-only` to request read access. The CLI stores the login locally and refreshes access tokens automatically. See [CLI authentication](/cli/authentication) for profiles, sign-in, and sign-out.
+
+Registered OAuth applications send access tokens in the `Authorization` header:
+
+```bash
+curl https://www.sim.ai/api/v2/workspaces \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+| Scope | Access |
+| --- | --- |
+| `api:read` | Read operations, including searches sent as POST requests |
+| `api:write` | Includes `api:read`, plus mutations and execution, including operations that can start external work |
+| `offline_access` | Refresh tokens for continued access after the access token expires |
+
+Scopes limit what an application may do; your current workspace membership and role still apply. Each endpoint documents its required scope. Some GET endpoints that perform external discovery require `api:write`, so HTTP method alone does not determine the permission.
+
+Manage grants in **Settings** → **Authorized apps**. Revoking an application signs out all of its logins. `sim logout` revokes the current CLI login and removes it from your machine. The Python and TypeScript SDKs currently use API keys; they do not manage OAuth sign-in or refresh tokens.
 
 ## Security
 

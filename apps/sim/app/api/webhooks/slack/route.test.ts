@@ -4,12 +4,19 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolvedWebhookTarget } =
-  vi.hoisted(() => ({
-    mockParseWebhookBody: vi.fn(),
-    mockFindWebhooksByRoutingKey: vi.fn(),
-    mockDispatchResolvedWebhookTarget: vi.fn(),
-  }))
+const {
+  mockParseWebhookBody,
+  mockFindWebhooksByRoutingKey,
+  mockDispatchResolvedWebhookTarget,
+  mockHandleSlackChallenge,
+  mockVerifySlackRequestSignature,
+} = vi.hoisted(() => ({
+  mockParseWebhookBody: vi.fn(),
+  mockFindWebhooksByRoutingKey: vi.fn(),
+  mockDispatchResolvedWebhookTarget: vi.fn(),
+  mockHandleSlackChallenge: vi.fn(),
+  mockVerifySlackRequestSignature: vi.fn(),
+}))
 
 vi.mock('@/lib/core/admission/gate', () => ({
   tryAdmit: () => ({ release: vi.fn() }),
@@ -23,8 +30,8 @@ vi.mock('@/lib/webhooks/processor', () => ({
 }))
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
-  handleSlackChallenge: () => null,
-  verifySlackRequestSignature: () => null,
+  handleSlackChallenge: mockHandleSlackChallenge,
+  verifySlackRequestSignature: mockVerifySlackRequestSignature,
   resolveSlackEventKey: () => null,
 }))
 
@@ -60,6 +67,8 @@ describe('Slack app webhook route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnv({ SLACK_SIGNING_SECRET: 'test-secret' })
+    mockHandleSlackChallenge.mockReturnValue(null)
+    mockVerifySlackRequestSignature.mockReturnValue(null)
     mockFindWebhooksByRoutingKey.mockResolvedValue([webhook('wh1')])
     mockDispatchResolvedWebhookTarget.mockResolvedValue({
       outcome: 'queued',
@@ -70,7 +79,61 @@ describe('Slack app webhook route', () => {
 
   it('dispatches each webhook resolved for the event team', async () => {
     await run(messageBody)
+    expect(mockVerifySlackRequestSignature).toHaveBeenCalledWith(
+      'test-secret',
+      expect.anything(),
+      JSON.stringify(messageBody),
+      expect.any(String)
+    )
     expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a verification challenge when the native app is not configured', async () => {
+    setEnv({ SLACK_SIGNING_SECRET: undefined })
+    mockHandleSlackChallenge.mockReturnValue(new Response('challenge', { status: 200 }))
+
+    const response = await run({ type: 'url_verification', challenge: 'challenge' })
+
+    expect(response.status).toBe(500)
+    expect(mockVerifySlackRequestSignature).not.toHaveBeenCalled()
+    expect(mockHandleSlackChallenge).not.toHaveBeenCalled()
+  })
+
+  it('treats a whitespace-only native signing secret as unconfigured', async () => {
+    setEnv({ SLACK_SIGNING_SECRET: '   ' })
+
+    const response = await run(messageBody)
+
+    expect(response.status).toBe(500)
+    expect(mockVerifySlackRequestSignature).not.toHaveBeenCalled()
+    expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
+  })
+
+  it('verifies a signed request before answering the verification challenge', async () => {
+    const body = { type: 'url_verification', challenge: 'challenge' }
+    mockHandleSlackChallenge.mockReturnValue(new Response('challenge', { status: 200 }))
+
+    const response = await run(body)
+
+    expect(mockVerifySlackRequestSignature).toHaveBeenCalledWith(
+      'test-secret',
+      expect.anything(),
+      JSON.stringify(body),
+      expect.any(String)
+    )
+    expect(mockHandleSlackChallenge).toHaveBeenCalledWith(body)
+    expect(response.status).toBe(200)
+    expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
+  })
+
+  it('does not answer a verification challenge with an invalid signature', async () => {
+    mockVerifySlackRequestSignature.mockReturnValue(new Response(null, { status: 401 }))
+    mockHandleSlackChallenge.mockReturnValue(new Response('challenge', { status: 200 }))
+
+    const response = await run({ type: 'url_verification', challenge: 'challenge' })
+
+    expect(response.status).toBe(401)
+    expect(mockHandleSlackChallenge).not.toHaveBeenCalled()
   })
 
   it('continues cleanly when the dispatcher filters the event', async () => {

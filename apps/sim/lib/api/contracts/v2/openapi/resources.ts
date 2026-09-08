@@ -1,3 +1,4 @@
+import { v2MetaOperations } from '@/lib/api/application/operations'
 import {
   v2ExecuteToolContract,
   v2GetBlockContract,
@@ -38,8 +39,8 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -88,6 +89,15 @@ import {
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
+import { catalogOperations } from '@/lib/catalog/application/operations'
+import { credentialOperations } from '@/lib/credentials/application/operations'
+import { customToolOperations } from '@/lib/custom-tools/application/operations'
+import { mcpServerOperations } from '@/lib/mcp/application/operations'
+import { sandboxOperations } from '@/lib/sandboxes/application/operations'
+import { secretOperations } from '@/lib/secrets/application/operations'
+import { skillOperations } from '@/lib/skills/application/operations'
+import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import { workspaceOperations } from '@/lib/workspaces/application/operations'
 
 const BLOCK_SUMMARY_EXAMPLE = {
   id: 'slack',
@@ -223,6 +233,11 @@ const TOOL_EXECUTION_EXAMPLE = {
   output: { ts: '1718191234.004500' },
   error: null,
 } as const
+
+const SANDBOX_ADMIN_PLAN_NOTE =
+  'Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
+const SANDBOX_BUILD_BUDGET_NOTE =
+  'Creates and updates share a write budget; bursts return `429` with `Retry-After`.'
 
 const TOOL_DETAIL_EXAMPLE = {
   ...TOOL_SUMMARY_EXAMPLE,
@@ -396,13 +411,6 @@ const SANDBOX_EXAMPLE = {
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
 
-const SANDBOX_ADMIN_PLAN_NOTE =
-  'Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
-
-/** Creates and updates only: deleting builds nothing and is never refused on budget. */
-const SANDBOX_BUILD_BUDGET_NOTE =
-  'Creates and updates in a workspace share one write budget, whatever the install strategy, and a burst is refused with `429` and a `Retry-After` header.'
-
 const CREDENTIAL_EXAMPLE = {
   id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
   type: 'service_account',
@@ -541,12 +549,13 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkspacesContract,
     resourceOperation('Workspaces', {
+      applicationOperation: workspaceOperations.listPublic,
       operationId: 'listWorkspaces',
       summary: 'List Workspaces',
       description:
-        'List active workspaces available to the API key with opaque cursor pagination. A personal API key sees every accessible workspace that permits personal API keys; a workspace API key sees only its bound workspace.',
+        'List active workspaces available to the calling credential with opaque cursor pagination. A personal API key or OAuth token sees accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace.',
       errors: RESOURCE_ERRORS,
-      success: { description: 'Public metadata for workspaces available to the API key.' },
+      success: { description: 'Public metadata for workspaces available to the credential.' },
     }),
     {
       query: documentedSchema(
@@ -559,7 +568,7 @@ const declaredRoutes = [
         v2ListWorkspacesContract.response.schema,
         'ListWorkspacesResponse',
         'List workspaces response',
-        'Public metadata for workspaces available to the API key.',
+        'Public metadata for workspaces available to the credential.',
         [{ data: [WORKSPACE_EXAMPLE], nextCursor: null }]
       ),
     }
@@ -567,6 +576,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkspaceContract,
     resourceOperation('Workspaces', {
+      applicationOperation: workspaceOperations.readPublicDetail,
       operationId: 'getWorkspace',
       summary: 'Get Workspace',
       description:
@@ -594,6 +604,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkspaceMembersContract,
     resourceOperation('Workspaces', {
+      applicationOperation: workspaceOperations.listPublicMembers,
       operationId: 'listWorkspaceMembers',
       summary: 'List Workspace Members',
       description:
@@ -626,6 +637,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListMcpServersContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.list,
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
@@ -652,6 +664,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.create,
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
@@ -688,6 +701,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.read,
       operationId: 'getMcpServer',
       summary: 'Get MCP Server',
       description:
@@ -720,6 +734,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.update,
       operationId: 'updateMcpServer',
       summary: 'Update MCP Server',
       description:
@@ -754,6 +769,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.delete,
       operationId: 'deleteMcpServer',
       summary: 'Delete MCP Server',
       description:
@@ -786,9 +802,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListMcpServerToolsContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.discoverTools,
       operationId: 'listMcpServerTools',
       summary: 'List MCP Server Tools',
-      description: `Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\`. ${HEAD_MIRRORS_GET} Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Return up to 1,000 tools and 5 MB with \`nextCursor: null\`, opening a connection and updating connection metadata. ${HEAD_MIRRORS_GET} Unavailable servers return \`503\`; invalid OAuth returns \`409\` with \`error.details.code: MCP_SERVER_REAUTHORIZATION_REQUIRED\` and requires human reauthorization. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tools exposed by the MCP server.' },
     }),
@@ -817,6 +834,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListSkillsContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.list,
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
@@ -843,6 +861,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateSkillContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.create,
       operationId: 'createSkill',
       summary: 'Create Skill',
       description: `Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. ${WORKSPACE_API_KEY_DENIED}`,
@@ -877,6 +896,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetSkillContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.read,
       operationId: 'getSkill',
       summary: 'Get Skill',
       description:
@@ -909,6 +929,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateSkillContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.update,
       operationId: 'updateSkill',
       summary: 'Update Skill',
       description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
@@ -942,6 +963,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteSkillContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.delete,
       operationId: 'deleteSkill',
       summary: 'Delete Skill',
       description: `Delete a workspace skill. Built-in skills are read-only and cannot be deleted. ${WORKSPACE_API_KEY_DENIED}`,
@@ -973,6 +995,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListSkillEditorsContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.listEditors,
       operationId: 'listSkillEditors',
       summary: 'List Skill Editors',
       description:
@@ -1005,6 +1028,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GrantSkillEditorContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.grantEditor,
       operationId: 'grantSkillEditor',
       summary: 'Grant Skill Editor',
       description: `Grant editor access to a current workspace member by email. The caller must already be a skill editor or workspace administrator. Workspace administrators already have derived editor access and cannot receive an explicit grant. A retried existing grant returns 200; a newly created grant returns 201. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1043,6 +1067,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RevokeSkillEditorContract,
     resourceOperation('Skills', {
+      applicationOperation: skillOperations.revokeEditor,
       operationId: 'revokeSkillEditor',
       summary: 'Revoke Skill Editor',
       description: `Revoke an explicit editor grant by email. The caller must already be a skill editor or workspace administrator. Workspace administrators have derived access that cannot be revoked. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1074,6 +1099,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListCustomToolsContract,
     resourceOperation('Custom Tools', {
+      applicationOperation: customToolOperations.list,
       operationId: 'listCustomTools',
       summary: 'List Custom Tools',
       description:
@@ -1100,6 +1126,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateCustomToolContract,
     resourceOperation('Custom Tools', {
+      applicationOperation: customToolOperations.create,
       operationId: 'createCustomTool',
       summary: 'Create Custom Tool',
       description:
@@ -1135,6 +1162,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetCustomToolContract,
     resourceOperation('Custom Tools', {
+      applicationOperation: customToolOperations.read,
       operationId: 'getCustomTool',
       summary: 'Get Custom Tool',
       description: 'Fetch one custom tool by identifier, scoped to its workspace.',
@@ -1166,6 +1194,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateCustomToolContract,
     resourceOperation('Custom Tools', {
+      applicationOperation: customToolOperations.update,
       operationId: 'updateCustomTool',
       summary: 'Update Custom Tool',
       description:
@@ -1200,6 +1229,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteCustomToolContract,
     resourceOperation('Custom Tools', {
+      applicationOperation: customToolOperations.delete,
       operationId: 'deleteCustomTool',
       summary: 'Delete Custom Tool',
       description:
@@ -1232,6 +1262,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListSandboxesContract,
     resourceOperation('Sandboxes', {
+      applicationOperation: sandboxOperations.list,
       operationId: 'listSandboxes',
       summary: 'List Sandboxes',
       description:
@@ -1258,9 +1289,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateSandboxContract,
     resourceOperation('Sandboxes', {
+      applicationOperation: sandboxOperations.create,
       operationId: 'createSandbox',
       summary: 'Create Sandbox',
-      description: `Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through \`buildStatus\`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports \`buildStatus: null\`. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a uniquely named sandbox. Prebuild deployments schedule an image build reported by \`buildStatus\`; runtime-install deployments or empty specs report \`buildStatus: null\`. Invalid dependency or system-package entries return \`400\` with field details. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         description:
@@ -1296,6 +1328,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetSandboxContract,
     resourceOperation('Sandboxes', {
+      applicationOperation: sandboxOperations.read,
       operationId: 'getSandbox',
       summary: 'Get Sandbox',
       description:
@@ -1328,9 +1361,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateSandboxContract,
     resourceOperation('Sandboxes', {
+      applicationOperation: sandboxOperations.update,
       operationId: 'updateSandbox',
       summary: 'Update Sandbox',
-      description: `Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports \`buildStatus: null\`. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update supplied fields; omissions preserve values, lists replace whole lists, and names remain unique. Prebuild deployments rebuild changed specs, while resending an unchanged failed spec retries it; runtime-install or empty specs report \`buildStatus: null\`. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated sandbox.' },
     }),
@@ -1370,9 +1404,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteSandboxContract,
     resourceOperation('Sandboxes', {
+      applicationOperation: sandboxOperations.delete,
       operationId: 'deleteSandbox',
       summary: 'Delete Sandbox',
-      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Where the deployment prebuilds dependency images, the sandbox's image is released once nothing else shares it; a runtime-install deployment, or a spec with nothing to install, had no image and nothing is released. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Delete a sandbox. Function blocks still selecting it fail closed until reconfigured. A prebuilt image is released when no sandbox shares it; runtime-install and empty specs have no image to release. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The sandbox was deleted.' },
     }),
@@ -1401,6 +1436,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListCredentialsContract,
     resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.listConnections,
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
@@ -1427,6 +1463,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListCredentialProvidersContract,
     resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.listProviders,
       operationId: 'listCredentialProviders',
       summary: 'List Credential Providers',
       description: `List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. ${FULL_SET_LIST}`,
@@ -1457,6 +1494,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateServiceAccountCredentialContract,
     resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.createServiceAccount,
       operationId: 'createServiceAccountCredential',
       summary: 'Create Service-Account Credential',
       description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider, then encode its required fields as the JSON object string in credentials. The credentials string is write-only and is never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1498,9 +1536,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateCredentialConnectionContract,
     resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.createConnection,
       operationId: 'createCredentialConnection',
       summary: 'Create Credential Connection',
-      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL in a browser, sign in as the personal API-key owner, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL, sign in as the authenticated user, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'A short-lived browser authorization URL.' },
     }),
@@ -1524,6 +1563,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteCredentialContract,
     resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.delete,
       operationId: 'deleteCredential',
       summary: 'Disconnect Credential',
       description: `Disconnect an OAuth or service-account credential and clear its stored workflow, deployment, paused-run, knowledge-connector, and webhook references. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1555,6 +1595,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListSecretsContract,
     resourceOperation('Secrets', {
+      applicationOperation: secretOperations.list,
       operationId: 'listSecrets',
       summary: 'List Secrets',
       description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Rows for workspace secrets marked visible (unredacted) include the stored value; every other row is metadata-only and no other response ever carries a value. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1580,9 +1621,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2SetSecretContract,
     resourceOperation('Secrets', {
+      applicationOperation: secretOperations.set,
       operationId: 'setSecret',
       summary: 'Set Secret',
-      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. Omit \`value\` on a workspace secret to update \`description\` and \`unredacted\` alone: the stored value is left untouched and is never re-encrypted, and because a metadata-only write cannot create a secret it answers \`404\` when the named secret does not exist. A personal secret always requires \`value\`, having no other writable field. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or replace a workspace or personal secret. Values are encrypted at rest, write-only, and never returned. For an existing workspace secret, omit \`value\` to update only \`description\` or \`unredacted\`; the value remains untouched. This metadata-only form cannot create a secret and returns \`404\` when absent. Personal secrets always require \`value\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
@@ -1632,6 +1674,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteSecretContract,
     resourceOperation('Secrets', {
+      applicationOperation: secretOperations.delete,
       operationId: 'deleteSecret',
       summary: 'Delete Secret',
       description: `Delete a workspace or caller-owned personal secret without reading or returning its stored value. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1671,12 +1714,13 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetMetaContract,
     resourceOperation('Meta', {
+      applicationOperation: v2MetaOperations.read,
       operationId: 'getApiMeta',
       summary: 'Get API Capabilities',
       description:
-        'Report whether v2 is available, whether the calling API key is personal or workspace-scoped, and when it expires. Requires a valid key.',
+        'Report whether v2 is available, what kind of API credential is calling, and when it expires. Requires a valid API key or OAuth access token.',
       errors: META_ERRORS,
-      success: { description: 'Availability and lifecycle facts about the calling key.' },
+      success: { description: 'Availability and lifecycle facts about the calling credential.' },
     }),
     {
       query: v2GetMetaContract.query,
@@ -1684,7 +1728,7 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API capabilities response',
-        'API availability, key type, and expiry for the calling key.',
+        'API availability, credential type, and expiry for the caller.',
         [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
       ),
     }
@@ -1692,9 +1736,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowMcpServersContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.listWorkflowDeployments,
       operationId: 'listWorkflowMcpServers',
       summary: 'List Workflow MCP Servers',
-      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes; those names are gathered under a 2,000-tool budget shared across the page, so on a page of unusually large servers the trailing entries can list fewer names than they publish. Read one server's full inventory with \`GET /api/v2/workflow-mcp-servers/{serverId}/tools\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List servers that publish deployed workflows to outside MCP clients; \`GET /api/v2/mcp-servers\` instead lists external servers Sim calls. Entries include client endpoints and tool names. A page shares a 2,000-name budget, so trailing servers may show partial inventories; read a server's tools endpoint for its full set. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of published MCP servers.' },
     }),
@@ -1712,6 +1757,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateWorkflowMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.createWorkflowDeploymentServer,
       operationId: 'createWorkflowMcpServer',
       summary: 'Create Workflow MCP Server',
       description: `Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in \`workflowIds\` must already be deployed. Setting \`isPublic\` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1733,6 +1779,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkflowMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.readWorkflowDeploymentServer,
       operationId: 'getWorkflowMcpServer',
       summary: 'Get Workflow MCP Server',
       description: `Read one published MCP server. The list is the only other place this state is published, so a caller holding a server id would otherwise have to page the collection and filter client-side. The tools it publishes are on its \`tools\` sub-resource. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1754,6 +1801,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowMcpToolsContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.listWorkflowDeploymentTools,
       operationId: 'listWorkflowMcpTools',
       summary: 'List Workflow MCP Tools',
       description: `Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the \`workflowId\` that \`DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}\` addresses. Returned in one page rather than paged — so \`nextCursor\` is always null — and capped at 2,000 tools, which is far above any real server's inventory. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1781,6 +1829,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateWorkflowMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.updateWorkflowDeploymentServer,
       operationId: 'updateWorkflowMcpServer',
       summary: 'Update Workflow MCP Server',
       description: `Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and \`description: null\` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its \`tools\` sub-resource. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1803,6 +1852,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteWorkflowMcpServerContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.deleteWorkflowDeploymentServer,
       operationId: 'deleteWorkflowMcpServer',
       summary: 'Delete Workflow MCP Server',
       description: `Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1824,6 +1874,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeployWorkflowMcpToolContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.deployWorkflowTool,
       operationId: 'deployWorkflowMcpTool',
       summary: 'Publish Workflow As MCP Tool',
       description: `Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers \`200\` with \`updated: true\` rather than conflicting. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1846,6 +1897,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UndeployWorkflowMcpToolContract,
     resourceOperation('MCP Servers', {
+      applicationOperation: mcpServerOperations.undeployWorkflowTool,
       operationId: 'undeployWorkflowMcpTool',
       summary: 'Unpublish Workflow MCP Tool',
       description: `Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. ${WORKSPACE_API_KEY_DENIED}`,
@@ -1876,9 +1928,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateCredentialContract,
     resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.update,
       operationId: 'updateCredential',
       summary: 'Update Credential',
-      description: `Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and \`description: null\` clears the stored description. Secret fields are write-only and are never returned, and only a service-account credential has any: sending one for a credential of another type answers \`400\` rather than dropping it. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers \`400\` with the provider's code in \`error.details.providerErrorCode\`; a provider that cannot be reached answers \`503\`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a service-account credential or rotate its write-only secret fields. Omissions preserve values; \`description: null\` clears the description. Secret fields sent for another credential type return \`400\`. The provider verifies replacements before storage: rejection leaves the old secret intact and returns \`400\` with \`providerErrorCode\`; provider outages return \`503\`. The preserved credential ID keeps all references working. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated credential without secret material.' },
     }),
@@ -1914,6 +1967,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListBlocksContract,
     resourceOperation('Catalog', {
+      applicationOperation: catalogOperations.listBlocks,
       operationId: 'listBlocks',
       summary: 'List Blocks',
       description:
@@ -1940,6 +1994,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetBlockContract,
     resourceOperation('Catalog', {
+      applicationOperation: catalogOperations.readBlock,
       operationId: 'getBlock',
       summary: 'Get Block',
       description:
@@ -1972,6 +2027,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListToolsContract,
     resourceOperation('Catalog', {
+      applicationOperation: catalogOperations.listTools,
       operationId: 'listTools',
       summary: 'List Tools',
       description:
@@ -1998,6 +2054,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetToolContract,
     resourceOperation('Catalog', {
+      applicationOperation: catalogOperations.readTool,
       operationId: 'getTool',
       summary: 'Get Tool',
       description:
@@ -2030,9 +2087,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ExecuteToolContract,
     resourceOperation('Catalog', {
+      applicationOperation: toolExecutionOperations.execute,
       operationId: 'executeTool',
       summary: 'Run Tool',
-      description: `Run one built-in tool and return what it produced. Supply \`input\` using the parameter ids \`GET /api/v2/tools/{toolId}\` publishes; Sim resolves the credential named by \`credentialId\`, injects a hosted API key for the tools it supplies one for, and substitutes environment-variable references, so the request carries arguments rather than secrets. A parameter the tool marks \`user-only\` also accepts \`{{VAR_NAME}}\` as its whole value, resolved server-side against the workspace environment; every other value is sent verbatim, so a literal secret passes through untouched. A tool that runs and refuses is a \`200\` carrying \`status: "failed"\` and the reason — the error envelope is reserved for failures of this API, not of the third party. A tool the workspace's visible blocks do not expose answers \`404\` identically to one that does not exist; one whose integration the workspace does not permit answers \`403\` with \`error.details.code\` \`INTEGRATION_NOT_ALLOWED\`. Hosted-key spend this call incurs is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Run a built-in tool using published parameter IDs. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references for \`user-only\` parameters; other values pass through verbatim. Third-party refusal returns \`200\` with \`status: "failed"\`; the error envelope covers API failures. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key use is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The outcome of the tool call.' },
     }),
@@ -2069,9 +2127,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListConnectorTypesContract,
     resourceOperation('Catalog', {
+      applicationOperation: catalogOperations.listConnectorTypes,
       operationId: 'listConnectorTypes',
       summary: 'List Connector Types',
-      description: `List every knowledge-base connector type and the source configuration each accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with \`multi: true\` stores a \`string[]\` rather than a \`string\`, and a \`canonicalParamId\` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by \`canonicalParamId\` rather than by the field's own \`id\`. ${FULL_SET_LIST}`,
+      description: `List connector types and accepted source configuration. A field with \`multi: true\` stores \`string[]\`. \`canonicalParamId\` links picker and manual fields that write the same key; send exactly one, keyed by \`canonicalParamId\` rather than its own \`id\`. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The connector-type catalog.' },
     }),
@@ -2116,7 +2175,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   tags: [
     {
       name: 'Meta',
-      description: 'Discover what the calling API key can reach.',
+      description: 'Discover what the calling API credential can reach.',
     },
     {
       name: 'Workspaces',
@@ -2153,8 +2212,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
       description: 'Discover the blocks, tools, and connector types this workspace can build with.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   /**

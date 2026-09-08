@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   v2DeleteMcpServerContract,
   v2GetMcpServerContract,
@@ -61,7 +62,7 @@ export const DELETE = defineV2JsonRoute({
   }),
   useCase: deleteMcpServerUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (principal.kind !== 'personal_api_key') return
+    if (!isUserCredentialPrincipal(principal)) return
     captureServerEvent(
       principal.userId,
       'mcp_server_disconnected',

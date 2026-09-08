@@ -1,11 +1,17 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const HUMAN_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 
@@ -23,6 +29,7 @@ const HUMAN_PRINCIPAL_POLICY = {
 export const sandboxOperations = {
   list: defineWorkspaceOperation({
     id: 'sandboxes.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'sandboxes.use',
@@ -30,6 +37,7 @@ export const sandboxOperations = {
   }),
   read: defineWorkspaceOperation({
     id: 'sandboxes.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'sandboxes.use',
@@ -37,6 +45,7 @@ export const sandboxOperations = {
   }),
   create: defineWorkspaceOperation({
     id: 'sandboxes.create',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'sandboxes.use',
@@ -44,6 +53,7 @@ export const sandboxOperations = {
   }),
   update: defineWorkspaceOperation({
     id: 'sandboxes.update',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'sandboxes.use',
@@ -51,6 +61,7 @@ export const sandboxOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'sandboxes.delete',
+    oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'sandboxes.use',

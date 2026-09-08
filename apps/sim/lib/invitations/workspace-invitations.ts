@@ -12,7 +12,7 @@ import {
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { isBillingEnabled, isScimEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -43,6 +43,7 @@ import {
   type WorkspaceInvitePolicy,
 } from '@/lib/workspaces/policy'
 import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
+import { isScimDeploymentEnabled } from '@/ee/scim/lib/entitlement'
 import {
   assertInviteeNotScimManaged,
   scimManagedUserPredicate,
@@ -484,7 +485,7 @@ export async function createWorkspaceInvitation({
     .select({
       id: user.id,
       scimManaged:
-        organizationId && isScimEnabled
+        organizationId && isScimDeploymentEnabled()
           ? scimManagedUserPredicate(organizationId, user.id)
           : sql<boolean>`false`,
     })

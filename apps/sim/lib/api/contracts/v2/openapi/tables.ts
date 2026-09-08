@@ -7,8 +7,8 @@ import {
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   RESOURCE_MUTATION_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_ERRORS,
@@ -76,6 +76,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { tableOperations } from '@/lib/table/application/operations'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
@@ -137,6 +138,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListTablesContract,
     tableOperation({
+      applicationOperation: tableOperations.list,
       operationId: 'listTables',
       summary: 'List Tables',
       description: `List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. \`scope=archived\` lists tables a \`DELETE\` archived, which \`POST /api/v2/tables/{tableId}/restore\` can bring back. ${FOLDER_TREE_TOO_LARGE}`,
@@ -161,6 +163,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableContract,
     tableOperation({
+      applicationOperation: tableOperations.create,
       operationId: 'createTable',
       summary: 'Create Table',
       description: 'Create a table with a typed column schema and optional folder placement.',
@@ -199,6 +202,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetTableContract,
     tableOperation({
+      applicationOperation: tableOperations.read,
       operationId: 'getTable',
       summary: 'Get Table',
       description: `Retrieve a table with its metadata, column schema, locks, and current job. ${FOLDER_TREE_TOO_LARGE}`,
@@ -229,6 +233,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteTableContract,
     tableOperation({
+      applicationOperation: tableOperations.delete,
       operationId: 'deleteTable',
       summary: 'Delete Table',
       description:
@@ -260,9 +265,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateTableContract,
     tableOperation({
+      applicationOperation: tableOperations.update,
       operationId: 'updateTable',
       summary: 'Update Table',
-      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. When at least one field landed before the failure the error body carries \`details.applied\` naming those fields — retry with only the ones missing from it. Its absence means nothing was applied.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags are read-only.\n\nNOT atomic: fields are written independently, so a 4xx may follow a partial update. When fields were applied, \`details.applied\` names them; retry only the missing fields. If it is absent, nothing changed.\n\n${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),
@@ -292,6 +298,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2AddTableColumnContract,
     tableOperation({
+      applicationOperation: tableOperations.addColumn,
       operationId: 'addTableColumn',
       summary: 'Add Column',
       description: 'Add a typed column and return the complete resulting table schema.',
@@ -324,6 +331,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateTableColumnContract,
     tableOperation({
+      applicationOperation: tableOperations.updateColumn,
       operationId: 'updateTableColumn',
       summary: 'Update Column',
       description: 'Update a column by name and return the complete resulting table schema.',
@@ -356,6 +364,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteTableColumnContract,
     tableOperation({
+      applicationOperation: tableOperations.deleteColumn,
       operationId: 'deleteTableColumn',
       summary: 'Delete Column',
       description: 'Delete a column by name while preserving at least one table column.',
@@ -388,6 +397,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListTableRowsContract,
     tableOperation({
+      applicationOperation: tableOperations.listRows,
       operationId: 'listTableRows',
       summary: 'List Rows',
       description:
@@ -419,6 +429,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableRowsContract,
     tableOperation({
+      applicationOperation: tableOperations.createRows,
       operationId: 'createTableRows',
       summary: 'Create Rows',
       description:
@@ -452,6 +463,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateRowsByFilterContract,
     tableOperation({
+      applicationOperation: tableOperations.updateRows,
       operationId: 'updateTableRows',
       summary: 'Update Rows by Filter',
       description: 'Apply the same partial data patch to every row matching a non-empty predicate.',
@@ -490,6 +502,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteTableRowsContract,
     tableOperation({
+      applicationOperation: tableOperations.deleteRows,
       operationId: 'deleteTableRows',
       summary: 'Delete Rows',
       description:
@@ -523,6 +536,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetTableRowContract,
     tableOperation({
+      applicationOperation: tableOperations.readRow,
       operationId: 'getTableRow',
       summary: 'Get Row',
       description:
@@ -554,6 +568,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateTableRowContract,
     tableOperation({
+      applicationOperation: tableOperations.updateRow,
       operationId: 'updateTableRow',
       summary: 'Update Row',
       description: 'Merge a partial data patch into one row by identifier.',
@@ -586,6 +601,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteTableRowContract,
     tableOperation({
+      applicationOperation: tableOperations.deleteRow,
       operationId: 'deleteTableRow',
       summary: 'Delete Row',
       description: 'Delete one row by identifier.',
@@ -616,6 +632,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpsertTableRowContract,
     tableOperation({
+      applicationOperation: tableOperations.upsertRow,
       operationId: 'upsertTableRow',
       summary: 'Upsert Row',
       description:
@@ -655,10 +672,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2QueryRowsContract,
     tableOperation({
+      applicationOperation: tableOperations.queryRows,
       operationId: 'queryTableRows',
       summary: 'Query Rows',
       description:
-        "Query rows with an optional typed predicate, ordered sort specification, and opaque cursor pagination. A predicate may be one condition or an `all`/`any` group; omit it to match every row. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
+        'Query rows using an optional typed condition or `all`/`any` group, ordered sorting, and opaque cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB cap and may return fewer rows than requested; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and lowers the row cap. Counts come from a separate snapshot at `POST /query/count`; take the count first and treat it as a floor.',
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
@@ -708,6 +726,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2QueryRowsCountContract,
     tableOperation({
+      applicationOperation: tableOperations.queryRows,
       operationId: 'countTableRows',
       summary: 'Count Rows',
       description:
@@ -746,6 +765,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListTableViewsContract,
     tableOperation({
+      applicationOperation: tableOperations.listViews,
       operationId: 'listTableViews',
       summary: 'List Views',
       description: `List the bounded set of saved table views, with references to removed columns pruned on read. ${FULL_SET_LIST}`,
@@ -776,6 +796,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableViewContract,
     tableOperation({
+      applicationOperation: tableOperations.createView,
       operationId: 'createTableView',
       summary: 'Create View',
       description: 'Save a filter, sort, and column layout as a named presentation of a table.',
@@ -817,6 +838,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetTableViewContract,
     tableOperation({
+      applicationOperation: tableOperations.readView,
       operationId: 'getTableView',
       summary: 'Get View',
       description: 'Retrieve one saved table view by identifier.',
@@ -848,6 +870,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateTableViewContract,
     tableOperation({
+      applicationOperation: tableOperations.updateView,
       operationId: 'updateTableView',
       summary: 'Update View',
       description:
@@ -881,6 +904,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteTableViewContract,
     tableOperation({
+      applicationOperation: tableOperations.deleteView,
       operationId: 'deleteTableView',
       summary: 'Delete View',
       description: 'Delete a saved presentation without changing any table rows.',
@@ -911,6 +935,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowGroupsContract,
     tableOperation({
+      applicationOperation: tableOperations.listGroups,
       operationId: 'listTableWorkflowGroups',
       summary: 'List Workflow Groups',
       description: `List the workflow and enrichment groups that can be dispatched for a table. ${FULL_SET_LIST}`,
@@ -941,6 +966,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2AddWorkflowGroupContract,
     tableOperation({
+      applicationOperation: tableOperations.createGroup,
       operationId: 'addTableWorkflowGroup',
       summary: 'Add Workflow Group',
       description:
@@ -984,6 +1010,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateWorkflowGroupContract,
     tableOperation({
+      applicationOperation: tableOperations.updateGroup,
       operationId: 'updateTableWorkflowGroup',
       summary: 'Update Workflow Group',
       description:
@@ -1017,6 +1044,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteWorkflowGroupContract,
     tableOperation({
+      applicationOperation: tableOperations.deleteGroup,
       operationId: 'deleteTableWorkflowGroup',
       summary: 'Delete Workflow Group',
       description: 'Delete a workflow group and every table column populated by that group.',
@@ -1049,6 +1077,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableDispatchContract,
     tableOperation({
+      applicationOperation: tableOperations.startRun,
       operationId: 'createTableDispatch',
       summary: 'Create Run Dispatch',
       description:
@@ -1082,6 +1111,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RunRowEnrichmentContract,
     tableOperation({
+      applicationOperation: tableOperations.startRun,
       operationId: 'runRowEnrichment',
       summary: 'Run Enrichment For One Row',
       description:
@@ -1115,9 +1145,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2SearchTableRowsContract,
     tableOperation({
+      applicationOperation: tableOperations.searchRows,
       operationId: 'searchTableRows',
       summary: 'Search Rows',
-      description: `Text-search every cell case-insensitively for the substring \`q\`, optionally within a predicate-filtered and sorted view. This is TEXT search, not the structured predicate read: \`POST /api/v2/tables/{tableId}/query\` is that one, and on this surface \`query\` always means a structured predicate while \`search\` always means text.\n\nIt returns cell COORDINATES — \`{ ordinal, rowId, column }\` — and never row data. \`ordinal\` is the row's zero-based index in the same filtered, sorted view \`POST /query\` pages, so read the rows themselves through that. The result is uncursored and capped: at most ${TABLE_LIMITS.MAX_FIND_MATCHES} matches come back and \`truncated\` is \`true\` when more matched than were returned. There is no cursor to page with — narrow \`q\` or the predicate instead.`,
+      description: `Search every cell case-insensitively for substring \`q\`, optionally within a predicate-filtered, sorted view. This is text search; \`POST /query\` performs structured predicate reads. Results are cell coordinates \`{ ordinal, rowId, column }\`, never row data; \`ordinal\` indexes the same view paged by \`POST /query\`. Results are uncursored and capped at ${TABLE_LIMITS.MAX_FIND_MATCHES}; \`truncated\` signals more matches. Narrow \`q\` or the predicate instead of paging.`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The matching table cells.' },
     }),
@@ -1153,6 +1184,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableImportContract,
     tableOperation({
+      applicationOperation: tableOperations.createImport,
       operationId: 'createTableImport',
       summary: 'Create Table Import',
       description:
@@ -1187,6 +1219,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetTableImportContract,
     tableOperation({
+      applicationOperation: tableOperations.readImport,
       operationId: 'getTableImport',
       summary: 'Get Table Import',
       description:
@@ -1225,6 +1258,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CancelTableImportContract,
     tableOperation({
+      applicationOperation: tableOperations.cancelImport,
       operationId: 'cancelTableImport',
       summary: 'Cancel Table Import',
       description:
@@ -1262,6 +1296,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableImportPartUrlsContract,
     tableOperation({
+      applicationOperation: tableOperations.createImportParts,
       operationId: 'createTableImportPartUrls',
       summary: 'Create Table Import Part URLs',
       description:
@@ -1306,6 +1341,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CompleteTableImportContract,
     tableOperation({
+      applicationOperation: tableOperations.completeImport,
       operationId: 'completeTableImportUpload',
       summary: 'Complete Table Import Upload',
       description:
@@ -1343,6 +1379,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableExportContract,
     tableOperation({
+      applicationOperation: tableOperations.createExport,
       operationId: 'createTableExport',
       summary: 'Create Table Export',
       description:
@@ -1376,6 +1413,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetTableExportContract,
     tableOperation({
+      applicationOperation: tableOperations.readExport,
       operationId: 'getTableExport',
       summary: 'Get Table Export',
       description: 'Read progress and terminal state for a durable table export.',
@@ -1407,6 +1445,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CancelTableExportContract,
     tableOperation({
+      applicationOperation: tableOperations.cancelExport,
       operationId: 'cancelTableExport',
       summary: 'Cancel Table Export',
       description: 'Cancel an export that has not reached a terminal state.',
@@ -1437,6 +1476,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2TableExportDownloadContract,
     tableOperation({
+      applicationOperation: tableOperations.downloadExport,
       operationId: 'downloadTableExport',
       summary: 'Download Table Export',
       description:
@@ -1468,6 +1508,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CancelTableRunsContract,
     tableOperation({
+      applicationOperation: tableOperations.cancelRuns,
       operationId: 'cancelTableRuns',
       summary: 'Cancel Column Runs',
       description:
@@ -1501,6 +1542,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListTableFoldersContract,
     tableOperation({
+      applicationOperation: tableOperations.listFolders,
       operationId: 'listTablesFolders',
       summary: 'List Folders',
       description: `List table folders, optionally restricting the result to direct children of a canonical parent path. ${FULL_SET_LIST}`,
@@ -1525,6 +1567,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateTableFolderContract,
     tableOperation({
+      applicationOperation: tableOperations.createFolder,
       operationId: 'createTablesFolder',
       summary: 'Create Folder',
       description: 'Create one table-folder leaf whose parent path already exists.',
@@ -1551,6 +1594,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RelocateTableFolderContract,
     tableOperation({
+      applicationOperation: tableOperations.updateFolder,
       operationId: 'relocateTablesFolder',
       summary: 'Rename or Move Folder',
       description: 'Rename or move a table folder and update all descendant paths.',
@@ -1583,6 +1627,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteTableFolderContract,
     tableOperation({
+      applicationOperation: tableOperations.deleteFolder,
       operationId: 'deleteTablesFolder',
       summary: 'Delete Folder',
       description:
@@ -1608,10 +1653,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RestoreTableFolderContract,
     tableOperation({
+      applicationOperation: tableOperations.restoreFolder,
       operationId: 'restoreTablesFolder',
       summary: 'Restore Folder',
       description:
-        "Un-archive a table folder a recursive `DELETE` archived, along with every subfolder and table archived with it. Address it by the path it held when it was deleted. The restore may legally land it elsewhere: a folder whose parent is still archived is re-rooted to `/`, and a name an active sibling has taken meanwhile is deduplicated — so read the returned folder's `path` rather than assuming the requested one. A path that is not archived answers `404`. `DELETE /api/v2/tables/folders` returns the path it archived, which is the value to keep and send here; unlike the files surface, `GET /api/v2/tables/folders` does not yet list archived folders, so a caller that discards that path cannot recover it over the API.",
+        'Restore a recursively archived table folder with its subfolders and tables, addressed by its former path. If its parent remains archived, it is re-rooted to `/`; active-name conflicts are deduplicated, so use the returned `path`. Non-archived paths return `404`. Preserve the path returned by `DELETE /api/v2/tables/folders`: unlike the files API, the table-folder list cannot discover archived paths.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The restored table folder and what it brought back.' },
     }),
@@ -1635,6 +1681,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RestoreTableContract,
     tableOperation({
+      applicationOperation: tableOperations.restore,
       operationId: 'restoreTable',
       summary: 'Restore Table',
       description:
@@ -1668,6 +1715,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2BulkUpdateTableRowsContract,
     tableOperation({
+      applicationOperation: tableOperations.updateRows,
       operationId: 'bulkUpdateTableRows',
       summary: 'Bulk Update Rows',
       description:
@@ -1709,6 +1757,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetRowEnrichmentContract,
     tableOperation({
+      applicationOperation: tableOperations.readRow,
       operationId: 'getRowEnrichment',
       summary: 'Get Enrichment Run Detail',
       description:
@@ -1740,6 +1789,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetTableDispatchContract,
     tableOperation({
+      applicationOperation: tableOperations.readRun,
       operationId: 'getTableDispatch',
       summary: 'Get Run Dispatch',
       description:
@@ -1771,6 +1821,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CancelTableDispatchContract,
     tableOperation({
+      applicationOperation: tableOperations.cancelRuns,
       operationId: 'cancelTableDispatch',
       summary: 'Cancel Run Dispatch',
       description:
@@ -1802,6 +1853,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListTableDispatchesContract,
     tableOperation({
+      applicationOperation: tableOperations.readRun,
       operationId: 'listTableDispatches',
       summary: 'List Active Run Dispatches',
       description:
@@ -1833,10 +1885,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2MoveTablesContract,
     tableOperation({
+      applicationOperation: tableOperations.bulkMove,
       operationId: 'moveTables',
       summary: 'Move Tables and Folders',
       description:
-        'Move up to 100 tables and table folders into one destination folder in a single authorized request. Folders are named by canonical path, and `null` or `/` moves to the workspace root. Best-effort per item: a table filed inside a selected folder is reported in `skipped` because the folder already carries it, an entry that resolves to nothing lands in `notFound`, and an item refused by a lock or a folder cycle lands in `failed` with a reason. An invalid destination fails the whole request before anything moves.',
+        'Move up to 100 tables and canonical-path folders to one destination; `null` or `/` means the workspace root. Processing is best-effort per item: tables already carried by selected folders are `skipped`, missing items are `notFound`, and lock or cycle refusals are `failed` with reasons. An invalid destination rejects the entire request before any move.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Per-item outcome of the bulk move.' },
     }),
@@ -1867,6 +1920,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2BulkDeleteTablesContract,
     tableOperation({
+      applicationOperation: tableOperations.bulkDelete,
       operationId: 'bulkDeleteTables',
       summary: 'Bulk Delete Tables and Folders',
       description:
@@ -1918,8 +1972,8 @@ export const tablesOpenApiDocument = defineOpenApiDocument({
       description: 'Manage tables, columns, rows, views, runs, folders, imports, and exports.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({

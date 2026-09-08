@@ -178,6 +178,15 @@ describe('extractFilename', () => {
         expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
+      it('appends the content-type extension to an extensionless download name', () => {
+        const response = createFileResponse({
+          buffer: Buffer.from('fake-image-data'),
+          contentType: 'image/png',
+          filename: 'navbar_2',
+        })
+        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="navbar_2.png"')
+      })
+
       it('defaults to a PRIVATE cache so access-verified content is never shared-cached', () => {
         const response = createFileResponse({
           buffer: Buffer.from('fake-image-data'),

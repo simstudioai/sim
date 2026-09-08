@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   handleSlackChallenge,
@@ -20,6 +21,66 @@ const eventOf = (input: unknown) =>
 describe('slackHandler responses', () => {
   it('returns a retryable failure when queue admission fails', () => {
     expect(slackHandler.formatQueueErrorResponse!().status).toBe(500)
+  })
+})
+
+describe('slackHandler request verification', () => {
+  const rawBody = JSON.stringify({ type: 'event_callback' })
+
+  function signedRequest(signingSecret: string, timestamp: string, body = rawBody): Request {
+    const signature = createHmac('sha256', signingSecret)
+      .update(`v0:${timestamp}:${body}`, 'utf8')
+      .digest('hex')
+    return new Request('https://sim.test/api/webhooks/trigger/slack', {
+      method: 'POST',
+      headers: {
+        'x-slack-request-timestamp': timestamp,
+        'x-slack-signature': `v0=${signature}`,
+      },
+    })
+  }
+
+  function verify(request: Request, providerConfig: Record<string, unknown>, body = rawBody) {
+    return slackHandler.verifyAuth!({
+      webhook: {},
+      workflow: {},
+      request: request as unknown as import('next/server').NextRequest,
+      rawBody: body,
+      requestId: 'slack-auth-test',
+      providerConfig,
+    })
+  }
+
+  it('fails closed when a legacy Slack webhook has no signing secret', async () => {
+    const response = await verify(new Request('https://sim.test'), {})
+
+    expect(response?.status).toBe(401)
+  })
+
+  it('accepts a correctly signed current request', async () => {
+    const signingSecret = 'test-signing-secret'
+    const timestamp = String(Math.floor(Date.now() / 1000))
+
+    expect(verify(signedRequest(signingSecret, timestamp), { signingSecret })).toBeNull()
+  })
+
+  it('rejects a signature computed for different raw bytes', async () => {
+    const signingSecret = 'test-signing-secret'
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const request = signedRequest(signingSecret, timestamp)
+
+    const response = await verify(request, { signingSecret }, `${rawBody} `)
+
+    expect(response?.status).toBe(401)
+  })
+
+  it("rejects an otherwise valid signature outside Slack's five-minute replay window", async () => {
+    const signingSecret = 'test-signing-secret'
+    const timestamp = String(Math.floor(Date.now() / 1000) - 301)
+
+    const response = await verify(signedRequest(signingSecret, timestamp), { signingSecret })
+
+    expect(response?.status).toBe(401)
   })
 })
 

@@ -29,6 +29,7 @@ export interface EnvFlagsMockState {
   isTriggerDevEnabled: boolean
   isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
+  isOAuthProviderEnabled: boolean
   isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
@@ -81,6 +82,8 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  /** OAuth-aware route behavior is available unless a suite overrides it. */
+  isOAuthProviderEnabled: true,
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,

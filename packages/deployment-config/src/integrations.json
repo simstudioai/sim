@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-06",
+  "updatedAt": "2026-09-07",
   "integrations": [
     {
       "type": "onepassword",
@@ -22205,7 +22205,7 @@
         },
         {
           "name": "List Channels",
-          "description": "List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages."
+          "description": "List up to 10,000 accessible Slack conversations across as many cursor pages as Slack supplies, capped at 200 provider pages. Credential-group user tokens also return one-to-one and group direct messages."
         },
         {
           "name": "List Channel Members",

@@ -273,7 +273,7 @@ describe('POST /api/v2/chat', () => {
 
   it('rejects a missing or invalid API key', async () => {
     mockAuthenticateV2ApiKey.mockRejectedValue(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
+      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
     )
 
     const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
@@ -337,8 +337,8 @@ describe('POST /api/v2/chat', () => {
   })
 
   /**
-   * The route only ever runs for a personal API key, and `admitV2Request` never
-   * authorizes, so both halves of the funnel's personal-key policy have to be
+   * The route only runs for a user-held credential, and `admitV2Request` never
+   * authorizes, so both halves of the funnel's credential policy have to be
    * repeated here. The workspace column is the first half.
    */
   it('answers 403 when the workspace has switched personal API keys off', async () => {

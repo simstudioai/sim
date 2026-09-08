@@ -3,6 +3,7 @@
  */
 import type {
   DelegatedPrincipal,
+  OAuthAccessTokenPrincipal,
   PersonalApiKeyPrincipal,
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
@@ -30,8 +31,10 @@ import {
   authorizeWorkspaceOperation,
   capabilityGovernedPrincipalUserId,
   defineWorkspaceOperation,
+  InsufficientScopeError,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
+  OAuthAccessTokenExpiredError,
   PermissionGroupCapabilityError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
@@ -623,5 +626,163 @@ describe('capabilityGovernedPrincipalUserId', () => {
         subjectUserId: 'user-3',
       })
     ).toBe('user-3')
+  })
+})
+
+describe('authorizeWorkspaceOperation OAuth access token policy', () => {
+  const readOperation = defineWorkspaceOperation({
+    id: 'test.oauth-read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'none',
+  })
+  const oauthWriteOperation = defineWorkspaceOperation({
+    id: 'test.oauth-write',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'none',
+  })
+
+  function token(overrides: Partial<OAuthAccessTokenPrincipal> = {}): OAuthAccessTokenPrincipal {
+    return {
+      kind: 'oauth_access_token',
+      userId: 'user-1',
+      clientId: 'sim-cli',
+      tokenId: 'token-1',
+      scopes: ['offline_access', 'api:read', 'api:write'],
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      ...overrides,
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('admin')
+    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+  })
+
+  it('walks the personal-key sequence for a token with the right scope', async () => {
+    await expect(
+      authorizeWorkspaceOperation(token(), oauthWriteOperation, context)
+    ).resolves.toBeUndefined()
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'organization-1',
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(resolveGroupConfigMock).toHaveBeenCalled()
+  })
+
+  it('refuses a token carrying neither API scope before touching the workspace', async () => {
+    const failure = await authorizeWorkspaceOperation(
+      token({ scopes: ['offline_access'] }),
+      readOperation,
+      context
+    ).catch((error) => error)
+
+    expect(failure).toBeInstanceOf(InsufficientScopeError)
+    expect(failure.requiredScope).toBe('api:read')
+    expect(failure.detailCode).toBe('INSUFFICIENT_SCOPE')
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
+  it('rejects a read-only token on a semantic write before reading membership', async () => {
+    await expect(
+      authorizeWorkspaceOperation(
+        token({ scopes: ['offline_access', 'api:read'] }),
+        oauthWriteOperation,
+        context
+      )
+    ).rejects.toMatchObject({ requiredScope: 'api:write' })
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
+  it('lets api:write satisfy a read operation', async () => {
+    await expect(
+      authorizeWorkspaceOperation(
+        token({ scopes: ['offline_access', 'api:write'] }),
+        readOperation,
+        context
+      )
+    ).resolves.toBeUndefined()
+  })
+
+  /**
+   * The request-time half of the `cli.use` gate. The consent page enforces it
+   * when the grant is made, but a consent already on file lets every later
+   * authorization skip that endpoint — so withdrawing the capability has to
+   * stop the token already in the user's hands.
+   */
+  it('refuses a Sim CLI token once the group withholds cli.use', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableCliAccess: true,
+    })
+
+    await expect(
+      authorizeWorkspaceOperation(token(), readOperation, context)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+  })
+
+  it('leaves a third-party client alone, which cli.use does not govern', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableCliAccess: true,
+    })
+
+    await expect(
+      authorizeWorkspaceOperation(token({ clientId: 'partner-app' }), readOperation, context)
+    ).resolves.toBeUndefined()
+  })
+
+  it('refuses a lapsed token as unauthorized rather than forbidden', async () => {
+    const failure = await authorizeWorkspaceOperation(
+      token({ expiresAt: new Date('2000-01-01T00:00:00.000Z') }),
+      readOperation,
+      context
+    ).catch((error) => error)
+
+    expect(failure).toBeInstanceOf(OAuthAccessTokenExpiredError)
+    expect(failure.code).toBe('unauthorized')
+  })
+
+  it('is governed by the workspace personal-key column like a personal key', async () => {
+    await expect(
+      authorizeWorkspaceOperation(token(), readOperation, {
+        ...context,
+        allowPersonalApiKeys: false,
+      })
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
+  it('is governed by the group personal-key setting, after the role check', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    await expect(
+      authorizeWorkspaceOperation(token(), readOperation, context)
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
+    expect(mocks.resolvePermission).toHaveBeenCalled()
+  })
+
+  it('conceals a workspace the person cannot reach', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+
+    await expect(
+      authorizeWorkspaceOperation(token(), readOperation, context)
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
+  })
+
+  it('names the person for capability purposes', () => {
+    expect(capabilityGovernedPrincipalUserId(token())).toBe('user-1')
   })
 })

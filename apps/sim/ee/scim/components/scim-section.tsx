@@ -564,14 +564,16 @@ function ConnectionDetails({ organizationId, connection }: ConnectionDetailsProp
  * reach, so the two are configured together.
  */
 export function ScimSection({ organizationId }: ScimSectionProps) {
-  const { features } = useDeploymentShape()
+  const { hosted, features } = useDeploymentShape()
+  /** Hosted ships provisioning with the enterprise plan, which the SSO page already gates; self-hosted follows the flag. */
+  const available = hosted || features.scim
   const { data, isLoading, isError, error, isFetching, refetch } = useScimConnection(
     organizationId,
-    features.scim
+    available
   )
   const configure = useConfigureScimConnection()
 
-  if (!features.scim) return null
+  if (!available) return null
 
   if (isError) {
     return (

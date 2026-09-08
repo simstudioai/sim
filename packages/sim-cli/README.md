@@ -33,23 +33,26 @@ Sign in to the default profile:
 sim login
 ```
 
-The CLI opens a browser and prints a pairing code. Confirm that the code in the
-browser matches the one in your terminal, approve the login, and choose a
-workspace. The selected workspace becomes the default for this profile.
+The CLI opens Sim in your browser, asks you to approve the requested access,
+and receives the one-time authorization code on a loopback callback. It stores
+a short-lived OAuth login that renews automatically and can be revoked under
+**Settings → Authorized apps**. Choose a default workspace afterward with
+`sim configure --set-workspace <id>`.
 
-The login stores a personal API key locally. It does not start a local callback
-server, so the same flow works over SSH and in containers. Use
-`sim login --no-browser` when the browser is on another machine.
+Use `sim login --no-browser` to print the OAuth URL without opening it. The
+browser must still be able to reach the CLI's loopback callback. Over SSH or in
+a container without port forwarding, use `sim login --browserless`; that
+pairing-code fallback creates a permanent personal API key instead.
 
-Check the active profile and verify that its endpoint, API key, and workspace
+Check the active profile and verify that its endpoint, credential, and workspace
 work together:
 
 ```bash
 sim whoami
 ```
 
-This also reports whether the active key is personal or workspace-scoped. Some
-administrative and deployment operations require a personal key.
+This also reports whether the active credential is an OAuth login or an API
+key. Some administrative operations require a personal credential.
 
 Then list and run workflows:
 
@@ -73,7 +76,7 @@ not a workflow.
 A profile is a named CLI configuration. It determines:
 
 - which Sim deployment to use
-- which API key to authenticate with
+- which stored login or API key to authenticate with
 - which workspace to target by default
 - how command output is formatted
 
@@ -94,8 +97,8 @@ There are two common ways to create profiles.
 
 ### Use one login with several workspaces
 
-After `sim login`, create another profile that shares the active profile's API
-key but has its own default workspace:
+After `sim login`, create another profile that shares the active profile's
+credential but has its own default workspace:
 
 ```bash
 sim workspaces list
@@ -105,7 +108,7 @@ sim --profile acme whoami
 
 If you omit `--workspace` in an interactive terminal, the CLI asks you to choose
 one. The new profile stores an `auth_profile` reference to the active login; it
-does not copy the API key.
+does not copy the credential.
 
 ### Use a separate account or deployment
 
@@ -117,8 +120,8 @@ sim login --profile work
 sim login --profile local --endpoint http://localhost:3000
 ```
 
-Each of these profiles stores its own API key. The endpoint selected during
-login is saved with the profile.
+Each of these profiles stores its own login. The endpoint selected during login
+is saved with the profile.
 
 ### View and change profiles
 
@@ -134,8 +137,9 @@ sim whoami --profile work
 `sim profiles` marks the active profile with `*`. Running `sim configure` with
 no setting flags prints the saved settings for that profile.
 
-Non-secret settings are stored in `~/.sim/config`. API keys are stored separately
-in `~/.sim/credentials`, which is written with `0600` permissions. Set
+Non-secret settings are stored in `~/.sim/config`. OAuth tokens and API keys are
+stored separately in `~/.sim/credentials`, which is written with `0600`
+permissions. Set
 `SIM_CONFIG_DIR` to use a different directory.
 
 For each setting, the CLI uses the first available value in this order:
