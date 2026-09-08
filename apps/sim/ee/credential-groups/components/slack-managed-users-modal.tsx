@@ -92,6 +92,9 @@ export function SlackManagedUsersModal({
   const startAuthorization = useStartSlackCredentialGroupConfiguration()
   const [appSetupOpen, setAppSetupOpen] = useState(false)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
+  const [appId, setAppId] = useState('')
+  const [teamId, setTeamId] = useState('')
+  const organizationSetup = scope.kind === 'organization'
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [pending, setPending] = useState(false)
@@ -122,7 +125,7 @@ export function SlackManagedUsersModal({
       : 'search')
   const requiredScopes =
     scope.kind === 'organization'
-      ? [...SLACK_SEARCH_USER_SCOPES]
+      ? [...SLACK_MANAGED_USER_SCOPES]
       : access === null
         ? currentScopes
         : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
@@ -137,6 +140,8 @@ export function SlackManagedUsersModal({
     setSelectedCredentialId(null)
     setClientId('')
     setClientSecret('')
+    setAppId('')
+    setTeamId('')
     setPending(false)
     setAccess(null)
     startAuthorization.reset()
@@ -160,13 +165,13 @@ export function SlackManagedUsersModal({
     }
     if (
       message.credentialGroupId !== credentialGroupId ||
-      !verifiedCredentialId ||
-      message.slackBotCredentialId !== verifiedCredentialId
+      (!organizationSetup &&
+        (!verifiedCredentialId || message.slackBotCredentialId !== verifiedCredentialId))
     ) {
       toast.error('Slack app verification failed. Please try again.')
       return
     }
-    if (!bots.some((bot) => bot.id === verifiedCredentialId)) {
+    if (!organizationSetup && !bots.some((bot) => bot.id === verifiedCredentialId)) {
       toast.error('The verified Slack app is no longer available.')
       return
     }
@@ -230,7 +235,8 @@ export function SlackManagedUsersModal({
   }
 
   const handleSubmit = async () => {
-    if (!selectedBot || pending) return
+    if (pending || (!organizationSetup && !selectedBot)) return
+    if (organizationSetup && (!appId.trim() || !teamId.trim())) return
     if (!clientId.trim() || !clientSecret.trim()) return
 
     const opened = window.open('about:blank', 'slack-managed-users', 'width=720,height=760')
@@ -245,14 +251,16 @@ export function SlackManagedUsersModal({
         ...resourceScopeFields(scope),
         credentialGroupId,
         body: {
-          slackBotCredentialId: selectedBot.id,
+          ...(organizationSetup
+            ? { appId: appId.trim(), teamId: teamId.trim() }
+            : { slackBotCredentialId: selectedBot?.id }),
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim(),
           requiredScopes,
         },
       })
       expectedState.current = result.state
-      expectedCredentialId.current = selectedBot.id
+      expectedCredentialId.current = selectedBot?.id ?? null
       opened.location.href = result.authorizationUrl
       const startedAt = Date.now()
       popupWatcher.current = window.setInterval(() => {
@@ -274,14 +282,20 @@ export function SlackManagedUsersModal({
     }
   }
 
-  const noBots = !isLoading && bots.length === 0
+  const noBots = !organizationSetup && !isLoading && bots.length === 0
   const primaryLabel = isLoading
     ? 'Loading...'
     : pending
       ? 'Waiting for Slack...'
       : 'Verify and add'
   const primaryDisabled =
-    isLoading || noBots || !selectedBot || pending || !clientId.trim() || !clientSecret.trim()
+    isLoading ||
+    noBots ||
+    (!organizationSetup && !selectedBot) ||
+    pending ||
+    !clientId.trim() ||
+    !clientSecret.trim() ||
+    (organizationSetup && (!appId.trim() || !teamId.trim()))
 
   return (
     <>
@@ -300,7 +314,49 @@ export function SlackManagedUsersModal({
           Set up Slack
         </ChipModalHeader>
         <ChipModalBody>
-          {isLoading ? (
+          {organizationSetup ? (
+            <>
+              <ChipModalField
+                type='input'
+                title='Slack App ID'
+                value={appId}
+                onChange={setAppId}
+                placeholder='A…'
+                required
+                disabled={pending}
+                hint='The app used for personal account authorization. Workspace bots are configured separately.'
+              />
+              <ChipModalField
+                type='input'
+                title='Slack workspace ID'
+                value={teamId}
+                onChange={setTeamId}
+                placeholder='T…'
+                required
+                disabled={pending}
+              />
+              <ChipModalField
+                type='input'
+                title='Client ID'
+                value={clientId}
+                onChange={setClientId}
+                required
+                disabled={pending}
+                autoComplete='off'
+              />
+              <ChipModalField
+                type='input'
+                inputType='password'
+                title='Client Secret'
+                value={clientSecret}
+                onChange={setClientSecret}
+                required
+                disabled={pending}
+                autoComplete='off'
+                hint='Use the personal user scopes required for workflow tools. Disable Slack token rotation for this app.'
+              />
+            </>
+          ) : isLoading ? (
             <div className='flex flex-col gap-[9px] px-2'>
               <Skeleton className='h-4 w-24 rounded' />
               <Skeleton className='h-[30px] w-full rounded-lg' />

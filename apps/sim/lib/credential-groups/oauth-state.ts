@@ -10,8 +10,7 @@ import {
 } from '@/lib/credential-groups/providers'
 
 const OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const OAUTH_ATTEMPT_VERSION = 4 as const
-const LEGACY_OAUTH_ATTEMPT_VERSION = 3 as const
+const OAUTH_ATTEMPT_VERSION = 5 as const
 const OAUTH_ATTEMPT_STATE_PREFIX = 'cg_'
 
 const CONSUME_SCRIPT = `
@@ -24,7 +23,8 @@ return value
 `
 
 interface StoredCredentialGroupOAuthAttempt {
-  version: typeof OAUTH_ATTEMPT_VERSION | typeof LEGACY_OAUTH_ATTEMPT_VERSION
+  version: typeof OAUTH_ATTEMPT_VERSION
+  userId: string
   provider: CredentialGroupProvider
   workspaceId?: string
   organizationId?: string
@@ -45,6 +45,7 @@ interface StoredCredentialGroupOAuthAttempt {
 }
 
 export interface CredentialGroupOAuthAttempt {
+  userId: string
   state: string
   provider: CredentialGroupProvider
   nonceHash: string
@@ -66,6 +67,7 @@ export interface CredentialGroupOAuthAttempt {
 }
 
 interface CreateCredentialGroupOAuthAttemptParams {
+  userId: string
   provider: CredentialGroupProvider
   workspaceId?: string
   organizationId?: string
@@ -99,8 +101,9 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
   return (
-    (candidate.version === OAUTH_ATTEMPT_VERSION ||
-      candidate.version === LEGACY_OAUTH_ATTEMPT_VERSION) &&
+    candidate.version === OAUTH_ATTEMPT_VERSION &&
+    typeof candidate.userId === 'string' &&
+    candidate.userId.length > 0 &&
     typeof candidate.provider === 'string' &&
     isCredentialGroupProvider(candidate.provider) &&
     ((typeof candidate.workspaceId === 'string' &&
@@ -146,7 +149,8 @@ export async function createCredentialGroupOAuthAttempt(
     encryptSecret(params.invitationToken),
   ])
   const attempt: StoredCredentialGroupOAuthAttempt = {
-    version: params.organizationId ? OAUTH_ATTEMPT_VERSION : LEGACY_OAUTH_ATTEMPT_VERSION,
+    version: OAUTH_ATTEMPT_VERSION,
+    userId: params.userId,
     provider: params.provider,
     ...resourceScopeFields(resourceScopeFromOwner(params)),
     email: params.email,
@@ -199,6 +203,7 @@ export async function consumeCredentialGroupOAuthAttempt(
   ])
   return {
     state,
+    userId: parsed.userId,
     provider: parsed.provider,
     nonceHash: parsed.nonceHash,
     ...resourceScopeFields(resourceScopeFromOwner(parsed)),

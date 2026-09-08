@@ -1,4 +1,11 @@
 {
   "title": "Platform",
-  "pages": ["workspaces", "organization", "permissions", "credentials", "costs"]
+  "pages": [
+    "workspaces",
+    "organization",
+    "permissions",
+    "connected-accounts",
+    "credentials",
+    "costs"
+  ]
 }

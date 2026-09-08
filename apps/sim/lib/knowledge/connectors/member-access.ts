@@ -7,7 +7,7 @@ import {
   knowledgeConnector,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
@@ -42,6 +42,7 @@ import {
   rejectManagedOAuthToken,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
+import { MEMBER_LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   type ResourcePolicyBindingFor,
@@ -279,6 +280,8 @@ export async function assertKnowledgeConnectorCredentialAccess(
         and(
           eq(knowledgeConnector.id, binding.connectorId),
           eq(knowledgeConnector.accessMode, 'members'),
+          inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
+          ne(knowledgeConnector.memberSyncStatus, 'disabled'),
           eq(knowledgeConnector.credentialGroupId, binding.credentialGroupId),
           eq(knowledgeConnector.credentialGroupOptionId, binding.credentialGroupOptionId),
           resourceScopeCondition(knowledgeBase, scope),

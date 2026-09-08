@@ -70,9 +70,8 @@ export async function handleCredentialGroupOAuthCallback({
     return failureRedirect('failed')
   }
 
-  const principal = credentialGroupOAuthAttemptPrincipal(attempt)
-
   try {
+    const principal = await credentialGroupOAuthAttemptPrincipal(attempt)
     await completePublicCredentialGroupOAuth.execute({
       principal,
       input: { attempt, code },

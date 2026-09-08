@@ -27,6 +27,7 @@ import {
   loadScopedAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
@@ -113,6 +114,7 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
       option.status === 'active' &&
       option.configurationStatus === 'ready'
   )
+  if (input.organizationId) await requireOrganizationAccountsSetup(input.organizationId, group.id)
   if (options.length !== 1) {
     throw new OrchestrationError(
       'validation',
@@ -362,7 +364,9 @@ export async function resolveViewerConnectorMemberships(input: {
       and(
         resourceScopeCondition(credentialGroup, resourceScopeFromOwner(input)),
         eq(credentialGroup.id, group.credentialGroupId),
-        eq(credentialGroupEnrollment.email, email)
+        input.organizationId
+          ? eq(credentialGroupEnrollment.userId, input.userId)
+          : eq(credentialGroupEnrollment.email, email)
       )
     )
 

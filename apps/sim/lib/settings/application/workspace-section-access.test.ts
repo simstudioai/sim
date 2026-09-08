@@ -230,14 +230,16 @@ describe('authorizeWorkspaceSettingsSection', () => {
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'credential-groups' }])
     await authorize('credential-groups')
     expect(mocks.isCredentialGroupsAvailable).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
+      organizationId: 'organization-1',
       ownerBilling: { isEnterprise: true },
     })
     expect(mocks.isForkingAvailableForWorkspace).not.toHaveBeenCalled()
 
+    mocks.checkWorkspaceAccess.mockResolvedValue(PERSONAL_ACCESS)
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'forks' }])
     await authorize('forks')
     expect(mocks.isForkingAvailableForWorkspace).toHaveBeenCalledWith(null, 'viewer-1')

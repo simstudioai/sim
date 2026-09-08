@@ -22,34 +22,43 @@ const enterprise: OrganizationSettingsFeatures = {
   selfHosted: {},
 }
 
+const available = { connectedAccounts: true, search: true }
+
 describe('organization settings navigation', () => {
   it('exposes MCP setup and the read-only roster to an ordinary organization member', () => {
-    expect(organizationSettingsNavigation(false, enterprise).map(({ id }) => id)).toEqual([
-      'members',
-      'search-mcp',
-    ])
+    expect(
+      organizationSettingsNavigation(false, enterprise, available).map(({ id }) => id)
+    ).toEqual(['members', 'search-mcp'])
   })
 
   it('offers every org settings section to an entitled organization administrator', () => {
-    expect(organizationSettingsNavigation(true, enterprise)).toEqual(ORGANIZATION_SETTINGS_ITEMS)
+    expect(organizationSettingsNavigation(true, enterprise, available)).toEqual(
+      ORGANIZATION_SETTINGS_ITEMS
+    )
   })
 
   it('keeps members and billing reachable without an enterprise plan', () => {
     expect(
-      organizationSettingsNavigation(true, { ...enterprise, hasEnterprisePlan: false }).map(
-        ({ id }) => id
-      )
+      organizationSettingsNavigation(
+        true,
+        { ...enterprise, hasEnterprisePlan: false },
+        available
+      ).map(({ id }) => id)
     ).toEqual(['billing', 'members', 'search-mcp'])
   })
 
   it('honors individual self-hosted feature flags and hides billing when disabled', () => {
     expect(
-      organizationSettingsNavigation(true, {
-        ...enterprise,
-        hosted: false,
-        billingEnabled: false,
-        selfHosted: { sso: true },
-      }).map(({ id }) => id)
+      organizationSettingsNavigation(
+        true,
+        {
+          ...enterprise,
+          hosted: false,
+          billingEnabled: false,
+          selfHosted: { sso: true },
+        },
+        available
+      ).map(({ id }) => id)
     ).toEqual(['members', 'sso', 'integrations', 'search-mcp'])
   })
 
@@ -60,7 +69,7 @@ describe('organization settings navigation', () => {
     expect(resolveOrganizationSettingsSection('subscription')).toBe('billing')
     expect(resolveOrganizationSettingsSection('domains')).toBe('sso')
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
-    expect(buildOrganizationNavItems('org').map(({ id }) => id)).toEqual([
+    expect(buildOrganizationNavItems('org', true).map(({ id }) => id)).toEqual([
       'home',
       'search',
       'integrations',
@@ -71,6 +80,7 @@ describe('organization settings navigation', () => {
     expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id, group }) => `${group}:${id}`)).toEqual([
       'account:billing',
       'organization:members',
+      'organization:connected-accounts',
       'organization:usage',
       'organization:whitelabeling',
       'governance:audit-logs',
@@ -85,11 +95,9 @@ describe('organization settings navigation', () => {
   })
 
   it('hosts the account General section ahead of the organization sections', () => {
-    expect(organizationSurfaceSettingsNavigation(false, enterprise).map(({ id }) => id)).toEqual([
-      'general',
-      'members',
-      'search-mcp',
-    ])
+    expect(
+      organizationSurfaceSettingsNavigation(false, enterprise, available).map(({ id }) => id)
+    ).toEqual(['general', 'members', 'search-mcp'])
     expect(ORGANIZATION_SETTINGS_GROUPS.map(({ key }) => key)).toEqual([
       'account',
       'organization',
@@ -109,5 +117,26 @@ describe('organization settings navigation', () => {
       section: 'billing',
     })
     expect(resolveOrganizationSurfaceSection('skills')).toBeNull()
+  })
+  it('hides gated sections while preserving ordinary organization navigation', () => {
+    const sections = organizationSurfaceSettingsNavigation(true, enterprise, {
+      connectedAccounts: false,
+      search: false,
+    }).map(({ id }) => id)
+    expect(sections).not.toContain('connected-accounts')
+    expect(sections).not.toContain('search-mcp')
+    expect(sections).not.toContain('integrations')
+    expect(sections).toContain('members')
+    expect(sections).toContain('general')
+    expect(buildOrganizationNavItems('org', false)).toEqual([])
+  })
+  it('exposes Connected accounts before Search is enabled', () => {
+    const sections = organizationSettingsNavigation(true, enterprise, {
+      connectedAccounts: true,
+      search: false,
+    }).map(({ id }) => id)
+    expect(sections).toContain('connected-accounts')
+    expect(sections).not.toContain('search-mcp')
+    expect(sections).not.toContain('integrations')
   })
 })

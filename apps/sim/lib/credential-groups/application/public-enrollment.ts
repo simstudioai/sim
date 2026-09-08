@@ -10,6 +10,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { credentialGroupEnrollmentOperations } from '@/lib/credential-groups/application/enrollment-operations'
 import {
+  bindCredentialGroupEnrollmentUser,
   completeAuthorizedCredentialGroupEnrollment,
   getAuthorizedCredentialGroupMcpOAuthContext,
   getAuthorizedCredentialGroupOAuthContext,
@@ -40,7 +41,7 @@ interface AuthorizedCredentialGroupEnrollmentUseCaseDefinition<O, I, C, R> {
 function requireCredentialGroupEnrollmentPrincipal(
   principal: Principal
 ): asserts principal is CredentialGroupEnrollmentPrincipal {
-  if (principal.kind !== 'credential_group_enrollment') {
+  if (principal.kind !== 'credential_group_enrollment' || !principal.userId?.trim()) {
     throw new OrchestrationError(
       'forbidden',
       'This operation requires a Credential Group invitation'
@@ -57,6 +58,7 @@ function requireMatchingContext(
     context.credentialGroupId !== principal.credentialGroupId ||
     context.enrollmentId !== principal.enrollmentId ||
     context.email !== principal.email ||
+    context.userId !== principal.userId ||
     !safeCompare(context.invitationTokenHash, principal.invitationTokenHash)
   ) {
     throw new OrchestrationError('not_found', 'Invitation is invalid or expired')
@@ -74,6 +76,7 @@ function defineAuthorizedCredentialGroupEnrollmentUseCase<
 ): OperationUseCase<O, I, R> {
   async function authorize(principal: Principal, input: I) {
     requireCredentialGroupEnrollmentPrincipal(principal)
+    await bindCredentialGroupEnrollmentUser(identityFromPrincipal(principal), principal.userId)
     const context = await definition.resolveContext({ principal, input })
     requireMatchingContext(principal, context)
     return { principal, input, context }
@@ -100,6 +103,7 @@ function identityFromPrincipal(
     enrollmentId: principal.enrollmentId,
     email: principal.email,
     invitationTokenHash: principal.invitationTokenHash,
+    userId: principal.userId,
   }
 }
 
@@ -151,10 +155,10 @@ export const completePublicCredentialGroupEnrollment =
     resolveContext: ({ principal }) => resolvePublicEnrollmentContext(principal),
     async execute({ context }) {
       const completion = await completeAuthorizedCredentialGroupEnrollment(context)
-      if (completion?.transitioned && context.workspaceId) {
+      if (completion?.transitioned && context.organizationId) {
         await fireCredentialGroupTrigger({
           event: 'form_submitted',
-          workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
           credentialGroupId: context.credentialGroupId,
           credentialGroupName: context.enrollment.credentialGroupName,
           enrollmentId: context.enrollmentId,
@@ -220,6 +224,7 @@ function identityForOAuthAttempt(
     | 'enrollmentId'
     | 'email'
     | 'invitationToken'
+    | 'userId'
   >
 ): PublicCredentialGroupEnrollmentIdentity {
   requireInvitationToken(principal, attempt.invitationToken)
@@ -227,7 +232,8 @@ function identityForOAuthAttempt(
     !sameResourceScope(resourceScopeFromOwner(attempt), resourceScopeFromOwner(principal)) ||
     attempt.email !== principal.email ||
     attempt.credentialGroupId !== principal.credentialGroupId ||
-    attempt.enrollmentId !== principal.enrollmentId
+    attempt.enrollmentId !== principal.enrollmentId ||
+    attempt.userId !== principal.userId
   ) {
     throw new OrchestrationError('not_found', 'Authorization state does not match this enrollment')
   }
@@ -256,10 +262,10 @@ export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGrou
   async execute({ principal, input, context }) {
     requireInvitationToken(principal, input.attempt.invitationToken)
     const completion = await completeCredentialGroupOAuth(context.oauth, input.attempt, input.code)
-    if (context.workspaceId)
+    if (context.organizationId)
       await fireCredentialGroupTrigger({
         event: completion.created ? 'credential_added' : 'credential_reconnected',
-        workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
         credentialGroupId: context.credentialGroupId,
         credentialGroupName: context.oauth.credentialGroupName,
         enrollmentId: context.enrollmentId,
@@ -334,10 +340,36 @@ export const completePublicCredentialGroupMcpOAuth =
         input.attempt.mcpServerId
       )
       if (!oauth) throw new CredentialGroupInvitationUnavailableError()
+      if (oauth.server.oauthConfigVersion !== input.attempt.oauthConfigVersion)
+        throw new OrchestrationError('conflict', 'MCP setup changed. Start authorization again.')
       return { ...identity, oauth }
     },
     async execute({ principal, input, context }) {
       requireInvitationToken(principal, input.attempt.invitationToken)
-      return completeCredentialGroupMcpOAuth(context.oauth, input.attempt.codeVerifier, input.code)
+      const completion = await completeCredentialGroupMcpOAuth(
+        context.oauth,
+        input.attempt.codeVerifier,
+        input.code,
+        input.attempt.invitationToken
+      )
+      if (context.organizationId)
+        await fireCredentialGroupTrigger({
+          event: completion.created ? 'credential_added' : 'credential_reconnected',
+          organizationId: context.organizationId,
+          credentialGroupId: context.credentialGroupId,
+          credentialGroupName: context.oauth.credentialGroupName,
+          enrollmentId: context.enrollmentId,
+          email: context.email,
+          enrollmentStatus: completion.enrollmentStatus,
+          credential: {
+            credentialId: completion.connectionId,
+            credentialGroupOptionId: null,
+            mcpServerId: completion.mcpServerId,
+            provider: context.oauth.server.connectorId,
+            providerId: context.oauth.server.connectorId,
+            displayName: context.oauth.server.name,
+          },
+        })
+      return { connectionId: completion.connectionId, mcpServerId: completion.mcpServerId }
     },
   })

@@ -179,6 +179,7 @@ export interface OrganizationDelegatedPrincipal {
 /** Bearer identity established by a currently valid Credential Group invitation. */
 interface CredentialGroupEnrollmentIdentity {
   kind: 'credential_group_enrollment'
+  userId: string
   credentialGroupId: string
   enrollmentId: string
   email: string

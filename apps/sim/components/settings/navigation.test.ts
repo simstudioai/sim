@@ -129,6 +129,7 @@ describe('settings navigation boundaries', () => {
       'general',
       'billing',
       'api-keys',
+      'connected-accounts',
       'admin',
       'mothership',
     ])
@@ -235,6 +236,7 @@ describe('settings navigation boundaries', () => {
       hasEnterprisePlan: true,
       hosted: false,
       selfHosted: {
+        'connected-accounts': true,
         'access-control': false,
         'audit-logs': false,
         sso: true,
@@ -495,6 +497,7 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'sandboxes',
+        'credential-groups',
         'custom-tools',
         'mcp',
         'workflow-mcp-servers',
@@ -512,6 +515,7 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'sandboxes',
+        'credential-groups',
         'custom-tools',
         'mcp',
         'workflow-mcp-servers',

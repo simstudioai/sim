@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   consume: vi.fn(),
   exchange: vi.fn(),
 }))
+vi.mock('@/lib/credential-groups/organization-setup', () => ({
+  requireOrganizationAccountsSetup: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   requireOrganizationMembership: mocks.organizationAccess,

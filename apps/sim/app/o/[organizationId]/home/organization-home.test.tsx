@@ -41,7 +41,10 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  mocks.context.mockReturnValue({ organization: { id: 'organization-a' } })
+  mocks.context.mockReturnValue({
+    organization: { id: 'organization-a' },
+    searchAccess: { memberScoped: true },
+  })
   mocks.chat.mockReturnValue({ messages: [], isChatHistoryPending: true, sendMessage: mocks.send })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
   mocks.renderer.mockReturnValue(<div>Chat history</div>)
@@ -59,6 +62,19 @@ function composerProps(): ComponentProps<typeof Composer> {
 }
 
 describe('organization home', () => {
+  it.each([undefined, 'chat-a'])(
+    'does not mount Home or chat %s when Search is disabled',
+    async (chatId) => {
+      mocks.context.mockReturnValue({ searchAccess: { memberScoped: false } })
+      await act(async () => root.render(<OrganizationHome chatId={chatId} />))
+      expect(container.textContent).toBe('')
+      expect(mocks.composer).not.toHaveBeenCalled()
+      expect(mocks.chat).not.toHaveBeenCalled()
+      expect(mocks.consume).not.toHaveBeenCalled()
+      expect(mocks.renderer).not.toHaveBeenCalled()
+    }
+  )
+
   it('greets the viewer over the composer and steps while the history query is pending', async () => {
     await act(async () => root.render(<OrganizationHome userName='Ada Lovelace' />))
     expect(container.textContent).toContain('What should we get done, Ada?')

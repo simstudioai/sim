@@ -24,6 +24,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
   requireKnowledgeMemberAccessAvailable,
+  requireOrganizationSearchAvailable,
   requireSourceMirroredAccessAvailable,
 } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -117,6 +118,7 @@ export const readSearchIndex = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readSearchIndex,
   resolveContext: ({ input }: { input: ResourceOwner }) => resolveKnowledgeOwnerContext(input),
   async execute({ context }) {
+    if (context.organizationId) await requireOrganizationSearchAvailable(context.organizationId)
     return {
       workspaceId: context.workspaceId,
       knowledgeBaseId: (await findSearchIndex(resourceScopeFromOwner(context)))?.id ?? null,

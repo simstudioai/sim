@@ -2,7 +2,7 @@ import { cache } from 'react'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -31,7 +31,12 @@ async function resolveWorkspaceHostContextForViewer(
       : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
   ])
   const [credentialGroupsAvailable, knowledgeAccess] = await Promise.all([
-    isCredentialGroupsAvailable({ workspaceId, ownerBilling }),
+    hostOrganizationId
+      ? isScopedCredentialGroupsAvailable({
+          kind: 'organization',
+          organizationId: hostOrganizationId,
+        })
+      : Promise.resolve(false),
     resolveKnowledgeAccessAvailability({ workspaceId, ownerBilling }),
   ])
 

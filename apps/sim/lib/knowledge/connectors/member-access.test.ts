@@ -679,6 +679,22 @@ describe('organization member credential binding', () => {
         )
       ).toBe(true)
     }
+    expect(
+      hasMockCondition(
+        predicate,
+        (condition) =>
+          condition.type === 'inArray' && condition.column === knowledgeConnector.status
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        predicate,
+        (condition) =>
+          condition.type === 'ne' &&
+          condition.left === knowledgeConnector.memberSyncStatus &&
+          condition.right === 'disabled'
+      )
+    ).toBe(true)
   })
 
   it('denies a connector whose current canonical owner or option no longer matches', async () => {

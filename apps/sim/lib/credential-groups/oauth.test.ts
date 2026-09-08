@@ -47,6 +47,7 @@ import {
   startCredentialGroupOAuth,
 } from '@/lib/credential-groups/oauth'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
+import { dispatchMemberSyncsForCredentialOption } from '@/lib/knowledge/connectors/member-queue'
 
 const POLICY = {
   provider: 'gmail' as const,
@@ -63,6 +64,7 @@ const CONTEXT = {
   workspaceId: 'workspace-1',
   workspaceName: 'Workspace',
   workspaceOwnerId: 'owner-1',
+  credentialOwnerId: 'person-1',
   email: 'person@example.com',
   enrollmentStatus: 'in_progress' as const,
   option: {
@@ -144,6 +146,7 @@ describe('credential group OAuth persistence', () => {
         CONTEXT,
         {
           state: 'state-1',
+          userId: 'person-1',
           provider: 'gmail',
           nonceHash: 'nonce-hash',
           workspaceId: CONTEXT.workspaceId,
@@ -180,6 +183,7 @@ describe('credential group OAuth persistence', () => {
       CONTEXT,
       {
         state: 'state-1',
+        userId: 'person-1',
         provider: 'gmail',
         nonceHash: 'nonce-hash',
         workspaceId: CONTEXT.workspaceId,
@@ -211,7 +215,7 @@ describe('credential group OAuth persistence', () => {
   })
 
   it.each([true, false])(
-    'rechecks organization membership after the provider exchange (member=%s)',
+    'accepts the bound person without requiring organization membership (member=%s)',
     async (currentMember) => {
       const context = {
         ...CONTEXT,
@@ -222,6 +226,7 @@ describe('credential group OAuth persistence', () => {
       }
       const attempt = {
         state: 'state-1',
+        userId: 'person-1',
         provider: 'gmail' as const,
         nonceHash: 'nonce',
         organizationId: 'org-1',
@@ -244,23 +249,25 @@ describe('credential group OAuth persistence', () => {
       dbChainMockFns.returning
         .mockResolvedValueOnce([{ id: 'credential-1' }])
         .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
-      if (currentMember) {
-        await expect(
-          completeCredentialGroupOAuth(context, attempt, 'authorization-code')
-        ).resolves.toMatchObject({ credentialId: 'credential-1', created: true })
-        expect(dbChainMockFns.values).toHaveBeenCalledWith(
-          expect.objectContaining({
-            organizationId: 'org-1',
-            workspaceId: null,
-            createdBy: 'person-1',
-          })
-        )
-      } else {
-        await expect(
-          completeCredentialGroupOAuth(context, attempt, 'authorization-code')
-        ).rejects.toBeInstanceOf(CredentialGroupInvitationUnavailableError)
-        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-      }
+      await expect(
+        completeCredentialGroupOAuth(context, attempt, 'authorization-code')
+      ).resolves.toMatchObject({ credentialId: 'credential-1', created: true })
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-1',
+          workspaceId: null,
+          createdBy: 'person-1',
+        })
+      )
+      expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'person-1')
+      expect(dispatchMemberSyncsForCredentialOption).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        credentialGroupOptionId: 'option-1',
+      })
+      expect(eq).toHaveBeenCalledWith(
+        schemaMock.credentialGroupEnrollment.invitationTokenHash,
+        expect.any(String)
+      )
     }
   )
 
@@ -283,6 +290,7 @@ describe('credential group OAuth persistence', () => {
       { ...CONTEXT, enrollmentStatus: 'completed' },
       {
         state: 'state-1',
+        userId: 'person-1',
         provider: 'gmail',
         nonceHash: 'nonce-hash',
         workspaceId: CONTEXT.workspaceId,
@@ -343,6 +351,7 @@ describe('credential group OAuth persistence', () => {
         { ...CONTEXT, enrollmentStatus: 'completed' },
         {
           state: 'state-1',
+          userId: 'person-1',
           provider: 'gmail',
           nonceHash: 'nonce-hash',
           workspaceId: CONTEXT.workspaceId,
@@ -380,6 +389,7 @@ describe('credential group OAuth persistence', () => {
         CONTEXT,
         {
           state: 'state',
+          userId: 'person-1',
           provider: 'gmail',
           workspaceId: CONTEXT.workspaceId,
           email: CONTEXT.email,

@@ -167,48 +167,13 @@ describe('Slack member access selection', () => {
     expect(window.open).not.toHaveBeenCalled()
   })
 
-  it('keeps organization Slack app setup focused on search and returns to member verification', async () => {
+  it('keeps organization personal-account configuration separate from workspace bots', async () => {
     await render(undefined, [], 'org-1')
-    await clickButton('Set up Slack app')
-    const dialog = appSetupDialog(true)
-    expect(dialog).toBeDefined()
-    expect(dialog?.textContent).toContain('App name')
-    expect(dialog?.textContent).not.toContain('Additional permissions')
-    expect(dialog?.textContent).not.toContain('Member access')
-    expect(dialog?.textContent).not.toContain('Slash commands')
-    expect(dialog?.textContent).not.toContain('Workflow tools')
-
-    await fill('Sim Bot', 'Organization search')
-    await clickButton('Next')
-    const manifestText = Array.from(appSetupDialog(true)?.querySelectorAll('pre') ?? [])
-      .map((node) => node.textContent)
-      .join('\n')
-    const manifest = JSON.parse(manifestText)
-    expect(manifest.oauth_config.scopes.user).toEqual([...SLACK_SEARCH_USER_SCOPES].sort())
-    expect(manifest.oauth_config.scopes.bot).toContain('users:read')
-    expect(manifest.features).not.toHaveProperty('slash_commands')
-
-    await clickButton('Next')
-    await fill('Paste your signing secret', 'fixture-signing-secret')
-    await clickButton('Next')
-    await fill('xoxb-...', 'xoxb-fixture-token')
-    await clickButton('Next')
-
-    expect(mocks.create).toHaveBeenCalledExactlyOnceWith({
-      organizationId: 'org-1',
-      type: 'service_account',
-      providerId: 'slack-custom-bot',
-      id: expect.any(String),
-      signingSecret: 'fixture-signing-secret',
-      botToken: 'xoxb-fixture-token',
-      displayName: 'Organization search',
-      description: undefined,
-    })
-    expect(appSetupDialog(true)?.textContent).toContain('Click Done to verify member access.')
-    expect(appSetupDialog(true)?.textContent).not.toContain('Slack triggers and actions')
-    await clickButton('Done')
-    expect(appSetupDialog(true)).toBeUndefined()
-    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Slack App ID')
+    expect(document.body.textContent).toContain('Slack workspace ID')
+    expect(document.body.textContent).not.toContain('Set up Slack app')
+    expect(document.body.textContent).not.toContain('Signing secret')
+    expect(mocks.create).not.toHaveBeenCalled()
     expect(mocks.start).not.toHaveBeenCalled()
   })
 
@@ -274,19 +239,35 @@ describe('Slack member access selection', () => {
     )
   })
 
-  it('org setup requests search scopes without exposing workflow access', async () => {
+  it('org setup uses the personal app identity and workflow scopes', async () => {
     await render(SLACK_MANAGED_USER_SCOPES, [bot], 'org-1')
     expect(document.body.textContent).not.toContain('Workflow tools')
     expect(document.body.textContent).not.toContain('Search documents')
-    await submit()
+    await fill('A…', 'A_APP')
+    await fill('T…', 'T_TEAM')
+    const inputs = document.querySelectorAll<HTMLInputElement>('input')
+    for (const [index, value] of [
+      [2, 'fixture-client'],
+      [3, 'fixture-secret'],
+    ] as const) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+          inputs[index],
+          value
+        )
+        inputs[index].dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }
+    await clickButton('Verify and add')
     expect(mocks.start).toHaveBeenCalledExactlyOnceWith({
       organizationId: 'org-1',
       credentialGroupId: 'group-1',
       body: {
-        slackBotCredentialId: bot.id,
+        appId: 'A_APP',
+        teamId: 'T_TEAM',
         clientId: 'fixture-client',
         clientSecret: 'fixture-secret',
-        requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
+        requiredScopes: [...SLACK_MANAGED_USER_SCOPES],
       },
     })
   })

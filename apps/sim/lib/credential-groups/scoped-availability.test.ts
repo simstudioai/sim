@@ -54,15 +54,15 @@ describe('owner-scoped connected accounts availability', () => {
       isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId: 'org-1' })
     ).resolves.toBe(false)
   })
-  it('retains the existing workspace gate and payer semantics', async () => {
-    const billing = { isEnterprise: true }
+  it('resolves a workspace to its organization instead of evaluating a workspace rollout', async () => {
+    const billing = { isEnterprise: true, organizationId: 'org-parent' }
     mocks.workspace.mockResolvedValue(billing)
     mocks.workspaceAvailable.mockResolvedValue(true)
     await expect(
       isScopedCredentialGroupsAvailable({ kind: 'workspace', workspaceId: 'ws-1' })
     ).resolves.toBe(true)
     expect(mocks.workspaceAvailable).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
+      organizationId: 'org-parent',
       ownerBilling: billing,
     })
     expect(mocks.subscription).not.toHaveBeenCalled()

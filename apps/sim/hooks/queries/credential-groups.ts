@@ -282,15 +282,24 @@ export function useStartSlackCredentialGroupConfiguration() {
       | { organizationId: string; workspaceId?: never }
     )) => {
       const scope = resourceScopeFromOwner({ workspaceId, organizationId })
-      return scope.kind === 'organization'
-        ? requestJson(startOrganizationSlackConfigurationContract, {
-            params: { id: scope.organizationId, groupId: credentialGroupId },
-            body,
-          })
-        : requestJson(startSlackCredentialGroupConfigurationContract, {
-            params: { id: scope.workspaceId, groupId: credentialGroupId },
-            body,
-          })
+      if (scope.kind === 'organization') {
+        if (!body.appId || !body.teamId)
+          throw new Error('Slack App ID and workspace ID are required')
+        return requestJson(startOrganizationSlackConfigurationContract, {
+          params: { id: scope.organizationId, groupId: credentialGroupId },
+          body: {
+            clientId: body.clientId,
+            clientSecret: body.clientSecret,
+            appId: body.appId,
+            teamId: body.teamId,
+            requiredScopes: body.requiredScopes,
+          },
+        })
+      }
+      return requestJson(startSlackCredentialGroupConfigurationContract, {
+        params: { id: scope.workspaceId, groupId: credentialGroupId },
+        body,
+      })
     },
   })
 }

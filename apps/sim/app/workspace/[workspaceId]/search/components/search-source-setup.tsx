@@ -63,6 +63,7 @@ interface SearchSourceSetupProps {
   canAdmin: boolean
   memberAccessAvailable: boolean
   mirroredAccessAvailable: boolean
+  membersOnly?: boolean
 }
 
 /** Owns admin setup and existing source management, including bookmarked OAuth return URLs. */
@@ -72,6 +73,7 @@ export function SearchSourceSetup({
   canAdmin,
   memberAccessAvailable,
   mirroredAccessAvailable,
+  membersOnly = false,
 }: SearchSourceSetupProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const { data: session } = useSession()
@@ -120,6 +122,7 @@ export function SearchSourceSetup({
     managedConnectors[0]?.connectorType ??
     (managedSource && CONNECTOR_META_REGISTRY[managedSource] ? managedSource : undefined)
   const initialMode = (type: string) => {
+    if (membersOnly) return 'members' as const
     const meta = CONNECTOR_META_REGISTRY[type]
     if (
       meta &&
@@ -153,6 +156,7 @@ export function SearchSourceSetup({
           isSearchIndex
           initialConnectorType={selectedType}
           initialAccessMode={initialMode(selectedType)}
+          membersOnly={membersOnly}
           setupDraftKey={`${session.user.id}:${resourceScopeKey(scope)}:${knowledgeBaseId}:${selectedType}`}
           onConnectorTypeChange={(type) =>
             void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
@@ -249,7 +253,7 @@ export function SearchSourceSetup({
                       isIntegrationAvailabilityReady,
                     }
                   )
-                  const available = central || members
+                  const available = membersOnly ? members : central || members
                   return (
                     <SettingsResourceRow
                       key={type}
@@ -277,7 +281,7 @@ export function SearchSourceSetup({
                                   {
                                     ...resourceScopeFields(scope),
                                     connectorType: type,
-                                    accessMode: central ? 'admin' : 'members',
+                                    accessMode: membersOnly || !central ? 'members' : 'admin',
                                   },
                                   {
                                     onSuccess: () =>

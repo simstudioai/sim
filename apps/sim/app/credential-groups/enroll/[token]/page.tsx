@@ -2,11 +2,14 @@ import { type ReactNode, Suspense } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/auth'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { readPublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
+import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
@@ -51,18 +54,20 @@ function PageShell({ children }: PageShellProps) {
 
 interface UnavailableInvitationProps {
   rateLimited?: boolean
+  message?: string
 }
 
-function UnavailableInvitation({ rateLimited = false }: UnavailableInvitationProps) {
+function UnavailableInvitation({ rateLimited = false, message }: UnavailableInvitationProps) {
   return (
     <PageShell>
       <div className='my-auto py-16 text-center'>
         <AuthHeader
           title={rateLimited ? 'Too many requests' : 'Invitation unavailable'}
           description={
-            rateLimited
+            message ??
+            (rateLimited
               ? 'This link has been opened too many times. Wait a few minutes and try again.'
-              : 'This private link is invalid, expired, or has been revoked. Ask the workspace admin to send a new invitation.'
+              : 'Sign in with the account this invitation was sent to. If the link has expired, ask an organization admin for a new invitation.')
           }
         />
       </div>
@@ -119,10 +124,23 @@ export default async function CredentialGroupEnrollmentPage({
 
   const { token } = await params
   if (!token || token.length > 128) return <UnavailableInvitation />
-
+  const resolvedSearchParams = await searchParams
+  const session = await getSession()
+  if (!session?.user) {
+    const callback = new URLSearchParams()
+    for (const key of ['returnTo', 'optionId']) {
+      const value = getSearchParam(resolvedSearchParams, key)
+      if (value) callback.set(key, value)
+    }
+    const callbackUrl = `/credential-groups/enroll/${encodeURIComponent(token)}${callback.size ? `?${callback}` : ''}`
+    redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
+  }
+  if (!session.user.emailVerified)
+    return (
+      <UnavailableInvitation message='Verify your Sim email address before connecting your accounts.' />
+    )
   const principal = await authenticateCredentialGroupEnrollment(token)
   if (!principal) return <UnavailableInvitation />
-  const resolvedSearchParams = await searchParams
   const returnToSearch = resolvedSearchParams.returnTo === 'search'
   const requestedOptionId = resolvedSearchParams.optionId
   const focusedOptionId =
@@ -132,12 +150,16 @@ export default async function CredentialGroupEnrollmentPage({
   const enrollmentResult = await readPublicCredentialGroupEnrollment
     .execute({ principal, input: returnToSearch ? { optionId: focusedOptionId } : {} })
     .catch((error: unknown) => {
+      if (error instanceof CredentialGroupEnrollmentError)
+        return { enrollment: null, enrollmentError: error.message }
       if (asOrchestrationError(error)?.code === 'not_found') return null
       if (returnToSearch && error instanceof CredentialGroupProviderConfigurationError)
         return { enrollment: null }
       throw error
     })
   if (!enrollmentResult) return <UnavailableInvitation />
+  if ('enrollmentError' in enrollmentResult)
+    return <UnavailableInvitation message={enrollmentResult.enrollmentError} />
   const { enrollment } = enrollmentResult
   if (!enrollment) return <UnavailableSearchConnection owner={principal} />
 

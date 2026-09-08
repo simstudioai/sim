@@ -202,11 +202,16 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('opens for an allowlisted workspace only', async () => {
-      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+    it('opens for an allowlisted organization only', async () => {
+      withAppConfig({ 'credential-groups': { orgIds: ['org-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-2' })).toBe(false)
       expect(await isFeatureEnabled('credential-groups')).toBe(false)
+    })
+
+    it('a legacy workspace allowlist does not enable the organization gate', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(false)
     })
   })
 

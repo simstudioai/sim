@@ -58,6 +58,7 @@ describe('credential group OAuth state', () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'gmail',
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
@@ -81,6 +82,7 @@ describe('credential group OAuth state', () => {
     expect(consumed).toMatchObject({
       provider: 'gmail',
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
@@ -100,6 +102,7 @@ describe('credential group OAuth state', () => {
       createCredentialGroupOAuthAttempt({
         provider: 'gmail',
         workspaceId: 'workspace-1',
+        userId: 'user-1',
         email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
@@ -118,6 +121,7 @@ describe('credential group OAuth state', () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'github-repositories',
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
@@ -146,6 +150,7 @@ describe('credential group OAuth state', () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'slack',
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
@@ -173,6 +178,7 @@ describe('credential group OAuth state', () => {
     const params = {
       provider: 'gmail' as const,
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
@@ -193,6 +199,7 @@ describe('credential group OAuth state', () => {
     const secondAttempt = await consumeCredentialGroupOAuthAttempt(second.state)
     expect(firstAttempt).toMatchObject({
       workspaceId: params.workspaceId,
+      userId: 'user-1',
       email: params.email,
       invitationToken: params.invitationToken,
       optionId: 'option-1',
@@ -200,6 +207,7 @@ describe('credential group OAuth state', () => {
     })
     expect(secondAttempt).toMatchObject({
       workspaceId: params.workspaceId,
+      userId: 'user-1',
       email: params.email,
       invitationToken: 'second-invitation',
       optionId: 'option-2',
@@ -213,6 +221,7 @@ describe('credential group OAuth state', () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'gmail',
       workspaceId: 'workspace-1',
+      userId: 'user-1',
       email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
@@ -235,6 +244,7 @@ describe('credential group OAuth state', () => {
       const created = await createCredentialGroupOAuthAttempt({
         provider: 'gmail',
         workspaceId: 'workspace-1',
+        userId: 'user-1',
         email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
@@ -259,6 +269,7 @@ describe('organization enrollment OAuth state', () => {
   const input = {
     provider: 'gmail' as const,
     organizationId: 'org-1',
+    userId: 'user-1',
     email: 'person@example.com',
     enrollmentId: 'enrollment-1',
     credentialGroupId: 'group-1',
@@ -278,7 +289,7 @@ describe('organization enrollment OAuth state', () => {
   it('round trips explicit organization ownership and preserves the setup return destination', async () => {
     const { state } = await createCredentialGroupOAuthAttempt(input)
     const raw = JSON.parse([...values.values()][0]!)
-    expect(raw.version).toBe(4)
+    expect(raw.version).toBe(5)
     expect(raw.organizationId).toBe('org-1')
     expect(raw.workspaceId).toBeUndefined()
     const attempt = await consumeCredentialGroupOAuthAttempt(state)

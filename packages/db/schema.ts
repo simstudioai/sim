@@ -3847,14 +3847,16 @@ export const mcpServers = pgTable(
   'mcp_servers',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     credentialGroupId: text('credential_group_id').references(
       (): AnyPgColumn => credentialGroup.id,
       { onDelete: 'set null' }
     ),
     managedConnectorId: text('managed_connector_id'),
+    oauthConfigVersion: integer('oauth_config_version').notNull().default(1),
 
     // Track who created the server, but workspace owns it
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3895,6 +3897,15 @@ export const mcpServers = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'mcp_servers_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationManagedCheck: check(
+      'mcp_servers_organization_managed_check',
+      sql`${table.organizationId} IS NULL OR ${table.credentialGroupId} IS NOT NULL`
+    ),
+    organizationIdx: index('mcp_servers_organization_id_idx').on(table.organizationId),
     // Primary access pattern - active servers by workspace
     workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
       table.workspaceId,
@@ -3941,9 +3952,10 @@ export const mcpServerOauth = pgTable(
       .references(() => mcpServers.id, { onDelete: 'cascade' }),
     /** Last workspace user who initiated/completed authorization. */
     userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
 
     /**
      * Encrypted JSON of the RFC 7591 dynamic client registration result.
@@ -3973,6 +3985,10 @@ export const mcpServerOauth = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'mcp_server_oauth_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
     serverUnique: uniqueIndex('mcp_server_oauth_server_unique').on(table.mcpServerId),
     stateIdx: index('mcp_server_oauth_state_idx').on(table.state),
   })
@@ -4610,6 +4626,7 @@ export const credential = pgTable(
     mcpServerId: text('mcp_server_id').references(() => mcpServers.id, {
       onDelete: 'cascade',
     }),
+    mcpOauthConfigVersion: integer('mcp_oauth_config_version'),
     managedOauthScopeVersion: integer('managed_oauth_scope_version'),
     providerSubjectId: text('provider_subject_id'),
     providerTenantId: text('provider_tenant_id'),
@@ -4636,7 +4653,7 @@ export const credential = pgTable(
     organizationIdIdx: index('credential_organization_id_idx').on(table.organizationId),
     organizationTypeCheck: check(
       'credential_organization_type_check',
-      sql`${table.organizationId} IS NULL OR ${table.type} IN ('oauth', 'managed_oauth', 'service_account', 'personal_token')`
+      sql`${table.organizationId} IS NULL OR ${table.type} IN ('oauth', 'managed_oauth', 'managed_mcp', 'service_account', 'personal_token')`
     ),
     organizationAccountUnique: uniqueIndex('credential_organization_account_unique')
       .on(table.organizationId, table.accountId)
@@ -4786,11 +4803,12 @@ export interface CredentialGroupOptionConfig {
   status: 'active' | 'disabled'
 }
 
-/** Workspace-owned configuration for collecting several managed OAuth credentials. */
+/** Singleton configuration for collecting an organization's connected accounts. */
 export const credentialGroup = pgTable(
   'credential_group',
   {
     id: text('id').primaryKey(),
+    /** contract-pending(org connected accounts fully deployed and legacy Search migrated): remove workspace ownership. */
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
@@ -4836,6 +4854,8 @@ export const credentialGroupEnrollment = pgTable(
       .notNull()
       .references(() => credentialGroup.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
+    /** Bound once after the invitee signs in with the verified invitation email. */
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     status: credentialGroupEnrollmentStatusEnum('status').notNull().default('invited'),
     invitationTokenHash: text('invitation_token_hash').notNull(),
     invitationExpiresAt: timestamp('invitation_expires_at').notNull(),
@@ -4849,6 +4869,10 @@ export const credentialGroupEnrollment = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    groupUserUnique: uniqueIndex('credential_group_enrollment_group_user_unique')
+      .on(table.credentialGroupId, table.userId)
+      .where(sql`${table.userId} IS NOT NULL`),
+    userIdx: index('credential_group_enrollment_user_id_idx').on(table.userId),
     groupEmailUnique: uniqueIndex('credential_group_enrollment_group_email_unique').on(
       table.credentialGroupId,
       table.email
@@ -5067,14 +5091,15 @@ export const permissionGroupMember = pgTable(
   })
 )
 
-/** Versioned statement policy attached to one canonical workspace resource. */
+/** Versioned statement policy attached to one canonical workspace or organization resource. */
 export const resourcePolicy = pgTable(
   'resource_policy',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     resourceType: text('resource_type').notNull(),
     resourceId: text('resource_id').notNull(),
     revision: integer('revision').notNull().default(1),
@@ -5085,6 +5110,11 @@ export const resourcePolicy = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'resource_policy_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdx: index('resource_policy_organization_id_idx').on(table.organizationId),
     resourceUnique: uniqueIndex('resource_policy_resource_unique').on(
       table.resourceType,
       table.resourceId

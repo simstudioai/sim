@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useRef, useState } from 'react'
+import { type ComponentProps, memo, useCallback, useRef, useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -51,6 +51,16 @@ const logger = createLogger('OrganizationSidebar')
  */
 const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
+interface OrganizationChatsProps
+  extends Omit<ComponentProps<typeof ChatsSection>, 'chats' | 'isLoading'> {
+  organizationId: string
+}
+
+function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
+  const { chats, isLoading } = useOrganizationChats(organizationId)
+  return <ChatsSection {...props} chats={chats} isLoading={isLoading} />
+}
+
 /**
  * The organization surface's rail: the same chrome as the workspace sidebar —
  * header row, pinned nav block, a divided scroll region of sections, and the
@@ -68,7 +78,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const pathname = usePathname()
   const posthog = usePostHog()
-  const { organization } = useOrganizationContext()
+  const { organization, searchAccess } = useOrganizationContext()
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { handlePointerDown } = useSidebarResize()
   const showCollapsedTooltips = useCollapsedTooltips(isCollapsed)
@@ -76,10 +86,9 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     contentRef: scrollContentRef,
     enabled: !isCollapsed,
   })
-  const { chats, isLoading: chatsLoading } = useOrganizationChats(organization.id)
 
   const isMac = isMacPlatform()
-  const navItems = buildOrganizationNavItems(organization.id)
+  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped)
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
@@ -276,15 +285,16 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                     pathname={pathname}
                     onContextMenu={handleHrefContextMenu}
                   />
-                  <ChatsSection
-                    chats={chats}
-                    isLoading={chatsLoading}
-                    isCollapsed={isCollapsed}
-                    pathname={pathname}
-                    menuOpenHref={isHrefMenuOpen ? menuHref : null}
-                    onContextMenu={handleHrefContextMenu}
-                    onMoreClick={handleChatMoreClick}
-                  />
+                  {searchAccess.memberScoped && (
+                    <OrganizationChats
+                      organizationId={organization.id}
+                      isCollapsed={isCollapsed}
+                      pathname={pathname}
+                      menuOpenHref={isHrefMenuOpen ? menuHref : null}
+                      onContextMenu={handleHrefContextMenu}
+                      onMoreClick={handleChatMoreClick}
+                    />
+                  )}
                 </div>
               </div>
             </>

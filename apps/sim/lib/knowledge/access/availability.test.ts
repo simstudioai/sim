@@ -28,7 +28,10 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
   isScopedCredentialGroupsAvailable: mocks.scopedGroups,
 }))
 
-import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
+import {
+  requireOrganizationSearchAvailable,
+  resolveKnowledgeAccessAvailability,
+} from '@/lib/knowledge/access/availability'
 
 describe('knowledge access availability ownership', () => {
   beforeEach(() => {
@@ -37,7 +40,7 @@ describe('knowledge access availability ownership', () => {
     mocks.enterprise.mockResolvedValue(true)
     mocks.scopedGroups.mockResolvedValue(true)
     mocks.workspaceGroups.mockResolvedValue(true)
-    mocks.workspaceBilling.mockResolvedValue({ isEnterprise: true })
+    mocks.workspaceBilling.mockResolvedValue({ isEnterprise: true, organizationId: 'org-parent' })
   })
 
   it('evaluates an organization flag and payer without consulting a workspace', async () => {
@@ -46,8 +49,6 @@ describe('knowledge access availability ownership', () => {
     ).resolves.toEqual({ sourceMirrored: true, memberScoped: true })
     expect(mocks.featureEnabled).toHaveBeenCalledWith('knowledge-member-access', {
       orgId: 'org-1',
-      workspaceId: undefined,
-      userId: 'viewer',
     })
     expect(mocks.enterprise).toHaveBeenCalledWith('org-1', 'throw')
     expect(mocks.scopedGroups).toHaveBeenCalledWith({
@@ -82,13 +83,12 @@ describe('knowledge access availability ownership', () => {
     ).resolves.toEqual({ sourceMirrored: true, memberScoped: true })
     expect(mocks.featureEnabled).toHaveBeenCalledWith('knowledge-member-access', {
       workspaceId: 'workspace-1',
-      orgId: undefined,
       userId: undefined,
     })
     expect(mocks.workspaceBilling).toHaveBeenCalledWith('workspace-1')
     expect(mocks.workspaceGroups).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      ownerBilling: { isEnterprise: true },
+      organizationId: 'org-parent',
+      ownerBilling: { isEnterprise: true, organizationId: 'org-parent' },
     })
     expect(mocks.enterprise).not.toHaveBeenCalled()
     expect(mocks.scopedGroups).not.toHaveBeenCalled()
@@ -100,5 +100,50 @@ describe('knowledge access availability ownership', () => {
     ).rejects.toThrow('Knowledge access requires one resource owner')
     expect(mocks.workspaceBilling).not.toHaveBeenCalled()
     expect(mocks.enterprise).not.toHaveBeenCalled()
+  })
+
+  it('does not let a user-targeted rollout enable organization retrieval', async () => {
+    mocks.featureEnabled.mockImplementation(
+      async (_flag, context) => context.userId === 'platform-admin'
+    )
+    await expect(
+      resolveKnowledgeAccessAvailability({
+        organizationId: 'org-disabled',
+        userId: 'platform-admin',
+      })
+    ).resolves.toEqual({ sourceMirrored: false, memberScoped: false })
+  })
+
+  it.each([
+    { knowledge: false, groups: true },
+    { knowledge: true, groups: false },
+    { knowledge: false, groups: false },
+  ])(
+    'denies organization Search when either required gate is off: %j',
+    async ({ knowledge, groups }) => {
+      mocks.featureEnabled.mockResolvedValue(knowledge)
+      mocks.scopedGroups.mockResolvedValue(groups)
+      await expect(requireOrganizationSearchAvailable('org-1')).rejects.toMatchObject({
+        code: 'forbidden',
+        message: 'Search is not enabled for this organization',
+      })
+    }
+  )
+
+  it('allows Search only for the organization enabled in the rollout', async () => {
+    mocks.featureEnabled.mockImplementation(
+      async (_flag, context) => context.orgId === 'org-enabled'
+    )
+    await expect(requireOrganizationSearchAvailable('org-enabled')).resolves.toBeUndefined()
+    await expect(requireOrganizationSearchAvailable('org-other')).rejects.toThrow(
+      'Search is not enabled'
+    )
+  })
+
+  it('propagates a feature service failure instead of enabling Search', async () => {
+    mocks.featureEnabled.mockRejectedValue(new Error('Feature service unavailable'))
+    await expect(requireOrganizationSearchAvailable('org-1')).rejects.toThrow(
+      'Feature service unavailable'
+    )
   })
 })

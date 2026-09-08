@@ -12,7 +12,7 @@ export type CredentialGroupOptionInput =
     })
   | (CredentialGroupOptionInputBase & {
       provider: 'slack'
-      slackBotCredentialId: string
+      slackBotCredentialId?: string
     })
 
 export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id?: string }
@@ -45,7 +45,7 @@ export type CredentialGroupOption =
     })
   | (CredentialGroupOptionBase & {
       provider: 'slack'
-      slackBotCredentialId: string
+      slackBotCredentialId?: string
       configurationStatus: 'not_configured' | 'ready' | 'needs_update'
     })
 

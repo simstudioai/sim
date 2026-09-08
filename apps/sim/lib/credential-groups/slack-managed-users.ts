@@ -26,7 +26,7 @@ import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/li
 
 const logger = createLogger('SlackManagedUsers')
 const SLACK_MANAGED_USERS_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const SLACK_MANAGED_USERS_ATTEMPT_VERSION = 3 as const
+const SLACK_MANAGED_USERS_ATTEMPT_VERSION = 4 as const
 const MAX_SLACK_RESPONSE_BYTES = 64 * 1024
 const CONSUME_SCRIPT = `
 local value = redis.call('GET', KEYS[1])
@@ -54,8 +54,8 @@ interface StoredSlackManagedUsersAttempt {
   userId: string
   credentialGroupId: string
   credentialGroupUpdatedAt: number
-  slackBotCredentialId: string
-  slackBotCredentialUpdatedAt: number
+  slackBotCredentialId?: string
+  slackBotCredentialUpdatedAt?: number
   expectedAppId: string
   expectedTeamId: string
   clientId: string
@@ -71,8 +71,8 @@ export interface SlackManagedUsersAttempt {
   userId: string
   credentialGroupId: string
   credentialGroupUpdatedAt: number
-  slackBotCredentialId: string
-  slackBotCredentialUpdatedAt: number
+  slackBotCredentialId?: string
+  slackBotCredentialUpdatedAt?: number
   expectedAppId: string
   expectedTeamId: string
   clientId: string
@@ -144,8 +144,11 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
     typeof candidate.userId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.credentialGroupUpdatedAt === 'number' &&
-    typeof candidate.slackBotCredentialId === 'string' &&
-    typeof candidate.slackBotCredentialUpdatedAt === 'number' &&
+    (candidate.organizationId !== undefined
+      ? candidate.slackBotCredentialId === undefined &&
+        candidate.slackBotCredentialUpdatedAt === undefined
+      : typeof candidate.slackBotCredentialId === 'string' &&
+        typeof candidate.slackBotCredentialUpdatedAt === 'number') &&
     typeof candidate.expectedAppId === 'string' &&
     typeof candidate.expectedTeamId === 'string' &&
     typeof candidate.clientId === 'string' &&
@@ -439,7 +442,9 @@ export async function createSlackManagedUsersAttempt(params: {
   organizationId?: string
   userId: string
   credentialGroupId: string
-  slackBotCredentialId: string
+  slackBotCredentialId?: string
+  appId?: string
+  teamId?: string
   clientId: string
   clientSecret: string
   requiredScopes?: string[]
@@ -466,17 +471,33 @@ export async function createSlackManagedUsersAttempt(params: {
       existingOption?.requiredScopes ??
       (existingOption ? undefined : SLACK_SEARCH_USER_SCOPES)
   )
-  const bot = await getSlackCustomBotCredential({
-    ...resourceScopeFields(scope),
-    credentialId: params.slackBotCredentialId,
-  })
-  if (!bot) throw new SlackManagedUsersError('Custom Slack bot not found.', 'invalid_response')
-  const identity = await verifySlackCustomBotAppIdentity(bot.botToken)
-  if (identity.teamId !== bot.teamId) {
-    throw new SlackManagedUsersError(
-      'The custom bot token no longer belongs to its stored Slack workspace.',
-      'invalid_response'
+  let bot: Awaited<ReturnType<typeof getSlackCustomBotCredential>> = null
+  let identity: { appId: string; teamId: string }
+  if (scope.kind === 'organization') {
+    if (
+      params.slackBotCredentialId ||
+      !params.appId?.match(/^A[A-Z0-9]+$/) ||
+      !params.teamId?.match(/^T[A-Z0-9]+$/)
     )
+      throw new SlackManagedUsersError(
+        'Organization Slack setup requires an App ID and workspace ID.',
+        'invalid_response'
+      )
+    identity = { appId: params.appId, teamId: params.teamId }
+  } else {
+    if (!params.slackBotCredentialId)
+      throw new SlackManagedUsersError('Select a custom Slack bot.', 'invalid_response')
+    bot = await getSlackCustomBotCredential({
+      ...resourceScopeFields(scope),
+      credentialId: params.slackBotCredentialId,
+    })
+    if (!bot) throw new SlackManagedUsersError('Custom Slack bot not found.', 'invalid_response')
+    identity = await verifySlackCustomBotAppIdentity(bot.botToken)
+    if (identity.teamId !== bot.teamId)
+      throw new SlackManagedUsersError(
+        'The bot no longer belongs to its stored Slack workspace.',
+        'invalid_response'
+      )
   }
   const redis = requireRedis()
   const state = generateId()
@@ -488,8 +509,9 @@ export async function createSlackManagedUsersAttempt(params: {
     userId: params.userId,
     credentialGroupId: group.id,
     credentialGroupUpdatedAt: group.updatedAt.getTime(),
-    slackBotCredentialId: bot.id,
-    slackBotCredentialUpdatedAt: bot.updatedAt.getTime(),
+    ...(bot
+      ? { slackBotCredentialId: bot.id, slackBotCredentialUpdatedAt: bot.updatedAt.getTime() }
+      : {}),
     expectedAppId: identity.appId,
     expectedTeamId: identity.teamId,
     clientId: params.clientId,
@@ -546,8 +568,12 @@ async function parseSlackManagedUsersAttempt(
     userId: parsed.userId,
     credentialGroupId: parsed.credentialGroupId,
     credentialGroupUpdatedAt: parsed.credentialGroupUpdatedAt,
-    slackBotCredentialId: parsed.slackBotCredentialId,
-    slackBotCredentialUpdatedAt: parsed.slackBotCredentialUpdatedAt,
+    ...(parsed.workspaceId
+      ? {
+          slackBotCredentialId: parsed.slackBotCredentialId,
+          slackBotCredentialUpdatedAt: parsed.slackBotCredentialUpdatedAt,
+        }
+      : {}),
     expectedAppId: parsed.expectedAppId,
     expectedTeamId: parsed.expectedTeamId,
     clientId: parsed.clientId,
@@ -564,7 +590,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
 }): Promise<{
   credentialGroupId: string
   credentialGroupName: string
-  slackBotCredentialId: string
+  slackBotCredentialId?: string
   appId: string
   teamId: string
   requiredScopes: string[]
@@ -593,7 +619,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       grant.teamId !== params.attempt.expectedTeamId
     ) {
       throw new SlackManagedUsersError(
-        'The Client ID and Client Secret belong to a different Slack app or workspace than the selected custom bot.',
+        'Slack returned a different app or workspace than the configured App ID and workspace ID.',
         'invalid_response'
       )
     }
@@ -636,58 +662,62 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         'invalid_state'
       )
     }
-    const [botRow] = await tx
-      .select({
-        id: credential.id,
-        updatedAt: credential.updatedAt,
-        encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
-      })
-      .from(credential)
-      .where(
-        and(
-          eq(credential.id, params.attempt.slackBotCredentialId),
-          resourceScopeCondition(credential, resourceScopeFromOwner(params.attempt)),
-          eq(credential.type, 'service_account'),
-          eq(credential.providerId, SLACK_CUSTOM_BOT_PROVIDER_ID)
+    if (params.attempt.workspaceId) {
+      if (!params.attempt.slackBotCredentialId)
+        throw new SlackManagedUsersError('Workspace Slack bot is missing.', 'invalid_state')
+      const [botRow] = await tx
+        .select({
+          id: credential.id,
+          updatedAt: credential.updatedAt,
+          encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+        })
+        .from(credential)
+        .where(
+          and(
+            eq(credential.id, params.attempt.slackBotCredentialId),
+            resourceScopeCondition(credential, resourceScopeFromOwner(params.attempt)),
+            eq(credential.type, 'service_account'),
+            eq(credential.providerId, SLACK_CUSTOM_BOT_PROVIDER_ID)
+          )
         )
-      )
-      .limit(1)
-    if (
-      !botRow?.encryptedServiceAccountKey ||
-      botRow.updatedAt.getTime() !== params.attempt.slackBotCredentialUpdatedAt
-    ) {
-      throw new SlackManagedUsersError(
-        'The custom bot changed while Slack authorization was in progress. Start again.',
-        'invalid_state'
-      )
+        .limit(1)
+      if (
+        !botRow?.encryptedServiceAccountKey ||
+        botRow.updatedAt.getTime() !== params.attempt.slackBotCredentialUpdatedAt
+      ) {
+        throw new SlackManagedUsersError(
+          'The custom bot changed while Slack authorization was in progress. Start again.',
+          'invalid_state'
+        )
+      }
+      const decrypted = await decryptSecret(botRow.encryptedServiceAccountKey)
+      const botSecret = parseSlackCustomBotSecret(JSON.parse(decrypted.decrypted) as unknown)
+      if (botSecret.teamId !== grant.teamId) {
+        throw new SlackManagedUsersError(
+          'The custom bot no longer belongs to the verified Slack workspace.',
+          'invalid_state'
+        )
+      }
+      const sanitizedBotSecret = await encryptSecret(JSON.stringify(botSecret))
+      const [cleanedBot] = await tx
+        .update(credential)
+        .set({
+          encryptedServiceAccountKey: sanitizedBotSecret.encrypted,
+          authorizationAppId: null,
+          managedOauthScopeVersion: null,
+          updatedAt: now,
+        })
+        .where(eq(credential.id, botRow.id))
+        .returning({ id: credential.id })
+      if (!cleanedBot) throw new Error('Slack custom bot cleanup returned no row')
     }
-    const decrypted = await decryptSecret(botRow.encryptedServiceAccountKey)
-    const botSecret = parseSlackCustomBotSecret(JSON.parse(decrypted.decrypted) as unknown)
-    if (botSecret.teamId !== grant.teamId) {
-      throw new SlackManagedUsersError(
-        'The custom bot no longer belongs to the verified Slack workspace.',
-        'invalid_state'
-      )
-    }
-    const sanitizedBotSecret = await encryptSecret(JSON.stringify(botSecret))
-    const [cleanedBot] = await tx
-      .update(credential)
-      .set({
-        encryptedServiceAccountKey: sanitizedBotSecret.encrypted,
-        authorizationAppId: null,
-        managedOauthScopeVersion: null,
-        updatedAt: now,
-      })
-      .where(eq(credential.id, botRow.id))
-      .returning({ id: credential.id })
-    if (!cleanedBot) throw new Error('Slack custom bot cleanup returned no row')
     const currentConfiguration = await decryptCredentialGroupProviderConfiguration(
       group.encryptedProviderConfiguration
     )
     const encryptedConfiguration = await encryptCredentialGroupProviderConfiguration({
       ...currentConfiguration,
       slack: {
-        slackBotCredentialId: botRow.id,
+        slackBotCredentialId: params.attempt.slackBotCredentialId,
         clientId: params.attempt.clientId,
         clientSecret: params.attempt.clientSecret,
         appId: grant.appId,
@@ -701,7 +731,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       id: existingOption?.id ?? generateId(),
       provider: 'slack',
       label: existingOption?.label ?? 'Slack',
-      slackBotCredentialId: botRow.id,
+      slackBotCredentialId: params.attempt.slackBotCredentialId,
       authorizationAppId,
       requiredScopes: params.attempt.requiredScopes,
       scopeVersion,
@@ -744,7 +774,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
     return {
       credentialGroupId: group.id,
       credentialGroupName: group.name,
-      slackBotCredentialId: botRow.id,
+      slackBotCredentialId: params.attempt.slackBotCredentialId,
       appId: grant.appId,
       teamId: grant.teamId,
       requiredScopes: params.attempt.requiredScopes,

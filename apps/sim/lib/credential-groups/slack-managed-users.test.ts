@@ -95,13 +95,16 @@ describe('Slack managed-user authorization', () => {
       organizationId: 'org-1',
       userId: 'user-1',
       credentialGroupId: 'group-1',
-      slackBotCredentialId: 'bot-1',
+      appId: 'A123',
+      teamId: 'T123',
       clientId: 'client-1',
       clientSecret: 'private-client-secret',
     })
     const loaded = await loadSlackManagedUsersAttempt(created.state)
     expect(loaded).toMatchObject({ organizationId: 'org-1', userId: 'user-1' })
     expect(loaded).not.toHaveProperty('workspaceId')
+    expect(loaded).not.toHaveProperty('slackBotCredentialId')
+    expect(fetch).not.toHaveBeenCalled()
     const [key, stored] = [...attempts.entries()][0]
     expect(stored).not.toContain('private-client-secret')
     attempts.set(key, JSON.stringify({ ...JSON.parse(stored), workspaceId: 'workspace-1' }))
@@ -497,7 +500,7 @@ describe('Slack managed-user authorization', () => {
         },
         code: 'single-use-code',
       })
-    ).rejects.toThrow('different Slack app or workspace')
+    ).rejects.toThrow('different app or workspace')
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'https://slack.com/api/auth.revoke',

@@ -40,7 +40,7 @@ async function getSlackPolicy(params: {
   executor?: DbOrTx
 }): Promise<
   CredentialGroupProviderPolicy & {
-    slackBotCredentialId: string
+    slackBotCredentialId?: string
     clientId: string
     clientSecret: string
     appId: string
@@ -60,19 +60,27 @@ async function getSlackPolicy(params: {
       'The selected custom Slack bot does not match this Credential Group configuration'
     )
   }
-  const app = await getSlackCustomBotCredential({
-    ...resourceScopeColumns(resourceScopeFromOwner(params)),
-    credentialId: managed.slackBotCredentialId,
-    ...(params.executor ? { executor: params.executor } : {}),
-  })
-  if (!app) {
+  if (params.workspaceId) {
+    if (!managed.slackBotCredentialId)
+      throw new CredentialGroupProviderConfigurationError('Configure the workspace Slack bot')
+    const app = await getSlackCustomBotCredential({
+      ...resourceScopeColumns(resourceScopeFromOwner(params)),
+      credentialId: managed.slackBotCredentialId,
+      ...(params.executor ? { executor: params.executor } : {}),
+    })
+    if (!app) {
+      throw new CredentialGroupProviderConfigurationError(
+        'The selected custom Slack bot is unavailable'
+      )
+    }
+    if (app.teamId !== managed.teamId) {
+      throw new CredentialGroupProviderConfigurationError(
+        'The custom Slack bot no longer belongs to the configured Slack workspace'
+      )
+    }
+  } else if (managed.slackBotCredentialId) {
     throw new CredentialGroupProviderConfigurationError(
-      'The selected custom Slack bot is unavailable'
-    )
-  }
-  if (app.teamId !== managed.teamId) {
-    throw new CredentialGroupProviderConfigurationError(
-      'The custom Slack bot no longer belongs to the configured Slack workspace'
+      'Reconfigure Slack as an organization personal OAuth app'
     )
   }
   const service = getCredentialGroupProviderService(PROVIDER)

@@ -191,7 +191,9 @@ export function SettingsSidebar({
       }
       if (
         item.id === 'credential-groups' &&
-        (!hostContext.features?.credentialGroups || !canAdminWorkspace)
+        (!hostContext.hostOrganizationId ||
+          !hostContext.features?.credentialGroups ||
+          (!canAdminWorkspace && !isOrgAdminOrOwner))
       ) {
         return false
       }

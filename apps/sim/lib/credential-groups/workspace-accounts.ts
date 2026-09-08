@@ -1,9 +1,10 @@
-import { type CredentialGroupOptionConfig, credentialGroup } from '@sim/db/schema'
+import { type CredentialGroupOptionConfig, credentialGroup, resourcePolicy } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import {
   credentialGroupWorkflowAccessPolicyCodec,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import type { DbOrTx } from '@/lib/db/types'
 import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
@@ -58,11 +59,20 @@ export async function createOrganizationAccountsGroup(
       organizationId,
       publicId: generateId(),
       name: 'Connected accounts',
-      description: 'Accounts connected for organization search.',
+      description: 'Accounts shared with workflows in approved workspaces.',
       options,
       createdBy: userId,
     })
     .returning()
   if (!created) throw new Error('Connected accounts insert returned no row')
+  await executor.insert(resourcePolicy).values({
+    id: generateId(),
+    organizationId,
+    resourceType: 'credential_group',
+    resourceId: created.id,
+    document: buildOrganizationAccountAccessPolicy(created.id, []),
+    createdBy: userId,
+    updatedBy: userId,
+  })
   return created
 }

@@ -5,6 +5,11 @@ export interface WorkflowResourcePolicyPrincipal {
   workflowId: string
 }
 
+export interface WorkspaceResourcePolicyPrincipal {
+  type: 'workspace'
+  workspaceId: string
+}
+
 export interface CredentialGroupActorResourcePolicyPrincipal {
   type: 'credential_group_actor'
 }
@@ -15,12 +20,14 @@ export interface KnowledgeConnectorResourcePolicyPrincipal {
 }
 
 export type ResourcePolicyPrincipal =
+  | WorkspaceResourcePolicyPrincipal
   | WorkflowResourcePolicyPrincipal
   | CredentialGroupActorResourcePolicyPrincipal
   | KnowledgeConnectorResourcePolicyPrincipal
 export type ResourcePolicyPrincipalType = ResourcePolicyPrincipal['type']
 
 export interface ResourcePolicyPrincipalEvaluationFacts {
+  currentWorkspaceId?: string
   credentialGroupActorEnrollmentId?: string
   currentWorkflow?: {
     workflowId: string
@@ -32,7 +39,7 @@ export interface ResourcePolicyPrincipalEvaluationFacts {
 }
 
 export type ResourcePolicyPrincipalSelector =
-  | { type: 'catalog'; catalog: 'workflows' }
+  | { type: 'catalog'; catalog: 'workflows' | 'workspaces' }
   | { type: 'internal' }
 
 export interface ResourcePolicyPrincipalDefinition<

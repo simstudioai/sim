@@ -20,6 +20,7 @@ import {
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decodeCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
@@ -165,7 +166,7 @@ async function toCredentialGroup(
       if (option.provider !== 'slack') {
         return { ...common, provider: option.provider, configurationStatus: 'ready' as const }
       }
-      if (!option.slackBotCredentialId) {
+      if (row.workspaceId && !option.slackBotCredentialId) {
         throw new Error(`Slack credential option ${option.id} has no custom bot`)
       }
       return {
@@ -175,7 +176,8 @@ async function toCredentialGroup(
         requiredScopes: resolveSlackManagedUserScopes(option.requiredScopes),
         configurationStatus:
           !providerConfiguration.slack ||
-          providerConfiguration.slack.slackBotCredentialId !== option.slackBotCredentialId
+          (row.workspaceId &&
+            providerConfiguration.slack.slackBotCredentialId !== option.slackBotCredentialId)
             ? ('not_configured' as const)
             : option.scopeVersion !==
                   credentialGroupScopePolicyVersion(
@@ -281,6 +283,9 @@ export async function ensureWorkspaceAccountsGroup(
           'validation',
           'Connected accounts is disabled. Enable it in Settings before connecting a source.'
         )
+      }
+      if (scope.kind === 'organization') {
+        await requireOrganizationAccountsSetup(scope.organizationId, existing.id, tx)
       }
       if (!preparedOption) return existing
       const matching = existing.options.filter(
@@ -527,6 +532,7 @@ export async function getOrganizationAccountsGroup(
     .where(resourceScopeCondition(credentialGroup, { kind: 'organization', organizationId }))
     .limit(1)
   if (!row?.organizationId || row.workspaceId) return null
+  await requireOrganizationAccountsSetup(organizationId, row.id)
   return {
     ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
     workspaceId: null,

@@ -47,7 +47,8 @@ const LIST_OPERATIONS = ['list_credentials', 'list_mcp_connections', 'list_peopl
 
 export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   type: 'credential_group',
-  name: 'Connected Accounts',
+  name: 'Connected Accounts (Legacy)',
+  hideFromToolbar: true,
   description: 'Invite people and use connected accounts in this workspace',
   longDescription:
     'List usable managed credentials or MCP connections, inspect invited people, send an invitation, or generate an account-connection link in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',

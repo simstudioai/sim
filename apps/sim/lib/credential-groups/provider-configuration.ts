@@ -12,7 +12,7 @@ const CREDENTIAL_GROUP_PROVIDER_CONFIGURATION_TYPE =
 const CREDENTIAL_GROUP_PROVIDER_CONFIGURATION_VERSION = 1 as const
 
 export interface SlackCredentialGroupConfiguration {
-  slackBotCredentialId: string
+  slackBotCredentialId?: string
   clientId: string
   clientSecret: string
   appId: string
@@ -31,7 +31,8 @@ function isSlackConfiguration(value: unknown): value is SlackCredentialGroupConf
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
   return (
-    typeof candidate.slackBotCredentialId === 'string' &&
+    (candidate.slackBotCredentialId === undefined ||
+      typeof candidate.slackBotCredentialId === 'string') &&
     typeof candidate.clientId === 'string' &&
     typeof candidate.clientSecret === 'string' &&
     typeof candidate.appId === 'string' &&
@@ -118,7 +119,7 @@ export async function getSlackCredentialGroupConfiguration(params: {
 export async function listSlackCredentialGroupConfigurationsForBot(params: {
   workspaceId?: string | null
   organizationId?: string | null
-  slackBotCredentialId: string
+  slackBotCredentialId?: string
 }): Promise<SlackCredentialGroupConfiguration[]> {
   const rows = await db
     .select({ encryptedProviderConfiguration: credentialGroup.encryptedProviderConfiguration })

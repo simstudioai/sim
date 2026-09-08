@@ -52,7 +52,7 @@ async function canOpenWorkspaceSection(
           )
         : null,
       section === 'credential-groups' && ownerBilling
-        ? isCredentialGroupsAvailable({ workspaceId: input.workspaceId, ownerBilling })
+        ? isCredentialGroupsAvailable({ organizationId: workspace.organizationId, ownerBilling })
         : false,
       section === 'forks'
         ? isForkingAvailableForWorkspace(workspace.organizationId, input.userId)

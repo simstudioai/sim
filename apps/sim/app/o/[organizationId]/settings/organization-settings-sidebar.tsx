@@ -23,7 +23,8 @@ interface OrganizationSettingsSidebarProps {
 }
 
 export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarProps) {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer, connectedAccountsAvailable, searchAccess } =
+    useOrganizationContext()
   const pathname = usePathname()
   const deployment = useDeploymentShape()
   const { data: billing } = useOrganizationBilling(organization.id, {
@@ -42,10 +43,13 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
       plane='organization'
       activeSection={resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general'}
       groups={ORGANIZATION_SETTINGS_GROUPS}
-      items={organizationSurfaceSettingsNavigation(viewer.isAdmin, features)}
-      outboundLinks={ORGANIZATION_SETTINGS_OUTBOUND_LINKS}
+      items={organizationSurfaceSettingsNavigation(viewer.isAdmin, features, {
+        connectedAccounts: connectedAccountsAvailable,
+        search: searchAccess.memberScoped,
+      })}
+      outboundLinks={searchAccess.memberScoped ? ORGANIZATION_SETTINGS_OUTBOUND_LINKS : []}
       hrefForSection={(section) => routes.settingsSection(section)}
-      backHref={routes.home}
+      backHref={searchAccess.memberScoped ? routes.home : routes.settingsSection('general')}
     />
   )
 }

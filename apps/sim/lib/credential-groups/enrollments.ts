@@ -5,7 +5,6 @@ import {
   credentialGroup,
   credentialGroupEnrollment,
   mcpServers,
-  member,
   organization,
   user,
   workspace,
@@ -27,6 +26,7 @@ import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
@@ -135,19 +135,25 @@ export interface CredentialGroupOAuthContext {
 }
 
 export interface CredentialGroupMcpOAuthContext {
+  credentialGroupName: string
+  userId: string
   enrollmentId: string
   credentialGroupId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   email: string
   enrollmentStatus: EnrollmentRow['status']
   server: {
+    connectorId: ManagedMcpConnectorId
     id: string
     name: string
     url: string
+    oauthConfigVersion: number
   }
 }
 
 export interface PublicCredentialGroupEnrollmentIdentity {
+  userId?: string
   enrollmentId: string
   credentialGroupId: string
   workspaceId?: string
@@ -277,26 +283,9 @@ async function loadLiveEnrollmentRow(scope: SQL | undefined) {
 
   const ownerScope = resourceScopeFromOwner(row)
   if (!(await isScopedCredentialGroupsAvailable(ownerScope))) return null
-  let credentialOwnerId = row.workspaceOwnerId
-  if (ownerScope.kind === 'organization') {
-    const memberships = await db
-      .select({ userId: user.id })
-      .from(member)
-      .innerJoin(user, eq(user.id, member.userId))
-      .where(
-        and(
-          eq(member.organizationId, ownerScope.organizationId),
-          eq(user.emailVerified, true),
-          sql`lower(btrim(${user.email})) = ${row.enrollment.email}`
-        )
-      )
-      .limit(2)
-    if (memberships.length !== 1) return null
-    credentialOwnerId = memberships[0].userId
-  }
   return {
     ...row,
-    credentialOwnerId,
+    credentialOwnerId: row.enrollment.userId,
     workspaceName: row.organizationName ?? row.workspaceName ?? '',
   }
 }
@@ -324,6 +313,7 @@ function identityForPublicEnrollmentRow(
     ...resourceScopeFields(resourceScopeFromOwner(row)),
     email: row.enrollment.email,
     invitationTokenHash: row.enrollment.invitationTokenHash,
+    ...(row.enrollment.userId ? { userId: row.enrollment.userId } : {}),
   }
 }
 
@@ -345,11 +335,80 @@ async function resolveAuthorizedPublicEnrollmentRow(
     !row ||
     row.groupId !== identity.credentialGroupId ||
     !sameResourceScope(resourceScopeFromOwner(row), resourceScopeFromOwner(identity)) ||
-    row.enrollment.email !== identity.email
+    row.enrollment.email !== identity.email ||
+    (identity.userId !== undefined && row.enrollment.userId !== identity.userId)
   ) {
     return null
   }
   return row
+}
+
+/** Binds invitation authority to a verified signed-in user once, under the enrollment lifecycle lock. */
+export async function bindCredentialGroupEnrollmentUser(
+  identity: PublicCredentialGroupEnrollmentIdentity,
+  userId: string
+): Promise<void> {
+  if (!userId.trim())
+    throw new CredentialGroupEnrollmentError('Sign in to connect your accounts', 400)
+  if (identity.organizationId)
+    await requireOrganizationAccountsSetup(identity.organizationId, identity.credentialGroupId)
+  await db.transaction(async (tx) => {
+    await lockCredentialGroupEnrollmentLifecycle(tx, identity.enrollmentId)
+    const [row] = await tx
+      .select({
+        enrollment: credentialGroupEnrollment,
+        email: user.email,
+        verified: user.emailVerified,
+      })
+      .from(credentialGroupEnrollment)
+      .innerJoin(
+        credentialGroup,
+        eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId)
+      )
+      .innerJoin(user, eq(user.id, userId))
+      .where(
+        and(
+          eq(credentialGroupEnrollment.id, identity.enrollmentId),
+          eq(credentialGroupEnrollment.credentialGroupId, identity.credentialGroupId),
+          eq(credentialGroupEnrollment.invitationTokenHash, identity.invitationTokenHash),
+          eq(credentialGroupEnrollment.email, identity.email),
+          resourceScopeCondition(credentialGroup, resourceScopeFromOwner(identity)),
+          eq(credentialGroup.status, 'active')
+        )
+      )
+      .limit(1)
+      .for('update', { of: credentialGroupEnrollment })
+    if (
+      !row ||
+      row.enrollment.invitationExpiresAt.getTime() <= Date.now() ||
+      row.enrollment.revokedAt ||
+      ['revoked', 'delivery_failed'].includes(row.enrollment.status)
+    ) {
+      throw new CredentialGroupEnrollmentError('Invitation is invalid or expired', 404)
+    }
+    if (
+      !row.verified ||
+      (row.enrollment.userId
+        ? row.enrollment.userId !== userId
+        : normalizeEmail(row.email) !== identity.email)
+    ) {
+      throw new CredentialGroupEnrollmentError(
+        'Sign in with the verified email address this invitation was sent to',
+        400
+      )
+    }
+    if (!row.enrollment.userId) {
+      await tx
+        .update(credentialGroupEnrollment)
+        .set({ userId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(credentialGroupEnrollment.id, identity.enrollmentId),
+            isNull(credentialGroupEnrollment.userId)
+          )
+        )
+    }
+  })
 }
 
 function toCredentialGroupEnrollment(row: EnrollmentRow): CredentialGroupEnrollmentRecord {
@@ -417,7 +476,7 @@ async function getInvitationContext(
       .from(mcpServers)
       .where(
         and(
-          scope.kind === 'workspace' ? eq(mcpServers.workspaceId, scope.workspaceId) : sql`false`,
+          resourceScopeCondition(mcpServers, scope),
           eq(mcpServers.credentialGroupId, groupId),
           eq(mcpServers.authType, 'oauth'),
           eq(mcpServers.enabled, true),
@@ -636,7 +695,7 @@ export async function listCredentialGroupEnrollments(
     .from(mcpServers)
     .where(
       and(
-        scope.kind === 'workspace' ? eq(mcpServers.workspaceId, scope.workspaceId) : sql`false`,
+        resourceScopeCondition(mcpServers, scope),
         eq(mcpServers.credentialGroupId, groupId),
         eq(mcpServers.authType, 'oauth'),
         eq(mcpServers.enabled, true),
@@ -973,6 +1032,57 @@ export async function deleteCredentialGroupEnrollment(
   })
 }
 
+/** Revocation preserves the bound owner and prevents pending callbacks from restoring grants. */
+export async function revokeCredentialGroupEnrollment(
+  scope: ResourceScope,
+  groupId: string,
+  enrollmentId: string
+) {
+  return db.transaction(async (tx) => {
+    await lockCredentialGroupEnrollmentLifecycle(tx, enrollmentId)
+    const [row] = await tx
+      .select({ enrollment: credentialGroupEnrollment })
+      .from(credentialGroupEnrollment)
+      .innerJoin(
+        credentialGroup,
+        eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId)
+      )
+      .where(
+        and(
+          eq(credentialGroupEnrollment.id, enrollmentId),
+          eq(credentialGroup.id, groupId),
+          resourceScopeCondition(credentialGroup, scope)
+        )
+      )
+      .limit(1)
+      .for('update', { of: credentialGroupEnrollment })
+    if (!row) throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
+    const now = new Date()
+    const credentials = await tx
+      .update(credential)
+      .set({ managedOauthStatus: 'revoked', revokedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(credential.credentialGroupEnrollmentId, enrollmentId),
+          resourceScopeCondition(credential, scope)
+        )
+      )
+      .returning({ id: credential.id, type: credential.type })
+    const [updated] = await tx
+      .update(credentialGroupEnrollment)
+      .set({ status: 'revoked', revokedAt: now, updatedAt: now })
+      .where(eq(credentialGroupEnrollment.id, enrollmentId))
+      .returning()
+    if (!updated) throw new Error('Enrollment revocation returned no row')
+    return {
+      credentialGroupEnrollment: toCredentialGroupEnrollment(updated),
+      retiredMcpConnectionIds: credentials
+        .filter((row) => row.type === 'managed_mcp')
+        .map((row) => row.id),
+    }
+  })
+}
+
 export async function getPublicCredentialGroupEnrollment(
   token: string
 ): Promise<PublicCredentialGroupEnrollment | null> {
@@ -1025,7 +1135,7 @@ async function buildPublicCredentialGroupEnrollment(
       .from(mcpServers)
       .where(
         and(
-          row.workspaceId ? eq(mcpServers.workspaceId, row.workspaceId) : sql`false`,
+          resourceScopeCondition(mcpServers, resourceScopeFromOwner(row)),
           eq(mcpServers.credentialGroupId, row.groupId),
           eq(mcpServers.authType, 'oauth'),
           eq(mcpServers.enabled, true),
@@ -1248,7 +1358,7 @@ export async function getAuthorizedCredentialGroupOAuthContext(
 function loadEnrollmentRowForIdentity(
   identity: Pick<
     PublicCredentialGroupEnrollmentIdentity,
-    'workspaceId' | 'organizationId' | 'credentialGroupId' | 'enrollmentId' | 'email'
+    'workspaceId' | 'organizationId' | 'credentialGroupId' | 'enrollmentId' | 'email' | 'userId'
   >
 ) {
   return loadLiveEnrollmentRow(
@@ -1256,7 +1366,8 @@ function loadEnrollmentRowForIdentity(
       eq(credentialGroupEnrollment.id, identity.enrollmentId),
       eq(credentialGroupEnrollment.email, identity.email),
       eq(credentialGroup.id, identity.credentialGroupId),
-      resourceScopeCondition(credentialGroup, resourceScopeFromOwner(identity))
+      resourceScopeCondition(credentialGroup, resourceScopeFromOwner(identity)),
+      identity.userId ? eq(credentialGroupEnrollment.userId, identity.userId) : undefined
     )
   )
 }
@@ -1265,7 +1376,7 @@ function loadEnrollmentRowForIdentity(
 export async function getCredentialGroupOAuthContextForEnrollment(
   identity: Pick<
     PublicCredentialGroupEnrollmentIdentity,
-    'workspaceId' | 'organizationId' | 'credentialGroupId' | 'enrollmentId' | 'email'
+    'workspaceId' | 'organizationId' | 'credentialGroupId' | 'enrollmentId' | 'email' | 'userId'
   >,
   optionId: string
 ): Promise<CredentialGroupOAuthContext | null> {
@@ -1288,7 +1399,7 @@ export async function getAuthorizedCredentialGroupMcpOAuthContext(
 export async function getCredentialGroupMcpOAuthContextForEnrollment(
   identity: Pick<
     PublicCredentialGroupEnrollmentIdentity,
-    'workspaceId' | 'organizationId' | 'credentialGroupId' | 'enrollmentId' | 'email'
+    'workspaceId' | 'organizationId' | 'credentialGroupId' | 'enrollmentId' | 'email' | 'userId'
   >,
   mcpServerId: string
 ): Promise<CredentialGroupMcpOAuthContext | null> {
@@ -1300,19 +1411,20 @@ async function credentialGroupMcpOAuthContextFromRow(
   row: NonNullable<Awaited<ReturnType<typeof loadLiveEnrollmentRow>>>,
   mcpServerId: string
 ): Promise<CredentialGroupMcpOAuthContext | null> {
-  if (!row.workspaceId) return null
+  if (!row.enrollment.userId) return null
   const [server] = await db
     .select({
       id: mcpServers.id,
       name: mcpServers.name,
       url: mcpServers.url,
       managedConnectorId: mcpServers.managedConnectorId,
+      oauthConfigVersion: mcpServers.oauthConfigVersion,
     })
     .from(mcpServers)
     .where(
       and(
         eq(mcpServers.id, mcpServerId),
-        row.workspaceId ? eq(mcpServers.workspaceId, row.workspaceId) : sql`false`,
+        resourceScopeCondition(mcpServers, resourceScopeFromOwner(row)),
         eq(mcpServers.credentialGroupId, row.groupId),
         eq(mcpServers.authType, 'oauth'),
         eq(mcpServers.enabled, true),
@@ -1327,11 +1439,19 @@ async function credentialGroupMcpOAuthContextFromRow(
   getManagedMcpConnector(server.managedConnectorId)
   return {
     enrollmentId: row.enrollment.id,
+    userId: row.enrollment.userId,
     credentialGroupId: row.groupId,
-    workspaceId: row.workspaceId,
+    credentialGroupName: row.groupName,
+    ...resourceScopeFields(resourceScopeFromOwner(row)),
     email: row.enrollment.email,
     enrollmentStatus: row.enrollment.status,
-    server: { id: server.id, name: server.name, url: server.url },
+    server: {
+      connectorId: getManagedMcpConnector(server.managedConnectorId).id,
+      id: server.id,
+      name: server.name,
+      url: server.url,
+      oauthConfigVersion: server.oauthConfigVersion,
+    },
   }
 }
 

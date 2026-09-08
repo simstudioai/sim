@@ -6,6 +6,7 @@ import { usePostHog } from 'posthog-js/react'
 import type { AccountSettingsSection } from '@/components/settings/navigation'
 import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
+import { PersonalOrganizationAccounts } from '@/ee/credential-groups/components/personal-organization-accounts'
 
 const Billing = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then(
@@ -39,6 +40,7 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
     captureEvent(posthog, 'settings_tab_viewed', { plane: 'account', section })
   }, [posthog, section])
 
+  if (section === 'connected-accounts') return <PersonalOrganizationAccounts />
   if (section === 'general') return <General />
   if (section === 'billing') return <Billing scope='account' />
   if (section === 'api-keys') return <ApiKeys scope='personal' />

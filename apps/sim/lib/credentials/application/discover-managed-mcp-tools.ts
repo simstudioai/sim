@@ -21,7 +21,10 @@ export interface DiscoverManagedMcpToolsInput {
 export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.useManagedMcp,
   resolveContext: async ({ input }: { input: DiscoverManagedMcpToolsInput }) => {
-    const context = await loadManagedMcpCredentialApplicationContext(input.credentialId)
+    const context = await loadManagedMcpCredentialApplicationContext(
+      input.credentialId,
+      input.workspaceId
+    )
     if (!context || context.workspaceId !== input.workspaceId) {
       throw new OrchestrationError('not_found', 'Managed MCP connection not found')
     }
@@ -36,7 +39,7 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
     const tools = await mcpService.discoverManagedMcpTools(
       runtime.mcpServerId,
-      runtime.workspaceId,
+      runtime.scope,
       {
         credentialId: runtime.credentialId,
         loadProvider: () => loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
@@ -50,7 +53,9 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
         name: tool.name,
         ...(tool.description ? { description: tool.description } : {}),
         inputSchema: tool.inputSchema,
-      }))
+      })),
+      runtime.oauthConfigVersion,
+      runtime.grantedAt
     )
     return {
       tools: tools.map((tool) => ({

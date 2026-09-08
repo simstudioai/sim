@@ -4,6 +4,7 @@ import { member, organization } from '@sim/db/schema'
 import { asc, count, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import {
   type KnowledgeAccessAvailability,
   resolveKnowledgeAccessAvailability,
@@ -36,6 +37,7 @@ interface OrganizationSurfaceViewer {
 export interface OrganizationSurfaceContext {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
+  connectedAccountsAvailable: boolean
   searchAccess: KnowledgeAccessAvailability
 }
 
@@ -87,6 +89,10 @@ async function resolveOrganizationSurfaceContext(
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),
     },
+    connectedAccountsAvailable: await isScopedCredentialGroupsAvailable({
+      kind: 'organization',
+      organizationId,
+    }),
     searchAccess: await resolveKnowledgeAccessAvailability({ organizationId }),
   }
 }

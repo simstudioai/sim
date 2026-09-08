@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   handle: vi.fn(),
   connect: vi.fn(),
   close: vi.fn(),
+  requireSearch: vi.fn(),
 }))
 vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
   WebStandardStreamableHTTPServerTransport: class {
@@ -63,6 +64,7 @@ vi.mock('@/lib/knowledge/application/connector-access', () => ({
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireKnowledgeMemberAccessAvailable: vi.fn(),
   requireSourceMirroredAccessAvailable: vi.fn(),
+  requireOrganizationSearchAvailable: mocks.requireSearch,
 }))
 vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
 vi.mock('@/lib/sim-search/connectors', () => ({
@@ -72,6 +74,7 @@ vi.mock('@/lib/sim-search/connectors', () => ({
 }))
 
 import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
@@ -105,6 +108,7 @@ beforeEach(() => {
   resetDbChainMock()
   mocks.authenticate.mockResolvedValue(auth)
   mocks.config.mockResolvedValue(null)
+  mocks.requireSearch.mockResolvedValue(undefined)
   mocks.index.mockResolvedValue({ id: 'index-1' })
   mocks.createServer.mockReturnValue({ connect: mocks.connect, close: mocks.close })
   mocks.handle.mockImplementation(
@@ -122,6 +126,7 @@ describe('organization MCP request admission', () => {
     expect(result.status).toBe(200)
     expect(result.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mocks.index).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
+    expect(mocks.requireSearch).toHaveBeenCalledExactlyOnceWith('org-1')
     expect(mocks.createServer).toHaveBeenCalledWith(
       expect.objectContaining({ auth, organizationId: 'org-1', searchIndexId: 'index-1' })
     )
@@ -168,6 +173,17 @@ describe('organization MCP request admission', () => {
     dbChainMockFns.limit.mockResolvedValue([])
     expect((await post()).status).toBe(404)
     expect(mocks.index).not.toHaveBeenCalled()
+    expect(mocks.requireSearch).not.toHaveBeenCalled()
+  })
+  it('rejects disabled organization Search before index lookup or MCP discovery', async () => {
+    mocks.requireSearch.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Search is not enabled for this organization')
+    )
+    const response = await post()
+    expect(response.status).toBe(403)
+    expect(mocks.requireSearch).toHaveBeenCalledWith('org-1')
+    expect(mocks.index).not.toHaveBeenCalled()
+    expect(mocks.createServer).not.toHaveBeenCalled()
   })
   it.each(['disablePersonalApiKeys', 'hideKnowledgeBaseTab'])(
     'enforces current organization policy: %s',

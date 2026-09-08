@@ -5,11 +5,9 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
-  foldedEmail,
-  member,
   user,
 } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
@@ -132,7 +130,7 @@ export async function loadCredentialGroupEnrollmentAccess(
       email: credentialGroupEnrollment.email,
     })
     .from(credentialGroupEnrollment)
-    .innerJoin(user, eq(foldedEmail(user.email), credentialGroupEnrollment.email))
+    .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
     .where(
       and(
         eq(user.id, userId),
@@ -220,6 +218,7 @@ export async function loadManagedCredentialGroupBinding(
     .select({
       credentialId: credential.id,
       createdBy: credential.createdBy,
+      enrollmentUserId: credentialGroupEnrollment.userId,
       workspaceId: credential.workspaceId,
       organizationId: credential.organizationId,
       providerId: credential.providerId,
@@ -257,13 +256,9 @@ export async function loadManagedCredentialGroupBinding(
     .limit(1)
   if (!row) return null
   if (row.organizationId) {
-    if (!row.createdBy) return null
-    const [membership] = await db
-      .select({ id: member.id })
-      .from(member)
-      .where(and(eq(member.organizationId, row.organizationId), eq(member.userId, row.createdBy)))
-      .limit(1)
-    if (!membership) return null
+    if (!row.enrollmentUserId || row.enrollmentUserId !== row.createdBy) {
+      throw new Error('Organization credential is not bound to its enrolled user')
+    }
   }
   if (!row.providerId) throw new Error(`Managed credential ${row.credentialId} has no provider ID`)
   if (!row.credentialGroupOptionId) {
@@ -415,6 +410,12 @@ export async function listCredentialGroupCredentialReferences({
       eq(credential.type, 'managed_oauth'),
       eq(credential.managedOauthStatus, 'active'),
       eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+      organizationId
+        ? and(
+            isNotNull(credentialGroupEnrollment.userId),
+            eq(credential.createdBy, credentialGroupEnrollment.userId)
+          )
+        : undefined,
       email ? eq(credentialGroupEnrollment.email, email) : undefined,
       inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
       credentialProviderIds?.length

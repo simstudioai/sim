@@ -21,6 +21,7 @@ import {
   isDurableSecretProvenanceEnforced,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -263,6 +264,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeSearchContext(input, principal),
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
+    if (context.organizationId) await requireOrganizationSearchAvailable(context.organizationId)
     const requestId = generateRequestId()
     const hasQuery = Boolean(input.query?.trim())
     const filters = input.tagFilters ?? []

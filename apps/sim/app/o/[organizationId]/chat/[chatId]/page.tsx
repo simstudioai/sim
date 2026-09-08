@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 
 export const metadata: Metadata = { title: 'Chat' }
@@ -14,6 +16,10 @@ export default async function OrganizationChatPage({
   const { organizationId, chatId } = await params
   const session = await getSession()
   if (!session?.user?.id) notFound()
+  const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
+  if (!context) notFound()
+  if (!context.searchAccess.memberScoped)
+    redirect(organizationRoutes(organizationId).settingsSection('general'))
   const chat = await getAccessibleCopilotChatAuth(chatId, session.user.id, {
     principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
   })

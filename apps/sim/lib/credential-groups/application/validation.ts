@@ -23,7 +23,11 @@ function validateOption(
       `Credential option ${index + 1} requires a label of at most 100 characters`
     )
   }
-  if (option.provider === 'slack' && !option.slackBotCredentialId.trim()) {
+  if (
+    option.provider === 'slack' &&
+    option.slackBotCredentialId !== undefined &&
+    !option.slackBotCredentialId.trim()
+  ) {
     throw new OrchestrationError('validation', 'Select a custom Slack bot')
   }
 }

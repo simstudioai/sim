@@ -10,10 +10,10 @@ import type {
   WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
 import {
   credentialGroupWorkflowAccessPolicyCodec,
   evaluateCredentialGroupActorCredentialAccess,
-  evaluateCredentialGroupWorkflowAccess,
 } from '@/lib/credential-groups/application/workflow-access-policy'
 import type {
   CredentialGroupCredentialListContext,
@@ -41,6 +41,7 @@ export const workspaceAccountsSettingsDelegationPolicy = {
 
 export interface CredentialGroupAuthorizationContext extends WorkspaceAuthorizationContext {
   credentialGroupId: string
+  organizationId?: string
 }
 
 export interface CredentialGroupApplicationContext
@@ -98,6 +99,7 @@ function requireConsistentWorkflowSubject(
  * user simply records none.
  */
 export function requireCredentialGroupWorkflowActor(principal: Principal): PrincipalSubject | null {
+  requireCurrentWorkflow(principal)
   return requireConsistentWorkflowSubject(principal, requireWorkflowExecutionPrincipal(principal))
 }
 
@@ -121,6 +123,19 @@ async function requireCredentialGroupActorCredentialAccess(
   /** Chat mints OAuth credentials only; a credential with no OAuth binding is not its to use. */
   if (!binding) {
     throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
+  if (context.organizationId) {
+    const actorAccess = await loadCredentialGroupEnrollmentAccessForSubject(
+      context.credentialGroupId,
+      subject
+    )
+    if (actorAccess?.enrollmentId !== context.credentialGroupEnrollmentId) {
+      throw new OrchestrationError(
+        'forbidden',
+        'Only your own organization connections can be used in Chat'
+      )
+    }
+    return
   }
   const [policy, actorAccess] = await Promise.all([
     requireResourcePolicy({
@@ -167,29 +182,18 @@ export async function requireCredentialGroupCredentialAccess(
   if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
     return requireCredentialGroupActorCredentialAccess(principal, context, binding, resourcePolicy)
   }
-  const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
-  const currentWorkflow = requireCurrentWorkflow(principal)
-  const subject = requireConsistentWorkflowSubject(principal, executionPrincipal)
-  const policy = await requireResourcePolicy({
-    workspaceId: context.workspaceId,
-    resourceType: 'credential_group',
-    resourceId: context.credentialGroupId,
-    codec: credentialGroupWorkflowAccessPolicyCodec,
-  })
-  const actorAccess = subject
-    ? await loadCredentialGroupEnrollmentAccessForSubject(context.credentialGroupId, subject)
-    : null
-  const decision = evaluateCredentialGroupWorkflowAccess({
-    document: policy.document,
-    credentialGroupId: context.credentialGroupId,
-    selectedEnrollmentId: context.credentialGroupEnrollmentId,
-    ...(actorAccess ? { actorEnrollmentId: actorAccess.enrollmentId } : {}),
-    currentWorkflow,
-    resourcePolicy,
-  })
-  if (decision.decision !== 'allow') {
-    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  requireCredentialGroupWorkflowActor(principal)
+  requireCurrentWorkflow(principal)
+  if (!context.organizationId) {
+    throw new OrchestrationError(
+      'forbidden',
+      'Reconnect this account in organization settings and replace the legacy Connected Accounts block'
+    )
   }
+  await requireOrganizationAccountsWorkspaceAccess({
+    ...context,
+    organizationId: context.organizationId,
+  })
 }
 
 export const credentialGroupDelegationPolicy = {

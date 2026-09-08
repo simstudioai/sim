@@ -31,7 +31,12 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
   authorizationOptions: {},
   async execute({ context }) {
     const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(context.workspaceId)
-    if (!(await isCredentialGroupsAvailable({ workspaceId: context.workspaceId, ownerBilling }))) {
+    if (
+      !(await isCredentialGroupsAvailable({
+        organizationId: ownerBilling.organizationId,
+        ownerBilling,
+      }))
+    ) {
       return { servers: [], tools: [] }
     }
     const managedCatalogScope = () =>

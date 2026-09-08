@@ -15,6 +15,7 @@ import {
   sameResourceScope,
 } from '@/lib/core/resource-scope'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import {
@@ -70,7 +71,9 @@ export interface StartSlackCredentialGroupConfigurationInput {
   assertedWorkspaceId?: string
   organizationId?: string
   credentialGroupId: string
-  slackBotCredentialId: string
+  slackBotCredentialId?: string
+  appId?: string
+  teamId?: string
   clientId: string
   clientSecret: string
   requiredScopes?: string[]
@@ -96,11 +99,15 @@ export const startSlackCredentialGroupConfiguration: OperationUseCase<
       credentialGroupOperations.startSlackConfiguration,
       scope
     )
+    if (scope.kind === 'organization')
+      await requireOrganizationAccountsSetup(scope.organizationId, input.credentialGroupId)
     return createSlackManagedUsersAttempt({
       ...resourceScopeFields(scope),
       userId: principal.userId,
       credentialGroupId: input.credentialGroupId,
       slackBotCredentialId: input.slackBotCredentialId,
+      appId: input.appId,
+      teamId: input.teamId,
       clientId: input.clientId,
       clientSecret: input.clientSecret,
       requiredScopes: input.requiredScopes,
@@ -148,6 +155,8 @@ export const completeSlackCredentialGroupConfiguration: OperationUseCase<
       credentialGroupOperations.completeSlackConfiguration,
       scope
     )
+    if (scope.kind === 'organization')
+      await requireOrganizationAccountsSetup(scope.organizationId, pending.credentialGroupId)
     const attempt = await consumeSlackManagedUsersAttempt(input.state)
     if (
       !attempt ||

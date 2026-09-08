@@ -1,57 +1,52 @@
 'use client'
 
-import { useEffect } from 'react'
-import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
+import { ChipTag } from '@sim/emcn'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { CredentialGroupDetail } from '@/ee/credential-groups/components/credential-group-detail'
-import { useEnsureWorkspaceAccounts, useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
+import { OrganizationConnectedAccounts } from '@/ee/credential-groups/components/organization-connected-accounts'
+import { useWorkspaceOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 
 interface CredentialGroupsSettingsProps {
   workspaceId: string
 }
 
+/** Embeds the organization manager for its admins; other workspace viewers see sharing status. */
 export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettingsProps) {
-  return <WorkspaceAccounts key={workspaceId} workspaceId={workspaceId} />
-}
-
-function WorkspaceAccounts({ workspaceId }: CredentialGroupsSettingsProps) {
-  const accounts = useWorkspaceAccounts(workspaceId)
-  const {
-    mutate: ensureAccounts,
-    data: preparedAccounts,
-    error: setupError,
-    isIdle: setupIdle,
-    isPending: setupPending,
-  } = useEnsureWorkspaceAccounts()
-  const prepared = preparedAccounts?.credentialGroup
-  const credentialGroup =
-    accounts.data?.credentialGroup ?? (prepared?.workspaceId === workspaceId ? prepared : undefined)
-  const needsSetup = accounts.isSuccess && !credentialGroup
-
-  /** Existing workspaces prepare their account container on first use. */
-  useEffect(() => {
-    if (needsSetup && setupIdle) ensureAccounts({ workspaceId })
-  }, [ensureAccounts, needsSetup, setupIdle, workspaceId])
-
-  if (credentialGroup) {
-    return <CredentialGroupDetail workspaceId={workspaceId} groupId={credentialGroup.id} />
-  }
-
-  const error = accounts.error ?? setupError
+  const accounts = useWorkspaceOrganizationAccounts(workspaceId)
+  const data = accounts.data
   return (
     <SettingsPanel>
-      <SearchSetupReturn workspaceId={workspaceId} />
-      {error ? (
+      {accounts.error ? (
         <SettingsQueryErrorState
-          error={error}
-          fallback="Couldn't load connected accounts"
-          isRetrying={setupPending || accounts.isFetching}
-          onRetry={() =>
-            accounts.error ? void accounts.refetch() : ensureAccounts({ workspaceId })
-          }
+          error={accounts.error}
+          fallback='Could not load connected accounts'
+          isRetrying={accounts.isFetching}
+          onRetry={() => void accounts.refetch()}
         />
-      ) : null}
+      ) : data?.available && data.canManage && data.organizationId ? (
+        <OrganizationConnectedAccounts
+          key={data.organizationId}
+          organizationId={data.organizationId}
+        />
+      ) : data ? (
+        <div className='flex flex-col gap-4'>
+          <p className='text-[var(--text-body)] text-small'>
+            {data.organizationName
+              ? `Connected accounts are managed by ${data.organizationName}.`
+              : 'This workspace must belong to an organization to use organization accounts.'}
+          </p>
+          <div>
+            <ChipTag>{data.allowed ? 'Access allowed' : 'Access not granted'}</ChipTag>
+          </div>
+          <p className='text-[var(--text-muted)] text-caption'>
+            {data.allowed
+              ? 'All authorized manual and deployed workflows in this workspace can use every active organization account through the Credential block.'
+              : 'An organization admin must grant this workspace access before workflows can use organization accounts.'}
+          </p>
+        </div>
+      ) : (
+        <p className='text-[var(--text-muted)] text-caption'>Loading connected accounts…</p>
+      )}
     </SettingsPanel>
   )
 }

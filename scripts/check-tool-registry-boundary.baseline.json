@@ -402,16 +402,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2250,
+      "modules": 2310,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 671,
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 747,
         "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/blocks/registry.ts": 353,
-        "apps/sim/lib/auth/index.ts": 326,
+        "apps/sim/blocks/registry.ts": 354,
+        "apps/sim/lib/auth/index.ts": 347,
         "apps/sim/lib/webhooks/providers/index.ts": 117,
         "apps/sim/lib/webhooks/providers/registry.ts": 115,
-        "apps/sim/ee/access-control/components/access-control.tsx": 74,
-        "apps/sim/ee/access-control/components/group-detail.tsx": 72
+        "apps/sim/ee/credential-groups/components/index.ts": 74,
+        "apps/sim/ee/credential-groups/components/organization-connected-accounts.tsx": 68
       }
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/layout.tsx": {

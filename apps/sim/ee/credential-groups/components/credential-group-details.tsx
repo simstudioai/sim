@@ -32,7 +32,6 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { DatabricksMcpConnectorModal } from '@/ee/credential-groups/components/databricks-mcp-connector-modal'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
 import {
   useCreateCredentialGroupMcpConnector,
@@ -41,7 +40,6 @@ import {
   useWorkspaceAccounts,
 } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
-import { useMcpServers } from '@/hooks/queries/mcp'
 
 /** Stable identity so a pending/errored credentials query cannot churn the modal's `bots` prop. */
 const EMPTY_SLACK_BOTS: WorkspaceCredential[] = []
@@ -83,7 +81,6 @@ export function CredentialGroupDetails({
    */
   const accounts = useWorkspaceAccounts(workspaceId)
   const availableProviders = accounts.data?.availableProviders
-  const mcpServers = useMcpServers(workspaceId)
   const slackBots = useWorkspaceCredentials({
     workspaceId,
     type: 'service_account',
@@ -91,7 +88,6 @@ export function CredentialGroupDetails({
   })
   const [slackSetup, setSlackSetup] = useState<{ credentialId?: string } | null>(null)
   const [removingProvider, setRemovingProvider] = useState<CredentialGroupProvider | null>(null)
-  const [databricksSetupOpen, setDatabricksSetupOpen] = useState(false)
   const [removingMcpConnector, setRemovingMcpConnector] = useState<ManagedMcpConnectorId | null>(
     null
   )
@@ -210,12 +206,6 @@ export function CredentialGroupDetails({
       connector.description.toLowerCase().includes(providerQuery)
     )
   })
-  const databricksServerSummary = credentialGroup.mcpServers.find(
-    (server) => server.managedConnectorId === 'databricks'
-  )
-  const databricksServer = databricksServerSummary
-    ? mcpServers.data?.find((server) => server.id === databricksServerSummary.id)
-    : undefined
 
   return (
     <>
@@ -330,22 +320,17 @@ export function CredentialGroupDetails({
                 key={connectorId}
                 icon={<ConnectorIcon aria-hidden />}
                 title={server?.name ?? connector.name}
-                description={connector.description}
+                description={
+                  connectorId === 'databricks'
+                    ? 'Configure Databricks in organization Connected accounts'
+                    : connector.description
+                }
                 badge={server ? <ChipTag variant='gray'>Added</ChipTag> : undefined}
                 trailing={
                   server ? (
                     <RowActionsMenu
                       label={`${connector.name} actions`}
                       actions={[
-                        ...(connectorId === 'databricks'
-                          ? [
-                              {
-                                label: 'Edit',
-                                onSelect: () => setDatabricksSetupOpen(true),
-                                disabled: isUpdating || !databricksServer,
-                              },
-                            ]
-                          : []),
                         {
                           label: 'Remove',
                           destructive: true,
@@ -354,17 +339,11 @@ export function CredentialGroupDetails({
                         },
                       ]}
                     />
-                  ) : (
-                    <Chip
-                      disabled={isUpdating}
-                      onClick={() => {
-                        if (connectorId === 'databricks') setDatabricksSetupOpen(true)
-                        else void addMcpConnector(connectorId)
-                      }}
-                    >
-                      {connectorId === 'databricks' ? 'Set up' : 'Add'}
+                  ) : connectorId !== 'databricks' ? (
+                    <Chip disabled={isUpdating} onClick={() => void addMcpConnector(connectorId)}>
+                      Add
                     </Chip>
-                  )
+                  ) : undefined
                 }
               />
             )
@@ -389,14 +368,6 @@ export function CredentialGroupDetails({
             ? SLACK_MANAGED_USER_SCOPES
             : undefined)
         }
-      />
-
-      <DatabricksMcpConnectorModal
-        open={databricksSetupOpen}
-        onOpenChange={setDatabricksSetupOpen}
-        workspaceId={workspaceId}
-        credentialGroupId={credentialGroup.id}
-        server={databricksServer}
       />
 
       <ChipConfirmModal

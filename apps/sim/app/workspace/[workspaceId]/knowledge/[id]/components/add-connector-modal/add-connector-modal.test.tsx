@@ -219,7 +219,7 @@ describe('Slack member setup readiness', () => {
       (link) => link.textContent?.trim() === 'Set up Slack'
     )
     expect(setup?.getAttribute('href')).toBe(
-      '/o/org-1/integrations?search-setup=slack&connectedAccounts=slack'
+      '/o/org-1/settings/integrations?search-setup=slack&connectedAccounts=slack'
     )
     expect(document.body.textContent).not.toContain('Create & Invite')
   })
@@ -286,6 +286,25 @@ describe('Slack member setup readiness', () => {
 })
 
 describe('Search methods requiring member identity', () => {
+  it('keeps organization connected-account setup in members mode', async () => {
+    await render({
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      initialConnectorType: 'confluence',
+      initialAccessMode: 'admin',
+      membersOnly: true,
+    })
+    expect(document.body.textContent).not.toContain('Connection method')
+    expect(document.body.textContent).not.toContain('Choose another source')
+    await act(async () => button('Add source').click())
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'confluence',
+        accessMode: 'members',
+      }),
+      expect.any(Object)
+    )
+  })
+
   it('blocks a new Confluence admin connection when member identity is unavailable', async () => {
     mocks.memberAccess = false
     await render({ initialConnectorType: 'confluence', initialAccessMode: 'admin' })

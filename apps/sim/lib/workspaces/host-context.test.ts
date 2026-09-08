@@ -13,6 +13,10 @@ const {
   mockGetOrganizationSettingsAccess: vi.fn(),
 }))
 
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))

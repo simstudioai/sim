@@ -67,15 +67,19 @@ export function resolveOrganizationSurfaceSection(
 
 export function organizationSettingsNavigation(
   isAdmin: boolean,
-  features: OrganizationSettingsFeatures
+  features: OrganizationSettingsFeatures,
+  availability: { connectedAccounts: boolean; search: boolean }
 ) {
   return ORGANIZATION_SETTINGS_ITEMS.filter(
     (item) =>
+      (item.id !== 'connected-accounts' || availability.connectedAccounts) &&
+      ((item.id !== 'search-mcp' && item.id !== 'integrations') || availability.search) &&
       resolveOrganizationSectionAccess({
         section: item.id,
         isTargetOrganizationMember: true,
         isTargetOrganizationAdmin: isAdmin,
-      }) !== 'unavailable' && isOrganizationSettingsSectionAvailable(item.id, features)
+      }) !== 'unavailable' &&
+      isOrganizationSettingsSectionAvailable(item.id, features)
   )
 }
 
@@ -87,10 +91,11 @@ export function organizationSettingsNavigation(
  */
 export function organizationSurfaceSettingsNavigation(
   isAdmin: boolean,
-  features: OrganizationSettingsFeatures
+  features: OrganizationSettingsFeatures,
+  availability: { connectedAccounts: boolean; search: boolean }
 ): SettingsNavigationItem<AccountSettingsSection | OrganizationSettingsSection>[] {
   return [
     ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS,
-    ...organizationSettingsNavigation(isAdmin, features),
+    ...organizationSettingsNavigation(isAdmin, features, availability),
   ]
 }

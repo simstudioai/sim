@@ -84,6 +84,9 @@ describe('discoverManagedMcpToolsUseCase', () => {
       mcpServerId: context.mcpServerId,
       mcpServerName: context.mcpServerName,
       workspaceId: context.workspaceId,
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      oauthConfigVersion: 2,
+      grantedAt: new Date('2026-09-01'),
       tokenVersion: 'encrypted-token-version-1',
       tokens: { access_token: 'access-token' },
       tools: [],
@@ -120,7 +123,7 @@ describe('discoverManagedMcpToolsUseCase', () => {
     expect(mocks.loadRuntime).toHaveBeenCalledWith(context.credentialId, context.workspaceId)
     expect(mocks.discoverTools).toHaveBeenCalledWith(
       context.mcpServerId,
-      context.workspaceId,
+      { kind: 'organization', organizationId: 'org-1' },
       { credentialId: context.credentialId, loadProvider: expect.any(Function) },
       signal,
       { requireComplete: true }
@@ -132,12 +135,17 @@ describe('discoverManagedMcpToolsUseCase', () => {
         serverName: context.mcpServerName,
       }),
     ])
-    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(context.credentialId, [
-      {
-        name: 'search_transcripts',
-        description: 'Search transcripts',
-        inputSchema: { type: 'object', properties: {} },
-      },
-    ])
+    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(
+      context.credentialId,
+      [
+        {
+          name: 'search_transcripts',
+          description: 'Search transcripts',
+          inputSchema: { type: 'object', properties: {} },
+        },
+      ],
+      2,
+      new Date('2026-09-01')
+    )
   })
 })

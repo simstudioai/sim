@@ -4,7 +4,18 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ canOpen: vi.fn(), enterprise: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  canOpen: vi.fn(),
+  enterprise: vi.fn(),
+  groups: vi.fn(),
+  search: vi.fn(),
+}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: mocks.groups,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mocks.search,
+}))
 vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpen,
 }))
@@ -20,8 +31,31 @@ describe('organization settings authorization', () => {
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mocks.canOpen.mockResolvedValue(true)
     mocks.enterprise.mockResolvedValue(true)
+    mocks.groups.mockResolvedValue(true)
+    mocks.search.mockResolvedValue(true)
   })
   afterEach(resetEnvFlagsMock)
+
+  it.each(['connected-accounts', 'search-mcp', 'integrations'] as const)(
+    'gates direct %s settings links using the target org',
+    async (section) => {
+      const gate = section === 'connected-accounts' ? mocks.groups : mocks.search
+      gate.mockResolvedValue(false)
+      await expect(
+        authorizeOrganizationSettingsSection({
+          organizationId: 'target',
+          userId: 'viewer',
+          section,
+        })
+      ).resolves.toBe(false)
+      expect(gate).toHaveBeenCalledExactlyOnceWith(
+        section === 'connected-accounts'
+          ? { kind: 'organization', organizationId: 'target' }
+          : { organizationId: 'target' }
+      )
+      expect(mocks.enterprise).not.toHaveBeenCalled()
+    }
+  )
 
   it('checks current target organization membership before billing reads', async () => {
     mocks.canOpen.mockResolvedValue(false)
@@ -56,25 +90,6 @@ describe('organization settings authorization', () => {
         section: 'sso',
       })
     ).toBe(false)
-  })
-
-  it('gates Sim Search source setup on the enterprise plan when hosted', async () => {
-    mocks.enterprise.mockResolvedValue(false)
-    expect(
-      await authorizeOrganizationSettingsSection({
-        organizationId: 'target',
-        userId: 'admin',
-        section: 'integrations',
-      })
-    ).toBe(false)
-    mocks.enterprise.mockResolvedValue(true)
-    expect(
-      await authorizeOrganizationSettingsSection({
-        organizationId: 'target',
-        userId: 'admin',
-        section: 'integrations',
-      })
-    ).toBe(true)
   })
 
   it('does not turn authorization infrastructure failures into empty settings', async () => {
