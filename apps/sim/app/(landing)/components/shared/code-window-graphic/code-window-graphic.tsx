@@ -2,9 +2,18 @@ import { cn } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
 import styles from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic.module.css'
 
+/** The compact preview sequences up to six visual command rows. */
+export type CodeWindowCommands =
+  | readonly [string]
+  | readonly [string, string]
+  | readonly [string, string, string]
+  | readonly [string, string, string, string]
+  | readonly [string, string, string, string, string]
+  | readonly [string, string, string, string, string, string]
+
 interface CodeWindowGraphicProps {
   filename: string
-  commands: readonly string[]
+  commands: CodeWindowCommands
 }
 
 /** A complete terminal window with sequentially typed, documentation-backed CLI examples. */

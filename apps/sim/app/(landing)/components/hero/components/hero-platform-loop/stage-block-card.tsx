@@ -320,8 +320,8 @@ export function StageBlockCard({
                       type='button'
                       variant='ghost'
                       size={null}
-                      aria-label={label}
-                      onClick={(event) => event.stopPropagation()}
+                      disabled={!decorative}
+                      aria-label={decorative ? label : `${label} unavailable in preview`}
                       className={getActionButtonClassName(
                         label === 'Delete' ? 'last' : 'middle',
                         selected
@@ -331,7 +331,9 @@ export function StageBlockCard({
                     </Button>
                   </span>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>{label}</Tooltip.Content>
+                <Tooltip.Content side='top'>
+                  {decorative ? label : `${label} unavailable in preview`}
+                </Tooltip.Content>
               </Tooltip.Root>
             ))}
           </div>

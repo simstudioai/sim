@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { CodeWindowCommands } from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic'
 
 /**
  * Solutions-page configuration - the entire content contract a route passes to
@@ -157,5 +158,5 @@ export interface SolutionsProductCodeExampleConfig {
   title: string
   description: string
   filename: string
-  commands: readonly string[]
+  commands: CodeWindowCommands
 }

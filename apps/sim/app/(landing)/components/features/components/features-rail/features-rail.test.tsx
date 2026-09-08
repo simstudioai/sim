@@ -145,6 +145,39 @@ describe('FeaturesRail', () => {
     expect(mount(true).scrollLeft).toBe(SET)
   })
 
+  it('keeps interactive controls keyboard-accessible only in the home copy', () => {
+    let activations = 0
+    act(() =>
+      root?.render(
+        <FeaturesRail label='Interactive features'>
+          <div>
+            <button type='button' onClick={() => activations++}>
+              Open folder
+            </button>
+            <input aria-label='Search files' />
+          </div>
+        </FeaturesRail>
+      )
+    )
+
+    const homeControls = host?.querySelectorAll<HTMLElement>(
+      '[data-copy="home"] :is(button, input)'
+    )
+    expect(homeControls).toHaveLength(2)
+    for (const control of homeControls ?? []) expect(control.tabIndex).toBe(0)
+
+    const cloneControls = host?.querySelectorAll<HTMLElement>(
+      ':is([data-copy="lead"], [data-copy="tail"]) :is(button, input)'
+    )
+    expect(cloneControls).toHaveLength(4)
+    for (const control of cloneControls ?? []) expect(control.tabIndex).toBe(-1)
+
+    const cloneButton = host?.querySelector<HTMLButtonElement>('[data-copy="tail"] button')
+    expect(cloneButton?.disabled).toBe(false)
+    act(() => cloneButton?.click())
+    expect(activations).toBe(1)
+  })
+
   it('drags with the mouse, scrolling by the pointer delta and swallowing the click', () => {
     const rail = mount()
     const link = rail.querySelector<HTMLAnchorElement>('[data-copy="home"] a')

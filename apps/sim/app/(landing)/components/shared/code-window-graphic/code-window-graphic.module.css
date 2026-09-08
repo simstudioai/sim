@@ -166,11 +166,18 @@
     padding: 18px 14px;
   }
   .lines {
+    width: 100%;
     font-size: 11px;
     line-height: 23px;
   }
   .row {
     gap: 8px;
+    width: 100%;
+  }
+  .typed {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 }
 

@@ -51,14 +51,14 @@
   max-width: 100%;
   white-space: nowrap;
 }
-.response .started {
+.started {
   margin: 0;
   animation: response-first 12s steps(34, end) infinite;
 }
-.response .running {
+.running {
   animation: response-second 12s steps(33, end) infinite;
 }
-.response .completed {
+.completed {
   animation: response-third 12s steps(37, end) infinite;
 }
 @keyframes response-first {

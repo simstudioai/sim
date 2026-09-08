@@ -36,11 +36,13 @@ export function ProductCodeExample({ example }: ProductCodeExampleProps) {
             </LandingCtaLink>
           </div>
         </div>
-        <div className='relative h-[340px] min-w-0 overflow-hidden rounded-2xl bg-[var(--surface-3)] pt-8 pl-8 max-sm:h-[300px] max-sm:pt-5 max-sm:pl-5'>
-          <div className='w-[calc(100%+96px)]'>
+        <div className='relative h-[340px] min-w-0 overflow-hidden rounded-2xl bg-[var(--surface-3)] pt-8 pl-8 max-sm:h-auto max-sm:p-3'>
+          <div className='w-[calc(100%+96px)] max-sm:w-full'>
             <CodeWindowGraphic filename={example.filename} commands={example.commands} />
           </div>
-          <EdgeFade ground='surface' edges={['right', 'bottom']} depth='preview' />
+          <div className='pointer-events-none absolute inset-0 max-sm:hidden'>
+            <EdgeFade ground='surface' edges={['right', 'bottom']} depth='preview' />
+          </div>
         </div>
       </div>
     </section>

@@ -142,10 +142,10 @@ export function FeaturesRail({ label, children }: FeaturesRailProps) {
       if (Math.abs(next - rail.scrollLeft) > FOLD_TOLERANCE) rail.scrollLeft = next
     }
 
-    for (const link of rail.querySelectorAll<HTMLElement>(
-      '[data-copy="lead"] a, [data-copy="tail"] a'
+    for (const control of rail.querySelectorAll<HTMLElement>(
+      ':is([data-copy="lead"], [data-copy="tail"]) :is(a, button, input, select, textarea, [tabindex])'
     )) {
-      link.tabIndex = -1
+      control.tabIndex = -1
     }
     measure()
     rail.scrollLeft = foldScrollLeft(rail.scrollLeft + setWidthRef.current, setWidthRef.current)
