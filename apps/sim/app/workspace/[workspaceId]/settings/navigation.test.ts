@@ -37,7 +37,6 @@ describe('unified settings navigation', () => {
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
       { id: 'apikeys', label: 'Sim API keys', section: 'workspace' },
-      { id: 'authorized-apps', label: 'Authorized apps', section: 'account' },
       { id: 'workflow-mcp-servers', label: 'MCP servers', section: 'workspace' },
       { id: 'byok', label: 'BYOK', section: 'workspace' },
       { id: 'sandboxes', label: 'Sandboxes', section: 'workspace' },
@@ -68,7 +67,6 @@ describe('unified settings navigation', () => {
       'desktop',
       'browser',
       'terminal',
-      'authorized-apps',
     ])
     expect(idsForSection('workspace')).toEqual([
       'teammates',

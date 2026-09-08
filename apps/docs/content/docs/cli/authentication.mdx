@@ -27,7 +27,7 @@ https://www.sim.ai/api/auth/oauth2/authorize?client_id=sim-cli&…
 Waiting for you to approve in the browser…
 
 ✓ Logged in. Login stored in /Users/you/.sim/credentials
-  Renews itself; revoke it any time in Settings → Authorized apps, or with: sim logout
+  Renews itself; revoke it any time in Settings → General → Authorized apps, or with: sim logout
   No default workspace. Set one with: sim configure --set-workspace <id>
 ```
 
@@ -151,7 +151,7 @@ For an OAuth login, `sim logout` revokes that login's complete token family
 before removing it from disk, including access tokens issued before earlier
 rotations. Other machines that ran their own `sim login` remain signed in. To
 cut off every independent login for the client, revoke the grant under
-**Settings → Authorized apps**.
+**Settings → General → Authorized apps**.
 
 A workspace profile that shares authentication cannot remove the shared login.
 Remove only that local profile with `sim logout --all --profile <name>`, or log

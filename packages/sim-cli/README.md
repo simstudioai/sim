@@ -36,7 +36,7 @@ sim login
 The CLI opens Sim in your browser, asks you to approve the requested access,
 and receives the one-time authorization code on a loopback callback. It stores
 a short-lived OAuth login that renews automatically and can be revoked under
-**Settings → Authorized apps**. Choose a default workspace afterward with
+**Settings → General → Authorized apps**. Choose a default workspace afterward with
 `sim configure --set-workspace <id>`.
 
 Use `sim login --no-browser` to print the OAuth URL without opening it. The
