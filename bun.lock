@@ -273,6 +273,7 @@
         "binary-extensions": "3.1.0",
         "browser-image-compression": "^2.0.2",
         "busboy": "1.6.0",
+        "c15t": "2.2.1",
         "cheerio": "1.1.2",
         "class-variance-authority": "^0.7.1",
         "cmdk": "^1.0.0",

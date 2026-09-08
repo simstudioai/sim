@@ -8,6 +8,7 @@ import {
   DEV_CONSENT_COUNTRY,
 } from '@/lib/consent/constants'
 import { GLOBAL_CONSENT_SCRIPTS } from '@/lib/consent/scripts'
+import { CONSENT_STORAGE_CONFIG } from '@/lib/consent/storage'
 
 /**
  * Imported from `@c15t/nextjs/headless`, not the package root: the headless
@@ -29,6 +30,7 @@ const CONSENT_OPTIONS = {
   consentCategories: [...CONSENT_CATEGORIES],
   scripts: [...GLOBAL_CONSENT_SCRIPTS],
   store: {
+    storageConfig: CONSENT_STORAGE_CONFIG,
     reloadOnConsentRevoked: true,
     iframeBlockerConfig: { disableAutomaticBlocking: true },
   },
