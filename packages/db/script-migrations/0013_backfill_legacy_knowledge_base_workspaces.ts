@@ -183,8 +183,6 @@ async function moveKnowledgeBase(
   tx: TransactionSql,
   knowledgeBaseId: string
 ): Promise<LegacyKnowledgeBaseMoveOutcome> {
-  await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-  await tx.unsafe("SET LOCAL statement_timeout = '30s'")
   const [kb] = await tx<Array<{ user_id: string }>>`
     SELECT user_id FROM knowledge_base
     WHERE id = ${knowledgeBaseId} AND workspace_id IS NULL AND organization_id IS NULL

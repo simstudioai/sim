@@ -1,8 +1,10 @@
 import {
   backfillLegacyKnowledgeBaseWorkspaces,
   createPostgresLegacyKnowledgeBaseWorkspaceStore,
+  type LegacyKnowledgeBaseMoveOutcome,
   selectLegacyKnowledgeBaseWorkspace,
 } from '@sim/db/script-migrations/0013_backfill_legacy_knowledge_base_workspaces'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -285,6 +287,71 @@ describe.runIf(Boolean(databaseUrl))('legacy KB workspace backfill in PostgreSQL
     expect(rows.every((row) => row.workspace_id === 'destination')).toBe(true)
     expect(await userBytes('owner')).toBe(300)
   })
+
+  it('waits for an application-held workspace lock instead of aborting the migration', async () => {
+    await workspace('destination')
+    await kb()
+    await document('kb', 100)
+    let markWriterReady!: (pid: number) => void
+    const writerReady = new Promise<number>((resolve) => {
+      markWriterReady = resolve
+    })
+    let releaseWriter!: () => void
+    const writerReleased = new Promise<void>((resolve) => {
+      releaseWriter = resolve
+    })
+    const writer = sql.begin(async (tx) => {
+      await tx`SELECT id FROM workspace WHERE id = 'destination' FOR NO KEY UPDATE`
+      const [connection] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+      markWriterReady(connection.pid)
+      await writerReleased
+    })
+    let move: Promise<LegacyKnowledgeBaseMoveOutcome> | undefined
+    try {
+      const writerPid = await Promise.race([
+        writerReady,
+        writer.then(() => {
+          throw new Error('Workspace writer finished before the concurrency check')
+        }),
+      ])
+      let settled = false
+      move = subject.moveCandidate('kb')
+      void move.then(
+        () => {
+          settled = true
+        },
+        () => {
+          settled = true
+        }
+      )
+      let waiting = false
+      const deadline = Date.now() + 2_000
+      while (!settled && Date.now() < deadline) {
+        const [waiter] = await admin<{ waiting: boolean }[]>`
+          SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+            WHERE ${writerPid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock') AS waiting
+        `
+        if (waiter.waiting) {
+          waiting = true
+          break
+        }
+        await sleep(1)
+      }
+      expect(waiting, 'The migration must wait for the workspace writer').toBe(true)
+      /** Real lock contention must outlast the former five-second timeout. */
+      await sleep(5_100)
+      expect(settled).toBe(false)
+      releaseWriter()
+      await writer
+      expect(await move).toBe('moved')
+      expect((await scopedKb()).workspace_id).toBe('destination')
+      expect(await userBytes('owner')).toBe(100)
+    } finally {
+      releaseWriter()
+      await writer
+      await move?.catch(() => undefined)
+    }
+  }, 15_000)
 
   it('rolls back scope, names, and accounting together on failure and resumes safely', async () => {
     await workspace('destination')
