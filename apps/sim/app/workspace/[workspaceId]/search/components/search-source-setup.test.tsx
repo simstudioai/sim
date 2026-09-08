@@ -1697,7 +1697,10 @@ describe('Search setup guides', () => {
     expect(onConnect).not.toHaveBeenCalled()
     await click(button('Connect'))
     expect(onConnect).toHaveBeenCalledWith({ repository: 'acme/docs' })
-    expect(onClose).toHaveBeenCalledOnce()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="owner/repo"]')?.value).toBe(
+      'acme/docs'
+    )
   })
 
   it('keeps unsaved source edits when opening the guide', async () => {

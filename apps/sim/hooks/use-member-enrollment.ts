@@ -162,7 +162,7 @@ export function useMemberEnrollment({
   /** Opens the tab inside the click, then sends it wherever `start` mints. */
   const openEnrollment = (
     start: (handlers: {
-      onSuccess: (url: string, connectorId: string, connectorType?: string) => void
+      onSuccess: (url: string, connectorId: string, connectorType?: string) => boolean
       onError: () => void
     }) => void
   ) => {
@@ -175,7 +175,7 @@ export function useMemberEnrollment({
     setPopupBlocked(false)
     start({
       onSuccess: (url, connectorId, connectorType) => {
-        if (tab.closed) return
+        if (tab.closed) return false
         tab.location.href = url
         setAwaitingSince((current) =>
           new Map(current).set(connectorId, {
@@ -184,6 +184,7 @@ export function useMemberEnrollment({
             connectorType: connectorType ?? null,
           })
         )
+        return true
       },
       onError: () => tab.close(),
     })
@@ -221,7 +222,9 @@ export function useMemberEnrollment({
           sourceConfig,
         },
         {
-          onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId, connectorType),
+          onSuccess: ({ url, connectorId }) => {
+            if (onSuccess(url, connectorId, connectorType)) setSetupConnector(null)
+          },
           onError: (err) => {
             onError()
             logger.error('Failed to connect a Sim Search source', { error: err.message })
@@ -277,7 +280,7 @@ export function useMemberEnrollment({
     closeSetup: () => setSetupConnector(null),
     isAwaiting,
     isAwaitingSource,
-    isPending: latest.isPending,
+    isPending: enrollment.isPending || sourceConnection.isPending,
     error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (latest.error?.message ?? null),
   }
 }

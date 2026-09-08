@@ -213,6 +213,8 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
       {setupConnector && (
         <SourceSetupModal
           connector={setupConnector}
+          isPending={isPending}
+          error={error}
           onClose={closeSetup}
           onConnect={(sourceConfig) =>
             connectSource(workspaceId, setupConnector.type, sourceConfig)

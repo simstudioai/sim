@@ -170,6 +170,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
             ...input,
             assertedWorkspaceId: workspaceId,
             assertedOrganizationId: organizationId,
+            requireEnabledDocument: true,
           },
           request,
         })
@@ -211,6 +212,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
             ...input,
             assertedWorkspaceId: workspaceId,
             assertedOrganizationId: organizationId,
+            requireEnabledDocument: true,
             enabled: 'true',
             sortBy: 'chunkIndex',
             sortOrder: 'asc',

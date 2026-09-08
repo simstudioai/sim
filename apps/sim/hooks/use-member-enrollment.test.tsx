@@ -30,6 +30,7 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
   }),
 }))
 
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 
 type Enrollment = ReturnType<typeof useMemberEnrollment>
@@ -79,6 +80,31 @@ afterEach(() => {
 })
 
 describe('useMemberEnrollment', () => {
+  it.each(['blocked', 'failed', 'closed', 'success'] as const)(
+    'retains source setup until enrollment navigation succeeds: %s',
+    (outcome) => {
+      mount()
+      const connector = SEARCH_CONNECTORS.find((item) => item.type === 'github')!
+      act(() => enrollment().connectSearchSource('workspace-1', connector, undefined))
+      expect(enrollment().setupConnector).toBe(connector)
+      if (outcome === 'blocked') vi.mocked(window.open).mockReturnValueOnce(null)
+      act(() => enrollment().connectSource('workspace-1', 'github', { repository: 'acme/docs' }))
+      if (outcome === 'blocked') {
+        expect(mocks.sourceConnectionMutate).not.toHaveBeenCalled()
+        expect(enrollment().error).toContain('Allow pop-ups')
+      } else {
+        const [, handlers] = mocks.sourceConnectionMutate.mock.calls[0]
+        if (outcome === 'closed') enrollmentTab.closed = true
+        act(() => {
+          if (outcome === 'failed') handlers.onError(new Error('Try again'))
+          else
+            handlers.onSuccess({ url: 'https://example.test/enroll', connectorId: 'connector-1' })
+        })
+      }
+      expect(enrollment().setupConnector).toBe(outcome === 'success' ? null : connector)
+    }
+  )
+
   /**
    * The connect that creates a Sim Search source's connector returns its id,
    * but the membership list has no row for it until it refetches, so the

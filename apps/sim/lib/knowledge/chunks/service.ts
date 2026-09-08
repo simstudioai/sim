@@ -105,6 +105,8 @@ export async function queryChunks(
     ...workspaceSearchFilterConditions(filters.documentFilters),
   ]
 
+  if (filters.requireEnabledDocument) conditions.push(eq(document.enabled, true))
+
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
   } else if (enabled === 'false') {

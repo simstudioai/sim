@@ -50,6 +50,7 @@ const ids = reuseReportFile
           aliceId: z.uuid(),
           bobId: z.uuid(),
           workspaceId: z.uuid(),
+          organizationId: z.uuid(),
           knowledgeBaseId: z.uuid(),
           connectorId: z.uuid(),
           lockId: z.uuid(),

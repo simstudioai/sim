@@ -5,13 +5,12 @@ import { cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
-import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 
-type StepId = 'connect-integration' | 'create-workspace' | 'connect-sim-search'
+type StepId = 'connect-integration' | 'connect-sim-search'
 
 interface GetStartedStep {
   id: StepId
@@ -21,7 +20,6 @@ interface GetStartedStep {
 /** The onboarding steps, in the order a new organization works through them. */
 const STEPS: readonly GetStartedStep[] = [
   { id: 'connect-integration', label: 'Connect an integration' },
-  { id: 'create-workspace', label: 'Create a workspace' },
   { id: 'connect-sim-search', label: 'Connect Sim Search MCP' },
 ]
 
@@ -68,19 +66,19 @@ function StepMark({ complete }: { complete: boolean }) {
  * the workspace home's suggested actions: a hover-revealed disclosure header
  * over hairline-separated rows. Each step leads to the page that completes it,
  * and reads as done from the organization's real state: a source the viewer can
- * search, a workspace they belong to, a personal API key for the MCP server.
+ * search and a personal API key for the MCP server.
  */
 export function GetStarted() {
-  const { organization } = useOrganizationContext()
+  const { organization, viewer } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const { data: sources } = useSearchSources(scope)
-  const { workspaces } = useOrganizationWorkspaces(organization.id)
   const { data: apiKeys } = useApiKeys('', 'personal')
 
   const hrefs: Record<StepId, string> = {
-    'connect-integration': routes.integrations,
-    'create-workspace': WORKSPACES_PATH,
+    'connect-integration': viewer.isAdmin
+      ? routes.settingsSection('integrations')
+      : routes.integrations,
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
@@ -88,7 +86,6 @@ export function GetStarted() {
       sources?.some(
         (source) => source.viewerMembership === 'connected' || !source.connectionRequired
       ) ?? false,
-    'create-workspace': workspaces.length > 0,
     'connect-sim-search': (apiKeys?.personalKeys.length ?? 0) > 0,
   }
 

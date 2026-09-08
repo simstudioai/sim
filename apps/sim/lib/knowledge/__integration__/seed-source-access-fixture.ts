@@ -10,6 +10,7 @@ import {
   knowledgeConnectorMember,
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
+  organization,
   permissions,
   user,
   workspace,
@@ -24,6 +25,7 @@ export function createKnowledgeAclFixtureIds() {
     aliceId: generateId(),
     bobId: generateId(),
     workspaceId: generateId(),
+    organizationId: generateId(),
     knowledgeBaseId: generateId(),
     connectorId: generateId(),
     lockId: generateId(),
@@ -62,8 +64,14 @@ export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds
       updatedAt: now,
     },
   ])
+  await db.insert(organization).values({
+    id: ids.organizationId,
+    name: 'ACL integration organization',
+    slug: ids.organizationId,
+  })
   await db.insert(workspace).values({
     id: workspaceId,
+    organizationId: ids.organizationId,
     name: 'ACL integration fixture',
     ownerId: aliceId,
     billedAccountUserId: aliceId,
@@ -186,6 +194,7 @@ export async function seedKnowledgeMemberFixture(
       .values({
         id: member.enrollmentId,
         credentialGroupId: groupId,
+        userId: member.userId,
         email: `${member.userId}@fixture.test`,
         status: 'completed',
         invitationTokenHash: createHash('sha256').update(generateId()).digest('hex'),
@@ -194,7 +203,7 @@ export async function seedKnowledgeMemberFixture(
       })
       .onConflictDoUpdate({
         target: [credentialGroupEnrollment.credentialGroupId, credentialGroupEnrollment.email],
-        set: { status: 'completed', revokedAt: null },
+        set: { userId: member.userId, status: 'completed', revokedAt: null },
       })
       .returning({ id: credentialGroupEnrollment.id })
     member.enrollmentId = enrollment!.id
@@ -230,7 +239,7 @@ export async function seedKnowledgeMemberFixture(
         grantedScopes: ['drive.readonly'],
         encryptedOauthTokenSet: 'fixture-not-an-oauth-token',
         grantedAt: now,
-        createdBy: base.aliceId,
+        createdBy: member.userId,
       })
     await db.insert(knowledgeConnectorMember).values({
       id: member.id,

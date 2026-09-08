@@ -11,7 +11,6 @@ import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
-  ORGANIZATION_SETTINGS_OUTBOUND_LINKS,
   organizationSurfaceSettingsNavigation,
   resolveOrganizationSurfaceSection,
 } from '@/app/o/[organizationId]/settings/navigation'
@@ -47,7 +46,6 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
         connectedAccounts: connectedAccountsAvailable,
         search: searchAccess.memberScoped,
       })}
-      outboundLinks={searchAccess.memberScoped ? ORGANIZATION_SETTINGS_OUTBOUND_LINKS : []}
       hrefForSection={(section) => routes.settingsSection(section)}
       backHref={searchAccess.memberScoped ? routes.home : WORKSPACE_SETTINGS_PATH}
     />

@@ -300,9 +300,13 @@ describe('managed OAuth token resolution', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
-  it.each(['success', 'terminal', 'transient'] as const)(
-    'uses canonical refresh for a rejected refreshable access token: %s',
-    async (outcome) => {
+  it.each(
+    (['workspace', 'organization'] as const).flatMap((owner) =>
+      (['success', 'terminal', 'transient'] as const).map((outcome) => ({ owner, outcome }))
+    )
+  )(
+    'uses canonical refresh for a rejected $owner access token: $outcome',
+    async ({ owner, outcome }) => {
       const current = {
         ...mondayCredentialRow(),
         accessTokenExpiresAt: new Date('2026-09-01T13:00:00Z'),
@@ -348,6 +352,9 @@ describe('managed OAuth token resolution', () => {
       })
       const rejection = rejectManagedOAuthToken({
         ...mondayTokenResolutionParams(),
+        ...(owner === 'organization'
+          ? { workspaceId: undefined, organizationId: 'organization-1' }
+          : {}),
         rejectedAccessToken: 'rejected-token',
       })
       await expect(rejection).resolves.toBe(outcome === 'terminal')

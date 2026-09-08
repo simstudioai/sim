@@ -6,6 +6,8 @@ export const CHUNK_SORT_FIELDS = ['chunkIndex', 'tokenCount', 'enabled'] as cons
 export type ChunkSortBy = (typeof CHUNK_SORT_FIELDS)[number]
 
 export interface ChunkFilters {
+  /** Search reads must also respect the document's enabled state. */
+  requireEnabledDocument?: boolean
   documentFilters?: WorkspaceSearchFilters
   search?: string
   enabled?: 'true' | 'false' | 'all'

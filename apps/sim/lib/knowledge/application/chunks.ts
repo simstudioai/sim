@@ -113,11 +113,15 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
     input: ListKnowledgeChunksInput
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
   async execute({ input, context }) {
+    if (input.requireEnabledDocument && !context.document.enabled) {
+      throw new OrchestrationError('not_found', 'Document not found')
+    }
     requireChunkReadable(context)
     const {
       knowledgeBaseId: _knowledgeBaseId,
       documentId,
       assertedWorkspaceId: _scope,
+      assertedOrganizationId: _organizationScope,
       ...filters
     } = input
     const result = await queryChunks(

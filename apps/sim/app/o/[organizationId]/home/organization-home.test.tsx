@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   markRead: vi.fn(),
   send: vi.fn(),
   consume: vi.fn(),
+  sources: vi.fn(),
+  apiKeys: vi.fn(),
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
@@ -26,9 +28,8 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
-vi.mock('@/app/o/[organizationId]/home/components/get-started', () => ({
-  GetStarted: () => <div>Get started</div>,
-}))
+vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSources: mocks.sources }))
+vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
   MothershipChat: mocks.renderer,
 }))
@@ -44,7 +45,10 @@ beforeEach(() => {
   mocks.context.mockReturnValue({
     organization: { id: 'organization-a' },
     searchAccess: { memberScoped: true },
+    viewer: { isAdmin: false },
   })
+  mocks.sources.mockReturnValue({ data: [] })
+  mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
   mocks.chat.mockReturnValue({ messages: [], isChatHistoryPending: true, sendMessage: mocks.send })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
   mocks.renderer.mockReturnValue(<div>Chat history</div>)
@@ -92,6 +96,34 @@ describe('organization home', () => {
     expect(container.textContent).not.toContain('Get started')
     expect(mocks.consume).not.toHaveBeenCalled()
   })
+  it.each([
+    { isAdmin: true, integrationHref: '/o/organization-a/settings/integrations' },
+    { isAdmin: false, integrationHref: '/o/organization-a/integrations' },
+  ])(
+    'routes onboarding for admin=$isAdmin without a workspace creation requirement',
+    async ({ isAdmin, integrationHref }) => {
+      mocks.context.mockReturnValue({
+        organization: { id: 'organization-a' },
+        searchAccess: { memberScoped: true },
+        viewer: { isAdmin },
+      })
+      await act(async () => root.render(<OrganizationHome />))
+      expect(
+        Array.from(container.querySelectorAll('a')).map((link) => ({
+          label: link.textContent,
+          href: link.getAttribute('href'),
+        }))
+      ).toEqual([
+        { label: 'Connect an integration', href: integrationHref },
+        { label: 'Connect Sim Search MCP', href: '/o/organization-a/settings/search-mcp' },
+      ])
+      expect(container.textContent).not.toContain('Create a workspace')
+      expect(mocks.sources).toHaveBeenCalledWith({
+        kind: 'organization',
+        organizationId: 'organization-a',
+      })
+    }
+  )
   it('sends the member question as an assistant turn and clears the draft', async () => {
     await act(async () => root.render(<OrganizationHome />))
     await act(async () => composerProps().onChange('Find our launch plan'))

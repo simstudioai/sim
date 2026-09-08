@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Search email threads from your own Gmail account. An organization admin enables the source; each teammate connects their own account. An admin's connection does not make their mailbox available to the team.
 
-These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Admin setup uses your organization's **Settings → Integrations** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
 
 ## Set up the source
 
@@ -20,7 +20,7 @@ These steps require a Sim organization admin.
 
 ### Add Gmail
 
-Open **Integrations → Add source → Gmail**. Gmail uses **Member accounts**; there is no domain-wide or service-account crawl in Search.
+Open **Settings → Integrations → Providers**, approve **Gmail**, then select **Set up**. Gmail uses **Member accounts**; there is no domain-wide or service-account crawl in Search.
 
 </Step>
 <Step>
@@ -47,7 +47,7 @@ Click **Add source**. Gmail appears in the **Sources** list. Each person, includ
 2. Complete the connection in the tab that opens. Choose the Google account whose verified email matches your Sim email, and grant the requested permissions.
 3. Return to Integrations. The source shows its indexing status and the number of documents you can search.
 
-Teammates follow these same steps after joining the organization. They do not configure the source again. If Gmail has not been added yet, ask an organization admin to add it.
+Teammates follow these same steps after joining the organization. Once an admin approves Gmail, the first connection can create its source with default filters. Admins can configure shared filters beforehand.
 
 ## Source options
 
@@ -76,7 +76,7 @@ Search schedules syncs hourly. The first sync and large mailboxes can take longe
 | --- | --- |
 | A different email is requested | Use the Google account matching your verified Sim email. A separate personal account or alias does not satisfy the match. |
 | No searchable documents | Check the source's labels, date range, category exclusions, and search filter. Allow the first sync to finish. |
-| Finish connecting in the other tab | Complete the Google flow. If the tab was blocked or closed, allow pop-ups and click **Open again**. |
+| Finish connecting in the other tab | Complete the Google flow, or use **Open again** while authorization is pending. If the popup was blocked or closed, allow popups and select **Connect account** again. |
 | Reconnect | Click **Reconnect** and authorize the same account again. |
 | Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 

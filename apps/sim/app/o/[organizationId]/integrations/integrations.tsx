@@ -119,7 +119,7 @@ export function OrganizationIntegrations() {
                   isIntegrationAvailabilityReady: availability.isIntegrationAvailabilityReady,
                 }
               )
-              const canConnect = connector && access.members
+              const canConnect = connector && type !== 'slack' && access.members
               return (
                 <SettingsResourceRow
                   key={type}
@@ -179,6 +179,8 @@ export function OrganizationIntegrations() {
       {enrollment.setupConnector && (
         <SourceSetupModal
           connector={enrollment.setupConnector}
+          isPending={enrollment.isPending}
+          error={enrollment.error}
           onClose={enrollment.closeSetup}
           onConnect={(config) =>
             enrollment.connectSource(scope, enrollment.setupConnector!.type, config)

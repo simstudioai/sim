@@ -3,7 +3,6 @@ title: Slack
 description: Set up a workspace Slack app and connect members for channel search
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
@@ -11,69 +10,53 @@ Slack Search indexes channel messages and threads. A Sim organization admin conf
 
 <Image src="/static/search/slack-setup.jpg" alt="Slack source setup in Sim Search" width={1280} height={720} />
 
-These steps use your organization's **Integrations** page. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
-
 ## Before you start
 
-You need a Sim organization admin and permission to create and install an app in the target Slack workspace. Ask a Slack workspace admin for approval when app installation is restricted. Keep the Slack and Sim accounts' email addresses aligned.
+You need a Sim organization admin and permission to create and install an app in the target Slack workspace. Ask a Slack workspace admin for approval when app installation is restricted. Use the same email address for Slack and your verified Sim account.
 
-## Set up the Slack app
+This guide covers **indexing Slack messages for Search and MCP**. It does not install a Sim assistant that answers inside Slack.
 
-Skip to **Connect the source** if your Sim organization's Slack app is already configured for member accounts.
+## Set up the organization's Slack app
+
+Skip to **Connect the source** if the organization already has a verified Slack app for member accounts.
 
 <Steps>
 <Step>
 
-### Start from Integrations
+### Open provider settings
 
-Open **Integrations → Add source → Slack**, then **Set up Slack**. Complete the Slack app setup in the modal; when you finish, Sim returns you to the source configuration. In workspace Search, this setup opens **Connected accounts** settings and returns you to Search afterward.
-
-If there is no app yet, select **Set up Slack app**. You can also select an existing custom Slack bot belonging to this Sim organization.
+Open **Settings → Integrations → Providers**. Approve **Slack**, select **Set up**, then **Set up Slack**. Approval alone does not configure the app or start indexing.
 
 </Step>
 <Step>
 
-### Create the custom app
+### Configure an app in Slack
 
-<Image src="/static/search/slack-app.jpg" alt="Workspace Slack app wizard with Search documents member access" width={1280} height={720} />
-
-*Workspace setup shown. Organization setup asks for the app name and optional description; Search member access is configured automatically.*
-
-The wizard guides you through these steps:
-
-1. Name the app and optionally add a description.
-2. Copy the generated manifest. On the [Slack Apps page](https://api.slack.com/apps), choose **Create New App → From a manifest**, select the workspace, and paste it.
-3. Copy the **Signing Secret** from the Slack app's **Basic Information** page into Sim.
-4. Install the app to the Slack workspace. Copy its **Bot User OAuth Token** (`xoxb-…`) into Sim and finish the wizard.
-
-In Slack, **Basic Information → App Credentials** is where you find the **Signing Secret**, **Client ID**, and **Client Secret**. Use the values from the app you just created.
+On the [Slack Apps page](https://api.slack.com/apps), create an app for the target workspace, or use an app dedicated to your Sim organization. Under **OAuth & Permissions**, add the user scopes and both redirect URLs listed below. Keep **Token Rotation** disabled.
 
 <Image src="https://docs.slack.dev/assets/images/basic-information-page-e7d531fe4721830376d61a91de5d933e.png" alt="Slack app settings showing Basic Information and App Credentials" width={2692} height={1538} />
 
-*Official Slack example: [Basic Information](https://docs.slack.dev/tools/bolt-python/creating-an-app/#create-a-new-app). The example app is not your Sim app.*
+*Official Slack example: [Basic Information](https://docs.slack.dev/tools/bolt-python/creating-an-app/#create-a-new-app). Use your own app's credentials.*
 
-Open **OAuth & Permissions** and select **Install to Workspace**. After approval, copy **Bot User OAuth Token**, not a user token or an app-level token.
+In Sim, enter these four fields:
 
-<Image src="https://docs.slack.dev/assets/images/bot-token-3d6c761238c7a66557fd08d00a2a1b0c.png" alt="Slack OAuth and Permissions page showing the Bot User OAuth Token location" width={2700} height={1356} />
+| Sim field | Where to find it |
+|---|---|
+| Slack App ID | Slack app **Basic Information → App Credentials** (`A…`). |
+| Slack workspace ID | The workspace segment of the Slack web URL, `app.slack.com/client/T…/…`. |
+| Client ID | The same app's **Basic Information → App Credentials**. |
+| Client Secret | The same app's **Basic Information → App Credentials**. |
 
-*Official Slack example: [OAuth token location](https://docs.slack.dev/tools/bolt-python/creating-an-app/#tokens-and-installing-apps). Use your installed app's token in Sim.*
-
-Use the manifest generated for your Sim deployment: it contains your callback and event URLs. Keep token rotation disabled for this custom-bot flow.
-
-<Callout type="info">
-  In workspace setup, keep **Managed user authorization** enabled, select **Member access → Search documents**, and review **Additional permissions**. Organization setup hides these choices and slash commands. The shared manifest still includes separate bot permissions; Search member authorization does not remove them.
-</Callout>
+Organization setup uses personal user authorization. It does not ask for a bot token or signing secret.
 
 </Step>
 <Step>
 
-### Enable member connections
+### Verify and continue
 
-Click **Done** to return to **Set up Slack**. Select the app you just created, then paste the **Client ID** and **Client Secret** from that same Slack app's **Basic Information** page. In workspace setup, also select **Access → Search documents**.
+Select **Verify and add**, then authorize the app in the Slack popup. Sim verifies the app, workspace, client credentials, and required scopes. Allow popups if the window does not open.
 
-Select **Verify and add** and complete Slack authorization in the popup. Sim verifies that the client credentials and bot belong to the same app and Slack workspace. Allow popups if the verification window does not open.
-
-Organization setup returns to the source form after verification. From workspace **Connected accounts** settings, choose **Continue Search setup**.
+After verification, Sim returns to the source form. If Slack requires administrator approval, complete that approval before continuing.
 
 </Step>
 </Steps>
@@ -89,7 +72,7 @@ Keep **Sync documents with → Connected members** for the usual setup. Configur
 | Archived Channels | Included by default. |
 | Earliest Message Date | Optional UTC date (`YYYY-MM-DD`). Applies to the thread's first message; replies are included with that thread. |
 
-Select **Add source**. On the source row, each person selects **Connect account** and approves the configured Slack app. Creating the source or installing the bot does not authorize teammates automatically.
+Select **Add source**. On the source row, each person selects **Connect account** and approves the configured Slack app. Creating the source or verifying the Slack app does not authorize teammates automatically.
 
 You can instead select an existing account under **Sync documents with** to supply message content centrally. Members still connect their own accounts to establish access. The selected account must itself be able to read the selected channels.
 
@@ -97,24 +80,27 @@ Admins can use **Manage** to inspect sync progress. Search reads the indexed con
 
 ## Permissions reference
 
-Search member authorization requires these user scopes:
+The organization account pool supports Search and workspace workflow tools. Its current authorization requests the following **User Token Scopes**, including write permissions. Search itself only indexes channel messages and threads; workspace use is controlled separately in the organization account settings.
 
 | Purpose | User scopes |
 |---|---|
-| Public channels and messages | `channels:read`, `channels:history` |
-| Private channels and messages | `groups:read`, `groups:history` |
-| Member identity | `users:read`, `users:read.email` |
+| Public channels | `channels:read`, `channels:history`, `channels:write` |
+| Private channels | `groups:read`, `groups:history`, `groups:write` |
+| Messages and conversations | `chat:write`, `im:read`, `im:history`, `im:write`, `mpim:read`, `mpim:history`, `mpim:write` |
+| Files and canvases | `files:read`, `files:write`, `canvases:read`, `canvases:write` |
+| Reactions | `reactions:read`, `reactions:write` |
+| Identity and profile | `users:read`, `users:read.email`, `users.profile:read`, `users.profile:write` |
 
-The generated manifest registers two redirect URLs under your Sim origin:
+Add both redirect URLs under **OAuth & Permissions → Redirect URLs**, using your Sim origin:
 
 ```text
 https://<your-sim-domain>/api/credential-groups/slack-managed-users/callback
 https://<your-sim-domain>/api/credential-groups/oauth/slack/callback
 ```
 
-To check an existing app, open **OAuth & Permissions → Scopes → User Token Scopes** and compare it with the table above. Check **Redirect URLs** on the same page against both URLs above. Keep **Token Rotation** disabled. If the settings differ, update the app using Sim's generated manifest before verifying the connection again.
+Compare **OAuth & Permissions → Scopes → User Token Scopes** with the table above. If scopes change, update the Slack app and have members reconnect. Do not change a shared production app's credentials to configure a separate test installation.
 
-Bot scopes come from the shared manifest and are separate from these user scopes. The workspace-only **Workflow tools** option requests broader member permissions and is unnecessary for Search. When changing an existing app's member access policy, update its manifest and have members reconnect.
+For existing **workspace** Search, use **Search → Add source → Slack**. That flow uses the custom-bot wizard and **Connected accounts → Access → Search documents**, which requests the six read-only channel and identity scopes instead. Its bot installation is separate from the organization setup described here.
 
 See Slack's [app manifest reference](https://docs.slack.dev/reference/app-manifest/) and [user token access model](https://docs.slack.dev/authentication/tokens/).
 
@@ -122,9 +108,9 @@ See Slack's [app manifest reference](https://docs.slack.dev/reference/app-manife
 
 | Problem | Next step |
 |---|---|
-| Setup keeps asking for a Slack app | Finish **Verify and add** in the Slack setup; saving a bot token alone is insufficient. |
-| Redirect mismatch | Check both redirect URLs against the manifest generated by Sim. |
-| App or workspace mismatch | Use the Client ID, Client Secret, and bot token from the same Slack app installation. |
-| Missing scopes | Compare User Token Scopes with the table above, update the Slack manifest, reinstall as Slack requires, and reconnect. In workspace setup, select **Search documents** in both setup screens. |
+| Setup keeps asking for a Slack app | Finish **Verify and add** in the Slack setup; approval alone is insufficient. |
+| Redirect mismatch | Check both redirect URLs above against your Sim origin. |
+| App or workspace mismatch | Use the App ID and client credentials from the same app, and the ID of the workspace being authorized. |
+| Missing scopes | Compare User Token Scopes with the table above, update the Slack app, reinstall as Slack requires, and reconnect. In workspace setup, select **Search documents** in both setup screens. |
 | Missing private-channel results | Confirm the member is in the channel and it is within the source filters. With an indexing account, confirm that account can read it too. |
 | Slow initial indexing | Check sync status and Slack rate limits. A large history can take multiple background runs. |

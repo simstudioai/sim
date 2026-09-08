@@ -28,10 +28,9 @@ const SUBMIT_BUTTON_ACTIVE =
 const SUBMIT_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
 interface SearchFieldProps {
-  value: string
-  onChange: (value: string) => void
-  onSubmit: () => void
-  /** Takes focus on mount, so the empty page is ready to type into. */
+  initialValue: string
+  onSubmit: (value: string) => void
+  /** Takes focus on mount so a query can be entered or refined immediately. */
   focusOnMount?: boolean
   /** Sitting at the page head over results, rather than floating in the hero. */
   docked?: boolean
@@ -44,13 +43,13 @@ interface SearchFieldProps {
  * shadow only while it floats in the hero; docked at the page head it sits flat.
  */
 function SearchField({
-  value,
-  onChange,
+  initialValue,
   onSubmit,
   focusOnMount = false,
   docked = false,
 }: SearchFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [value, setValue] = useState(initialValue)
   const canSubmit = value.trim().length > 0
 
   useEffect(() => {
@@ -69,11 +68,11 @@ function SearchField({
         ref={inputRef}
         type='search'
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
             event.preventDefault()
-            onSubmit()
+            onSubmit(value)
           }
         }}
         placeholder='Search your sources'
@@ -85,7 +84,7 @@ function SearchField({
       <Button
         type='button'
         variant='ghost'
-        onClick={onSubmit}
+        onClick={() => onSubmit(value)}
         disabled={!canSubmit}
         aria-label='Search'
         className={cn(
@@ -117,7 +116,6 @@ function OrganizationSearchContent() {
   const { organization } = useOrganizationContext()
   const router = useRouter()
   const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)
-  const [draft, setDraft] = useState(q)
   const query = q.trim()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
 
@@ -133,7 +131,7 @@ function OrganizationSearchContent() {
     router.push(organizationRoutes(organization.id).home)
   }
 
-  const submit = () => {
+  const submit = (draft: string) => {
     const next = draft.trim()
     if (!next) return
     void setParams({ q: next })
@@ -150,7 +148,7 @@ function OrganizationSearchContent() {
       {searching ? (
         <>
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
-            <SearchField value={draft} onChange={setDraft} onSubmit={submit} docked />
+            <SearchField key={q} initialValue={q} onSubmit={submit} docked focusOnMount />
           </div>
           <div
             ref={scrollContainerRef}
@@ -177,7 +175,7 @@ function OrganizationSearchContent() {
               Search {organization.name}
             </h1>
             <div className='w-full max-w-chat'>
-              <SearchField value={draft} onChange={setDraft} onSubmit={submit} focusOnMount />
+              <SearchField key={q} initialValue={q} onSubmit={submit} focusOnMount />
             </div>
           </div>
         </div>

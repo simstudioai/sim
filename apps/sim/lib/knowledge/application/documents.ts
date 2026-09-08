@@ -105,6 +105,8 @@ export interface ReadKnowledgeDocumentInput {
   documentId: string
   assertedWorkspaceId?: string
   assertedOrganizationId?: string
+  /** Search surfaces exclude disabled documents; management can still inspect them. */
+  requireEnabledDocument?: boolean
 }
 
 export interface UploadKnowledgeDocumentAdmissionInput {
@@ -348,7 +350,10 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ReadKnowledgeDocumentInput
   }) => resolveActiveKnowledgeDocumentContext(input, principal),
-  async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
+  async execute({ input, context }) {
+    if (input.requireEnabledDocument && !context.document.enabled) {
+      throw new OrchestrationError('not_found', 'Document not found')
+    }
     return {
       document: context.document,
       tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),

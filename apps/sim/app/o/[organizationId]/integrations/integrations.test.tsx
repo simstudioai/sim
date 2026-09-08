@@ -169,6 +169,16 @@ describe('organization integrations role and source paths', () => {
     expect(buttons('Connect account')).toHaveLength(0)
     expect(document.body.textContent).toContain('Deactivated by an organization admin')
   })
+  it('asks an admin to configure Slack before members can connect an approved source', async () => {
+    mocks.sources.mockReturnValue({ data: [], isPending: false })
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'slack', approved: true }],
+      isPending: false,
+    })
+    await render()
+    expect(buttons('Connect account')).toHaveLength(0)
+    expect(document.body.textContent).toContain('An admin needs to finish source setup')
+  })
   it('shows an organization admin exactly what a member sees, with no setup or management', async () => {
     mocks.context.mockReturnValue({
       organization: { id: scope.organizationId },

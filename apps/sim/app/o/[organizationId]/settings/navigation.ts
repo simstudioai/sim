@@ -1,4 +1,3 @@
-import { SlackIcon } from '@/components/icons'
 import {
   ACCOUNT_SETTINGS_ITEMS,
   type AccountSettingsSection,
@@ -11,7 +10,6 @@ import {
   resolveOrganizationSectionAccess,
   type SettingsNavigationItem,
 } from '@/components/settings/navigation'
-import type { SettingsSidebarOutboundLink } from '@/components/settings/settings-sidebar'
 
 /**
  * A section on the organization surface's settings, tagged with the plane that
@@ -31,11 +29,6 @@ export type OrganizationSurfaceSettingsSection =
  */
 export const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
   ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general')
-
-/** Rows under Sim Search that lead out of these settings; where they lead is not wired yet. */
-export const ORGANIZATION_SETTINGS_OUTBOUND_LINKS: readonly SettingsSidebarOutboundLink[] = [
-  { id: 'search-slack', group: 'sim-search', label: 'Sim Search in Slack', icon: SlackIcon },
-]
 
 export function resolveOrganizationSettingsSection(
   path: string

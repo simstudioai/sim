@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Your admin configures the source once. You connect your own account so Sim can establish what you are allowed to search.
+Your admin approves the provider and can configure shared source filters. You connect your own account so Sim can establish what you are allowed to search.
 
 <Steps>
 <Step>
@@ -21,7 +21,7 @@ Accept your Sim organization invitation or sign in through your organization's S
 
 ### Open Integrations
 
-Open **Integrations**, find the source, and select **Connect account**. If it is missing, ask an organization admin to add it.
+Open **Integrations**, find the provider or source, and select **Connect account**. Your first connection may ask for required source settings, such as repository or project names. If the provider is missing, ask an organization admin to approve it.
 
 <Image src="/static/search/connect-account.png" alt="Google Drive source row with Connect account" width={1280} height={720} />
 
@@ -32,14 +32,14 @@ Open **Integrations**, find the source, and select **Connect account**. If it is
 
 In the new tab, select **Connect** and complete the provider's authorization. Choose the account associated with your verified Sim email. The provider may require your organization's SSO or app approval.
 
-Return to Integrations when the connection completes. Keep the original tab open; **Open again** resumes the connection if a popup was blocked or closed.
+Return to Integrations when the connection completes. If the popup was blocked or closed, allow popups and select **Connect account** again. While authorization is pending, use **Open again**.
 
 </Step>
 <Step>
 
 ### Start searching
 
-The source row shows indexing status and how many documents are available to you. Open **Home → Search** and search for something you can already open in the source. Use **Assistant** to ask a question about your connected documents. The first sync may take time, especially for large accounts.
+The source row shows indexing status and how many documents are available to you. Open **Search** in the organization sidebar and search for something you can already open in the source. Use **Home** to ask the assistant about your connected documents. The first sync may take time, especially for large accounts.
 
 </Step>
 </Steps>

@@ -342,6 +342,7 @@ export async function rejectManagedOAuthToken(input: {
     await resolveManagedOAuthToken({
       credentialId: input.credentialId,
       workspaceId: input.workspaceId,
+      organizationId: input.organizationId,
       expectedProviderId: input.expectedProviderId,
       requiredScopes: input.requiredScopes,
     })
