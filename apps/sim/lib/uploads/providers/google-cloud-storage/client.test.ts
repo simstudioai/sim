@@ -84,7 +84,7 @@ import {
   resetGcsClientForTesting,
   uploadGcsPart,
   uploadToGcs,
-} from '@/lib/uploads/providers/gcs/client'
+} from '@/lib/uploads/providers/google-cloud-storage/client'
 
 const mockFetch = vi.fn()
 

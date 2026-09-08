@@ -11,7 +11,10 @@ import {
 } from '@/lib/uploads/config'
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import type { AzureMultipartPart, BlobConfig } from '@/lib/uploads/providers/blob/types'
-import type { GcsConfig, GcsMultipartPart } from '@/lib/uploads/providers/gcs/types'
+import type {
+  GcsConfig,
+  GcsMultipartPart,
+} from '@/lib/uploads/providers/google-cloud-storage/types'
 import type { S3Config, S3MultipartPart } from '@/lib/uploads/providers/s3/types'
 import type {
   DeleteFileOptions,
@@ -208,7 +211,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
   }
 
   if (USE_GCS_STORAGE) {
-    const { uploadToGcs } = await import('@/lib/uploads/providers/gcs/client')
+    const { uploadToGcs } = await import('@/lib/uploads/providers/google-cloud-storage/client')
     const uploadResult = await uploadToGcs(
       file,
       keyToUse,
@@ -379,7 +382,7 @@ async function createGcsBackend(
     uploadGcsPart,
     completeGcsMultipartUpload,
     abortGcsMultipartUpload,
-  } = await import('@/lib/uploads/providers/gcs/client')
+  } = await import('@/lib/uploads/providers/google-cloud-storage/client')
   const { uploadId, key: uploadKey } = await initiateGcsMultipartUpload({
     fileName: key,
     contentType,
@@ -553,7 +556,9 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
 
     if (USE_GCS_STORAGE) {
-      const { downloadFromGcs } = await import('@/lib/uploads/providers/gcs/client')
+      const { downloadFromGcs } = await import(
+        '@/lib/uploads/providers/google-cloud-storage/client'
+      )
       const gcsConfig = createGcsConfig(config)
       return downloadFromGcs(key, gcsConfig, maxBytes, signal)
     }
@@ -611,7 +616,9 @@ export async function downloadFileStream(options: {
   }
 
   if (USE_GCS_STORAGE) {
-    const { downloadFromGcsStream } = await import('@/lib/uploads/providers/gcs/client')
+    const { downloadFromGcsStream } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     return downloadFromGcsStream(key, createGcsConfig(config))
   }
 
@@ -641,7 +648,7 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
 
     if (USE_GCS_STORAGE) {
-      const { deleteFromGcs } = await import('@/lib/uploads/providers/gcs/client')
+      const { deleteFromGcs } = await import('@/lib/uploads/providers/google-cloud-storage/client')
       return deleteFromGcs(key, createGcsConfig(config))
     }
   }
@@ -721,7 +728,7 @@ export async function headObject(
   }
 
   if (USE_GCS_STORAGE) {
-    const { headGcsObject } = await import('@/lib/uploads/providers/gcs/client')
+    const { headGcsObject } = await import('@/lib/uploads/providers/google-cloud-storage/client')
     return headGcsObject(key, createGcsConfig(config))
   }
 
@@ -759,7 +766,9 @@ export async function generatePresignedDownloadUrl(
   }
 
   if (USE_GCS_STORAGE) {
-    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/gcs/client')
+    const { getPresignedUrlWithConfig } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     return getPresignedUrlWithConfig(key, createGcsConfig(config), expirationSeconds)
   }
 

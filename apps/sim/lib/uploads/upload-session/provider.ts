@@ -140,7 +140,9 @@ export async function initiateMultipartProviderUpload(params: {
     return { provider, providerUploadId: result.uploadId }
   }
   if (provider === 'gcs') {
-    const { initiateGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+    const { initiateGcsMultipartUpload } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     const result = await initiateGcsMultipartUpload({
       fileName: params.fileName,
       contentType: params.contentType,
@@ -229,7 +231,9 @@ export async function createPutProviderTransfer(params: {
     })
     return { method: 'put', ...transfer, expiresAt: signedExpiresAt }
   }
-  const { getGcsPresignedUploadUrl } = await import('@/lib/uploads/providers/gcs/client')
+  const { getGcsPresignedUploadUrl } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   const transfer = await getGcsPresignedUploadUrl(
     params.key,
     params.contentType,
@@ -307,7 +311,9 @@ export async function getMultipartProviderPartUrls(params: {
       expiresAt,
     }))
   }
-  const { getGcsMultipartPartUrls } = await import('@/lib/uploads/providers/gcs/client')
+  const { getGcsMultipartPartUrls } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   const urls = await getGcsMultipartPartUrls(
     params.key,
     params.providerUploadId,
@@ -341,7 +347,9 @@ export async function listMultipartProviderParts(params: {
     const { listMultipartParts } = await import('@/lib/uploads/providers/blob/client')
     return listMultipartParts(params.key, createBlobConfig(config))
   }
-  const { listGcsMultipartParts } = await import('@/lib/uploads/providers/gcs/client')
+  const { listGcsMultipartParts } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   return listGcsMultipartParts(params.key, params.providerUploadId, createGcsConfig(config))
 }
 
@@ -397,7 +405,9 @@ export async function completeMultipartProviderUpload(params: {
     )
     return
   }
-  const { completeGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+  const { completeGcsMultipartUpload } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   await completeGcsMultipartUpload(
     params.key,
     params.providerUploadId,
@@ -425,8 +435,8 @@ export async function headProviderObject(params: {
         ? await import('@/lib/uploads/providers/blob/client').then(({ headBlobObject }) =>
             headBlobObject(params.key, createBlobConfig(config))
           )
-        : await import('@/lib/uploads/providers/gcs/client').then(({ headGcsObject }) =>
-            headGcsObject(params.key, createGcsConfig(config))
+        : await import('@/lib/uploads/providers/google-cloud-storage/client').then(
+            ({ headGcsObject }) => headGcsObject(params.key, createGcsConfig(config))
           )
   if (!head) return null
   if (!head.contentType || !head.uploadId || !head.version) {
@@ -469,7 +479,9 @@ export async function deleteProviderObjectVersion(params: {
     })
     return
   }
-  const { deleteGcsObjectVersion } = await import('@/lib/uploads/providers/gcs/client')
+  const { deleteGcsObjectVersion } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   await deleteGcsObjectVersion({
     key: params.key,
     generation: params.version,
@@ -502,7 +514,9 @@ export async function abortProviderUpload(params: {
       const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
       await abortMultipartUpload(params.key, params.uploadId, createBlobConfig(config))
     } else {
-      const { abortGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+      const { abortGcsMultipartUpload } = await import(
+        '@/lib/uploads/providers/google-cloud-storage/client'
+      )
       await abortGcsMultipartUpload(params.key, params.providerUploadId, createGcsConfig(config))
     }
   }

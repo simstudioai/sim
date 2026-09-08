@@ -14,7 +14,7 @@ import type {
   GcsMultipartPart,
   GcsMultipartUploadInit,
   GcsPartUploadUrl,
-} from '@/lib/uploads/providers/gcs/types'
+} from '@/lib/uploads/providers/google-cloud-storage/types'
 import type {
   FileInfo,
   MultipartCompletionPolicy,
