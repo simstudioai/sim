@@ -1046,6 +1046,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         scopes: [],
         authType: 'service_account',
       },
+
+      'oci-resource-manager': {
+        name: 'OCI Resource Manager',
+        description: 'Manage Oracle-hosted Terraform stacks and jobs',
+        providerId: 'oci-resource-manager',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
     },
     defaultService: 'oci',
   },
