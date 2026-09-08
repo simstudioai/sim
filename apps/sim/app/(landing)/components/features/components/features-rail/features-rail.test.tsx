@@ -166,7 +166,7 @@ describe('FeaturesRail', () => {
     link.dispatchEvent(pointer('pointerup', 260))
     expect(rail.dataset.dragging).toBeUndefined()
 
-    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })
     link.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(true)
 
@@ -182,6 +182,33 @@ describe('FeaturesRail', () => {
     link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     expect(swallowed).toBe(false)
   })
+
+  it.each(['pointercancel', 'pointerup'])(
+    'allows keyboard activation after a drag ends with %s',
+    (endEvent) => {
+      const rail = mount()
+      const link = rail.querySelector<HTMLAnchorElement>('[data-copy="home"] a')
+      if (!link) throw new Error('no home link')
+      for (const [type, clientX] of [
+        ['pointerdown', 300],
+        ['pointermove', 260],
+        [endEvent, 260],
+      ] as const) {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX })
+        Object.defineProperties(event, { pointerType: { value: 'mouse' }, pointerId: { value: 1 } })
+        link.dispatchEvent(event)
+      }
+      expect(rail.dataset.dragging).toBeUndefined()
+
+      let activated = false
+      link.addEventListener('click', (event) => {
+        activated = true
+        event.preventDefault()
+      })
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 0 }))
+      expect(activated).toBe(true)
+    }
+  )
 
   it('folds the position back into the middle copy as the user scrolls past it', () => {
     const rail = mount()

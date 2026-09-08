@@ -5,7 +5,7 @@ import type { LeadRecord } from '@/app/(landing)/tables/components/tables-record
 interface LeadRecordListProps {
   rows: readonly LeadRecord[]
   selectedId: string | null
-  onSelect: (id: string) => void
+  onSelect: (id: string, opener: HTMLButtonElement) => void
   showContact: boolean
 }
 
@@ -60,7 +60,7 @@ export function LeadRecordList({ rows, selectedId, onSelect, showContact }: Lead
                   type='button'
                   aria-label={`Edit ${row.company} row`}
                   aria-haspopup='dialog'
-                  onClick={() => onSelect(row.id)}
+                  onClick={(event) => onSelect(row.id, event.currentTarget)}
                   className='h-[37px] w-full rounded-sm text-left focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
                 >
                   {row.company}

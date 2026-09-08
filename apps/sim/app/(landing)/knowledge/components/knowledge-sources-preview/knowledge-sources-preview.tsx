@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Badge, Chip, ChipModal, ChipModalBody, ChipModalHeader, cn } from '@sim/emcn'
 import { ChevronRight, Database } from '@sim/emcn/icons'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
+import { usePreviewDialogFocus } from '@/app/(landing)/hooks/use-preview-dialog-focus'
 import { KnowledgeDocumentDetail } from '@/app/(landing)/knowledge/components/knowledge-sources-preview/components/knowledge-document-detail'
 import { KnowledgeDocumentList } from '@/app/(landing)/knowledge/components/knowledge-sources-preview/components/knowledge-document-list'
 import {
@@ -18,6 +19,7 @@ const DOCUMENTS: readonly KnowledgePreviewDocument[] = KNOWLEDGE_PREVIEW_SOURCES
 
 /** Documents and their chunk table are native Knowledge views, shown together as an open product scene. */
 export function KnowledgeSourcesPreview() {
+  const firstSourceRef = useRef<HTMLButtonElement>(null)
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const selectedDocumentRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef(false)
@@ -25,6 +27,7 @@ export function KnowledgeSourcesPreview() {
   const [selectedDocumentId, setSelectedDocumentId] = useState(DOCUMENTS[0].id)
   const [detailOpen, setDetailOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  const sourcesOpenerRef = usePreviewDialogFocus(sourcesOpen, firstSourceRef)
   const selectedDocument = DOCUMENTS.find((item) => item.id === selectedDocumentId) ?? DOCUMENTS[0]
   const documents = DOCUMENTS.filter((item) =>
     item.title.toLowerCase().includes(query.toLowerCase())
@@ -69,8 +72,13 @@ export function KnowledgeSourcesPreview() {
                 {KNOWLEDGE_PREVIEW_SOURCES.map((source, index) => (
                   <span key={source.id} className={index > 0 ? '@max-[850px]:hidden' : undefined}>
                     <Chip
+                      ref={index === 0 ? firstSourceRef : undefined}
                       leftIcon={source.icon}
-                      onClick={() => setSourcesOpen(true)}
+                      onClick={(event) => {
+                        sourcesOpenerRef.current = event.currentTarget
+                        setSourcesOpen(true)
+                      }}
+                      aria-haspopup='dialog'
                       aria-label={`View connected sources including ${source.name}`}
                     >
                       {source.label}

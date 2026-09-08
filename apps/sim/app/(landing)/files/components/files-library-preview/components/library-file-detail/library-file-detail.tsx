@@ -10,7 +10,11 @@ const NOOP = () => {}
 /** The document replaces the resource list, matching the actual Files viewer. */
 export function LibraryFileDetail({ file }: LibraryFileDetailProps) {
   return (
-    <div role='region' aria-label={`${file.name} preview`} className='h-[395px] overflow-y-auto'>
+    <div
+      role='region'
+      aria-label={`${file.name} preview`}
+      className='min-h-0 flex-1 overflow-y-auto'
+    >
       {file.type === 'PDF' && (
         <div aria-hidden='true' inert>
           <PreviewToolbar

@@ -42,7 +42,7 @@ export function FilesLibraryPreview() {
   return (
     <div className='absolute inset-0 isolate overflow-hidden bg-[var(--bg)]'>
       <div className='-translate-x-1/2 absolute top-20 left-1/2 h-[440px] w-[780px] max-w-[calc(100%_-_48px)] max-sm:top-8 max-sm:h-[410px]'>
-        <div className='h-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text-body)] text-small shadow-xs'>
+        <div className='flex h-full flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text-body)] text-small shadow-xs'>
           <MenuPreviewHeader
             icon={FilesIcon}
             title={

@@ -9,7 +9,7 @@ interface LibraryFileListProps {
 /** The Files resource's Name, Size, Type, Created, and Owner columns. */
 export function LibraryFileList({ files, onSelect }: LibraryFileListProps) {
   return (
-    <div className='h-[354px] overflow-auto'>
+    <div className='min-h-0 flex-1 overflow-auto'>
       <table className='w-full min-w-[658px] table-fixed border-collapse whitespace-nowrap text-left text-small tabular-nums'>
         <colgroup>
           <col className='w-[256px]' />

@@ -172,6 +172,7 @@ export function FeaturesRail({ label, children }: FeaturesRailProps) {
     let startX = 0
     let lastX = 0
     let dragged = false
+    let suppressNextClick = false
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType !== 'mouse' || event.button !== 0) return
@@ -179,6 +180,7 @@ export function FeaturesRail({ label, children }: FeaturesRailProps) {
       startX = event.clientX
       lastX = event.clientX
       dragged = false
+      suppressNextClick = false
     }
     const onPointerMove = (event: PointerEvent) => {
       if (event.pointerId !== pointerId) return
@@ -194,12 +196,15 @@ export function FeaturesRail({ label, children }: FeaturesRailProps) {
     const onPointerEnd = (event: PointerEvent) => {
       if (event.pointerId !== pointerId) return
       pointerId = null
+      suppressNextClick = event.type === 'pointerup' && dragged
+      dragged = false
       delete rail.dataset.dragging
       if (rail.hasPointerCapture?.(event.pointerId)) rail.releasePointerCapture(event.pointerId)
     }
     const onClick = (event: MouseEvent) => {
-      if (!dragged) return
-      dragged = false
+      const suppress = suppressNextClick && event.detail > 0
+      suppressNextClick = false
+      if (!suppress) return
       event.preventDefault()
       event.stopPropagation()
     }
