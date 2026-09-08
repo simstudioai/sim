@@ -841,6 +841,59 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const OCI_COMPUTE_TOOL_IDS = [
+  'oci_compute_list_instances',
+  'oci_compute_get_instance',
+  'oci_compute_launch_instance',
+  'oci_compute_update_instance',
+  'oci_compute_instance_action',
+  'oci_compute_terminate_instance',
+  'oci_compute_change_instance_compartment',
+  'oci_compute_get_instance_maintenance_reboot',
+  'oci_compute_list_images',
+  'oci_compute_get_image',
+  'oci_compute_create_image',
+  'oci_compute_update_image',
+  'oci_compute_delete_image',
+  'oci_compute_change_image_compartment',
+  'oci_compute_list_shapes',
+  'oci_compute_list_image_shape_compatibility_entries',
+  'oci_compute_get_image_shape_compatibility_entry',
+  'oci_compute_create_compute_capacity_report',
+  'oci_compute_list_instance_configurations',
+  'oci_compute_get_instance_configuration',
+  'oci_compute_create_instance_configuration',
+  'oci_compute_update_instance_configuration',
+  'oci_compute_delete_instance_configuration',
+  'oci_compute_launch_instance_configuration',
+  'oci_compute_change_instance_configuration_compartment',
+  'oci_compute_list_instance_pools',
+  'oci_compute_get_instance_pool',
+  'oci_compute_create_instance_pool',
+  'oci_compute_update_instance_pool',
+  'oci_compute_instance_pool_action',
+  'oci_compute_terminate_instance_pool',
+  'oci_compute_change_instance_pool_compartment',
+  'oci_compute_list_instance_pool_instances',
+  'oci_compute_get_instance_pool_instance',
+  'oci_compute_attach_instance_pool_instance',
+  'oci_compute_detach_instance_pool_instance',
+  'oci_compute_list_availability_domains',
+  'oci_compute_list_fault_domains',
+  'oci_compute_list_compartments',
+  'oci_compute_get_compartment',
+  'oci_compute_list_subnets',
+  'oci_compute_get_subnet',
+  'oci_compute_list_vnic_attachments',
+  'oci_compute_get_vnic',
+  'oci_compute_list_boot_volume_attachments',
+  'oci_compute_list_volume_attachments',
+  'oci_compute_list_work_requests',
+  'oci_compute_get_work_request',
+  'oci_compute_list_work_request_errors',
+  'oci_compute_list_work_request_logs',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1523,6 +1576,9 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
+})
+registerFamily(handlerLoaders, OCI_COMPUTE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-compute/execute-tool')).executeOciComputeTool
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
