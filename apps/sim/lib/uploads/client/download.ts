@@ -1,3 +1,4 @@
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
@@ -56,6 +57,13 @@ export async function triggerFileDownload(
       : null
 
   if (content !== null) {
+    /** Source editing accepts larger drafts than the bounded image-bundling endpoint. */
+    if (
+      utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) > PASTE_LIMITS.RICH_MARKDOWN_BYTES
+    ) {
+      saveBlob(new Blob([content], { type: 'text/markdown; charset=utf-8' }), record.name)
+      return
+    }
     const response = await requestRaw(
       exportWorkspaceFileSnapshotContract,
       {

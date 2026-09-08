@@ -166,12 +166,26 @@ describe('markdown export bundling', () => {
   it('counts the document body against the export limit, not just its assets', async () => {
     // Assets alone sit under the cap; the body is what carries the bundle over it.
     embeds('a')
-    mockDownloadFile.mockResolvedValue(Buffer.alloc(250 * MB))
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(2 * MB))
+    assetsResolveTo((id) => assetRecord(id, 249 * MB))
 
     const response = await GET(request(), context)
 
     expect(response.status).toBe(400)
     expect((await response.json()).error).toContain('document and its embedded files')
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('downloads large Markdown verbatim without parsing it or querying assets', async () => {
+    const content = Buffer.alloc(11 * MB, 'a')
+    mockDownloadFile.mockResolvedValue(content)
+    const response = await GET(request(), context)
+    expect(response.status).toBe(200)
+    expect(Buffer.from(await response.arrayBuffer()).equals(content)).toBe(true)
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(mockExtractEmbeddedFileRefs).not.toHaveBeenCalled()
+    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(1)
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
   })
 
   it('caps the document body read rather than loading it unbounded', async () => {

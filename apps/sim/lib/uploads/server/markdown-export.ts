@@ -1,16 +1,158 @@
 import path from 'node:path'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { Parser } from 'htmlparser2'
 import JSZip from 'jszip'
+import { Marked } from 'marked'
+import type { Definition, RootContent } from 'mdast'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import remarkStringify from 'remark-stringify'
+import { unified } from 'unified'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 const logger = createLogger('MarkdownExport')
 
 export const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
+/** Larger documents remain available as exact Markdown without allocating a syntax tree. */
+export const MAX_EXPORT_MARKDOWN_PARSE_BYTES = 10 * 1024 * 1024
 const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
+const markdownProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkStringify, { unsafe: [{ character: '|' }, { character: '\n' }, { character: '\r' }] })
+const markdownLexer = new Marked()
+
+/** Source ranges keep unrelated links, definitions, code, and whitespace byte-for-byte intact. */
+function rewriteImageSources(source: string, filenames: ReadonlyMap<string, string>): string {
+  const { frontmatter, body: content } = splitFrontmatter(source)
+  const root = markdownProcessor.parse(content)
+  const definitions = new Map<string, Definition>()
+  const stack: RootContent[] = [...root.children].reverse()
+  while (stack.length) {
+    const node = stack.pop()!
+    if (node.type === 'definition' && !definitions.has(node.identifier)) {
+      definitions.set(node.identifier, node)
+    }
+    if ('children' in node) {
+      for (let i = node.children.length - 1; i >= 0; i--) stack.push(node.children[i])
+    }
+  }
+
+  const replacementFor = (src: string) => {
+    const ref = extractEmbeddedFileRef(src)
+    const filename = ref && 'fileId' in ref ? filenames.get(ref.fileId) : undefined
+    return filename === undefined ? null : `./assets/${encodeURIComponent(filename)}`
+  }
+  const replacements: Array<{ start: number; end: number; value: string }> = []
+  let sourceDepth = 0
+  let tagName = ''
+  let sawSrc = false
+  let htmlLength = 0
+  let htmlOffset = 0
+  const htmlParser = new Parser({
+    onopentagname(name) {
+      tagName = name
+      sawSrc = false
+    },
+    onattribute(name, value) {
+      if (tagName !== 'img' || name !== 'src' || sawSrc) return
+      sawSrc = true
+      if (sourceDepth > 0) return
+      const replacement = replacementFor(value)
+      if (replacement !== null) {
+        replacements.push({
+          start: htmlOffset + htmlParser.startIndex,
+          end: htmlOffset + htmlParser.endIndex,
+          value: `src="${replacement}"`,
+        })
+      }
+    },
+    onopentag(name) {
+      if (sourceDepth > 0 || ['pre', 'code', 'kbd', 'script', 'style'].includes(name)) sourceDepth++
+    },
+    onclosetag() {
+      if (sourceDepth > 0) sourceDepth--
+    },
+  })
+
+  const writeHtml = (html: string, start: number) => {
+    htmlOffset = start - htmlLength
+    htmlParser.write(html)
+    htmlLength += html.length
+  }
+
+  for (let i = root.children.length - 1; i >= 0; i--) stack.push(root.children[i])
+  while (stack.length) {
+    const node = stack.pop()!
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start !== undefined && end !== undefined) {
+      if (node.type === 'html') {
+        const valueLines = node.value.split('\n')
+        /** Mask container prefixes removed by mdast without shifting source offsets. */
+        const html = content
+          .slice(start, end)
+          .split('\n')
+          .map((line, index) => {
+            const value = valueLines[index]
+            return value !== undefined && line.endsWith(value)
+              ? ' '.repeat(line.length - value.length) + value
+              : line
+          })
+          .join('\n')
+        writeHtml(html, start)
+      } else if (node.type === 'text' && node.value.includes('<')) {
+        /** Marked also renders unquoted slash-containing HTML attributes that mdast treats as text. */
+        const tokens = new markdownLexer.Lexer(markdownLexer.defaults).inlineTokens(
+          content.slice(start, end)
+        )
+        let tokenOffset = start
+        for (const token of tokens) {
+          if (token.type === 'html') writeHtml(token.raw, tokenOffset)
+          tokenOffset += token.raw.length
+        }
+      } else if (sourceDepth === 0 && (node.type === 'image' || node.type === 'imageReference')) {
+        const destination = node.type === 'image' ? node : definitions.get(node.identifier)
+        const replacement = destination && replacementFor(destination.url)
+        if (replacement) {
+          const value = markdownProcessor
+            .stringify({
+              type: 'root',
+              children: [
+                {
+                  type: 'image',
+                  alt: node.alt,
+                  title: destination?.title,
+                  url: replacement,
+                },
+              ],
+            })
+            .trimEnd()
+          replacements.push({ start, end, value })
+        }
+      }
+    }
+    if ('children' in node) {
+      for (let i = node.children.length - 1; i >= 0; i--) stack.push(node.children[i])
+    }
+  }
+  htmlParser.end()
+
+  const chunks: string[] = []
+  let offset = 0
+  for (const { start, end, value } of replacements) {
+    chunks.push(content.slice(offset, start), value)
+    offset = end
+  }
+  chunks.push(content.slice(offset))
+  return frontmatter + chunks.join('')
+}
 
 export interface MarkdownExportAsset {
   imageId: string
@@ -66,6 +208,15 @@ export async function createMarkdownExport({
   fileName: string
   assets: readonly MarkdownExportAsset[]
 }): Promise<MarkdownExportResult> {
+  const plainMarkdown: MarkdownExportResult = {
+    buffer: content,
+    fileName: safeFilename(fileName),
+    contentType: 'text/markdown; charset=utf-8',
+    format: 'markdown',
+    assetCount: 0,
+  }
+  if (content.length > MAX_EXPORT_TOTAL_BYTES) throw new MarkdownExportSizeError(content.length)
+  if (content.length > MAX_EXPORT_MARKDOWN_PARSE_BYTES) return plainMarkdown
   const declaredBytes = content.length + assets.reduce((sum, asset) => sum + asset.size, 0)
   if (declaredBytes > MAX_EXPORT_TOTAL_BYTES) throw new MarkdownExportSizeError(declaredBytes)
 
@@ -109,23 +260,13 @@ export async function createMarkdownExport({
   }
 
   if (assetMap.size === 0) {
-    return {
-      buffer: content,
-      fileName: safeFilename(fileName),
-      contentType: 'text/markdown; charset=utf-8',
-      format: 'markdown',
-      assetCount: 0,
-    }
+    return plainMarkdown
   }
 
-  let markdown = content.toString('utf-8')
-  for (const [imageId, asset] of assetMap) {
-    const escapedId = imageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const replacement = `./assets/${asset.filename}`
-    markdown = markdown
-      .replace(new RegExp(`/api/files/view/${escapedId}`, 'g'), () => replacement)
-      .replace(new RegExp(`/workspace/[A-Za-z0-9-]+/files/${escapedId}`, 'g'), () => replacement)
-  }
+  const markdown = rewriteImageSources(
+    content.toString('utf-8'),
+    new Map([...assetMap].map(([imageId, asset]) => [imageId, asset.filename]))
+  )
 
   const zip = new JSZip()
   zip.file(safeFilename(fileName), markdown)

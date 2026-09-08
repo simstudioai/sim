@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+
+import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestRaw } from '@/lib/api/client/request'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
@@ -20,7 +22,7 @@ const file: WorkspaceFileRecord = {
 }
 
 const fetchMock = vi.fn<typeof fetch>()
-const createObjectURL = vi.fn(() => 'blob:download')
+const createObjectURL = vi.fn((_blob: Blob) => 'blob:download')
 const click = vi.fn()
 let downloadedName = ''
 
@@ -56,6 +58,22 @@ function source(content = 'latest visible content'): FileDownloadSource {
 }
 
 describe('file download snapshots', () => {
+  it('downloads an oversized source draft directly instead of rejecting it or using stale storage', async () => {
+    const content = '😀'.repeat(Math.floor(PASTE_LIMITS.RICH_MARKDOWN_BYTES / 4) + 1)
+    await triggerFileDownload(file, source(content))
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    const blob = createObjectURL.mock.calls[0]![0]
+    const reader = new FileReader()
+    const read = new Promise<string>((resolve) => {
+      reader.onload = () => resolve(reader.result as string)
+    })
+    reader.readAsText(blob)
+    await vi.runAllTimersAsync()
+    expect(await read).toBe(content)
+    expect(downloadedName).toBe(file.name)
+    expect(click).toHaveBeenCalledOnce()
+  })
   it.each(['latest local and peer text', ''])(
     'captures the mounted content immediately: %j',
     async (content) => {

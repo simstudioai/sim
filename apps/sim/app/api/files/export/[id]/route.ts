@@ -16,6 +16,7 @@ import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import {
   createMarkdownExport,
+  MAX_EXPORT_MARKDOWN_PARSE_BYTES,
   MAX_EXPORT_TOTAL_BYTES,
   type MarkdownExportAsset,
   type MarkdownExportResult,
@@ -129,11 +130,12 @@ export const GET = withRouteHandler(
         { status: 400 }
       )
     }
-    const mdContent = mdBuffer.toString('utf-8')
-
     // Ids only: a serve-URL embed names a storage key, which the bundler has no id to rewrite the
     // markdown against, so those images stay pointed at their original URL.
-    const { ids: imageIds } = extractEmbeddedFileRefs(mdContent)
+    const imageIds =
+      mdBuffer.length <= MAX_EXPORT_MARKDOWN_PARSE_BYTES
+        ? extractEmbeddedFileRefs(mdBuffer.toString('utf-8')).ids
+        : []
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
 
