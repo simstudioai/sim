@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { isScimEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { runScimReconcileSweep } from '@/ee/scim/reconcile/job'
+import { runScimReconcileSweep } from '@/ee/scim/lib/reconcile/job'
 
 const logger = createLogger('CronScimReconcile')
 

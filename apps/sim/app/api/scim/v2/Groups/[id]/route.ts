@@ -9,10 +9,10 @@ import {
   getScimGroup,
   patchScimGroup,
   replaceScimGroup,
-} from '@/ee/scim/application/groups/manage-groups'
-import { assertGroupSchemas, toCanonicalGroup } from '@/ee/scim/protocol/canonical'
-import { parseAttributeProjection } from '@/ee/scim/protocol/resources'
-import { defineScimRoute } from '@/ee/scim/route'
+} from '@/ee/scim/lib/application/groups/manage-groups'
+import { assertGroupSchemas, toCanonicalGroup } from '@/ee/scim/lib/protocol/canonical'
+import { parseAttributeProjection } from '@/ee/scim/lib/protocol/resources'
+import { defineScimRoute } from '@/ee/scim/lib/route'
 
 /** One Group resource. */
 

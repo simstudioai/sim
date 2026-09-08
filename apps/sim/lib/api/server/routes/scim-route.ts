@@ -7,16 +7,16 @@ import type { ApplicationOperation, OperationUseCase } from '@/lib/core/applicat
 import { isScimEnabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { ScimConnectionAuthenticator } from '@/ee/scim/authenticate'
-import { scimBaseUrl } from '@/ee/scim/base-url'
+import type { ScimConnectionAuthenticator } from '@/ee/scim/lib/authenticate'
+import { scimBaseUrl } from '@/ee/scim/lib/base-url'
 import {
   SCIM_ACCEPTED_MEDIA_TYPES,
   SCIM_MAX_BODY_BYTES,
   SCIM_MEDIA_TYPE,
   SCIM_RATE_LIMIT,
-} from '@/ee/scim/protocol/constants'
-import { ScimError, type ScimType, scimErrorBody, toScimError } from '@/ee/scim/protocol/errors'
-import type { ScimRequestLogEntry } from '@/ee/scim/request-log'
+} from '@/ee/scim/lib/protocol/constants'
+import { ScimError, type ScimType, scimErrorBody, toScimError } from '@/ee/scim/lib/protocol/errors'
+import type { ScimRequestLogEntry } from '@/ee/scim/lib/request-log'
 
 const logger = createLogger('ScimRoute')
 const rateLimiter = new RateLimiter()

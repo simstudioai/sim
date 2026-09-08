@@ -35,7 +35,7 @@ import {
   getWorkspaceWithOwner,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
-import { assertMembershipNotScimManaged } from '@/ee/scim/managed-membership'
+import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('InvitationDirectGrant')
 

@@ -24,9 +24,9 @@ import {
   listScimUsersContract,
 } from '@/lib/api/contracts/scim'
 import { createScimRouteBuilder } from '@/lib/api/server/routes'
-import { scimOperations } from '@/ee/scim/application/operations'
-import { SCIM_MEDIA_TYPE } from '@/ee/scim/protocol/constants'
-import { ScimError } from '@/ee/scim/protocol/errors'
+import { scimOperations } from '@/ee/scim/lib/application/operations'
+import { SCIM_MEDIA_TYPE } from '@/ee/scim/lib/protocol/constants'
+import { ScimError } from '@/ee/scim/lib/protocol/errors'
 
 const principal: ScimConnectionPrincipal = {
   kind: 'scim_connection',

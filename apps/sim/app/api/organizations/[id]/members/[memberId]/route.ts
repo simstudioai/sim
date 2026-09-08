@@ -23,7 +23,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isRetryableTransactionError } from '@/lib/db/transaction'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertMembershipNotScimManaged } from '@/ee/scim/managed-membership'
+import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('OrganizationMemberAPI')
 

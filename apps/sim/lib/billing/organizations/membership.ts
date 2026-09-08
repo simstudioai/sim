@@ -59,7 +59,7 @@ import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
 } from '@/lib/workspaces/utils'
-import { endDirectoryMembershipTx } from '@/ee/scim/identity/end-directory-membership'
+import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'

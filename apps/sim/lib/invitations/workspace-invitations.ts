@@ -43,7 +43,10 @@ import {
   type WorkspaceInvitePolicy,
 } from '@/lib/workspaces/policy'
 import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
-import { assertInviteeNotScimManaged, scimManagedUserPredicate } from '@/ee/scim/managed-membership'
+import {
+  assertInviteeNotScimManaged,
+  scimManagedUserPredicate,
+} from '@/ee/scim/lib/managed-membership'
 
 /**
  * What the invitee becomes in the organization. `member` and `admin` are

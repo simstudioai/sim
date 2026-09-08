@@ -6,12 +6,12 @@ import {
   SCIM_MAX_GROUP_MEMBERS,
   SCIM_MAX_PATCH_OPERATIONS,
   SCIM_PATCH_OP_SCHEMA,
-} from '@/ee/scim/protocol/constants'
+} from '@/ee/scim/lib/protocol/constants'
 import {
   canonicalizeAttributeNames,
   normalizeScimBoolean,
   unwrapSingleElement,
-} from '@/ee/scim/protocol/normalize'
+} from '@/ee/scim/lib/protocol/normalize'
 
 /**
  * Wire schemas for the SCIM 2.0 surface.

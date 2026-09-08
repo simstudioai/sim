@@ -1,8 +1,8 @@
 import { createScimGroupContract, listScimGroupsContract } from '@/lib/api/contracts/scim'
-import { createScimGroup, listScimGroups } from '@/ee/scim/application/groups/manage-groups'
-import { assertGroupSchemas, toCanonicalGroup } from '@/ee/scim/protocol/canonical'
-import { parseAttributeProjection, toListResponse } from '@/ee/scim/protocol/resources'
-import { defineScimRoute } from '@/ee/scim/route'
+import { createScimGroup, listScimGroups } from '@/ee/scim/lib/application/groups/manage-groups'
+import { assertGroupSchemas, toCanonicalGroup } from '@/ee/scim/lib/protocol/canonical'
+import { parseAttributeProjection, toListResponse } from '@/ee/scim/lib/protocol/resources'
+import { defineScimRoute } from '@/ee/scim/lib/route'
 
 /** The Group collection. */
 

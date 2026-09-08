@@ -5,7 +5,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { issueScimCredential } from '@/ee/scim/application/admin/credentials'
+import { issueScimCredential } from '@/ee/scim/lib/application/admin/credentials'
 
 /** Issues a bearer credential. The secret is returned once and never stored. */
 export const POST = defineInternalJsonRoute({
