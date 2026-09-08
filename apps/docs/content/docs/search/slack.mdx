@@ -8,7 +8,7 @@ import { Image } from '@/components/ui/image'
 
 Slack Search indexes channel messages and threads. A Sim organization admin configures your Slack app once, then each teammate authorizes their own Slack account. Their results are limited to the selected public channels and private channels they can access. DMs and group DMs are not indexed.
 
-<Image src="/static/search/slack-setup.jpg" alt="Slack source setup in Sim Search" width={1280} height={720} />
+<Image src="/static/search/slack-setup.jpg" alt="Slack app setup for Sim Search with application and client credential fields" width={1470} height={1277} />
 
 ## Before you start
 
@@ -76,7 +76,7 @@ Select **Add source**. On the source row, each person selects **Connect account*
 
 You can instead select an existing account under **Sync documents with** to supply message content centrally. Members still connect their own accounts to establish access. The selected account must itself be able to read the selected channels.
 
-Admins can use **Manage** to inspect sync progress. Search reads the indexed content, so source changes appear after background syncing. Slack retention and API limits determine how much history is available.
+Admins can open the source under **Settings → Integrations → Providers** to inspect sync progress. Search reads the indexed content, so source changes appear after background syncing. Slack retention and API limits determine how much history is available.
 
 ## Permissions reference
 

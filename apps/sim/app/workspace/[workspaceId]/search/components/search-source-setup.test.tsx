@@ -675,8 +675,10 @@ describe('Search source setup with real connector dialogs', () => {
     expect(document.body.textContent).not.toContain('Member accounts')
     expect(button('Connect & Sync')).toBeDisabled()
     await fill('Enter your GitLab PAT', 'test-pat')
-    await fill('gitlab.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', 'engineering/search')
+    expect(button('Connect & Sync')).toBeDisabled()
+    await fill('gitlab.example.com', 'gitlab.example.test')
+    expect(button('Connect & Sync')).toBeEnabled()
     await click(button('Connect & Sync'))
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -840,6 +842,7 @@ describe('member content credentials in real add and edit dialogs', () => {
     expect(button('Workspace')).toHaveAttribute('aria-checked', 'true')
     await fill('Enter your GitLab PAT', 'new-pat')
     await fill('group/project or numeric ID', '1')
+    expect(button('Connect & Sync')).toBeEnabled()
     await click(button('Connect & Sync'))
     expect(mocks.create.mock.calls[1][0]).toMatchObject({
       connectorType: 'gitlab',
@@ -1487,7 +1490,7 @@ describe('canonical Search connector safety', () => {
       )
     ).toBe(false)
     await fill('Enter your GitLab PAT', 'fixture-pat')
-    await fill('gitlab.com', 'gitlab.example.test')
+    await fill('gitlab.example.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', 'engineering/search')
     await click(button('Connect & Sync'))
     expect(mocks.create).toHaveBeenCalledWith(

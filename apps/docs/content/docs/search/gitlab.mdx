@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 GitLab Search uses an administrator connection to sync a project's content and permissions. Teammates do not connect individual GitLab accounts. They sign in to the Sim organization with a verified email matching their confirmed GitLab email.
 
-<Image src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={1280} height={720} />
+<Image src="/static/search/gitlab-setup.jpg" alt="GitLab source setup in Sim Search" width={1470} height={1277} />
 
 Admin setup uses your organization's **Settings → Integrations** page. Teammates do not need a personal GitLab connection. For workspace Search, use **Search → Add source** instead.
 
@@ -61,7 +61,7 @@ Open **Settings → Integrations → Providers**, approve **GitLab**, then selec
 | Issue State / Labels / Milestone | Optional filters for issues. |
 | Max Items | Optional positive limit. Leave blank for all matching items. |
 
-<Image src="/static/search/gitlab-options.jpg" alt="GitLab source configuration scrolled to repository and issue filters, item limit, and document details" width={1280} height={720} />
+<Image src="/static/search/gitlab-options.jpg" alt="GitLab source configuration scrolled to repository and issue filters, item limit, and document details" width={1470} height={1277} />
 
 Select **Connect & Sync**. Sim validates the token and source policy, then starts indexing.
 
@@ -72,7 +72,7 @@ Select **Connect & Sync**. Sim validates the token and source policy, then start
 
 Invite teammates to the Sim organization using their verified work email. Sim matches that email against the GitLab directory and applies project, feature, and confidential-issue permissions. No GitLab **Connect account** step is required.
 
-Admins can open **Manage** on the source to review sync progress. Permission and membership changes are picked up during background refreshes.
+Admins can open the source under **Settings → Integrations → Providers** to review sync progress. Permission and membership changes are picked up during background refreshes.
 
 </Step>
 </Steps>

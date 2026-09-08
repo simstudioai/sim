@@ -36,6 +36,10 @@ vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
 }))
 
 import {
+  listOrganizationCredentialsContract,
+  listOrganizationOAuthCredentialsContract,
+} from '@/lib/api/contracts/organization-credentials'
+import {
   type OAuthReturnContext,
   readOAuthReturnContext,
   writeOAuthReturnContext,
@@ -240,8 +244,22 @@ describe('existing source settings OAuth return', () => {
     queryClient.setQueryData(oauthCredentialKeys.list('google-drive', '', '', 'org-1'), [
       { id: 'credential-existing', name: 'Cached account' },
     ])
-    mocks.requestJson.mockResolvedValue({
-      credentials: [{ id: 'credential-existing', name: 'Updated account' }],
+    mocks.requestJson.mockImplementation(async (contract: unknown) => {
+      if (contract === listOrganizationOAuthCredentialsContract) {
+        return { credentials: [{ id: 'credential-existing', name: 'Updated account' }] }
+      }
+      if (contract === listOrganizationCredentialsContract) {
+        return {
+          credentials: [
+            {
+              id: 'service-account',
+              displayName: 'Service account',
+              providerId: 'google-service-account',
+            },
+          ],
+        }
+      }
+      throw new Error('Unexpected account request')
     })
   })
 
@@ -257,8 +275,18 @@ describe('existing source settings OAuth return', () => {
     await renderSettings('connector-1')
 
     expect(readOAuthReturnContext()).toBeNull()
-    expect(mocks.requestJson).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(container.textContent).toBe('Updated account'))
+    expect(mocks.requestJson).toHaveBeenCalledTimes(2)
+    expect(mocks.requestJson).toHaveBeenCalledWith(
+      listOrganizationCredentialsContract,
+      expect.objectContaining({
+        query: {
+          organizationId: 'org-1',
+          providerId: 'google-service-account',
+          type: 'service_account',
+        },
+      })
+    )
+    await vi.waitFor(() => expect(container.textContent).toBe('Updated account, Service account'))
   })
 
   it('preserves an OAuth return for another source of the same provider', async () => {

@@ -214,6 +214,7 @@ function ConnectorCard({
         knowledgeBaseId={knowledgeBaseId}
         isSearchIndex={isSearchIndex}
         canEdit={canEdit}
+        onEdit={onEdit}
       />
       {expanded && (
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>

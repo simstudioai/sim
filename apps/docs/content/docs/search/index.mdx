@@ -39,9 +39,8 @@ In **Integrations**, select **Connect account** if prompted—even if you create
 </Step>
 </Steps>
 
-<Image src="/static/search/add-source.jpg" alt="Sim Search source catalog with Set up actions" width={1280} height={720} />
+<Image src="/static/search/add-source.jpg" alt="Sim Search source catalog with Set up actions" width={1470} height={1277} />
 
-*Workspace Search is shown here. Organization sources are managed in Settings → Integrations.*
 
 Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue.
 
@@ -78,7 +77,7 @@ Some member sources offer **Sync documents with**. **Connected members** uses me
 
 Invite people through the organization's **Settings → Members**, or use your organization's [SSO provisioning](/platform/enterprise/sso). Share the organization's **Home** or **Integrations** URL. People need their own Sim account and organization membership; they do not need access to a workspace. Connecting an external account alone does not grant organization membership.
 
-Organization admins manage source configuration and sync status through **Manage** under **Settings → Integrations → Providers**. Other members connect or reconnect their own accounts. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
+Organization admins manage source configuration and sync status by opening a source under **Settings → Integrations → Providers**. Other members connect or reconnect their own accounts. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
 
 ## Search, Assistant, and MCP
 
@@ -115,7 +114,9 @@ Search runs background syncs on an hourly schedule. Large sources, provider limi
 
 A completed sync means the source was checked; some documents may still be indexing. The source row shows how many documents you can search and whether indexing failed for any documents you can access.
 
-As an admin, open **Manage → Documents** and select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. **Settings** contains the source configuration and **Sync history** shows recent runs. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+As an admin, open the source under **Settings → Integrations → Providers**. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. **Settings** contains the source configuration and **Sync history** shows recent runs. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
+
+<Image src="/static/search/source-documents.jpg" alt="Source document page with search, status filtering, indexing recovery, and header actions" width={1470} height={1277} />
 
 Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
 

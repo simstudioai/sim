@@ -25,6 +25,7 @@ export const GET = defineInternalJsonRoute({
       name: row.displayName,
       provider: row.providerId as OAuthProvider,
       type: 'oauth' as const,
+      scopes: row.scopes,
     })),
   }),
 })

@@ -54,7 +54,7 @@ Select **Add source**, then **Connect account** on the source row. Use the Googl
 
 This requires a Google Workspace domain and a Workspace super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path.
 
-<Image src="/static/search/google-drive-setup.jpg" alt="Google Drive Search service-account connection and source options" width={1280} height={720} />
+<Image src="/static/search/google-drive-setup.jpg" alt="Google Drive service-account setup with Crawl as and manual folder fields" width={1470} height={1277} />
 
 <Steps>
 <Step>
@@ -95,7 +95,7 @@ These are Search's central crawl scopes. The general [Google service account gui
 
 In Google Drive's Search setup, choose **Service account**. Open the **Service account** picker, choose its connection action, and paste the JSON key into **Add Google Service Account**. Give it a name and add it. Sim returns you to the source form with that credential selected.
 
-<Image src="/static/search/google-service-account.jpg" alt="Add Google Service Account credential modal in Sim" width={1280} height={720} />
+<Image src="/static/search/google-service-account.jpg" alt="Add Google Service Account credential modal in Sim" width={1470} height={1277} />
 
 </Step>
 <Step>
@@ -119,14 +119,14 @@ Set **Crawl as** to a Google Workspace administrator who can read groups, member
 
 Sim exports Docs and Slides as text and Sheets as XLSX spreadsheets. Supported uploaded files use the knowledge-base document pipeline, including PDF and Office formats. Unsupported files and oversized exports cannot be indexed; Google limits Workspace exports to 10 MB. See [Drive export formats](https://developers.google.com/workspace/drive/api/guides/ref-export-formats) and [download limits](https://developers.google.com/workspace/drive/api/guides/manage-downloads).
 
-Search schedules syncs hourly. Content, deletions, and permissions refresh in the background; results are not a live read from Drive. Admins can inspect progress and errors through **Manage** on the source.
+Search schedules syncs hourly. Content, deletions, and permissions refresh in the background; results are not a live read from Drive. Admins can inspect progress and errors by opening the source under **Settings → Integrations → Providers**.
 
 ## Troubleshooting
 
 | Problem | Next step |
 | --- | --- |
 | Directory access failed | Check the delegated scopes and the **Crawl as** user's administrator privileges. A normal Google OAuth credential cannot supply this central Search path. |
-| An existing central source uses a normal Google OAuth account | Replace it with a delegated service account. If the source is **Disabled**, choose **Resume** first. Then open **Manage**, select or add the delegated service account, and choose **Change indexing account**. A **Paused** source can change credentials before you resume it. |
+| An existing central source uses a normal Google OAuth account | Open the source's **Settings** tab, select or add a delegated service account, and choose **Change indexing account**. If the source is **Paused** or **Disabled**, choose **Resume** after updating the account. |
 | Missing files in a central crawl | Open them as the **Crawl as** user. Delegation does not grant that user access to all domain files. Check folder and file-type filters. |
 | A teammate sees no results | Confirm their verified Sim email matches the Drive permission or group membership. For member accounts, finish their personal Drive connection too. |
 | A public or shared-link file is missing | Check **Openly shared files**. Link-only sharing does not grant Search access. A named user or group permission can still make the file searchable. |

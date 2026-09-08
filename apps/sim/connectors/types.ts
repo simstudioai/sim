@@ -254,6 +254,8 @@ export interface ConnectorConfigField {
   type: 'short-input' | 'dropdown' | 'selector'
   placeholder?: string
   required?: boolean
+  /** Required when an administrator account supplies documents and source permissions. */
+  requiredInAdminMode?: true
   description?: string
   /** Excludes settings unused by member crawls and account-local selectors that need a manual sibling. */
   hideInMemberMode?: true

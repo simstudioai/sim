@@ -33,9 +33,10 @@ export const gitlabConnectorMeta: ConnectorMeta = {
       id: 'host',
       title: 'Host',
       type: 'short-input',
-      placeholder: 'gitlab.com',
+      placeholder: 'gitlab.example.com',
       required: false,
-      description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
+      requiredInAdminMode: true,
+      description: 'Your GitLab instance host. Sim Search requires a self-managed instance.',
     },
     {
       id: 'project',

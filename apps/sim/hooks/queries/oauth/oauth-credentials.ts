@@ -1,8 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listOAuthCredentialsContract } from '@/lib/api/contracts'
-import { listOrganizationOAuthCredentialsContract } from '@/lib/api/contracts/organization-credentials'
-import type { Credential } from '@/lib/oauth'
+import {
+  listOrganizationCredentialsContract,
+  listOrganizationOAuthCredentialsContract,
+} from '@/lib/api/contracts/organization-credentials'
+import {
+  type Credential,
+  getServiceAccountProviderForProviderId,
+  type OAuthProvider,
+} from '@/lib/oauth'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
 export const OAUTH_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
@@ -40,12 +47,34 @@ export async function fetchOAuthCredentials(
   if (organizationId) {
     if (workspaceId || workflowId)
       throw new Error('Organization credential listing cannot include a workspace or workflow')
-    return (
-      await requestJson(listOrganizationOAuthCredentialsContract, {
+    const serviceAccountProviderId = getServiceAccountProviderForProviderId(providerId)
+    const [oauth, serviceAccounts] = await Promise.all([
+      requestJson(listOrganizationOAuthCredentialsContract, {
         query: { organizationId, providerId },
         signal,
-      })
-    ).credentials
+      }),
+      serviceAccountProviderId
+        ? requestJson(listOrganizationCredentialsContract, {
+            query: {
+              organizationId,
+              providerId: serviceAccountProviderId,
+              type: 'service_account',
+            },
+            signal,
+          })
+        : Promise.resolve({ credentials: [] }),
+    ])
+    return [
+      ...oauth.credentials,
+      ...serviceAccounts.credentials.map(
+        (credential): Credential => ({
+          id: credential.id,
+          name: credential.displayName,
+          provider: credential.providerId as OAuthProvider,
+          type: 'service_account',
+        })
+      ),
+    ]
   }
   const data = await requestJson(listOAuthCredentialsContract, {
     signal,

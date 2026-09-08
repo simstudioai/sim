@@ -51,6 +51,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
       title: 'Date Range',
       type: 'dropdown',
       required: false,
+      placeholder: 'Last 30 days + next 30 days (default)',
       options: [
         { label: 'Last 30 days + next 30 days (default)', id: 'default' },
         { label: 'Past events only (last 30 days)', id: 'past_only' },
@@ -72,6 +73,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
       title: 'Include Attendees',
       type: 'dropdown',
       required: false,
+      placeholder: 'Yes (default)',
       options: [
         { label: 'Yes (default)', id: 'true' },
         { label: 'No', id: 'false' },

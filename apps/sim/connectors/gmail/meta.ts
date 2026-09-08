@@ -50,6 +50,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
       title: 'Date Range',
       type: 'dropdown',
       required: false,
+      placeholder: 'All time (default)',
       options: [
         { label: 'Last 7 days', id: '7d' },
         { label: 'Last 30 days', id: '30d' },
@@ -64,6 +65,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
       title: 'Exclude Promotions',
       type: 'dropdown',
       required: false,
+      placeholder: 'Yes (default)',
       options: [
         { label: 'Yes (recommended)', id: 'true' },
         { label: 'No', id: 'false' },
@@ -74,6 +76,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
       title: 'Exclude Social',
       type: 'dropdown',
       required: false,
+      placeholder: 'Yes (default)',
       options: [
         { label: 'Yes (recommended)', id: 'true' },
         { label: 'No', id: 'false' },
@@ -85,7 +88,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       placeholder: 'e.g. from:boss@company.com subject:report has:attachment',
       required: false,
-      description: 'Additional Gmail search filter. Uses the same syntax as the Gmail search bar.',
+      description: 'Additional Gmail API search filter.',
     },
     {
       id: 'maxThreads',

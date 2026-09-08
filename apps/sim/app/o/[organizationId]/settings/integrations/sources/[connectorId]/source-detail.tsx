@@ -36,6 +36,7 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
@@ -173,7 +174,7 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
   const title = meta
     ? describeSearchSource(meta, connector.sourceConfig) || meta.name
     : 'Search source'
-  const { effectiveStatus } = getConnectorSyncState(connector)
+  const { effectiveStatus, lastSyncError } = getConnectorSyncState(connector)
   const status =
     effectiveStatus === 'paused'
       ? 'Sync paused'
@@ -213,12 +214,19 @@ function SourceDetailContent({ connector, scope, backHref, queryError }: SourceD
     >
       {queryError}
       <SourceNavigation view={view} onViewChange={onViewChange} />
+      {effectiveStatus === 'active' && lastSyncError && (
+        <SettingsResourceRow
+          title='Some source updates are incomplete'
+          description='Review the source settings and try syncing again.'
+        />
+      )}
       <ConnectorRecovery
         connector={connector}
         knowledgeBaseId={connector.knowledgeBaseId}
         scope={scope}
         isSearchIndex
         canEdit
+        onEdit={() => onViewChange('settings')}
       />
       {view === 'documents' ? (
         <ConnectorDocuments

@@ -1,5 +1,7 @@
 /** @vitest-environment node */
-import { auditMock } from '@sim/testing'
+import { account, credential } from '@sim/db/schema'
+import { auditMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -51,6 +53,8 @@ vi.mock('@/lib/oauth/utils', () => ({
 import {
   createOrganizationCredential,
   launchOrganizationCredentialConnection,
+  listOrganizationCredentials,
+  organizationCredentialOperations,
   resolveOrganizationCredentialTokenBundle,
   saveOrganizationCredentialDraft,
   updateOrganizationCredential,
@@ -70,6 +74,7 @@ const row = {
 describe('organization connection application boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mocks.authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
     mocks.catalog.mockResolvedValue([])
     mocks.create.mockResolvedValue({ success: true, created: true, credential: row })
@@ -77,6 +82,119 @@ describe('organization connection application boundary', () => {
     mocks.draft.mockResolvedValue({ id: 'draft-1' })
     mocks.resolveToken.mockResolvedValue({ accessToken: 'token' })
     mocks.update.mockResolvedValue({ success: true, updatedFields: ['description'] })
+  })
+
+  it('lists each linked OAuth account’s granted scopes without combining provider grants', async () => {
+    mocks.catalog.mockResolvedValue([
+      {
+        type: 'oauth',
+        available: true,
+        authorizationOptions: [{ providerId: 'google-drive' }],
+      },
+    ])
+    queueTableRows(credential, [
+      {
+        ...row,
+        id: 'credential-full',
+        accountId: 'account-full',
+        type: 'oauth',
+        providerId: 'google-drive',
+        accountScope: ' drive.readonly\t drive.metadata.readonly,openid ',
+      },
+      {
+        ...row,
+        id: 'credential-limited',
+        accountId: 'account-limited',
+        type: 'oauth',
+        providerId: 'google-drive',
+        accountScope: 'openid',
+      },
+    ])
+
+    const input = { organizationId: 'org-1', type: 'oauth' as const, providerId: 'google-drive' }
+    const result = await listOrganizationCredentials.execute({ principal, input })
+
+    expect(result.credentials.map(({ id, scopes }) => ({ id, scopes }))).toEqual([
+      {
+        id: 'credential-full',
+        scopes: ['drive.readonly', 'drive.metadata.readonly', 'openid'],
+      },
+      { id: 'credential-limited', scopes: ['openid'] },
+    ])
+    expect(result.credentials.every((item) => !Object.hasOwn(item, 'accountScope'))).toBe(true)
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      principal,
+      organizationCredentialOperations.list,
+      input
+    )
+    expect(dbChainMockFns.leftJoin).toHaveBeenCalledWith(
+      account,
+      eq(credential.accountId, account.id)
+    )
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      and(
+        and(eq(credential.organizationId, 'org-1'), isNull(credential.workspaceId)),
+        or(
+          eq(credential.type, 'service_account'),
+          and(eq(credential.type, 'oauth'), eq(credential.createdBy, 'admin-1'))
+        ),
+        eq(credential.type, 'oauth'),
+        eq(credential.providerId, 'google-drive')
+      )
+    )
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(desc(credential.createdAt))
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1000)
+  })
+
+  it.each([null, '', '  \t\n '])(
+    'does not invent grants when account scopes are %j',
+    async (scope) => {
+      mocks.catalog.mockResolvedValue([
+        { type: 'oauth', available: true, authorizationOptions: [{ providerId: 'google-drive' }] },
+      ])
+      queueTableRows(credential, [
+        { ...row, type: 'oauth', providerId: 'google-drive', accountScope: scope },
+      ])
+
+      const result = await listOrganizationCredentials.execute({
+        principal,
+        input: { organizationId: 'org-1', type: 'oauth' },
+      })
+
+      expect(result.credentials).toEqual([expect.objectContaining({ scopes: [] })])
+    }
+  )
+
+  it('keeps service accounts in the general list and excludes unavailable providers', async () => {
+    mocks.catalog.mockResolvedValue([
+      { type: 'service_account', available: true, providerId: 'google-service-account' },
+      { type: 'oauth', available: false, authorizationOptions: [{ providerId: 'google-drive' }] },
+    ])
+    queueTableRows(credential, [
+      { ...row, accountScope: null },
+      { ...row, id: 'hidden', type: 'oauth', providerId: 'google-drive', accountScope: 'openid' },
+      { ...row, id: 'unknown', providerId: null, accountScope: null },
+    ])
+
+    const result = await listOrganizationCredentials.execute({
+      principal,
+      input: { organizationId: 'org-1' },
+    })
+
+    expect(result.credentials).toEqual([{ ...row, scopes: [] }])
+  })
+
+  it('refuses an unauthorized organization list before reading accounts or provider availability', async () => {
+    mocks.authorize.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Organization administrator access is required')
+    )
+
+    await expect(
+      listOrganizationCredentials.execute({ principal, input: { organizationId: 'org-1' } })
+    ).rejects.toThrow('administrator')
+
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(mocks.catalog).not.toHaveBeenCalled()
   })
   it('creates a verified organization service account without a workspace identity', async () => {
     const input = {

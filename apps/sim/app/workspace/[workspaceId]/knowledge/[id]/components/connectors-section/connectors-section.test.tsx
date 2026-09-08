@@ -27,7 +27,12 @@ const {
     <svg data-testid={`icon-${name}`} className={props.className} />
   ),
   oauthCredentialsState: {
-    current: [] as Array<{ id: string; name: string; provider: string }>,
+    current: [] as Array<{
+      id: string
+      name: string
+      provider: string
+      type?: 'oauth' | 'service_account'
+    }>,
     isFetching: false,
   },
   lifecycle: {
@@ -163,7 +168,9 @@ vi.mock('@/lib/credentials/client-state', () => ({
 }))
 vi.mock('@/lib/oauth', () => ({
   getCanonicalScopesForProvider: vi.fn(() => []),
-  getProviderIdFromServiceId: vi.fn(() => 'slack'),
+  getProviderIdFromServiceId: vi.fn((serviceId: string) =>
+    serviceId === 'google-drive' ? 'google-drive' : 'slack'
+  ),
 }))
 vi.mock('@/lib/oauth/utils', () => ({ getMissingRequiredScopes: missingScopesMock }))
 vi.mock('@/app/workspace/[workspaceId]/components/connect-oauth-modal', () => ({
@@ -192,6 +199,16 @@ vi.mock('@/connectors/registry', () => ({
       name: 'Confluence',
       configFields: [{ id: 'domain' }, { id: 'spaceKey' }],
       auth: { mode: 'oauth', provider: 'confluence' },
+    },
+    google_drive: {
+      id: 'google_drive',
+      name: 'Google Drive',
+      configFields: [],
+      auth: {
+        mode: 'oauth',
+        provider: 'google-drive',
+        adminCredentialType: 'service_account',
+      },
     },
   },
 }))
@@ -585,6 +602,129 @@ describe('Connector credential reauthorization', () => {
     expect(connectOAuthModalMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ mode: 'reauthorize', newScopes: ['channels:read'] })
     )
+  })
+
+  it.each(['present', 'unavailable', 'deleted'] as const)(
+    'opens source settings for a disabled administrator Drive source with a %s service account',
+    (credentialState) => {
+      const onEdit = vi.fn()
+      oauthCredentialsState.current =
+        credentialState === 'present'
+          ? [
+              {
+                id: 'service-1',
+                name: 'Drive service account',
+                provider: 'google-drive',
+                type: 'service_account',
+              },
+            ]
+          : []
+      const container = renderComponent(
+        <ConnectorRecovery
+          connector={makeConnector({
+            connectorType: 'google_drive',
+            credentialId: credentialState === 'deleted' ? null : 'service-1',
+          })}
+          knowledgeBaseId='knowledge-1'
+          scope={{ kind: 'organization', organizationId: 'organization-1' }}
+          canEdit
+          isSearchIndex
+          onEdit={onEdit}
+        />
+      )
+
+      expect(findButton(container, 'Settings')).toBeEnabled()
+      act(() => findButton(container, 'Settings').click())
+      expect(onEdit).toHaveBeenCalledOnce()
+      expect(connectOAuthModalMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('also routes a general-KB service account to settings instead of OAuth', () => {
+    const onEdit = vi.fn()
+    oauthCredentialsState.current = [
+      {
+        id: 'service-1',
+        name: 'Drive service account',
+        provider: 'google-drive',
+        type: 'service_account',
+      },
+    ]
+    const container = renderComponent(
+      <ConnectorRecovery
+        connector={makeConnector({
+          connectorType: 'google_drive',
+          credentialId: 'service-1',
+          accessMode: 'workspace',
+        })}
+        knowledgeBaseId='knowledge-1'
+        scope={{ kind: 'workspace', workspaceId: 'workspace-1' }}
+        canEdit
+        onEdit={onEdit}
+      />
+    )
+
+    act(() => findButton(container, 'Settings').click())
+    expect(onEdit).toHaveBeenCalledOnce()
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { canEdit: false, disabled: false },
+    { canEdit: true, disabled: true },
+  ])('protects service-account recovery when %o', ({ canEdit, disabled }) => {
+    const onEdit = vi.fn()
+    const container = renderComponent(
+      <ConnectorRecovery
+        connector={makeConnector({ connectorType: 'google_drive', credentialId: null })}
+        knowledgeBaseId='knowledge-1'
+        scope={{ kind: 'organization', organizationId: 'organization-1' }}
+        canEdit={canEdit}
+        disabled={disabled}
+        onEdit={onEdit}
+      />
+    )
+    if (canEdit) {
+      expect(findButton(container, 'Settings')).toBeDisabled()
+      act(() => findButton(container, 'Settings').click())
+    } else {
+      expect(container.querySelector('button')).toBeNull()
+    }
+    expect(onEdit).not.toHaveBeenCalled()
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
+  })
+
+  it('closes OAuth across account-type changes until the user explicitly reconnects', () => {
+    const onEdit = vi.fn()
+    const connector = makeConnector({ connectorType: 'google_drive', accessMode: 'workspace' })
+    const credential = { id: 'credential-1', name: 'Drive account', provider: 'google-drive' }
+    oauthCredentialsState.current = [{ ...credential, type: 'oauth' }]
+    const renderRecovery = () => (
+      <ConnectorRecovery
+        connector={connector}
+        knowledgeBaseId='knowledge-1'
+        scope={{ kind: 'workspace', workspaceId: 'workspace-1' }}
+        canEdit
+        onEdit={onEdit}
+      />
+    )
+    const container = renderComponent(renderRecovery())
+    act(() => findButton(container, 'Reconnect').click())
+    expect(connectOAuthModalMock).toHaveBeenCalledOnce()
+
+    connectOAuthModalMock.mockClear()
+    oauthCredentialsState.current = [{ ...credential, type: 'service_account' }]
+    act(() => root?.render(renderRecovery()))
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
+    expect(findButton(container, 'Settings')).toBeEnabled()
+
+    oauthCredentialsState.current = [{ ...credential, type: 'oauth' }]
+    act(() => root?.render(renderRecovery()))
+    expect(connectOAuthModalMock).not.toHaveBeenCalled()
+    expect(findButton(container, 'Reconnect')).toBeEnabled()
+    act(() => findButton(container, 'Reconnect').click())
+    expect(connectOAuthModalMock).toHaveBeenCalledOnce()
+    expect(onEdit).not.toHaveBeenCalled()
   })
 })
 

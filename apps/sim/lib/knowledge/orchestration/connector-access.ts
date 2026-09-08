@@ -280,8 +280,9 @@ export async function performUpdateKnowledgeConnectorAccess(
    * moves no document's visibility, so the lease is not taken. It does change
    * what the source shows: the new credential may see a different corpus, and
    * only a full listing reconciles that, so the incremental watermark is
-   * dropped and a sync queued. The write refuses while a sync owns the row,
-   * whose terminal write would otherwise put the watermark straight back.
+   * dropped and a sync queued unless the source is paused or disabled. The
+   * write refuses while a sync owns the row, whose terminal write would
+   * otherwise put the watermark straight back.
    */
   if (target.accessMode !== 'members' && target.accessMode === existing.accessMode) {
     const now = new Date()
@@ -299,7 +300,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, kb.id),
-          inArray(knowledgeConnector.status, SWITCHABLE_CONNECTOR_STATUSES),
+          inArray(knowledgeConnector.status, [...SWITCHABLE_CONNECTOR_STATUSES, 'disabled']),
           eq(knowledgeConnector.status, existing.status),
           isNull(knowledgeConnector.syncLockToken),
           isNull(knowledgeConnector.archivedAt),
@@ -315,7 +316,7 @@ export async function performUpdateKnowledgeConnectorAccess(
     }
     logger.info(`[${requestId}] Changed the credential of connector ${connectorId}`)
     const { encryptedApiKey: _secret, ...connector } = updated
-    if (existing.status !== 'paused') {
+    if (existing.status !== 'paused' && existing.status !== 'disabled') {
       await dispatchContentSyncBestEffort(connectorId, params, requestId, now)
     }
     return { success: true, connector, changed: true }

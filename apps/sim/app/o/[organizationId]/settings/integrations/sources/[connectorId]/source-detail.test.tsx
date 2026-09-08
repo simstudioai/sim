@@ -14,9 +14,11 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   documents: vi.fn(),
   actions: vi.fn(),
+  recovery: vi.fn(),
   history: vi.fn(),
   form: vi.fn(),
   dirty: false,
+  saving: false,
   save: vi.fn(),
 }))
 vi.mock('next/navigation', () => ({
@@ -54,7 +56,10 @@ vi.mock(
   })
 )
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section', () => ({
-  ConnectorRecovery: () => null,
+  ConnectorRecovery: (props: { onEdit?: () => void }) => {
+    mocks.recovery(props)
+    return props.onEdit ? <button onClick={props.onEdit}>Review source settings</button> : null
+  },
   ConnectorSyncHistory: () => {
     mocks.history()
     return <p>Source sync history</p>
@@ -120,6 +125,7 @@ describe('organization source detail navigation', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.admin = true
     mocks.dirty = false
+    mocks.saving = false
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
     mocks.detail.mockReturnValue({ data: connector })
     mocks.actions.mockImplementation((options: ConnectorActionsOptions) => ({
@@ -137,8 +143,8 @@ describe('organization source detail navigation', () => {
     }))
     mocks.form.mockImplementation(() => ({
       dirty: mocks.dirty,
-      saving: false,
-      canSave: mocks.dirty,
+      saving: mocks.saving,
+      canSave: mocks.dirty && !mocks.saving,
       save: mocks.save,
       fieldsProps: {},
       displayName: 'Google Drive',
@@ -196,6 +202,82 @@ describe('organization source detail navigation', () => {
     expect(mocks.documents).toHaveBeenLastCalledWith(
       expect.objectContaining({ searchControl: { value: 'notes', onChange: expect.any(Function) } })
     )
+  })
+
+  it.each(['', '?view=history'])(
+    'shows a concise incomplete-update notice without provider details at %s',
+    async (searchParams) => {
+      mocks.detail.mockReturnValue({
+        data: { ...connector, lastSyncError: 'Provider denied organization org-private-id' },
+      })
+      await render(searchParams)
+
+      expect(container.textContent).toContain('Some source updates are incomplete')
+      expect(container.textContent).toContain('Review the source settings and try syncing again.')
+      expect(container.textContent).not.toContain('Provider denied')
+      expect(container.textContent).not.toContain('org-private-id')
+    }
+  )
+
+  it('keeps a healthy active source quiet', async () => {
+    await render()
+    expect(container.textContent).not.toContain('Some source updates are incomplete')
+    expect(container.textContent).not.toContain('Review the source settings and try syncing again.')
+  })
+
+  it.each(['pending', 'syncing', 'paused', 'error', 'disabled'] as const)(
+    'does not duplicate recovery feedback for a %s source',
+    async (status) => {
+      mocks.detail.mockReturnValue({ data: { ...connector, status, lastSyncError: 'Old failure' } })
+      await render()
+      expect(container.textContent).not.toContain('Some source updates are incomplete')
+    }
+  )
+
+  it.each([
+    ['active', 'idle', true],
+    ['active', 'pending', false],
+    ['active', 'running', false],
+    ['active', 'error', false],
+    ['active', 'disabled', false],
+    ['paused', 'idle', false],
+    ['disabled', 'idle', false],
+  ] as const)(
+    'uses effective member state for status=%s, memberSyncStatus=%s: notice=%s',
+    async (status, memberSyncStatus, showNotice) => {
+      mocks.detail.mockReturnValue({
+        data: {
+          ...connector,
+          accessMode: 'members',
+          status,
+          memberSyncStatus,
+          lastSyncError: null,
+          lastMemberSyncError: 'Member listing incomplete: private-account-id',
+        },
+      })
+      await render()
+      expect(container.textContent?.includes('Some source updates are incomplete')).toBe(showNotice)
+      expect(container.textContent).not.toContain('private-account-id')
+    }
+  )
+
+  it('opens the existing source settings through the recovery action without leaving the source', async () => {
+    mocks.detail.mockReturnValue({ data: { ...connector, lastSyncError: 'Listing incomplete' } })
+    await render()
+    expect(mocks.recovery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        knowledgeBaseId: 'index-one',
+        scope: { kind: 'organization', organizationId: 'org-one' },
+        onEdit: expect.any(Function),
+      })
+    )
+
+    await click('Review source settings')
+    expect(container.textContent).toContain('Source configuration')
+    expect(mocks.form).toHaveBeenCalledWith(
+      expect.objectContaining({ connector: expect.objectContaining({ id: 'source-one' }) })
+    )
+    expect(mocks.push).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -308,4 +390,66 @@ describe('organization source detail navigation', () => {
     await render('?view=settings')
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector }))
   })
+
+  it('uses the canonical saved row as the new settings baseline without leaving the source', async () => {
+    mocks.dirty = true
+    await render('?view=settings')
+    await click('Save')
+    expect(mocks.save).toHaveBeenCalledOnce()
+
+    const saved = { ...connector, sourceConfig: { folderId: 'saved-folder' } }
+    await act(async () => mocks.form.mock.calls.at(-1)![0].onSaved(saved))
+    expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: saved }))
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Source configuration')
+
+    mocks.detail.mockReturnValue({ data: { ...connector, status: 'syncing' } })
+    await render('?view=settings')
+    expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: saved }))
+  })
+
+  it('discards to the latest server settings only when explicitly requested', async () => {
+    mocks.dirty = true
+    await render('?view=settings')
+    const refreshed = { ...connector, sourceConfig: { folderId: 'latest-server-folder' } }
+    mocks.detail.mockReturnValue({ data: refreshed })
+    await render('?view=settings')
+    expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector }))
+
+    await click('Discard')
+    expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: refreshed }))
+    expect(mocks.save).not.toHaveBeenCalled()
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Source configuration')
+  })
+
+  it.each([false, true])(
+    'blocks source navigation and repeated actions while saving with dirty=%s',
+    async (dirty) => {
+      mocks.dirty = dirty
+      mocks.saving = true
+      await render('?view=settings')
+      for (const label of [
+        'Sync now',
+        'Pause',
+        'Remove',
+        'Saving...',
+        ...(dirty ? ['Discard'] : []),
+      ]) {
+        const action = Array.from(container.querySelectorAll('button')).find(
+          (item) => item.textContent === label
+        )
+        expect(action).toBeDisabled()
+      }
+
+      await click('Documents')
+      await click('Sync history')
+      await click('Integrations')
+      expect(mocks.documents).not.toHaveBeenCalled()
+      expect(mocks.history).not.toHaveBeenCalled()
+      expect(mocks.push).not.toHaveBeenCalled()
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(container.textContent).toContain('Source configuration')
+    }
+  )
 })

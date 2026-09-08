@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   revoke: vi.fn(),
   disconnect: vi.fn(),
   reset: vi.fn(),
+  resendState: { isPending: false, error: null as Error | null },
+  revokeState: { isPending: false, error: null as Error | null },
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccountPeople: mocks.people,
@@ -31,8 +33,12 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
       ],
     },
   }),
-  useResendOrganizationAccountInvitation: () => ({ mutate: mocks.resend }),
-  useRevokeOrganizationAccountEnrollment: () => ({ mutate: mocks.revoke, reset: mocks.reset }),
+  useResendOrganizationAccountInvitation: () => ({ ...mocks.resendState, mutate: mocks.resend }),
+  useRevokeOrganizationAccountEnrollment: () => ({
+    ...mocks.revokeState,
+    mutate: mocks.revoke,
+    reset: mocks.reset,
+  }),
   useReconnectPersonalOrganizationAccount: () => ({}),
   useDisconnectPersonalOrganizationAccount: () => ({
     mutate: mocks.disconnect,
@@ -51,6 +57,10 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.resendState.isPending = false
+  mocks.resendState.error = null
+  mocks.revokeState.isPending = false
+  mocks.revokeState.error = null
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.people.mockReturnValue({
     data: {
@@ -103,6 +113,20 @@ async function selectPersonAction(label: string) {
 async function openConfirmation(label: string) {
   if (label === 'Revoke') await selectPersonAction(label)
   else await act(async () => button(container, label).click())
+}
+
+async function renderPeople() {
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter hasMemory>
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationAccountPeople organizationId='organization-1' />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      </NuqsTestingAdapter>
+    )
+  )
 }
 
 it('keeps the compact People rows and resends from the actions menu', async () => {
@@ -267,4 +291,106 @@ it('retains loaded people and retries only the failed next page', async () => {
   await act(async () => button(container, 'Try again').click())
   expect(fetchNextPage).toHaveBeenCalledOnce()
   expect(refetch).not.toHaveBeenCalled()
+})
+
+it('does not claim an empty result while the first page is loading', async () => {
+  mocks.people.mockReturnValue({ isPending: true, isFetching: true })
+  await renderPeople()
+
+  expect(container.querySelector('input[placeholder="Search people..."]')).toBeEnabled()
+  expect(container.textContent).not.toContain('No people invited yet')
+  expect(container.textContent).not.toContain('No people match your search')
+  expect(container.textContent).not.toContain('People (0)')
+})
+
+it('offers requests from an empty configured pool', async () => {
+  mocks.people.mockReturnValue({ data: { pages: [{ enrollments: [] }] }, hasNextPage: false })
+  await renderPeople()
+
+  expect(container.textContent).toContain('No people invited yet')
+  expect(button(container, 'Request connections')).toBeEnabled()
+})
+
+it('hides cached people after a first-page authorization failure and offers a retry', async () => {
+  const refetch = vi.fn()
+  mocks.people.mockReturnValue({
+    ...mocks.people(),
+    error: new Error('Access denied'),
+    isFetchNextPageError: false,
+    refetch,
+  })
+  await renderPeople()
+
+  expect(container.textContent).not.toContain('person@example.com')
+  expect(container.textContent).toContain('Access denied')
+  await act(async () => button(container, 'Try again').click())
+  expect(refetch).toHaveBeenCalledOnce()
+})
+
+it('keeps loaded people and disables duplicate requests while the next page is loading', async () => {
+  const fetchNextPage = vi.fn()
+  mocks.people.mockReturnValue({
+    ...mocks.people(),
+    hasNextPage: true,
+    isFetchingNextPage: true,
+    fetchNextPage,
+  })
+  await renderPeople()
+
+  expect(container.textContent).toContain('person@example.com')
+  expect(button(container, 'Loading...')).toBeDisabled()
+  await act(async () => button(container, 'Loading...').click())
+  expect(fetchNextPage).not.toHaveBeenCalled()
+})
+
+it('keeps resend failures actionable and prevents another operation during a resend', async () => {
+  mocks.resendState.error = new Error('Invitation service unavailable')
+  await renderPeople()
+  expect(container.textContent).toContain('Invitation service unavailable')
+  expect(container.textContent).toContain('person@example.com')
+  await selectPersonAction('Resend')
+  expect(mocks.resend).toHaveBeenCalledOnce()
+
+  mocks.resendState.error = null
+  mocks.resendState.isPending = true
+  await renderPeople()
+  expect(button(container, 'Request connections')).toBeDisabled()
+  await selectPersonAction('Revoke')
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(mocks.revoke).not.toHaveBeenCalled()
+})
+
+it('keeps a failed revoke confirmation open for retry and blocks dismissal while pending', async () => {
+  await renderPeople()
+  await selectPersonAction('Revoke')
+  let dialog = document.querySelector('[role="dialog"]')
+  if (!dialog) throw new Error('Missing revoke confirmation')
+  await act(async () => button(dialog!, 'Revoke').click())
+  expect(mocks.revoke).toHaveBeenCalledOnce()
+
+  mocks.revokeState.isPending = true
+  await renderPeople()
+  dialog = document.querySelector('[role="dialog"]')
+  if (!dialog) throw new Error('Missing revoke confirmation')
+  expect(button(dialog, 'Cancel')).toBeDisabled()
+  expect(button(dialog, 'Revoking…')).toBeDisabled()
+  await act(async () => {
+    button(dialog!, 'Cancel').click()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+
+  mocks.revokeState.isPending = false
+  mocks.revokeState.error = new Error('Could not revoke access')
+  await renderPeople()
+  dialog = document.querySelector('[role="dialog"]')
+  if (!dialog) throw new Error('Missing revoke confirmation')
+  expect(dialog.textContent).toContain('Could not revoke access')
+  expect(button(dialog, 'Revoke')).toBeEnabled()
+  await act(async () => button(dialog!, 'Revoke').click())
+  expect(mocks.revoke).toHaveBeenCalledTimes(2)
+  expect(mocks.revoke.mock.calls[1][0]).toEqual({
+    organizationId: 'organization-1',
+    enrollmentId: 'enrollment-1',
+  })
 })
