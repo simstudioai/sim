@@ -12,9 +12,10 @@ import { hashApiKey } from '@/lib/api-key/crypto'
 import { updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { InvalidOAuthAccessTokenError, verifyOAuthAccessToken } from '@/lib/auth/oauth-access-token'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isAuthDisabled, isOAuthProviderEnabled } from '@/lib/core/config/env-flags'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('V2ApiKeyAuth')
 
@@ -150,7 +151,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
  * for one user still shares that user's bucket.
  */
 async function authenticateBearer(token: string): Promise<V2ApiKeyAuthContext> {
-  if (!isOAuthProviderEnabled) {
+  if (!(await isOAuthProviderEnabled())) {
     throw new V2ApiKeyUnauthenticatedError('Bearer tokens are not accepted', 'bearer')
   }
   let principal: OAuthAccessTokenPrincipal

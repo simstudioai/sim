@@ -54,6 +54,7 @@ import {
   OAUTH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
@@ -108,7 +109,6 @@ import {
   isGoogleAuthDisabled,
   isHosted,
   isMicrosoftAuthDisabled,
-  isOAuthProviderEnabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupMxValidationEnabled,
@@ -949,6 +949,17 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      /** Keep direct plugin calls behind the runtime gate without blocking connector OAuth. */
+      if (
+        ((ctx.path.startsWith('/oauth2/') &&
+          ctx.path !== '/oauth2/link' &&
+          !ctx.path.startsWith('/oauth2/callback/')) ||
+          ctx.path === '/.well-known/oauth-authorization-server') &&
+        !(await isOAuthProviderEnabled())
+      ) {
+        throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
+      }
+
       /**
        * Better Auth 1.6.27 re-enters OAuth authorization when its own session
        * refresh sets a cookie, issuing a second code that is never returned.
@@ -1315,8 +1326,11 @@ export const auth = betterAuth({
      * ID-token semantics out of the advertised protocol. Clients are DB rows
      * only (the CLI is seeded by migration, the rest are admin-created), so
      * both registration paths stay closed.
+     *
+     * Register once; request-time gates let AppConfig change availability
+     * without a restart.
      */
-    ...(isOAuthProviderEnabled
+    ...(!isAuthDisabled
       ? [
           oauthProvider({
             loginPage: '/oauth/sign-in',

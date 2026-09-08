@@ -6,9 +6,9 @@ import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
 import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
-import { isOAuthProviderEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
@@ -73,8 +73,11 @@ function isOAuthProviderAuthorize(request: NextRequest): boolean {
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isOAuthProviderAuthorize(request)) {
-    if (!isOAuthProviderEnabled) {
-      return NextResponse.json({ error: 'OAuth provider is not enabled' }, { status: 404 })
+    if (!(await isOAuthProviderEnabled())) {
+      return NextResponse.json(
+        { error: 'OAuth provider is not enabled' },
+        { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
+      )
     }
     const repeatedParameter = repeatedOAuthAuthorizeParameter(request)
     if (repeatedParameter) {

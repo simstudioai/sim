@@ -237,9 +237,13 @@ Save it to avoid repeating the flag:
 sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
-A self-hosted deployment offers OAuth sign-in when
-`OAUTH_PROVIDER_ENABLED=true` and authentication is enabled. Leave it unset to
-use the pairing-code handoff; `DISABLE_AUTH=true` also forces OAuth off.
+A deployment offers OAuth sign-in when its global `oauth-provider` feature flag
+is enabled. With AppConfig, enable it in the existing `feature-flags` document
+using `"oauth-provider": { "enabled": true }`. When AppConfig is disabled or no
+AppConfig document has been loaded, `OAUTH_PROVIDER_ENABLED=true` supplies the fallback.
+With the provider off, the CLI uses the pairing-code handoff; `DISABLE_AUTH=true`
+always forces OAuth off. Operators must apply the database migration and drain
+older app instances before enabling it. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim).
 
 ## Where the login is stored
 

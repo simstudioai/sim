@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   betterAuthPost: vi.fn(async () => new Response('delegated', { status: 201 })),
-  enabled: true,
+  oauthEnabled: vi.fn(),
   rateLimit: vi.fn(async () => null),
   rotate: vi.fn(),
   validateClient: vi.fn(),
@@ -19,10 +19,8 @@ vi.mock('@/lib/auth', () => ({ auth: { handler: vi.fn() } }))
 vi.mock('@/lib/auth/oauth-provider-adapter-guard', () => ({
   withOAuthProviderIssuanceCompensation: (work: () => Promise<Response>) => work(),
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isOAuthProviderEnabled() {
-    return mocks.enabled
-  },
+vi.mock('@/lib/auth/oauth-provider-feature', () => ({
+  isOAuthProviderEnabled: mocks.oauthEnabled,
 }))
 vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
 vi.mock('@/lib/auth/oauth-token-family', () => ({
@@ -43,7 +41,7 @@ function tokenRequest(body: string) {
 describe('OAuth token route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.enabled = true
+    mocks.oauthEnabled.mockResolvedValue(true)
     mocks.rotate.mockResolvedValue({
       success: true,
       value: {
@@ -347,12 +345,25 @@ describe('OAuth token route', () => {
     })
   })
 
-  it('does not expose the custom endpoint while the provider is disabled', async () => {
-    mocks.enabled = false
+  it('stops token issuance immediately after the runtime flag is disabled', async () => {
+    const request = () =>
+      tokenRequest('grant_type=refresh_token&client_id=sim-cli&refresh_token=sim_ort_old')
+    expect((await POST(request())).status).toBe(200)
+    mocks.rotate.mockClear()
+    mocks.rateLimit.mockClear()
+
+    mocks.oauthEnabled.mockResolvedValue(false)
     const response = await POST(
       tokenRequest('grant_type=refresh_token&client_id=sim-cli&refresh_token=sim_ort_old')
     )
     expect(response.status).toBe(404)
+    expect(response.headers.get('cache-control')).toBe('no-store')
     expect(mocks.rotate).not.toHaveBeenCalled()
+    expect(mocks.rateLimit).not.toHaveBeenCalled()
+    expect(mocks.betterAuthPost).not.toHaveBeenCalled()
+
+    mocks.oauthEnabled.mockResolvedValue(true)
+    expect((await POST(request())).status).toBe(200)
+    expect(mocks.rotate).toHaveBeenCalledOnce()
   })
 })

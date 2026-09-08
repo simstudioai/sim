@@ -13,12 +13,13 @@ const flags = vi.hoisted(() => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
-  get isOAuthProviderEnabled() {
-    return flags.enabled
-  },
   get isRegistrationDisabled() {
     return flags.registrationDisabled
   },
+}))
+
+vi.mock('@/lib/auth/oauth-provider-feature', () => ({
+  isOAuthProviderEnabled: vi.fn(async () => flags.enabled),
 }))
 
 vi.mock('@/lib/core/config/env', () => {

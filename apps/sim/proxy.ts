@@ -1,14 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
+import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
-import {
-  isAuthDisabled,
-  isDev,
-  isHosted,
-  isOAuthProviderEnabled,
-} from './lib/core/config/env-flags'
+import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 import { isNonCanonicalSimHost } from './lib/core/utils/urls'
@@ -339,7 +335,7 @@ export async function proxy(request: NextRequest) {
       inviteFlow: url.searchParams.get('invite_flow'),
     })
     const isOAuthSignIn =
-      isOAuthProviderEnabled && isOAuthAuthorizationCallback(rawCallbackUrl, url.origin)
+      isOAuthAuthorizationCallback(rawCallbackUrl, url.origin) && (await isOAuthProviderEnabled())
     if (hasActiveSession && !isOAuthSignIn) {
       return applyIndexingPolicy(request, NextResponse.redirect(new URL('/workspace', request.url)))
     }
