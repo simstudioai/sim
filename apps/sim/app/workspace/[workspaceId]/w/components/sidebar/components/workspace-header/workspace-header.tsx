@@ -583,9 +583,7 @@ function WorkspaceHeaderImpl({
                     }}
                   />
                 )}
-                {/* The gaps to the search field above and the rule below are the list's
-                    own padding, so at rest rows sit where they always did, and while
-                    scrolling they run through the gap beneath the edge fade. */}
+                {/** The list owns the gap below search, when shown, and above the separator. */}
                 <div
                   ref={(node) => {
                     workspaceListRef.current = node
@@ -593,7 +591,8 @@ function WorkspaceHeaderImpl({
                   }}
                   className={cn(
                     scrollFadeClass,
-                    '-mx-1.5 flex max-h-[200px] flex-col gap-0.5 overflow-y-auto px-1.5 pt-1.5 pb-1'
+                    '-mx-1.5 flex max-h-[200px] flex-col gap-0.5 overflow-y-auto px-1.5 pb-1',
+                    showSearch && 'pt-1.5'
                   )}
                   {...scrollFadeAttributes(listEdges)}
                 >
