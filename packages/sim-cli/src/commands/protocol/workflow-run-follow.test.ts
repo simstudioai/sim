@@ -358,6 +358,16 @@ describe('sim workflows run --follow', () => {
     })
   })
 
+  it('translates API field names in synchronous run errors', async () => {
+    requestRaw.mockRejectedValue(
+      new SimApiError('executionTimeoutSeconds must be less than or equal to 3000', 400)
+    )
+
+    await expect(run(WORKFLOW_ID)).rejects.toThrow(
+      '--execution-timeout-seconds must be less than or equal to 3000'
+    )
+  })
+
   it('keeps async runs on the generated JSON path', async () => {
     request.mockResolvedValue({ data: { runId: 'run-1', statusUrl: '/runs/run-1' } })
     vi.spyOn(console, 'log').mockImplementation(() => {})

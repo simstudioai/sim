@@ -45,6 +45,7 @@ import {
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { encodeSSE, encodeSSEComment, SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
@@ -141,7 +142,7 @@ function callerAbortedJsonRpcResponse(
 }
 
 function acceptsEventStream(request: NextRequest): boolean {
-  return request.headers.get('accept')?.includes('text/event-stream') === true
+  return acceptsMediaType(request.headers.get('accept'), 'text/event-stream')
 }
 
 /**
@@ -530,7 +531,7 @@ export const GET = withRouteHandler(
       const authResult = await authorizeMcpServeRequest(request, server)
       if (authResult.response) return authResult.response
 
-      if (request.headers.get('accept')?.includes('text/event-stream')) {
+      if (acceptsEventStream(request)) {
         return unsupportedSseGetResponse()
       }
 

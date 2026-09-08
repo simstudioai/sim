@@ -7,6 +7,7 @@ import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
 import { executeOperation, runFailureMessage } from '../../runtime/execute'
+import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
@@ -154,21 +155,27 @@ async function runWithResultStream(workflowId: string, command: Command): Promis
   const flags = command.optsWithGlobals() as Record<string, unknown>
   const { client, profile } = clientFrom(command)
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
-  const request = buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
-  const response = await client.requestRaw(request.path, {
-    method: operation.method,
-    query: request.query,
-    body: request.body,
-    headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
-  })
-  const payload = await readWorkflowResult(response)
+  const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
 
-  renderResult('executeWorkflow', profile.output, payload, CLI_CONTRACT.executeWorkflow ?? {}, {
-    expandedTrace: flags.trace === true,
-  })
+  try {
+    const request = buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+    const response = await client.requestRaw(request.path, {
+      method: operation.method,
+      query: request.query,
+      body: request.body,
+      headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
+    })
+    const payload = await readWorkflowResult(response)
 
-  const failure = runFailureMessage('executeWorkflow', payload)
-  if (failure) throw new SimApiError(failure, 0)
+    renderResult('executeWorkflow', profile.output, payload, commandSpec, {
+      expandedTrace: flags.trace === true,
+    })
+
+    const failure = runFailureMessage('executeWorkflow', payload)
+    if (failure) throw new SimApiError(failure, 0)
+  } catch (error) {
+    throw retypeApiError(error, 'executeWorkflow', commandSpec, operation)
+  }
 }
 
 /**

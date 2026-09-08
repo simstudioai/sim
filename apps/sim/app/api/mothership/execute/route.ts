@@ -24,6 +24,7 @@ import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explic
 import type { StreamEvent } from '@/lib/copilot/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import {
@@ -82,7 +83,7 @@ function isAbortError(error: unknown): boolean {
 function wantsStreamedExecuteResponse(req: NextRequest): boolean {
   return (
     req.headers.get(MOTHERSHIP_EXECUTE_STREAM_HEADER) === MOTHERSHIP_EXECUTE_STREAM_VALUE ||
-    req.headers.get('accept')?.includes(MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE) === true
+    acceptsMediaType(req.headers.get('accept'), MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE)
   )
 }
 

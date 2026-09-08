@@ -309,7 +309,10 @@ describe('MCP Serve Route', () => {
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
       method: 'POST',
-      headers: { 'X-API-Key': 'pk_test_123' },
+      headers: {
+        'X-API-Key': 'pk_test_123',
+        Accept: 'application/json, text/event-stream;q=0',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -320,6 +323,7 @@ describe('MCP Serve Route', () => {
     const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
 
     expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('application/json')
     expect(mockExecuteWorkflowService).toHaveBeenCalledTimes(1)
     expect(mockExecuteWorkflowService).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -404,6 +408,29 @@ describe('MCP Serve Route', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('serves metadata when standalone SSE GET is explicitly rejected', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        name: 'Public Server',
+        workspaceId: 'ws-1',
+        isPublic: true,
+        createdBy: 'owner-1',
+      },
+    ])
+
+    const request = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      headers: { accept: 'application/json, text/event-stream;q=0' },
+    })
+    const response = await GET(request, { params: Promise.resolve({ serverId: 'server-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      name: 'Public Server',
+      capabilities: { tools: {} },
+    })
   })
 
   it('cancels the workflow when an MCP event-stream consumer disconnects', async () => {

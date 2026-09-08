@@ -25,6 +25,7 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attr
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -110,7 +111,7 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
 }
 
 function wantsResultStream(req: NextRequest): boolean {
-  return req.headers.get('accept')?.includes(WORKFLOW_RESULT_STREAM_CONTENT_TYPE) === true
+  return acceptsMediaType(req.headers.get('accept'), WORKFLOW_RESULT_STREAM_CONTENT_TYPE)
 }
 
 function encodeNdjson(value: unknown): Uint8Array {

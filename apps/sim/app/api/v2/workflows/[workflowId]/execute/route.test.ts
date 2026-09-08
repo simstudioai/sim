@@ -421,6 +421,18 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     }
   })
 
+  it('keeps the JSON response when NDJSON is explicitly rejected', async () => {
+    const response = await callExecute(
+      { input: { hello: 'world' } },
+      { Accept: 'application/json, application/x-ndjson;q=0' }
+    )
+
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(await response.json()).toMatchObject({
+      data: { runId: 'execution-123', status: 'completed' },
+    })
+  })
+
   it('uses the heartbeat result transport for a manual draft run', async () => {
     authenticatePersonalKey()
     let finishExecution!: (result: unknown) => void
